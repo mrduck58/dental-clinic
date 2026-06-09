@@ -427,3 +427,31 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# Environment files - KHÔNG BAO GIỜ commit file .env thật
+.env
+.env.local
+.env.production
+
+# Chỉ commit file example này
+!.env.example
+
+# Next.js
+.next/
+node_modules/
+
+# Flutter
+.dart_tool/
+build/
+*.g.dart
+
+# .NET
+bin/
+obj/
+
+# Docker
+docker-compose.override.yml
+
+# OS
+.DS_Store
+Thumbs.db
