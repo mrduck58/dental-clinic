@@ -455,3 +455,17 @@ docker-compose.override.yml
 # OS
 .DS_Store
 Thumbs.db
+
+# Flutter — Generated files (không commit, được tạo tự động khi build)
+apps/mobile_app/.idea/
+apps/mobile_app/*.iml
+apps/mobile_app/android/local.properties
+apps/mobile_app/android/mobile_app_android.iml
+apps/mobile_app/android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
+apps/mobile_app/android/gradle/wrapper/gradle-wrapper.jar
+apps/mobile_app/ios/Flutter/Generated.xcconfig
+apps/mobile_app/ios/Flutter/ephemeral/
+apps/mobile_app/ios/Flutter/flutter_export_environment.sh
+apps/mobile_app/ios/Runner/GeneratedPluginRegistrant.h
+apps/mobile_app/ios/Runner/GeneratedPluginRegistrant.m
+apps/mobile_app/macos/Flutter/ephemeral/
