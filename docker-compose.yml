@@ -1,0 +1,81 @@
+name: dental-clinic
+
+services:
+  # ─────────────────────────────────────────
+  # Reverse Proxy (Nginx)
+  # ─────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: dental_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - api
+      - clinic_website
+      - admin_website
+    networks:
+      - dental_network
+
+  # ─────────────────────────────────────────
+  # Backend API (.NET 9)
+  # ─────────────────────────────────────────
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: dental_api
+    restart: unless-stopped
+    environment:
+      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Development}
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__DefaultConnection=${SUPABASE_DB_URL}
+      - JwtSettings__Secret=${JWT_SECRET}
+      - Supabase__Url=${SUPABASE_URL}
+      - Supabase__AnonKey=${SUPABASE_ANON_KEY}
+    expose:
+      - "8080"
+    networks:
+      - dental_network
+
+  # ─────────────────────────────────────────
+  # Website Giới thiệu Phòng khám (Next.js)
+  # ─────────────────────────────────────────
+  clinic_website:
+    build:
+      context: ./apps/clinic_website
+      dockerfile: Dockerfile
+    container_name: dental_clinic_website
+    restart: unless-stopped
+    environment:
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost/api}
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+    expose:
+      - "3000"
+    networks:
+      - dental_network
+
+  # ─────────────────────────────────────────
+  # Website Vận hành Nội bộ / Admin (Next.js)
+  # ─────────────────────────────────────────
+  admin_website:
+    build:
+      context: ./apps/admin_website
+      dockerfile: Dockerfile
+    container_name: dental_admin_website
+    restart: unless-stopped
+    environment:
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost/api}
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+    expose:
+      - "3000"
+    networks:
+      - dental_network
+
+networks:
+  dental_network:
+    driver: bridge

@@ -1,0 +1,22 @@
+# Bỏ qua thư mục build output và dependencies — KHÔNG copy vào Docker image
+bin/
+obj/
+
+# Bỏ qua các file cấu hình môi trường nhạy cảm
+appsettings.Development.json
+*.user
+
+# Bỏ qua git metadata
+.git
+.gitignore
+
+# Bỏ qua file Editor / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Bỏ qua thư mục tests (không cần trong production image)
+tests/
+
+README.md

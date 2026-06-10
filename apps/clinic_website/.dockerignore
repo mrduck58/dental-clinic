@@ -1,0 +1,25 @@
+# Bỏ qua các thư mục build artifact và dependencies — KHÔNG copy vào Docker image
+node_modules/
+.next/
+.env
+.env.local
+.env.production
+
+# Bỏ qua file log và cache
+npm-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+*.log
+
+# Bỏ qua git metadata
+.git
+.gitignore
+
+# Bỏ qua các file Editor / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Bỏ qua file README và tài liệu không cần trong image
+README.md
