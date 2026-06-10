@@ -1,26 +1,56 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  /* Color Tokens */
+  --color-primary: rgb(220 38 38);          /* Red 600 - Màu đỏ chủ đạo */
+  --color-primary-hover: rgb(185 28 28);    /* Red 700 */
+  --color-primary-light: rgb(254 226 226);  /* Red 100 */
+  
+  --color-secondary: rgb(2 132 199);        /* Sky Blue 600 - Màu tin cậy */
+  --color-secondary-hover: rgb(3 105 161);  /* Sky Blue 700 */
+  --color-secondary-light: rgb(224 242 254);/* Sky Blue 100 */
+  
+  --color-accent: rgb(245 158 11);          /* Amber 500 - Điểm nhấn cao cấp */
+  
+  /* Font Family Mapping */
+  --font-sans: var(--font-nunito), ui-sans-serif, system-ui, sans-serif;
+  
+  /* Shape Customizations */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-xl: 30px;
+  
+  /* Extra Premium Shadows */
+  --shadow-premium: 0 20px 40px -15px rgba(220, 38, 38, 0.1);
+  
+  /* Micro Animations */
+  --animate-fade-in: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Custom Base Styling overrides using Tailwind @utility */
+@utility glass-card {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(226, 232, 240, 0.6);
+}
+
+@utility hover-lift {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  &:hover {
+    transform: translateY(-5px);
+  }
 }
