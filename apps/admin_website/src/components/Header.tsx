@@ -15,15 +15,15 @@ export default function Header({ title, showSearch }: HeaderProps) {
   const getHeaderTitle = () => {
     if (title) return title;
     if (pathname === "/") return "Tổng Quan Vận Hành";
-    if (pathname === "/manager/posts") return "Quản lý Bài viết";
-    if (pathname === "/manager/posts/create") return "Tạo Bài viết Mới";
+    if (pathname === "/dashboard/posts") return "Quản lý Bài viết";
+    if (pathname === "/dashboard/posts/create") return "Tạo Bài viết Mới";
     if (pathname.includes("/edit")) return "Chỉnh sửa Bài viết";
     return "Hệ thống vận hành";
   };
 
   // Determine if search input should be visible
-  // Search is hidden on Post list page ("/manager/posts") but shown on edit/create/dashboard.
-  const displaySearch = showSearch !== undefined ? showSearch : (pathname !== "/manager/posts");
+  // Search is hidden on Post list page ("/dashboard/posts") but shown on edit/create/dashboard.
+  const displaySearch = showSearch !== undefined ? showSearch : (pathname !== "/dashboard/posts");
 
   return (
     <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 font-sans shadow-sm shadow-slate-100/50">
