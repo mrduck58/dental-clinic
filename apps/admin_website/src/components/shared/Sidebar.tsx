@@ -1,13 +1,36 @@
 "use client";
 
-import React from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { getUser, clearSession, type AuthUser } from "../../lib/apiClient";
+
+const ROLE_LABEL: Record<string, string> = {
+  Admin: "Quản trị viên",
+  Doctor: "Bác sĩ",
+  Receptionist: "Lễ tân",
+  Accountant: "Kế toán",
+};
 
 interface SidebarProps {
   activeMenu: string;
 }
 
 export default function Sidebar({ activeMenu }: SidebarProps) {
+  const router = useRouter();
+  const [user, setUser] = useState<AuthUser | null>(null);
+
+  useEffect(() => { setUser(getUser()); }, []);
+
+  const initials = user?.fullName
+    ? user.fullName.trim().split(/\s+/).slice(-2).map((w) => w[0]).join("").toUpperCase()
+    : (user?.username?.slice(0, 2).toUpperCase() ?? "??");
+
+  const handleLogout = () => {
+    clearSession();
+    router.push("/auth/login");
+  };
+
   return (
     <aside className="w-72 bg-white border-r border-slate-200 p-6 flex flex-col gap-6 shrink-0 sticky top-0 h-screen justify-between z-30">
       <div className="flex flex-col gap-6 flex-1 min-h-0">
@@ -167,20 +190,27 @@ export default function Sidebar({ activeMenu }: SidebarProps) {
         </nav>
       </div>
 
-      {/* Admin Profile & Logout */}
+      {/* User Profile & Logout */}
       <div className="border-t border-slate-100 pt-4 flex flex-col gap-3">
         <div className="flex items-center gap-3 px-2 select-none">
           <div className="w-10 h-10 rounded-full border-2 border-primary/20 bg-red-50/50 flex items-center justify-center font-bold text-primary shrink-0">
-            MĐ
+            {initials}
           </div>
           <div className="min-w-0">
-            <div className="text-[14px] font-bold text-slate-900 leading-tight truncate">ThS. BS. Nguyễn Minh Đức</div>
-            <div className="text-[12px] font-semibold text-slate-400 mt-0.5">Quản trị viên</div>
+            <div className="text-[14px] font-bold text-slate-900 leading-tight truncate">
+              {user?.fullName ?? user?.username ?? "..."}
+            </div>
+            <div className="text-[12px] font-semibold text-slate-400 mt-0.5">
+              {ROLE_LABEL[user?.role ?? ""] ?? user?.role ?? ""}
+            </div>
           </div>
         </div>
 
-        <button className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl text-[13px] font-bold text-slate-500 hover:text-primary hover:bg-red-50 border border-slate-100 hover:border-primary/20 transition-all cursor-pointer">
-          <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+        <button
+          onClick={handleLogout}
+          className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl text-[13px] font-bold text-slate-500 hover:text-primary hover:bg-red-50 border border-slate-100 hover:border-primary/20 transition-all cursor-pointer"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
           </svg>
           Đăng xuất

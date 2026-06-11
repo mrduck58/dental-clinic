@@ -469,3 +469,4 @@ apps/mobile_app/ios/Flutter/flutter_export_environment.sh
 apps/mobile_app/ios/Runner/GeneratedPluginRegistrant.h
 apps/mobile_app/ios/Runner/GeneratedPluginRegistrant.m
 apps/mobile_app/macos/Flutter/ephemeral/
+apps/api/appsettings.Development.json

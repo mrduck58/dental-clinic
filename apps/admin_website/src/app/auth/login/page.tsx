@@ -1,20 +1,31 @@
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { loginApi, saveSession } from "../../../lib/apiClient";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: { preventDefault(): void }) => {
     e.preventDefault();
-    // Mock authentication logic
-    console.log("Logged in with:", { email, password, rememberMe });
-    // Redirect to home/dashboard page
-    router.push("/");
+    setError(null);
+    setIsLoading(true);
+    try {
+      const data = await loginApi(email, password);
+      saveSession(data);
+      router.push("/");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Đăng nhập thất bại");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -78,13 +89,30 @@ export default function LoginPage() {
                 </span>
                 <input
                   id="password"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   required
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-11 pr-4 py-3.5 bg-slate-50 rounded-xl border border-slate-200/60 text-[16px] font-semibold focus:bg-white focus:border-primary/50 focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all"
+                  className="w-full pl-11 pr-11 py-3.5 bg-slate-50 rounded-xl border border-slate-200/60 text-[16px] font-semibold focus:bg-white focus:border-primary/50 focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute inset-y-0 right-3.5 flex items-center text-slate-400 hover:text-slate-600 transition-colors"
+                  aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                >
+                  {showPassword ? (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  )}
+                </button>
               </div>
             </div>
 
@@ -102,17 +130,25 @@ export default function LoginPage() {
                   Ghi nhớ đăng nhập
                 </label>
               </div>
-              <a href="#" className="font-bold text-primary hover:underline">
+              <button type="button" className="font-bold text-primary hover:underline">
                 Quên mật khẩu?
-              </a>
+              </button>
             </div>
+
+            {/* Error message */}
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 text-[14px] font-semibold px-4 py-3 rounded-xl">
+                {error}
+              </div>
+            )}
 
             {/* Submit Button */}
             <button
               type="submit"
-              className="w-full bg-primary hover:bg-primary-hover text-white text-[15px] font-extrabold py-4 rounded-xl transition-all shadow-md shadow-primary/20 hover:translate-y-[-1px] cursor-pointer"
+              disabled={isLoading}
+              className="w-full bg-primary hover:bg-primary-hover disabled:opacity-60 disabled:cursor-not-allowed text-white text-[15px] font-extrabold py-4 rounded-xl transition-all shadow-md shadow-primary/20 hover:translate-y-[-1px] cursor-pointer"
             >
-              Đăng nhập hệ thống
+              {isLoading ? "Đang đăng nhập..." : "Đăng nhập hệ thống"}
             </button>
           </form>
         </div>

@@ -11,6 +11,7 @@ public class User
     public string Email { get; private set; } = string.Empty;
     public string PasswordHash { get; private set; } = string.Empty;
     public string Role { get; private set; } = string.Empty; // Dùng UserRole enum
+    public string? FullName { get; private set; }
     public string? PhoneNumber { get; private set; }
     public bool IsActive { get; private set; } = true;
     public DateTimeOffset CreatedAt { get; private set; }
@@ -21,7 +22,7 @@ public class User
 
     private User() { } // EF Core requires parameterless constructor
 
-    public static User Create(string username, string email, string passwordHash, string role)
+    public static User Create(string username, string email, string passwordHash, string role, string? phoneNumber = null, string? fullName = null)
     {
         return new User
         {
@@ -30,7 +31,11 @@ public class User
             Email = email,
             PasswordHash = passwordHash,
             Role = role,
+            PhoneNumber = phoneNumber,
+            FullName = fullName,
             CreatedAt = DateTimeOffset.UtcNow
         };
     }
+
+    public void SetActive(bool isActive) => IsActive = isActive;
 }
