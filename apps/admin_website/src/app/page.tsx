@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Sidebar from "../components/shared/Sidebar";
+import Header from "../components/Header";
 
 export default function Dashboard() {
   // State to track hover item in Donut Chart
