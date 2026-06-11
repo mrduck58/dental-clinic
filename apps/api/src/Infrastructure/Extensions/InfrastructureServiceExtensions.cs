@@ -1,28 +1,41 @@
+using DentalClinic.API.Application.UseCases.Auth;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Infrastructure.Persistence;
 using DentalClinic.API.Infrastructure.Persistence.Repositories;
+using DentalClinic.API.Infrastructure.Services;
+using DentalClinic.API.Infrastructure.Settings;
 using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Infrastructure.Extensions;
 
-/// <summary>
-/// Extension methods để đăng ký toàn bộ service của tầng Infrastructure vào DI Container.
-/// Gọi phương thức này trong Program.cs: builder.Services.AddInfrastructure(builder.Configuration)
-/// </summary>
 public static class InfrastructureServiceExtensions
 {
     public static IServiceCollection AddInfrastructure(
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        // ── Database (EF Core + Npgsql cho PostgreSQL) ──────────────────
+        // ── Database ────────────────────────────────────────────────────────
         services.AddDbContext<AppDbContext>(options =>
             options.UseNpgsql(configuration.GetConnectionString("DefaultConnection")));
 
-        // ── Repository Pattern ──────────────────────────────────────────
+        // ── Settings ────────────────────────────────────────────────────────
+        services.Configure<JwtSettings>(configuration.GetSection("JwtSettings"));
+        services.Configure<EmailSettings>(configuration.GetSection("EmailSettings"));
+
+        // ── Repositories ────────────────────────────────────────────────────
         services.AddScoped<IAppointmentRepository, AppointmentRepository>();
         services.AddScoped<IPatientRepository, PatientRepository>();
-        // TODO: Thêm các repository khác tại đây khi triển khai
+        services.AddScoped<IUserRepository, UserRepository>();
+
+        // ── Services ────────────────────────────────────────────────────────
+        services.AddScoped<IJwtService, JwtService>();
+        services.AddScoped<IEmailService, EmailService>();
+
+        // ── Use Case Handlers ────────────────────────────────────────────────
+        services.AddScoped<LoginHandler>();
+        services.AddScoped<CreateAccountHandler>();
+        services.AddScoped<GetAccountsHandler>();
 
         return services;
     }
