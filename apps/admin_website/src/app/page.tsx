@@ -1,9 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import Sidebar from "../components/Sidebar";
-import Header from "../components/Header";
-
+import Sidebar from "../components/shared/Sidebar";
 
 export default function Dashboard() {
   // State to track hover item in Donut Chart
@@ -210,7 +208,8 @@ export default function Dashboard() {
   return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
 
-      <Sidebar />
+      {/* ── SIDEBAR ──────────────────────────────────────────────────────── */}
+      <Sidebar activeMenu="overview" />
 
       {/* ── MAIN AREA ────────────────────────────────────────────────────── */}
       <main className="flex-1 flex flex-col min-w-0">
