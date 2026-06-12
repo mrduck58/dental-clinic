@@ -1,8 +1,15 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import Sidebar from "../../../components/shared/Sidebar";
+import { useRequireAdmin } from "../../../hooks/useRequireAdmin";
+import {
+  getServicesApi,
+  deleteServiceApi,
+  toggleServiceStatusApi,
+  type ServiceDto,
+} from "../../../lib/apiClient";
 
 interface Service {
   id: string;
@@ -17,133 +24,25 @@ interface Service {
 
 const categories = ["Tất cả", "Niềng răng", "Tẩy trắng răng", "Trồng răng", "Lấy cao răng", "Điều trị tủy", "Nhổ răng", "Trám răng"];
 
-const initialServices: Service[] = [
-  {
-    id: "DV-001",
-    name: "Niềng răng mắc cài kim loại",
-    category: "Niềng răng",
-    price: 45000000,
-    duration: 60,
-    status: "Active",
-    description: "Niềng răng bằng mắc cài kim loại tiêu chuẩn, phù hợp với hầu hết các trường hợp lệch lạc răng.",
-    popular: 156,
-  },
-  {
-    id: "DV-002",
-    name: "Niềng răng mắc cài sứ",
-    category: "Niềng răng",
-    price: 65000000,
-    duration: 60,
-    status: "Active",
-    description: "Niềng răng mắc cài sứ thẩm mỹ, ít gây chú ý hơn so với mắc cài kim loại.",
-    popular: 89,
-  },
-  {
-    id: "DV-003",
-    name: "Tẩy trắng răng Laser",
-    category: "Tẩy trắng răng",
-    price: 3500000,
-    duration: 45,
-    status: "Active",
-    description: "Tẩy trắng răng bằng công nghệ laser hiện đại, an toàn và hiệu quả cao.",
-    popular: 234,
-  },
-  {
-    id: "DV-004",
-    name: "Trồng răng Implant",
-    category: "Trồng răng",
-    price: 25000000,
-    duration: 90,
-    status: "Active",
-    description: "Trồng răng giả bằng Implant titanium, phục hồi chức năng nhai và thẩm mỹ.",
-    popular: 78,
-  },
-  {
-    id: "DV-005",
-    name: "Lấy cao răng (Scale)",
-    category: "Lấy cao răng",
-    price: 500000,
-    duration: 30,
-    status: "Active",
-    description: "Loại bỏ cao răng và vi khuẩn tích tụ, ngăn ngừa viêm nướu.",
-    popular: 312,
-  },
-  {
-    id: "DV-006",
-    name: "Điều trị tủy răng",
-    category: "Điều trị tủy",
-    price: 2000000,
-    duration: 90,
-    status: "Active",
-    description: "Điều trị viêm tủy, lấy sạch tủy và bịch kín ống tủy.",
-    popular: 145,
-  },
-  {
-    id: "DV-007",
-    name: "Nhổ răng khôn",
-    category: "Nhổ răng",
-    price: 1500000,
-    duration: 45,
-    status: "Active",
-    description: "Nhổ răng khôn mọc lệch, mọc ngầm hoặc gây đau nhức.",
-    popular: 198,
-  },
-  {
-    id: "DV-008",
-    name: "Trám răng thẩm mỹ",
-    category: "Trám răng",
-    price: 800000,
-    duration: 30,
-    status: "Active",
-    description: "Trám răng sâu, sửa răng sứt mẻ bằng vật liệu composite cao cấp.",
-    popular: 267,
-  },
-  {
-    id: "DV-009",
-    name: "Niềng răng Invisalign",
-    category: "Niềng răng",
-    price: 120000000,
-    duration: 60,
-    status: "Inactive",
-    description: "Niềng răng trong suốt Invisalign, thoải mái và thẩm mỹ tối đa.",
-    popular: 45,
-  },
-  {
-    id: "DV-010",
-    name: "Bọc răng sứ thẩm mỹ",
-    category: "Trồng răng",
-    price: 4500000,
-    duration: 45,
-    status: "Active",
-    description: "Bọc răng sứ để phục hồi răng bị hư, lệch hoặc đổi màu.",
-    popular: 178,
-  },
-  {
-    id: "DV-011",
-    name: "Cạo vôi răng cao cấp",
-    category: "Lấy cao răng",
-    price: 700000,
-    duration: 40,
-    status: "Active",
-    description: "Cạo vôi răng bằng công nghệ siêu âm cao cấp, không đau.",
-    popular: 289,
-  },
-  {
-    id: "DV-012",
-    name: "Tẩy trắng răng tại nhà",
-    category: "Tẩy trắng răng",
-    price: 1500000,
-    duration: 30,
-    status: "Active",
-    description: "Bộ kit tẩy trắng răng tại nhà với gel peroxide an toàn.",
-    popular: 156,
-  },
-];
+function toService(dto: ServiceDto): Service {
+  return {
+    id: dto.id,
+    name: dto.name,
+    category: dto.category,
+    price: dto.price,
+    duration: dto.durationMinutes,
+    status: dto.isActive ? "Active" : "Inactive",
+    description: dto.description,
+    popular: dto.viewCount,
+  };
+}
 
 const ITEMS_PER_PAGE = 5;
 
 export default function ServicesPage() {
-  const [services, setServices] = useState<Service[]>(initialServices);
+  useRequireAdmin();
+  const [services, setServices] = useState<Service[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("Tất cả");
   const [statusFilter, setStatusFilter] = useState("Tất cả");
@@ -153,11 +52,19 @@ export default function ServicesPage() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
 
+  useEffect(() => {
+    getServicesApi()
+      .then((data) => setServices(data.map(toService)))
+      .finally(() => setIsLoading(false));
+  }, []);
+
   const stats = useMemo(() => {
     const total = services.length;
     const active = services.filter((s) => s.status === "Active").length;
     const inactive = services.filter((s) => s.status === "Inactive").length;
-    const mostPopular = services.reduce((max, s) => (s.popular > max.popular ? s : max), services[0]);
+    const mostPopular = services.length > 0
+      ? services.reduce((max, s) => (s.popular > max.popular ? s : max), services[0])
+      : null;
 
     return { total, active, inactive, mostPopular };
   }, [services]);
@@ -189,12 +96,13 @@ export default function ServicesPage() {
     }).format(price);
   };
 
-  const handleToggleStatus = (id: string) => {
-    setServices((prev) =>
-      prev.map((s) =>
-        s.id === id ? { ...s, status: s.status === "Active" ? "Inactive" : "Active" } : s
-      )
-    );
+  const handleToggleStatus = async (id: string) => {
+    try {
+      const updated = await toggleServiceStatusApi(id);
+      setServices((prev) => prev.map((s) => (s.id === id ? toService(updated) : s)));
+    } catch {
+      alert("Không thể cập nhật trạng thái. Vui lòng thử lại.");
+    }
   };
 
   const openDeleteModal = (service: Service) => {
@@ -202,11 +110,15 @@ export default function ServicesPage() {
     setIsDeleteModalOpen(true);
   };
 
-  const handleDelete = () => {
-    if (selectedService) {
+  const handleDelete = async () => {
+    if (!selectedService) return;
+    try {
+      await deleteServiceApi(selectedService.id);
       setServices((prev) => prev.filter((s) => s.id !== selectedService.id));
       setIsDeleteModalOpen(false);
       setSelectedService(null);
+    } catch {
+      alert("Không thể xóa dịch vụ. Vui lòng thử lại.");
     }
   };
 
@@ -429,7 +341,13 @@ export default function ServicesPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-150/70 font-semibold text-slate-600">
-                  {paginatedServices.length > 0 ? (
+                  {isLoading ? (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-10 text-center text-slate-400 font-bold">
+                        Đang tải dữ liệu...
+                      </td>
+                    </tr>
+                  ) : paginatedServices.length > 0 ? (
                     paginatedServices.map((service) => (
                       <tr key={service.id} className="hover:bg-slate-50/20 transition-colors">
                         {/* Service name & description */}

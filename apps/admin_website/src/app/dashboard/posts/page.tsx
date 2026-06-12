@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { getPosts, deletePost, Post } from "../../../components/postsDb";
 import Sidebar from "../../../components/shared/Sidebar";
+import { useRequireAdmin } from "../../../hooks/useRequireAdmin";
 import Header from "../../../components/Header";
 
 const CATEGORIES = [
@@ -16,6 +17,7 @@ const CATEGORIES = [
 ];
 
 export default function PostsListPage() {
+  useRequireAdmin();
   const [posts, setPosts] = useState<Post[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Tất cả danh mục");

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { addPost } from "../../../../components/postsDb";
 import Sidebar from "../../../../components/shared/Sidebar";
+import { useRequireAdmin } from "../../../../hooks/useRequireAdmin";
 import Header from "../../../../components/Header";
 
 const CATEGORIES = [
@@ -16,6 +17,7 @@ const CATEGORIES = [
 ];
 
 export default function CreatePostPage() {
+  useRequireAdmin();
   const router = useRouter();
   
   // Form state

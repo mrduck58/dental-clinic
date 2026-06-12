@@ -1,21 +1,50 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Sidebar from "../../../../../components/shared/Sidebar";
+import { useRequireAdmin } from "../../../../../hooks/useRequireAdmin";
+import { getServiceByIdApi, updateServiceApi } from "../../../../../lib/apiClient";
 
 const categories = ["Niềng răng", "Tẩy trắng răng", "Trồng răng", "Lấy cao răng", "Điều trị tủy", "Nhổ răng", "Trám răng"];
 
-export default function EditServicePage({ params }: { params: { id: string } }) {
+interface EditServicePageProps {
+  params: Promise<{ id: string }>;
+}
+
+export default function EditServicePage({ params }: EditServicePageProps) {
+  useRequireAdmin();
+  const router = useRouter();
+  const { id } = React.use(params);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  const [formName, setFormName] = useState("Niềng răng mắc cài kim loại");
+
+  const [formName, setFormName] = useState("");
   const [formCategory, setFormCategory] = useState("Niềng răng");
-  const [formPrice, setFormPrice] = useState("25.000.000");
-  const [formDuration, setFormDuration] = useState("60");
-  const [formDescription, setFormDescription] = useState("Niềng răng mắc cài kim loại là phương pháp chỉnh nha truyền thống, sử dụng mắc cài kim loại để dịch chuyển răng về vị trí mong muốn.");
-  const [uploadedImage, setUploadedImage] = useState<string | null>("/images/service-1.jpg");
+  const [formPrice, setFormPrice] = useState("");
+  const [formDuration, setFormDuration] = useState("");
+  const [formDescription, setFormDescription] = useState("");
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getServiceByIdApi(id)
+      .then((dto) => {
+        setFormName(dto.name);
+        setFormCategory(dto.category);
+        setFormPrice(dto.price.toLocaleString("vi-VN"));
+        setFormDuration(String(dto.durationMinutes));
+        setFormDescription(dto.description);
+        setUploadedImage(dto.imageUrl ?? null);
+      })
+      .catch(() => {
+        setSaveError("Không thể tải thông tin dịch vụ.");
+      })
+      .finally(() => setIsLoading(false));
+  }, [id]);
 
   const handleImageUpload = (file: File) => {
     if (file && file.type.startsWith("image/")) {
@@ -55,14 +84,30 @@ export default function EditServicePage({ params }: { params: { id: string } }) 
     }
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formName || !formPrice || !formDuration) {
-      alert("Vui lòng điền đầy đủ thông tin bắt buộc.");
+    setSaveError(null);
+    const rawPrice = formPrice.replace(/[^0-9]/g, "");
+    if (!formName || !rawPrice || !formDuration) {
+      setSaveError("Vui lòng điền đầy đủ thông tin bắt buộc.");
       return;
     }
-    alert("Dịch vụ đã được cập nhật thành công!");
-    window.location.href = "/dashboard/services";
+    setIsSaving(true);
+    try {
+      await updateServiceApi(id, {
+        name: formName,
+        category: formCategory,
+        price: parseInt(rawPrice),
+        durationMinutes: parseInt(formDuration),
+        description: formDescription,
+        imageUrl: null,
+      });
+      router.push("/dashboard/services");
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Cập nhật dịch vụ thất bại.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -99,14 +144,19 @@ export default function EditServicePage({ params }: { params: { id: string } }) 
 
         {/* BODY */}
         <div className="p-8 flex-1 overflow-y-auto">
-          <form onSubmit={handleSave} className="max-w-3xl mx-auto">
+          {isLoading ? (
+            <div className="max-w-3xl mx-auto flex items-center justify-center py-20 text-slate-400 font-semibold">
+              Đang tải thông tin dịch vụ...
+            </div>
+          ) : null}
+          <form onSubmit={handleSave} className={`max-w-3xl mx-auto ${isLoading ? "hidden" : ""}`}>
             {/* Form Card */}
             <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
               {/* Form Header */}
               <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/30 flex items-center justify-between">
                 <h3 className="text-[15px] font-extrabold text-slate-700">Thông tin dịch vụ</h3>
                 <span className="text-[12px] font-bold text-slate-400 bg-slate-100 px-3 py-1.5 rounded-lg">
-                  ID: {params.id}
+                  ID: {id}
                 </span>
               </div>
 
@@ -290,6 +340,9 @@ export default function EditServicePage({ params }: { params: { id: string } }) 
 
               {/* Form Footer */}
               <div className="px-6 py-5 border-t border-slate-100 bg-slate-50/30 flex items-center justify-end gap-3">
+                {saveError && (
+                  <p className="text-[13px] text-red-500 font-semibold flex-1">{saveError}</p>
+                )}
                 <Link
                   href="/dashboard/services"
                   className="px-6 py-3 text-[14px] font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 border border-slate-200 rounded-xl transition-all cursor-pointer"
@@ -298,9 +351,10 @@ export default function EditServicePage({ params }: { params: { id: string } }) 
                 </Link>
                 <button
                   type="submit"
-                  className="px-8 py-3 bg-primary hover:bg-primary-hover text-white text-[14px] font-extrabold rounded-xl shadow-md shadow-primary/25 hover:shadow-lg transition-all cursor-pointer"
+                  disabled={isSaving}
+                  className="px-8 py-3 bg-primary hover:bg-primary-hover text-white text-[14px] font-extrabold rounded-xl shadow-md shadow-primary/25 hover:shadow-lg transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  Lưu thay đổi
+                  {isSaving ? "Đang lưu..." : "Lưu thay đổi"}
                 </button>
               </div>
             </div>

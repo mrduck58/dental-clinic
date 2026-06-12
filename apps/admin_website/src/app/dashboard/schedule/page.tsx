@@ -3,6 +3,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import Sidebar from "../../../components/shared/Sidebar";
+import { useRequireAdmin } from "../../../hooks/useRequireAdmin";
 
 // Define TypeScript interfaces for our scheduling data
 interface ScheduleEntry {
@@ -40,6 +41,7 @@ const getWeekDates = (mondayDate: Date): Date[] => {
 const DEFAULT_MONDAY = new Date("2023-10-16");
 
 export default function SchedulePage() {
+  useRequireAdmin();
   const [currentMonday, setCurrentMonday] = useState<Date>(DEFAULT_MONDAY);
   const [staffType, setStaffType] = useState<"dentist" | "staff">("dentist");
   const [searchQuery, setSearchQuery] = useState("");
