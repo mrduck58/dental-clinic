@@ -167,17 +167,6 @@ export default function NotificationsPage() {
             <p className="text-[12.5px] text-slate-400 font-semibold mt-0.5">Theo dõi các cảnh báo và thông báo từ hệ thống</p>
           </div>
           <div className="flex items-center gap-3">
-            {unreadCount > 0 && (
-              <button
-                onClick={markAllRead}
-                className="flex items-center gap-2 px-4 py-2 text-[13px] font-bold text-slate-500 hover:text-primary hover:bg-red-50 border border-slate-200 hover:border-primary/20 rounded-xl transition-all cursor-pointer"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                </svg>
-                Đánh dấu đã đọc tất cả
-              </button>
-            )}
             <NotificationBell hasUnread={unreadCount > 0} />
           </div>
         </header>
@@ -321,7 +310,7 @@ export default function NotificationsPage() {
               </div>
             </div>
 
-            {/* Row 2: Page size + count */}
+            {/* Row 2: Page size + count + mark-all */}
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2.5">
                 <span className="text-[12.5px] text-slate-400 font-semibold whitespace-nowrap">Hiển thị</span>
@@ -345,6 +334,17 @@ export default function NotificationsPage() {
                   <span className="font-bold text-slate-600">{filteredNotifs.length}</span> kết quả
                 </span>
               </div>
+              {unreadCount > 0 && (
+                <button
+                  onClick={markAllRead}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-[12.5px] font-bold text-slate-500 hover:text-primary hover:bg-red-50 border border-slate-200 hover:border-primary/20 rounded-lg transition-all cursor-pointer"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                  </svg>
+                  Đánh dấu đã đọc tất cả
+                </button>
+              )}
             </div>
           </div>
 
