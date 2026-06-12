@@ -5,7 +5,7 @@ import Link from "next/link";
 import { getPostsApi, deletePostApi, type PostDto } from "../../../lib/apiClient";
 import Sidebar from "../../../components/shared/Sidebar";
 import { useRequireAdmin } from "../../../hooks/useRequireAdmin";
-import Header from "../../../components/Header";
+import NotificationBell from "../../../components/shared/NotificationBell";
 
 interface Post {
   id: string;
@@ -100,7 +100,18 @@ export default function PostsListPage() {
       <main className="flex-1 flex flex-col min-w-0">
         
         {/* HEADER */}
-        <Header />
+        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 font-sans shadow-sm shadow-slate-100/50">
+          <div>
+            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+              Quản lý Bài viết
+            </h1>
+          </div>
+
+          {/* Notifications (no search) */}
+          <div className="flex items-center gap-6">
+            <NotificationBell />
+          </div>
+        </header>
 
         {/* BODY */}
         <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-8">
