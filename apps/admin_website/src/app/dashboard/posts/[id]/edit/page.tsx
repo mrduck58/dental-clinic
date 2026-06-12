@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getPostById, updatePost, Post } from "../../../../../components/postsDb";
 import Sidebar from "../../../../../components/shared/Sidebar";
+import { useRequireAdmin } from "../../../../../hooks/useRequireAdmin";
 import Header from "../../../../../components/Header";
 
 const CATEGORIES = [
@@ -20,6 +21,7 @@ interface EditPostPageProps {
 }
 
 export default function EditPostPage({ params }: EditPostPageProps) {
+  useRequireAdmin();
   const router = useRouter();
   
   // Unwrap parameters

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Sidebar from "../../../../components/shared/Sidebar";
+import { useRequireAdmin } from "../../../../hooks/useRequireAdmin";
 import * as XLSX from "xlsx";
 
 // Define TypeScript interfaces for our scheduling data
@@ -1416,6 +1417,7 @@ function EditScheduleContent() {
 }
 
 export default function EditSchedulePage() {
+  useRequireAdmin();
   return (
     <Suspense fallback={<div className="p-8 text-center font-bold text-slate-550">Đang tải cấu hình lịch làm việc...</div>}>
       <EditScheduleContent />

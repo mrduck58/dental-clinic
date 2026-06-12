@@ -19,6 +19,10 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       const data = await loginApi(email, password);
+      if (data.user.role !== "Admin") {
+        setError("Tài khoản không có quyền truy cập hệ thống quản trị.");
+        return;
+      }
       saveSession(data);
       router.push("/");
     } catch (err) {

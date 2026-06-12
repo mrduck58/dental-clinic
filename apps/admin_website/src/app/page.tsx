@@ -3,8 +3,10 @@
 import React, { useState } from "react";
 import Sidebar from "../components/shared/Sidebar";
 import Header from "../components/Header";
+import { useRequireAdmin } from "../hooks/useRequireAdmin";
 
 export default function Dashboard() {
+  useRequireAdmin();
   // State to track hover item in Donut Chart
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 

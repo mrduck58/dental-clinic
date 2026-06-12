@@ -1,4 +1,5 @@
 using DentalClinic.API.Application.UseCases.Auth;
+using DentalClinic.API.Application.UseCases.Services;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Infrastructure.Persistence;
@@ -27,6 +28,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IAppointmentRepository, AppointmentRepository>();
         services.AddScoped<IPatientRepository, PatientRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IServiceRepository, ServiceRepository>();
 
         // ── Services ────────────────────────────────────────────────────────
         services.AddScoped<IJwtService, JwtService>();
@@ -36,6 +38,13 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<LoginHandler>();
         services.AddScoped<CreateAccountHandler>();
         services.AddScoped<GetAccountsHandler>();
+
+        services.AddScoped<GetServicesHandler>();
+        services.AddScoped<GetServiceByIdHandler>();
+        services.AddScoped<CreateServiceHandler>();
+        services.AddScoped<UpdateServiceHandler>();
+        services.AddScoped<DeleteServiceHandler>();
+        services.AddScoped<ToggleServiceStatusHandler>();
 
         return services;
     }

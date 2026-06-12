@@ -3,6 +3,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import Sidebar from "../../../../../components/shared/Sidebar";
+import { useRequireAdmin } from "../../../../../hooks/useRequireAdmin";
 
 const promotionTypes = [
   { value: "percentage", label: "Phần trăm (%)" },
@@ -21,6 +22,7 @@ const services = [
 ];
 
 export default function AddPromotionPage() {
+  useRequireAdmin();
   const [promotionName, setPromotionName] = useState("");
   const [promotionType, setPromotionType] = useState("percentage");
   const [selectedService, setSelectedService] = useState<string>("");

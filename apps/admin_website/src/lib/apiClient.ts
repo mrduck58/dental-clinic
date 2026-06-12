@@ -114,3 +114,115 @@ export async function getAccountsApi(): Promise<AccountDto[]> {
   }
   return res.json() as Promise<AccountDto[]>;
 }
+
+// ── Service types ──────────────────────────────────────────────────────────
+
+export interface ServiceDto {
+  id: string;
+  name: string;
+  category: string;
+  price: number;
+  durationMinutes: number;
+  isActive: boolean;
+  description: string;
+  viewCount: number;
+  imageUrl: string | null;
+  createdAt: string;
+  updatedAt: string | null;
+}
+
+export interface CreateServiceRequest {
+  name: string;
+  category: string;
+  price: number;
+  durationMinutes: number;
+  description: string;
+  imageUrl?: string | null;
+}
+
+export interface UpdateServiceRequest {
+  name: string;
+  category: string;
+  price: number;
+  durationMinutes: number;
+  description: string;
+  imageUrl?: string | null;
+}
+
+// ── Service endpoints ──────────────────────────────────────────────────────
+
+export async function getServicesApi(params?: {
+  category?: string;
+  status?: string;
+  search?: string;
+}): Promise<ServiceDto[]> {
+  const qs = new URLSearchParams();
+  if (params?.category) qs.set("category", params.category);
+  if (params?.status) qs.set("status", params.status);
+  if (params?.search) qs.set("search", params.search);
+  const query = qs.toString() ? `?${qs.toString()}` : "";
+  const res = await fetch(`${API_URL}/api/services${query}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách dịch vụ");
+  }
+  return res.json() as Promise<ServiceDto[]>;
+}
+
+export async function getServiceByIdApi(id: string): Promise<ServiceDto> {
+  const res = await fetch(`${API_URL}/api/services/${id}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không tìm thấy dịch vụ");
+  }
+  return res.json() as Promise<ServiceDto>;
+}
+
+export async function createServiceApi(data: CreateServiceRequest): Promise<ServiceDto> {
+  const res = await fetch(`${API_URL}/api/services`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Tạo dịch vụ thất bại");
+  }
+  return res.json() as Promise<ServiceDto>;
+}
+
+export async function updateServiceApi(id: string, data: UpdateServiceRequest): Promise<ServiceDto> {
+  const res = await fetch(`${API_URL}/api/services/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Cập nhật dịch vụ thất bại");
+  }
+  return res.json() as Promise<ServiceDto>;
+}
+
+export async function deleteServiceApi(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/services/${id}`, {
+    method: "DELETE",
+    headers: { ...authHeaders() },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Xóa dịch vụ thất bại");
+  }
+}
+
+export async function toggleServiceStatusApi(id: string): Promise<ServiceDto> {
+  const res = await fetch(`${API_URL}/api/services/${id}/status`, {
+    method: "PATCH",
+    headers: { ...authHeaders() },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Cập nhật trạng thái thất bại");
+  }
+  return res.json() as Promise<ServiceDto>;
+}

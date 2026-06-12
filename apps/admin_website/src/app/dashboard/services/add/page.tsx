@@ -2,13 +2,18 @@
 
 import React, { useState, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Sidebar from "../../../../components/shared/Sidebar";
+import { useRequireAdmin } from "../../../../hooks/useRequireAdmin";
+import { createServiceApi } from "../../../../lib/apiClient";
 
 const categories = ["Niềng răng", "Tẩy trắng răng", "Trồng răng", "Lấy cao răng", "Điều trị tủy", "Nhổ răng", "Trám răng"];
 
 export default function AddServicePage() {
+  useRequireAdmin();
+  const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   const [formName, setFormName] = useState("");
   const [formCategory, setFormCategory] = useState("Niềng răng");
   const [formPrice, setFormPrice] = useState("");
@@ -16,6 +21,8 @@ export default function AddServicePage() {
   const [formDescription, setFormDescription] = useState("");
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const handleImageUpload = (file: File) => {
     if (file && file.type.startsWith("image/")) {
@@ -55,14 +62,30 @@ export default function AddServicePage() {
     }
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formName || !formPrice || !formDuration) {
-      alert("Vui lòng điền đầy đủ thông tin bắt buộc.");
+    setSaveError(null);
+    const rawPrice = formPrice.replace(/[^0-9]/g, "");
+    if (!formName || !rawPrice || !formDuration) {
+      setSaveError("Vui lòng điền đầy đủ thông tin bắt buộc.");
       return;
     }
-    alert("Dịch vụ đã được thêm thành công!");
-    window.location.href = "/dashboard/services";
+    setIsSaving(true);
+    try {
+      await createServiceApi({
+        name: formName,
+        category: formCategory,
+        price: parseInt(rawPrice),
+        durationMinutes: parseInt(formDuration),
+        description: formDescription,
+        imageUrl: null,
+      });
+      router.push("/dashboard/services");
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Thêm dịch vụ thất bại.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -287,6 +310,9 @@ export default function AddServicePage() {
 
               {/* Form Footer */}
               <div className="px-6 py-5 border-t border-slate-100 bg-slate-50/30 flex items-center justify-end gap-3">
+                {saveError && (
+                  <p className="text-[13px] text-red-500 font-semibold flex-1">{saveError}</p>
+                )}
                 <Link
                   href="/dashboard/services"
                   className="px-6 py-3 text-[14px] font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 border border-slate-200 rounded-xl transition-all cursor-pointer"
@@ -295,9 +321,10 @@ export default function AddServicePage() {
                 </Link>
                 <button
                   type="submit"
-                  className="px-8 py-3 bg-primary hover:bg-primary-hover text-white text-[14px] font-extrabold rounded-xl shadow-md shadow-primary/25 hover:shadow-lg transition-all cursor-pointer"
+                  disabled={isSaving}
+                  className="px-8 py-3 bg-primary hover:bg-primary-hover text-white text-[14px] font-extrabold rounded-xl shadow-md shadow-primary/25 hover:shadow-lg transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  Lưu dịch vụ
+                  {isSaving ? "Đang lưu..." : "Lưu dịch vụ"}
                 </button>
               </div>
             </div>

@@ -17,7 +17,7 @@ export function useRequireAdmin() {
     }
 
     if (user.role !== "Admin") {
-      router.replace("/");
+      router.replace("/auth/login");
     }
   }, [router]);
 }
