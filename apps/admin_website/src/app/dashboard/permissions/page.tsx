@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import Sidebar from "../../../components/shared/Sidebar";
+import NotificationBell from "../../../components/shared/NotificationBell";
 import { createAccountApi, getAccountsApi } from "../../../lib/apiClient";
 import { useRequireAdmin } from "../../../hooks/useRequireAdmin";
 
@@ -335,6 +336,7 @@ export default function PermissionsPage() {
             <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Tài Khoản & Phân Quyền</h1>
             <p className="text-[13px] text-slate-400 font-semibold mt-0.5">Quản lý thành viên hệ thống và cấu hình chi tiết quyền hạn.</p>
           </div>
+          <NotificationBell />
         </header>
 
         <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-8">
