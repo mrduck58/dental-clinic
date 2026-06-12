@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { getPostById, updatePost, Post } from "../../../../../components/postsDb";
+import { getPostByIdApi, updatePostApi } from "../../../../../lib/apiClient";
 import Sidebar from "../../../../../components/shared/Sidebar";
 import { useRequireAdmin } from "../../../../../hooks/useRequireAdmin";
 import Header from "../../../../../components/Header";
@@ -39,24 +39,24 @@ export default function EditPostPage({ params }: EditPostPageProps) {
   
   const [errorMessage, setErrorMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load post details
   useEffect(() => {
-    const post = getPostById(id);
-    if (post) {
-      setTitle(post.title);
-      setContent(post.content);
-      setCategory(post.category);
-      setThumbnail(post.thumbnail);
-      setAuthor(post.author);
-      setDate(post.date);
-      setStatus(post.status);
-    } else {
-      setErrorMessage("Không tìm thấy bài viết trong hệ thống.");
-    }
-    setIsLoading(false);
+    getPostByIdApi(id)
+      .then((dto) => {
+        setTitle(dto.title);
+        setContent(dto.content);
+        setCategory(dto.category);
+        setThumbnail(dto.thumbnailUrl ?? "");
+        setAuthor(dto.author);
+        const d = new Date(dto.createdAt);
+        setDate(`${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`);
+        setStatus(dto.isPublished ? "Đã xuất bản" : "Bản nháp");
+      })
+      .catch(() => setErrorMessage("Không tìm thấy bài viết trong hệ thống."))
+      .finally(() => setIsLoading(false));
   }, [id]);
 
   // Image upload
@@ -82,33 +82,24 @@ export default function EditPostPage({ params }: EditPostPageProps) {
     fileInputRef.current?.click();
   };
 
-  // Submit Handler
-  const handleSaveChanges = () => {
-    if (!title.trim()) {
-      setErrorMessage("Tiêu đề bài viết không được để trống.");
-      return;
-    }
-    if (!category) {
-      setErrorMessage("Vui lòng chọn danh mục.");
-      return;
-    }
-    if (!content.trim()) {
-      setErrorMessage("Nội dung bài viết không được để trống.");
-      return;
-    }
-
-    const updated = updatePost(id, {
-      title,
-      content,
-      category,
-      thumbnail,
-      status
-    });
-
-    if (updated) {
+  const handleSaveChanges = async () => {
+    if (!title.trim()) { setErrorMessage("Tiêu đề bài viết không được để trống."); return; }
+    if (!category) { setErrorMessage("Vui lòng chọn danh mục."); return; }
+    if (!content.trim()) { setErrorMessage("Nội dung bài viết không được để trống."); return; }
+    setIsSaving(true);
+    try {
+      await updatePostApi(id, {
+        title,
+        category,
+        content,
+        thumbnailUrl: thumbnail || null,
+        isPublished: status === "Đã xuất bản",
+      });
       router.push("/dashboard/posts");
-    } else {
-      setErrorMessage("Đã xảy ra lỗi khi lưu bài viết.");
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : "Lưu bài viết thất bại.");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -313,10 +304,11 @@ export default function EditPostPage({ params }: EditPostPageProps) {
                   <div className="flex items-center gap-3 border-t border-slate-100 pt-4 mt-2">
                     <button
                       type="button"
+                      disabled={isSaving}
                       onClick={handleSaveChanges}
-                      className="flex-1 bg-primary hover:bg-primary-hover text-white font-bold text-[14px] py-3 rounded-xl transition-all shadow-md shadow-primary/25 cursor-pointer text-center"
+                      className="flex-1 bg-primary hover:bg-primary-hover text-white font-bold text-[14px] py-3 rounded-xl transition-all shadow-md shadow-primary/25 cursor-pointer text-center disabled:opacity-60"
                     >
-                      Lưu thay đổi
+                      {isSaving ? "Đang lưu..." : "Lưu thay đổi"}
                     </button>
                     <Link
                       href="/dashboard/posts"

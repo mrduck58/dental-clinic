@@ -3,7 +3,7 @@
 import React, { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { addPost } from "../../../../components/postsDb";
+import { createPostApi } from "../../../../lib/apiClient";
 import Sidebar from "../../../../components/shared/Sidebar";
 import { useRequireAdmin } from "../../../../hooks/useRequireAdmin";
 import Header from "../../../../components/Header";
@@ -27,6 +27,7 @@ export default function CreatePostPage() {
   const [thumbnail, setThumbnail] = useState("");
   const [dragActive, setDragActive] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -75,31 +76,26 @@ export default function CreatePostPage() {
     fileInputRef.current?.click();
   };
 
-  // Submit handler
-  const handleSave = (status: "Đã xuất bản" | "Bản nháp") => {
-    if (!title.trim()) {
-      setErrorMessage("Vui lòng nhập tiêu đề bài viết.");
-      return;
+  const handleSave = async (isPublished: boolean) => {
+    if (!title.trim()) { setErrorMessage("Vui lòng nhập tiêu đề bài viết."); return; }
+    if (!category) { setErrorMessage("Vui lòng chọn danh mục bài viết."); return; }
+    if (!content.trim()) { setErrorMessage("Vui lòng nhập nội dung bài viết."); return; }
+    setIsSaving(true);
+    try {
+      await createPostApi({
+        title,
+        category,
+        content,
+        author: "ThS. BS. Nguyễn Minh Đức",
+        thumbnailUrl: thumbnail || null,
+        isPublished,
+      });
+      router.push("/dashboard/posts");
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : "Tạo bài viết thất bại.");
+    } finally {
+      setIsSaving(false);
     }
-    if (!category) {
-      setErrorMessage("Vui lòng chọn danh mục bài viết.");
-      return;
-    }
-    if (!content.trim()) {
-      setErrorMessage("Vui lòng nhập nội dung bài viết.");
-      return;
-    }
-
-    addPost({
-      title,
-      content,
-      category,
-      thumbnail: thumbnail || "https://images.unsplash.com/photo-1598256989800-fe5f95da9787?auto=format&fit=crop&w=800&q=80",
-      author: "ThS. BS. Nguyễn Minh Đức", // Standard fallback author
-      status
-    });
-
-    router.push("/dashboard/posts");
   };
 
   return (
@@ -304,16 +300,18 @@ export default function CreatePostPage() {
                   <div className="flex flex-col gap-3 border-t border-slate-100 pt-4">
                     <button
                       type="button"
-                      onClick={() => handleSave("Đã xuất bản")}
-                      className="w-full bg-primary hover:bg-primary-hover text-white font-bold text-[14px] py-3 rounded-xl transition-all shadow-md shadow-primary/25 cursor-pointer text-center"
+                      disabled={isSaving}
+                      onClick={() => handleSave(true)}
+                      className="w-full bg-primary hover:bg-primary-hover text-white font-bold text-[14px] py-3 rounded-xl transition-all shadow-md shadow-primary/25 cursor-pointer text-center disabled:opacity-60"
                     >
-                      Xuất bản
+                      {isSaving ? "Đang lưu..." : "Xuất bản"}
                     </button>
-                    
+
                     <button
                       type="button"
-                      onClick={() => handleSave("Bản nháp")}
-                      className="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-[14px] py-3 rounded-xl transition-all cursor-pointer text-center"
+                      disabled={isSaving}
+                      onClick={() => handleSave(false)}
+                      className="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-[14px] py-3 rounded-xl transition-all cursor-pointer text-center disabled:opacity-60"
                     >
                       Lưu nháp
                     </button>
