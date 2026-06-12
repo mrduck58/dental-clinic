@@ -18,6 +18,7 @@ export default function Header({ title, showSearch }: HeaderProps) {
     if (pathname === "/") return "Tổng Quan Vận Hành";
     if (pathname === "/dashboard/posts") return "Quản lý Bài viết";
     if (pathname === "/dashboard/posts/create") return "Tạo Bài viết Mới";
+    if (pathname === "/dashboard/feedback") return "Quản lý Phản hồi";
     if (pathname.includes("/edit")) return "Chỉnh sửa Bài viết";
     return "Hệ thống vận hành";
   };
