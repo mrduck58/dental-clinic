@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.UseCases.Auth;
 using DentalClinic.API.Application.UseCases.Posts;
+using DentalClinic.API.Application.UseCases.Schedules;
 using DentalClinic.API.Application.UseCases.Services;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
@@ -31,6 +32,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IServiceRepository, ServiceRepository>();
         services.AddScoped<IPostRepository, PostRepository>();
+        services.AddScoped<IWorkScheduleRepository, WorkScheduleRepository>();
 
         // ── Services ────────────────────────────────────────────────────────
         services.AddScoped<IJwtService, JwtService>();
@@ -53,6 +55,9 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<UpdateServiceHandler>();
         services.AddScoped<DeleteServiceHandler>();
         services.AddScoped<ToggleServiceStatusHandler>();
+
+        services.AddScoped<GetWeekScheduleHandler>();
+        services.AddScoped<SaveWeekScheduleHandler>();
 
         return services;
     }
