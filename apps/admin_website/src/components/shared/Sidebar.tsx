@@ -176,7 +176,7 @@ export default function Sidebar({ activeMenu }: SidebarProps) {
 
           {/* Lịch sử hoạt động */}
           <Link
-            href="#"
+            href="/dashboard/activity-logs"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "history"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
