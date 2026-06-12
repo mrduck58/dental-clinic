@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import Sidebar from "../../../components/shared/Sidebar";
-import Header from "../../../components/Header";
+import NotificationBell from "../../../components/shared/NotificationBell";
 import { useRequireAdmin } from "../../../hooks/useRequireAdmin";
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -214,7 +214,18 @@ export default function FeedbackDashboardPage() {
       <main className="flex-1 flex flex-col min-w-0">
         
         {/* HEADER */}
-        <Header title="Phản hồi" showSearch={false} />
+        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 font-sans shadow-sm shadow-slate-100/50">
+          <div>
+            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+              Phản hồi
+            </h1>
+          </div>
+
+          {/* Notifications (no search) */}
+          <div className="flex items-center gap-6">
+            <NotificationBell />
+          </div>
+        </header>
 
         {/* BODY */}
         <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-6">
