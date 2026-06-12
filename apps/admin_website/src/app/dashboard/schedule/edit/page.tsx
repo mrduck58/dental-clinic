@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Sidebar from "../../../../components/shared/Sidebar";
 import { useRequireAdmin } from "../../../../hooks/useRequireAdmin";
+import { getWeekScheduleApi, saveWeekScheduleApi } from "../../../../lib/apiClient";
 import * as XLSX from "xlsx";
 
 // Define TypeScript interfaces for our scheduling data
@@ -94,8 +95,7 @@ function EditScheduleContent() {
   const [staffType, setStaffType] = useState<"dentist" | "staff">("dentist");
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Full schedules stored in database
-  const [globalSchedules, setGlobalSchedules] = useState<ScheduleEntry[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Copy of schedules for active week that we are currently editing
   const [activeWeekSchedules, setActiveWeekSchedules] = useState<ScheduleEntry[]>([]);
@@ -129,24 +129,22 @@ function EditScheduleContent() {
 
   const weekDates = useMemo(() => getWeekDates(currentMonday), [currentMonday]);
 
-  // Load schedules from localStorage
+  // Load schedules for the active week from API
   useEffect(() => {
-    const saved = localStorage.getItem("dental_clinic_schedules");
-    let allSchedules: ScheduleEntry[] = [];
-    if (saved) {
-      try {
-        allSchedules = JSON.parse(saved);
-      } catch (e) {
-        allSchedules = [];
-      }
-    }
-    setGlobalSchedules(allSchedules);
-
-    // Filter out entries belonging to the active week and set them in editing state
-    const activeDates = weekDates.map(d => formatDateKey(d));
-    const thisWeek = allSchedules.filter(item => activeDates.includes(item.date));
-    setActiveWeekSchedules(thisWeek);
-  }, [currentMonday, weekDates]);
+    getWeekScheduleApi(weekParam)
+      .then(dtos => setActiveWeekSchedules(dtos.map(dto => ({
+        id: dto.id,
+        date: dto.date,
+        shift: dto.shift,
+        type: dto.type,
+        role: dto.role,
+        name: dto.name,
+        room: dto.room,
+        roomColor: dto.roomColor,
+        isHoliday: dto.isHoliday,
+      }))))
+      .catch(() => setActiveWeekSchedules([]));
+  }, [weekParam]);
 
   // Determine week range formatting
   const formattedWeekRange = useMemo(() => {
@@ -513,7 +511,7 @@ function EditScheduleContent() {
   };
 
   // Save changes and check validation rules
-  const handleSaveChanges = () => {
+  const handleSaveChanges = async () => {
     const schedulesToCheck = activeWeekSchedules;
 
     // EX-1 Check: Trùng lịch trực phòng khác
@@ -535,34 +533,29 @@ function EditScheduleContent() {
       }
     }
 
-    // Clean draft flags
-    const cleanedActiveWeek = activeWeekSchedules.map(item => ({
-      ...item,
-      isDraft: false
-    }));
+    setIsSaving(true);
+    try {
+      const entries = activeWeekSchedules.map(item => ({
+        date: item.date,
+        shift: item.shift,
+        type: item.type,
+        role: item.role,
+        name: item.name,
+        room: item.room,
+        roomColor: item.roomColor,
+        isHoliday: item.isHoliday ?? false,
+      }));
 
-    // Merge finalized schedules
-    const activeDates = weekDates.map(d => formatDateKey(d));
-    const nonWeekSchedules = globalSchedules.filter(item => !activeDates.includes(item.date));
-
-    const newGlobalSchedules = [...nonWeekSchedules, ...cleanedActiveWeek];
-
-    // Save to localStorage
-    localStorage.setItem("dental_clinic_schedules", JSON.stringify(newGlobalSchedules));
-
-    // Audit log
-    console.log("AUDIT LOG: schedule_logs created.", {
-      action: "EDIT_SCHEDULE",
-      timestamp: new Date().toISOString(),
-      old_value: globalSchedules.filter(item => activeDates.includes(item.date)),
-      new_value: cleanedActiveWeek
-    });
-
-    showToast("Cập nhật lịch làm việc thành công!", "success");
-
-    setTimeout(() => {
-      router.push(`/dashboard/schedule?week=${weekParam}`);
-    }, 1200);
+      await saveWeekScheduleApi(weekParam, entries);
+      showToast("Cập nhật lịch làm việc thành công!", "success");
+      setTimeout(() => {
+        router.push(`/dashboard/schedule?week=${weekParam}`);
+      }, 1200);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Lưu lịch thất bại", "error");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Filter staff list in modal matching search input and filters
@@ -734,9 +727,10 @@ function EditScheduleContent() {
 
               <button
                 onClick={handleSaveChanges}
-                className="px-6 py-3 bg-primary hover:bg-primary-hover text-white text-[14px] font-extrabold rounded-xl transition-all shadow-md shadow-primary/20 cursor-pointer"
+                disabled={isSaving}
+                className="px-6 py-3 bg-primary hover:bg-primary-hover text-white text-[14px] font-extrabold rounded-xl transition-all shadow-md shadow-primary/20 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Lưu thay đổi
+                {isSaving ? "Đang lưu..." : "Lưu thay đổi"}
               </button>
             </div>
           </div>
