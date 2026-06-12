@@ -215,6 +215,104 @@ export async function deleteServiceApi(id: string): Promise<void> {
   }
 }
 
+// ── Post types ─────────────────────────────────────────────────────────────
+
+export interface PostDto {
+  id: string;
+  title: string;
+  category: string;
+  author: string;
+  content: string;
+  thumbnailUrl: string | null;
+  isPublished: boolean;
+  createdAt: string;
+  updatedAt: string | null;
+  publishedAt: string | null;
+}
+
+export interface CreatePostRequest {
+  title: string;
+  category: string;
+  author: string;
+  content: string;
+  thumbnailUrl?: string | null;
+  isPublished: boolean;
+}
+
+export interface UpdatePostRequest {
+  title: string;
+  category: string;
+  content: string;
+  thumbnailUrl?: string | null;
+  isPublished: boolean;
+}
+
+// ── Post endpoints ─────────────────────────────────────────────────────────
+
+export async function getPostsApi(params?: {
+  category?: string;
+  status?: string;
+  search?: string;
+}): Promise<PostDto[]> {
+  const qs = new URLSearchParams();
+  if (params?.category) qs.set("category", params.category);
+  if (params?.status) qs.set("status", params.status);
+  if (params?.search) qs.set("search", params.search);
+  const query = qs.toString() ? `?${qs.toString()}` : "";
+  const res = await fetch(`${API_URL}/api/posts${query}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách bài viết");
+  }
+  return res.json() as Promise<PostDto[]>;
+}
+
+export async function getPostByIdApi(id: string): Promise<PostDto> {
+  const res = await fetch(`${API_URL}/api/posts/${id}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không tìm thấy bài viết");
+  }
+  return res.json() as Promise<PostDto>;
+}
+
+export async function createPostApi(data: CreatePostRequest): Promise<PostDto> {
+  const res = await fetch(`${API_URL}/api/posts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Tạo bài viết thất bại");
+  }
+  return res.json() as Promise<PostDto>;
+}
+
+export async function updatePostApi(id: string, data: UpdatePostRequest): Promise<PostDto> {
+  const res = await fetch(`${API_URL}/api/posts/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Cập nhật bài viết thất bại");
+  }
+  return res.json() as Promise<PostDto>;
+}
+
+export async function deletePostApi(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/posts/${id}`, {
+    method: "DELETE",
+    headers: { ...authHeaders() },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Xóa bài viết thất bại");
+  }
+}
+
 export async function toggleServiceStatusApi(id: string): Promise<ServiceDto> {
   const res = await fetch(`${API_URL}/api/services/${id}/status`, {
     method: "PATCH",

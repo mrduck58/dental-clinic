@@ -2,10 +2,32 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { getPosts, deletePost, Post } from "../../../components/postsDb";
+import { getPostsApi, deletePostApi, type PostDto } from "../../../lib/apiClient";
 import Sidebar from "../../../components/shared/Sidebar";
 import { useRequireAdmin } from "../../../hooks/useRequireAdmin";
 import Header from "../../../components/Header";
+
+interface Post {
+  id: string;
+  title: string;
+  category: string;
+  author: string;
+  date: string;
+  status: "Đã xuất bản" | "Bản nháp";
+}
+
+function toPost(dto: PostDto): Post {
+  const d = new Date(dto.createdAt);
+  const date = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+  return {
+    id: dto.id,
+    title: dto.title,
+    category: dto.category,
+    author: dto.author,
+    date,
+    status: dto.isPublished ? "Đã xuất bản" : "Bản nháp",
+  };
+}
 
 const CATEGORIES = [
   "Tất cả danh mục",
@@ -27,20 +49,22 @@ export default function PostsListPage() {
   // Delete modal state
   const [deleteTarget, setDeleteTarget] = useState<Post | null>(null);
 
-  // Load posts on mount
   useEffect(() => {
-    setPosts(getPosts());
+    getPostsApi().then((data) => setPosts(data.map(toPost)));
   }, []);
 
   const handleDeleteClick = (post: Post) => {
     setDeleteTarget(post);
   };
 
-  const confirmDelete = () => {
-    if (deleteTarget) {
-      deletePost(deleteTarget.id);
-      setPosts(getPosts());
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await deletePostApi(deleteTarget.id);
+      setPosts((prev) => prev.filter((p) => p.id !== deleteTarget.id));
       setDeleteTarget(null);
+    } catch {
+      alert("Không thể xóa bài viết. Vui lòng thử lại.");
     }
   };
 
