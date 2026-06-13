@@ -148,7 +148,7 @@ export default function Sidebar({ activeMenu }: SidebarProps) {
 
           {/* Phản hồi */}
           <Link
-            href="#"
+            href="/dashboard/feedback"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "feedback"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
