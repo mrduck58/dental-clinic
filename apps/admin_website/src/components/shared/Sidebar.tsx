@@ -106,7 +106,7 @@ export default function Sidebar({ activeMenu }: SidebarProps) {
 
           {/* Quản lí phòng */}
           <Link
-            href="#"
+            href="/dashboard/rooms"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "rooms"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
@@ -162,7 +162,7 @@ export default function Sidebar({ activeMenu }: SidebarProps) {
 
           {/* Đơn xin nghỉ */}
           <Link
-            href="/dashboard/leaves"
+            href="#"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "leaves"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
