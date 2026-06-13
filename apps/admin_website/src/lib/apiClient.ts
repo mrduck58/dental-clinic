@@ -53,7 +53,20 @@ export interface CreateAccountCommand {
 }
 
 export async function createAccountApi(data: CreateAccountCommand): Promise<void> {
-  await createStaffApi(data);
+  const res = await fetch(`${API_URL}/api/auth/accounts`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(),
+    },
+    body: JSON.stringify(data),
+  });
+
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Tạo tài khoản thất bại");
+  }
 }
 
 // ── Session helpers ────────────────────────────────────────────────────────
@@ -108,18 +121,15 @@ async function checkAuth(res: Response): Promise<void> {
 }
 
 export async function getAccountsApi(): Promise<AccountDto[]> {
-  await new Promise((resolve) => setTimeout(resolve, 200));
-  const list = getMockStaffList();
-  return list.map((u) => ({
-    id: u.id,
-    username: u.username,
-    fullName: u.fullName,
-    email: u.email,
-    phoneNumber: u.phoneNumber,
-    role: u.role,
-    isActive: u.isActive,
-    createdAt: u.createdAt,
-  }));
+  const res = await fetch(`${API_URL}/api/auth/accounts`, {
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách tài khoản");
+  }
+  return res.json() as Promise<AccountDto[]>;
 }
 
 // ── Staff types & endpoints ──────────────────────────────────────────────────
@@ -140,196 +150,6 @@ export interface StaffDto {
   createdAt: string;
 }
 
-const LOCAL_STORAGE_KEY = "mock_staff_list";
-
-const INITIAL_STAFF: StaffDto[] = [
-  {
-    id: "admin-uuid-1111-2222-333333333333",
-    username: "admin",
-    email: "admin@dentalclinic.com",
-    role: "Admin",
-    fullName: "Quản Trị Viên",
-    phoneNumber: "0999999999",
-    isActive: true,
-    employeeId: "NV-ADMIN",
-    department: "Quản trị",
-    employmentStatus: "Active",
-    profilePictureUrl: null,
-    professionalNotes: "Tài khoản quản trị hệ thống.",
-    createdAt: new Date("2026-01-01").toISOString()
-  },
-  {
-    id: "staff-uuid-1111-2222-333333333334",
-    username: "nguyenvanan",
-    email: "an.nguyen@dentalclinic.com",
-    role: "Doctor",
-    fullName: "Nguyễn Văn An",
-    phoneNumber: "0912345678",
-    isActive: true,
-    employeeId: "NV-001",
-    department: "Khoa Nội nha",
-    employmentStatus: "Active",
-    profilePictureUrl: null,
-    professionalNotes: "Bác sĩ chuyên khoa I, 10 năm kinh nghiệm.",
-    createdAt: new Date("2026-02-01").toISOString()
-  },
-  {
-    id: "staff-uuid-1111-2222-333333333335",
-    username: "tranthingoc",
-    email: "ngoc.tran@dentalclinic.com",
-    role: "Dentist",
-    fullName: "Trần Thị Ngọc",
-    phoneNumber: "0987654321",
-    isActive: true,
-    employeeId: "NV-002",
-    department: "Khoa Phục hình",
-    employmentStatus: "Active",
-    profilePictureUrl: null,
-    professionalNotes: "Chuyên gia cấy ghép Implant.",
-    createdAt: new Date("2026-02-05").toISOString()
-  },
-  {
-    id: "staff-uuid-1111-2222-333333333336",
-    username: "lehoangnam",
-    email: "nam.le@dentalclinic.com",
-    role: "Dentist",
-    fullName: "Lê Hoàng Nam",
-    phoneNumber: "0901234567",
-    isActive: true,
-    employeeId: "NV-003",
-    department: "Khoa Chỉnh nha",
-    employmentStatus: "Active",
-    profilePictureUrl: null,
-    professionalNotes: "Chuyên sâu niềng răng mắc cài và Invisalign.",
-    createdAt: new Date("2026-02-10").toISOString()
-  },
-  {
-    id: "staff-uuid-1111-2222-333333333337",
-    username: "phamminhduc",
-    email: "duc.pham@dentalclinic.com",
-    role: "Doctor",
-    fullName: "Phạm Minh Đức",
-    phoneNumber: "0934567890",
-    isActive: true,
-    employeeId: "NV-004",
-    department: "Phòng khám chung",
-    employmentStatus: "On Leave",
-    profilePictureUrl: null,
-    professionalNotes: "Đang nghỉ phép quân sự.",
-    createdAt: new Date("2026-02-15").toISOString()
-  },
-  {
-    id: "staff-uuid-1111-2222-333333333338",
-    username: "hoangthanhhai",
-    email: "hai.hoang@dentalclinic.com",
-    role: "Staff",
-    fullName: "Hoàng Thanh Hải",
-    phoneNumber: "0976543210",
-    isActive: true,
-    employeeId: "NV-005",
-    department: "Bộ phận Lễ tân",
-    employmentStatus: "Active",
-    profilePictureUrl: null,
-    professionalNotes: "Lễ tân trưởng ca sáng.",
-    createdAt: new Date("2026-03-01").toISOString()
-  },
-  {
-    id: "staff-uuid-1111-2222-333333333339",
-    username: "ngoquockhanh",
-    email: "khanh.ngo@dentalclinic.com",
-    role: "Staff",
-    fullName: "Ngô Quốc Khánh",
-    phoneNumber: "0945678901",
-    isActive: true,
-    employeeId: "NV-006",
-    department: "Bộ phận Trợ lý",
-    employmentStatus: "Inactive",
-    profilePictureUrl: null,
-    professionalNotes: "Đã nghỉ việc từ tháng 5/2026.",
-    createdAt: new Date("2026-03-15").toISOString()
-  },
-  {
-    id: "staff-uuid-1111-2222-333333333340",
-    username: "vuthilan",
-    email: "lan.vu@dentalclinic.com",
-    role: "Doctor",
-    fullName: "Vũ Thị Lan",
-    phoneNumber: "0967890123",
-    isActive: true,
-    employeeId: "NV-007",
-    department: "Khoa Phẫu thuật",
-    employmentStatus: "Active",
-    profilePictureUrl: null,
-    professionalNotes: "Chuyên gia tiểu phẫu răng khôn.",
-    createdAt: new Date("2026-03-20").toISOString()
-  },
-  {
-    id: "staff-uuid-1111-2222-333333333341",
-    username: "domylinh",
-    email: "linh.do@dentalclinic.com",
-    role: "Dentist",
-    fullName: "Đỗ Mỹ Linh",
-    phoneNumber: "0954321098",
-    isActive: true,
-    employeeId: "NV-008",
-    department: "Khoa Răng trẻ em",
-    employmentStatus: "Active",
-    profilePictureUrl: null,
-    professionalNotes: "Thân thiện với trẻ em.",
-    createdAt: new Date("2026-04-01").toISOString()
-  },
-  {
-    id: "staff-uuid-1111-2222-333333333342",
-    username: "buivannam",
-    email: "nam.bui@dentalclinic.com",
-    role: "Dentist",
-    fullName: "Bùi Văn Nam",
-    phoneNumber: "0923456789",
-    isActive: true,
-    employeeId: "NV-009",
-    department: "Khoa Nha chu",
-    employmentStatus: "Active",
-    profilePictureUrl: null,
-    professionalNotes: "Điều trị viêm lợi và tủy răng.",
-    createdAt: new Date("2026-04-10").toISOString()
-  },
-  {
-    id: "staff-uuid-1111-2222-333333333343",
-    username: "phanthioanh",
-    email: "oanh.phan@dentalclinic.com",
-    role: "Staff",
-    fullName: "Phan Thị Oanh",
-    phoneNumber: "0911223344",
-    isActive: true,
-    employeeId: "NV-010",
-    department: "Bộ phận CSKH",
-    employmentStatus: "Active",
-    profilePictureUrl: null,
-    professionalNotes: "Hỗ trợ khách hàng qua hotline.",
-    createdAt: new Date("2026-04-15").toISOString()
-  }
-];
-
-export function getMockStaffList(): StaffDto[] {
-  if (typeof window === "undefined") return [];
-  const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
-  if (!stored) {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(INITIAL_STAFF));
-    return INITIAL_STAFF;
-  }
-  try {
-    return JSON.parse(stored) as StaffDto[];
-  } catch {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(INITIAL_STAFF));
-    return INITIAL_STAFF;
-  }
-}
-
-export function saveMockStaffList(list: StaffDto[]) {
-  if (typeof window !== "undefined") {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(list));
-  }
-}
 
 export interface StaffStatsDto {
   totalDentists: number;
@@ -383,130 +203,62 @@ export async function getStaffApi(params?: {
   page?: number;
   pageSize?: number;
 }): Promise<StaffListResponse> {
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  let list = getMockStaffList();
-
-  if (params?.search) {
-    const q = params.search.toLowerCase().trim();
-    list = list.filter(
-      (u) =>
-        (u.fullName && u.fullName.toLowerCase().includes(q)) ||
-        u.username.toLowerCase().includes(q) ||
-        u.email.toLowerCase().includes(q) ||
-        (u.phoneNumber && u.phoneNumber.toLowerCase().includes(q)) ||
-        (u.employeeId && u.employeeId.toLowerCase().includes(q))
-    );
+  const qs = new URLSearchParams();
+  if (params?.search)   qs.set("search",   params.search);
+  if (params?.role)     qs.set("role",     params.role);
+  if (params?.status)   qs.set("status",   params.status);
+  if (params?.page)     qs.set("page",     String(params.page));
+  if (params?.pageSize) qs.set("pageSize", String(params.pageSize));
+  const query = qs.toString() ? `?${qs.toString()}` : "";
+  const res = await fetch(`${API_URL}/api/staff${query}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách nhân viên");
   }
-
-  if (params?.role && params.role !== "All") {
-    list = list.filter((u) => u.role.toLowerCase() === params.role!.toLowerCase());
-  }
-
-  if (params?.status && params.status !== "All") {
-    list = list.filter((u) => u.employmentStatus?.toLowerCase() === params.status!.toLowerCase());
-  }
-
-  const totalCount = list.length;
-
-  const allStaff = getMockStaffList();
-  const totalDentists = allStaff.filter((u) => u.role === "Dentist").length;
-  const totalDoctors = allStaff.filter((u) => u.role === "Doctor").length;
-  const totalEmployees = allStaff.length;
-
-  const page = params?.page ?? 1;
-  const pageSize = params?.pageSize ?? 10;
-  const startIndex = (page - 1) * pageSize;
-  const items = list.slice(startIndex, startIndex + pageSize);
-
-  return {
-    items,
-    totalCount,
-    page,
-    pageSize,
-    statistics: {
-      totalDentists,
-      totalEmployees,
-      totalDoctors,
-    },
-  };
+  return res.json() as Promise<StaffListResponse>;
 }
 
 export async function createStaffApi(data: CreateStaffCommand): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  const list = getMockStaffList();
-
-  if (list.some((u) => u.email.toLowerCase() === data.email.toLowerCase())) {
-    throw new Error(`Email '${data.email}' đã được sử dụng bởi tài khoản khác.`);
+  const res = await fetch(`${API_URL}/api/staff`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Tạo nhân viên thất bại");
   }
-
-  if (data.employeeId && list.some((u) => u.employeeId?.toLowerCase() === data.employeeId!.toLowerCase())) {
-    throw new Error(`Mã nhân viên '${data.employeeId}' đã tồn tại trong hệ thống.`);
-  }
-
-  const newStaff: StaffDto = {
-    id: `mock-uuid-${Math.random().toString(36).substr(2, 9)}`,
-    username: data.email.split("@")[0].toLowerCase().replace(/[.-]/g, "_"),
-    email: data.email,
-    role: data.role,
-    fullName: data.fullName,
-    phoneNumber: data.phoneNumber,
-    isActive: true,
-    employeeId: data.employeeId ?? null,
-    department: data.department ?? null,
-    employmentStatus: data.employmentStatus ?? "Active",
-    profilePictureUrl: data.profilePictureUrl ?? null,
-    professionalNotes: data.professionalNotes ?? null,
-    createdAt: new Date().toISOString(),
-  };
-
-  list.push(newStaff);
-  saveMockStaffList(list);
 }
 
 export async function updateStaffApi(id: string, data: UpdateStaffCommand): Promise<StaffDto> {
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  const list = getMockStaffList();
-  const index = list.findIndex((u) => u.id === id);
-  if (index === -1) {
-    throw new Error("Không tìm thấy tài khoản nhân viên.");
+  const res = await fetch(`${API_URL}/api/staff/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Cập nhật nhân viên thất bại");
   }
-
-  if (list.some((u) => u.id !== id && u.email.toLowerCase() === data.email.toLowerCase())) {
-    throw new Error(`Email '${data.email}' đã được sử dụng bởi một tài khoản khác.`);
-  }
-
-  const existing = list[index];
-  const updated: StaffDto = {
-    ...existing,
-    fullName: data.fullName,
-    email: data.email,
-    phoneNumber: data.phoneNumber,
-    role: data.role,
-    department: data.department,
-    employmentStatus: data.employmentStatus,
-    profilePictureUrl: data.profilePictureUrl,
-    professionalNotes: data.professionalNotes,
-    isActive: data.isActive,
-  };
-
-  list[index] = updated;
-  saveMockStaffList(list);
-  return updated;
+  return res.json() as Promise<StaffDto>;
 }
 
 export async function resetStaffPasswordApi(id: string): Promise<ResetPasswordResponse> {
-  await new Promise((resolve) => setTimeout(resolve, 200));
-  const list = getMockStaffList();
-  const staff = list.find((u) => u.id === id);
-  if (!staff) {
-    throw new Error("Không tìm thấy tài khoản nhân viên.");
+  const res = await fetch(`${API_URL}/api/staff/${id}/reset-password`, {
+    method: "POST",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Đặt lại mật khẩu thất bại");
   }
-
-  return {
-    id,
-    email: staff.email,
-    temporaryPassword: `MockPassword123!`,
-  };
+  return res.json() as Promise<ResetPasswordResponse>;
 }
 
 
@@ -784,14 +536,17 @@ export async function toggleServiceStatusApi(id: string): Promise<ServiceDto> {
 }
 
 export async function uploadFileApi(file: File): Promise<{ url: string }> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      resolve({ url: reader.result as string });
-    };
-    reader.onerror = () => {
-      reject(new Error("Lỗi đọc file hình ảnh."));
-    };
-    reader.readAsDataURL(file);
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(`${API_URL}/api/files/upload`, {
+    method: "POST",
+    headers: { ...authHeaders() },
+    body: formData,
   });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Upload file thất bại");
+  }
+  return res.json() as Promise<{ url: string }>;
 }
