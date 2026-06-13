@@ -132,6 +132,136 @@ export async function getAccountsApi(): Promise<AccountDto[]> {
   return res.json() as Promise<AccountDto[]>;
 }
 
+// ── Staff types & endpoints ──────────────────────────────────────────────────
+
+export interface StaffDto {
+  id: string;
+  username: string;
+  email: string;
+  role: string;
+  fullName: string | null;
+  phoneNumber: string | null;
+  isActive: boolean;
+  employeeId: string | null;
+  department: string | null;
+  employmentStatus: string | null;
+  profilePictureUrl: string | null;
+  professionalNotes: string | null;
+  createdAt: string;
+}
+
+
+export interface StaffStatsDto {
+  totalDentists: number;
+  totalEmployees: number;
+  totalDoctors: number;
+}
+
+export interface StaffListResponse {
+  items: StaffDto[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  statistics: StaffStatsDto;
+}
+
+export interface CreateStaffCommand {
+  fullName: string;
+  email: string;
+  phoneNumber: string;
+  role: string;
+  employeeId?: string | null;
+  department?: string | null;
+  employmentStatus?: string | null;
+  profilePictureUrl?: string | null;
+  professionalNotes?: string | null;
+}
+
+export interface UpdateStaffCommand {
+  id: string;
+  fullName: string;
+  email: string;
+  phoneNumber: string;
+  role: string;
+  department: string | null;
+  employmentStatus: string | null;
+  profilePictureUrl: string | null;
+  professionalNotes: string | null;
+  isActive: boolean;
+}
+
+export interface ResetPasswordResponse {
+  id: string;
+  email: string;
+  temporaryPassword: string;
+}
+
+export async function getStaffApi(params?: {
+  search?: string;
+  role?: string;
+  status?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<StaffListResponse> {
+  const qs = new URLSearchParams();
+  if (params?.search)   qs.set("search",   params.search);
+  if (params?.role)     qs.set("role",     params.role);
+  if (params?.status)   qs.set("status",   params.status);
+  if (params?.page)     qs.set("page",     String(params.page));
+  if (params?.pageSize) qs.set("pageSize", String(params.pageSize));
+  const query = qs.toString() ? `?${qs.toString()}` : "";
+  const res = await fetch(`${API_URL}/api/staff${query}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách nhân viên");
+  }
+  return res.json() as Promise<StaffListResponse>;
+}
+
+export async function createStaffApi(data: CreateStaffCommand): Promise<void> {
+  const res = await fetch(`${API_URL}/api/staff`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Tạo nhân viên thất bại");
+  }
+}
+
+export async function updateStaffApi(id: string, data: UpdateStaffCommand): Promise<StaffDto> {
+  const res = await fetch(`${API_URL}/api/staff/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Cập nhật nhân viên thất bại");
+  }
+  return res.json() as Promise<StaffDto>;
+}
+
+export async function resetStaffPasswordApi(id: string): Promise<ResetPasswordResponse> {
+  const res = await fetch(`${API_URL}/api/staff/${id}/reset-password`, {
+    method: "POST",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Đặt lại mật khẩu thất bại");
+  }
+  return res.json() as Promise<ResetPasswordResponse>;
+}
+
+
 // ── Service types ──────────────────────────────────────────────────────────
 
 export interface ServiceDto {
@@ -403,4 +533,20 @@ export async function toggleServiceStatusApi(id: string): Promise<ServiceDto> {
     throw new Error((err as { title?: string }).title ?? "Cập nhật trạng thái thất bại");
   }
   return res.json() as Promise<ServiceDto>;
+}
+
+export async function uploadFileApi(file: File): Promise<{ url: string }> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(`${API_URL}/api/files/upload`, {
+    method: "POST",
+    headers: { ...authHeaders() },
+    body: formData,
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Upload file thất bại");
+  }
+  return res.json() as Promise<{ url: string }>;
 }
