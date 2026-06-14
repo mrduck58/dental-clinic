@@ -1,71 +1,84 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import Sidebar from "../../../components/shared/Sidebar";
-import NotificationBell from "../../../components/shared/NotificationBell";
-import { useRequireAdmin } from "../../../hooks/useRequireAdmin";
-import { getStaffApi, type StaffDto, type StaffStatsDto } from "../../../lib/apiClient";
-import StaffDetailModal from "./components/StaffDetailModal";
+import React, { useState, useEffect } from "react";
+import Sidebar from "../../../../components/shared/Sidebar";
+import NotificationBell from "../../../../components/shared/NotificationBell";
+import { useRequireAdmin } from "../../../../hooks/useRequireAdmin";
+import {
+  getStaffApi,
+  type StaffDto,
+  type StaffStatsDto,
+} from "../../../../lib/apiClient";
+import AddStaffModal from "./AddStaffModal";
+import EditStaffModal from "./EditStaffModal";
 import * as XLSX from "xlsx";
 
-// ── Constants ──────────────────────────────────────────────────────────────
+// ── Config per page ────────────────────────────────────────────────────────
 
-type TabKey = "staff" | "doctors";
+export interface StatCardConfig {
+  label: string;
+  sublabel: string;
+  getValue: (stats: StaffStatsDto) => number;
+  colorClass: string;    // text color for number
+  bgClass: string;       // icon bg
+  iconClass: string;     // icon color
+  icon: React.ReactNode;
+}
 
-const TABS: Array<{ key: TabKey; label: string; scopeRoles: string; defaultAddRole: string }> = [
-  { key: "doctors", label: "Bác sĩ",     scopeRoles: "Doctor,Dentist", defaultAddRole: "Dentist" },
-  { key: "staff",   label: "Nhân viên",  scopeRoles: "Staff,Admin",    defaultAddRole: "Staff"   },
-];
+export interface StaffPageConfig {
+  pageTitle: string;
+  pageSubtitle: string;
+  activeMenu: string;
+  scopeRoles: string;           // e.g. "Staff,Admin" — sent when dropdown is "All"
+  roleOptions: Array<{ value: string; label: string }>;
+  defaultAddRole: string;
+  statCards: [StatCardConfig, StatCardConfig, StatCardConfig];
+  excelSheetName: string;
+}
 
-const ROLE_OPTIONS: Record<TabKey, Array<{ value: string; label: string }>> = {
-  staff: [
-    { value: "",       label: "Tất cả nhân viên"  },
-    { value: "Staff",  label: "Lễ tân / Trợ lý"  },
-    { value: "Admin",  label: "Quản trị viên"     },
-  ],
-  doctors: [
-    { value: "",        label: "Tất cả bác sĩ"       },
-    { value: "Dentist", label: "Nha sĩ"               },
-    { value: "Doctor",  label: "Bác sĩ chuyên khoa"  },
-  ],
-};
+// ── Shared lookup maps ─────────────────────────────────────────────────────
 
 const ROLE_LABELS: Record<string, string> = {
-  Admin: "Quản trị viên", Doctor: "Bác sĩ",
-  Dentist: "Nha sĩ",      Staff: "Lễ tân / Trợ lý",
+  Admin: "Quản trị viên",
+  Doctor: "Bác sĩ",
+  Dentist: "Nha sĩ",
+  Staff: "Lễ tân / Trợ lý",
 };
 
 const ROLE_BADGES: Record<string, string> = {
-  Admin:   "bg-purple-50 text-purple-700 border-purple-100",
-  Doctor:  "bg-emerald-50 text-emerald-700 border-emerald-100",
+  Admin: "bg-purple-50 text-purple-700 border-purple-100",
+  Doctor: "bg-emerald-50 text-emerald-700 border-emerald-100",
   Dentist: "bg-sky-50 text-secondary border-sky-100",
-  Staff:   "bg-green-50 text-green-700 border-green-100",
+  Staff: "bg-green-50 text-green-700 border-green-100",
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  Active: "Đang làm việc", "On Leave": "Nghỉ phép", Inactive: "Đã nghỉ việc",
+  Active: "Đang làm việc",
+  "On Leave": "Nghỉ phép",
+  Inactive: "Đã nghỉ việc",
 };
 
 const STATUS_BADGES: Record<string, string> = {
-  Active:     "bg-green-50 text-green-700 border-green-200",
+  Active: "bg-green-50 text-green-700 border-green-200",
   "On Leave": "bg-amber-50 text-amber-700 border-amber-200",
-  Inactive:   "bg-red-50 text-red-700 border-red-200",
+  Inactive: "bg-red-50 text-red-700 border-red-200",
 };
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
 
-// ── Page ───────────────────────────────────────────────────────────────────
+// ── Component ──────────────────────────────────────────────────────────────
 
-export default function StaffManagementPage() {
+interface Props {
+  config: StaffPageConfig;
+}
+
+export default function StaffManagementPage({ config }: Props) {
   useRequireAdmin();
-  const router = useRouter();
 
-  const [activeTab, setActiveTab]       = useState<TabKey>("doctors");
-  const [staffList, setStaffList]       = useState<StaffDto[]>([]);
-  const [stats, setStats]               = useState<StaffStatsDto>({ totalDentists: 0, totalEmployees: 0, totalDoctors: 0 });
-  const [totalCount, setTotalCount]     = useState(0);
-  const [isLoading, setIsLoading]       = useState(true);
+  const [staffList, setStaffList]   = useState<StaffDto[]>([]);
+  const [stats, setStats]           = useState<StaffStatsDto>({ totalDentists: 0, totalEmployees: 0, totalDoctors: 0 });
+  const [totalCount, setTotalCount] = useState(0);
+  const [isLoading, setIsLoading]   = useState(true);
 
   const [searchQuery, setSearchQuery]   = useState("");
   const [roleFilter, setRoleFilter]     = useState("");
@@ -73,26 +86,21 @@ export default function StaffManagementPage() {
   const [currentPage, setCurrentPage]   = useState(1);
   const [pageSize, setPageSize]         = useState(10);
 
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-  const [selectedStaff, setSelectedStaff]       = useState<StaffDto | null>(null);
-  const [toast, setToast] = useState<{ show: boolean; message: string } | null>(null);
+  const [isAddModalOpen, setIsAddModalOpen]   = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedStaff, setSelectedStaff]     = useState<StaffDto | null>(null);
 
-  const tab = TABS.find((t) => t.key === activeTab)!;
+  const [toast, setToast] = useState<{ show: boolean; message: string } | null>(null);
 
   const showToast = (message: string) => {
     setToast({ show: true, message });
     setTimeout(() => setToast(null), 4000);
   };
 
-  useEffect(() => {
-    const msg = sessionStorage.getItem("staffSuccessMsg");
-    if (msg) { showToast(msg); sessionStorage.removeItem("staffSuccessMsg"); }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const fetchStaff = useCallback(() => {
+  const fetchStaff = () => {
     setIsLoading(true);
-    const effectiveRole = roleFilter || tab.scopeRoles;
+    // When roleFilter is empty ("All"), scope to this page's roles
+    const effectiveRole = roleFilter || config.scopeRoles;
     getStaffApi({
       search:   searchQuery || undefined,
       role:     effectiveRole,
@@ -105,99 +113,63 @@ export default function StaffManagementPage() {
         setTotalCount(res.totalCount);
         setStats(res.statistics);
       })
-      .catch((err) => showToast("Lỗi tải dữ liệu: " + (err instanceof Error ? err.message : "")))
+      .catch((err) => showToast("Lỗi khi tải dữ liệu: " + (err instanceof Error ? err.message : "")))
       .finally(() => setIsLoading(false));
-  }, [searchQuery, roleFilter, statusFilter, currentPage, pageSize, tab.scopeRoles]);
+  };
 
-  useEffect(() => { fetchStaff(); }, [fetchStaff]);
+  useEffect(() => { fetchStaff(); }, [searchQuery, roleFilter, statusFilter, currentPage, pageSize]);
 
-  const switchTab = (key: TabKey) => {
-    setActiveTab(key);
-    setRoleFilter("");
-    setStatusFilter("All");
-    setSearchQuery("");
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
     setCurrentPage(1);
+  };
+  const handleRoleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setRoleFilter(e.target.value);
+    setCurrentPage(1);
+  };
+  const handleStatusChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setStatusFilter(e.target.value);
+    setCurrentPage(1);
+  };
+
+  const handleExportExcel = () => {
+    const statsData = [
+      [`BÁO CÁO THỐNG KÊ - ${config.pageTitle.toUpperCase()}`],
+      ["Ngày xuất:", new Date().toLocaleDateString("vi-VN")],
+      [],
+      ["DANH SÁCH CHI TIẾT"],
+      ["Mã NV", "Họ tên", "Email", "Số điện thoại", "Vai trò", "Bộ phận", "Trạng thái"],
+    ];
+    const rows = staffList.map((u) => [
+      u.employeeId || "—",
+      u.fullName || u.username,
+      u.email,
+      u.phoneNumber || "—",
+      ROLE_LABELS[u.role] || u.role,
+      u.department || "—",
+      STATUS_LABELS[u.employmentStatus || "Active"],
+    ]);
+    const ws = XLSX.utils.aoa_to_sheet([...statsData, ...rows]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, config.excelSheetName);
+    XLSX.writeFile(wb, `${config.excelSheetName}.xlsx`);
+    showToast(`Đã xuất danh sách ra file ${config.excelSheetName}.xlsx`);
   };
 
   const selectClass =
     "w-full px-4 py-2.5 text-[13.5px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-bold text-slate-600 appearance-none pr-8 cursor-pointer";
 
-  // ── Stat cards ─────────────────────────────────────────────────────────
-
-  const otherStaff = Math.max(0, stats.totalEmployees - stats.totalDentists - stats.totalDoctors);
-
-  const statCards = activeTab === "staff"
-    ? [
-        {
-          label: "Tổng nhân viên", sub: "Lễ tân, trợ lý, quản trị",
-          value: otherStaff, numClass: "text-slate-900",
-          bg: "bg-red-50/50", iconCls: "text-primary",
-          icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.109A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" /></svg>,
-        },
-        {
-          label: "Lễ tân / Trợ lý", sub: "Tiếp đón và hỗ trợ bệnh nhân",
-          value: otherStaff, numClass: "text-green-700",
-          bg: "bg-green-50", iconCls: "text-green-600",
-          icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" /></svg>,
-        },
-        {
-          label: "Quản trị viên", sub: "Tài khoản admin hệ thống",
-          value: 1, numClass: "text-purple-700",
-          bg: "bg-purple-50", iconCls: "text-purple-600",
-          icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.57-.598-3.751A11.956 11.956 0 0112 2.714z" /></svg>,
-        },
-      ]
-    : [
-        {
-          label: "Tổng bác sĩ", sub: "Nha sĩ và bác sĩ chuyên khoa",
-          value: stats.totalDentists + stats.totalDoctors, numClass: "text-slate-900",
-          bg: "bg-red-50/50", iconCls: "text-primary",
-          icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.109A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" /></svg>,
-        },
-        {
-          label: "Nha sĩ", sub: "Nha sĩ điều trị lâm sàng",
-          value: stats.totalDentists, numClass: "text-secondary",
-          bg: "bg-sky-50", iconCls: "text-secondary",
-          icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 4.5C7.2 4.5 6 5.9 6 7.5c0 1.1.42 2.1 1.12 2.85L8.2 20.5h3l.8-4.5.8 4.5h3l1.08-10.15c.7-.75 1.12-1.75 1.12-2.85C18 5.9 16.8 4.5 15 4.5H9z" /></svg>,
-        },
-        {
-          label: "Bác sĩ chuyên khoa", sub: "Bác sĩ khám và tư vấn",
-          value: stats.totalDoctors, numClass: "text-emerald-600",
-          bg: "bg-emerald-50", iconCls: "text-emerald-600",
-          icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-3-3v6M12 3a9 9 0 110 18A9 9 0 0112 3z" /></svg>,
-        },
-      ];
-
-  const handleExportExcel = () => {
-    const rows = staffList.map((u) => [
-      u.employeeId || "—", u.fullName || u.username, u.email,
-      u.phoneNumber || "—", ROLE_LABELS[u.role] || u.role,
-      u.department || "—", STATUS_LABELS[u.employmentStatus || "Active"],
-    ]);
-    const ws = XLSX.utils.aoa_to_sheet([
-      [`DANH SÁCH - ${activeTab === "staff" ? "NHÂN VIÊN" : "BÁC SĨ"}`],
-      ["Mã NV", "Họ tên", "Email", "SĐT", "Vai trò", "Bộ phận", "Trạng thái"],
-      ...rows,
-    ]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, activeTab === "staff" ? "NhanVien" : "BacSi");
-    XLSX.writeFile(wb, `${activeTab === "staff" ? "NhanVien" : "BacSi"}.xlsx`);
-    showToast("Đã xuất file Excel thành công.");
-  };
-
   return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
-      <Sidebar activeMenu="staff" />
+      <Sidebar activeMenu={config.activeMenu} />
 
       <main className="flex-1 flex flex-col min-w-0">
 
         {/* HEADER */}
         <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 shadow-sm shadow-slate-100/50">
           <div>
-            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Quản Lý Nhân Sự</h1>
-            <p className="text-[13px] text-slate-400 font-semibold mt-0.5">
-              Tra cứu, thêm mới, phân quyền và cập nhật hồ sơ nhân sự phòng khám.
-            </p>
+            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">{config.pageTitle}</h1>
+            <p className="text-[13px] text-slate-400 font-semibold mt-0.5">{config.pageSubtitle}</p>
           </div>
           <NotificationBell />
         </header>
@@ -218,33 +190,19 @@ export default function StaffManagementPage() {
             </div>
           )}
 
-          {/* TABS */}
-          <div className="flex items-center gap-1 bg-white border border-slate-200/60 rounded-2xl p-1.5 shadow-sm w-fit shrink-0">
-            {TABS.map((t) => (
-              <button
-                key={t.key}
-                onClick={() => switchTab(t.key)}
-                className={`px-5 py-2.5 rounded-xl text-[13.5px] font-extrabold transition-all cursor-pointer ${
-                  activeTab === t.key
-                    ? "bg-primary text-white shadow-md shadow-primary/25"
-                    : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-
           {/* STAT CARDS */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 shrink-0">
-            {statCards.map((card, i) => (
-              <div key={i} className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex items-center justify-between transition-all duration-200 hover-lift">
+            {config.statCards.map((card, i) => (
+              <div
+                key={i}
+                className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm hover-lift flex items-center justify-between transition-all duration-200"
+              >
                 <div>
                   <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">{card.label}</span>
-                  <span className={`text-3xl font-black block mt-1 ${card.numClass}`}>{card.value}</span>
-                  <span className="text-[12px] text-slate-400 font-semibold block mt-0.5">{card.sub}</span>
+                  <span className={`text-3xl font-black block mt-1 ${card.colorClass}`}>{card.getValue(stats)}</span>
+                  <span className="text-[12px] text-slate-400 font-semibold block mt-0.5">{card.sublabel}</span>
                 </div>
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${card.bg} ${card.iconCls}`}>
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${card.bgClass} ${card.iconClass}`}>
                   {card.icon}
                 </div>
               </div>
@@ -265,19 +223,15 @@ export default function StaffManagementPage() {
                   type="text"
                   placeholder="Tìm theo tên, mã NV, email, số điện thoại..."
                   value={searchQuery}
-                  onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                  onChange={handleSearchChange}
                   className="w-full pl-10 pr-4 py-2.5 text-[14px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-semibold"
                 />
               </div>
 
-              {/* Role filter — options change per tab */}
+              {/* Role filter */}
               <div className="relative md:w-52">
-                <select
-                  value={roleFilter}
-                  onChange={(e) => { setRoleFilter(e.target.value); setCurrentPage(1); }}
-                  className={selectClass}
-                >
-                  {ROLE_OPTIONS[activeTab].map((opt) => (
+                <select value={roleFilter} onChange={handleRoleChange} className={selectClass}>
+                  {config.roleOptions.map((opt) => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
@@ -290,11 +244,7 @@ export default function StaffManagementPage() {
 
               {/* Status filter */}
               <div className="relative md:w-48">
-                <select
-                  value={statusFilter}
-                  onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
-                  className={selectClass}
-                >
+                <select value={statusFilter} onChange={handleStatusChange} className={selectClass}>
                   <option value="All">Tất cả trạng thái</option>
                   <option value="Active">Đang làm việc</option>
                   <option value="On Leave">Nghỉ phép</option>
@@ -307,9 +257,9 @@ export default function StaffManagementPage() {
                 </span>
               </div>
 
-              {/* Add */}
+              {/* Add button */}
               <button
-                onClick={() => router.push(activeTab === "doctors" ? "/dashboard/staff/add-doctor" : "/dashboard/staff/add-staff")}
+                onClick={() => setIsAddModalOpen(true)}
                 className="flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-white text-[14px] font-extrabold px-5 py-2.5 rounded-xl shadow-md shadow-primary/20 hover:shadow-lg transition-all hover:translate-y-[-1px] cursor-pointer"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -319,7 +269,7 @@ export default function StaffManagementPage() {
               </button>
             </div>
 
-            {/* Row 2 */}
+            {/* Row 2: page size + count + export */}
             <div className="flex items-center justify-between gap-3 flex-wrap border-t border-slate-100 pt-3">
               <div className="flex items-center gap-2.5">
                 <span className="text-[12.5px] text-slate-400 font-semibold">Hiển thị</span>
@@ -327,7 +277,7 @@ export default function StaffManagementPage() {
                   <select
                     value={pageSize}
                     onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
-                    className="pl-3 pr-7 py-1.5 text-[13px] bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none font-bold text-slate-650 appearance-none cursor-pointer"
+                    className="pl-3 pr-7 py-1.5 text-[13px] bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-bold text-slate-650 appearance-none cursor-pointer"
                   >
                     {PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
                   </select>
@@ -363,11 +313,11 @@ export default function StaffManagementPage() {
                   <tr className="bg-slate-50/70 font-extrabold text-slate-400 uppercase tracking-wider border-b border-slate-200/85 select-none text-[11px]">
                     <th className="px-5 py-4 w-[230px]">Nhân viên</th>
                     <th className="px-5 py-4 w-[110px]">Mã nhân sự</th>
-                    <th className="px-5 py-4">Email</th>
+                    <th className="px-5 py-4">Địa chỉ Email</th>
                     <th className="px-5 py-4 w-[140px]">Số điện thoại</th>
                     <th className="px-5 py-4 w-[150px]">Vai trò</th>
                     <th className="px-5 py-4 w-[130px] text-center">Trạng thái</th>
-                    <th className="px-5 py-4 w-[110px] text-center">Hành động</th>
+                    <th className="px-5 py-4 w-[80px] text-center">Hành động</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700 font-semibold">
@@ -415,12 +365,7 @@ export default function StaffManagementPage() {
                               <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-black border ${STATUS_BADGES[item.employmentStatus || "Active"]}`}>
                                 {STATUS_LABELS[item.employmentStatus || "Active"]}
                               </span>
-                              {!item.hasAccount && (
-                                <span className="text-[10px] text-amber-600 font-bold bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full leading-none whitespace-nowrap">
-                                  Chưa có TK
-                                </span>
-                              )}
-                              {item.hasAccount && !item.isActive && (
+                              {!item.isActive && (
                                 <span className="text-[10px] text-red-500 font-bold bg-red-50 border border-red-100 px-1.5 py-0.5 rounded-full leading-none">
                                   Tài khoản khóa
                                 </span>
@@ -428,46 +373,27 @@ export default function StaffManagementPage() {
                             </div>
                           </td>
                           <td className="px-5 py-4 text-center">
-                            <div className="flex items-center justify-center gap-1">
-                              <button
-                                onClick={() => { setSelectedStaff(item); setIsDetailModalOpen(true); }}
-                                title="Xem chi tiết"
-                                className="p-2 text-slate-400 hover:text-secondary hover:bg-sky-50 rounded-lg transition-all cursor-pointer"
-                              >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                </svg>
-                              </button>
-                              <button
-                                onClick={() => {
-                                  sessionStorage.setItem("staffEditData", JSON.stringify(item));
-                                  router.push(
-                                    (item.role === "Doctor" || item.role === "Dentist")
-                                      ? `/dashboard/staff/edit-doctor/${item.id}`
-                                      : `/dashboard/staff/edit-staff/${item.id}`
-                                  );
-                                }}
-                                title="Chỉnh sửa"
-                                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all cursor-pointer"
-                              >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-                                </svg>
-                              </button>
-                            </div>
+                            <button
+                              onClick={() => { setSelectedStaff(item); setIsEditModalOpen(true); }}
+                              title="Chỉnh sửa"
+                              className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all cursor-pointer"
+                            >
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                              </svg>
+                            </button>
                           </td>
                         </tr>
                       );
                     })
                   ) : (
                     <tr>
-                      <td colSpan={7} className="px-5 py-12 text-center">
+                      <td colSpan={7} className="px-5 py-12 text-center text-slate-450">
                         <div className="flex flex-col items-center gap-2">
                           <svg className="w-10 h-10 text-slate-300" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
                           </svg>
-                          <div className="font-extrabold text-[14px] text-slate-500">Không tìm thấy kết quả phù hợp.</div>
+                          <div className="font-extrabold text-[14px]">Không tìm thấy kết quả phù hợp.</div>
                           <div className="text-[12px] text-slate-400 font-semibold">Thử thay đổi từ khóa hoặc bộ lọc.</div>
                         </div>
                       </td>
@@ -521,10 +447,17 @@ export default function StaffManagementPage() {
         </div>
       </main>
 
-      <StaffDetailModal
-        isOpen={isDetailModalOpen}
-        onClose={() => { setIsDetailModalOpen(false); setSelectedStaff(null); }}
+      <AddStaffModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        defaultRole={config.defaultAddRole}
+        onSuccess={(msg) => { showToast(msg); fetchStaff(); }}
+      />
+      <EditStaffModal
+        isOpen={isEditModalOpen}
+        onClose={() => { setIsEditModalOpen(false); setSelectedStaff(null); }}
         staff={selectedStaff}
+        onSuccess={(msg) => { showToast(msg); fetchStaff(); }}
       />
     </div>
   );

@@ -148,6 +148,20 @@ export interface StaffDto {
   profilePictureUrl: string | null;
   professionalNotes: string | null;
   createdAt: string;
+  specialty: string | null;
+  licenseNumber: string | null;
+  yearsOfExperience: number | null;
+  hasAccount: boolean;
+  gender: string | null;
+  dateOfBirth: string | null;
+  address: string | null;
+  startDate: string | null;
+  servicesHandled: string | null;
+  certificateIssuedDate: string | null;
+  certificateIssuedBy: string | null;
+  education: string | null;
+  bio: string | null;
+  position: string | null;
 }
 
 
@@ -175,6 +189,19 @@ export interface CreateStaffCommand {
   employmentStatus?: string | null;
   profilePictureUrl?: string | null;
   professionalNotes?: string | null;
+  specialty?: string | null;
+  licenseNumber?: string | null;
+  yearsOfExperience?: number | null;
+  gender?: string | null;
+  dateOfBirth?: string | null;
+  address?: string | null;
+  startDate?: string | null;
+  servicesHandled?: string | null;
+  certificateIssuedDate?: string | null;
+  certificateIssuedBy?: string | null;
+  education?: string | null;
+  bio?: string | null;
+  position?: string | null;
 }
 
 export interface UpdateStaffCommand {
@@ -188,6 +215,19 @@ export interface UpdateStaffCommand {
   profilePictureUrl: string | null;
   professionalNotes: string | null;
   isActive: boolean;
+  specialty: string | null;
+  licenseNumber: string | null;
+  yearsOfExperience: number | null;
+  gender?: string | null;
+  dateOfBirth?: string | null;
+  address?: string | null;
+  startDate?: string | null;
+  servicesHandled?: string | null;
+  certificateIssuedDate?: string | null;
+  certificateIssuedBy?: string | null;
+  education?: string | null;
+  bio?: string | null;
+  position?: string | null;
 }
 
 export interface ResetPasswordResponse {
@@ -259,6 +299,19 @@ export async function resetStaffPasswordApi(id: string): Promise<ResetPasswordRe
     throw new Error((err as { title?: string }).title ?? "Đặt lại mật khẩu thất bại");
   }
   return res.json() as Promise<ResetPasswordResponse>;
+}
+
+export async function createStaffAccountApi(id: string): Promise<StaffDto> {
+  const res = await fetch(`${API_URL}/api/staff/${id}/create-account`, {
+    method: "POST",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Tạo tài khoản thất bại");
+  }
+  return res.json() as Promise<StaffDto>;
 }
 
 

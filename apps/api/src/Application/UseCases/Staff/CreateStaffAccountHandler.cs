@@ -1,39 +1,34 @@
 using System.Security.Cryptography;
-using DentalClinic.API.Application.DTOs.Auth;
-using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 
-namespace DentalClinic.API.Application.UseCases.Auth;
+namespace DentalClinic.API.Application.UseCases.Staff;
 
-public record CreateAccountCommand(
-    string FullName,
-    string Email,
-    string PhoneNumber,
-    string Role);
-
-public class CreateAccountHandler(IUserRepository userRepository, IEmailService emailService)
+public class CreateStaffAccountHandler(IUserRepository userRepository, IEmailService emailService)
 {
-    public async Task<CreateAccountResponseDto> HandleAsync(CreateAccountCommand command, CancellationToken ct = default)
+    public async Task<StaffItemDto> HandleAsync(Guid staffId, CancellationToken ct = default)
     {
-        if (await userRepository.ExistsByEmailAsync(command.Email, ct))
-            throw new ConflictException($"Email '{command.Email}' đã được sử dụng bởi tài khoản khác.");
+        var user = await userRepository.GetByIdAsync(staffId, ct)
+            ?? throw new NotFoundException($"Không tìm thấy nhân viên với ID '{staffId}'.");
 
-        var username = BuildUsername(command.Email);
+        if (user.HasAccount)
+            throw new ConflictException("Nhân viên này đã có tài khoản đăng nhập.");
 
+        var username = BuildUsername(user.Email);
         if (await userRepository.ExistsByUsernameAsync(username, ct))
             username = $"{username}_{RandomNumberGenerator.GetHexString(4, lowercase: true)}";
 
-        var rawPassword = GenerateSecurePassword();
+        var rawPassword  = GenerateSecurePassword();
         var passwordHash = BCrypt.Net.BCrypt.HashPassword(rawPassword, workFactor: 12);
 
-        var user = User.Create(username, command.Email, passwordHash, command.Role, command.PhoneNumber, command.FullName);
-        await userRepository.AddAsync(user, ct);
+        user.SetCredentials(username, passwordHash);
+        await userRepository.UpdateAsync(user, ct);
 
-        await emailService.SendStaffCredentialsAsync(command.Email, command.FullName, rawPassword, ct);
+        await emailService.SendStaffCredentialsAsync(
+            user.Email, user.FullName ?? username, rawPassword, ct);
 
-        return new CreateAccountResponseDto(user.Id, user.Username!, user.Email, user.Role, user.CreatedAt);
+        return GetStaffHandler.ToDto(user);
     }
 
     private static string BuildUsername(string email) =>
@@ -53,7 +48,6 @@ public class CreateAccountHandler(IUserRepository userRepository, IEmailService 
         var pw = new char[length];
         var b  = RandomNumberGenerator.GetBytes(length + 4);
 
-        // Guarantee at least one character from each category
         pw[0] = upper  [b[0] % upper.Length];
         pw[1] = lower  [b[1] % lower.Length];
         pw[2] = digits [b[2] % digits.Length];
@@ -62,7 +56,6 @@ public class CreateAccountHandler(IUserRepository userRepository, IEmailService 
         for (int i = 4; i < length; i++)
             pw[i] = all[b[i] % all.Length];
 
-        // Fisher-Yates shuffle
         var s = RandomNumberGenerator.GetBytes(length);
         for (int i = length - 1; i > 0; i--)
         {

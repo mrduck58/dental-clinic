@@ -2,6 +2,7 @@ using DentalClinic.API.Application.UseCases.Auth;
 using DentalClinic.API.Application.UseCases.Posts;
 using DentalClinic.API.Application.UseCases.Schedules;
 using DentalClinic.API.Application.UseCases.Services;
+using DentalClinic.API.Application.UseCases.Staff;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Infrastructure.Persistence;
@@ -42,6 +43,12 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<LoginHandler>();
         services.AddScoped<CreateAccountHandler>();
         services.AddScoped<GetAccountsHandler>();
+
+        services.AddScoped<GetStaffHandler>();
+        services.AddScoped<CreateStaffHandler>();
+        services.AddScoped<UpdateStaffHandler>();
+        services.AddScoped<ResetStaffPasswordHandler>();
+        services.AddScoped<CreateStaffAccountHandler>();
 
         services.AddScoped<GetPostsHandler>();
         services.AddScoped<GetPostByIdHandler>();

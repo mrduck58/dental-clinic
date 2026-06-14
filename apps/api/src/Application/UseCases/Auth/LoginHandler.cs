@@ -16,7 +16,7 @@ public class LoginHandler(IUserRepository userRepository, IJwtService jwtService
         if (!user.IsActive)
             throw new UnauthorizedAccessException("Tài khoản đã bị vô hiệu hóa. Vui lòng liên hệ quản trị viên.");
 
-        if (!BCrypt.Net.BCrypt.Verify(command.Password, user.PasswordHash))
+        if (user.PasswordHash is null || !BCrypt.Net.BCrypt.Verify(command.Password, user.PasswordHash))
             throw new UnauthorizedAccessException("Email hoặc mật khẩu không đúng.");
 
         var token = jwtService.GenerateToken(user);
@@ -24,6 +24,6 @@ public class LoginHandler(IUserRepository userRepository, IJwtService jwtService
         return new LoginResponseDto(
             AccessToken: token,
             ExpiresIn: 15 * 60,
-            User: new AuthUserDto(user.Id, user.Username, user.FullName, user.Email, user.Role, user.IsActive));
+            User: new AuthUserDto(user.Id, user.Username ?? user.Email, user.FullName, user.Email, user.Role, user.IsActive));
     }
 }
