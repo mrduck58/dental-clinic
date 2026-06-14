@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.UseCases.Auth;
 using DentalClinic.API.Application.UseCases.Posts;
+using DentalClinic.API.Application.UseCases.Promotions;
 using DentalClinic.API.Application.UseCases.Schedules;
 using DentalClinic.API.Application.UseCases.Services;
 using DentalClinic.API.Application.UseCases.Staff;
@@ -34,6 +35,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IServiceRepository, ServiceRepository>();
         services.AddScoped<IPostRepository, PostRepository>();
         services.AddScoped<IWorkScheduleRepository, WorkScheduleRepository>();
+        services.AddScoped<IPromotionRepository, PromotionRepository>();
 
         // ── Services ────────────────────────────────────────────────────────
         services.AddScoped<IJwtService, JwtService>();
@@ -65,6 +67,13 @@ public static class InfrastructureServiceExtensions
 
         services.AddScoped<GetWeekScheduleHandler>();
         services.AddScoped<SaveWeekScheduleHandler>();
+
+        services.AddScoped<GetPromotionsHandler>();
+        services.AddScoped<GetPromotionByIdHandler>();
+        services.AddScoped<CreatePromotionHandler>();
+        services.AddScoped<UpdatePromotionHandler>();
+        services.AddScoped<DeletePromotionHandler>();
+        services.AddScoped<TogglePromotionStatusHandler>();
 
         return services;
     }

@@ -2,27 +2,30 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import AdminSidebar from "../../../../../components/shared/AdminSidebar";
-import NotificationBell from "../../../../../components/shared/NotificationBell";
-import { useRequireAdmin } from "../../../../../hooks/useRequireAdmin";
+import { useRouter, useParams } from "next/navigation";
+import AdminSidebar from "../../../../../../components/shared/AdminSidebar";
+import NotificationBell from "../../../../../../components/shared/NotificationBell";
+import { useRequireAdmin } from "../../../../../../hooks/useRequireAdmin";
 import {
   getServicesApi,
-  createPromotionApi,
+  getPromotionByIdApi,
+  updatePromotionApi,
   type ServiceDto,
-} from "../../../../../lib/apiClient";
+} from "../../../../../../lib/apiClient";
 
 const promotionTypes = [
   { value: "Percentage", label: "Phần trăm (%)" },
   { value: "Fixed", label: "Số tiền (VNĐ)" },
 ];
 
-export default function AddPromotionPage() {
+export default function EditPromotionPage() {
   useRequireAdmin();
   const router = useRouter();
+  const { id } = useParams<{ id: string }>();
 
   const [services, setServices] = useState<ServiceDto[]>([]);
-  const [loadingServices, setLoadingServices] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -37,11 +40,21 @@ export default function AddPromotionPage() {
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
-    getServicesApi()
-      .then(setServices)
-      .catch(() => setServices([]))
-      .finally(() => setLoadingServices(false));
-  }, []);
+    Promise.all([getServicesApi(), getPromotionByIdApi(id)])
+      .then(([svcs, promo]) => {
+        setServices(svcs);
+        setCode(promo.code);
+        setPromotionName(promo.name);
+        setPromotionType(promo.discountType);
+        setDiscountValue(String(promo.discountValue));
+        setStartDate(promo.startDate);
+        setEndDate(promo.endDate);
+        setMessage(promo.description ?? "");
+        setSelectedServiceId(promo.serviceIds[0] ?? "");
+      })
+      .catch(() => setLoadError("Không thể tải dữ liệu khuyến mãi."))
+      .finally(() => setIsLoading(false));
+  }, [id]);
 
   const filteredServices = useMemo(() => {
     if (!searchQuery.trim()) return services;
@@ -76,13 +89,13 @@ export default function AddPromotionPage() {
     return null;
   };
 
-  const handleSave = async (isActive: boolean) => {
+  const handleSave = async () => {
     const err = validate();
     if (err) { setSaveError(err); return; }
     setSaveError(null);
     setIsSaving(true);
     try {
-      await createPromotionApi({
+      await updatePromotionApi(id, {
         code: code.trim().toUpperCase(),
         name: promotionName.trim(),
         description: message.trim() || undefined,
@@ -91,9 +104,8 @@ export default function AddPromotionPage() {
         serviceIds: selectedServiceId ? [selectedServiceId] : [],
         startDate,
         endDate,
-        isActive,
       });
-      sessionStorage.setItem("serviceSuccessMsg", isActive ? "Đã tạo và áp dụng khuyến mãi!" : "Đã thêm khuyến mãi (chưa áp dụng).");
+      sessionStorage.setItem("serviceSuccessMsg", "Đã cập nhật khuyến mãi thành công!");
       router.push("/dashboard/services");
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : "Có lỗi xảy ra");
@@ -103,6 +115,28 @@ export default function AddPromotionPage() {
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("vi-VN").format(value) + " VNĐ";
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen bg-slate-50">
+        <AdminSidebar activeMenu="services" />
+        <main className="flex-1 flex items-center justify-center">
+          <div className="text-slate-400 text-[15px] font-semibold animate-pulse">Đang tải...</div>
+        </main>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex min-h-screen bg-slate-50">
+        <AdminSidebar activeMenu="services" />
+        <main className="flex-1 flex items-center justify-center">
+          <div className="text-red-500 text-[15px] font-semibold">{loadError}</div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
@@ -121,8 +155,8 @@ export default function AddPromotionPage() {
               </svg>
             </Link>
             <div>
-              <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Thiết lập Khuyến mãi</h1>
-              <p className="text-[13px] text-slate-400 font-semibold mt-0.5">Tạo chương trình khuyến mãi mới.</p>
+              <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Chỉnh sửa Khuyến mãi</h1>
+              <p className="text-[13px] text-slate-400 font-semibold mt-0.5">Cập nhật thông tin chương trình khuyến mãi.</p>
             </div>
           </div>
           <NotificationBell />
@@ -177,9 +211,7 @@ export default function AddPromotionPage() {
 
                     <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
                       <div className="max-h-[200px] overflow-y-auto">
-                        {loadingServices ? (
-                          <div className="px-4 py-6 text-center text-[13px] text-slate-400 font-medium">Đang tải...</div>
-                        ) : filteredServices.length === 0 ? (
+                        {filteredServices.length === 0 ? (
                           <div className="px-4 py-6 text-center text-[13px] text-slate-400 font-medium">Không tìm thấy dịch vụ</div>
                         ) : filteredServices.map((service) => (
                           <button
@@ -214,7 +246,6 @@ export default function AddPromotionPage() {
                     </div>
                   </div>
 
-                  {/* Badge dịch vụ đang chọn */}
                   {selectedServiceData && (
                     <div className="flex items-center gap-3 p-4 bg-primary/5 border border-primary/20 rounded-xl">
                       <svg className="w-5 h-5 text-primary shrink-0" fill="currentColor" viewBox="0 0 24 24">
@@ -295,7 +326,7 @@ export default function AddPromotionPage() {
                     </div>
                   </div>
 
-                  {/* Ngày bắt đầu & kết thúc */}
+                  {/* Ngày */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div className="flex flex-col gap-2">
                       <label className="text-[13px] font-extrabold text-slate-500 uppercase tracking-wide">
@@ -442,30 +473,17 @@ export default function AddPromotionPage() {
                   </div>
                 )}
 
-                {/* Actions — 2 nút */}
                 <div className="p-6 pt-4 space-y-3">
                   <button
                     type="button"
                     disabled={isSaving}
-                    onClick={() => handleSave(true)}
+                    onClick={handleSave}
                     className="w-full py-3.5 bg-primary hover:bg-primary-hover text-white text-[14px] font-extrabold rounded-xl shadow-md shadow-primary/25 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    {isSaving ? "Đang lưu..." : "Lưu và áp dụng ngay"}
-                  </button>
-
-                  <button
-                    type="button"
-                    disabled={isSaving}
-                    onClick={() => handleSave(false)}
-                    className="w-full py-3.5 text-[14px] font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                    </svg>
-                    Thêm (chưa áp dụng)
+                    {isSaving ? "Đang lưu..." : "Lưu thay đổi"}
                   </button>
 
                   <Link

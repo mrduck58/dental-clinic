@@ -18,6 +18,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Service> Services => Set<Service>();
     public DbSet<Post> Posts => Set<Post>();
     public DbSet<WorkSchedule> WorkSchedules => Set<WorkSchedule>();
+    public DbSet<Promotion> Promotions => Set<Promotion>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
