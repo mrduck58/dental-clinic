@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import Sidebar from "../../../components/shared/Sidebar";
+import AdminSidebar from "../../../components/shared/AdminSidebar";
 import NotificationBell from "../../../components/shared/NotificationBell";
 import { useRequireAdmin } from "../../../hooks/useRequireAdmin";
 
@@ -208,7 +208,7 @@ export default function FeedbackDashboardPage() {
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
       
       {/* SIDEBAR */}
-      <Sidebar activeMenu="feedback" />
+      <AdminSidebar activeMenu="feedback" />
 
       {/* MAIN CONTENT AREA */}
       <main className="flex-1 flex flex-col min-w-0">

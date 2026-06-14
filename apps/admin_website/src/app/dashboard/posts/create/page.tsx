@@ -4,7 +4,7 @@ import React, { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createPostApi } from "../../../../lib/apiClient";
-import Sidebar from "../../../../components/shared/Sidebar";
+import AdminSidebar from "../../../../components/shared/AdminSidebar";
 import { useRequireAdmin } from "../../../../hooks/useRequireAdmin";
 import NotificationBell from "../../../../components/shared/NotificationBell";
 
@@ -102,7 +102,7 @@ export default function CreatePostPage() {
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
       
       {/* ── SIDEBAR ──────────────────────────────────────────────────────── */}
-      <Sidebar activeMenu="articles" />
+      <AdminSidebar activeMenu="articles" />
 
       {/* ── MAIN AREA ────────────────────────────────────────────────────── */}
       <main className="flex-1 flex flex-col min-w-0">

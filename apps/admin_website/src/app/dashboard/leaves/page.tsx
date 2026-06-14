@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
-import Sidebar from "../../../components/shared/Sidebar";
+import AdminSidebar from "../../../components/shared/AdminSidebar";
 import { useRequireAdmin } from "../../../hooks/useRequireAdmin";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -261,7 +261,7 @@ export default function LeavesPage() {
 
   return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
-      <Sidebar activeMenu="leaves" />
+      <AdminSidebar activeMenu="leaves" />
 
       <main className="flex-1 flex flex-col min-w-0">
         {/* HEADER */}

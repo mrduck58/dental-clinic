@@ -1,13 +1,13 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
-import Sidebar from "../../../../../components/shared/Sidebar";
-import NotificationBell from "../../../../../components/shared/NotificationBell";
-import { useRequireAdmin } from "../../../../../hooks/useRequireAdmin";
-import { updateStaffApi, uploadFileApi, type StaffDto, type UpdateStaffCommand } from "../../../../../lib/apiClient";
+import { useRouter } from "next/navigation";
+import AdminSidebar from "../../../../components/shared/AdminSidebar";
+import NotificationBell from "../../../../components/shared/NotificationBell";
+import { useRequireAdmin } from "../../../../hooks/useRequireAdmin";
+import { createStaffApi, getStaffApi, uploadFileApi, type CreateStaffCommand } from "../../../../lib/apiClient";
 
-interface DoctorEditForm {
+interface DoctorForm {
   fullName: string;
   gender: string;
   dateOfBirth: string;
@@ -24,58 +24,46 @@ interface DoctorEditForm {
   yearsOfExperience: string;
   education: string;
   bio: string;
-  role: string;
-  employmentStatus: string;
-  isActive: boolean;
 }
 
-export default function EditDoctorPage() {
+export default function AddDoctorPage() {
   useRequireAdmin();
   const router = useRouter();
-  const params = useParams();
-  const id = params.id as string;
 
-  const [staff, setStaff] = useState<StaffDto | null>(null);
+  const [doctorCode, setDoctorCode] = useState<string>("");
+  const [isLoadingCode, setIsLoadingCode] = useState(true);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const [formData, setFormData] = useState<DoctorEditForm>({
-    fullName: "", gender: "", dateOfBirth: "", phoneNumber: "", email: "",
-    address: "", profilePictureUrl: "", specialty: "", licenseNumber: "",
-    servicesHandled: "", startDate: "", certificateIssuedDate: "",
-    certificateIssuedBy: "", yearsOfExperience: "", education: "", bio: "",
-    role: "Dentist", employmentStatus: "Active", isActive: true,
+
+  const [formData, setFormData] = useState<DoctorForm>({
+    fullName: "",
+    gender: "",
+    dateOfBirth: "",
+    phoneNumber: "",
+    email: "",
+    address: "",
+    profilePictureUrl: "",
+    specialty: "",
+    licenseNumber: "",
+    servicesHandled: "",
+    startDate: "",
+    certificateIssuedDate: "",
+    certificateIssuedBy: "",
+    yearsOfExperience: "",
+    education: "",
+    bio: "",
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    const raw = sessionStorage.getItem("staffEditData");
-    if (raw) {
-      const data: StaffDto = JSON.parse(raw);
-      sessionStorage.removeItem("staffEditData");
-      setStaff(data);
-      setFormData({
-        fullName: data.fullName || "",
-        gender: data.gender || "",
-        dateOfBirth: data.dateOfBirth || "",
-        phoneNumber: data.phoneNumber || "",
-        email: data.email,
-        address: data.address || "",
-        profilePictureUrl: data.profilePictureUrl || "",
-        specialty: data.specialty || "",
-        licenseNumber: data.licenseNumber || "",
-        servicesHandled: data.servicesHandled || "",
-        startDate: data.startDate || "",
-        certificateIssuedDate: data.certificateIssuedDate || "",
-        certificateIssuedBy: data.certificateIssuedBy || "",
-        yearsOfExperience: data.yearsOfExperience != null ? String(data.yearsOfExperience) : "",
-        education: data.education || "",
-        bio: data.bio || "",
-        role: data.role,
-        employmentStatus: data.employmentStatus || "Active",
-        isActive: data.isActive,
-      });
-    }
+    getStaffApi({ role: "Doctor,Dentist", page: 1, pageSize: 1 })
+      .then((res) => {
+        const next = res.totalCount + 1;
+        setDoctorCode(`BS-${String(next).padStart(2, "0")}`);
+      })
+      .catch(() => setDoctorCode("BS-01"))
+      .finally(() => setIsLoadingCode(false));
   }, []);
 
   const validate = () => {
@@ -103,11 +91,7 @@ export default function EditDoctorPage() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    if (name === "isActive") {
-      setFormData((prev) => ({ ...prev, isActive: value === "true" }));
-    } else {
-      setFormData((prev) => ({ ...prev, [name]: value }));
-    }
+    setFormData((prev) => ({ ...prev, [name]: value }));
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
@@ -131,20 +115,17 @@ export default function EditDoctorPage() {
     if (!validate()) return;
     setIsSubmitting(true);
     try {
-      const payload: UpdateStaffCommand = {
-        id,
+      const payload: CreateStaffCommand = {
         fullName: formData.fullName.trim(),
         email: formData.email.trim(),
         phoneNumber: formData.phoneNumber.trim(),
-        role: formData.role,
-        department: staff?.department ?? null,
-        employmentStatus: formData.employmentStatus || "Active",
-        profilePictureUrl: formData.profilePictureUrl.trim() || null,
-        professionalNotes: staff?.professionalNotes ?? null,
-        isActive: formData.isActive,
+        role: "Dentist",
+        employeeId: doctorCode || null,
+        employmentStatus: "Active",
         specialty: formData.specialty.trim() || null,
         licenseNumber: formData.licenseNumber.trim() || null,
         yearsOfExperience: formData.yearsOfExperience ? Number(formData.yearsOfExperience) : null,
+        profilePictureUrl: formData.profilePictureUrl.trim() || null,
         gender: formData.gender || null,
         dateOfBirth: formData.dateOfBirth || null,
         address: formData.address.trim() || null,
@@ -154,11 +135,10 @@ export default function EditDoctorPage() {
         certificateIssuedBy: formData.certificateIssuedBy.trim() || null,
         education: formData.education.trim() || null,
         bio: formData.bio.trim() || null,
-        position: null,
       };
-      await updateStaffApi(id, payload);
-      sessionStorage.setItem("staffSuccessMsg", `Cập nhật thông tin bác sĩ ${formData.fullName.trim()} thành công!`);
-      router.push("/dashboard/staff");
+      await createStaffApi(payload);
+      sessionStorage.setItem("staffSuccessMsg", `Thêm bác sĩ ${formData.fullName.trim()} (${doctorCode}) thành công!`);
+      router.push("/dashboard/employee");
     } catch (err: unknown) {
       setErrors({ api: err instanceof Error ? err.message : "Đã xảy ra lỗi không xác định" });
       setIsSubmitting(false);
@@ -173,41 +153,21 @@ export default function EditDoctorPage() {
   const errMsg = (field: string) =>
     errors[field] ? <p className="text-red-500 text-[11px] font-bold mt-1">{errors[field]}</p> : null;
 
-  if (!staff) {
-    return (
-      <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
-        <Sidebar activeMenu="staff" />
-        <main className="flex-1 flex flex-col items-center justify-center gap-4">
-          <svg className="w-14 h-14 text-slate-300" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-          </svg>
-          <p className="text-slate-500 font-bold text-[15px]">Không tìm thấy dữ liệu bác sĩ.</p>
-          <button onClick={() => router.push("/dashboard/staff")} className="px-6 py-3 bg-secondary text-white font-extrabold rounded-xl cursor-pointer">
-            Quay lại danh sách
-          </button>
-        </main>
-      </div>
-    );
-  }
-
   return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
-      <Sidebar activeMenu="staff" />
+      <AdminSidebar activeMenu="staff" />
 
       <main className="flex-1 flex flex-col min-w-0">
         <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 shadow-sm shadow-slate-100/50">
           <div className="flex items-center gap-4">
-            <button onClick={() => router.push("/dashboard/staff")} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all cursor-pointer">
+            <button onClick={() => router.back()} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all cursor-pointer">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
               </svg>
             </button>
             <div>
-              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Chỉnh Sửa Hồ Sơ Bác Sĩ</h1>
-              <p className="text-[13px] text-slate-400 font-semibold mt-0.5">
-                {staff.employeeId && <span className="font-mono text-secondary mr-2">{staff.employeeId}</span>}
-                {staff.fullName || staff.email}
-              </p>
+              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Thêm Bác Sĩ Mới</h1>
+              <p className="text-[13px] text-slate-400 font-semibold mt-0.5">Tạo hồ sơ nha sĩ / bác sĩ chuyên khoa. Tài khoản có thể tạo sau.</p>
             </div>
           </div>
           <NotificationBell />
@@ -234,21 +194,25 @@ export default function EditDoctorPage() {
                   <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Thông tin cơ bản</span>
                 </div>
 
-                {/* Mã bác sĩ - readonly */}
-                {staff.employeeId && (
-                  <div>
-                    <label className={lbl}>Mã bác sĩ</label>
-                    <div className="flex items-center gap-3 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl">
-                      <span className="font-black text-secondary text-[16px] font-mono tracking-wider">{staff.employeeId}</span>
-                      <span className="text-[12px] text-slate-400 font-semibold">· Không thể thay đổi</span>
-                    </div>
+                {/* Mã bác sĩ */}
+                <div>
+                  <label className={lbl}>Mã bác sĩ</label>
+                  <div className="flex items-center gap-3 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl">
+                    {isLoadingCode ? (
+                      <span className="text-slate-400 text-[14px] font-semibold">Đang tạo mã...</span>
+                    ) : (
+                      <>
+                        <span className="font-black text-secondary text-[16px] font-mono tracking-wider">{doctorCode}</span>
+                        <span className="text-[12px] text-slate-400 font-semibold">· Tự động tạo bởi hệ thống</span>
+                      </>
+                    )}
                   </div>
-                )}
+                </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="md:col-span-2">
                     <label className={lbl}>Họ và tên <span className="text-red-500">*</span></label>
-                    <input type="text" name="fullName" value={formData.fullName} onChange={handleChange} className={inp("fullName")} />
+                    <input type="text" name="fullName" value={formData.fullName} onChange={handleChange} placeholder="Nguyễn Văn A" className={inp("fullName")} />
                     {errMsg("fullName")}
                   </div>
 
@@ -276,13 +240,13 @@ export default function EditDoctorPage() {
 
                   <div>
                     <label className={lbl}>Số điện thoại <span className="text-red-500">*</span></label>
-                    <input type="text" name="phoneNumber" value={formData.phoneNumber} onChange={handleChange} className={inp("phoneNumber")} />
+                    <input type="text" name="phoneNumber" value={formData.phoneNumber} onChange={handleChange} placeholder="0987654321" className={inp("phoneNumber")} />
                     {errMsg("phoneNumber")}
                   </div>
 
                   <div>
                     <label className={lbl}>Email <span className="text-red-500">*</span></label>
-                    <input type="email" name="email" value={formData.email} onChange={handleChange} className={inp("email")} />
+                    <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="bacsi@dentalclinic.com" className={inp("email")} />
                     {errMsg("email")}
                   </div>
 
@@ -304,8 +268,8 @@ export default function EditDoctorPage() {
                         </div>
                       )}
                       <div className="flex flex-col gap-1.5">
-                        <input type="file" accept="image/*" onChange={handleImageUpload} disabled={isUploadingImage} id="edit-doctor-avatar" className="hidden" />
-                        <label htmlFor="edit-doctor-avatar" className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 text-[13px] font-extrabold border border-slate-200 rounded-lg cursor-pointer transition-all shadow-sm max-w-max">
+                        <input type="file" accept="image/*" onChange={handleImageUpload} disabled={isUploadingImage} id="add-doctor-avatar" className="hidden" />
+                        <label htmlFor="add-doctor-avatar" className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 text-[13px] font-extrabold border border-slate-200 rounded-lg cursor-pointer transition-all shadow-sm max-w-max">
                           {isUploadingImage ? "Đang tải..." : "Tải ảnh từ thiết bị"}
                         </label>
                         <span className="text-[11px] text-slate-400 font-semibold">Hỗ trợ JPG, PNG, WEBP · Tối đa 5MB</span>
@@ -331,19 +295,19 @@ export default function EditDoctorPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className={lbl}>Chuyên khoa <span className="text-red-500">*</span></label>
-                    <input type="text" name="specialty" value={formData.specialty} onChange={handleChange} placeholder="Implant, Niềng răng..." className={inp("specialty")} />
+                    <input type="text" name="specialty" value={formData.specialty} onChange={handleChange} placeholder="Implant, Niềng răng, Nội nha..." className={inp("specialty")} />
                     {errMsg("specialty")}
                   </div>
 
                   <div>
-                    <label className={lbl}>Số CCHN <span className="text-red-500">*</span></label>
-                    <input type="text" name="licenseNumber" value={formData.licenseNumber} onChange={handleChange} placeholder="123456/BYT-GCN" className={inp("licenseNumber")} />
+                    <label className={lbl}>Số chứng chỉ hành nghề (CCHN) <span className="text-red-500">*</span></label>
+                    <input type="text" name="licenseNumber" value={formData.licenseNumber} onChange={handleChange} placeholder="VD: 123456/BYT-GCN" className={inp("licenseNumber")} />
                     {errMsg("licenseNumber")}
                   </div>
 
                   <div>
                     <label className={lbl}>Dịch vụ phụ trách <span className="text-red-500">*</span></label>
-                    <input type="text" name="servicesHandled" value={formData.servicesHandled} onChange={handleChange} placeholder="Trám răng, Nhổ răng khôn..." className={inp("servicesHandled")} />
+                    <input type="text" name="servicesHandled" value={formData.servicesHandled} onChange={handleChange} placeholder="Trám răng, Nhổ răng khôn, Niềng răng..." className={inp("servicesHandled")} />
                     {errMsg("servicesHandled")}
                   </div>
 
@@ -368,93 +332,43 @@ export default function EditDoctorPage() {
 
                   <div>
                     <label className={lbl}>Nơi cấp chứng chỉ</label>
-                    <input type="text" name="certificateIssuedBy" value={formData.certificateIssuedBy} onChange={handleChange} className={inp("certificateIssuedBy")} />
+                    <input type="text" name="certificateIssuedBy" value={formData.certificateIssuedBy} onChange={handleChange} placeholder="Bộ Y tế, Sở Y tế TP.HCM..." className={inp("certificateIssuedBy")} />
                   </div>
 
                   <div>
                     <label className={lbl}>Số năm kinh nghiệm</label>
-                    <input type="number" name="yearsOfExperience" value={formData.yearsOfExperience} onChange={handleChange} min="0" max="60" className={inp("yearsOfExperience")} />
+                    <input type="number" name="yearsOfExperience" value={formData.yearsOfExperience} onChange={handleChange} placeholder="VD: 5" min="0" max="60" className={inp("yearsOfExperience")} />
                   </div>
 
                   <div>
                     <label className={lbl}>Trình độ học vấn</label>
-                    <input type="text" name="education" value={formData.education} onChange={handleChange} placeholder="Thạc sĩ Y khoa..." className={inp("education")} />
+                    <input type="text" name="education" value={formData.education} onChange={handleChange} placeholder="Thạc sĩ Y khoa, Tiến sĩ Nha khoa..." className={inp("education")} />
                   </div>
 
                   <div className="md:col-span-2">
                     <label className={lbl}>Mô tả giới thiệu</label>
                     <textarea name="bio" value={formData.bio} onChange={handleChange} rows={4}
-                      placeholder="Giới thiệu ngắn về kinh nghiệm và chuyên môn..."
+                      placeholder="Giới thiệu ngắn về kinh nghiệm và chuyên môn của bác sĩ..."
                       className="w-full px-4 py-3 text-[14px] bg-white border border-slate-200 rounded-xl focus:border-secondary focus:ring-1 focus:ring-sky-400 focus:outline-none transition-all font-semibold resize-none"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* ── Section 3: Trạng thái ── */}
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col gap-5">
-                <div className="flex items-center gap-2 pb-1 border-b border-slate-100">
-                  <div className="w-1 h-4 bg-amber-400 rounded-full" />
-                  <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Trạng thái</span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className={lbl}>Vai trò</label>
-                    <div className="relative">
-                      <select name="role" value={formData.role} onChange={handleChange} className={inp("role") + " appearance-none pr-8 cursor-pointer"}>
-                        <option value="Dentist">Nha sĩ</option>
-                        <option value="Doctor">Bác sĩ chuyên khoa</option>
-                      </select>
-                      <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
-                      </span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className={lbl}>Trạng thái làm việc</label>
-                    <div className="relative">
-                      <select name="employmentStatus" value={formData.employmentStatus} onChange={handleChange} className={inp("employmentStatus") + " appearance-none pr-8 cursor-pointer"}>
-                        <option value="Active">Đang làm việc</option>
-                        <option value="On Leave">Nghỉ phép</option>
-                        <option value="Inactive">Đã nghỉ việc</option>
-                      </select>
-                      <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
-                      </span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className={lbl}>Trạng thái tài khoản</label>
-                    <div className="relative">
-                      <select name="isActive" value={formData.isActive ? "true" : "false"} onChange={handleChange} className={inp("isActive") + " appearance-none pr-8 cursor-pointer"}>
-                        <option value="true">Đang kích hoạt</option>
-                        <option value="false">Tạm khóa</option>
-                      </select>
-                      <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
               {/* Actions */}
               <div className="flex items-center justify-end gap-3">
-                <button type="button" onClick={() => router.push("/dashboard/staff")} disabled={isSubmitting}
+                <button type="button" onClick={() => router.back()} disabled={isSubmitting}
                   className="px-6 py-3 text-[14px] font-bold text-slate-500 hover:text-slate-800 hover:bg-white border border-slate-200 rounded-xl transition-all cursor-pointer disabled:opacity-50 shadow-sm">
                   Hủy bỏ
                 </button>
-                <button type="submit" disabled={isSubmitting}
-                  className="px-6 py-3 bg-primary hover:bg-primary-hover text-white text-[14px] font-extrabold rounded-xl shadow-md shadow-primary/20 hover:shadow-lg transition-all cursor-pointer flex items-center gap-2 min-w-[140px] justify-center disabled:opacity-50">
+                <button type="submit" disabled={isSubmitting || isLoadingCode}
+                  className="px-6 py-3 bg-primary hover:bg-primary-hover text-white text-[14px] font-extrabold rounded-xl shadow-md shadow-primary/20 hover:shadow-lg transition-all cursor-pointer flex items-center gap-2 min-w-[160px] justify-center disabled:opacity-50">
                   {isSubmitting ? (
                     <><svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                     </svg>Đang lưu...</>
-                  ) : "Cập nhật thông tin"}
+                  ) : "Lưu hồ sơ bác sĩ"}
                 </button>
               </div>
 

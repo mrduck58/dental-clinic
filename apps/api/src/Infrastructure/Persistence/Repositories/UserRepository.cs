@@ -82,9 +82,9 @@ public class UserRepository(AppDbContext db) : IUserRepository
 
     public async Task<StaffStatsResult> GetStaffStatsAsync(CancellationToken ct = default)
     {
-        var total    = await db.Users.CountAsync(u => u.Role != "Patient", ct);
         var dentists = await db.Users.CountAsync(u => u.Role == "Dentist", ct);
         var doctors  = await db.Users.CountAsync(u => u.Role == "Doctor", ct);
-        return new StaffStatsResult(total, dentists, doctors);
+        var staffs   = await db.Users.CountAsync(u => u.Role == "Staff", ct);
+        return new StaffStatsResult(dentists + doctors + staffs, dentists, doctors);
     }
 }
