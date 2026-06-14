@@ -22,6 +22,9 @@ export default function EditStaffModal({ isOpen, onClose, staff, onSuccess }: Ed
     profilePictureUrl: "",
     professionalNotes: "",
     isActive: true,
+    specialty: null,
+    licenseNumber: null,
+    yearsOfExperience: null,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -62,6 +65,9 @@ export default function EditStaffModal({ isOpen, onClose, staff, onSuccess }: Ed
         profilePictureUrl: staff.profilePictureUrl || "",
         professionalNotes: staff.professionalNotes || "",
         isActive: staff.isActive,
+        specialty: null,
+        licenseNumber: null,
+        yearsOfExperience: null,
       });
       setErrors({});
     }
@@ -120,6 +126,9 @@ export default function EditStaffModal({ isOpen, onClose, staff, onSuccess }: Ed
         profilePictureUrl: formData.profilePictureUrl?.trim() || null,
         professionalNotes: formData.professionalNotes?.trim() || null,
         isActive: formData.isActive,
+        specialty: null,
+        licenseNumber: null,
+        yearsOfExperience: null,
       };
 
       await updateStaffApi(formData.id, payload);
@@ -169,8 +178,11 @@ export default function EditStaffModal({ isOpen, onClose, staff, onSuccess }: Ed
 
         {/* API Error display */}
         {errors.api && (
-          <div className="bg-red-50 border border-red-100 text-red-650 p-4 rounded-xl text-[13.5px] font-bold">
-            ⚠️ {errors.api}
+          <div className="bg-red-50 border border-red-100 text-red-650 p-4 rounded-xl text-[13.5px] font-bold flex items-start gap-2">
+            <svg className="w-5 h-5 text-red-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+            </svg>
+            {errors.api}
           </div>
         )}
 
@@ -327,8 +339,10 @@ export default function EditStaffModal({ isOpen, onClose, staff, onSuccess }: Ed
                     className="w-14 h-14 rounded-full object-cover border border-slate-200 shadow-sm shrink-0"
                   />
                 ) : (
-                  <div className="w-14 h-14 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center font-black text-slate-400 text-[18px] shrink-0 select-none">
-                    👤
+                  <div className="w-14 h-14 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
+                    <svg className="w-7 h-7 text-slate-400" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                    </svg>
                   </div>
                 )}
                 <div className="flex flex-col gap-1.5">

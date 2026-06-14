@@ -5,6 +5,5 @@ public enum UserRole
     Admin,
     Dentist,
     Staff,
-    Accountant,
     Patient
 }

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Sidebar from "../../../components/shared/Sidebar";
 import NotificationBell from "../../../components/shared/NotificationBell";
-import { createAccountApi, getAccountsApi } from "../../../lib/apiClient";
+import { getAccountsApi, getStaffApi, type StaffDto } from "../../../lib/apiClient";
 import { useRequireAdmin } from "../../../hooks/useRequireAdmin";
 
 interface AccountPermissions {
@@ -100,6 +101,7 @@ const ROLE_UI_MAP: Record<string, Account["role"]> = {
 
 export default function PermissionsPage() {
   useRequireAdmin();
+  const router = useRouter();
 
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [isFetching, setIsFetching] = useState(true);
@@ -107,30 +109,21 @@ export default function PermissionsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("All");
 
+  const [employeesWithoutAccount, setEmployeesWithoutAccount] = useState<StaffDto[]>([]);
+  const [noAccountBannerOpen, setNoAccountBannerOpen] = useState(true);
+
   // Modals state
-  const [isAddEditModalOpen, setIsAddEditModalOpen] = useState(false);
   const [isPermModalOpen, setIsPermModalOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
 
-  // Form states
-  const [formMode, setFormMode] = useState<"add" | "edit">("add");
-  const [formName, setFormName] = useState("");
-  const [formEmail, setFormEmail] = useState("");
-  const [formPhone, setFormPhone] = useState("");
-  const [formRole, setFormRole] = useState<Account["role"]>("Bác sĩ");
-  const [formGender, setFormGender] = useState<Account["gender"]>("Nam");
-  const [formDateOfBirth, setFormDateOfBirth] = useState("");
-  const [formNationalId, setFormNationalId] = useState("");
-  const [formAddress, setFormAddress] = useState("");
-  const [formSpecialization, setFormSpecialization] = useState("");
-  const [formStartDate, setFormStartDate] = useState("");
-
-  // Form async state
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-
   // Toast notification
-  const [toast, setToast] = useState<{ show: boolean; email: string; name: string } | null>(null);
+  const [toast, setToast] = useState<{ show: boolean; message: string } | null>(null);
+
+  const loadEmployeesWithoutAccount = () => {
+    getStaffApi({ role: "Doctor,Dentist,Staff,Admin", pageSize: 200 })
+      .then((res) => setEmployeesWithoutAccount(res.items.filter((s) => !s.hasAccount)))
+      .catch(() => {});
+  };
 
   // Fetch accounts từ API khi mount
   useEffect(() => {
@@ -159,14 +152,35 @@ export default function PermissionsPage() {
         setFetchError(err instanceof Error ? err.message : "Không thể tải danh sách tài khoản")
       )
       .finally(() => setIsFetching(false));
+
+    loadEmployeesWithoutAccount();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Custom permissions local state for edit
   const [tempPermissions, setTempPermissions] = useState<AccountPermissions | null>(null);
 
-  const showToast = (email: string, name: string) => {
-    setToast({ show: true, email, name });
+  const showToast = (message: string) => {
+    setToast({ show: true, message });
     setTimeout(() => setToast(null), 6000);
+  };
+
+  useEffect(() => {
+    const msg = sessionStorage.getItem("permSuccessMsg");
+    if (msg) { showToast(msg); sessionStorage.removeItem("permSuccessMsg"); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleGoToCreateAccount = (staff: StaffDto) => {
+    sessionStorage.setItem("createAccountPrefill", JSON.stringify({
+      staffId: staff.id,
+      fullName: staff.fullName || staff.email,
+      email: staff.email,
+      role: staff.role,
+      phoneNumber: staff.phoneNumber || "",
+      profilePictureUrl: staff.profilePictureUrl,
+    }));
+    router.push("/dashboard/permissions/create-account");
   };
 
   // Calculate statistics
@@ -198,105 +212,6 @@ export default function PermissionsPage() {
     );
   };
 
-  const resetForm = () => {
-    setFormName("");
-    setFormEmail("");
-    setFormPhone("");
-    setFormRole("Bác sĩ");
-    setFormGender("Nam");
-    setFormDateOfBirth("");
-    setFormNationalId("");
-    setFormAddress("");
-    setFormSpecialization("");
-    setFormStartDate("");
-  };
-
-  const openAddModal = () => {
-    setFormMode("add");
-    resetForm();
-    setFormError(null);
-    setIsAddEditModalOpen(true);
-  };
-
-  const openEditModal = (account: Account) => {
-    setFormMode("edit");
-    setSelectedAccount(account);
-    setFormName(account.name);
-    setFormEmail(account.email);
-    setFormPhone(account.phone);
-    setFormRole(account.role);
-    setFormGender(account.gender);
-    setFormDateOfBirth(account.dateOfBirth);
-    setFormNationalId(account.nationalId);
-    setFormAddress(account.address);
-    setFormSpecialization(account.specialization);
-    setFormStartDate(account.startDate);
-    setIsAddEditModalOpen(true);
-  };
-
-  const handleSaveAccount = async (e: { preventDefault(): void }) => {
-    e.preventDefault();
-    setFormError(null);
-
-    if (formMode === "add") {
-      setIsSubmitting(true);
-      try {
-        await createAccountApi({
-          fullName: formName,
-          email: formEmail,
-          phoneNumber: formPhone,
-          role: ROLE_API_MAP[formRole],
-        });
-        setAccounts((prev) => [
-          ...prev,
-          {
-            id: `ACC-${String(prev.length + 1).padStart(3, "0")}`,
-            name: formName,
-            email: formEmail,
-            phone: formPhone,
-            role: formRole,
-            status: "Active" as const,
-            avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80",
-            permissions: getDefaultPermissions(formRole),
-            gender: formGender,
-            dateOfBirth: formDateOfBirth,
-            nationalId: formNationalId,
-            address: formAddress,
-            specialization: formSpecialization,
-            startDate: formStartDate,
-          },
-        ]);
-        setIsAddEditModalOpen(false);
-        showToast(formEmail, formName);
-      } catch (err) {
-        setFormError(err instanceof Error ? err.message : "Tạo tài khoản thất bại");
-      } finally {
-        setIsSubmitting(false);
-      }
-    } else if (formMode === "edit" && selectedAccount) {
-      setAccounts((prev) =>
-        prev.map((acc) =>
-          acc.id === selectedAccount.id
-            ? {
-                ...acc,
-                name: formName,
-                email: formEmail,
-                phone: formPhone,
-                role: formRole,
-                gender: formGender,
-                dateOfBirth: formDateOfBirth,
-                nationalId: formNationalId,
-                address: formAddress,
-                specialization: formSpecialization,
-                startDate: formStartDate,
-                permissions: acc.role === formRole ? acc.permissions : getDefaultPermissions(formRole),
-              }
-            : acc
-        )
-      );
-      setIsAddEditModalOpen(false);
-    }
-  };
 
   const openPermissionsModal = (account: Account) => {
     setSelectedAccount(account);
@@ -350,10 +265,9 @@ export default function PermissionsPage() {
                   </svg>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-[13px] font-black text-slate-900">Tài khoản đã được tạo!</div>
-                  <p className="text-[12px] text-slate-500 font-semibold mt-0.5 leading-relaxed">
-                    Email xác nhận kèm mật khẩu đăng nhập đã được gửi đến{" "}
-                    <span className="font-extrabold text-slate-700 break-all">{toast.email}</span>
+                  <div className="text-[13px] font-black text-slate-900">Thành công!</div>
+                  <p className="text-[12px] text-slate-500 font-semibold mt-0.5 leading-relaxed break-all">
+                    {toast.message}
                   </p>
                 </div>
                 <button
@@ -429,6 +343,100 @@ export default function PermissionsPage() {
             </div>
           </div>
 
+          {/* EMPLOYEES WITHOUT ACCOUNT BANNER */}
+          {employeesWithoutAccount.length > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl shadow-sm overflow-hidden shrink-0">
+              <button
+                onClick={() => setNoAccountBannerOpen((v) => !v)}
+                className="w-full flex items-center justify-between px-5 py-4 hover:bg-amber-100/50 transition-colors cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                    </svg>
+                  </div>
+                  <div className="text-left">
+                    <div className="text-[14px] font-black text-amber-900">
+                      {employeesWithoutAccount.length} nhân viên chưa có tài khoản đăng nhập
+                    </div>
+                    <div className="text-[12px] text-amber-700 font-semibold mt-0.5">
+                      Bấm <span className="font-black">Tạo ngay</span> để tạo tài khoản và gửi thông tin đăng nhập qua email.
+                    </div>
+                  </div>
+                </div>
+                <svg className={`w-4 h-4 text-amber-500 shrink-0 transition-transform ${noAccountBannerOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                </svg>
+              </button>
+
+              {noAccountBannerOpen && (
+                <div className="border-t border-amber-200 overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-[13px]">
+                    <thead>
+                      <tr className="bg-amber-100/60 font-extrabold text-amber-700 uppercase tracking-wider text-[11px]">
+                        <th className="px-5 py-2.5">Nhân viên</th>
+                        <th className="px-5 py-2.5">Vai trò</th>
+                        <th className="px-5 py-2.5">Email</th>
+                        <th className="px-5 py-2.5 text-right">Hành động</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-amber-100 font-semibold text-slate-700">
+                      {employeesWithoutAccount.map((emp) => {
+                        const initials = emp.fullName
+                          ? emp.fullName.trim().split(/\s+/).slice(-2).map((w) => w[0]).join("").toUpperCase()
+                          : emp.email.slice(0, 2).toUpperCase();
+                        const ROLE_LABELS_MAP: Record<string, string> = {
+                          Admin: "Quản trị viên", Doctor: "Bác sĩ CK", Dentist: "Nha sĩ", Staff: "Lễ tân",
+                        };
+                        const ROLE_BADGE_MAP: Record<string, string> = {
+                          Admin: "bg-purple-50 text-purple-700 border-purple-200",
+                          Doctor: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                          Dentist: "bg-sky-50 text-sky-700 border-sky-200",
+                          Staff: "bg-green-50 text-green-700 border-green-200",
+                        };
+                        return (
+                          <tr key={emp.id} className="hover:bg-amber-50/60 transition-colors">
+                            <td className="px-5 py-3">
+                              <div className="flex items-center gap-2.5">
+                                {emp.profilePictureUrl ? (
+                                  <img src={emp.profilePictureUrl} alt={emp.fullName || emp.email}
+                                    className="w-8 h-8 rounded-full object-cover border border-amber-200 shrink-0" />
+                                ) : (
+                                  <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-700 font-black text-[11px] flex items-center justify-center shrink-0">
+                                    {initials}
+                                  </div>
+                                )}
+                                <span className="font-bold text-slate-800 truncate max-w-[140px]">{emp.fullName || emp.email}</span>
+                              </div>
+                            </td>
+                            <td className="px-5 py-3">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-black border ${ROLE_BADGE_MAP[emp.role] || "bg-slate-50 border-slate-200 text-slate-600"}`}>
+                                {ROLE_LABELS_MAP[emp.role] || emp.role}
+                              </span>
+                            </td>
+                            <td className="px-5 py-3 text-slate-500 font-semibold text-[12px]">{emp.email}</td>
+                            <td className="px-5 py-3 text-right">
+                              <button
+                                onClick={() => handleGoToCreateAccount(emp)}
+                                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-[12px] font-extrabold rounded-lg shadow-sm transition-all cursor-pointer"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                                </svg>
+                                Tạo ngay
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* TOOLBAR */}
           <div className="bg-white p-4.5 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3.5 flex-1 max-w-2xl">
@@ -466,7 +474,7 @@ export default function PermissionsPage() {
               </div>
             </div>
             <button
-              onClick={openAddModal}
+              onClick={() => router.push("/dashboard/permissions/create-account")}
               className="flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-white text-[14px] font-extrabold px-5 py-2.5 rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all hover:translate-y-[-1px] cursor-pointer"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -582,15 +590,6 @@ export default function PermissionsPage() {
                           <td className="px-6 py-4 text-right">
                             <div className="flex items-center justify-end gap-2.5">
                               <button
-                                onClick={() => openEditModal(account)}
-                                title="Sửa thông tin"
-                                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all cursor-pointer"
-                              >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-                                </svg>
-                              </button>
-                              <button
                                 onClick={() => openPermissionsModal(account)}
                                 title="Cấu hình quyền chi tiết"
                                 className="p-2 text-slate-400 hover:text-primary hover:bg-red-50 rounded-lg transition-all cursor-pointer"
@@ -619,257 +618,6 @@ export default function PermissionsPage() {
           </div>
         </div>
       </main>
-
-      {/* ── MODAL: THÊM / SỬA TÀI KHOẢN ────────────────────────────────────── */}
-      {isAddEditModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto animate-fade-in">
-          <div className="bg-white rounded-2xl border border-slate-200 w-full max-w-2xl shadow-2xl my-6 relative flex flex-col">
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 shrink-0">
-              <div>
-                <h3 className="text-[18px] font-black text-slate-900">
-                  {formMode === "add" ? "Thêm Tài Khoản Nhân Viên" : "Sửa Thông Tin Nhân Viên"}
-                </h3>
-                <p className="text-[12px] text-slate-400 font-semibold mt-0.5">
-                  {formMode === "add"
-                    ? "Điền đầy đủ thông tin — mật khẩu sẽ được tạo tự động và gửi qua email."
-                    : "Cập nhật thông tin cá nhân và công việc của nhân viên."}
-                </p>
-              </div>
-              <button
-                onClick={() => setIsAddEditModalOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all cursor-pointer shrink-0"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {/* Form */}
-            <form onSubmit={handleSaveAccount} className="flex flex-col gap-0">
-              <div className="px-6 py-5 flex flex-col gap-4 overflow-y-auto max-h-[calc(100vh-220px)]">
-
-                {/* Section: Thông tin cơ bản */}
-                <div className="flex items-center gap-2 pb-1">
-                  <div className="w-1 h-4 bg-primary rounded-full"></div>
-                  <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Thông tin cơ bản</span>
-                </div>
-
-                {/* Full Name */}
-                <div>
-                  <label htmlFor="form-name" className={labelClass}>Họ và tên nhân viên <span className="text-primary">*</span></label>
-                  <input
-                    id="form-name"
-                    type="text"
-                    required
-                    placeholder="Ví dụ: Lê Văn An"
-                    value={formName}
-                    onChange={(e) => setFormName(e.target.value)}
-                    className={inputClass}
-                  />
-                </div>
-
-                {/* Email + Phone */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label htmlFor="form-email" className={labelClass}>Địa chỉ email <span className="text-primary">*</span></label>
-                    <input
-                      id="form-email"
-                      type="email"
-                      required
-                      placeholder="nhanvien@songiangdental.com"
-                      value={formEmail}
-                      onChange={(e) => setFormEmail(e.target.value)}
-                      className={inputClass}
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="form-phone" className={labelClass}>Số điện thoại <span className="text-primary">*</span></label>
-                    <input
-                      id="form-phone"
-                      type="tel"
-                      required
-                      placeholder="09xxxxxxxx"
-                      value={formPhone}
-                      onChange={(e) => setFormPhone(e.target.value)}
-                      className={inputClass}
-                    />
-                  </div>
-                </div>
-
-                {/* Gender + Date of Birth */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label htmlFor="form-gender" className={labelClass}>Giới tính <span className="text-primary">*</span></label>
-                    <div className="relative">
-                      <select
-                        id="form-gender"
-                        required
-                        value={formGender}
-                        onChange={(e) => setFormGender(e.target.value as Account["gender"])}
-                        className={inputClass + " appearance-none pr-8 cursor-pointer"}
-                      >
-                        <option value="Nam">Nam</option>
-                        <option value="Nữ">Nữ</option>
-                        <option value="Khác">Khác</option>
-                      </select>
-                      <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-500">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                        </svg>
-                      </span>
-                    </div>
-                  </div>
-                  <div>
-                    <label htmlFor="form-dob" className={labelClass}>Ngày sinh</label>
-                    <input
-                      id="form-dob"
-                      type="date"
-                      value={formDateOfBirth}
-                      onChange={(e) => setFormDateOfBirth(e.target.value)}
-                      className={inputClass}
-                    />
-                  </div>
-                </div>
-
-                {/* National ID + Start Date */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label htmlFor="form-national-id" className={labelClass}>Số CCCD / CMND</label>
-                    <input
-                      id="form-national-id"
-                      type="text"
-                      placeholder="12 chữ số"
-                      maxLength={12}
-                      value={formNationalId}
-                      onChange={(e) => setFormNationalId(e.target.value)}
-                      className={inputClass}
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="form-start-date" className={labelClass}>Ngày bắt đầu làm việc <span className="text-primary">*</span></label>
-                    <input
-                      id="form-start-date"
-                      type="date"
-                      required
-                      value={formStartDate}
-                      onChange={(e) => setFormStartDate(e.target.value)}
-                      className={inputClass}
-                    />
-                  </div>
-                </div>
-
-                {/* Address */}
-                <div>
-                  <label htmlFor="form-address" className={labelClass}>Địa chỉ thường trú</label>
-                  <input
-                    id="form-address"
-                    type="text"
-                    placeholder="Số nhà, đường, phường/xã, quận/huyện, tỉnh/thành"
-                    value={formAddress}
-                    onChange={(e) => setFormAddress(e.target.value)}
-                    className={inputClass}
-                  />
-                </div>
-
-                {/* Section: Thông tin công việc */}
-                <div className="flex items-center gap-2 pb-1 pt-2">
-                  <div className="w-1 h-4 bg-secondary rounded-full"></div>
-                  <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Thông tin công việc</span>
-                </div>
-
-                {/* Role + Specialization */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label htmlFor="form-role" className={labelClass}>Vai trò hệ thống <span className="text-primary">*</span></label>
-                    <div className="relative">
-                      <select
-                        id="form-role"
-                        value={formRole}
-                        onChange={(e) => setFormRole(e.target.value as Account["role"])}
-                        className={inputClass + " appearance-none pr-8 cursor-pointer"}
-                      >
-                        <option value="Admin">Admin</option>
-                        <option value="Bác sĩ">Bác sĩ</option>
-                        <option value="Lễ tân">Lễ tân</option>
-                        <option value="Kế toán">Kế toán</option>
-                      </select>
-                      <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-500">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                        </svg>
-                      </span>
-                    </div>
-                  </div>
-                  <div>
-                    <label htmlFor="form-specialization" className={labelClass}>Chuyên khoa / Bộ phận</label>
-                    <input
-                      id="form-specialization"
-                      type="text"
-                      placeholder={formRole === "Bác sĩ" ? "VD: Implant, Niềng răng..." : "VD: Lễ tân ca sáng, Thu ngân..."}
-                      value={formSpecialization}
-                      onChange={(e) => setFormSpecialization(e.target.value)}
-                      className={inputClass}
-                    />
-                  </div>
-                </div>
-
-                {/* Password auto-generate notice — only show on add */}
-                {formMode === "add" && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-                    <div className="shrink-0 mt-0.5">
-                      <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <div className="text-[13px] font-black text-amber-800">Mật khẩu đăng nhập tự động</div>
-                      <p className="text-[12px] text-amber-700 font-semibold mt-0.5 leading-relaxed">
-                        Hệ thống sẽ tạo mật khẩu ngẫu nhiên và gửi đến{" "}
-                        <span className="font-black text-amber-900">{formEmail || "email của nhân viên"}</span>{" "}
-                        ngay sau khi tài khoản được tạo thành công. Nhân viên sẽ nhận được cảnh báo không được tiết lộ thông tin đăng nhập cho bất kỳ ai.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-              </div>
-
-              {/* Footer Buttons */}
-              <div className="flex flex-col gap-2 px-6 py-4 border-t border-slate-100 shrink-0">
-                {formError && (
-                  <div className="bg-red-50 border border-red-200 text-red-700 text-[13px] font-semibold px-4 py-2.5 rounded-xl">
-                    {formError}
-                  </div>
-                )}
-                <div className="flex items-center justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={() => { setIsAddEditModalOpen(false); setFormError(null); }}
-                    className="px-5 py-2.5 text-[14px] font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-50 border border-slate-200 rounded-xl transition-all cursor-pointer"
-                  >
-                    Hủy bỏ
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-hover disabled:opacity-60 disabled:cursor-not-allowed text-white text-[14px] font-extrabold rounded-xl shadow-md shadow-primary/20 hover:shadow-lg transition-all cursor-pointer"
-                  >
-                    {formMode === "add" && !isSubmitting && (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
-                      </svg>
-                    )}
-                    {formMode === "edit" && "Cập nhật"}
-                    {formMode === "add" && (isSubmitting ? "Đang tạo..." : "Tạo & Gửi Email")}
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* ── MODAL: PHÂN QUYỀN CHI TIẾT ─────────────────────────────────────── */}
       {isPermModalOpen && selectedAccount && tempPermissions && (
