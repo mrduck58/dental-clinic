@@ -167,7 +167,7 @@ export default function NotificationsPage() {
             <p className="text-[12.5px] text-slate-400 font-semibold mt-0.5">Theo dõi các cảnh báo và thông báo từ hệ thống</p>
           </div>
           <div className="flex items-center gap-3">
-            <NotificationBell hasUnread={unreadCount > 0} />
+            <NotificationBell />
           </div>
         </header>
 

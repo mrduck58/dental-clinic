@@ -603,3 +603,122 @@ export async function uploadFileApi(file: File): Promise<{ url: string }> {
   }
   return res.json() as Promise<{ url: string }>;
 }
+
+// ── Promotion types ────────────────────────────────────────────────────────
+
+export interface PromotionDto {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  discountType: "Percentage" | "Fixed";
+  discountValue: number;
+  serviceIds: string[];
+  serviceNames: string[];
+  startDate: string;
+  endDate: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string | null;
+}
+
+export interface CreatePromotionRequest {
+  code: string;
+  name: string;
+  description?: string;
+  discountType: "Percentage" | "Fixed";
+  discountValue: number;
+  serviceIds: string[];
+  startDate: string;
+  endDate: string;
+  isActive: boolean;
+}
+
+export interface UpdatePromotionRequest {
+  code: string;
+  name: string;
+  description?: string;
+  discountType: "Percentage" | "Fixed";
+  discountValue: number;
+  serviceIds: string[];
+  startDate: string;
+  endDate: string;
+}
+
+// ── Promotion endpoints ────────────────────────────────────────────────────
+
+export async function getPromotionsApi(): Promise<PromotionDto[]> {
+  const res = await fetch(`${API_URL}/api/promotions`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Khong the tai danh sach khuyen mai");
+  }
+  return res.json() as Promise<PromotionDto[]>;
+}
+
+export async function getPromotionByIdApi(id: string): Promise<PromotionDto> {
+  const res = await fetch(`${API_URL}/api/promotions/${id}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Khong tim thay khuyen mai");
+  }
+  return res.json() as Promise<PromotionDto>;
+}
+
+export async function createPromotionApi(data: CreatePromotionRequest): Promise<{ id: string }> {
+  const res = await fetch(`${API_URL}/api/promotions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Tao khuyen mai that bai");
+  }
+  return res.json() as Promise<{ id: string }>;
+}
+
+export async function updatePromotionApi(id: string, data: UpdatePromotionRequest): Promise<void> {
+  const res = await fetch(`${API_URL}/api/promotions/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Cap nhat khuyen mai that bai");
+  }
+}
+
+export async function deletePromotionApi(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/promotions/${id}`, {
+    method: "DELETE",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Xoa khuyen mai that bai");
+  }
+}
+
+export async function togglePromotionStatusApi(id: string): Promise<PromotionDto> {
+  const res = await fetch(`${API_URL}/api/promotions/${id}/status`, {
+    method: "PATCH",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Cap nhat trang thai that bai");
+  }
+  return res.json() as Promise<PromotionDto>;
+}

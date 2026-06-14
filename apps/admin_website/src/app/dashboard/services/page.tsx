@@ -5,11 +5,16 @@ import Link from "next/link";
 import AdminSidebar from "../../../components/shared/AdminSidebar";
 import NotificationBell from "../../../components/shared/NotificationBell";
 import { useRequireAdmin } from "../../../hooks/useRequireAdmin";
+import { useRouter } from "next/navigation";
 import {
   getServicesApi,
   deleteServiceApi,
   toggleServiceStatusApi,
+  getPromotionsApi,
+  togglePromotionStatusApi,
+  deletePromotionApi,
   type ServiceDto,
+  type PromotionDto,
 } from "../../../lib/apiClient";
 
 interface Service {
@@ -42,6 +47,7 @@ const ITEMS_PER_PAGE = 5;
 
 export default function ServicesPage() {
   useRequireAdmin();
+  const router = useRouter();
   const [services, setServices] = useState<Service[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -53,11 +59,37 @@ export default function ServicesPage() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
 
+  const [promotions, setPromotions] = useState<PromotionDto[]>([]);
+  const [isPromosLoading, setIsPromosLoading] = useState(true);
+  const [isDeletePromoOpen, setIsDeletePromoOpen] = useState(false);
+  const [selectedPromo, setSelectedPromo] = useState<PromotionDto | null>(null);
+
   useEffect(() => {
     getServicesApi()
       .then((data) => setServices(data.map(toService)))
       .finally(() => setIsLoading(false));
+    getPromotionsApi()
+      .then(setPromotions)
+      .finally(() => setIsPromosLoading(false));
   }, []);
+
+  const handleTogglePromo = async (id: string) => {
+    try {
+      const updated = await togglePromotionStatusApi(id);
+      setPromotions(prev => prev.map(p => p.id === id ? updated : p));
+    } catch { /* silent */ }
+  };
+
+  const handleDeletePromo = async () => {
+    if (!selectedPromo) return;
+    try {
+      await deletePromotionApi(selectedPromo.id);
+      setPromotions(prev => prev.filter(p => p.id !== selectedPromo.id));
+    } finally {
+      setIsDeletePromoOpen(false);
+      setSelectedPromo(null);
+    }
+  };
 
   const stats = useMemo(() => {
     const total = services.length;
@@ -66,9 +98,19 @@ export default function ServicesPage() {
     const mostPopular = services.length > 0
       ? services.reduce((max, s) => (s.popular > max.popular ? s : max), services[0])
       : null;
-
     return { total, active, inactive, mostPopular };
   }, [services]);
+
+  const promoStats = useMemo(() => {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split("T")[0];
+    const thisMonth = promotions.filter(
+      (p) => p.startDate <= monthEnd && p.endDate >= monthStart
+    );
+    const active = thisMonth.filter((p) => p.isActive);
+    return { total: thisMonth.length, active: active.length, codes: thisMonth.slice(0, 5).map((p) => p.code) };
+  }, [promotions]);
 
   const filteredServices = useMemo(() => {
     return services.filter((service) => {
@@ -227,7 +269,9 @@ export default function ServicesPage() {
                 </span>
                 <div className="flex items-center justify-between mt-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-3xl font-black text-white leading-none">03</span>
+                    <span className="text-3xl font-black text-white leading-none">
+                      {promoStats.active}
+                    </span>
                     <span className="px-2 py-0.5 rounded-full bg-white/20 text-white text-[12px] font-bold">
                       đang chạy
                     </span>
@@ -235,11 +279,17 @@ export default function ServicesPage() {
                 </div>
               </div>
               <div className="mt-3 flex items-center gap-2 overflow-hidden">
-                <div className="flex gap-1.5 animate-marquee">
-                  <span className="px-2 py-1 rounded-lg bg-white/20 text-white text-[11px] font-bold whitespace-nowrap">SUMMER2024</span>
-                  <span className="px-2 py-1 rounded-lg bg-white/20 text-white text-[11px] font-bold whitespace-nowrap">IMPLANT50</span>
-                  <span className="px-2 py-1 rounded-lg bg-white/20 text-white text-[11px] font-bold whitespace-nowrap">NEWPATIENT</span>
-                </div>
+                {promoStats.codes.length > 0 ? (
+                  <div className="flex gap-1.5 animate-marquee">
+                    {promoStats.codes.map((code) => (
+                      <span key={code} className="px-2 py-1 rounded-lg bg-white/20 text-white text-[11px] font-bold whitespace-nowrap">
+                        {code}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="text-white/50 text-[11px]">Không có khuyến mãi</span>
+                )}
               </div>
             </div>
           </div>
@@ -335,7 +385,7 @@ export default function ServicesPage() {
                     <th className="px-6 py-4 text-right">Hành động</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-150/70 font-semibold text-slate-600">
+                <tbody className="divide-y divide-slate-100 font-semibold text-slate-600">
                   {isLoading ? (
                     <tr>
                       <td colSpan={6} className="px-6 py-10 text-center text-slate-400 font-bold">
@@ -389,7 +439,7 @@ export default function ServicesPage() {
                             <button
                               onClick={() => handleToggleStatus(service.id)}
                               className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                                service.status === "Active" ? "bg-green-500" : "bg-slate-250"
+                                service.status === "Active" ? "bg-green-500" : "bg-slate-400"
                               }`}
                             >
                               <span
@@ -513,117 +563,78 @@ export default function ServicesPage() {
                     <th className="px-6 py-4 text-right">Hành động</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-150/70 font-semibold text-slate-600">
-                  <tr className="hover:bg-slate-50/20 transition-colors">
-                    <td className="px-6 py-4.5">
-                      <span className="inline-flex items-center px-3 py-1.5 rounded-lg bg-primary/10 text-primary font-black text-[13px] border border-primary/20">
-                        SUMMER2024
-                      </span>
-                    </td>
-                    <td className="px-6 py-4.5">
-                      <div className="font-extrabold text-slate-900">Khuyến mãi mùa hè</div>
-                      <div className="text-[12px] text-slate-400 font-medium mt-0.5">Niềng răng, Tẩy trắng</div>
-                    </td>
-                    <td className="px-6 py-4.5">
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-green-50 text-green-600 font-black text-[13px] border border-green-100">
-                        -15%
-                      </span>
-                    </td>
-                    <td className="px-6 py-4.5 text-slate-500 text-[13px]">
-                      01/06/2024 - 31/08/2024
-                    </td>
-                    <td className="px-6 py-4.5 text-center">
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-green-50 text-green-600 text-[12px] font-bold">
-                        Đang chạy
-                      </span>
-                    </td>
-                    <td className="px-6 py-4.5 text-right">
-                      <div className="flex items-center justify-end gap-2.5">
-                        <button
-                          title="Chỉnh sửa"
-                          className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all cursor-pointer"
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-                          </svg>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-
-                  <tr className="hover:bg-slate-50/20 transition-colors">
-                    <td className="px-6 py-4.5">
-                      <span className="inline-flex items-center px-3 py-1.5 rounded-lg bg-primary/10 text-primary font-black text-[13px] border border-primary/20">
-                        IMPLANT50
-                      </span>
-                    </td>
-                    <td className="px-6 py-4.5">
-                      <div className="font-extrabold text-slate-900">Giảm 5 triệu Implant</div>
-                      <div className="text-[12px] text-slate-400 font-medium mt-0.5">Trồng răng Implant</div>
-                    </td>
-                    <td className="px-6 py-4.5">
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-green-50 text-green-600 font-black text-[13px] border border-green-100">
-                        -5.000.000đ
-                      </span>
-                    </td>
-                    <td className="px-6 py-4.5 text-slate-500 text-[13px]">
-                      01/07/2024 - 31/12/2024
-                    </td>
-                    <td className="px-6 py-4.5 text-center">
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-green-50 text-green-600 text-[12px] font-bold">
-                        Đang chạy
-                      </span>
-                    </td>
-                    <td className="px-6 py-4.5 text-right">
-                      <div className="flex items-center justify-end gap-2.5">
-                        <button
-                          title="Chỉnh sửa"
-                          className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all cursor-pointer"
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-                          </svg>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-
-                  <tr className="hover:bg-slate-50/20 transition-colors">
-                    <td className="px-6 py-4.5">
-                      <span className="inline-flex items-center px-3 py-1.5 rounded-lg bg-slate-100 text-slate-500 font-black text-[13px] border border-slate-200">
-                        NEWPATIENT
-                      </span>
-                    </td>
-                    <td className="px-6 py-4.5">
-                      <div className="font-extrabold text-slate-900">Khách hàng mới</div>
-                      <div className="text-[12px] text-slate-400 font-medium mt-0.5">Tất cả dịch vụ</div>
-                    </td>
-                    <td className="px-6 py-4.5">
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-green-50 text-green-600 font-black text-[13px] border border-green-100">
-                        -10%
-                      </span>
-                    </td>
-                    <td className="px-6 py-4.5 text-slate-500 text-[13px]">
-                      01/01/2024 - 31/12/2024
-                    </td>
-                    <td className="px-6 py-4.5 text-center">
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 text-[12px] font-bold">
-                        Tạm dừng
-                      </span>
-                    </td>
-                    <td className="px-6 py-4.5 text-right">
-                      <div className="flex items-center justify-end gap-2.5">
-                        <button
-                          title="Chỉnh sửa"
-                          className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all cursor-pointer"
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-                          </svg>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                <tbody className="divide-y divide-slate-100 font-semibold text-slate-600">
+                  {isPromosLoading ? (
+                    <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-400 text-[13px]">Đang tải...</td></tr>
+                  ) : promotions.length === 0 ? (
+                    <tr><td colSpan={6} className="px-6 py-10 text-center text-slate-400 text-[13px]">Chưa có khuyến mãi nào</td></tr>
+                  ) : promotions.map((promo) => {
+                    const fmt = (d: string) => d.split("-").reverse().join("/");
+                    const discount = promo.discountType === "Percentage"
+                      ? `-${promo.discountValue}%`
+                      : `-${Number(promo.discountValue).toLocaleString("vi-VN")}đ`;
+                    return (
+                      <tr key={promo.id} className="hover:bg-slate-50/20 transition-colors">
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center px-3 py-1.5 rounded-lg font-black text-[13px] border ${promo.isActive ? "bg-primary/10 text-primary border-primary/20" : "bg-slate-100 text-slate-500 border-slate-200"}`}>
+                            {promo.code}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="font-extrabold text-slate-900">{promo.name}</div>
+                          <div className="text-[12px] text-slate-400 font-medium mt-0.5">
+                            {promo.serviceNames.join(", ")}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-green-50 text-green-600 font-black text-[13px] border border-green-100">
+                            {discount}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-slate-500 text-[13px]">
+                          {fmt(promo.startDate)} - {fmt(promo.endDate)}
+                        </td>
+                        <td className="px-6 py-4.5 text-center">
+                          <div className="inline-flex items-center justify-center">
+                            <button
+                              onClick={() => handleTogglePromo(promo.id)}
+                              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                promo.isActive ? "bg-green-500" : "bg-slate-400"
+                              }`}
+                            >
+                              <span
+                                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                                  promo.isActive ? "translate-x-5" : "translate-x-0"
+                                }`}
+                              />
+                            </button>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2.5">
+                            <button
+                              title="Chỉnh sửa"
+                              onClick={() => router.push(`/dashboard/services/promotions/edit/${promo.id}`)}
+                              className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all cursor-pointer"
+                            >
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                              </svg>
+                            </button>
+                            <button
+                              title="Xóa"
+                              onClick={() => { setSelectedPromo(promo); setIsDeletePromoOpen(true); }}
+                              className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
+                            >
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                              </svg>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -677,6 +688,44 @@ export default function ServicesPage() {
                 className="px-5 py-2.5 bg-red-500 hover:bg-red-600 text-white text-[14px] font-extrabold rounded-xl shadow-md shadow-red-500/20 hover:shadow-lg transition-all cursor-pointer"
               >
                 Xóa dịch vụ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: XÁC NHẬN XÓA KHUYẾN MÃI ─────────────────────────────── */}
+      {isDeletePromoOpen && selectedPromo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl border border-slate-200 w-full max-w-md shadow-2xl p-6 flex flex-col gap-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-red-100 text-primary flex items-center justify-center">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-[18px] font-black text-slate-900 leading-tight">Xóa Khuyến Mãi</h3>
+                  <p className="text-[13px] text-slate-400 font-semibold mt-0.5">Hành động này không thể hoàn tác.</p>
+                </div>
+              </div>
+              <button onClick={() => setIsDeletePromoOpen(false)} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all cursor-pointer">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="bg-red-50/50 border border-red-100 rounded-xl p-4">
+              <p className="text-[14px] text-slate-700 font-semibold leading-relaxed">
+                Bạn có chắc chắn muốn xóa khuyến mãi{" "}
+                <span className="font-extrabold text-slate-900">"{selectedPromo.name}"</span> không?
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-3 border-t border-slate-100 pt-4">
+              <button onClick={() => setIsDeletePromoOpen(false)} className="px-5 py-2.5 text-[14px] font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-50 border border-slate-200 rounded-xl transition-all cursor-pointer">
+                Hủy bỏ
+              </button>
+              <button onClick={handleDeletePromo} className="px-5 py-2.5 bg-red-500 hover:bg-red-600 text-white text-[14px] font-extrabold rounded-xl shadow-md shadow-red-500/20 transition-all cursor-pointer">
+                Xóa khuyến mãi
               </button>
             </div>
           </div>
