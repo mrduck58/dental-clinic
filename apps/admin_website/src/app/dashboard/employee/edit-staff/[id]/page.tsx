@@ -1,13 +1,13 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import Sidebar from "../../../../components/shared/Sidebar";
-import NotificationBell from "../../../../components/shared/NotificationBell";
-import { useRequireAdmin } from "../../../../hooks/useRequireAdmin";
-import { createStaffApi, getStaffApi, uploadFileApi, type CreateStaffCommand } from "../../../../lib/apiClient";
+import { useRouter, useParams } from "next/navigation";
+import AdminSidebar from "../../../../../components/shared/AdminSidebar";
+import NotificationBell from "../../../../../components/shared/NotificationBell";
+import { useRequireAdmin } from "../../../../../hooks/useRequireAdmin";
+import { updateStaffApi, uploadFileApi, type StaffDto, type UpdateStaffCommand } from "../../../../../lib/apiClient";
 
-interface StaffForm {
+interface StaffEditForm {
   fullName: string;
   gender: string;
   dateOfBirth: string;
@@ -19,41 +19,51 @@ interface StaffForm {
   department: string;
   startDate: string;
   bio: string;
+  role: string;
+  employmentStatus: string;
+  isActive: boolean;
 }
 
-export default function AddStaffPage() {
+export default function EditStaffPage() {
   useRequireAdmin();
   const router = useRouter();
+  const params = useParams();
+  const id = params.id as string;
 
-  const [staffCode, setStaffCode] = useState<string>("");
-  const [isLoadingCode, setIsLoadingCode] = useState(true);
+  const [staff, setStaff] = useState<StaffDto | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
-
-  const [formData, setFormData] = useState<StaffForm>({
-    fullName: "",
-    gender: "",
-    dateOfBirth: "",
-    phoneNumber: "",
-    email: "",
-    address: "",
-    profilePictureUrl: "",
-    position: "",
-    department: "",
-    startDate: "",
-    bio: "",
+  const [formData, setFormData] = useState<StaffEditForm>({
+    fullName: "", gender: "", dateOfBirth: "", phoneNumber: "", email: "",
+    address: "", profilePictureUrl: "", position: "", department: "",
+    startDate: "", bio: "", role: "Staff", employmentStatus: "Active", isActive: true,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    getStaffApi({ role: "Staff,Admin", page: 1, pageSize: 1 })
-      .then((res) => {
-        const next = res.totalCount + 1;
-        setStaffCode(`NV-${String(next).padStart(2, "0")}`);
-      })
-      .catch(() => setStaffCode("NV-01"))
-      .finally(() => setIsLoadingCode(false));
+    const raw = sessionStorage.getItem("staffEditData");
+    if (raw) {
+      const data: StaffDto = JSON.parse(raw);
+      sessionStorage.removeItem("staffEditData");
+      setStaff(data);
+      setFormData({
+        fullName: data.fullName || "",
+        gender: data.gender || "",
+        dateOfBirth: data.dateOfBirth || "",
+        phoneNumber: data.phoneNumber || "",
+        email: data.email,
+        address: data.address || "",
+        profilePictureUrl: data.profilePictureUrl || "",
+        position: data.position || "",
+        department: data.department || "",
+        startDate: data.startDate || "",
+        bio: data.bio || "",
+        role: data.role,
+        employmentStatus: data.employmentStatus || "Active",
+        isActive: data.isActive,
+      });
+    }
   }, []);
 
   const validate = () => {
@@ -80,7 +90,11 @@ export default function AddStaffPage() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (name === "isActive") {
+      setFormData((prev) => ({ ...prev, isActive: value === "true" }));
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
@@ -104,25 +118,34 @@ export default function AddStaffPage() {
     if (!validate()) return;
     setIsSubmitting(true);
     try {
-      const payload: CreateStaffCommand = {
+      const payload: UpdateStaffCommand = {
+        id,
         fullName: formData.fullName.trim(),
         email: formData.email.trim(),
         phoneNumber: formData.phoneNumber.trim(),
-        role: "Staff",
-        employeeId: staffCode || null,
-        employmentStatus: "Active",
-        profilePictureUrl: formData.profilePictureUrl.trim() || null,
+        role: formData.role,
         department: formData.department.trim() || null,
+        employmentStatus: formData.employmentStatus || "Active",
+        profilePictureUrl: formData.profilePictureUrl.trim() || null,
+        professionalNotes: staff?.professionalNotes ?? null,
+        isActive: formData.isActive,
+        specialty: null,
+        licenseNumber: null,
+        yearsOfExperience: null,
         gender: formData.gender || null,
         dateOfBirth: formData.dateOfBirth || null,
         address: formData.address.trim() || null,
         position: formData.position.trim() || null,
         startDate: formData.startDate || null,
+        servicesHandled: null,
+        certificateIssuedDate: null,
+        certificateIssuedBy: null,
+        education: null,
         bio: formData.bio.trim() || null,
       };
-      await createStaffApi(payload);
-      sessionStorage.setItem("staffSuccessMsg", `Thêm nhân viên ${formData.fullName.trim()} (${staffCode}) thành công!`);
-      router.push("/dashboard/staff");
+      await updateStaffApi(id, payload);
+      sessionStorage.setItem("staffSuccessMsg", `Cập nhật thông tin nhân viên ${formData.fullName.trim()} thành công!`);
+      router.push("/dashboard/employee");
     } catch (err: unknown) {
       setErrors({ api: err instanceof Error ? err.message : "Đã xảy ra lỗi không xác định" });
       setIsSubmitting(false);
@@ -137,21 +160,41 @@ export default function AddStaffPage() {
   const errMsg = (field: string) =>
     errors[field] ? <p className="text-red-500 text-[11px] font-bold mt-1">{errors[field]}</p> : null;
 
+  if (!staff) {
+    return (
+      <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
+        <AdminSidebar activeMenu="staff" />
+        <main className="flex-1 flex flex-col items-center justify-center gap-4">
+          <svg className="w-14 h-14 text-slate-300" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+          </svg>
+          <p className="text-slate-500 font-bold text-[15px]">Không tìm thấy dữ liệu nhân viên.</p>
+          <button onClick={() => router.push("/dashboard/employee")} className="px-6 py-3 bg-primary text-white font-extrabold rounded-xl cursor-pointer">
+            Quay lại danh sách
+          </button>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
-      <Sidebar activeMenu="staff" />
+      <AdminSidebar activeMenu="staff" />
 
       <main className="flex-1 flex flex-col min-w-0">
         <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 shadow-sm shadow-slate-100/50">
           <div className="flex items-center gap-4">
-            <button onClick={() => router.back()} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all cursor-pointer">
+            <button onClick={() => router.push("/dashboard/employee")} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all cursor-pointer">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
               </svg>
             </button>
             <div>
-              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Thêm Nhân Viên Mới</h1>
-              <p className="text-[13px] text-slate-400 font-semibold mt-0.5">Lưu hồ sơ nhân viên. Tài khoản đăng nhập có thể tạo sau.</p>
+              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Chỉnh Sửa Nhân Viên</h1>
+              <p className="text-[13px] text-slate-400 font-semibold mt-0.5">
+                {staff.employeeId && <span className="font-mono text-primary mr-2">{staff.employeeId}</span>}
+                {staff.fullName || staff.email}
+              </p>
             </div>
           </div>
           <NotificationBell />
@@ -178,25 +221,20 @@ export default function AddStaffPage() {
                   <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Thông tin cơ bản</span>
                 </div>
 
-                {/* Mã nhân viên */}
-                <div>
-                  <label className={lbl}>Mã nhân viên</label>
-                  <div className="flex items-center gap-3 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl">
-                    {isLoadingCode ? (
-                      <span className="text-slate-400 text-[14px] font-semibold">Đang tạo mã...</span>
-                    ) : (
-                      <>
-                        <span className="font-black text-primary text-[16px] font-mono tracking-wider">{staffCode}</span>
-                        <span className="text-[12px] text-slate-400 font-semibold">· Tự động tạo bởi hệ thống</span>
-                      </>
-                    )}
+                {staff.employeeId && (
+                  <div>
+                    <label className={lbl}>Mã nhân viên</label>
+                    <div className="flex items-center gap-3 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl">
+                      <span className="font-black text-primary text-[16px] font-mono tracking-wider">{staff.employeeId}</span>
+                      <span className="text-[12px] text-slate-400 font-semibold">· Không thể thay đổi</span>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="md:col-span-2">
                     <label className={lbl}>Họ và tên <span className="text-red-500">*</span></label>
-                    <input type="text" name="fullName" value={formData.fullName} onChange={handleChange} placeholder="Nguyễn Văn A" className={inp("fullName")} />
+                    <input type="text" name="fullName" value={formData.fullName} onChange={handleChange} className={inp("fullName")} />
                     {errMsg("fullName")}
                   </div>
 
@@ -224,13 +262,13 @@ export default function AddStaffPage() {
 
                   <div>
                     <label className={lbl}>Số điện thoại <span className="text-red-500">*</span></label>
-                    <input type="text" name="phoneNumber" value={formData.phoneNumber} onChange={handleChange} placeholder="0987654321" className={inp("phoneNumber")} />
+                    <input type="text" name="phoneNumber" value={formData.phoneNumber} onChange={handleChange} className={inp("phoneNumber")} />
                     {errMsg("phoneNumber")}
                   </div>
 
                   <div>
                     <label className={lbl}>Email <span className="text-red-500">*</span></label>
-                    <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="nhanvien@dentalclinic.com" className={inp("email")} />
+                    <input type="email" name="email" value={formData.email} onChange={handleChange} className={inp("email")} />
                     {errMsg("email")}
                   </div>
 
@@ -252,8 +290,8 @@ export default function AddStaffPage() {
                         </div>
                       )}
                       <div className="flex flex-col gap-1.5">
-                        <input type="file" accept="image/*" onChange={handleImageUpload} disabled={isUploadingImage} id="add-staff-avatar" className="hidden" />
-                        <label htmlFor="add-staff-avatar" className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 text-[13px] font-extrabold border border-slate-200 rounded-lg cursor-pointer transition-all shadow-sm max-w-max">
+                        <input type="file" accept="image/*" onChange={handleImageUpload} disabled={isUploadingImage} id="edit-staff-avatar" className="hidden" />
+                        <label htmlFor="edit-staff-avatar" className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 text-[13px] font-extrabold border border-slate-200 rounded-lg cursor-pointer transition-all shadow-sm max-w-max">
                           {isUploadingImage ? "Đang tải..." : "Tải ảnh từ thiết bị"}
                         </label>
                         <span className="text-[11px] text-slate-400 font-semibold">Hỗ trợ JPG, PNG, WEBP · Tối đa 5MB</span>
@@ -270,61 +308,99 @@ export default function AddStaffPage() {
                   <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Thông tin công việc</span>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <div className="h-px flex-1 bg-slate-100" />
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Bắt buộc</span>
-                  <div className="h-px flex-1 bg-slate-100" />
-                </div>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className={lbl}>Chức vụ <span className="text-red-500">*</span></label>
-                    <input type="text" name="position" value={formData.position} onChange={handleChange} placeholder="Lễ tân, Trợ lý nha khoa, Kế toán..." className={inp("position")} />
+                    <input type="text" name="position" value={formData.position} onChange={handleChange} placeholder="Lễ tân, Trợ lý nha khoa..." className={inp("position")} />
                     {errMsg("position")}
                   </div>
 
                   <div>
                     <label className={lbl}>Bộ phận <span className="text-red-500">*</span></label>
-                    <input type="text" name="department" value={formData.department} onChange={handleChange} placeholder="Phòng khám, Kế toán, Hành chính..." className={inp("department")} />
+                    <input type="text" name="department" value={formData.department} onChange={handleChange} placeholder="Phòng khám, Kế toán..." className={inp("department")} />
                     {errMsg("department")}
                   </div>
 
-                  <div className="md:col-span-2">
+                  <div>
                     <label className={lbl}>Ngày vào làm <span className="text-red-500">*</span></label>
                     <input type="date" name="startDate" value={formData.startDate} onChange={handleChange} className={inp("startDate")} />
                     {errMsg("startDate")}
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 mt-1">
-                  <div className="h-px flex-1 bg-slate-100" />
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Tùy chọn</span>
-                  <div className="h-px flex-1 bg-slate-100" />
-                </div>
-
                 <div>
                   <label className={lbl}>Mô tả công việc</label>
                   <textarea name="bio" value={formData.bio} onChange={handleChange} rows={4}
-                    placeholder="Mô tả nhiệm vụ, trách nhiệm và công việc cụ thể của nhân viên..."
+                    placeholder="Mô tả nhiệm vụ và trách nhiệm của nhân viên..."
                     className="w-full px-4 py-3 text-[14px] bg-white border border-slate-200 rounded-xl focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-semibold resize-none"
                   />
                 </div>
               </div>
 
+              {/* ── Section 3: Trạng thái ── */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col gap-5">
+                <div className="flex items-center gap-2 pb-1 border-b border-slate-100">
+                  <div className="w-1 h-4 bg-amber-400 rounded-full" />
+                  <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Trạng thái</span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className={lbl}>Vai trò</label>
+                    <div className="relative">
+                      <select name="role" value={formData.role} onChange={handleChange} className={inp("role") + " appearance-none pr-8 cursor-pointer"}>
+                        <option value="Staff">Lễ tân / Trợ lý</option>
+                        <option value="Admin">Quản trị viên</option>
+                      </select>
+                      <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className={lbl}>Trạng thái làm việc</label>
+                    <div className="relative">
+                      <select name="employmentStatus" value={formData.employmentStatus} onChange={handleChange} className={inp("employmentStatus") + " appearance-none pr-8 cursor-pointer"}>
+                        <option value="Active">Đang làm việc</option>
+                        <option value="On Leave">Nghỉ phép</option>
+                        <option value="Inactive">Đã nghỉ việc</option>
+                      </select>
+                      <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className={lbl}>Trạng thái tài khoản</label>
+                    <div className="relative">
+                      <select name="isActive" value={formData.isActive ? "true" : "false"} onChange={handleChange} className={inp("isActive") + " appearance-none pr-8 cursor-pointer"}>
+                        <option value="true">Đang kích hoạt</option>
+                        <option value="false">Tạm khóa</option>
+                      </select>
+                      <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Actions */}
               <div className="flex items-center justify-end gap-3">
-                <button type="button" onClick={() => router.back()} disabled={isSubmitting}
+                <button type="button" onClick={() => router.push("/dashboard/employee")} disabled={isSubmitting}
                   className="px-6 py-3 text-[14px] font-bold text-slate-500 hover:text-slate-800 hover:bg-white border border-slate-200 rounded-xl transition-all cursor-pointer disabled:opacity-50 shadow-sm">
                   Hủy bỏ
                 </button>
-                <button type="submit" disabled={isSubmitting || isLoadingCode}
-                  className="px-6 py-3 bg-primary hover:bg-primary-hover text-white text-[14px] font-extrabold rounded-xl shadow-md shadow-primary/20 hover:shadow-lg transition-all cursor-pointer flex items-center gap-2 min-w-[160px] justify-center disabled:opacity-50">
+                <button type="submit" disabled={isSubmitting}
+                  className="px-6 py-3 bg-primary hover:bg-primary-hover text-white text-[14px] font-extrabold rounded-xl shadow-md shadow-primary/20 hover:shadow-lg transition-all cursor-pointer flex items-center gap-2 min-w-[140px] justify-center disabled:opacity-50">
                   {isSubmitting ? (
                     <><svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                     </svg>Đang lưu...</>
-                  ) : "Lưu thông tin nhân viên"}
+                  ) : "Cập nhật thông tin"}
                 </button>
               </div>
 

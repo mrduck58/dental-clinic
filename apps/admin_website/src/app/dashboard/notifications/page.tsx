@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import Sidebar from "../../../components/shared/Sidebar";
+import AdminSidebar from "../../../components/shared/AdminSidebar";
 import NotificationBell from "../../../components/shared/NotificationBell";
 import { useRequireAdmin } from "../../../hooks/useRequireAdmin";
 
@@ -157,7 +157,7 @@ export default function NotificationsPage() {
 
   return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
-      <Sidebar activeMenu="notifications" />
+      <AdminSidebar activeMenu="notifications" />
 
       <main className="flex-1 flex flex-col min-w-0">
         {/* HEADER */}

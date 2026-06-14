@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import Sidebar from "../../../../components/shared/Sidebar";
+import AdminSidebar from "../../../../components/shared/AdminSidebar";
 import { useRequireAdmin } from "../../../../hooks/useRequireAdmin";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -246,7 +246,7 @@ export default function LeaveDetailPage() {
   if (isLoading) {
     return (
       <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
-        <Sidebar activeMenu="leaves" />
+        <AdminSidebar activeMenu="leaves" />
         <main className="flex-1 flex flex-col min-w-0">
           <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center shrink-0 font-sans shadow-sm shadow-slate-100/50">
             <Link
@@ -273,7 +273,7 @@ export default function LeaveDetailPage() {
   if (!leave) {
     return (
       <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
-        <Sidebar activeMenu="leaves" />
+        <AdminSidebar activeMenu="leaves" />
         <main className="flex-1 flex flex-col min-w-0">
           <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center shrink-0 font-sans shadow-sm shadow-slate-100/50">
             <Link
@@ -309,7 +309,7 @@ export default function LeaveDetailPage() {
 
   return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
-      <Sidebar activeMenu="leaves" />
+      <AdminSidebar activeMenu="leaves" />
 
       <main className="flex-1 flex flex-col min-w-0">
         {/* HEADER */}

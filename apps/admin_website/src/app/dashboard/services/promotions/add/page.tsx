@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
-import Sidebar from "../../../../../components/shared/Sidebar";
+import AdminSidebar from "../../../../../components/shared/AdminSidebar";
 import NotificationBell from "../../../../../components/shared/NotificationBell";
 import { useRequireAdmin } from "../../../../../hooks/useRequireAdmin";
 
@@ -75,7 +75,7 @@ export default function AddPromotionPage() {
 
   return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
-      <Sidebar activeMenu="services" />
+      <AdminSidebar activeMenu="services" />
 
       <main className="flex-1 flex flex-col min-w-0">
         {/* HEADER */}
