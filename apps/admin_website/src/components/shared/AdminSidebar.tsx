@@ -89,6 +89,21 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
             Quản lí dịch vụ
           </Link>
 
+          {/* Quản lí thuốc */}
+          <Link
+            href="/dashboard/medicines"
+            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "medicines"
+                ? "bg-primary text-white shadow-md shadow-primary/25"
+                : "text-slate-500 hover:bg-red-50 hover:text-primary"
+              }`}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 9.75h.005v.005h-.005v-.005zm0 2.25h.005v.005h-.005v-.005zm-2.25.005h.005v.005h-.005v-.005zm0 2.25h.005v.005h-.005v-.005zm2.25-2.25h.75v.75h-.75v-.75zm-.75 0v.75h.75v-.75h-.75zm5.25 0v.75h.75v-.75h-.75zm-.75 0h.75v.75h-.75v-.75zm-.75 0h.005v.005h-.005v-.005zm-.75 0h.005v.005h-.005v-.005zm.75-2.25h.005v.005h-.005v-.005zm0 2.25h.005v.005h-.005v-.005zm0 2.25h.75v.75h-.75v-.75zm-.75 0v.75h.75v-.75h-.75z" />
+              <circle cx="12" cy="12" r="8" strokeWidth="1.5" />
+            </svg>
+            Quản lí thuốc
+          </Link>
+
           {/* Quản lí bài viết */}
           <Link
             href="/dashboard/posts"
