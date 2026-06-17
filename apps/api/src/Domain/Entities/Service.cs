@@ -4,7 +4,6 @@ public class Service
 {
     public Guid Id { get; private set; }
     public string Name { get; private set; } = string.Empty;
-    public string Category { get; private set; } = string.Empty;
     public decimal Price { get; private set; }
     public int DurationMinutes { get; private set; }
     public bool IsActive { get; private set; } = true;
@@ -18,7 +17,6 @@ public class Service
 
     public static Service Create(
         string name,
-        string category,
         decimal price,
         int durationMinutes,
         string description,
@@ -27,7 +25,6 @@ public class Service
         {
             Id = Guid.NewGuid(),
             Name = name,
-            Category = category,
             Price = price,
             DurationMinutes = durationMinutes,
             IsActive = true,
@@ -39,14 +36,12 @@ public class Service
 
     public void Update(
         string name,
-        string category,
         decimal price,
         int durationMinutes,
         string description,
         string? imageUrl)
     {
         Name = name;
-        Category = category;
         Price = price;
         DurationMinutes = durationMinutes;
         Description = description;

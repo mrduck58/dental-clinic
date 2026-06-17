@@ -8,8 +8,7 @@ public class ServiceRepository(AppDbContext db) : IServiceRepository
 {
     public async Task<IEnumerable<Service>> GetAllAsync(CancellationToken ct = default)
         => await db.Services
-            .OrderBy(s => s.Category)
-            .ThenBy(s => s.Name)
+            .OrderBy(s => s.Name)
             .ToListAsync(ct);
 
     public async Task<Service?> GetByIdAsync(Guid id, CancellationToken ct = default)
