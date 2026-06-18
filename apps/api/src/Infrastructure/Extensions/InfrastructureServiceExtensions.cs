@@ -1,4 +1,5 @@
 using DentalClinic.API.Application.UseCases.Auth;
+using DentalClinic.API.Application.UseCases.Medicines;
 using DentalClinic.API.Application.UseCases.Posts;
 using DentalClinic.API.Application.UseCases.Promotions;
 using DentalClinic.API.Application.UseCases.Schedules;
@@ -36,10 +37,12 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IPostRepository, PostRepository>();
         services.AddScoped<IWorkScheduleRepository, WorkScheduleRepository>();
         services.AddScoped<IPromotionRepository, PromotionRepository>();
+        services.AddScoped<IMedicineRepository, MedicineRepository>();
 
         // ── Services ────────────────────────────────────────────────────────
         services.AddScoped<IJwtService, JwtService>();
         services.AddScoped<IEmailService, EmailService>();
+        services.AddScoped<IFileStorageService, LocalFileStorageService>();
 
         // ── Use Case Handlers ────────────────────────────────────────────────
         services.AddScoped<LoginHandler>();
@@ -64,6 +67,12 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<UpdateServiceHandler>();
         services.AddScoped<DeleteServiceHandler>();
         services.AddScoped<ToggleServiceStatusHandler>();
+
+        services.AddScoped<GetMedicinesHandler>();
+        services.AddScoped<GetMedicineByIdHandler>();
+        services.AddScoped<CreateMedicineHandler>();
+        services.AddScoped<UpdateMedicineHandler>();
+        services.AddScoped<DeleteMedicineHandler>();
 
         services.AddScoped<GetWeekScheduleHandler>();
         services.AddScoped<SaveWeekScheduleHandler>();

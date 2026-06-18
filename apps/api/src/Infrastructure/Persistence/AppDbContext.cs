@@ -19,6 +19,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Post> Posts => Set<Post>();
     public DbSet<WorkSchedule> WorkSchedules => Set<WorkSchedule>();
     public DbSet<Promotion> Promotions => Set<Promotion>();
+    public DbSet<Medicine> Medicines => Set<Medicine>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

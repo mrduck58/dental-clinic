@@ -5,10 +5,7 @@ import Link from "next/link";
 import AdminSidebar from "../../../../../components/shared/AdminSidebar";
 import NotificationBell from "../../../../../components/shared/NotificationBell";
 import { useRequireAdmin } from "../../../../../hooks/useRequireAdmin";
-
-interface EditMedicinePageProps {
-  params: Promise<{ id: string }>;
-}
+import { getMedicineByIdApi, updateMedicineApi } from "../../../../../lib/apiClient";
 
 interface Medicine {
   id: string;
@@ -16,21 +13,13 @@ interface Medicine {
   genericName: string;
   unit: string;
   manufacturer: string;
-  usage: string;
-  imageUrl?: string;
+  description: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string | null;
 }
 
-const mockMedicine: Medicine = {
-  id: "1",
-  name: "Amoxicillin 500mg",
-  genericName: "Amoxicillin",
-  unit: "Viên",
-  manufacturer: "Domesco",
-  usage: "Kháng sinh điều trị nhiễm khuẩn",
-  imageUrl: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=100&h=100&fit=crop",
-};
-
-export default function EditMedicinePage({ params }: EditMedicinePageProps) {
+export default function EditMedicinePage({ params }: { params: Promise<{ id: string }> }) {
   useRequireAdmin();
   const { id } = React.use(params);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -40,7 +29,7 @@ export default function EditMedicinePage({ params }: EditMedicinePageProps) {
     genericName: "",
     unit: "",
     manufacturer: "",
-    usage: "",
+    description: "",
   });
 
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -49,23 +38,32 @@ export default function EditMedicinePage({ params }: EditMedicinePageProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [toast, setToast] = useState<{ show: boolean; message: string } | null>(null);
+
+  useEffect(() => {
+    if (!toast?.show) return;
+    const timer = setTimeout(() => setToast(null), 2000);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   useEffect(() => {
     const fetchMedicine = async () => {
-      setIsLoading(true);
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      const medicine = mockMedicine;
-      setFormData({
-        name: medicine.name,
-        genericName: medicine.genericName,
-        unit: medicine.unit,
-        manufacturer: medicine.manufacturer,
-        usage: medicine.usage,
-      });
-      setExistingImageUrl(medicine.imageUrl || null);
-      setImagePreview(medicine.imageUrl || null);
-      setIsLoading(false);
+      try {
+        const medicine = await getMedicineByIdApi(id);
+        setFormData({
+          name: medicine.name,
+          genericName: medicine.genericName,
+          unit: medicine.unit,
+          manufacturer: medicine.manufacturer,
+          description: medicine.description,
+        });
+        setExistingImageUrl(null);
+        setImagePreview(null);
+      } catch (err) {
+        setSaveError(err instanceof Error ? err.message : "Không thể tải thông tin thuốc.");
+      } finally {
+        setIsLoading(false);
+      }
     };
     fetchMedicine();
   }, [id]);
@@ -81,9 +79,7 @@ export default function EditMedicinePage({ params }: EditMedicinePageProps) {
       setImageFile(file);
       setExistingImageUrl(null);
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
+      reader.onloadend = () => setImagePreview(reader.result as string);
       reader.readAsDataURL(file);
     }
   };
@@ -92,9 +88,7 @@ export default function EditMedicinePage({ params }: EditMedicinePageProps) {
     setImageFile(null);
     setImagePreview(null);
     setExistingImageUrl(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -108,23 +102,20 @@ export default function EditMedicinePage({ params }: EditMedicinePageProps) {
 
     setIsSaving(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      const formDataToSend = new FormData();
-      formDataToSend.append("name", formData.name);
-      formDataToSend.append("genericName", formData.genericName);
-      formDataToSend.append("unit", formData.unit);
-      formDataToSend.append("manufacturer", formData.manufacturer);
-      formDataToSend.append("usage", formData.usage);
-      if (imageFile) {
-        formDataToSend.append("image", imageFile);
-      }
-      console.log("Updated medicine data:", { id, ...formData, imageFile });
-      setSaveSuccess(true);
+      await updateMedicineApi(id, {
+        name: formData.name,
+        genericName: formData.genericName,
+        unit: formData.unit,
+        manufacturer: formData.manufacturer,
+        description: formData.description,
+      });
+
+      setToast({ show: true, message: "Cập nhật thuốc thành công!" });
       setTimeout(() => {
         window.location.href = "/dashboard/medicines";
-      }, 1500);
-    } catch {
-      setSaveError("Cập nhật thuốc thất bại. Vui lòng thử lại.");
+      }, 2000);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Cập nhật thuốc thất bại.");
     } finally {
       setIsSaving(false);
     }
@@ -165,16 +156,6 @@ export default function EditMedicinePage({ params }: EditMedicinePageProps) {
                 </svg>
                 <p className="text-slate-400 font-semibold">Đang tải thông tin thuốc...</p>
               </div>
-            </div>
-          ) : saveSuccess ? (
-            <div className="max-w-2xl mx-auto flex flex-col items-center justify-center py-20">
-              <div className="w-20 h-20 rounded-full bg-green-100 text-green-600 flex items-center justify-center mb-6 animate-bounce">
-                <svg className="w-10 h-10" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                </svg>
-              </div>
-              <h2 className="text-2xl font-extrabold text-slate-900 mb-2">Cập nhật thuốc thành công!</h2>
-              <p className="text-slate-500 font-semibold">Đang chuyển hướng về trang danh sách...</p>
             </div>
           ) : (
             <form onSubmit={handleSave} className="max-w-2xl mx-auto">
@@ -268,13 +249,13 @@ export default function EditMedicinePage({ params }: EditMedicinePageProps) {
 
                   <div className="flex flex-col gap-2">
                     <label className="text-[13px] font-extrabold text-slate-500 uppercase tracking-wide">
-                      Công dụng
+                      Mô tả
                     </label>
                     <textarea
                       rows={3}
-                      name="usage"
+                      name="description"
                       placeholder="Mô tả công dụng của thuốc..."
-                      value={formData.usage}
+                      value={formData.description}
                       onChange={handleChange}
                       className="w-full px-4 py-3 text-[14px] bg-white border border-slate-200 rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all font-semibold text-slate-800 placeholder:text-slate-300 resize-none"
                     />
@@ -287,11 +268,7 @@ export default function EditMedicinePage({ params }: EditMedicinePageProps) {
                     <div className="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center hover:border-primary/50 transition-colors">
                       {imagePreview ? (
                         <div className="relative inline-block">
-                          <img
-                            src={imagePreview}
-                            alt="Preview"
-                            className="w-32 h-32 object-cover rounded-lg mx-auto"
-                          />
+                          <img src={imagePreview} alt="Preview" className="w-32 h-32 object-cover rounded-lg mx-auto" />
                           <button
                             type="button"
                             onClick={handleRemoveImage}
@@ -312,21 +289,14 @@ export default function EditMedicinePage({ params }: EditMedicinePageProps) {
                             className="hidden"
                             id="medicine-image"
                           />
-                          <label
-                            htmlFor="medicine-image"
-                            className="flex flex-col items-center gap-2 cursor-pointer"
-                          >
+                          <label htmlFor="medicine-image" className="flex flex-col items-center gap-2 cursor-pointer">
                             <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center">
                               <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
                               </svg>
                             </div>
-                            <span className="text-[13px] font-semibold text-slate-500">
-                              Nhấn để chọn hình ảnh
-                            </span>
-                            <span className="text-[11px] text-slate-400">
-                              PNG, JPG, GIF (tối đa 5MB)
-                            </span>
+                            <span className="text-[13px] font-semibold text-slate-500">Nhấn để chọn hình ảnh</span>
+                            <span className="text-[11px] text-slate-400">PNG, JPG, GIF (tối đa 5MB)</span>
                           </label>
                         </>
                       )}
@@ -335,8 +305,12 @@ export default function EditMedicinePage({ params }: EditMedicinePageProps) {
                 </div>
 
                 <div className="px-6 py-5 border-t border-slate-100 bg-slate-50/30 flex items-center justify-end gap-3">
-                  {saveError && (
-                    <p className="text-[13px] text-red-500 font-semibold flex-1">{saveError}</p>
+                  {saveError && <p className="text-[13px] text-red-500 font-semibold flex-1">{saveError}</p>}
+                  {toast?.show && (
+                    <div className="fixed top-24 right-8 z-50 px-5 py-3.5 rounded-xl shadow-xl flex items-center gap-3 border border-green-200 bg-green-50 text-green-700 animate-fade-in font-bold text-[14.5px] transition-all max-w-md">
+                      <span>✓</span>
+                      <span>{toast.message}</span>
+                    </div>
                   )}
                   <Link
                     href="/dashboard/medicines"
