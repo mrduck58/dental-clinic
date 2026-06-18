@@ -718,6 +718,103 @@ export async function togglePromotionStatusApi(id: string): Promise<PromotionDto
   return res.json() as Promise<PromotionDto>;
 }
 
+// ── Feedback types ─────────────────────────────────────────────────────────
+
+export interface FeedbackDto {
+  id: string;
+  customerName: string;
+  rating: number;
+  comment: string;
+  status: string;
+  replyText: string | null;
+  repliedAt: string | null;
+  createdAt: string;
+}
+
+export interface CreateFeedbackRequest {
+  customerName: string;
+  rating: number;
+  comment: string;
+}
+
+export interface ReplyFeedbackRequest {
+  replyText: string;
+}
+
+// ── Feedback endpoints ─────────────────────────────────────────────────────
+
+export async function getFeedbacksApi(params?: {
+  status?: string;
+  search?: string;
+}): Promise<FeedbackDto[]> {
+  const qs = new URLSearchParams();
+  if (params?.status) qs.set("status", params.status);
+  if (params?.search) qs.set("search", params.search);
+  const query = qs.toString() ? `?${qs.toString()}` : "";
+  const res = await fetch(`${API_URL}/api/feedbacks${query}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách phản hồi");
+  }
+  return res.json() as Promise<FeedbackDto[]>;
+}
+
+export async function featureFeedbackApi(id: string): Promise<FeedbackDto> {
+  const res = await fetch(`${API_URL}/api/feedbacks/${id}/feature`, {
+    method: "PUT",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Đánh dấu nổi bật thất bại");
+  }
+  return res.json() as Promise<FeedbackDto>;
+}
+
+export async function hideFeedbackApi(id: string): Promise<FeedbackDto> {
+  const res = await fetch(`${API_URL}/api/feedbacks/${id}/hide`, {
+    method: "PUT",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Ẩn phản hồi thất bại");
+  }
+  return res.json() as Promise<FeedbackDto>;
+}
+
+export async function replyFeedbackApi(id: string, data: ReplyFeedbackRequest): Promise<FeedbackDto> {
+  const res = await fetch(`${API_URL}/api/feedbacks/${id}/reply`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Trả lời phản hồi thất bại");
+  }
+  return res.json() as Promise<FeedbackDto>;
+}
+
+export async function createFeedbackApi(data: CreateFeedbackRequest): Promise<FeedbackDto> {
+  const res = await fetch(`${API_URL}/api/feedbacks`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Gửi phản hồi thất bại");
+  }
+  return res.json() as Promise<FeedbackDto>;
+}
+
 // ── Medicine types ──────────────────────────────────────────────────────────
 
 export interface MedicineDto {
