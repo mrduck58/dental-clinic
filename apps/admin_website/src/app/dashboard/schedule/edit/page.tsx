@@ -4,8 +4,9 @@ import React, { useState, useEffect, useMemo, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import AdminSidebar from "../../../../components/shared/AdminSidebar";
+import NotificationBell from "../../../../components/shared/NotificationBell";
 import { useRequireAdmin } from "../../../../hooks/useRequireAdmin";
-import { getWeekScheduleApi, saveWeekScheduleApi } from "../../../../lib/apiClient";
+import { getWeekScheduleApi, saveWeekScheduleApi, getStaffApi, getRoomsApi, type RoomDto } from "../../../../lib/apiClient";
 import * as XLSX from "xlsx";
 
 // Define TypeScript interfaces for our scheduling data
@@ -30,33 +31,22 @@ interface StaffMember {
   status: "ACTIVE" | "INACTIVE";
 }
 
-// Predefined list of active doctors, assistants and staff (status = 'ACTIVE')
-const ACTIVE_STAFF_DB: StaffMember[] = [
-  // Bác sĩ (Dentists)
-  { id: "D-001", name: "BS. Minh Anh", specialization: "Nha chu", type: "dentist", status: "ACTIVE" },
-  { id: "D-002", name: "BS. Hoàng Nam", specialization: "Phẫu thuật", type: "dentist", status: "ACTIVE" },
-  { id: "D-003", name: "BS. Lan Chi", specialization: "Tổng quát", type: "dentist", status: "ACTIVE" },
-  { id: "D-004", name: "BS. Quốc Huy", specialization: "Chỉnh nha", type: "dentist", status: "ACTIVE" },
-  { id: "D-005", name: "BS. Tuấn Kiệt", specialization: "Răng trẻ em", type: "dentist", status: "ACTIVE" },
-  { id: "D-006", name: "BS. Hoàng My", specialization: "Thẩm mỹ", type: "dentist", status: "ACTIVE" },
-  { id: "D-007", name: "BS. Đăng Trần", specialization: "Cấy ghép Implant", type: "dentist", status: "ACTIVE" },
-  { id: "D-008", name: "BS. Quốc Bảo", specialization: "Nội nha", type: "dentist", status: "ACTIVE" },
+interface RoomRow {
+  label: string;
+  key: string;
+  color: string;
+  isDisabled: boolean;
+  disabledReason: string | null;
+}
 
-  // Phụ tá (Assistants)
-  { id: "A-001", name: "PT. Vân Anh", specialization: "Phụ tá nha khoa", type: "assistant", status: "ACTIVE" },
-  { id: "A-002", name: "PT. Bảo Nam", specialization: "Phụ tá phẫu thuật", type: "assistant", status: "ACTIVE" },
-  { id: "A-003", name: "PT. Khánh Vy", specialization: "Phụ tá nha khoa", type: "assistant", status: "ACTIVE" },
-  { id: "A-004", name: "PT. Hồng Đăng", specialization: "Phụ tá chỉnh nha", type: "assistant", status: "ACTIVE" },
-  { id: "A-005", name: "PT. Thu Trà", specialization: "Phụ tá tổng quát", type: "assistant", status: "ACTIVE" },
+const ROOM_COLORS_DENTIST = ["border-primary", "border-secondary", "border-purple-600", "border-orange-500", "border-pink-600"];
+const ROOM_COLORS_STAFF   = ["border-green-600", "border-teal-600", "border-indigo-600", "border-yellow-600"];
+const DISABLED_ROOM_STATUSES = ["Bảo trì", "Ngừng hoạt động"];
+const STAFF_ROOM_KEYWORDS    = ["lễ tân", "cskh", "chăm sóc", "kế toán", "hành chính", "reception"];
 
-  // Nhân viên hành chính (Staff)
-  { id: "S-001", name: "Nguyễn Thị Lan", specialization: "Lễ tân", type: "staff", status: "ACTIVE" },
-  { id: "S-002", name: "Lê Hoàng Long", specialization: "Lễ tân", type: "staff", status: "ACTIVE" },
-  { id: "S-003", name: "Phan Mỹ Linh", specialization: "Chăm sóc khách hàng", type: "staff", status: "ACTIVE" },
-  { id: "S-004", name: "Đỗ Thu Hà", specialization: "Chăm sóc khách hàng", type: "staff", status: "ACTIVE" },
-  { id: "S-005", name: "Trần Văn Hải", specialization: "Kế toán", type: "staff", status: "ACTIVE" },
-  { id: "S-006", name: "Vũ Minh Thư", specialization: "Kế toán", type: "staff", status: "ACTIVE" }
-];
+const isStaffRoomType = (room: RoomDto) =>
+  STAFF_ROOM_KEYWORDS.some(k => (room.type ?? "").toLowerCase().includes(k));
+
 
 // Generates dates for a week starting on a given Monday date
 const getWeekDates = (mondayDate: Date): Date[] => {
@@ -91,6 +81,10 @@ function EditScheduleContent() {
     const d = new Date(weekParam);
     return isNaN(d.getTime()) ? new Date(DEFAULT_MONDAY_STR) : d;
   }, [weekParam]);
+
+  const [staffDatabase, setStaffDatabase] = useState<StaffMember[]>([]);
+  const [isLoadingStaff, setIsLoadingStaff] = useState(true);
+  const [allRooms, setAllRooms] = useState<RoomDto[]>([]);
 
   const [staffType, setStaffType] = useState<"dentist" | "staff">("dentist");
   const [searchQuery, setSearchQuery] = useState("");
@@ -128,6 +122,46 @@ function EditScheduleContent() {
   };
 
   const weekDates = useMemo(() => getWeekDates(currentMonday), [currentMonday]);
+
+  // Load active staff list from backend
+  useEffect(() => {
+    setIsLoadingStaff(true);
+    getStaffApi({ pageSize: 100, status: "Active" })
+      .then(res => {
+        const members: StaffMember[] = res.items.map(dto => {
+          const roleLower = (dto.role ?? "").toLowerCase();
+          let type: "dentist" | "assistant" | "staff";
+          if (roleLower === "dentist" || roleLower === "doctor") {
+            type = "dentist";
+          } else if (roleLower === "assistant" || (dto.position ?? "").toLowerCase().includes("phụ tá")) {
+            type = "assistant";
+          } else {
+            type = "staff";
+          }
+          const specialization =
+            type === "dentist"
+              ? (dto.specialty ?? dto.position ?? "Bác sĩ")
+              : (dto.position ?? dto.department ?? "Nhân viên");
+          return {
+            id: dto.id,
+            name: dto.fullName ?? dto.username,
+            specialization,
+            type,
+            status: "ACTIVE" as const,
+          };
+        });
+        setStaffDatabase(members);
+      })
+      .catch(() => setStaffDatabase([]))
+      .finally(() => setIsLoadingStaff(false));
+  }, []);
+
+  // Load rooms from backend
+  useEffect(() => {
+    getRoomsApi()
+      .then(rooms => setAllRooms(rooms))
+      .catch(() => setAllRooms([]));
+  }, []);
 
   // Load schedules for the active week from API
   useEffect(() => {
@@ -169,35 +203,69 @@ function EditScheduleContent() {
     };
   }, [weekDates]);
 
-  // Dynamic rooms/roles rows list mapping based on staff type
-  const roomRows = useMemo(() => {
+  // Dynamic rooms fetched from backend, split by type and annotated with disabled status
+  const roomRows = useMemo((): RoomRow[] => {
+    const colors = staffType === "dentist" ? ROOM_COLORS_DENTIST : ROOM_COLORS_STAFF;
+
+    if (allRooms.length > 0) {
+      const filtered = allRooms.filter(r =>
+        staffType === "dentist" ? !isStaffRoomType(r) : isStaffRoomType(r)
+      );
+      if (filtered.length > 0) {
+        return filtered.map((room, idx) => ({
+          label: room.name.toUpperCase(),
+          key: room.name,
+          color: colors[idx % colors.length],
+          isDisabled: DISABLED_ROOM_STATUSES.includes(room.status),
+          disabledReason: DISABLED_ROOM_STATUSES.includes(room.status) ? room.status : null,
+        }));
+      }
+    }
+
+    // Fallback to hardcoded while rooms are loading or none found
     if (staffType === "dentist") {
       return [
-        { label: "PHÒNG 1", key: "PHÒNG 1", color: "border-primary" },
-        { label: "PHÒNG 2", key: "PHÒNG 2", color: "border-secondary" }
-      ];
-    } else {
-      return [
-        { label: "LỄ TÂN", key: "LỄ TÂN", color: "border-green-600" },
-        { label: "CSKH", key: "CSKH", color: "border-teal-600" },
-        { label: "KẾ TOÁN", key: "KẾ TOÁN", color: "border-indigo-600" }
+        { label: "PHÒNG 1", key: "PHÒNG 1", color: "border-primary",    isDisabled: false, disabledReason: null },
+        { label: "PHÒNG 2", key: "PHÒNG 2", color: "border-secondary",  isDisabled: false, disabledReason: null },
       ];
     }
-  }, [staffType]);
+    return [
+      { label: "LỄ TÂN", key: "LỄ TÂN", color: "border-green-600", isDisabled: false, disabledReason: null },
+      { label: "CSKH",   key: "CSKH",   color: "border-teal-600",   isDisabled: false, disabledReason: null },
+    ];
+  }, [allRooms, staffType]);
 
-  // Map edited active week items by Room, Date, Shift, and Role for fast lookup
+  // Map dentist/assistant entries by Room+Date+Shift+Role for single-slot lookup
   const editLookup = useMemo(() => {
     const map: Record<string, ScheduleEntry> = {};
     activeWeekSchedules.forEach(item => {
-      const key = `${item.date}_${item.shift}_${item.room}_${item.role}`;
-      map[key] = item;
+      if (item.role !== "staff") {
+        const key = `${item.date}_${item.shift}_${item.room}_${item.role}`;
+        map[key] = item;
+      }
     });
     return map;
   }, [activeWeekSchedules]);
 
-  // Checks if date is Wednesday (highlight date)
+  // Group staff entries by Date+Shift+Room — supports multiple people per slot
+  const staffMultiLookup = useMemo(() => {
+    const map: Record<string, ScheduleEntry[]> = {};
+    activeWeekSchedules.forEach(item => {
+      if (item.role === "staff" && !item.isHoliday) {
+        const key = `${item.date}_${item.shift}_${item.room}`;
+        if (!map[key]) map[key] = [];
+        map[key].push(item);
+      }
+    });
+    return map;
+  }, [activeWeekSchedules]);
+
+  // Checks if date is today
   const isWednesday = (date: Date) => {
-    return date.getDay() === 3;
+    const today = new Date();
+    return date.getFullYear() === today.getFullYear() &&
+      date.getMonth() === today.getMonth() &&
+      date.getDate() === today.getDate();
   };
 
   // Check if a day has been set as holiday closed
@@ -261,25 +329,37 @@ function EditScheduleContent() {
     if (!modalCell) return;
 
     const { date, shift, room, roomColor, role } = modalCell;
-    const lookupKey = `${date}_${shift}_${room}_${role}`;
-    const existing = editLookup[lookupKey];
 
-    const updatedEntry: ScheduleEntry = {
-      id: existing ? existing.id : `DRAFT-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-      date,
-      shift,
-      type: staffType,
-      role,
-      name: staff.name,
-      room,
-      roomColor,
-      isDraft: true
-    };
-
-    if (existing) {
-      setActiveWeekSchedules(prev => prev.map(item => item.id === existing.id ? updatedEntry : item));
+    if (role === "staff") {
+      // Staff slots support multiple people — always add a new entry
+      const newEntry: ScheduleEntry = {
+        id: `DRAFT-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        date, shift,
+        type: "staff",
+        role: "staff",
+        name: staff.name,
+        room, roomColor,
+        isDraft: true,
+      };
+      setActiveWeekSchedules(prev => [...prev, newEntry]);
     } else {
-      setActiveWeekSchedules(prev => [...prev, updatedEntry]);
+      // Dentist/assistant slots: replace existing entry for that slot
+      const lookupKey = `${date}_${shift}_${room}_${role}`;
+      const existing = editLookup[lookupKey];
+      const updatedEntry: ScheduleEntry = {
+        id: existing ? existing.id : `DRAFT-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        date, shift,
+        type: staffType,
+        role,
+        name: staff.name,
+        room, roomColor,
+        isDraft: true,
+      };
+      if (existing) {
+        setActiveWeekSchedules(prev => prev.map(item => item.id === existing.id ? updatedEntry : item));
+      } else {
+        setActiveWeekSchedules(prev => [...prev, updatedEntry]);
+      }
     }
 
     setModalCell(null);
@@ -309,7 +389,7 @@ function EditScheduleContent() {
     const stripPrefix = (n: string) => n.replace(/^(bs\.|pt\.)\s*/i, "").trim().toLowerCase();
     const cleanInputNoPrefix = stripPrefix(cleanInput);
 
-    const candidates = ACTIVE_STAFF_DB.filter(s => s.type === targetType);
+    const candidates = staffDatabase.filter(s => s.type === targetType);
 
     // 1. Exact match with prefix stripped
     let match = candidates.find(s => stripPrefix(s.name) === cleanInputNoPrefix);
@@ -577,9 +657,13 @@ function EditScheduleContent() {
     }
 
     // Filter BR-SCH-EDIT-008: Only show active staff matching type and specialization
-    let activeStaff = ACTIVE_STAFF_DB.filter(s => {
+    let activeStaff = staffDatabase.filter(s => {
       const isCorrectType = s.status === "ACTIVE" && s.type === dbType;
-      const matchesSpecialization = !filterSpecialization || s.specialization === filterSpecialization;
+      // Staff without specific position (default "Nhân viên") can be assigned to any slot
+      const hasNoSpecificPosition = s.specialization === "Nhân viên";
+      const matchesSpecialization = !filterSpecialization ||
+        hasNoSpecificPosition ||
+        s.specialization.toLowerCase().includes(filterSpecialization.toLowerCase());
       return isCorrectType && matchesSpecialization;
     });
 
@@ -594,18 +678,29 @@ function EditScheduleContent() {
 
     // Add info on whether staff is busy
     return activeStaff.map(staff => {
-      const busyInRoom = activeWeekSchedules.find(item =>
+      // Already assigned to a DIFFERENT room/role in same shift
+      const busyElsewhere = activeWeekSchedules.find(item =>
         item.date === date &&
         item.shift === shift &&
         item.name === staff.name &&
         (item.room !== room || item.role !== role)
       );
+      // For staff multi-slots: already added to THIS slot
+      const alreadyInSlot = role === "staff" && activeWeekSchedules.some(item =>
+        item.date === date &&
+        item.shift === shift &&
+        item.room === room &&
+        item.role === "staff" &&
+        item.name === staff.name
+      );
 
+      const isBusy = !!busyElsewhere || alreadyInSlot;
+      const busySource = busyElsewhere ?? null;
       return {
         ...staff,
-        isBusy: !!busyInRoom,
-        busyRoom: busyInRoom ? busyInRoom.room : null,
-        busyRole: busyInRoom ? (busyInRoom.role === "dentist" ? "Bác sĩ" : busyInRoom.role === "assistant" ? "Phụ tá" : "Nhân viên") : null
+        isBusy,
+        busyRoom: alreadyInSlot ? room : (busySource ? busySource.room : null),
+        busyRole: alreadyInSlot ? "Đã trong ca này" : (busySource ? (busySource.role === "dentist" ? "Bác sĩ" : busySource.role === "assistant" ? "Phụ tá" : "Nhân viên") : null),
       };
     });
   }, [modalCell, activeWeekSchedules, staffType, modalSearchQuery]);
@@ -620,42 +715,14 @@ function EditScheduleContent() {
       <main className="flex-1 flex flex-col min-w-0">
 
         {/* HEADER */}
-        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 font-sans shadow-sm shadow-slate-100/50">
-          <div className="relative w-96 hidden sm:block">
-            <span className="absolute inset-y-0 left-3.5 flex items-center text-slate-400">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </span>
-            <input
-              type="text"
-              placeholder="Tìm kiếm bác sĩ, lịch hẹn..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-11 pr-5 py-2.5 text-[14.5px] bg-slate-100/80 rounded-full border border-transparent focus:bg-white focus:border-slate-200 focus:outline-none focus:ring-1 focus:ring-slate-200 transition-all font-semibold"
-            />
+        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-16 flex items-center justify-between shrink-0 font-sans shadow-sm shadow-slate-100/50">
+          <div className="flex flex-col">
+            <h1 className="text-[18px] font-black text-slate-900 leading-tight">Chỉnh sửa lịch làm việc</h1>
+            <p className="text-[12.5px] text-slate-400 font-semibold mt-0.5">Quản lý ca trực và lịch làm việc nhân sự</p>
           </div>
 
-          {/* Profile Panel */}
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2 text-slate-400 relative p-1.5 rounded-full hover:bg-slate-100 transition-all cursor-pointer">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
-              </svg>
-              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-primary rounded-full border border-white"></span>
-            </div>
-
-            <div className="h-6 w-px bg-slate-200"></div>
-
-            <div className="flex items-center gap-3 select-none">
-              <div className="text-right">
-                <div className="text-[14px] font-black text-slate-900 leading-tight">Admin Clinic</div>
-                <div className="text-[12px] font-bold text-slate-450 mt-0.5">Hồ Chí Minh</div>
-              </div>
-              <div className="w-10 h-10 rounded-full border-2 border-primary/20 bg-red-50 flex items-center justify-center font-bold text-primary shrink-0 text-sm">
-                AD
-              </div>
-            </div>
+          <div className="flex items-center gap-4">
+            <NotificationBell />
           </div>
         </header>
 
@@ -707,7 +774,7 @@ function EditScheduleContent() {
                 className="px-4.5 py-3 bg-white border border-slate-350 hover:bg-slate-50 text-slate-655 text-[14px] font-extrabold rounded-xl transition-all shadow-sm cursor-pointer flex items-center gap-1.5 animate-pulse"
                 title="Chọn file Excel để nhập nhanh lịch làm việc"
               >
-                📥 Nhập từ Excel
+                Nhập từ Excel
               </button>
 
               <button
@@ -715,7 +782,7 @@ function EditScheduleContent() {
                 className="px-4.5 py-3 bg-white border border-red-200 hover:bg-red-50 text-red-650 text-[14px] font-extrabold rounded-xl transition-all shadow-sm cursor-pointer flex items-center gap-1.5"
                 title="Xóa tất cả các ca đang hiển thị ở tuần này"
               >
-                🗑️ Xóa tất cả các ca
+                Xóa tất cả các ca
               </button>
 
               <button
@@ -736,7 +803,7 @@ function EditScheduleContent() {
           </div>
 
           {/* DENTIST/STAFF SELECTOR */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4">
             <div className="flex bg-[#eef2f6] p-1 rounded-xl border border-slate-200/20 shadow-sm select-none">
               <button
                 onClick={() => { setStaffType("dentist"); }}
@@ -755,6 +822,17 @@ function EditScheduleContent() {
                 <span className="text-[10px] font-semibold text-slate-400 mt-0.5">(Staff)</span>
               </button>
             </div>
+
+            {/* Search */}
+            <div className="relative w-64">
+              <input
+                type="text"
+                placeholder="Tìm kiếm bác sĩ, phòng..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-4 pr-4 py-2 text-[13.5px] bg-slate-100/80 rounded-full border border-transparent focus:bg-white focus:border-slate-200 focus:outline-none focus:ring-1 focus:ring-slate-200 transition-all font-semibold"
+              />
+            </div>
           </div>
 
           {/* CALENDAR MATRIX GRID */}
@@ -766,14 +844,13 @@ function EditScheduleContent() {
                     {/* First column: Room / Shift */}
                     <th className="px-5 py-5 text-slate-500 font-extrabold text-[14px] w-[150px] text-center border-r border-slate-200/80">
                       <div className="flex flex-col items-center justify-center gap-1">
-                        <span className="text-lg">🏢</span>
                         <span className="text-[12px] text-slate-400 font-black">Phòng / Thứ</span>
                       </div>
                     </th>
 
                     {/* Columns representing Mon to Sun */}
                     {weekDates.map((date, idx) => {
-                      const daysVN = ["THỨ 2", "THỨ 3", "THỨ 4", "THỨ 5", "THỨ 6", "THỨ 7", "CHỦ NHẬT"];
+                      const daysVN = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ Nhật"];
                       const formattedDay = daysVN[idx];
                       const pad = (n: number) => String(n).padStart(2, "0");
                       const dateStr = formatDateKey(date);
@@ -821,8 +898,15 @@ function EditScheduleContent() {
                   {roomRows.map((room) => (
                     <tr key={`morning_${room.key}`} className="min-h-[160px]">
                       {/* Room code column */}
-                      <td className="px-4 py-6 text-center border-r border-slate-200/80 font-black text-slate-655 bg-slate-50/30 text-[12.5px]">
-                        {room.label}
+                      <td className={`px-4 py-6 text-center border-r border-slate-200/80 font-black bg-slate-50/30 text-[12.5px] ${room.isDisabled ? "text-amber-600/70" : "text-slate-655"}`}>
+                        <div className="flex flex-col items-center gap-1">
+                          <span>{room.label}</span>
+                          {room.isDisabled && (
+                            <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded uppercase tracking-wide leading-none">
+                              {room.disabledReason}
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Weekday Cells */}
@@ -841,7 +925,23 @@ function EditScheduleContent() {
                               title="Bấm để mở lại cửa phòng khám"
                             >
                               <div className="flex flex-col items-center justify-center gap-1.5 text-[11.5px] font-black text-slate-400 tracking-wider">
-                                <span>🔒 ĐÓNG CỬA</span>
+                                <span>ĐÓNG CỬA</span>
+                              </div>
+                            </td>
+                          );
+                        }
+
+                        // Render maintenance/inactive room block
+                        if (room.isDisabled) {
+                          return (
+                            <td
+                              key={dayIdx}
+                              className="px-3.5 py-4 text-center align-middle border-r border-slate-200/80 last:border-r-0 bg-amber-50/30"
+                              title={`Phòng đang ${room.disabledReason?.toLowerCase()} — không thể phân công`}
+                            >
+                              <div className="flex flex-col items-center justify-center gap-1.5 text-[11.5px] font-black text-amber-600/70 tracking-wider">
+                                <span className="text-base leading-none">⚙</span>
+                                <span>{room.disabledReason?.toUpperCase()}</span>
                               </div>
                             </td>
                           );
@@ -850,18 +950,15 @@ function EditScheduleContent() {
                         // Look up assignments
                         const docKey = `${dateStr}_morning_${room.key}_dentist`;
                         const astKey = `${dateStr}_morning_${room.key}_assistant`;
-                        const staffKey = `${dateStr}_morning_${room.key}_staff`;
 
                         const doctorEntry = editLookup[docKey];
                         const assistantEntry = editLookup[astKey];
-                        const staffEntry = editLookup[staffKey];
 
                         const hasDoctor = !!doctorEntry;
 
                         // Search queries filter
                         const matchesDocSearch = !searchQuery || (doctorEntry && doctorEntry.name.toLowerCase().includes(searchQuery.toLowerCase()));
                         const matchesAstSearch = !searchQuery || (assistantEntry && assistantEntry.name.toLowerCase().includes(searchQuery.toLowerCase()));
-                        const matchesStaffSearch = !searchQuery || (staffEntry && staffEntry.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
                         return (
                           <td
@@ -885,7 +982,7 @@ function EditScheduleContent() {
                                           className="p-1 bg-slate-50 hover:bg-slate-100 rounded border border-slate-200 text-slate-500 hover:text-primary transition-all cursor-pointer text-[10px] leading-none"
                                           title="Sửa bác sĩ"
                                         >
-                                          ✏️
+                                          Sửa
                                         </button>
                                         <button
                                           onClick={(e) => handleRemoveAssignment(e, doctorEntry.id)}
@@ -900,7 +997,7 @@ function EditScheduleContent() {
                                           {doctorEntry.name}
                                         </div>
                                         <div className="text-[10.5px] font-bold text-slate-400 mt-0.5 truncate">
-                                          {ACTIVE_STAFF_DB.find(s => s.name === doctorEntry.name)?.specialization || "Bác sĩ"}
+                                          {staffDatabase.find(s => s.name === doctorEntry.name)?.specialization || "Bác sĩ"}
                                         </div>
                                       </div>
                                     </div>
@@ -925,7 +1022,7 @@ function EditScheduleContent() {
                                           className="p-1 bg-slate-50 hover:bg-slate-100 rounded border border-slate-200 text-slate-500 hover:text-primary transition-all cursor-pointer text-[10px] leading-none"
                                           title="Sửa phụ tá"
                                         >
-                                          ✏️
+                                          Sửa
                                         </button>
                                         <button
                                           onClick={(e) => handleRemoveAssignment(e, assistantEntry.id)}
@@ -954,50 +1051,42 @@ function EditScheduleContent() {
                                         }`}
                                       title={!hasDoctor ? "Vui lòng thêm bác sĩ trước khi phân bổ phụ tá" : "Thêm phụ tá"}
                                     >
-                                      <span>+ Phụ tá {!hasDoctor && "🔒"}</span>
+                                      <span>+ Phụ tá {!hasDoctor && "(Khóa)"}</span>
                                     </button>
                                   )}
                                 </>
                               ) : (
-                                /* STAFF SLOT */
-                                staffEntry && matchesStaffSearch ? (
-                                  <div
-                                    className={`relative group bg-white border-l-4 ${room.color} p-3 rounded-xl transition-all shadow-sm border border-slate-200/70 hover:border-slate-350 hover:shadow flex flex-col justify-between min-h-[80px] ${staffEntry.isDraft ? "border-2 border-red-500 shadow-red-50/50" : ""
-                                      }`}
-                                  >
-                                    <div className="absolute top-1.5 right-1.5 flex gap-1 z-10">
-                                      <button
-                                        onClick={(e) => handleOpenAssignModal(e, dateStr, "morning", room.key, room.color, "staff")}
-                                        className="p-1 bg-slate-50 hover:bg-slate-100 rounded border border-slate-200 text-slate-500 hover:text-primary transition-all cursor-pointer text-[10px] leading-none"
-                                        title="Sửa nhân sự"
+                                /* STAFF SLOT — multiple people allowed */
+                                <div className="flex flex-col gap-2">
+                                  {(staffMultiLookup[`${dateStr}_morning_${room.key}`] ?? [])
+                                    .filter(e => !searchQuery || e.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                                    .map(entry => (
+                                      <div
+                                        key={entry.id}
+                                        className={`relative bg-white border-l-4 ${room.color} px-2.5 py-2 rounded-xl shadow-sm border border-slate-200/70 flex items-center justify-between gap-2 ${entry.isDraft ? "border-red-400/60" : ""}`}
                                       >
-                                        ✏️
-                                      </button>
-                                      <button
-                                        onClick={(e) => handleRemoveAssignment(e, staffEntry.id)}
-                                        className="p-1 bg-slate-50 hover:bg-red-50 rounded border border-slate-200 hover:border-red-200 text-slate-500 hover:text-primary transition-all cursor-pointer text-[10px] leading-none"
-                                        title="Xóa nhân sự"
-                                      >
-                                        ✕
-                                      </button>
-                                    </div>
-                                    <div className="pr-10">
-                                      <div className={`text-[13px] font-black ${staffEntry.isDraft ? "text-primary" : "text-slate-805"}`}>
-                                        {staffEntry.name}
+                                        <div className="min-w-0">
+                                          <div className={`text-[12.5px] font-black truncate ${entry.isDraft ? "text-primary" : "text-slate-800"}`}>
+                                            {entry.name}
+                                          </div>
+                                          <div className="text-[10.5px] font-bold text-slate-400 truncate">
+                                            {staffDatabase.find(s => s.name === entry.name)?.specialization || "Nhân viên"}
+                                          </div>
+                                        </div>
+                                        <button
+                                          onClick={(e) => handleRemoveAssignment(e, entry.id)}
+                                          className="shrink-0 p-1 bg-slate-50 hover:bg-red-50 rounded border border-slate-200 hover:border-red-200 text-slate-400 hover:text-red-500 transition-all cursor-pointer text-[10px] leading-none"
+                                          title="Xóa"
+                                        >✕</button>
                                       </div>
-                                      <div className="text-[11.5px] font-bold text-slate-400 mt-1">
-                                        {ACTIVE_STAFF_DB.find(s => s.name === staffEntry.name)?.specialization || "Nhân viên"}
-                                      </div>
-                                    </div>
-                                  </div>
-                                ) : (
+                                    ))}
                                   <button
                                     onClick={(e) => handleOpenAssignModal(e, dateStr, "morning", room.key, room.color, "staff")}
-                                    className="flex-1 flex items-center justify-center p-4 border-2 border-dashed border-slate-250 rounded-xl hover:border-primary text-slate-400 hover:text-primary transition-all hover:bg-slate-50/80 bg-white text-[12.5px] font-extrabold cursor-pointer"
+                                    className="py-2 px-3 border border-dashed border-slate-250 rounded-xl hover:border-primary text-slate-400 hover:text-primary transition-all hover:bg-slate-50/80 bg-white text-[11.5px] font-extrabold flex items-center justify-center gap-1 cursor-pointer"
                                   >
-                                    <span>+ THÊM</span>
+                                    <span>+ Thêm nhân viên</span>
                                   </button>
-                                )
+                                </div>
                               )}
 
                             </div>
@@ -1021,8 +1110,15 @@ function EditScheduleContent() {
                   {roomRows.map((room) => (
                     <tr key={`afternoon_${room.key}`} className="min-h-[160px]">
                       {/* Room code column */}
-                      <td className="px-4 py-6 text-center border-r border-slate-200/80 font-black text-slate-655 bg-slate-50/30 text-[12.5px]">
-                        {room.label}
+                      <td className={`px-4 py-6 text-center border-r border-slate-200/80 font-black bg-slate-50/30 text-[12.5px] ${room.isDisabled ? "text-amber-600/70" : "text-slate-655"}`}>
+                        <div className="flex flex-col items-center gap-1">
+                          <span>{room.label}</span>
+                          {room.isDisabled && (
+                            <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded uppercase tracking-wide leading-none">
+                              {room.disabledReason}
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Weekday Cells */}
@@ -1040,7 +1136,23 @@ function EditScheduleContent() {
                               className="px-3.5 py-4 text-center align-middle border-r border-slate-200/80 last:border-r-0 bg-slate-100/50 cursor-pointer transition-all hover:bg-slate-200/35"
                             >
                               <div className="flex flex-col items-center justify-center gap-1.5 text-[11.5px] font-black text-slate-400 tracking-wider">
-                                <span>🔒 ĐÓNG CỬA</span>
+                                <span>ĐÓNG CỬA</span>
+                              </div>
+                            </td>
+                          );
+                        }
+
+                        // Render maintenance/inactive room block
+                        if (room.isDisabled) {
+                          return (
+                            <td
+                              key={dayIdx}
+                              className="px-3.5 py-4 text-center align-middle border-r border-slate-200/80 last:border-r-0 bg-amber-50/30"
+                              title={`Phòng đang ${room.disabledReason?.toLowerCase()} — không thể phân công`}
+                            >
+                              <div className="flex flex-col items-center justify-center gap-1.5 text-[11.5px] font-black text-amber-600/70 tracking-wider">
+                                <span className="text-base leading-none">⚙</span>
+                                <span>{room.disabledReason?.toUpperCase()}</span>
                               </div>
                             </td>
                           );
@@ -1049,18 +1161,15 @@ function EditScheduleContent() {
                         // Look up assignments for Doctor and Assistant inside room cell
                         const docKey = `${dateStr}_afternoon_${room.key}_dentist`;
                         const astKey = `${dateStr}_afternoon_${room.key}_assistant`;
-                        const staffKey = `${dateStr}_afternoon_${room.key}_staff`;
 
                         const doctorEntry = editLookup[docKey];
                         const assistantEntry = editLookup[astKey];
-                        const staffEntry = editLookup[staffKey];
 
                         const hasDoctor = !!doctorEntry;
 
                         // Search queries filter
                         const matchesDocSearch = !searchQuery || (doctorEntry && doctorEntry.name.toLowerCase().includes(searchQuery.toLowerCase()));
                         const matchesAstSearch = !searchQuery || (assistantEntry && assistantEntry.name.toLowerCase().includes(searchQuery.toLowerCase()));
-                        const matchesStaffSearch = !searchQuery || (staffEntry && staffEntry.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
                         return (
                           <td
@@ -1084,7 +1193,7 @@ function EditScheduleContent() {
                                           className="p-1 bg-slate-50 hover:bg-slate-100 rounded border border-slate-200 text-slate-500 hover:text-primary transition-all cursor-pointer text-[10px] leading-none"
                                           title="Sửa bác sĩ"
                                         >
-                                          ✏️
+                                          Sửa
                                         </button>
                                         <button
                                           onClick={(e) => handleRemoveAssignment(e, doctorEntry.id)}
@@ -1099,7 +1208,7 @@ function EditScheduleContent() {
                                           {doctorEntry.name}
                                         </div>
                                         <div className="text-[10.5px] font-bold text-slate-400 mt-0.5 truncate">
-                                          {ACTIVE_STAFF_DB.find(s => s.name === doctorEntry.name)?.specialization || "Bác sĩ"}
+                                          {staffDatabase.find(s => s.name === doctorEntry.name)?.specialization || "Bác sĩ"}
                                         </div>
                                       </div>
                                     </div>
@@ -1124,7 +1233,7 @@ function EditScheduleContent() {
                                           className="p-1 bg-slate-50 hover:bg-slate-100 rounded border border-slate-200 text-slate-500 hover:text-primary transition-all cursor-pointer text-[10px] leading-none"
                                           title="Sửa phụ tá"
                                         >
-                                          ✏️
+                                          Sửa
                                         </button>
                                         <button
                                           onClick={(e) => handleRemoveAssignment(e, assistantEntry.id)}
@@ -1153,50 +1262,42 @@ function EditScheduleContent() {
                                         }`}
                                       title={!hasDoctor ? "Vui lòng thêm bác sĩ trước khi phân bổ phụ tá" : "Thêm phụ tá"}
                                     >
-                                      <span>+ Phụ tá {!hasDoctor && "🔒"}</span>
+                                      <span>+ Phụ tá {!hasDoctor && "(Khóa)"}</span>
                                     </button>
                                   )}
                                 </>
                               ) : (
-                                /* STAFF SLOT */
-                                staffEntry && matchesStaffSearch ? (
-                                  <div
-                                    className={`relative group bg-white border-l-4 ${room.color} p-3 rounded-xl transition-all shadow-sm border border-slate-200/70 hover:border-slate-350 hover:shadow flex flex-col justify-between min-h-[80px] ${staffEntry.isDraft ? "border-2 border-red-500 shadow-red-50/50" : ""
-                                      }`}
-                                  >
-                                    <div className="absolute top-1.5 right-1.5 flex gap-1 z-10">
-                                      <button
-                                        onClick={(e) => handleOpenAssignModal(e, dateStr, "afternoon", room.key, room.color, "staff")}
-                                        className="p-1 bg-slate-50 hover:bg-slate-100 rounded border border-slate-200 text-slate-500 hover:text-primary transition-all cursor-pointer text-[10px] leading-none"
-                                        title="Sửa nhân sự"
+                                /* STAFF SLOT — multiple people allowed */
+                                <div className="flex flex-col gap-2">
+                                  {(staffMultiLookup[`${dateStr}_afternoon_${room.key}`] ?? [])
+                                    .filter(e => !searchQuery || e.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                                    .map(entry => (
+                                      <div
+                                        key={entry.id}
+                                        className={`relative bg-white border-l-4 ${room.color} px-2.5 py-2 rounded-xl shadow-sm border border-slate-200/70 flex items-center justify-between gap-2 ${entry.isDraft ? "border-red-400/60" : ""}`}
                                       >
-                                        ✏️
-                                      </button>
-                                      <button
-                                        onClick={(e) => handleRemoveAssignment(e, staffEntry.id)}
-                                        className="p-1 bg-slate-50 hover:bg-red-50 rounded border border-slate-200 hover:border-red-200 text-slate-500 hover:text-primary transition-all cursor-pointer text-[10px] leading-none"
-                                        title="Xóa nhân sự"
-                                      >
-                                        ✕
-                                      </button>
-                                    </div>
-                                    <div className="pr-10">
-                                      <div className={`text-[13px] font-black ${staffEntry.isDraft ? "text-primary" : "text-slate-805"}`}>
-                                        {staffEntry.name}
+                                        <div className="min-w-0">
+                                          <div className={`text-[12.5px] font-black truncate ${entry.isDraft ? "text-primary" : "text-slate-800"}`}>
+                                            {entry.name}
+                                          </div>
+                                          <div className="text-[10.5px] font-bold text-slate-400 truncate">
+                                            {staffDatabase.find(s => s.name === entry.name)?.specialization || "Nhân viên"}
+                                          </div>
+                                        </div>
+                                        <button
+                                          onClick={(e) => handleRemoveAssignment(e, entry.id)}
+                                          className="shrink-0 p-1 bg-slate-50 hover:bg-red-50 rounded border border-slate-200 hover:border-red-200 text-slate-400 hover:text-red-500 transition-all cursor-pointer text-[10px] leading-none"
+                                          title="Xóa"
+                                        >✕</button>
                                       </div>
-                                      <div className="text-[11.5px] font-bold text-slate-400 mt-1">
-                                        {ACTIVE_STAFF_DB.find(s => s.name === staffEntry.name)?.specialization || "Nhân viên"}
-                                      </div>
-                                    </div>
-                                  </div>
-                                ) : (
+                                    ))}
                                   <button
                                     onClick={(e) => handleOpenAssignModal(e, dateStr, "afternoon", room.key, room.color, "staff")}
-                                    className="flex-1 flex items-center justify-center p-4 border-2 border-dashed border-slate-250 rounded-xl hover:border-primary text-slate-400 hover:text-primary transition-all hover:bg-slate-50/80 bg-white text-[12.5px] font-extrabold cursor-pointer"
+                                    className="py-2 px-3 border border-dashed border-slate-250 rounded-xl hover:border-primary text-slate-400 hover:text-primary transition-all hover:bg-slate-50/80 bg-white text-[11.5px] font-extrabold flex items-center justify-center gap-1 cursor-pointer"
                                   >
-                                    <span>+ THÊM</span>
+                                    <span>+ Thêm nhân viên</span>
                                   </button>
-                                )
+                                </div>
                               )}
 
                             </div>
@@ -1225,7 +1326,7 @@ function EditScheduleContent() {
                 <span>Vị trí còn trống (Empty Slot)</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[11.5px] font-black text-slate-450 uppercase leading-none">💡 Mẹo:</span>
+                <span className="text-[11.5px] font-black text-slate-450 uppercase leading-none">Mẹo:</span>
                 <span className="text-slate-500">Bấm vào tên Thứ ở đầu cột để đóng/mở cửa phòng khám cả ngày đó.</span>
               </div>
             </div>
@@ -1260,9 +1361,7 @@ function EditScheduleContent() {
             {/* Modal Search Input (Functional search filter) */}
             <div className="p-4 border-b border-slate-100 bg-slate-50/50">
               <div className="relative">
-                <span className="absolute inset-y-0 left-3 flex items-center text-slate-400 pointer-events-none">
-                  🔍
-                </span>
+                <span className="absolute inset-y-0 left-3 flex items-center text-slate-400 pointer-events-none"></span>
                 <input
                   type="text"
                   placeholder={`Tìm tên hoặc chuyên môn ${modalCell.role === "dentist" ? "bác sĩ" : modalCell.role === "assistant" ? "phụ tá" : "nhân viên"}...`}
@@ -1276,7 +1375,11 @@ function EditScheduleContent() {
 
             {/* Modal List of Active Staff */}
             <div className="max-h-[350px] overflow-y-auto divide-y divide-slate-100 p-2">
-              {eligibleStaffList.length > 0 ? (
+              {isLoadingStaff ? (
+                <div className="p-8 text-center text-slate-400 font-bold text-[13.5px]">
+                  Đang tải danh sách nhân viên...
+                </div>
+              ) : eligibleStaffList.length > 0 ? (
                 eligibleStaffList.map((staff) => (
                   <button
                     key={staff.id}
@@ -1330,7 +1433,7 @@ function EditScheduleContent() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fade-in p-4">
           <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden flex flex-col p-6 animate-scale-up">
             <h3 className="font-black text-lg text-slate-900 flex items-center gap-2">
-              <span>📅</span> Tùy chọn lịch ngày {dayActionDate}
+              Tùy chọn lịch ngày {dayActionDate}
             </h3>
             
             <p className="text-[13.5px] text-slate-500 mt-3 font-semibold leading-relaxed">
@@ -1343,7 +1446,7 @@ function EditScheduleContent() {
                   onClick={() => handleToggleClosure(dayActionDate)}
                   className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl transition-all cursor-pointer shadow-md shadow-emerald-600/10 flex items-center justify-center gap-1.5"
                 >
-                  🔓 Mở cửa phòng khám
+                  Mở cửa phòng khám
                 </button>
               ) : (
                 <>
@@ -1351,14 +1454,14 @@ function EditScheduleContent() {
                     onClick={() => handleToggleClosure(dayActionDate)}
                     className="w-full py-3 bg-slate-800 hover:bg-slate-900 text-white font-extrabold rounded-xl transition-all cursor-pointer shadow-md flex items-center justify-center gap-1.5"
                   >
-                    🔒 Đóng cửa phòng khám (Nghỉ cả ngày)
+                    Đóng cửa phòng khám (Nghỉ cả ngày)
                   </button>
                   
                   <button
                     onClick={() => handleClearDayShifts(dayActionDate)}
                     className="w-full py-3 bg-red-50 hover:bg-red-100 text-red-650 border border-red-200 font-extrabold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
                   >
-                    🗑️ Xóa sạch ca làm việc trong ngày
+                    Xóa sạch ca làm việc trong ngày
                   </button>
                 </>
               )}
@@ -1379,7 +1482,7 @@ function EditScheduleContent() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fade-in p-4">
           <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden flex flex-col p-6 animate-scale-up">
             <h3 className="font-black text-lg text-slate-900 flex items-center gap-2">
-              <span>⚠️</span> Xóa tất cả các ca làm việc
+              Xóa tất cả các ca làm việc
             </h3>
             <p className="text-[13.5px] text-slate-500 mt-3 font-semibold leading-relaxed">
               Bạn có chắc chắn muốn xóa toàn bộ phân bổ lịch trực (Bác sĩ, Phụ tá và Nhân viên) đã xếp cho tuần này không? Hành động này sẽ đưa tuần này về trạng thái trống (nháp) và bạn cần nhấn <strong>"Lưu thay đổi"</strong> để chính thức áp dụng.

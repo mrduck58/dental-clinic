@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'routers.dart';
 
-/// Widget gốc của toàn bộ ứng dụng Dental Clinic.
-/// Khai báo theme, router và các provider ở đây.
 class DentalClinicApp extends StatelessWidget {
   const DentalClinicApp({super.key});
 
@@ -11,16 +11,27 @@ class DentalClinicApp extends StatelessWidget {
     return MaterialApp.router(
       title: 'Dental Clinic',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF1E6FD9), // Màu xanh nha khoa
-          brightness: Brightness.light,
-        ),
-        useMaterial3: true,
-        fontFamily: 'Inter',
-      ),
-      // TODO: Thay bằng GoRouter khi tích hợp đầy đủ các màn hình
+      theme: _buildTheme(),
       routerConfig: appRouter,
+    );
+  }
+
+  ThemeData _buildTheme() {
+    final base = ThemeData(
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: const Color(0xFFDC2626),
+        brightness: Brightness.light,
+      ),
+      useMaterial3: true,
+    );
+    return base.copyWith(
+      textTheme: GoogleFonts.nunitoTextTheme(base.textTheme),
+      appBarTheme: const AppBarTheme(
+        systemOverlayStyle: SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.light,
+        ),
+      ),
     );
   }
 }

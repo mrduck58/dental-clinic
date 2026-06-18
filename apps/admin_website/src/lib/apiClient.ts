@@ -814,3 +814,353 @@ export async function createFeedbackApi(data: CreateFeedbackRequest): Promise<Fe
   }
   return res.json() as Promise<FeedbackDto>;
 }
+
+// ── Medicine types ──────────────────────────────────────────────────────────
+
+export interface MedicineDto {
+  id: string;
+  name: string;
+  genericName: string;
+  manufacturer: string;
+  unit: string;
+  description: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string | null;
+}
+
+export interface CreateMedicineRequest {
+  name: string;
+  genericName: string;
+  manufacturer: string;
+  unit: string;
+  description: string;
+}
+
+export interface UpdateMedicineRequest {
+  name: string;
+  genericName: string;
+  manufacturer: string;
+  unit: string;
+  description: string;
+}
+
+// ── Medicine endpoints ──────────────────────────────────────────────────────
+
+export async function getMedicinesApi(params?: {
+  status?: string;
+  search?: string;
+}): Promise<MedicineDto[]> {
+  const qs = new URLSearchParams();
+  if (params?.status) qs.set("status", params.status);
+  if (params?.search) qs.set("search", params.search);
+  const query = qs.toString() ? `?${qs.toString()}` : "";
+  const res = await fetch(`${API_URL}/api/medicines${query}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách thuốc");
+  }
+  return res.json() as Promise<MedicineDto[]>;
+}
+
+export async function getMedicineByIdApi(id: string): Promise<MedicineDto> {
+  const res = await fetch(`${API_URL}/api/medicines/${id}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không tìm thấy thuốc");
+  }
+  return res.json() as Promise<MedicineDto>;
+}
+
+export async function createMedicineApi(data: CreateMedicineRequest): Promise<MedicineDto> {
+  const res = await fetch(`${API_URL}/api/medicines`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Thêm thuốc thất bại");
+  }
+  return res.json() as Promise<MedicineDto>;
+}
+
+export async function updateMedicineApi(id: string, data: UpdateMedicineRequest): Promise<MedicineDto> {
+  const res = await fetch(`${API_URL}/api/medicines/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Cập nhật thuốc thất bại");
+  }
+  return res.json() as Promise<MedicineDto>;
+}
+
+export async function deleteMedicineApi(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/medicines/${id}`, {
+    method: "DELETE",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Xóa thuốc thất bại");
+  }
+}
+
+export async function toggleMedicineStatusApi(id: string): Promise<MedicineDto> {
+  const res = await fetch(`${API_URL}/api/medicines/${id}/status`, {
+    method: "PATCH",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Cập nhật trạng thái thất bại");
+  }
+  return res.json() as Promise<MedicineDto>;
+}
+
+// ── Room types ─────────────────────────────────────────────────────────────
+
+export interface RoomDto {
+  id: string;
+  code: string;
+  name: string;
+  floor: string;
+  type: string;
+  status: string;
+  activeStatus: string;
+  description: string;
+  createdAt: string;
+  updatedAt: string | null;
+}
+
+export interface CreateRoomRequest {
+  code: string;
+  name: string;
+  floor: string;
+  type: string;
+  description: string;
+}
+
+export interface UpdateRoomRequest {
+  code: string;
+  name: string;
+  floor: string;
+  type: string;
+  description: string;
+}
+
+// ── Room endpoints ─────────────────────────────────────────────────────────
+
+export async function getRoomsApi(params?: {
+  floor?: string;
+  status?: string;
+  search?: string;
+}): Promise<RoomDto[]> {
+  const qs = new URLSearchParams();
+  if (params?.floor) qs.set("floor", params.floor);
+  if (params?.status) qs.set("status", params.status);
+  if (params?.search) qs.set("search", params.search);
+  const query = qs.toString() ? `?${qs.toString()}` : "";
+  const res = await fetch(`${API_URL}/api/rooms${query}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách phòng");
+  }
+  return res.json() as Promise<RoomDto[]>;
+}
+
+export async function getRoomByIdApi(id: string): Promise<RoomDto> {
+  const res = await fetch(`${API_URL}/api/rooms/${id}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không tìm thấy phòng");
+  }
+  return res.json() as Promise<RoomDto>;
+}
+
+export async function createRoomApi(data: CreateRoomRequest): Promise<RoomDto> {
+  const res = await fetch(`${API_URL}/api/rooms`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Tạo phòng thất bại");
+  }
+  return res.json() as Promise<RoomDto>;
+}
+
+export async function updateRoomApi(id: string, data: UpdateRoomRequest): Promise<RoomDto> {
+  const res = await fetch(`${API_URL}/api/rooms/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Cập nhật phòng thất bại");
+  }
+  return res.json() as Promise<RoomDto>;
+}
+
+export async function deleteRoomApi(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/rooms/${id}`, {
+    method: "DELETE",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Xóa phòng thất bại");
+  }
+}
+
+export async function changeRoomStatusApi(id: string, status: string): Promise<RoomDto> {
+  const res = await fetch(`${API_URL}/api/rooms/${id}/status`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ status }),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Cập nhật trạng thái phòng thất bại");
+  }
+  return res.json() as Promise<RoomDto>;
+}
+// ── Leave Request types & endpoints ───────────────────────────────────────────
+
+export interface LeaveRequestDto {
+  id: string;
+  userId: string;
+  userFullName: string;
+  department: string | null;
+  leaveType: string;
+  startDate: string;   // "YYYY-MM-DD"
+  endDate: string;     // "YYYY-MM-DD"
+  daysCount: number;
+  reason: string;
+  status: string;
+  reviewerNote: string | null;
+  createdAt: string;
+  reviewedAt: string | null;
+}
+
+export interface MyLeaveStatsDto {
+  totalAnnualDays: number;
+  usedAnnualDays: number;
+  remainingAnnualDays: number;
+  pendingCount: number;
+  approvedThisYear: number;
+}
+
+export interface MyLeaveRequestsResponse {
+  stats: MyLeaveStatsDto;
+  requests: LeaveRequestDto[];
+}
+
+export interface CreateLeaveRequestRequest {
+  leaveType: string;
+  startDate: string; // "YYYY-MM-DD"
+  endDate: string;   // "YYYY-MM-DD"
+  reason: string;
+}
+
+export async function getMyLeaveRequestsApi(): Promise<MyLeaveRequestsResponse> {
+  const res = await fetch(`${API_URL}/api/leave-requests/my`, {
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách đơn nghỉ");
+  }
+  return res.json() as Promise<MyLeaveRequestsResponse>;
+}
+
+export async function createLeaveRequestApi(data: CreateLeaveRequestRequest): Promise<LeaveRequestDto> {
+  const res = await fetch(`${API_URL}/api/leave-requests`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Gửi đơn xin nghỉ thất bại");
+  }
+  return res.json() as Promise<LeaveRequestDto>;
+}
+
+// ── Admin leave request endpoints ─────────────────────────────────────────────
+
+export async function getLeaveRequestByIdApi(id: string): Promise<LeaveRequestDto> {
+  const res = await fetch(`${API_URL}/api/leave-requests/${id}`, {
+    headers: authHeaders(),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không tìm thấy đơn nghỉ");
+  }
+  return res.json() as Promise<LeaveRequestDto>;
+}
+
+export async function getLeaveRequestsAdminApi(status?: string, search?: string): Promise<LeaveRequestDto[]> {
+  const params = new URLSearchParams();
+  if (status && status !== "All") params.set("status", status);
+  if (search) params.set("search", search);
+  const query = params.toString() ? `?${params}` : "";
+  const res = await fetch(`${API_URL}/api/leave-requests${query}`, {
+    headers: authHeaders(),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách đơn nghỉ");
+  }
+  return res.json() as Promise<LeaveRequestDto[]>;
+}
+
+export async function approveLeaveRequestApi(id: string): Promise<LeaveRequestDto> {
+  const res = await fetch(`${API_URL}/api/leave-requests/${id}/approve`, {
+    method: "PUT",
+    headers: authHeaders(),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể duyệt đơn nghỉ");
+  }
+  return res.json() as Promise<LeaveRequestDto>;
+}
+
+export async function rejectLeaveRequestApi(id: string, reviewerNote?: string): Promise<LeaveRequestDto> {
+  const res = await fetch(`${API_URL}/api/leave-requests/${id}/reject`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ reviewerNote: reviewerNote ?? null }),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể từ chối đơn nghỉ");
+  }
+  return res.json() as Promise<LeaveRequestDto>;
+}
