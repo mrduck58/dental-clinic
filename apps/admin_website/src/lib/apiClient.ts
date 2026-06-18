@@ -1044,3 +1044,123 @@ export async function changeRoomStatusApi(id: string, status: string): Promise<R
   }
   return res.json() as Promise<RoomDto>;
 }
+// ── Leave Request types & endpoints ───────────────────────────────────────────
+
+export interface LeaveRequestDto {
+  id: string;
+  userId: string;
+  userFullName: string;
+  department: string | null;
+  leaveType: string;
+  startDate: string;   // "YYYY-MM-DD"
+  endDate: string;     // "YYYY-MM-DD"
+  daysCount: number;
+  reason: string;
+  status: string;
+  reviewerNote: string | null;
+  createdAt: string;
+  reviewedAt: string | null;
+}
+
+export interface MyLeaveStatsDto {
+  totalAnnualDays: number;
+  usedAnnualDays: number;
+  remainingAnnualDays: number;
+  pendingCount: number;
+  approvedThisYear: number;
+}
+
+export interface MyLeaveRequestsResponse {
+  stats: MyLeaveStatsDto;
+  requests: LeaveRequestDto[];
+}
+
+export interface CreateLeaveRequestRequest {
+  leaveType: string;
+  startDate: string; // "YYYY-MM-DD"
+  endDate: string;   // "YYYY-MM-DD"
+  reason: string;
+}
+
+export async function getMyLeaveRequestsApi(): Promise<MyLeaveRequestsResponse> {
+  const res = await fetch(`${API_URL}/api/leave-requests/my`, {
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách đơn nghỉ");
+  }
+  return res.json() as Promise<MyLeaveRequestsResponse>;
+}
+
+export async function createLeaveRequestApi(data: CreateLeaveRequestRequest): Promise<LeaveRequestDto> {
+  const res = await fetch(`${API_URL}/api/leave-requests`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Gửi đơn xin nghỉ thất bại");
+  }
+  return res.json() as Promise<LeaveRequestDto>;
+}
+
+// ── Admin leave request endpoints ─────────────────────────────────────────────
+
+export async function getLeaveRequestByIdApi(id: string): Promise<LeaveRequestDto> {
+  const res = await fetch(`${API_URL}/api/leave-requests/${id}`, {
+    headers: authHeaders(),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không tìm thấy đơn nghỉ");
+  }
+  return res.json() as Promise<LeaveRequestDto>;
+}
+
+export async function getLeaveRequestsAdminApi(status?: string, search?: string): Promise<LeaveRequestDto[]> {
+  const params = new URLSearchParams();
+  if (status && status !== "All") params.set("status", status);
+  if (search) params.set("search", search);
+  const query = params.toString() ? `?${params}` : "";
+  const res = await fetch(`${API_URL}/api/leave-requests${query}`, {
+    headers: authHeaders(),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách đơn nghỉ");
+  }
+  return res.json() as Promise<LeaveRequestDto[]>;
+}
+
+export async function approveLeaveRequestApi(id: string): Promise<LeaveRequestDto> {
+  const res = await fetch(`${API_URL}/api/leave-requests/${id}/approve`, {
+    method: "PUT",
+    headers: authHeaders(),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể duyệt đơn nghỉ");
+  }
+  return res.json() as Promise<LeaveRequestDto>;
+}
+
+export async function rejectLeaveRequestApi(id: string, reviewerNote?: string): Promise<LeaveRequestDto> {
+  const res = await fetch(`${API_URL}/api/leave-requests/${id}/reject`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ reviewerNote: reviewerNote ?? null }),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể từ chối đơn nghỉ");
+  }
+  return res.json() as Promise<LeaveRequestDto>;
+}
