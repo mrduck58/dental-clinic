@@ -11,9 +11,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260618063717_AddMedicines")]
+    partial class AddMedicines
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -84,125 +86,6 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("Dentists");
-                });
-
-            modelBuilder.Entity("DentalClinic.API.Domain.Entities.Feedback", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Comment")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CustomerName")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<int>("Rating")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTimeOffset?>("RepliedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("ReplyText")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Feedbacks");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("a1b2c3d4-0001-0000-0000-000000000001"),
-                            Comment = "Bác sĩ rất tận tình, giải thích rõ ràng từng bước điều trị. Phòng khám sạch sẽ, trang thiết bị hiện đại. Tôi rất hài lòng!",
-                            CreatedAt = new DateTimeOffset(new DateTime(2026, 5, 14, 8, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            CustomerName = "Nguyễn Thị Lan",
-                            Rating = 5,
-                            RepliedAt = new DateTimeOffset(new DateTime(2026, 5, 15, 10, 30, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            ReplyText = "Cảm ơn chị Lan đã tin tưởng phòng khám. Chúng tôi rất vui khi được phục vụ chị!",
-                            Status = "Featured"
-                        },
-                        new
-                        {
-                            Id = new Guid("a1b2c3d4-0001-0000-0000-000000000002"),
-                            Comment = "Dịch vụ tốt, nhân viên thân thiện. Chỉ hơi chờ lâu một chút nhưng nhìn chung rất ổn.",
-                            CreatedAt = new DateTimeOffset(new DateTime(2026, 5, 20, 9, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            CustomerName = "Trần Văn Minh",
-                            Rating = 4,
-                            Status = "Pending"
-                        },
-                        new
-                        {
-                            Id = new Guid("a1b2c3d4-0001-0000-0000-000000000003"),
-                            Comment = "Lần đầu đến phòng khám, được tư vấn miễn phí rất chi tiết. Bác sĩ chuyên nghiệp, nhẹ nhàng. Sẽ quay lại!",
-                            CreatedAt = new DateTimeOffset(new DateTime(2026, 5, 22, 14, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            CustomerName = "Phạm Thu Hương",
-                            Rating = 5,
-                            Status = "Featured"
-                        },
-                        new
-                        {
-                            Id = new Guid("a1b2c3d4-0001-0000-0000-000000000004"),
-                            Comment = "Chất lượng điều trị ổn nhưng thời gian đợi khá lâu, khoảng 30 phút so với lịch hẹn.",
-                            CreatedAt = new DateTimeOffset(new DateTime(2026, 6, 1, 11, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            CustomerName = "Lê Hoàng Nam",
-                            Rating = 3,
-                            Status = "Pending"
-                        },
-                        new
-                        {
-                            Id = new Guid("a1b2c3d4-0001-0000-0000-000000000005"),
-                            Comment = "Phòng khám rất sạch sẽ và hiện đại. Bác sĩ giỏi, không đau chút nào khi nhổ răng. Cực kỳ hài lòng!",
-                            CreatedAt = new DateTimeOffset(new DateTime(2026, 6, 2, 15, 30, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            CustomerName = "Võ Thị Mai",
-                            Rating = 5,
-                            RepliedAt = new DateTimeOffset(new DateTime(2026, 6, 3, 9, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            ReplyText = "Cảm ơn chị Mai đã chia sẻ! Phòng khám luôn cố gắng mang lại trải nghiệm tốt nhất.",
-                            Status = "Featured"
-                        },
-                        new
-                        {
-                            Id = new Guid("a1b2c3d4-0001-0000-0000-000000000006"),
-                            Comment = "Giá hơi cao so với các phòng khám khác. Dịch vụ tạm ổn nhưng không đặc biệt.",
-                            CreatedAt = new DateTimeOffset(new DateTime(2026, 6, 5, 10, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            CustomerName = "Đặng Quốc Hùng",
-                            Rating = 2,
-                            Status = "Hidden"
-                        },
-                        new
-                        {
-                            Id = new Guid("a1b2c3d4-0001-0000-0000-000000000007"),
-                            Comment = "Môi trường phòng khám thoáng mát, nhân viên lễ phép. Bác sĩ giải thích kỹ tình trạng răng miệng.",
-                            CreatedAt = new DateTimeOffset(new DateTime(2026, 6, 8, 8, 30, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            CustomerName = "Bùi Thị Thanh",
-                            Rating = 4,
-                            Status = "Pending"
-                        },
-                        new
-                        {
-                            Id = new Guid("a1b2c3d4-0001-0000-0000-000000000008"),
-                            Comment = "Đã điều trị tại đây được 2 năm. Chất lượng luôn ổn định, bác sĩ theo dõi sát sao tình trạng bệnh nhân.",
-                            CreatedAt = new DateTimeOffset(new DateTime(2026, 6, 9, 16, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            CustomerName = "Ngô Tiến Dũng",
-                            Rating = 5,
-                            RepliedAt = new DateTimeOffset(new DateTime(2026, 6, 10, 11, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            ReplyText = "Cảm ơn anh Dũng đã đồng hành cùng phòng khám! Chúng tôi rất trân trọng sự tin tưởng của anh.",
-                            Status = "Featured"
-                        });
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Invoice", b =>
