@@ -6,15 +6,11 @@ namespace DentalClinic.API.Application.UseCases.Services;
 public class GetServicesHandler(IServiceRepository serviceRepository)
 {
     public async Task<IEnumerable<ServiceDto>> HandleAsync(
-        string? category,
         string? status,
         string? search,
         CancellationToken ct = default)
     {
         var services = await serviceRepository.GetAllAsync(ct);
-
-        if (!string.IsNullOrWhiteSpace(category))
-            services = services.Where(s => s.Category == category);
 
         if (!string.IsNullOrWhiteSpace(status))
         {
@@ -31,7 +27,7 @@ public class GetServicesHandler(IServiceRepository serviceRepository)
         }
 
         return services.Select(s => new ServiceDto(
-            s.Id, s.Name, s.Category, s.Price,
+            s.Id, s.Name, s.Price,
             s.DurationMinutes, s.IsActive, s.Description,
             s.ViewCount, s.ImageUrl, s.CreatedAt, s.UpdatedAt));
     }

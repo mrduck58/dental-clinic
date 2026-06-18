@@ -19,12 +19,11 @@ public class ServicesController(
     [HttpGet]
     [AllowAnonymous]
     public async Task<IActionResult> GetAll(
-        [FromQuery] string? category,
         [FromQuery] string? status,
         [FromQuery] string? search,
         CancellationToken ct)
     {
-        var result = await getServices.HandleAsync(category, status, search, ct);
+        var result = await getServices.HandleAsync(status, search, ct);
         return Ok(result);
     }
 

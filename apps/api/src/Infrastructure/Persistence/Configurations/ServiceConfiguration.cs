@@ -14,10 +14,7 @@ public class ServiceConfiguration : IEntityTypeConfiguration<Service>
             .IsRequired()
             .HasMaxLength(200);
 
-        builder.Property(s => s.Category)
-            .IsRequired()
-            .HasMaxLength(100);
-
+        // Category column kept for data compatibility but no longer used
         builder.Property(s => s.Price)
             .HasColumnType("decimal(18,2)");
 

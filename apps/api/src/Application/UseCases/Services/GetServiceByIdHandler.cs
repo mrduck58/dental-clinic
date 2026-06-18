@@ -12,7 +12,7 @@ public class GetServiceByIdHandler(IServiceRepository serviceRepository)
             ?? throw new NotFoundException($"Không tìm thấy dịch vụ với ID: {id}");
 
         return new ServiceDto(
-            service.Id, service.Name, service.Category, service.Price,
+            service.Id, service.Name, service.Price,
             service.DurationMinutes, service.IsActive, service.Description,
             service.ViewCount, service.ImageUrl, service.CreatedAt, service.UpdatedAt);
     }

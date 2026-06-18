@@ -1,38 +1,44 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mobile_app/app/main_shell.dart';
+import 'package:mobile_app/features/home/presentation/pages/home_page.dart';
 
-/// Cấu hình router chính của ứng dụng.
-/// Sử dụng package go_router để điều hướng khai báo (declarative routing).
-///
-/// Cách thêm route mới:
-///   1. Khai báo path constant ở dưới (ví dụ: static const home = '/')
-///   2. Thêm GoRoute vào danh sách routes
-///   3. Trỏ đến Page widget tương ứng ở thư mục features/<feature>/presentation/pages/
 final GoRouter appRouter = GoRouter(
   initialLocation: AppRoutes.home,
   routes: [
-    GoRoute(
-      path: AppRoutes.home,
-      // TODO: Thay bằng màn hình Home thực khi đã xây dựng UI
-      builder: (context, state) => const _PlaceholderPage(title: 'Trang chủ'),
+    // Shell chứa Bottom Navigation Bar cho các tab chính
+    ShellRoute(
+      builder: (context, state, child) => MainShell(
+        location: state.uri.path,
+        child: child,
+      ),
+      routes: [
+        GoRoute(
+          path: AppRoutes.home,
+          builder: (context, state) => const HomePage(),
+        ),
+        GoRoute(
+          path: AppRoutes.appointments,
+          builder: (context, state) => const _PlaceholderPage(title: 'Lịch hẹn'),
+        ),
+        GoRoute(
+          path: AppRoutes.medicalRecords,
+          builder: (context, state) => const _PlaceholderPage(title: 'Hồ sơ bệnh án'),
+        ),
+        GoRoute(
+          path: AppRoutes.profile,
+          builder: (context, state) => const _PlaceholderPage(title: 'Cá nhân'),
+        ),
+      ],
     ),
+    // Màn hình ngoài shell (full-screen, không có Bottom Nav)
     GoRoute(
       path: AppRoutes.login,
       builder: (context, state) => const _PlaceholderPage(title: 'Đăng nhập'),
     ),
     GoRoute(
-      path: AppRoutes.appointments,
-      builder: (context, state) => const _PlaceholderPage(title: 'Lịch hẹn'),
-    ),
-    GoRoute(
-      path: AppRoutes.medicalRecords,
-      builder: (context, state) =>
-          const _PlaceholderPage(title: 'Hồ sơ bệnh án'),
-    ),
-    GoRoute(
       path: AppRoutes.payment,
-      builder: (context, state) =>
-          const _PlaceholderPage(title: 'Thanh toán'),
+      builder: (context, state) => const _PlaceholderPage(title: 'Thanh toán'),
     ),
     GoRoute(
       path: AppRoutes.chat,
@@ -41,8 +47,6 @@ final GoRouter appRouter = GoRouter(
   ],
 );
 
-/// Định nghĩa tất cả các đường dẫn (path) trong ứng dụng.
-/// Luôn dùng các hằng số này thay vì viết chuỗi string trực tiếp.
 abstract class AppRoutes {
   static const home = '/';
   static const login = '/login';
@@ -50,10 +54,11 @@ abstract class AppRoutes {
   static const medicalRecords = '/medical-records';
   static const payment = '/payment';
   static const chat = '/chat';
+  static const profile = '/profile';
 }
 
-/// Widget tạm thời dùng trong quá trình phát triển để placeholder các màn hình chưa xây dựng.
-/// XÓA class này khi toàn bộ màn hình thực đã được xây dựng.
+/// Widget tạm thời trong quá trình phát triển.
+/// Xóa khi toàn bộ màn hình thực đã được xây dựng.
 class _PlaceholderPage extends StatelessWidget {
   final String title;
   const _PlaceholderPage({required this.title});

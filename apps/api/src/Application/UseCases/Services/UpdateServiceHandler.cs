@@ -13,7 +13,6 @@ public class UpdateServiceHandler(IServiceRepository serviceRepository)
 
         service.Update(
             request.Name,
-            request.Category,
             request.Price,
             request.DurationMinutes,
             request.Description,
@@ -22,7 +21,7 @@ public class UpdateServiceHandler(IServiceRepository serviceRepository)
         await serviceRepository.UpdateAsync(service, ct);
 
         return new ServiceDto(
-            service.Id, service.Name, service.Category, service.Price,
+            service.Id, service.Name, service.Price,
             service.DurationMinutes, service.IsActive, service.Description,
             service.ViewCount, service.ImageUrl, service.CreatedAt, service.UpdatedAt);
     }

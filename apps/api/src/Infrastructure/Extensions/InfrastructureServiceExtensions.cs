@@ -1,4 +1,6 @@
 using DentalClinic.API.Application.UseCases.Auth;
+using DentalClinic.API.Application.UseCases.Medicines;
+using DentalClinic.API.Application.UseCases.Feedbacks;
 using DentalClinic.API.Application.UseCases.Posts;
 using DentalClinic.API.Application.UseCases.Promotions;
 using DentalClinic.API.Application.UseCases.Rooms;
@@ -35,13 +37,16 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IServiceRepository, ServiceRepository>();
         services.AddScoped<IPostRepository, PostRepository>();
+        services.AddScoped<IFeedbackRepository, FeedbackRepository>();
         services.AddScoped<IWorkScheduleRepository, WorkScheduleRepository>();
         services.AddScoped<IPromotionRepository, PromotionRepository>();
         services.AddScoped<IRoomRepository, RoomRepository>();
+        services.AddScoped<IMedicineRepository, MedicineRepository>();
 
         // ── Services ────────────────────────────────────────────────────────
         services.AddScoped<IJwtService, JwtService>();
         services.AddScoped<IEmailService, EmailService>();
+        services.AddScoped<IFileStorageService, LocalFileStorageService>();
 
         // ── Use Case Handlers ────────────────────────────────────────────────
         services.AddScoped<LoginHandler>();
@@ -53,6 +58,13 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<UpdateStaffHandler>();
         services.AddScoped<ResetStaffPasswordHandler>();
         services.AddScoped<CreateStaffAccountHandler>();
+
+        services.AddScoped<GetFeedbacksHandler>();
+        services.AddScoped<GetFeedbackByIdHandler>();
+        services.AddScoped<CreateFeedbackHandler>();
+        services.AddScoped<ApproveFeedbackHandler>();
+        services.AddScoped<HideFeedbackHandler>();
+        services.AddScoped<ReplyFeedbackHandler>();
 
         services.AddScoped<GetPostsHandler>();
         services.AddScoped<GetPostByIdHandler>();
@@ -66,6 +78,12 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<UpdateServiceHandler>();
         services.AddScoped<DeleteServiceHandler>();
         services.AddScoped<ToggleServiceStatusHandler>();
+
+        services.AddScoped<GetMedicinesHandler>();
+        services.AddScoped<GetMedicineByIdHandler>();
+        services.AddScoped<CreateMedicineHandler>();
+        services.AddScoped<UpdateMedicineHandler>();
+        services.AddScoped<DeleteMedicineHandler>();
 
         services.AddScoped<GetWeekScheduleHandler>();
         services.AddScoped<SaveWeekScheduleHandler>();
