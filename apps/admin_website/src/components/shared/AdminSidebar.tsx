@@ -1,13 +1,35 @@
-"use client";
+﻿"use client";
 
-import React from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { getUser, clearSession, type AuthUser } from "../../lib/apiClient";
+
+const ROLE_LABEL: Record<string, string> = {
+  Admin: "Quản trị viên",
+  Doctor: "Bác sĩ",
+  Receptionist: "Lễ tân",
+};
 
 interface SidebarProps {
   activeMenu: string;
 }
 
-export default function Sidebar({ activeMenu }: SidebarProps) {
+export default function AdminSidebar({ activeMenu }: SidebarProps) {
+  const router = useRouter();
+  const [user, setUser] = useState<AuthUser | null>(null);
+
+  useEffect(() => { setUser(getUser()); }, []);
+
+  const initials = user?.fullName
+    ? user.fullName.trim().split(/\s+/).slice(-2).map((w) => w[0]).join("").toUpperCase()
+    : (user?.username?.slice(0, 2).toUpperCase() ?? "??");
+
+  const handleLogout = () => {
+    clearSession();
+    router.push("/auth/login");
+  };
+
   return (
     <aside className="w-72 bg-white border-r border-slate-200 p-6 flex flex-col gap-6 shrink-0 sticky top-0 h-screen justify-between z-30">
       <div className="flex flex-col gap-6 flex-1 min-h-0">
@@ -41,7 +63,7 @@ export default function Sidebar({ activeMenu }: SidebarProps) {
 
           {/* Quản lí nhân viên */}
           <Link
-            href="#"
+            href="/dashboard/employee"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "staff"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
@@ -55,7 +77,7 @@ export default function Sidebar({ activeMenu }: SidebarProps) {
 
           {/* Quản lí dịch vụ */}
           <Link
-            href="#"
+            href="/dashboard/services"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "services"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
@@ -67,9 +89,24 @@ export default function Sidebar({ activeMenu }: SidebarProps) {
             Quản lí dịch vụ
           </Link>
 
+          {/* Quản lí thuốc */}
+          <Link
+            href="/dashboard/medicines"
+            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "medicines"
+                ? "bg-primary text-white shadow-md shadow-primary/25"
+                : "text-slate-500 hover:bg-red-50 hover:text-primary"
+              }`}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 9.75h.005v.005h-.005v-.005zm0 2.25h.005v.005h-.005v-.005zm-2.25.005h.005v.005h-.005v-.005zm0 2.25h.005v.005h-.005v-.005zm2.25-2.25h.75v.75h-.75v-.75zm-.75 0v.75h.75v-.75h-.75zm5.25 0v.75h.75v-.75h-.75zm-.75 0h.75v.75h-.75v-.75zm-.75 0h.005v.005h-.005v-.005zm-.75 0h.005v.005h-.005v-.005zm.75-2.25h.005v.005h-.005v-.005zm0 2.25h.005v.005h-.005v-.005zm0 2.25h.75v.75h-.75v-.75zm-.75 0v.75h.75v-.75h-.75z" />
+              <circle cx="12" cy="12" r="8" strokeWidth="1.5" />
+            </svg>
+            Quản lí thuốc
+          </Link>
+
           {/* Quản lí bài viết */}
           <Link
-            href="#"
+            href="/dashboard/posts"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "articles"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
@@ -83,7 +120,7 @@ export default function Sidebar({ activeMenu }: SidebarProps) {
 
           {/* Quản lí phòng */}
           <Link
-            href="#"
+            href="/dashboard/rooms"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "rooms"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
@@ -97,7 +134,7 @@ export default function Sidebar({ activeMenu }: SidebarProps) {
 
           {/* Lịch làm việc nhân viên */}
           <Link
-            href="#"
+            href="/dashboard/schedule"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "schedule"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
@@ -106,7 +143,7 @@ export default function Sidebar({ activeMenu }: SidebarProps) {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008zM9.75 15h.008v.008H9.75V15zm0 2.25h.008v.008H9.75v-.008zM7.5 15h.008v.008H7.5V15zm0 2.25h.008v.008H7.5v-.008zm6.75-4.5h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008V15zm0 2.25h.008v.008h-.008v-.008zm2.25-4.5h.008v.008H16.5v-.008zm0 2.25h.008v.008H16.5V15z" />
             </svg>
-            Lịch làm việc nhân viên
+            Lịch làm việc
           </Link>
 
           {/* Tài khoản và phân quyền */}
@@ -120,12 +157,12 @@ export default function Sidebar({ activeMenu }: SidebarProps) {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="24" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.57-.598-3.751A11.956 11.956 0 0112 2.714z" />
             </svg>
-            Tài khoản và phân quyền
+            Tài khoản
           </Link>
 
           {/* Phản hồi */}
           <Link
-            href="#"
+            href="/dashboard/feedback"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "feedback"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
@@ -139,7 +176,7 @@ export default function Sidebar({ activeMenu }: SidebarProps) {
 
           {/* Đơn xin nghỉ */}
           <Link
-            href="#"
+            href="dashboard/leaves"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "leaves"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
@@ -153,7 +190,7 @@ export default function Sidebar({ activeMenu }: SidebarProps) {
 
           {/* Lịch sử hoạt động */}
           <Link
-            href="#"
+            href="/dashboard/activity-logs"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "history"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
@@ -167,20 +204,27 @@ export default function Sidebar({ activeMenu }: SidebarProps) {
         </nav>
       </div>
 
-      {/* Admin Profile & Logout */}
+      {/* User Profile & Logout */}
       <div className="border-t border-slate-100 pt-4 flex flex-col gap-3">
         <div className="flex items-center gap-3 px-2 select-none">
           <div className="w-10 h-10 rounded-full border-2 border-primary/20 bg-red-50/50 flex items-center justify-center font-bold text-primary shrink-0">
-            MĐ
+            {initials}
           </div>
           <div className="min-w-0">
-            <div className="text-[14px] font-bold text-slate-900 leading-tight truncate">ThS. BS. Nguyễn Minh Đức</div>
-            <div className="text-[12px] font-semibold text-slate-400 mt-0.5">Quản trị viên</div>
+            <div className="text-[14px] font-bold text-slate-900 leading-tight truncate">
+              {user?.fullName ?? user?.username ?? "..."}
+            </div>
+            <div className="text-[12px] font-semibold text-slate-400 mt-0.5">
+              {ROLE_LABEL[user?.role ?? ""] ?? user?.role ?? ""}
+            </div>
           </div>
         </div>
 
-        <button className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl text-[13px] font-bold text-slate-500 hover:text-primary hover:bg-red-50 border border-slate-100 hover:border-primary/20 transition-all cursor-pointer">
-          <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+        <button
+          onClick={handleLogout}
+          className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl text-[13px] font-bold text-slate-500 hover:text-primary hover:bg-red-50 border border-slate-100 hover:border-primary/20 transition-all cursor-pointer"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
           </svg>
           Đăng xuất

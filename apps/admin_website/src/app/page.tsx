@@ -1,9 +1,12 @@
 "use client";
 
 import React, { useState } from "react";
-import Sidebar from "../components/shared/Sidebar";
+import AdminSidebar from "../components/shared/AdminSidebar";
+import NotificationBell from "../components/shared/NotificationBell";
+import { useRequireAdmin } from "../hooks/useRequireAdmin";
 
 export default function Dashboard() {
+  useRequireAdmin();
   // State to track hover item in Donut Chart
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
@@ -209,7 +212,7 @@ export default function Dashboard() {
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
 
       {/* ── SIDEBAR ──────────────────────────────────────────────────────── */}
-      <Sidebar activeMenu="overview" />
+      <AdminSidebar activeMenu="overview" />
 
       {/* ── MAIN AREA ────────────────────────────────────────────────────── */}
       <main className="flex-1 flex flex-col min-w-0">
@@ -217,12 +220,13 @@ export default function Dashboard() {
         {/* HEADER */}
         <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 font-sans shadow-sm shadow-slate-100/50">
           <div>
-            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Tổng Quan Vận Hành</h1>
+            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+              Tổng Quan Vận Hành
+            </h1>
           </div>
 
-          {/* Search, Notifications, Profile */}
+          {/* Search, Notifications */}
           <div className="flex items-center gap-6">
-
             {/* Search Input */}
             <div className="relative w-64 hidden sm:block">
               <span className="absolute inset-y-0 left-3 flex items-center text-slate-400">
@@ -237,17 +241,7 @@ export default function Dashboard() {
               />
             </div>
 
-            {/* Notification Button */}
-            <button className="relative p-2.5 rounded-full bg-slate-100 text-slate-600 hover:bg-red-50 hover:text-primary transition-all animate-ring-hover cursor-pointer">
-              <svg className="w-5.5 h-5.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
-              </svg>
-              {/* Badge */}
-              <span className="absolute top-1.5 right-1.5 w-3 h-3 bg-primary rounded-full border-2 border-white"></span>
-            </button>
-
-
-
+            <NotificationBell />
           </div>
         </header>
 

@@ -1,28 +1,88 @@
+using DentalClinic.API.Application.UseCases.Auth;
+using DentalClinic.API.Application.UseCases.Feedbacks;
+using DentalClinic.API.Application.UseCases.Posts;
+using DentalClinic.API.Application.UseCases.Promotions;
+using DentalClinic.API.Application.UseCases.Schedules;
+using DentalClinic.API.Application.UseCases.Services;
+using DentalClinic.API.Application.UseCases.Staff;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Infrastructure.Persistence;
 using DentalClinic.API.Infrastructure.Persistence.Repositories;
+using DentalClinic.API.Infrastructure.Services;
+using DentalClinic.API.Infrastructure.Settings;
 using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Infrastructure.Extensions;
 
-/// <summary>
-/// Extension methods để đăng ký toàn bộ service của tầng Infrastructure vào DI Container.
-/// Gọi phương thức này trong Program.cs: builder.Services.AddInfrastructure(builder.Configuration)
-/// </summary>
 public static class InfrastructureServiceExtensions
 {
     public static IServiceCollection AddInfrastructure(
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        // ── Database (EF Core + Npgsql cho PostgreSQL) ──────────────────
+        // ── Database ────────────────────────────────────────────────────────
         services.AddDbContext<AppDbContext>(options =>
             options.UseNpgsql(configuration.GetConnectionString("DefaultConnection")));
 
-        // ── Repository Pattern ──────────────────────────────────────────
+        // ── Settings ────────────────────────────────────────────────────────
+        services.Configure<JwtSettings>(configuration.GetSection("JwtSettings"));
+        services.Configure<EmailSettings>(configuration.GetSection("EmailSettings"));
+
+        // ── Repositories ────────────────────────────────────────────────────
         services.AddScoped<IAppointmentRepository, AppointmentRepository>();
         services.AddScoped<IPatientRepository, PatientRepository>();
-        // TODO: Thêm các repository khác tại đây khi triển khai
+        services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IServiceRepository, ServiceRepository>();
+        services.AddScoped<IPostRepository, PostRepository>();
+        services.AddScoped<IFeedbackRepository, FeedbackRepository>();
+        services.AddScoped<IWorkScheduleRepository, WorkScheduleRepository>();
+        services.AddScoped<IPromotionRepository, PromotionRepository>();
+
+        // ── Services ────────────────────────────────────────────────────────
+        services.AddScoped<IJwtService, JwtService>();
+        services.AddScoped<IEmailService, EmailService>();
+
+        // ── Use Case Handlers ────────────────────────────────────────────────
+        services.AddScoped<LoginHandler>();
+        services.AddScoped<CreateAccountHandler>();
+        services.AddScoped<GetAccountsHandler>();
+
+        services.AddScoped<GetStaffHandler>();
+        services.AddScoped<CreateStaffHandler>();
+        services.AddScoped<UpdateStaffHandler>();
+        services.AddScoped<ResetStaffPasswordHandler>();
+        services.AddScoped<CreateStaffAccountHandler>();
+
+        services.AddScoped<GetFeedbacksHandler>();
+        services.AddScoped<GetFeedbackByIdHandler>();
+        services.AddScoped<CreateFeedbackHandler>();
+        services.AddScoped<ApproveFeedbackHandler>();
+        services.AddScoped<HideFeedbackHandler>();
+        services.AddScoped<ReplyFeedbackHandler>();
+
+        services.AddScoped<GetPostsHandler>();
+        services.AddScoped<GetPostByIdHandler>();
+        services.AddScoped<CreatePostHandler>();
+        services.AddScoped<UpdatePostHandler>();
+        services.AddScoped<DeletePostHandler>();
+
+        services.AddScoped<GetServicesHandler>();
+        services.AddScoped<GetServiceByIdHandler>();
+        services.AddScoped<CreateServiceHandler>();
+        services.AddScoped<UpdateServiceHandler>();
+        services.AddScoped<DeleteServiceHandler>();
+        services.AddScoped<ToggleServiceStatusHandler>();
+
+        services.AddScoped<GetWeekScheduleHandler>();
+        services.AddScoped<SaveWeekScheduleHandler>();
+
+        services.AddScoped<GetPromotionsHandler>();
+        services.AddScoped<GetPromotionByIdHandler>();
+        services.AddScoped<CreatePromotionHandler>();
+        services.AddScoped<UpdatePromotionHandler>();
+        services.AddScoped<DeletePromotionHandler>();
+        services.AddScoped<TogglePromotionStatusHandler>();
 
         return services;
     }

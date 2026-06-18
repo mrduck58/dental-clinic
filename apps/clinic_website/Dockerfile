@@ -7,7 +7,7 @@ WORKDIR /app
 # Copy package files trước để tận dụng Docker cache layer.
 # Nếu package.json không thay đổi, Docker sẽ dùng lại layer npm install.
 COPY package.json package-lock.json ./
-RUN npm ci --frozen-lockfile
+RUN npm ci
 
 # ─────────────────────────────────────────────────────────────────
 # Stage 2: Build Next.js Production Bundle
