@@ -1,0 +1,86 @@
+using DentalClinic.API.Application.UseCases.Staff;
+using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Exceptions;
+using DentalClinic.API.Domain.Interfaces.Repositories;
+using FluentAssertions;
+using NSubstitute;
+using NUnit.Framework;
+
+namespace DentalClinic.API.Application.Tests.Staff;
+
+[TestFixture]
+public class CreateStaffHandlerTests
+{
+    private IUserRepository _userRepo = null!;
+
+    [SetUp]
+    public void SetUp()
+    {
+        _userRepo = Substitute.For<IUserRepository>();
+        _userRepo.ExistsByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(false);
+    }
+
+    /// <summary>
+    /// Tạo hồ sơ nhân viên mới với email chưa tồn tại phải gọi AddAsync 1 lần.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_NewEmail_CallsAddAsyncOnce()
+    {
+        var handler = new CreateStaffHandler(_userRepo);
+
+        await handler.HandleAsync(BuildCommand());
+
+        await _userRepo.Received(1).AddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Nhân viên mới tạo qua CreateStaffHandler không được có tài khoản đăng nhập,
+    /// tài khoản chỉ được cấp riêng qua CreateStaffAccountHandler sau này.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_NewEmail_ReturnedDtoHasNoAccount()
+    {
+        var handler = new CreateStaffHandler(_userRepo);
+
+        var result = await handler.HandleAsync(BuildCommand());
+
+        result.HasAccount.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Email đã được dùng bởi nhân viên khác phải ném ConflictException.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_DuplicateEmail_ThrowsConflictException()
+    {
+        _userRepo.ExistsByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(true);
+        var handler = new CreateStaffHandler(_userRepo);
+
+        Func<Task> act = () => handler.HandleAsync(BuildCommand());
+
+        await act.Should().ThrowAsync<ConflictException>();
+    }
+
+    /// <summary>
+    /// Khi email trùng, AddAsync không được gọi để tránh lưu dữ liệu trùng lặp.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_DuplicateEmail_DoesNotCallAddAsync()
+    {
+        _userRepo.ExistsByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(true);
+        var handler = new CreateStaffHandler(_userRepo);
+
+        Assert.CatchAsync(() => handler.HandleAsync(BuildCommand()));
+
+        await _userRepo.DidNotReceive().AddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
+    }
+
+    private static CreateStaffCommand BuildCommand(string email = "newstaff@test.com")
+        => new(FullName: "Nhân Viên Mới", Email: email, PhoneNumber: "0901234567",
+            Role: "Staff", EmployeeId: null, Department: null, EmploymentStatus: null,
+            ProfilePictureUrl: null, ProfessionalNotes: null, Specialty: null,
+            LicenseNumber: null, YearsOfExperience: null, Gender: null, DateOfBirth: null,
+            Address: null, StartDate: null, ServicesHandled: null,
+            CertificateIssuedDate: null, CertificateIssuedBy: null,
+            Education: null, Bio: null, Position: null);
+}
