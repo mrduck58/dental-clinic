@@ -1,4 +1,5 @@
 using DentalClinic.API.Application.UseCases.Auth;
+using DentalClinic.API.Application.UseCases.Feedbacks;
 using DentalClinic.API.Application.UseCases.Posts;
 using DentalClinic.API.Application.UseCases.Promotions;
 using DentalClinic.API.Application.UseCases.Schedules;
@@ -34,6 +35,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IServiceRepository, ServiceRepository>();
         services.AddScoped<IPostRepository, PostRepository>();
+        services.AddScoped<IFeedbackRepository, FeedbackRepository>();
         services.AddScoped<IWorkScheduleRepository, WorkScheduleRepository>();
         services.AddScoped<IPromotionRepository, PromotionRepository>();
 
@@ -51,6 +53,13 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<UpdateStaffHandler>();
         services.AddScoped<ResetStaffPasswordHandler>();
         services.AddScoped<CreateStaffAccountHandler>();
+
+        services.AddScoped<GetFeedbacksHandler>();
+        services.AddScoped<GetFeedbackByIdHandler>();
+        services.AddScoped<CreateFeedbackHandler>();
+        services.AddScoped<ApproveFeedbackHandler>();
+        services.AddScoped<HideFeedbackHandler>();
+        services.AddScoped<ReplyFeedbackHandler>();
 
         services.AddScoped<GetPostsHandler>();
         services.AddScoped<GetPostByIdHandler>();

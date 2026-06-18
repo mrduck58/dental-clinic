@@ -3,6 +3,7 @@ using System;
 using DentalClinic.API.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260618060125_SeedFeedbackData")]
+    partial class SeedFeedbackData
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -134,7 +137,7 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                             Rating = 5,
                             RepliedAt = new DateTimeOffset(new DateTime(2026, 5, 15, 10, 30, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             ReplyText = "Cảm ơn chị Lan đã tin tưởng phòng khám. Chúng tôi rất vui khi được phục vụ chị!",
-                            Status = "Featured"
+                            Status = "Approved"
                         },
                         new
                         {
@@ -152,7 +155,7 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                             CreatedAt = new DateTimeOffset(new DateTime(2026, 5, 22, 14, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             CustomerName = "Phạm Thu Hương",
                             Rating = 5,
-                            Status = "Featured"
+                            Status = "Approved"
                         },
                         new
                         {
@@ -172,7 +175,7 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                             Rating = 5,
                             RepliedAt = new DateTimeOffset(new DateTime(2026, 6, 3, 9, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             ReplyText = "Cảm ơn chị Mai đã chia sẻ! Phòng khám luôn cố gắng mang lại trải nghiệm tốt nhất.",
-                            Status = "Featured"
+                            Status = "Approved"
                         },
                         new
                         {
@@ -201,7 +204,7 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                             Rating = 5,
                             RepliedAt = new DateTimeOffset(new DateTime(2026, 6, 10, 11, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             ReplyText = "Cảm ơn anh Dũng đã đồng hành cùng phòng khám! Chúng tôi rất trân trọng sự tin tưởng của anh.",
-                            Status = "Featured"
+                            Status = "Approved"
                         });
                 });
 
@@ -416,6 +419,11 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
