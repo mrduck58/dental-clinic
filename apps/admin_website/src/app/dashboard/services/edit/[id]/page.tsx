@@ -8,8 +8,6 @@ import NotificationBell from "../../../../../components/shared/NotificationBell"
 import { useRequireAdmin } from "../../../../../hooks/useRequireAdmin";
 import { getServiceByIdApi, updateServiceApi } from "../../../../../lib/apiClient";
 
-const categories = ["Niềng răng", "Tẩy trắng răng", "Trồng răng", "Lấy cao răng", "Điều trị tủy", "Nhổ răng", "Trám răng"];
-
 interface EditServicePageProps {
   params: Promise<{ id: string }>;
 }
@@ -21,7 +19,6 @@ export default function EditServicePage({ params }: EditServicePageProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formName, setFormName] = useState("");
-  const [formCategory, setFormCategory] = useState("Niềng răng");
   const [formPrice, setFormPrice] = useState("");
   const [formDuration, setFormDuration] = useState("");
   const [formDescription, setFormDescription] = useState("");
@@ -35,7 +32,6 @@ export default function EditServicePage({ params }: EditServicePageProps) {
     getServiceByIdApi(id)
       .then((dto) => {
         setFormName(dto.name);
-        setFormCategory(dto.category);
         setFormPrice(dto.price.toLocaleString("vi-VN"));
         setFormDuration(String(dto.durationMinutes));
         setFormDescription(dto.description);
@@ -97,7 +93,6 @@ export default function EditServicePage({ params }: EditServicePageProps) {
     try {
       await updateServiceApi(id, {
         name: formName,
-        category: formCategory,
         price: parseInt(rawPrice),
         durationMinutes: parseInt(formDuration),
         description: formDescription,
@@ -158,44 +153,21 @@ export default function EditServicePage({ params }: EditServicePageProps) {
 
               {/* Form Content */}
               <div className="p-6 flex flex-col gap-5">
-                {/* Tên dịch vụ */}
-                <div className="flex flex-col gap-2">
-                  <label className="text-[13px] font-extrabold text-slate-500 uppercase tracking-wide">
-                    Tên dịch vụ <span className="text-primary">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Nhập tên dịch vụ..."
-                    value={formName}
-                    onChange={(e) => setFormName(e.target.value)}
-                    className="w-full px-4 py-3 text-[14px] bg-white border border-slate-200 rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all font-semibold text-slate-800 placeholder:text-slate-300"
-                  />
-                </div>
-
-                {/* Danh mục và Giá */}
+                {/* Tên dịch vụ và Giá dịch vụ */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  {/* Danh mục */}
+                  {/* Tên dịch vụ */}
                   <div className="flex flex-col gap-2">
                     <label className="text-[13px] font-extrabold text-slate-500 uppercase tracking-wide">
-                      Danh mục <span className="text-primary">*</span>
+                      Tên dịch vụ <span className="text-primary">*</span>
                     </label>
-                    <div className="relative">
-                      <select
-                        value={formCategory}
-                        onChange={(e) => setFormCategory(e.target.value)}
-                        className="w-full px-4 py-3 text-[14px] bg-white border border-slate-200 rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all font-semibold text-slate-700 appearance-none pr-10 cursor-pointer"
-                      >
-                        {categories.map((cat) => (
-                          <option key={cat} value={cat}>{cat}</option>
-                        ))}
-                      </select>
-                      <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                        </svg>
-                      </span>
-                    </div>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Nhập tên dịch vụ..."
+                      value={formName}
+                      onChange={(e) => setFormName(e.target.value)}
+                      className="w-full px-4 py-3 text-[14px] bg-white border border-slate-200 rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all font-semibold text-slate-800 placeholder:text-slate-300"
+                    />
                   </div>
 
                   {/* Giá dịch vụ */}

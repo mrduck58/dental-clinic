@@ -320,7 +320,6 @@ export async function createStaffAccountApi(id: string): Promise<StaffDto> {
 export interface ServiceDto {
   id: string;
   name: string;
-  category: string;
   price: number;
   durationMinutes: number;
   isActive: boolean;
@@ -333,7 +332,6 @@ export interface ServiceDto {
 
 export interface CreateServiceRequest {
   name: string;
-  category: string;
   price: number;
   durationMinutes: number;
   description: string;
@@ -342,7 +340,6 @@ export interface CreateServiceRequest {
 
 export interface UpdateServiceRequest {
   name: string;
-  category: string;
   price: number;
   durationMinutes: number;
   description: string;
@@ -352,12 +349,10 @@ export interface UpdateServiceRequest {
 // ── Service endpoints ──────────────────────────────────────────────────────
 
 export async function getServicesApi(params?: {
-  category?: string;
   status?: string;
   search?: string;
 }): Promise<ServiceDto[]> {
   const qs = new URLSearchParams();
-  if (params?.category) qs.set("category", params.category);
   if (params?.status) qs.set("status", params.status);
   if (params?.search) qs.set("search", params.search);
   const query = qs.toString() ? `?${qs.toString()}` : "";

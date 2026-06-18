@@ -10,7 +10,6 @@ public class CreateServiceHandler(IServiceRepository serviceRepository)
     {
         var service = Service.Create(
             request.Name,
-            request.Category,
             request.Price,
             request.DurationMinutes,
             request.Description,
@@ -19,7 +18,7 @@ public class CreateServiceHandler(IServiceRepository serviceRepository)
         await serviceRepository.AddAsync(service, ct);
 
         return new ServiceDto(
-            service.Id, service.Name, service.Category, service.Price,
+            service.Id, service.Name, service.Price,
             service.DurationMinutes, service.IsActive, service.Description,
             service.ViewCount, service.ImageUrl, service.CreatedAt, service.UpdatedAt);
     }
