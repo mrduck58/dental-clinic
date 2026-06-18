@@ -21,6 +21,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<WorkSchedule> WorkSchedules => Set<WorkSchedule>();
     public DbSet<Promotion> Promotions => Set<Promotion>();
     public DbSet<LeaveRequest> LeaveRequests => Set<LeaveRequest>();
+    public DbSet<Room> Rooms => Set<Room>();
+    public DbSet<Medicine> Medicines => Set<Medicine>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

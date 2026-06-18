@@ -1,87 +1,87 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import AdminSidebar from "../../../components/shared/AdminSidebar";
 import NotificationBell from "../../../components/shared/NotificationBell";
 import { useRequireAdmin } from "../../../hooks/useRequireAdmin";
-
-interface Medicine {
-  id: string;
-  name: string;
-  genericName: string;
-  unit: string;
-  manufacturer: string;
-  usage: string;
-  imageUrl?: string;
-}
-
-const mockMedicines: Medicine[] = [
-  { id: "1", name: "Amoxicillin 500mg", genericName: "Amoxicillin", unit: "Viên", manufacturer: "Domesco", usage: "Kháng sinh điều trị nhiễm khuẩn", imageUrl: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=100&h=100&fit=crop" },
-  { id: "2", name: "Paracetamol 500mg", genericName: "Acetaminophen", unit: "Viên", manufacturer: "Stada", usage: "Hạ sốt, giảm đau", imageUrl: "https://images.unsplash.com/photo-1550572017-edd951b55104?w=100&h=100&fit=crop" },
-  { id: "3", name: "Ibuprofen 400mg", genericName: "Ibuprofen", unit: "Viên", manufacturer: "Berkem", usage: "Giảm đau, kháng viêm", imageUrl: "https://images.unsplash.com/photo-1550572017-4ed1bd8b0c4d?w=100&h=100&fit=crop" },
-  { id: "4", name: "Metronidazole 500mg", genericName: "Metronidazole", unit: "Viên", manufacturer: "Pharmamed", usage: "Kháng khuẩn, điều trị nhiễm trùng", imageUrl: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=100&h=100&fit=crop" },
-  { id: "5", name: "Omeprazole 20mg", genericName: "Omeprazole", unit: "Viên", manufacturer: "Dopharma", usage: "Giảm tiết axit dạ dày", imageUrl: "https://images.unsplash.com/photo-1550572017-edd951b55104?w=100&h=100&fit=crop" },
-  { id: "6", name: "Vitamin B-Complex", genericName: "Vitamin B Complex", unit: "Viên", manufacturer: "Pharbaco", usage: "Bổ sung vitamin nhóm B", imageUrl: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=100&h=100&fit=crop" },
-  { id: "7", name: "Dexamethasone 0.5mg", genericName: "Dexamethasone", unit: "Viên", manufacturer: "DKSH", usage: "Kháng viêm, chống dị ứng", imageUrl: "https://images.unsplash.com/photo-1550572017-4ed1bd8b0c4d?w=100&h=100&fit=crop" },
-  { id: "8", name: "Ciprofloxacin 500mg", genericName: "Ciprofloxacin", unit: "Viên", manufacturer: "Domesco", usage: "Kháng sinh fluoroquinolone", imageUrl: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=100&h=100&fit=crop" },
-  { id: "9", name: "Aspirin 81mg", genericName: "Acetylsalicylic acid", unit: "Viên", manufacturer: "Bayer", usage: "Chống kết tập tiểu cầu", imageUrl: "https://images.unsplash.com/photo-1550572017-edd951b55104?w=100&h=100&fit=crop" },
-  { id: "10", name: "Lidocaine 2%", genericName: "Lidocaine", unit: "Ống", manufacturer: "Mekophar", usage: "Gây tê cục bộ trong nha khoa", imageUrl: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=100&h=100&fit=crop" },
-  { id: "11", name: "Augmentin 625mg", genericName: "Amoxicillin/Clavulanic acid", unit: "Viên", manufacturer: "GSK", usage: "Kháng sinh phổ rộng", imageUrl: "https://images.unsplash.com/photo-1550572017-4ed1bd8b0c4d?w=100&h=100&fit=crop" },
-  { id: "12", name: "Clindamycin 300mg", genericName: "Clindamycin", unit: "Viên", manufacturer: "Pfizer", usage: "Kháng sinh điều trị viêm nhiễm", imageUrl: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=100&h=100&fit=crop" },
-];
+import { getMedicinesApi, deleteMedicineApi, type MedicineDto } from "../../../lib/apiClient";
 
 const ITEMS_PER_PAGE_DEFAULT = 5;
 
 export default function MedicinesPage() {
   useRequireAdmin();
 
-  const [medicines, setMedicines] = useState<Medicine[]>(mockMedicines);
+  const [medicines, setMedicines] = useState<MedicineDto[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterUnit, setFilterUnit] = useState("");
-  const [filterManufacturer, setFilterManufacturer] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(ITEMS_PER_PAGE_DEFAULT);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [selectedMedicine, setSelectedMedicine] = useState<Medicine | null>(null);
+  const [selectedMedicine, setSelectedMedicine] = useState<MedicineDto | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const units = Array.from(new Set(mockMedicines.map((m) => m.unit))).sort();
-  const manufacturers = Array.from(new Set(mockMedicines.map((m) => m.manufacturer))).sort();
+  const fetchMedicines = async () => {
+    setIsLoading(true);
+    setActionError(null);
+    try {
+      const data = await getMedicinesApi({
+        search: searchQuery || undefined,
+      });
+      setMedicines(data);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Không thể tải danh sách thuốc");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMedicines();
+  }, []);
 
   const filteredMedicines = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
     return medicines.filter((medicine) => {
       const matchesSearch =
-        medicine.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        medicine.genericName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        medicine.manufacturer.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesUnit = !filterUnit || medicine.unit === filterUnit;
-      const matchesManufacturer = !filterManufacturer || medicine.manufacturer === filterManufacturer;
-      return matchesSearch && matchesUnit && matchesManufacturer;
-    });
-  }, [medicines, searchQuery, filterUnit, filterManufacturer]);
+        !q ||
+        medicine.name.toLowerCase().includes(q) ||
+        medicine.genericName.toLowerCase().includes(q) ||
+        medicine.manufacturer.toLowerCase().includes(q) ||
+        (medicine.description ?? "").toLowerCase().includes(q);
 
-  const totalPages = Math.ceil(filteredMedicines.length / itemsPerPage);
+      return matchesSearch;
+    });
+  }, [medicines, searchQuery]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredMedicines.length / itemsPerPage));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
   const paginatedMedicines = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
+    const start = (safeCurrentPage - 1) * itemsPerPage;
     return filteredMedicines.slice(start, start + itemsPerPage);
-  }, [filteredMedicines, currentPage, itemsPerPage]);
+  }, [filteredMedicines, safeCurrentPage, itemsPerPage]);
 
   const handleItemsPerPageChange = (value: number) => {
     setItemsPerPage(value);
     setCurrentPage(1);
   };
 
-  const openDeleteModal = (medicine: Medicine) => {
+  const openDeleteModal = (medicine: MedicineDto) => {
     setSelectedMedicine(medicine);
     setIsDeleteModalOpen(true);
+    setActionError(null);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!selectedMedicine) return;
-    setMedicines((prev) => prev.filter((m) => m.id !== selectedMedicine.id));
-    setIsDeleteModalOpen(false);
-    setSelectedMedicine(null);
+    try {
+      await deleteMedicineApi(selectedMedicine.id);
+      setMedicines((prev) => prev.filter((m) => m.id !== selectedMedicine.id));
+      setIsDeleteModalOpen(false);
+      setSelectedMedicine(null);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Xóa thuốc thất bại");
+    }
   };
 
   return (
@@ -136,48 +136,6 @@ export default function MedicinesPage() {
                 />
               </div>
 
-              <div className="relative shrink-0">
-                <select
-                  value={filterUnit}
-                  onChange={(e) => {
-                    setFilterUnit(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="appearance-none bg-white text-slate-700 font-bold text-[14px] pl-4 pr-9 py-2.5 rounded-xl border border-slate-200 focus:outline-none transition-all cursor-pointer"
-                >
-                  <option value="">Đơn vị</option>
-                  {units.map((unit) => (
-                    <option key={unit} value={unit}>{unit}</option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                  </svg>
-                </div>
-              </div>
-
-              <div className="relative shrink-0">
-                <select
-                  value={filterManufacturer}
-                  onChange={(e) => {
-                    setFilterManufacturer(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="appearance-none bg-white text-slate-700 font-bold text-[14px] pl-4 pr-9 py-2.5 rounded-xl border border-slate-200 focus:outline-none transition-all cursor-pointer"
-                >
-                  <option value="">Nhà sản xuất</option>
-                  {manufacturers.map((mfr) => (
-                    <option key={mfr} value={mfr}>{mfr}</option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                  </svg>
-                </div>
-              </div>
-
               <Link
                 href="/dashboard/medicines/add"
                 className="inline-flex items-center gap-2 bg-primary hover:bg-primary-hover text-white font-bold text-[14px] px-5 py-2.5 rounded-xl transition-all shadow-md shadow-primary/25 shrink-0"
@@ -197,8 +155,10 @@ export default function MedicinesPage() {
                   onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
                   className="appearance-none bg-white text-slate-700 font-bold text-[13px] pl-3 pr-7 py-1 rounded-lg border border-slate-200 focus:outline-none cursor-pointer"
                 >
-                  {[5, 10, 20].map(n => (
-                    <option key={n} value={n}>{n}</option>
+                  {[5, 10, 20].map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
                   ))}
                 </select>
                 <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-slate-400">
@@ -219,6 +179,11 @@ export default function MedicinesPage() {
 
           {/* TABLE */}
           <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden flex flex-col">
+            {actionError && (
+              <div className="px-6 py-3 bg-red-50 border-b border-red-100 text-[13px] text-red-600 font-semibold">
+                {actionError}
+              </div>
+            )}
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-[14px]">
                 <thead>
@@ -228,7 +193,7 @@ export default function MedicinesPage() {
                     <th className="px-6 py-4">Hoạt chất</th>
                     <th className="px-6 py-4">Đơn vị</th>
                     <th className="px-6 py-4">Nhà sản xuất</th>
-                    <th className="px-6 py-4">Công dụng</th>
+                    <th className="px-6 py-4">Mô tả</th>
                     <th className="px-6 py-4 text-center">Hành động</th>
                   </tr>
                 </thead>
@@ -244,18 +209,10 @@ export default function MedicinesPage() {
                       <tr key={medicine.id} className="hover:bg-slate-50/40 transition-colors">
                         <td className="px-6 py-4.5">
                           <div className="w-12 h-12 rounded-xl overflow-hidden bg-slate-100 flex items-center justify-center">
-                            {medicine.imageUrl ? (
-                              <img
-                                src={medicine.imageUrl}
-                                alt={medicine.name}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <svg className="w-6 h-6 text-slate-300" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 9.75h.005v.005h-.005v-.005zm0 2.25h.005v.005h-.005v-.005zm-2.25.005h.005v.005h-.005v-.005zm0 2.25h.005v.005h-.005v-.005zm2.25-2.25h.75v.75h-.75v-.75zm-.75 0v.75h.75v-.75h-.75zm5.25 0v.75h.75v-.75h-.75zm-.75 0h.75v.75h-.75v-.75zm-.75 0h.005v.005h-.005v-.005zm-.75 0h.005v.005h-.005v-.005zm.75-2.25h.005v.005h-.005v-.005zm0 2.25h.005v.005h-.005v-.005zm0 2.25h.75v.75h-.75v-.75zm-.75 0v.75h.75v-.75h-.75z" />
-                                <circle cx="12" cy="12" r="8" />
-                              </svg>
-                            )}
+                            <svg className="w-6 h-6 text-slate-300" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 9.75h.005v.005h-.005v-.005zm0 2.25h.005v.005h-.005v-.005zm-2.25.005h.005v.005h-.005v-.005zm0 2.25h.005v.005h-.005v-.005zm2.25-2.25h.75v.75h-.75v-.75zm-.75 0v.75h.75v-.75h-.75zm5.25 0v.75h.75v-.75h-.75zm-.75 0h.75v.75h-.75v-.75zm-.75 0h.005v.005h-.005v-.005zm-.75 0h.005v.005h-.005v-.005zm.75-2.25h.005v.005h-.005v-.005zm0 2.25h.005v.005h-.005v-.005zm0 2.25h.75v.75h-.75v-.75zm-.75 0v.75h.75v-.75h-.75z" />
+                              <circle cx="12" cy="12" r="8" />
+                            </svg>
                           </div>
                         </td>
                         <td className="px-6 py-4.5">
@@ -273,12 +230,12 @@ export default function MedicinesPage() {
                           <span className="text-slate-500">{medicine.manufacturer}</span>
                         </td>
                         <td className="px-6 py-4.5">
-                          <span className="text-slate-500 text-[13px] line-clamp-1" title={medicine.usage}>
-                            {medicine.usage}
+                          <span className="text-slate-500 text-[13px] line-clamp-1" title={medicine.description ?? ""}>
+                            {medicine.description}
                           </span>
                         </td>
                         <td className="px-6 py-4.5">
-                          <div className="flex items-center justify-center gap-4">
+                          <div className="flex items-center justify-center gap-1">
                             <Link
                               href={`/dashboard/medicines/edit/${medicine.id}`}
                               title="Sửa thông tin"
@@ -303,7 +260,7 @@ export default function MedicinesPage() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={7} className="px-6 py-10 text-center text-slate-400 font-bold">
+                      <td colSpan={8} className="px-6 py-10 text-center text-slate-400 font-bold">
                         Không tìm thấy thuốc nào.
                       </td>
                     </tr>
@@ -317,7 +274,10 @@ export default function MedicinesPage() {
               <div className="p-4 border-t border-slate-100 flex items-center justify-between gap-2.5">
                 <span className="text-[13px] text-slate-400 font-semibold">
                   Hiển thị{" "}
-                  <span className="text-slate-600 font-bold">{(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, filteredMedicines.length)}</span>
+                  <span className="text-slate-600 font-bold">
+                    {filteredMedicines.length === 0 ? 0 : (safeCurrentPage - 1) * itemsPerPage + 1}–
+                    {Math.min(safeCurrentPage * itemsPerPage, filteredMedicines.length)}
+                  </span>
                   {" "}trong{" "}
                   <span className="text-slate-600 font-bold">{filteredMedicines.length}</span>
                   {" "}thuốc
@@ -325,9 +285,9 @@ export default function MedicinesPage() {
                 <div className="flex items-center gap-2.5">
                   <button
                     onClick={() => setCurrentPage(1)}
-                    disabled={currentPage === 1}
+                    disabled={safeCurrentPage === 1}
                     className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
-                      currentPage === 1
+                      safeCurrentPage === 1
                         ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
                         : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
                     }`}
@@ -335,10 +295,10 @@ export default function MedicinesPage() {
                     &lt;|
                   </button>
                   <button
-                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                    disabled={safeCurrentPage === 1}
                     className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
-                      currentPage === 1
+                      safeCurrentPage === 1
                         ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
                         : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
                     }`}
@@ -348,7 +308,7 @@ export default function MedicinesPage() {
 
                   {Array.from({ length: totalPages }).map((_, idx) => {
                     const p = idx + 1;
-                    const isActive = currentPage === p;
+                    const isActive = safeCurrentPage === p;
                     return (
                       <button
                         key={p}
@@ -365,10 +325,10 @@ export default function MedicinesPage() {
                   })}
 
                   <button
-                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                    disabled={safeCurrentPage === totalPages}
                     className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
-                      currentPage === totalPages
+                      safeCurrentPage === totalPages
                         ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
                         : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
                     }`}
@@ -377,9 +337,9 @@ export default function MedicinesPage() {
                   </button>
                   <button
                     onClick={() => setCurrentPage(totalPages)}
-                    disabled={currentPage === totalPages}
+                    disabled={safeCurrentPage === totalPages}
                     className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
-                      currentPage === totalPages
+                      safeCurrentPage === totalPages
                         ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
                         : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
                     }`}

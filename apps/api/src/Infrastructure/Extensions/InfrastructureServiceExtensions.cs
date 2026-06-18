@@ -1,8 +1,10 @@
 using DentalClinic.API.Application.UseCases.Auth;
+using DentalClinic.API.Application.UseCases.Medicines;
 using DentalClinic.API.Application.UseCases.Feedbacks;
 using DentalClinic.API.Application.UseCases.LeaveRequests;
 using DentalClinic.API.Application.UseCases.Posts;
 using DentalClinic.API.Application.UseCases.Promotions;
+using DentalClinic.API.Application.UseCases.Rooms;
 using DentalClinic.API.Application.UseCases.Schedules;
 using DentalClinic.API.Application.UseCases.Services;
 using DentalClinic.API.Application.UseCases.Staff;
@@ -40,10 +42,13 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<ILeaveRequestRepository, LeaveRequestRepository>();
         services.AddScoped<IWorkScheduleRepository, WorkScheduleRepository>();
         services.AddScoped<IPromotionRepository, PromotionRepository>();
+        services.AddScoped<IRoomRepository, RoomRepository>();
+        services.AddScoped<IMedicineRepository, MedicineRepository>();
 
         // ── Services ────────────────────────────────────────────────────────
         services.AddScoped<IJwtService, JwtService>();
         services.AddScoped<IEmailService, EmailService>();
+        services.AddScoped<IFileStorageService, LocalFileStorageService>();
 
         // ── Use Case Handlers ────────────────────────────────────────────────
         services.AddScoped<LoginHandler>();
@@ -76,6 +81,12 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<DeleteServiceHandler>();
         services.AddScoped<ToggleServiceStatusHandler>();
 
+        services.AddScoped<GetMedicinesHandler>();
+        services.AddScoped<GetMedicineByIdHandler>();
+        services.AddScoped<CreateMedicineHandler>();
+        services.AddScoped<UpdateMedicineHandler>();
+        services.AddScoped<DeleteMedicineHandler>();
+
         services.AddScoped<GetWeekScheduleHandler>();
         services.AddScoped<SaveWeekScheduleHandler>();
 
@@ -93,6 +104,13 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<ApproveLeaveRequestHandler>();
         services.AddScoped<RejectLeaveRequestHandler>();
         services.AddScoped<CancelLeaveRequestHandler>();
+      
+        services.AddScoped<GetRoomsHandler>();
+        services.AddScoped<GetRoomByIdHandler>();
+        services.AddScoped<CreateRoomHandler>();
+        services.AddScoped<UpdateRoomHandler>();
+        services.AddScoped<DeleteRoomHandler>();
+        services.AddScoped<ChangeRoomStatusHandler>();
 
         return services;
     }

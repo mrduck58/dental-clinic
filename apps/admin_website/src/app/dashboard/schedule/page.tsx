@@ -132,16 +132,33 @@ export default function SchedulePage() {
     setCurrentMonday(newMonday);
   };
 
+  // Stats computed from full week schedule data
+  const weekStats = useMemo(() => {
+    const activeDates = weekDates.map(d => formatDateKey(d));
+    const weekEntries = scheduleData.filter(item => activeDates.includes(item.date) && !item.isHoliday);
+    const dentists = new Set(weekEntries.filter(i => i.role === "dentist").map(i => i.name));
+    const assistants = new Set(weekEntries.filter(i => i.role === "assistant").map(i => i.name));
+    const staff = new Set(weekEntries.filter(i => i.role === "staff").map(i => i.name));
+    const holidays = new Set(scheduleData.filter(i => activeDates.includes(i.date) && i.isHoliday).map(i => i.date));
+    return {
+      totalShifts: weekEntries.length,
+      dentists: dentists.size,
+      assistants: assistants.size,
+      staff: staff.size,
+      holidays: holidays.size,
+    };
+  }, [scheduleData, weekDates]);
+
   // Filter schedules based on: active date range, staff type, and search query
   const filteredSchedule = useMemo(() => {
     const activeDates = weekDates.map(d => formatDateKey(d));
     return scheduleData.filter(item => {
       const isCorrectType = item.type === staffType;
       const isInWeek = activeDates.includes(item.date);
-      const matchesSearch = searchQuery === "" || 
+      const matchesSearch = searchQuery === "" ||
         item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.room.toLowerCase().includes(searchQuery.toLowerCase());
-      
+
       return isCorrectType && isInWeek && matchesSearch;
     });
   }, [scheduleData, weekDates, staffType, searchQuery]);
@@ -204,23 +221,7 @@ export default function SchedulePage() {
             <p className="text-[12.5px] text-slate-400 font-semibold mt-0.5">Quản lý ca trực và lịch làm việc nhân sự</p>
           </div>
 
-          {/* Search bar + notification */}
           <div className="flex items-center gap-4">
-            <div className="relative w-72 hidden sm:block">
-              <span className="absolute inset-y-0 left-3.5 flex items-center text-slate-400">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </span>
-              <input
-                type="text"
-                placeholder="Tìm kiếm bác sĩ, phòng..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 text-[13.5px] bg-slate-100/80 rounded-full border border-transparent focus:bg-white focus:border-slate-200 focus:outline-none focus:ring-1 focus:ring-slate-200 transition-all font-semibold"
-              />
-            </div>
-
             <NotificationBell />
           </div>
         </header>
@@ -236,19 +237,68 @@ export default function SchedulePage() {
         {/* BODY */}
         <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-6">
           
+          {/* STATS */}
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-5 shrink-0">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex items-center justify-between">
+              <div>
+                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Tổng ca trong tuần</span>
+                <span className="text-3xl font-black text-slate-900 block mt-1">{weekStats.totalShifts}</span>
+              </div>
+              <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+                </svg>
+              </div>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex items-center justify-between">
+              <div>
+                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Bác sĩ trực tuần</span>
+                <span className="text-3xl font-black text-slate-900 block mt-1">{weekStats.dentists}</span>
+              </div>
+              <div className="w-12 h-12 rounded-xl bg-red-50 text-primary flex items-center justify-center shrink-0">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                </svg>
+              </div>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex items-center justify-between">
+              <div>
+                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Phụ tá / Nhân viên</span>
+                <span className="text-3xl font-black text-slate-900 block mt-1">{weekStats.assistants + weekStats.staff}</span>
+              </div>
+              <div className="w-12 h-12 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
+                </svg>
+              </div>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex items-center justify-between">
+              <div>
+                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Ngày nghỉ / Đóng cửa</span>
+                <span className="text-3xl font-black text-slate-900 block mt-1">{weekStats.holidays}</span>
+              </div>
+              <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
           {/* CONTROLS CONTAINER */}
           <div className="bg-white px-5 py-4 rounded-2xl border border-slate-200/60 shadow-sm flex items-center justify-between gap-4 shrink-0 select-none flex-wrap">
 
-            {/* Week picker */}
+            {/* Left: Week picker */}
             <div className="flex items-center gap-3">
               <button
                 onClick={handlePrevWeek}
                 className="w-8 h-8 flex items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-100 hover:border-slate-300 transition-all cursor-pointer"
                 title="Tuần trước"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-                </svg>
+                ‹
               </button>
 
               <div className="text-center min-w-[168px]">
@@ -265,14 +315,23 @@ export default function SchedulePage() {
                 className="w-8 h-8 flex items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-100 hover:border-slate-300 transition-all cursor-pointer"
                 title="Tuần sau"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                </svg>
+                ›
               </button>
             </div>
 
-            {/* Right: toggle + action buttons */}
+            {/* Right: search + toggle + action buttons */}
             <div className="flex items-center gap-3 flex-wrap">
+
+              {/* Search */}
+              <div className="relative w-56">
+                <input
+                  type="text"
+                  placeholder="Tìm kiếm bác sĩ, phòng..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-4 pr-4 py-2 text-[13.5px] bg-slate-100/80 rounded-full border border-transparent focus:bg-white focus:border-slate-200 focus:outline-none focus:ring-1 focus:ring-slate-200 transition-all font-semibold"
+                />
+              </div>
 
               {/* Dentist/Staff toggle */}
               <div className="flex bg-slate-100 p-1 rounded-xl">
@@ -295,9 +354,6 @@ export default function SchedulePage() {
                 onClick={handleExport}
                 className="flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 text-[13px] font-bold border border-slate-200 rounded-xl transition-all shadow-sm cursor-pointer whitespace-nowrap"
               >
-                <svg className="w-4 h-4 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                </svg>
                 Xuất file CSV
               </button>
 
@@ -340,7 +396,7 @@ export default function SchedulePage() {
 
                     {/* Weekdays columns headers */}
                     {weekDates.map((date, idx) => {
-                      const daysVN = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
+                      const daysVN = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ Nhật"];
                       const formattedDay = daysVN[idx];
                       const formattedDate = `${date.getDate()}/${date.getMonth() + 1}`;
                       const isHighlighted = isHighlightedDay(date);
@@ -425,15 +481,6 @@ export default function SchedulePage() {
                               </div>
                             )}
 
-                            {/* + Thêm button matching mockup design */}
-                            {!cellItems.some(i => i.isHoliday) && (
-                              <button
-                                onClick={() => showNotification("Tính năng bổ sung nhân sự vào ca đang phát triển.", "info")}
-                                className="mt-auto py-1.5 border border-dashed border-slate-300 rounded-lg hover:border-primary hover:bg-red-50/25 transition-all text-slate-400 hover:text-primary text-[12px] font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-sm shadow-slate-100/50 bg-white"
-                              >
-                                <span>+ Thêm</span>
-                              </button>
-                            )}
                           </div>
                         </td>
                       );
@@ -500,16 +547,6 @@ export default function SchedulePage() {
                               </div>
                             )}
 
-                            {/* + Thêm button matching mockup design */}
-                            {/* Do not show add button if it's already a Holiday block */}
-                            {!cellItems.some(i => i.isHoliday) && (
-                              <button
-                                onClick={() => showNotification("Tính năng bổ sung nhân sự vào ca đang phát triển.", "info")}
-                                className="mt-auto py-1.5 border border-dashed border-slate-300 rounded-lg hover:border-primary hover:bg-red-50/25 transition-all text-slate-400 hover:text-primary text-[12px] font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-sm shadow-slate-100/50 bg-white"
-                              >
-                                <span>+ Thêm</span>
-                              </button>
-                            )}
                           </div>
                         </td>
                       );
