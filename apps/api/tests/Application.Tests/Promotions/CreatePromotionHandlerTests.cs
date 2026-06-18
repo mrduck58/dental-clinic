@@ -1,3 +1,4 @@
+using DentalClinic.API.Application.DTOs.Promotions;
 using DentalClinic.API.Application.UseCases.Promotions;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Interfaces.Repositories;
