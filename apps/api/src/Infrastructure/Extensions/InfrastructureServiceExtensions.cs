@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.UseCases.Auth;
 using DentalClinic.API.Application.UseCases.Feedbacks;
+using DentalClinic.API.Application.UseCases.LeaveRequests;
 using DentalClinic.API.Application.UseCases.Posts;
 using DentalClinic.API.Application.UseCases.Promotions;
 using DentalClinic.API.Application.UseCases.Schedules;
@@ -36,6 +37,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IServiceRepository, ServiceRepository>();
         services.AddScoped<IPostRepository, PostRepository>();
         services.AddScoped<IFeedbackRepository, FeedbackRepository>();
+        services.AddScoped<ILeaveRequestRepository, LeaveRequestRepository>();
         services.AddScoped<IWorkScheduleRepository, WorkScheduleRepository>();
         services.AddScoped<IPromotionRepository, PromotionRepository>();
 
@@ -83,6 +85,14 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<UpdatePromotionHandler>();
         services.AddScoped<DeletePromotionHandler>();
         services.AddScoped<TogglePromotionStatusHandler>();
+
+        services.AddScoped<GetLeaveRequestsHandler>();
+        services.AddScoped<GetMyLeaveRequestsHandler>();
+        services.AddScoped<GetLeaveRequestByIdHandler>();
+        services.AddScoped<CreateLeaveRequestHandler>();
+        services.AddScoped<ApproveLeaveRequestHandler>();
+        services.AddScoped<RejectLeaveRequestHandler>();
+        services.AddScoped<CancelLeaveRequestHandler>();
 
         return services;
     }
