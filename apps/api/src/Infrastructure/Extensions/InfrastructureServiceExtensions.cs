@@ -3,6 +3,7 @@ using DentalClinic.API.Application.UseCases.Medicines;
 using DentalClinic.API.Application.UseCases.Feedbacks;
 using DentalClinic.API.Application.UseCases.Posts;
 using DentalClinic.API.Application.UseCases.Promotions;
+using DentalClinic.API.Application.UseCases.Rooms;
 using DentalClinic.API.Application.UseCases.Schedules;
 using DentalClinic.API.Application.UseCases.Services;
 using DentalClinic.API.Application.UseCases.Staff;
@@ -39,6 +40,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IFeedbackRepository, FeedbackRepository>();
         services.AddScoped<IWorkScheduleRepository, WorkScheduleRepository>();
         services.AddScoped<IPromotionRepository, PromotionRepository>();
+        services.AddScoped<IRoomRepository, RoomRepository>();
         services.AddScoped<IMedicineRepository, MedicineRepository>();
 
         // ── Services ────────────────────────────────────────────────────────
@@ -92,6 +94,13 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<UpdatePromotionHandler>();
         services.AddScoped<DeletePromotionHandler>();
         services.AddScoped<TogglePromotionStatusHandler>();
+
+        services.AddScoped<GetRoomsHandler>();
+        services.AddScoped<GetRoomByIdHandler>();
+        services.AddScoped<CreateRoomHandler>();
+        services.AddScoped<UpdateRoomHandler>();
+        services.AddScoped<DeleteRoomHandler>();
+        services.AddScoped<ChangeRoomStatusHandler>();
 
         return services;
     }
