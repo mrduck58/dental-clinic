@@ -58,8 +58,8 @@ class _BottomNavBar extends StatelessWidget {
   });
 
   static const _items = [
-    _NavItem(icon: Iconsax.home, activeIcon: Iconsax.home_2, label: 'Trang chủ'),
-    _NavItem(icon: Iconsax.calendar, activeIcon: Iconsax.calendar_2, label: 'Lịch hẹn'),
+    _NavItem(icon: Iconsax.home_2, activeIcon: Iconsax.home_25, label: 'Trang chủ'),
+    _NavItem(icon: Iconsax.calendar_2, activeIcon: Iconsax.calendar_25, label: 'Lịch hẹn'),
     _NavItem(icon: Iconsax.document, activeIcon: Iconsax.document_text, label: 'Hồ sơ'),
     _NavItem(icon: Iconsax.user, activeIcon: Iconsax.user_octagon, label: 'Cá nhân'),
   ];
@@ -161,7 +161,7 @@ class _NavButton extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 240),
         curve: Curves.easeOut,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+        padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 13),
         decoration: BoxDecoration(
           color: isActive ? AppColors.primary : Colors.transparent,
           borderRadius: BorderRadius.circular(999),

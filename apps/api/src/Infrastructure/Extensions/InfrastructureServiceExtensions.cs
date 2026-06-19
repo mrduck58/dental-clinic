@@ -36,6 +36,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IAppointmentRepository, AppointmentRepository>();
         services.AddScoped<IPatientRepository, PatientRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IOtpRepository, OtpRepository>();
         services.AddScoped<IServiceRepository, ServiceRepository>();
         services.AddScoped<IPostRepository, PostRepository>();
         services.AddScoped<IFeedbackRepository, FeedbackRepository>();
@@ -52,10 +53,15 @@ public static class InfrastructureServiceExtensions
 
         // ── Use Case Handlers ────────────────────────────────────────────────
         services.AddScoped<LoginHandler>();
+        services.AddScoped<RegisterHandler>();
+        services.AddScoped<VerifyOtpHandler>();
+        services.AddScoped<ResendOtpHandler>();
+        services.AddScoped<FillProfileHandler>();
         services.AddScoped<CreateAccountHandler>();
         services.AddScoped<GetAccountsHandler>();
 
         services.AddScoped<GetStaffHandler>();
+        services.AddScoped<GetDentistsHandler>();
         services.AddScoped<CreateStaffHandler>();
         services.AddScoped<UpdateStaffHandler>();
         services.AddScoped<ResetStaffPasswordHandler>();

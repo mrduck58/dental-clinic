@@ -171,11 +171,70 @@ public class LoginHandlerTests
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
     }
 
+    // ── AllowedRoles (tách cổng đăng nhập bệnh nhân / nhân viên) ─────────────
+
+    /// <summary>
+    /// Bệnh nhân đăng nhập vào cổng nhân viên (AllowedRoles = ["Admin","Dentist","Staff"])
+    /// phải bị từ chối — mỗi cổng chỉ phục vụ đúng nhóm role của mình.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_PatientWithStaffPortalRoles_ThrowsUnauthorizedAccessException()
+    {
+        var patient = CreateActivePatientWithPassword("pass123");
+        _userRepo.GetByEmailAsync(patient.Email, Arg.Any<CancellationToken>()).Returns(patient);
+        _jwtService.GenerateToken(Arg.Any<User>()).Returns("token");
+
+        Func<Task> act = () => _handler.HandleAsync(
+            new LoginCommand(patient.Email, "pass123", AllowedRoles: ["Admin", "Dentist", "Staff"]));
+
+        await act.Should().ThrowAsync<UnauthorizedAccessException>();
+    }
+
+    /// <summary>
+    /// Nhân viên đăng nhập vào cổng bệnh nhân (AllowedRoles = ["Patient"])
+    /// phải bị từ chối — tách biệt luồng xác thực giữa hai nhóm.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_StaffWithPatientPortalRoles_ThrowsUnauthorizedAccessException()
+    {
+        var staff = CreateActiveUserWithPassword("pass123");
+        _userRepo.GetByEmailAsync(staff.Email, Arg.Any<CancellationToken>()).Returns(staff);
+        _jwtService.GenerateToken(Arg.Any<User>()).Returns("token");
+
+        Func<Task> act = () => _handler.HandleAsync(
+            new LoginCommand(staff.Email, "pass123", AllowedRoles: ["Patient"]));
+
+        await act.Should().ThrowAsync<UnauthorizedAccessException>();
+    }
+
+    /// <summary>
+    /// Tài khoản Patient chưa xác thực OTP (IsActive = false) phải nhận message
+    /// hướng dẫn xác thực qua OTP, khác với Staff bị vô hiệu hóa (hướng dẫn liên hệ admin).
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_InactivePatient_ThrowsWithOtpVerificationMessage()
+    {
+        var patient = CreateActivePatientWithPassword("pass123");
+        patient.SetActive(false);
+        _userRepo.GetByEmailAsync(patient.Email, Arg.Any<CancellationToken>()).Returns(patient);
+
+        Func<Task> act = () => _handler.HandleAsync(new LoginCommand(patient.Email, "pass123"));
+
+        await act.Should().ThrowAsync<UnauthorizedAccessException>()
+            .WithMessage("*xác thực*");
+    }
+
     // ── Helper ────────────────────────────────────────────────────────────────
 
     private static User CreateActiveUserWithPassword(string plainPassword)
     {
         var hash = BCrypt.Net.BCrypt.HashPassword(plainPassword);
         return User.Create("user1", "test@test.com", hash, "Staff");
+    }
+
+    private static User CreateActivePatientWithPassword(string plainPassword)
+    {
+        var hash = BCrypt.Net.BCrypt.HashPassword(plainPassword);
+        return User.Create("patient1", "patient@test.com", hash, "Patient");
     }
 }

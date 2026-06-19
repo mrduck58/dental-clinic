@@ -44,6 +44,12 @@ dependencies:
   # Bộ icon hiện đại Iconsax
   iconsax: ^0.0.8
 
+  # HTTP client
+  dio: ^5.7.0
+
+  # Lưu token / trạng thái đăng nhập
+  shared_preferences: ^2.3.4
+
 
 dev_dependencies:
   flutter_test:
