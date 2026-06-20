@@ -1160,7 +1160,7 @@ export interface StaffAppointmentDto {
   patientName: string;
   patientPhone: string | null;
   dentistName: string;
-  specialization: string;
+  serviceName: string | null;
   appointmentDate: string; // ISO8601
   createdAt: string;       // ISO8601
   status: string;          // "Pending" | "Confirmed" | "Completed" | "Cancelled"
@@ -1210,6 +1210,124 @@ export async function cancelAppointmentApi(id: string): Promise<void> {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { title?: string }).title ?? "Hủy lịch hẹn thất bại");
   }
+}
+
+export async function checkInAppointmentApi(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/appointments/${id}/checkin`, {
+    method: "PUT",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Check-in thất bại");
+  }
+}
+
+export async function startTreatmentApi(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/appointments/${id}/start`, {
+    method: "PUT",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Bắt đầu khám thất bại");
+  }
+}
+
+export async function completeTreatmentApi(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/appointments/${id}/complete`, {
+    method: "PUT",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Hoàn thành khám thất bại");
+  }
+}
+
+// ── Waiting Queue types ─────────────────────────────────────────────────────────
+
+export interface QueuePatientDto {
+  appointmentId: string;
+  appointmentCode: string;
+  patientName: string;
+  patientPhone: string | null;
+  serviceName: string | null;
+  appointmentDate: string;
+  status: string;
+  symptoms: string | null;
+  waitMinutes: number;
+}
+
+export interface DentistQueueDto {
+  dentistId: string;
+  dentistName: string;
+  roomName: string | null;
+  dentistColor: string;
+  patients: QueuePatientDto[];
+}
+
+export interface WaitingQueueResponse {
+  date: string;
+  totalWaiting: number;
+  totalInProgress: number;
+  totalCompleted: number;
+  dentists: DentistQueueDto[];
+}
+
+export async function getWaitingQueueApi(date?: string): Promise<WaitingQueueResponse> {
+  const params = new URLSearchParams();
+  if (date) params.set("date", date);
+  const query = params.toString() ? `?${params}` : "";
+  const res = await fetch(`${API_URL}/api/appointments/queue${query}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải hàng đợi");
+  }
+  return res.json() as Promise<WaitingQueueResponse>;
+}
+
+export interface DentistPatientDto {
+  appointmentId: string;
+  appointmentCode: string;
+  patientName: string;
+  age: number;
+  gender: string;
+  phone: string | null;
+  appointmentDate: string;
+  status: string;
+  serviceName: string | null;
+  symptoms: string | null;
+  isNew: boolean;
+}
+
+export interface DentistPatientsResponse {
+  date: string;
+  totalWaiting: number;
+  totalInProgress: number;
+  totalCompleted: number;
+  patients: DentistPatientDto[];
+}
+
+export async function getDentistPatientsApi(date?: string): Promise<DentistPatientsResponse> {
+  const params = new URLSearchParams();
+  if (date) params.set("date", date);
+  const query = params.toString() ? `?${params}` : "";
+  const res = await fetch(`${API_URL}/api/appointments/dentist/patients${query}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách bệnh nhân");
+  }
+  return res.json() as Promise<DentistPatientsResponse>;
 }
 
 export async function rejectLeaveRequestApi(id: string, reviewerNote?: string): Promise<LeaveRequestDto> {
