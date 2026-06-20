@@ -39,7 +39,7 @@ dependencies:
   go_router: ^14.0.0
 
   # Font chữ Nunito từ Google Fonts
-  google_fonts: ^6.2.1
+  google_fonts: ^8.1.0
 
   # Bộ icon hiện đại Iconsax
   iconsax: ^0.0.8

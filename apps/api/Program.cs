@@ -88,6 +88,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseMiddleware<ExceptionMiddleware>();
 app.UseCors();
+app.UseStaticFiles();
 
 // Auto-migrate + seed admin lần đầu
 using (var scope = app.Services.CreateScope())

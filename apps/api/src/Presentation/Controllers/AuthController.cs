@@ -15,6 +15,7 @@ public class AuthController(
     VerifyOtpHandler verifyOtpHandler,
     ResendOtpHandler resendOtpHandler,
     FillProfileHandler fillProfileHandler,
+    GetMyProfileHandler getMyProfileHandler,
     CreateAccountHandler createAccountHandler,
     GetAccountsHandler getAccountsHandler) : ControllerBase
 {
@@ -86,6 +87,20 @@ public class AuthController(
             cancellationToken);
 
         return Ok(new { message = "Mã OTP mới đã được gửi đến email của bạn." });
+    }
+
+    /// <summary>GET api/auth/me/profile — Lấy thông tin cá nhân của người dùng hiện tại</summary>
+    [HttpGet("me/profile")]
+    [Authorize]
+    public async Task<IActionResult> GetMyProfile(CancellationToken cancellationToken)
+    {
+        var userIdString = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+            ?? User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? throw new UnauthorizedAccessException("Không thể xác thực người dùng.");
+
+        var userId = Guid.Parse(userIdString);
+        var result = await getMyProfileHandler.HandleAsync(userId, cancellationToken);
+        return Ok(result);
     }
 
     /// <summary>PUT api/auth/me/profile — Điền thông tin cá nhân sau đăng ký</summary>

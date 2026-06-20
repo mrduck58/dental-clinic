@@ -1,3 +1,4 @@
+using DentalClinic.API.Application.UseCases.Appointments;
 using DentalClinic.API.Application.UseCases.Auth;
 using DentalClinic.API.Application.UseCases.Medicines;
 using DentalClinic.API.Application.UseCases.Feedbacks;
@@ -57,6 +58,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<VerifyOtpHandler>();
         services.AddScoped<ResendOtpHandler>();
         services.AddScoped<FillProfileHandler>();
+        services.AddScoped<GetMyProfileHandler>();
         services.AddScoped<CreateAccountHandler>();
         services.AddScoped<GetAccountsHandler>();
 
@@ -111,6 +113,12 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<RejectLeaveRequestHandler>();
         services.AddScoped<CancelLeaveRequestHandler>();
       
+        services.AddScoped<GetDentistSlotsHandler>();
+        services.AddScoped<CreateAppointmentHandler>();
+        services.AddScoped<GetMyAppointmentsHandler>();
+        services.AddScoped<GetAllAppointmentsHandler>();
+        services.AddScoped<UpdateAppointmentStatusHandler>();
+
         services.AddScoped<GetRoomsHandler>();
         services.AddScoped<GetRoomByIdHandler>();
         services.AddScoped<CreateRoomHandler>();

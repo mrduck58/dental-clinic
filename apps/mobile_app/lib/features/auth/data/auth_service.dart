@@ -67,6 +67,33 @@ class VerifyOtpResult {
   }
 }
 
+class UserProfile {
+  final String fullName;
+  final String email;
+  final String? phoneNumber;
+  final String? dateOfBirth; // "YYYY-MM-DD"
+  final String? gender;
+  final String? profilePictureUrl;
+
+  const UserProfile({
+    required this.fullName,
+    required this.email,
+    this.phoneNumber,
+    this.dateOfBirth,
+    this.gender,
+    this.profilePictureUrl,
+  });
+
+  factory UserProfile.fromJson(Map<String, dynamic> json) => UserProfile(
+        fullName: json['fullName'] as String? ?? '',
+        email: json['email'] as String? ?? '',
+        phoneNumber: json['phoneNumber'] as String?,
+        dateOfBirth: json['dateOfBirth'] as String?,
+        gender: json['gender'] as String?,
+        profilePictureUrl: json['profilePictureUrl'] as String?,
+      );
+}
+
 // ── Service ──────────────────────────────────────────────────────────────────
 
 class AuthService {
@@ -112,6 +139,13 @@ class AuthService {
 
   Future<void> resendOtp(String email) async {
     await _client.post(ApiConstants.resendOtp, {'email': email});
+  }
+
+  Future<UserProfile> getMyProfile() async {
+    final token = await getToken();
+    if (token == null) throw Exception('Chưa đăng nhập.');
+    final res = await _client.get(ApiConstants.fillProfile, token: token);
+    return UserProfile.fromJson(res.data as Map<String, dynamic>);
   }
 
   Future<void> fillProfile({

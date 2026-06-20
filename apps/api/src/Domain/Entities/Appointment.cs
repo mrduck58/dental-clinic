@@ -7,9 +7,11 @@ public class Appointment
     public Guid Id { get; private set; }
     public Guid PatientId { get; private set; }
     public Guid DentistId { get; private set; }
+    public Guid? ServiceId { get; private set; }
     public DateTimeOffset AppointmentDate { get; private set; }
     public AppointmentStatus Status { get; private set; }
     public string? Notes { get; private set; }
+    public string? Symptoms { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
 
     // Navigation properties
@@ -20,15 +22,23 @@ public class Appointment
 
     private Appointment() { }
 
-    public static Appointment Create(Guid patientId, Guid dentistId, DateTimeOffset appointmentDate, string? notes = null)
+    public static Appointment Create(
+        Guid patientId,
+        Guid dentistId,
+        DateTimeOffset appointmentDate,
+        string? symptoms = null,
+        Guid? serviceId = null,
+        string? notes = null)
     {
         return new Appointment
         {
             Id = Guid.NewGuid(),
             PatientId = patientId,
             DentistId = dentistId,
+            ServiceId = serviceId,
             AppointmentDate = appointmentDate,
             Status = AppointmentStatus.Pending,
+            Symptoms = symptoms,
             Notes = notes,
             CreatedAt = DateTimeOffset.UtcNow
         };
