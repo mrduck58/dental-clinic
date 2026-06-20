@@ -14,6 +14,9 @@ abstract class ApiConstants {
   static const String logout = '/auth/logout';
 
   static const String dentists = '/dentists';
+  static const String dentistSlots = '/dentists/slots';
   static const String services = '/services';
   static const String posts = '/posts';
+  static const String appointments = '/appointments';
+  static const String myAppointments = '/appointments/my';
 }

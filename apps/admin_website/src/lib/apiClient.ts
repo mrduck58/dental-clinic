@@ -31,7 +31,7 @@ export interface LoginResponse {
 // ── Auth endpoints ─────────────────────────────────────────────────────────
 
 export async function loginApi(email: string, password: string): Promise<LoginResponse> {
-  const res = await fetch(`${API_URL}/api/auth/login`, {
+  const res = await fetch(`${API_URL}/api/auth/staff/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
@@ -596,7 +596,8 @@ export async function uploadFileApi(file: File): Promise<{ url: string }> {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { title?: string }).title ?? "Upload file thất bại");
   }
-  return res.json() as Promise<{ url: string }>;
+  const data = await res.json() as { url: string };
+  return { url: data.url.startsWith("/") ? `${API_URL}${data.url}` : data.url };
 }
 
 // ── Promotion types ────────────────────────────────────────────────────────
@@ -1149,6 +1150,66 @@ export async function approveLeaveRequestApi(id: string): Promise<LeaveRequestDt
     throw new Error((err as { title?: string }).title ?? "Không thể duyệt đơn nghỉ");
   }
   return res.json() as Promise<LeaveRequestDto>;
+}
+
+// ── Appointment types ──────────────────────────────────────────────────────────
+
+export interface StaffAppointmentDto {
+  appointmentId: string;
+  appointmentCode: string;
+  patientName: string;
+  patientPhone: string | null;
+  dentistName: string;
+  specialization: string;
+  appointmentDate: string; // ISO8601
+  createdAt: string;       // ISO8601
+  status: string;          // "Pending" | "Confirmed" | "Completed" | "Cancelled"
+  symptoms: string | null;
+}
+
+// ── Appointment endpoints ──────────────────────────────────────────────────────
+
+export async function getStaffAppointmentsApi(params?: {
+  date?: string;   // "YYYY-MM-DD"
+  status?: string;
+}): Promise<StaffAppointmentDto[]> {
+  const qs = new URLSearchParams();
+  if (params?.date)   qs.set("date",   params.date);
+  if (params?.status) qs.set("status", params.status);
+  const query = qs.toString() ? `?${qs.toString()}` : "";
+  const res = await fetch(`${API_URL}/api/appointments${query}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách lịch hẹn");
+  }
+  return res.json() as Promise<StaffAppointmentDto[]>;
+}
+
+export async function confirmAppointmentApi(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/appointments/${id}/confirm`, {
+    method: "PUT",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Xác nhận lịch hẹn thất bại");
+  }
+}
+
+export async function cancelAppointmentApi(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/appointments/${id}/cancel`, {
+    method: "PUT",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Hủy lịch hẹn thất bại");
+  }
 }
 
 export async function rejectLeaveRequestApi(id: string, reviewerNote?: string): Promise<LeaveRequestDto> {

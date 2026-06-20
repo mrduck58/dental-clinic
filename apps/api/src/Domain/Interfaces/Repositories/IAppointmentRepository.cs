@@ -11,6 +11,8 @@ public interface IAppointmentRepository
     Task<Appointment?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Appointment>> GetByPatientIdAsync(Guid patientId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Appointment>> GetByDentistIdAsync(Guid dentistId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Appointment>> GetByDateAsync(DateOnly date, CancellationToken cancellationToken = default);
+    Task<bool> IsSlotBookedAsync(Guid dentistId, DateTimeOffset slotTime, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Appointment>> GetAllAsync(CancellationToken cancellationToken = default);
     Task AddAsync(Appointment appointment, CancellationToken cancellationToken = default);
     Task UpdateAsync(Appointment appointment, CancellationToken cancellationToken = default);

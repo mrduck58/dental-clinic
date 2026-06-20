@@ -37,7 +37,7 @@ class MainShell extends StatelessWidget {
               context.go(AppRoutes.profile);
           }
         },
-        onFabTap: () => context.go(AppRoutes.appointments),
+        onFabTap: () => context.push(AppRoutes.bookingSelectPatient),
       ),
     );
   }
