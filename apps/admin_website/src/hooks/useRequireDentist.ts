@@ -11,6 +11,6 @@ export function useRequireDentist() {
     const token = getToken();
     const user = getUser();
     if (!token || !user) { router.replace("/auth/login"); return; }
-    if (user.role !== "Doctor" && user.role !== "Admin") { router.replace("/auth/login"); }
+    if (user.role !== "Dentist" && user.role !== "Admin") { router.replace("/auth/login"); }
   }, [router]);
 }
