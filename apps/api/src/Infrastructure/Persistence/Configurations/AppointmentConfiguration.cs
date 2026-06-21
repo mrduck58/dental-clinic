@@ -12,5 +12,10 @@ public class AppointmentConfiguration : IEntityTypeConfiguration<Appointment>
             .WithMany()
             .HasForeignKey(a => a.ServiceId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasOne(a => a.FollowUpFromAppointment)
+            .WithMany(a => a.FollowUpAppointments)
+            .HasForeignKey(a => a.FollowUpFromAppointmentId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }

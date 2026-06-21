@@ -84,4 +84,21 @@ public class UpdateAppointmentStatusHandler(
         appointment.Complete();
         await appointmentRepository.UpdateAsync(appointment, ct);
     }
+
+    public async Task EndTreatmentAsync(Guid appointmentId, CancellationToken ct = default)
+    {
+        var appointment = await appointmentRepository.GetByIdAsync(appointmentId, ct);
+        if (appointment == null)
+        {
+            logger?.LogWarning("Appointment {Id} not found for EndTreatment", appointmentId);
+            throw new KeyNotFoundException($"Không tìm thấy lịch hẹn {appointmentId}.");
+        }
+
+        if (appointment.Status != AppointmentStatus.InProgress)
+            throw new InvalidOperationException("Chỉ có thể kết thúc điều trị khi đang trong trạng thái đang khám.");
+
+        appointment.EndTreatment();
+        await appointmentRepository.UpdateAsync(appointment, ct);
+        logger?.LogInformation("Appointment {Id} ended treatment, moved to pending payment", appointmentId);
+    }
 }
