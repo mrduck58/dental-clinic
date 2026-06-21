@@ -170,7 +170,7 @@ function OnlineTab() {
                     <div className="flex items-center gap-2.5 flex-wrap">
                       <span className="text-[15px] font-black text-slate-900">{appt.patientName}</span>
                       {appt.patientPhone && <span className="text-[12px] font-medium text-slate-400 font-mono">{appt.patientPhone}</span>}
-                      <span className="px-2 py-0.5 bg-sky-50 text-sky-700 border border-sky-100 rounded-full text-[11.5px] font-black">{appt.specialization}</span>
+                      <span className="px-2 py-0.5 bg-sky-50 text-sky-700 border border-sky-100 rounded-full text-[11.5px] font-black">{appt.serviceName ?? "Khám tổng quát"}</span>
                       <span className="text-[11px] text-slate-400 font-mono">#{appt.appointmentCode}</span>
                     </div>
                     <div className="flex items-center gap-2 mt-1.5 text-[13px] text-slate-500 font-semibold">
@@ -273,7 +273,7 @@ function OnlineTab() {
                 <div className="flex items-center gap-2.5 flex-wrap">
                   <span className="text-[14px] font-bold text-slate-900">{appt.patientName}</span>
                   {appt.patientPhone && <span className="text-[12px] text-slate-400 font-mono">{appt.patientPhone}</span>}
-                  <span className="px-2 py-0.5 bg-sky-50 text-sky-700 border border-sky-100 rounded-full text-[11.5px] font-black">{appt.specialization}</span>
+                  <span className="px-2 py-0.5 bg-sky-50 text-sky-700 border border-sky-100 rounded-full text-[11.5px] font-black">{appt.serviceName ?? "Khám tổng quát"}</span>
                 </div>
                 <p className={`text-[12.5px] font-semibold mt-1 ${action === "confirmed" ? "text-emerald-700" : "text-slate-400"}`}>
                   {action === "confirmed"
@@ -298,6 +298,112 @@ function OnlineTab() {
             <svg className="w-7 h-7 text-slate-400" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" /></svg>
           </div>
           <p className="text-[14px] font-bold text-slate-500">Không có đơn đặt lịch nào đang chờ.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Confirmed tab ──────────────────────────────────────── */
+
+function ConfirmedTab() {
+  const [confirmed, setConfirmed] = useState<StaffAppointmentDto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await getStaffAppointmentsApi({ status: "Confirmed" });
+      setConfirmed(data);
+    } catch {
+      setError("Không thể tải danh sách lịch hẹn đã xác nhận.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+    const channel = supabase
+      .channel("staff-confirmed-tab")
+      .on("postgres_changes", { event: "*", schema: "public", table: "Appointments" }, () => {
+        void load();
+      })
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [load]);
+
+  const fmtDate = (iso: string) => {
+    const d = new Date(iso);
+    return `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}`;
+  };
+  const fmtTime = (iso: string) => {
+    const d = new Date(iso);
+    return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+  };
+
+  if (loading) return (
+    <div className="flex items-center justify-center py-20">
+      <div className="w-8 h-8 border-3 border-primary/20 border-t-primary rounded-full animate-spin" />
+    </div>
+  );
+
+  if (error) return (
+    <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm flex flex-col items-center gap-3 py-16">
+      <p className="text-[14px] font-semibold text-red-500">{error}</p>
+      <button onClick={load} className="px-4 py-2 text-[13px] font-bold bg-primary text-white rounded-xl cursor-pointer">Thử lại</button>
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col gap-6">
+      {confirmed.length > 0 ? (
+        <div className="flex flex-col gap-3">
+          <SectionHeader
+            icon="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            label="Lịch hẹn đã xác nhận"
+            count={confirmed.length}
+          />
+          {confirmed.map(appt => {
+            const initials = appt.patientName.trim().split(/\s+/).slice(-2).map(w => w[0]).join("").toUpperCase();
+            return (
+              <div key={appt.appointmentId} className="bg-white rounded-2xl border border-emerald-100 shadow-sm overflow-hidden hover:shadow-md transition-all">
+                <div className="flex items-center gap-5 px-6 py-4">
+                  <div className="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center font-black text-[13px] text-emerald-700 shrink-0">
+                    {initials}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <span className="text-[15px] font-black text-slate-900">{appt.patientName}</span>
+                      {appt.patientPhone && <span className="text-[12px] font-medium text-slate-400 font-mono">{appt.patientPhone}</span>}
+                      <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full text-[11.5px] font-black">{appt.serviceName ?? "Khám tổng quát"}</span>
+                      <span className="text-[11px] text-slate-400 font-mono">#{appt.appointmentCode}</span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1.5 text-[13px] text-slate-500 font-semibold">
+                      <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" /></svg>
+                      <span>{fmtDate(appt.appointmentDate)} lúc <strong className="text-slate-700">{fmtTime(appt.appointmentDate)}</strong></span>
+                      <span className="text-slate-300">·</span>
+                      <span className="text-[12px] text-slate-400">{appt.dentistName}</span>
+                    </div>
+                  </div>
+                  <div className="shrink-0 flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-black bg-emerald-50 text-emerald-700 border border-emerald-100">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                      Đã xác nhận
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm flex flex-col items-center gap-3 py-20">
+          <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center">
+            <svg className="w-7 h-7 text-emerald-500" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          </div>
+          <p className="text-[14px] font-bold text-slate-500">Không có lịch hẹn nào đã xác nhận.</p>
         </div>
       )}
     </div>
@@ -525,11 +631,12 @@ const STATUS_CFG: Record<string, { label: string; bar: string; badge: string; do
 
 export default function AppointmentsPage() {
   useRequireStaff();
-  const [tab, setTab] = useState<"today"|"online"|"walkin">("online");
+  const [tab, setTab] = useState<"online"|"confirmed"|"walkin"|"today">("online");
 
   // Today's appointments loaded from API for the "today" tab and header badge
   const [todayAppts, setTodayAppts]     = useState<StaffAppointmentDto[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
+  const [confirmedCount, setConfirmedCount] = useState(0);
 
   useEffect(() => {
     const today = new Date();
@@ -549,6 +656,12 @@ export default function AppointmentsPage() {
 
     return () => { void supabase.removeChannel(channel); };
   }, []);
+
+  // Update confirmedCount when todayAppts changes
+  useEffect(() => {
+    const confirmed = todayAppts.filter(a => a.status === "Confirmed").length;
+    setConfirmedCount(confirmed);
+  }, [todayAppts]);
 
   const fmtTime = (iso: string) => {
     const d = new Date(iso);
@@ -573,6 +686,11 @@ export default function AppointmentsPage() {
                   {pendingCount} đơn chờ
                 </span>
               )}
+              {confirmedCount > 0 && (
+                <span className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl">
+                  {confirmedCount} đơn đã xác nhận
+                </span>
+              )}
               <span className="px-2.5 py-1.5 bg-sky-50 text-sky-700 border border-sky-200 rounded-xl">{todayAppts.length} lịch hôm nay</span>
             </div>
           }
@@ -583,6 +701,7 @@ export default function AppointmentsPage() {
           <div className="flex gap-2">
             {([
               { key: "online",  label: "Đơn đặt online",       dot: pendingCount > 0 },
+              { key: "confirmed", label: "Đã xác nhận",         dot: confirmedCount > 0 },
               { key: "walkin",  label: "Đặt lịch tại quầy",    dot: false },
               { key: "today",   label: "Tất cả lịch hôm nay",  dot: false },
             ] as const).map(t => (
@@ -592,8 +711,8 @@ export default function AppointmentsPage() {
                 }`}>
                 {t.label}
                 {t.dot && (
-                  <span className={`px-1.5 py-0.5 rounded-full text-[10.5px] font-black leading-none ${tab === t.key ? "bg-white/25 text-white" : "bg-amber-100 text-amber-700"}`}>
-                    {pendingCount}
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10.5px] font-black leading-none ${tab === t.key ? "bg-white/25 text-white" : "bg-emerald-100 text-emerald-700"}`}>
+                    {t.key === "confirmed" ? confirmedCount : pendingCount}
                   </span>
                 )}
               </button>
@@ -601,7 +720,7 @@ export default function AppointmentsPage() {
           </div>
 
           {tab === "online" && <OnlineTab />}
-
+          {tab === "confirmed" && <ConfirmedTab />}
           {tab === "walkin" && <WalkinTab />}
 
           {tab === "today" && (
@@ -631,7 +750,7 @@ export default function AppointmentsPage() {
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="text-[15px] font-black text-slate-900 leading-tight">{a.patientName}</div>
-                              <div className="text-[13px] font-semibold text-slate-500 mt-0.5">{a.specialization}</div>
+                              <div className="text-[13px] font-semibold text-slate-500 mt-0.5">{a.serviceName ?? "Khám tổng quát"}</div>
                               {a.patientPhone && <div className="text-[12px] text-slate-400 font-medium mt-0.5 font-mono">{a.patientPhone}</div>}
                             </div>
                             <div className="shrink-0 flex flex-col items-end gap-2">

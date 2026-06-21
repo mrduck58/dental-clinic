@@ -98,10 +98,10 @@ export default function DentistSidebar({ activeMenu, onTabChange }: DentistSideb
       <div className="border-t border-slate-100 pt-4 flex flex-col gap-3">
         <div className="flex items-center gap-3 px-2 select-none">
           <div className="w-10 h-10 rounded-full border-2 border-sky-200 bg-sky-50 flex items-center justify-center font-bold text-secondary shrink-0">
-            {initials}
+            <span suppressHydrationWarning>{initials}</span>
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-[14px] font-bold text-slate-900 leading-tight truncate">
+            <div className="text-[14px] font-bold text-slate-900 leading-tight truncate" suppressHydrationWarning>
               {user?.fullName ?? user?.username ?? "..."}
             </div>
             <div className="text-[12px] font-semibold text-slate-400 mt-0.5">Bác sĩ</div>

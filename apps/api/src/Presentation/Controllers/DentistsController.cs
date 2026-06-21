@@ -9,7 +9,8 @@ namespace DentalClinic.API.Presentation.Controllers;
 [Route("api/dentists")]
 public class DentistsController(
     GetDentistsHandler getDentistsHandler,
-    GetDentistSlotsHandler getDentistSlotsHandler) : ControllerBase
+    GetDentistSlotsHandler getDentistSlotsHandler,
+    GetFollowUpSlotsHandler getFollowUpSlotsHandler) : ControllerBase
 {
     /// <summary>GET api/dentists — Danh sách nha sĩ cho trang chủ mobile</summary>
     [HttpGet]
@@ -28,6 +29,20 @@ public class DentistsController(
         CancellationToken cancellationToken)
     {
         var result = await getDentistSlotsHandler.HandleAsync(date, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>GET api/dentists/{dentistId}/slots?date=2026-06-20 — Lấy slots cho bác sĩ cụ thể (tái khám)</summary>
+    [HttpGet("{dentistId}/slots")]
+    [Authorize(Roles = "Dentist,Admin,Staff")]
+    public async Task<IActionResult> GetFollowUpSlots(
+        Guid dentistId,
+        [FromQuery] DateOnly date,
+        CancellationToken cancellationToken)
+    {
+        Console.WriteLine($"[CONTROLLER] GetFollowUpSlots called: dentistId={dentistId}, date={date}");
+        var result = await getFollowUpSlotsHandler.HandleAsync(dentistId, date, cancellationToken);
+        Console.WriteLine($"[CONTROLLER] Result: HasSchedule={result.HasSchedule}, Message={result.Message}, Slots={result.Slots.Count}");
         return Ok(result);
     }
 }

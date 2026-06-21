@@ -32,7 +32,6 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
     _month = DateTime(now.year, now.month);
   }
 
-  bool _isSunday(DateTime d) => d.weekday == DateTime.sunday;
   bool _isPast(DateTime d) {
     final today = DateTime.now();
     return d.isBefore(DateTime(today.year, today.month, today.day));
@@ -41,7 +40,7 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
     final now = DateTime.now();
     return d.year == now.year && d.month == now.month && d.day == now.day;
   }
-  bool _isAvailable(DateTime d) => !_isPast(d) && !_isSunday(d);
+  bool _isAvailable(DateTime d) => !_isPast(d);
   bool _isSelected(DateTime d) =>
       _selected != null &&
       d.year == _selected!.year &&
@@ -147,7 +146,6 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
                 final available = _isAvailable(date);
                 final today = _isToday(date);
                 final selected = _isSelected(date);
-                final sunday = _isSunday(date);
 
                 Color cellColor;
                 if (selected) {
@@ -205,15 +203,6 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
                                   color: selected ? Colors.white : AppColors.primary,
                                   height: 1.2,
                                 ),
-                              )
-                            else if (sunday)
-                              const Text(
-                                'Nghỉ',
-                                style: TextStyle(
-                                  fontSize: 6,
-                                  color: AppColors.textMuted,
-                                  height: 1.2,
-                                ),
                               ),
                           ],
                         ),
@@ -240,12 +229,12 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
                 ),
               ),
               child: RichText(
-                text: const TextSpan(
-                  style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                  children: [
-                    TextSpan(text: 'Chọn ngày có '),
+                text: TextSpan(
+                  style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                  children: const [
+                    TextSpan(text: 'Chọn ngày '),
                     TextSpan(
-                      text: 'màu đỏ',
+                      text: 'có màu xanh',
                       style: TextStyle(
                         color: AppColors.primary,
                         fontWeight: FontWeight.w700,
@@ -321,13 +310,6 @@ class _Legend extends StatelessWidget {
         _LegendRow(
           color: AppColors.background,
           label: 'Ngày đã qua',
-          isRect: true,
-        ),
-        const SizedBox(height: 6),
-        _LegendRow(
-          color: Colors.transparent,
-          label: 'Ngày nghỉ / Chủ nhật',
-          border: AppColors.divider,
           isRect: true,
         ),
       ],

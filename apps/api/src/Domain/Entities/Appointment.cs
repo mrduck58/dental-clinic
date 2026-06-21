@@ -17,8 +17,19 @@ public class Appointment
     // Navigation properties
     public Patient Patient { get; private set; } = null!;
     public Dentist Dentist { get; private set; } = null!;
+    public Service? Service { get; private set; }
     public Invoice? Invoice { get; private set; }
     public MedicalRecord? MedicalRecord { get; private set; }
+
+    // Examination related
+    public ICollection<Diagnosis> Diagnoses { get; private set; } = new List<Diagnosis>();
+    public ICollection<TreatmentPlan> TreatmentPlans { get; private set; } = new List<TreatmentPlan>();
+    public ICollection<Prescription> Prescriptions { get; private set; } = new List<Prescription>();
+
+    // Follow-up appointments
+    public Guid? FollowUpFromAppointmentId { get; private set; }
+    public Appointment? FollowUpFromAppointment { get; private set; }
+    public ICollection<Appointment> FollowUpAppointments { get; private set; } = new List<Appointment>();
 
     private Appointment() { }
 
@@ -45,6 +56,33 @@ public class Appointment
     }
 
     public void Confirm() => Status = AppointmentStatus.Confirmed;
+    public void CheckIn() => Status = AppointmentStatus.CheckedIn;
+    public void StartTreatment() => Status = AppointmentStatus.InProgress;
+    public void EndTreatment() => Status = AppointmentStatus.PendingPayment;
     public void Complete() => Status = AppointmentStatus.Completed;
     public void Cancel() => Status = AppointmentStatus.Cancelled;
+
+    public static Appointment CreateFollowUp(
+        Guid originalAppointmentId,
+        Guid patientId,
+        Guid dentistId,
+        DateTimeOffset appointmentDate,
+        string? symptoms = null,
+        Guid? serviceId = null,
+        string? notes = null)
+    {
+        return new Appointment
+        {
+            Id = Guid.NewGuid(),
+            PatientId = patientId,
+            DentistId = dentistId,
+            ServiceId = serviceId,
+            AppointmentDate = appointmentDate,
+            Status = AppointmentStatus.Pending,
+            Symptoms = symptoms,
+            Notes = notes,
+            FollowUpFromAppointmentId = originalAppointmentId,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+    }
 }

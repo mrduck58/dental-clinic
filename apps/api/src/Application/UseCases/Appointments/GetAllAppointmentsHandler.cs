@@ -10,7 +10,7 @@ public record StaffAppointmentDto(
     string PatientName,
     string? PatientPhone,
     string DentistName,
-    string Specialization,
+    string? ServiceName,
     DateTimeOffset AppointmentDate,
     DateTimeOffset CreatedAt,
     string Status,
@@ -24,6 +24,7 @@ public class GetAllAppointmentsHandler(AppDbContext dbContext)
         var query = dbContext.Appointments
             .Include(a => a.Patient).ThenInclude(p => p.User)
             .Include(a => a.Dentist)
+            .Include(a => a.Service)
             .AsQueryable();
 
         if (date.HasValue)
@@ -45,11 +46,11 @@ public class GetAllAppointmentsHandler(AppDbContext dbContext)
 
         return appointments.Select(a => new StaffAppointmentDto(
             a.Id,
-            $"DK{a.AppointmentDate:yyyyMMdd}{a.Id.ToString("N")[..6].ToUpper()}",
+            $"DK{a.AppointmentDate:yyyyMMdd}{a.Id.ToString()[..6].ToUpper()}",
             a.Patient.FullName,
             a.Patient.User?.PhoneNumber,
             a.Dentist.FullName,
-            a.Dentist.Specialization,
+            a.Service?.Name,
             a.AppointmentDate,
             a.CreatedAt,
             a.Status.ToString(),
