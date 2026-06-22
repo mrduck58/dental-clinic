@@ -1,7 +1,15 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5239";
 
-// ── Types ──────────────────────────────────────────────────────────────────
+export class ApiValidationError extends Error {
+  errors: Record<string, string[]>;
+  constructor(message: string, errors: Record<string, string[]>) {
+    super(message);
+    this.name = "ApiValidationError";
+    this.errors = errors;
+  }
+}
 
+// ── Types ──────────────────────────────────────────────────────────────────
 export interface AuthUser {
   id: string;
   email: string;
@@ -202,6 +210,10 @@ export interface CreateStaffCommand {
   education?: string | null;
   bio?: string | null;
   position?: string | null;
+  employmentType?: string | null;
+  baseSalary?: number | null;
+  salaryUnit?: string | null;
+  leaveAccrued?: number | null;
 }
 
 export interface UpdateStaffCommand {
@@ -228,6 +240,10 @@ export interface UpdateStaffCommand {
   education?: string | null;
   bio?: string | null;
   position?: string | null;
+  employmentType?: string | null;
+  baseSalary?: number | null;
+  salaryUnit?: string | null;
+  leaveAccrued?: number | null;
 }
 
 export interface ResetPasswordResponse {
@@ -270,6 +286,9 @@ export async function createStaffApi(data: CreateStaffCommand): Promise<void> {
   await checkAuth(res);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
+    if (res.status === 422 && err.errors) {
+      throw new ApiValidationError(err.title ?? "Dữ liệu không hợp lệ", err.errors);
+    }
     throw new Error((err as { title?: string }).title ?? "Tạo nhân viên thất bại");
   }
 }
@@ -283,6 +302,9 @@ export async function updateStaffApi(id: string, data: UpdateStaffCommand): Prom
   await checkAuth(res);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
+    if (res.status === 422 && err.errors) {
+      throw new ApiValidationError(err.title ?? "Dữ liệu không hợp lệ", err.errors);
+    }
     throw new Error((err as { title?: string }).title ?? "Cập nhật nhân viên thất bại");
   }
   return res.json() as Promise<StaffDto>;

@@ -138,7 +138,11 @@ public static class DatabaseSeeder
                     CertificateIssuedBy:   null,
                     Education:             null,
                     Bio:                   null,
-                    Position:              null));
+                    Position:              null,
+                    EmploymentType:        "Full-time",
+                    BaseSalary:            null,
+                    SalaryUnit:            "Theo tháng",
+                    LeaveAccrued:          null));
 
                 db.Users.Add(user);
                 staffUsers.Add(user);
