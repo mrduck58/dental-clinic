@@ -42,7 +42,7 @@ public class AuthController(
         CancellationToken cancellationToken)
     {
         var result = await loginHandler.HandleAsync(
-            new LoginCommand(request.Email, request.Password, AllowedRoles: ["Admin", "Dentist", "Staff"]),
+            new LoginCommand(request.Email, request.Password, AllowedRoles: ["Admin", "Dentist", "Staff", "Owner"]),
             cancellationToken);
 
         return Ok(result);
