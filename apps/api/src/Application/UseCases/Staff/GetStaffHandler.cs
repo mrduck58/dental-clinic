@@ -1,4 +1,5 @@
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 
 namespace DentalClinic.API.Application.UseCases.Staff;
@@ -37,7 +38,11 @@ public record StaffItemDto(
     string? CertificateIssuedBy,
     string? Education,
     string? Bio,
-    string? Position);
+    string? Position,
+    string? EmploymentType,
+    decimal? BaseSalary,
+    string? SalaryUnit,
+    decimal? LeaveAccrued);
 
 public record StaffStatsDto(int TotalEmployees, int TotalDentists, int TotalDoctors);
 
@@ -68,7 +73,16 @@ public class GetStaffHandler(IUserRepository userRepository)
             Statistics: new StaffStatsDto(stats.TotalEmployees, stats.TotalDentists, stats.TotalDoctors));
     }
 
-    internal static StaffItemDto ToDto(User u) => new(
+    /// <summary>Get a single staff member by ID.</summary>
+    public async Task<StaffItemDto> GetByIdAsync(Guid id, CancellationToken ct = default)
+    {
+        var user = await userRepository.GetByIdAsync(id, ct)
+            ?? throw new NotFoundException($"Không tìm thấy nhân viên với ID '{id}'.");
+
+        return ToDto(user);
+    }
+
+    public static StaffItemDto ToDto(User u) => new(
         u.Id, u.Username ?? "", u.Email, u.Role,
         u.FullName, u.PhoneNumber, u.IsActive,
         u.EmployeeId, u.Department, u.EmploymentStatus,
@@ -76,5 +90,6 @@ public class GetStaffHandler(IUserRepository userRepository)
         u.Specialty, u.LicenseNumber, u.YearsOfExperience, u.HasAccount,
         u.Gender, u.DateOfBirth, u.Address,
         u.StartDate, u.ServicesHandled, u.CertificateIssuedDate,
-        u.CertificateIssuedBy, u.Education, u.Bio, u.Position);
+        u.CertificateIssuedBy, u.Education, u.Bio, u.Position,
+        u.EmploymentType, u.BaseSalary, u.SalaryUnit, u.LeaveAccrued);
 }
