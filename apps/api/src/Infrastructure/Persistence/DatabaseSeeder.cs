@@ -58,7 +58,11 @@ public static class DatabaseSeeder
                 CertificateIssuedBy:   null,
                 Education:             "Đại học Y Dược TP.HCM - Bác sĩ Răng Hàm Mặt",
                 Bio:                   "Bác sĩ chuyên khoa Răng Hàm Mặt với 8 năm kinh nghiệm.",
-                Position:              "Bác sĩ điều trị"));
+                Position:              "Bác sĩ điều trị",
+                EmploymentType:        "Full-time",
+                BaseSalary:            30000000,
+                SalaryUnit:            "Theo tháng",
+                LeaveAccrued:          12));
 
             db.Users.Add(dentistUser);
             await db.SaveChangesAsync();
