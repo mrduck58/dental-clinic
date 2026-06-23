@@ -26,6 +26,25 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<Appointment>> GetByDateAsync(DateOnly date, CancellationToken cancellationToken = default)
+    {
+        var start = new DateTimeOffset(date.Year, date.Month, date.Day, 0, 0, 0, TimeSpan.Zero);
+        var end = start.AddDays(1);
+        return await dbContext.Appointments
+            .Where(a => a.AppointmentDate >= start && a.AppointmentDate < end)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<bool> IsSlotBookedAsync(Guid dentistId, DateTimeOffset slotTime, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Appointments
+            .AnyAsync(a =>
+                a.DentistId == dentistId &&
+                a.AppointmentDate == slotTime &&
+                a.Status != DentalClinic.API.Domain.Enums.AppointmentStatus.Cancelled,
+                cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Appointment>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         return await dbContext.Appointments

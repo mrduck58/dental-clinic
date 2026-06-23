@@ -150,6 +150,14 @@ public class User
         LeaveAccrued = data.LeaveAccrued;
     }
 
+    public void UpdatePatientProfile(string fullName, string phoneNumber, DateOnly? dateOfBirth, string? gender)
+    {
+        FullName = fullName;
+        PhoneNumber = phoneNumber;
+        DateOfBirth = dateOfBirth;
+        Gender = gender;
+    }
+
     public void ResetPassword(string newPasswordHash) => PasswordHash = newPasswordHash;
 
     public void SetActive(bool isActive) => IsActive = isActive;

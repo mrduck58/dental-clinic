@@ -1,3 +1,4 @@
+using DentalClinic.API.Application.UseCases.Appointments;
 using DentalClinic.API.Application.UseCases.Auth;
 using DentalClinic.API.Application.UseCases.Medicines;
 using DentalClinic.API.Application.UseCases.Feedbacks;
@@ -36,6 +37,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IAppointmentRepository, AppointmentRepository>();
         services.AddScoped<IPatientRepository, PatientRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IOtpRepository, OtpRepository>();
         services.AddScoped<IServiceRepository, ServiceRepository>();
         services.AddScoped<IPostRepository, PostRepository>();
         services.AddScoped<IFeedbackRepository, FeedbackRepository>();
@@ -52,10 +54,16 @@ public static class InfrastructureServiceExtensions
 
         // ── Use Case Handlers ────────────────────────────────────────────────
         services.AddScoped<LoginHandler>();
+        services.AddScoped<RegisterHandler>();
+        services.AddScoped<VerifyOtpHandler>();
+        services.AddScoped<ResendOtpHandler>();
+        services.AddScoped<FillProfileHandler>();
+        services.AddScoped<GetMyProfileHandler>();
         services.AddScoped<CreateAccountHandler>();
         services.AddScoped<GetAccountsHandler>();
 
         services.AddScoped<GetStaffHandler>();
+        services.AddScoped<GetDentistsHandler>();
         services.AddScoped<CreateStaffHandler>();
         services.AddScoped<UpdateStaffHandler>();
         services.AddScoped<ResetStaffPasswordHandler>();
@@ -105,6 +113,20 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<RejectLeaveRequestHandler>();
         services.AddScoped<CancelLeaveRequestHandler>();
       
+        services.AddScoped<GetDentistSlotsHandler>();
+        services.AddScoped<GetFollowUpSlotsHandler>();
+        services.AddScoped<CreateAppointmentHandler>();
+        services.AddScoped<GetMyAppointmentsHandler>();
+        services.AddScoped<GetAllAppointmentsHandler>();
+        services.AddScoped<GetWaitingQueueHandler>();
+        services.AddScoped<GetDentistPatientsHandler>();
+        services.AddScoped<UpdateAppointmentStatusHandler>();
+        services.AddScoped<GetExaminationHandler>();
+        services.AddScoped<DiagnosisHandler>();
+        services.AddScoped<TreatmentPlanHandler>();
+        services.AddScoped<PrescriptionHandler>();
+        services.AddScoped<FollowUpAppointmentHandler>();
+
         services.AddScoped<GetRoomsHandler>();
         services.AddScoped<GetRoomByIdHandler>();
         services.AddScoped<CreateRoomHandler>();

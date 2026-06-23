@@ -10,6 +10,7 @@ namespace DentalClinic.API.Infrastructure.Persistence;
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
     public DbSet<User> Users => Set<User>();
+    public DbSet<OtpCode> OtpCodes => Set<OtpCode>();
     public DbSet<Patient> Patients => Set<Patient>();
     public DbSet<Dentist> Dentists => Set<Dentist>();
     public DbSet<Appointment> Appointments => Set<Appointment>();
@@ -23,6 +24,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<LeaveRequest> LeaveRequests => Set<LeaveRequest>();
     public DbSet<Room> Rooms => Set<Room>();
     public DbSet<Medicine> Medicines => Set<Medicine>();
+    public DbSet<Diagnosis> Diagnoses => Set<Diagnosis>();
+    public DbSet<TreatmentPlan> TreatmentPlans => Set<TreatmentPlan>();
+    public DbSet<TreatmentPlanStep> TreatmentPlanSteps => Set<TreatmentPlanStep>();
+    public DbSet<Prescription> Prescriptions => Set<Prescription>();
+    public DbSet<PrescriptionItem> PrescriptionItems => Set<PrescriptionItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -8,6 +8,7 @@ public class Dentist
     public string Specialization { get; private set; } = string.Empty;
     public int ExperienceYears { get; private set; }
     public string? Biography { get; private set; }
+    public string Shift { get; private set; } = "morning"; // "morning" | "afternoon"
 
     // Navigation properties
     public User User { get; private set; } = null!;
