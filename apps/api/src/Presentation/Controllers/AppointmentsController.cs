@@ -18,6 +18,7 @@ public class AppointmentsController(
     GetAllAppointmentsHandler getAllAppointmentsHandler,
     GetWaitingQueueHandler getWaitingQueueHandler,
     GetDentistPatientsHandler getDentistPatientsHandler,
+    DentistDashboardHandler dentistDashboardHandler,
     UpdateAppointmentStatusHandler updateAppointmentStatusHandler,
     GetExaminationHandler getExaminationHandler,
     DiagnosisHandler diagnosisHandler,
@@ -93,9 +94,9 @@ public class AppointmentsController(
         return NoContent();
     }
 
-    /// <summary>PUT api/appointments/{id}/start — Bắt đầu khám (Staff/Admin)</summary>
+    /// <summary>PUT api/appointments/{id}/start — Bắt đầu khám (Dentist/Staff/Admin)</summary>
     [HttpPut("{id}/start")]
-    [Authorize(Roles = "Staff,Admin")]
+    [Authorize(Roles = "Dentist")]
     public async Task<IActionResult> StartTreatment(Guid id, CancellationToken cancellationToken)
     {
         await updateAppointmentStatusHandler.StartTreatmentAsync(id, cancellationToken);
@@ -367,6 +368,16 @@ public class AppointmentsController(
         return Ok(result);
     }
 
+    /// <summary>GET api/appointments/dentist/dashboard — Dữ liệu tổng quan cho bác sĩ (Dentist/Admin)</summary>
+    [HttpGet("dentist/dashboard")]
+    [Authorize(Roles = "Dentist,Admin")]
+    public async Task<IActionResult> GetDentistDashboard(CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        var result = await dentistDashboardHandler.HandleAsync(userId, cancellationToken);
+        return Ok(result);
+    }
+
     /// <summary>GET api/appointments/dentist/patients — Lấy danh sách bệnh nhân của bác sĩ trong ngày (Dentist)</summary>
     [HttpGet("dentist/patients")]
     [Authorize(Roles = "Dentist")]
@@ -385,6 +396,60 @@ public class AppointmentsController(
 
         var result = await getDentistPatientsHandler.HandleAsync(dentist.Id, queryDate, cancellationToken);
         return Ok(result);
+    }
+
+    /// <summary>DEBUG: Kiểm tra trạng thái dữ liệu seed cho dashboard bác sĩ</summary>
+    [HttpGet("debug/dashboard-state")]
+    [AllowAnonymous]
+    public async Task<IActionResult> DebugDashboardState(CancellationToken cancellationToken)
+    {
+        var vietnamTz = TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
+        var vnNow  = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, vietnamTz);
+        var today  = DateOnly.FromDateTime(vnNow);
+        var offset = vietnamTz.BaseUtcOffset;
+        var utcStart = new DateTimeOffset(today.Year, today.Month, today.Day, 0, 0, 0, offset).ToUniversalTime();
+        var utcEnd   = utcStart.AddDays(1);
+
+        var dentists = await dbContext.Dentists
+            .Select(d => new { d.Id, d.FullName, d.UserId })
+            .ToListAsync(cancellationToken);
+
+        var todaySchedules = await dbContext.WorkSchedules
+            .Where(s => s.Date == today)
+            .Select(s => new { s.StaffName, s.Shift, s.Room, s.Date })
+            .ToListAsync(cancellationToken);
+
+        var weekStart = today.AddDays(-((int)today.DayOfWeek == 0 ? 6 : (int)today.DayOfWeek - 1));
+        var weekSchedules = await dbContext.WorkSchedules
+            .Where(s => s.Date >= weekStart && s.Date < weekStart.AddDays(7))
+            .Select(s => new { s.StaffName, s.Shift, s.Date })
+            .ToListAsync(cancellationToken);
+
+        var todayAppts = await dbContext.Appointments
+            .Where(a => a.AppointmentDate >= utcStart && a.AppointmentDate < utcEnd)
+            .Select(a => new { a.DentistId, a.AppointmentDate, Status = a.Status.ToString() })
+            .ToListAsync(cancellationToken);
+
+        var thaoUser = await dbContext.Users
+            .Where(u => u.Email == "thao.nguyen@dentalclinic.com")
+            .Select(u => new { u.Id, u.Email, u.FullName })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return Ok(new {
+            serverVnTime   = vnNow.ToString("yyyy-MM-dd HH:mm:ss"),
+            today          = today.ToString(),
+            utcStart       = utcStart.ToString("o"),
+            utcEnd         = utcEnd.ToString("o"),
+            thaoUser,
+            dentistCount   = dentists.Count,
+            dentists,
+            todayScheduleCount = todaySchedules.Count,
+            todaySchedules,
+            weekScheduleCount  = weekSchedules.Count,
+            weekSchedules,
+            todayApptCount     = todayAppts.Count,
+            todayAppts,
+        });
     }
 
     /// <summary>DEBUG: Check appointment status values in database</summary>

@@ -11,9 +11,10 @@ import { supabase } from "../../../lib/supabaseClient";
 type PatientStatus = "waiting" | "in_progress" | "done";
 
 const STATUS_MAP: Record<string, PatientStatus> = {
-  "CheckedIn": "waiting",
-  "InProgress": "in_progress",
-  "Completed": "done",
+  "CheckedIn":      "waiting",
+  "InProgress":     "in_progress",
+  "PendingPayment": "done",
+  "Completed":      "done",
 };
 
 const STATUS_CFG: Record<PatientStatus, { label: string; bar: string; badge: string; dot: string }> = {

@@ -97,6 +97,7 @@ using (var scope = app.Services.CreateScope())
     await db.Database.MigrateAsync();
     await DatabaseSeeder.SeedAsync(db);
     await DatabaseSeeder.SeedLeaveRequestsAsync(db);
+    await DatabaseSeeder.SeedDentistDashboardAsync(db);
 }
 if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
