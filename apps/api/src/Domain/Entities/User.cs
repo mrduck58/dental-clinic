@@ -38,6 +38,12 @@ public class User
     public string? Bio { get; private set; }
     public string? Position { get; private set; }
 
+    // Salary & Leave fields
+    public string? EmploymentType { get; private set; }   // "Full-time", "Part-time", "Intern"
+    public decimal? BaseSalary { get; private set; }
+    public string? SalaryUnit { get; private set; }       // "Theo tháng", "Theo ngày", "Theo ca"
+    public decimal? LeaveAccrued { get; private set; }    // Ngày phép tích luỹ/tháng
+
     public bool HasAccount => PasswordHash != null;
 
     // Navigation properties
@@ -108,6 +114,10 @@ public class User
         Education = profile.Education;
         Bio = profile.Bio;
         Position = profile.Position;
+        EmploymentType = profile.EmploymentType;
+        BaseSalary = profile.BaseSalary;
+        SalaryUnit = profile.SalaryUnit;
+        LeaveAccrued = profile.LeaveAccrued;
     }
 
     public void Update(UpdateStaffData data)
@@ -134,6 +144,10 @@ public class User
         Education = data.Education;
         Bio = data.Bio;
         Position = data.Position;
+        EmploymentType = data.EmploymentType;
+        BaseSalary = data.BaseSalary;
+        SalaryUnit = data.SalaryUnit;
+        LeaveAccrued = data.LeaveAccrued;
     }
 
     public void UpdatePatientProfile(string fullName, string phoneNumber, DateOnly? dateOfBirth, string? gender)
@@ -194,7 +208,11 @@ public record StaffProfileData(
     string? CertificateIssuedBy,
     string? Education,
     string? Bio,
-    string? Position);
+    string? Position,
+    string? EmploymentType,
+    decimal? BaseSalary,
+    string? SalaryUnit,
+    decimal? LeaveAccrued);
 
 public record UpdateStaffData(
     string FullName,
@@ -218,4 +236,8 @@ public record UpdateStaffData(
     string? CertificateIssuedBy,
     string? Education,
     string? Bio,
-    string? Position);
+    string? Position,
+    string? EmploymentType,
+    decimal? BaseSalary,
+    string? SalaryUnit,
+    decimal? LeaveAccrued);

@@ -12,6 +12,163 @@ public static class DatabaseSeeder
         await SeedRoomsAsync(db);
     }
 
+    /// <summary>
+    /// Seed dữ liệu mẫu cho dashboard bác sĩ — idempotent, chạy mỗi lần restart
+    /// để bổ sung dữ liệu còn thiếu (lịch tuần, lịch hẹn hôm nay).
+    /// </summary>
+    public static async Task SeedDentistDashboardAsync(AppDbContext db)
+    {
+        var vietnamTz = TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
+        var vnNow     = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, vietnamTz);
+        var today     = DateOnly.FromDateTime(vnNow);
+        var vnOffset  = vietnamTz.BaseUtcOffset;
+
+        const string dentistEmail = "thao.nguyen@dentalclinic.com";
+        const string dentistPwd   = "Dentist@123456";
+        const string dentistName  = "Nguyễn Thị Thảo";
+
+        // ── 1. Find or create dentist user ─────────────────────────────────
+        var dentistUser = await db.Users.FirstOrDefaultAsync(u => u.Email == dentistEmail);
+        if (dentistUser == null)
+        {
+            var hash = BCrypt.Net.BCrypt.HashPassword(dentistPwd, workFactor: 10);
+            dentistUser = User.Create(
+                username:     "thao.nguyen",
+                email:        dentistEmail,
+                passwordHash: hash,
+                role:         "Dentist",
+                phoneNumber:  "0912345678",
+                fullName:     dentistName);
+
+            dentistUser.SetStaffProfile(new StaffProfileData(
+                EmployeeId:            "BS001",
+                Department:            "Bác sĩ",
+                EmploymentStatus:      "full-time",
+                ProfilePictureUrl:     null,
+                ProfessionalNotes:     null,
+                Specialty:             "Nha khoa tổng quát & Implant",
+                LicenseNumber:         "NHA-2018-001",
+                YearsOfExperience:     8,
+                Gender:                "Nữ",
+                DateOfBirth:           new DateOnly(1990, 3, 15),
+                Address:               "123 Nguyễn Huệ, Q.1, TP.HCM",
+                StartDate:             new DateOnly(2018, 6, 1),
+                ServicesHandled:       null,
+                CertificateIssuedDate: null,
+                CertificateIssuedBy:   null,
+                Education:             "Đại học Y Dược TP.HCM - Bác sĩ Răng Hàm Mặt",
+                Bio:                   "Bác sĩ chuyên khoa Răng Hàm Mặt với 8 năm kinh nghiệm.",
+                Position:              "Bác sĩ điều trị"));
+
+            db.Users.Add(dentistUser);
+            await db.SaveChangesAsync();
+            Console.WriteLine($"  [SEED] Đã tạo tài khoản bác sĩ: {dentistEmail} / {dentistPwd}");
+        }
+
+        // ── 2. Find or create Dentist record ───────────────────────────────
+        var dentist = await db.Dentists.FirstOrDefaultAsync(d => d.UserId == dentistUser.Id);
+        if (dentist == null)
+        {
+            dentist = Dentist.Create(dentistUser.Id, dentistName, "Nha khoa tổng quát & Implant", 8);
+            db.Dentists.Add(dentist);
+            await db.SaveChangesAsync();
+            Console.WriteLine($"  [SEED] Đã tạo Dentist record cho {dentistName}");
+        }
+
+        // ── 3. Work schedules tuần này — chỉ thêm ca chưa có ──────────────
+        var dow = (int)today.DayOfWeek;
+        var daysFromMon = dow == 0 ? 6 : dow - 1;
+        var weekMon = today.AddDays(-daysFromMon);
+        var weekEnd = weekMon.AddDays(7);
+
+        var existingSchedules = await db.WorkSchedules
+            .Where(s => s.StaffName == dentistName && s.Date >= weekMon && s.Date < weekEnd)
+            .Select(s => new { s.Date, s.Shift })
+            .ToListAsync();
+
+        var existingKeys = existingSchedules.Select(s => (s.Date, s.Shift)).ToHashSet();
+
+        var scheduleSpecs = new (DateOnly Date, string Shift, string Room)[]
+        {
+            (weekMon,              "morning",   "Phòng 1"),  // Thứ 2
+            (weekMon.AddDays(1),   "morning",   "Phòng 1"),  // Thứ 3 (hôm nay)
+            (weekMon.AddDays(3),   "afternoon", "Phòng 2"),  // Thứ 5
+            (weekMon.AddDays(4),   "morning",   "Phòng 1"),  // Thứ 6
+            (weekMon.AddDays(5),   "afternoon", "Phòng 3"),  // Thứ 7
+        };
+
+        var addedSchedules = 0;
+        foreach (var (date, shift, room) in scheduleSpecs)
+        {
+            if (existingKeys.Contains((date, shift))) continue;
+            var color = shift == "morning" ? "border-primary" : "border-secondary";
+            db.WorkSchedules.Add(WorkSchedule.Create(date, shift, "dentist", "dentist", dentistName, room, color, false));
+            addedSchedules++;
+        }
+        if (addedSchedules > 0)
+        {
+            await db.SaveChangesAsync();
+            Console.WriteLine($"  [SEED] Đã thêm {addedSchedules} ca làm việc tuần này");
+        }
+
+        // ── 4. Lịch hẹn hôm nay — chỉ tạo nếu chưa có ────────────────────
+        var todayVnStart = new DateTimeOffset(today.Year, today.Month, today.Day, 0, 0, 0, vnOffset);
+        var utcStart = todayVnStart.ToUniversalTime();
+        var utcEnd   = utcStart.AddDays(1);
+
+        var hasToday = await db.Appointments
+            .AnyAsync(a => a.DentistId == dentist.Id &&
+                           a.AppointmentDate >= utcStart &&
+                           a.AppointmentDate < utcEnd);
+
+        if (!hasToday)
+        {
+            // Tạo bệnh nhân
+            var patients = new[]
+            {
+                Patient.Create("Trần Thị Bích",   new DateOnly(1990, 5, 20), "Nữ"),
+                Patient.Create("Phạm Minh Cường",  new DateOnly(1985, 8, 14), "Nam"),
+                Patient.Create("Lê Thu Hà",        new DateOnly(1995, 3, 8),  "Nữ"),
+                Patient.Create("Hoàng Văn Đức",    new DateOnly(1978, 11, 2), "Nam"),
+                Patient.Create("Nguyễn Thị Mai",   new DateOnly(2000, 1, 25), "Nữ"),
+                Patient.Create("Lê Văn Nam",        new DateOnly(1992, 7, 17), "Nam"),
+                Patient.Create("Trần Minh Kha",    new DateOnly(1988, 4, 30), "Nam"),
+                Patient.Create("Đỗ Thị Lan",       new DateOnly(1975, 9, 11), "Nữ"),
+            };
+            db.Patients.AddRange(patients);
+            await db.SaveChangesAsync();
+
+            DateTimeOffset VnTime(int h, int m) =>
+                new DateTimeOffset(today.Year, today.Month, today.Day, h, m, 0, vnOffset).ToUniversalTime();
+
+            var appts = new[]
+            {
+                (patients[7], VnTime(7, 30),  "Kiểm tra định kỳ",             AppointmentStatus.Completed),
+                (patients[0], VnTime(8,  0),  "Trám răng số 6",               AppointmentStatus.PendingPayment),
+                (patients[1], VnTime(8, 30),  "Lấy cao răng định kỳ",         AppointmentStatus.InProgress),
+                (patients[2], VnTime(9,  0),  "Tẩy trắng răng Zoom Advanced", AppointmentStatus.CheckedIn),
+                (patients[3], VnTime(9, 30),  "Cấy ghép Implant răng số 4",   AppointmentStatus.CheckedIn),
+                (patients[4], VnTime(10, 30), "Nhổ răng khôn số 8",           AppointmentStatus.Confirmed),
+                (patients[5], VnTime(11,  0), "Chụp X-Quang toàn cảnh",       AppointmentStatus.Confirmed),
+                (patients[6], VnTime(13,  0), "Niềng răng - tái khám",        AppointmentStatus.Confirmed),
+            };
+
+            foreach (var (patient, apptDate, symptoms, finalStatus) in appts)
+            {
+                var a = Appointment.Create(patient.Id, dentist.Id, apptDate, symptoms);
+                a.Confirm();
+                if (finalStatus == AppointmentStatus.CheckedIn)      { a.CheckIn(); }
+                if (finalStatus == AppointmentStatus.InProgress)     { a.CheckIn(); a.StartTreatment(); }
+                if (finalStatus == AppointmentStatus.PendingPayment) { a.CheckIn(); a.StartTreatment(); a.EndTreatment(); }
+                if (finalStatus == AppointmentStatus.Completed)      { a.CheckIn(); a.StartTreatment(); a.EndTreatment(); a.Complete(); }
+                db.Appointments.Add(a);
+            }
+            await db.SaveChangesAsync();
+
+            Console.WriteLine($"  [SEED] Đã tạo {appts.Length} lịch hẹn cho ngày {today:dd/MM/yyyy}");
+        }
+    }
+
     private static async Task SeedUsersAsync(AppDbContext db)
     {
         // 1. Seed admin if not present
@@ -206,7 +363,11 @@ public static class DatabaseSeeder
                     CertificateIssuedBy:   null,
                     Education:             null,
                     Bio:                   null,
-                    Position:              null));
+                    Position:              null,
+                    EmploymentType:        "Full-time",
+                    BaseSalary:            null,
+                    SalaryUnit:            "Theo tháng",
+                    LeaveAccrued:          null));
 
                 db.Users.Add(user);
                 staffUsers.Add(user);

@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>efd51a2e-a779-4fb7-8c44-d7188504cb26</UserSecretsId>
+    <DefaultItemExcludes>$(DefaultItemExcludes);DentalClinic.API.Tests\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>

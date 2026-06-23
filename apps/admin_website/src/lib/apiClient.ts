@@ -1,7 +1,15 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5239";
 
-// ── Types ──────────────────────────────────────────────────────────────────
+export class ApiValidationError extends Error {
+  errors: Record<string, string[]>;
+  constructor(message: string, errors: Record<string, string[]>) {
+    super(message);
+    this.name = "ApiValidationError";
+    this.errors = errors;
+  }
+}
 
+// ── Types ──────────────────────────────────────────────────────────────────
 export interface AuthUser {
   id: string;
   email: string;
@@ -203,6 +211,10 @@ export interface CreateStaffCommand {
   education?: string | null;
   bio?: string | null;
   position?: string | null;
+  employmentType?: string | null;
+  baseSalary?: number | null;
+  salaryUnit?: string | null;
+  leaveAccrued?: number | null;
 }
 
 export interface UpdateStaffCommand {
@@ -229,6 +241,10 @@ export interface UpdateStaffCommand {
   education?: string | null;
   bio?: string | null;
   position?: string | null;
+  employmentType?: string | null;
+  baseSalary?: number | null;
+  salaryUnit?: string | null;
+  leaveAccrued?: number | null;
 }
 
 export interface ResetPasswordResponse {
@@ -271,6 +287,9 @@ export async function createStaffApi(data: CreateStaffCommand): Promise<void> {
   await checkAuth(res);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
+    if (res.status === 422 && err.errors) {
+      throw new ApiValidationError(err.title ?? "Dữ liệu không hợp lệ", err.errors);
+    }
     throw new Error((err as { title?: string }).title ?? "Tạo nhân viên thất bại");
   }
 }
@@ -284,6 +303,9 @@ export async function updateStaffApi(id: string, data: UpdateStaffCommand): Prom
   await checkAuth(res);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
+    if (res.status === 422 && err.errors) {
+      throw new ApiValidationError(err.title ?? "Dữ liệu không hợp lệ", err.errors);
+    }
     throw new Error((err as { title?: string }).title ?? "Cập nhật nhân viên thất bại");
   }
   return res.json() as Promise<StaffDto>;
@@ -1314,6 +1336,52 @@ export interface DentistPatientsResponse {
   totalInProgress: number;
   totalCompleted: number;
   patients: DentistPatientDto[];
+}
+
+// ── Dentist Dashboard ──────────────────────────────────────────────────────
+
+export interface DentistShiftInfo {
+  hasShift: boolean;
+  time: string | null;
+  room: string | null;
+}
+
+export interface DentistWeekShifts {
+  total: number;
+  morning: number;
+  afternoon: number;
+}
+
+export interface DentistDashboardPatientDto {
+  appointmentId: string;
+  patientName: string;
+  serviceName: string | null;
+  time: string;
+  status: string;
+}
+
+export interface DentistDashboardResponse {
+  date: string;
+  totalPatientsToday: number;
+  totalWaiting: number;
+  totalInProgress: number;
+  totalCompleted: number;
+  weekShifts: DentistWeekShifts;
+  morningShift: DentistShiftInfo;
+  afternoonShift: DentistShiftInfo;
+  upcomingPatients: DentistDashboardPatientDto[];
+}
+
+export async function getDentistDashboardApi(): Promise<DentistDashboardResponse> {
+  const res = await fetch(`${API_URL}/api/appointments/dentist/dashboard`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải tổng quan");
+  }
+  return res.json() as Promise<DentistDashboardResponse>;
 }
 
 export async function getDentistPatientsApi(date?: string): Promise<DentistPatientsResponse> {
