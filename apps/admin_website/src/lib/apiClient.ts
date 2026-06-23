@@ -1315,6 +1315,52 @@ export interface DentistPatientsResponse {
   patients: DentistPatientDto[];
 }
 
+// ── Dentist Dashboard ──────────────────────────────────────────────────────
+
+export interface DentistShiftInfo {
+  hasShift: boolean;
+  time: string | null;
+  room: string | null;
+}
+
+export interface DentistWeekShifts {
+  total: number;
+  morning: number;
+  afternoon: number;
+}
+
+export interface DentistDashboardPatientDto {
+  appointmentId: string;
+  patientName: string;
+  serviceName: string | null;
+  time: string;
+  status: string;
+}
+
+export interface DentistDashboardResponse {
+  date: string;
+  totalPatientsToday: number;
+  totalWaiting: number;
+  totalInProgress: number;
+  totalCompleted: number;
+  weekShifts: DentistWeekShifts;
+  morningShift: DentistShiftInfo;
+  afternoonShift: DentistShiftInfo;
+  upcomingPatients: DentistDashboardPatientDto[];
+}
+
+export async function getDentistDashboardApi(): Promise<DentistDashboardResponse> {
+  const res = await fetch(`${API_URL}/api/appointments/dentist/dashboard`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải tổng quan");
+  }
+  return res.json() as Promise<DentistDashboardResponse>;
+}
+
 export async function getDentistPatientsApi(date?: string): Promise<DentistPatientsResponse> {
   const params = new URLSearchParams();
   if (date) params.set("date", date);

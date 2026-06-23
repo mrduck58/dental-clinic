@@ -41,8 +41,9 @@ public class GetDentistPatientsHandler(AppDbContext dbContext)
             .Where(a => a.DentistId == dentistId &&
                         a.AppointmentDate >= utcStart &&
                         a.AppointmentDate < utcEnd &&
-                        (a.Status == AppointmentStatus.CheckedIn ||
-                         a.Status == AppointmentStatus.InProgress ||
+                        (a.Status == AppointmentStatus.CheckedIn    ||
+                         a.Status == AppointmentStatus.InProgress   ||
+                         a.Status == AppointmentStatus.PendingPayment ||
                          a.Status == AppointmentStatus.Completed))
             .OrderBy(a => a.AppointmentDate)
             .ToListAsync(ct);
@@ -65,7 +66,8 @@ public class GetDentistPatientsHandler(AppDbContext dbContext)
             date,
             appointments.Count(a => a.Status == AppointmentStatus.CheckedIn),
             appointments.Count(a => a.Status == AppointmentStatus.InProgress),
-            appointments.Count(a => a.Status == AppointmentStatus.Completed),
+            appointments.Count(a => a.Status == AppointmentStatus.PendingPayment ||
+                                   a.Status == AppointmentStatus.Completed),
             patients);
     }
 
