@@ -28,7 +28,9 @@ public record UserProfileDto(
     string SalaryNote,
     DateOnly? CertificateIssuedDate,
     string? CertificateIssuedBy,
-    string? ServicesHandled
+    string? ServicesHandled,
+    string? Username,
+    DateTimeOffset CreatedAt
 );
 
 public class GetMyProfileHandler(IUserRepository userRepository)
@@ -86,7 +88,9 @@ public class GetMyProfileHandler(IUserRepository userRepository)
             salaryNote,
             user.CertificateIssuedDate,
             user.CertificateIssuedBy,
-            user.ServicesHandled
+            user.ServicesHandled,
+            user.Username,
+            user.CreatedAt
         );
     }
 }

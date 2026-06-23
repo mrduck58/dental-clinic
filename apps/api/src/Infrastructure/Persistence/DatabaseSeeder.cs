@@ -271,6 +271,20 @@ public static class DatabaseSeeder
             Console.WriteLine("Password: Staff@123456");
             Console.WriteLine("─────────────────────────────────────────────");
         }
+
+        // 4. Ensure test owner user exists
+        if (!await db.Users.AnyAsync(u => u.Email == "owner_test@dentalclinic.com"))
+        {
+            var hash = BCrypt.Net.BCrypt.HashPassword("Staff@123456", workFactor: 10);
+            var owner = User.Create("owner_test", "owner_test@dentalclinic.com", hash, "Owner", "0907777777", "Owner Test");
+            db.Users.Add(owner);
+            await db.SaveChangesAsync();
+            Console.WriteLine("─────────────────────────────────────────────");
+            Console.WriteLine("[SEED] Đã tạo tài khoản Owner test:");
+            Console.WriteLine("Email:    owner_test@dentalclinic.com");
+            Console.WriteLine("Password: Staff@123456");
+            Console.WriteLine("─────────────────────────────────────────────");
+        }
     }
 
     private static async Task SeedRoomsAsync(AppDbContext db)

@@ -1889,6 +1889,8 @@ export interface UserProfileDto {
   certificateIssuedDate: string | null;
   certificateIssuedBy: string | null;
   servicesHandled: string | null;
+  username: string | null;
+  createdAt: string;
 }
 
 export interface UpdateMyProfileCommand {

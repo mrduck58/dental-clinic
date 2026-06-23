@@ -35,6 +35,22 @@ const formatDate = (dateStr: string | null | undefined) => {
   }
 };
 
+const formatTimestamp = (tsStr: string | null | undefined) => {
+  if (!tsStr) return "N/A";
+  try {
+    const date = new Date(tsStr);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+  } catch {
+    return tsStr;
+  }
+};
+
 export default function ProfilePageContent({ sidebar }: ProfilePageContentProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -234,6 +250,49 @@ export default function ProfilePageContent({ sidebar }: ProfilePageContentProps)
           action: "Xác nhận lịch hẹn tái khám niềng răng Invisalign",
           module: "Lịch hẹn",
           ip: "192.168.1.25",
+          status: "success",
+        }
+      ];
+    } else if (role === "Owner") {
+      logs = [
+        {
+          id: "ACT-001",
+          time: "Hôm nay, 17:10:00",
+          action: "Đăng nhập hệ thống (Cổng thông tin Chủ phòng khám) thành công (Safari/macOS)",
+          module: "Hệ thống",
+          ip: "192.168.1.10",
+          status: "success",
+        },
+        {
+          id: "ACT-002",
+          time: "Hôm nay, 16:45:12",
+          action: "Xem báo cáo doanh thu chi tiết phòng khám tháng 6/2026",
+          module: "Báo cáo",
+          ip: "192.168.1.10",
+          status: "success",
+        },
+        {
+          id: "ACT-003",
+          time: "Hôm nay, 15:30:00",
+          action: "Kiểm tra nhật ký hoạt động của quản trị viên hệ thống",
+          module: "Hệ thống",
+          ip: "192.168.1.10",
+          status: "success",
+        },
+        {
+          id: "ACT-004",
+          time: "Hôm qua, 14:20:45",
+          action: "Xem lịch sử thay đổi bảng giá dịch vụ điều trị",
+          module: "Dịch vụ",
+          ip: "192.168.1.10",
+          status: "success",
+        },
+        {
+          id: "ACT-005",
+          time: "2 ngày trước, 09:15:00",
+          action: "Phê duyệt kế hoạch ngân sách mua vật tư y tế quý 3/2026",
+          module: "Tài chính",
+          ip: "192.168.1.10",
           status: "success",
         }
       ];
@@ -541,52 +600,54 @@ export default function ProfilePageContent({ sidebar }: ProfilePageContentProps)
 
                   <h2 className="text-xl font-bold text-slate-900 leading-tight">{fullName || profile?.email}</h2>
                   <span className="px-3 py-1 bg-primary/10 text-primary font-bold text-[12px] rounded-full mt-2 uppercase tracking-wide">
-                    {profile?.role === "Admin" ? "Quản trị viên" : profile?.role === "Dentist" ? "Bác sĩ Nha khoa" : "Nhân viên"}
+                    {profile?.role === "Admin" ? "Quản trị viên" : profile?.role === "Dentist" ? "Bác sĩ Nha khoa" : profile?.role === "Owner" ? "Chủ phòng khám" : "Nhân viên"}
                   </span>
                 </div>
 
                 {/* Compensation Premium Glass Card (Read-only) */}
-                <div className="bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-950 text-white rounded-2xl p-6 shadow-md border border-slate-800 flex flex-col gap-4 relative overflow-hidden">
-                  <div className="absolute right-0 top-0 translate-x-1/3 -translate-y-1/3 w-32 h-32 bg-primary/20 rounded-full blur-xl pointer-events-none" />
-                  <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                    <h3 className="text-[16px] font-extrabold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                      💵 Lương & Chi trả
-                    </h3>
-                    <span className="text-[10px] bg-white/15 px-2 py-0.5 rounded-full font-bold text-white/80">Chỉ đọc</span>
-                  </div>
+                {profile?.role !== "Owner" && (
+                  <div className="bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-950 text-white rounded-2xl p-6 shadow-md border border-slate-800 flex flex-col gap-4 relative overflow-hidden">
+                    <div className="absolute right-0 top-0 translate-x-1/3 -translate-y-1/3 w-32 h-32 bg-primary/20 rounded-full blur-xl pointer-events-none" />
+                    <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                      <h3 className="text-[16px] font-extrabold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                        💵 Lương & Chi trả
+                      </h3>
+                      <span className="text-[10px] bg-white/15 px-2 py-0.5 rounded-full font-bold text-white/80">Chỉ đọc</span>
+                    </div>
 
-                  <div className="flex flex-col gap-3">
-                    <div className="flex justify-between items-baseline">
-                      <span className="text-[13px] font-medium text-white/60">
-                        {profile?.role === "Dentist" && "Lương cơ bản cao:"}
-                        {profile?.role === "Staff" && "Lương cơ bản hành chính:"}
-                        {profile?.role === "Admin" && "Lương cơ bản quản lý:"}
-                      </span>
-                      <span className="text-[16px] font-bold">{formatCurrency(profile?.baseSalary || 0)}</span>
+                    <div className="flex flex-col gap-3">
+                      <div className="flex justify-between items-baseline">
+                        <span className="text-[13px] font-medium text-white/60">
+                          {profile?.role === "Dentist" && "Lương cơ bản cao:"}
+                          {profile?.role === "Staff" && "Lương cơ bản hành chính:"}
+                          {profile?.role === "Admin" && "Lương cơ bản quản lý:"}
+                        </span>
+                        <span className="text-[16px] font-bold">{formatCurrency(profile?.baseSalary || 0)}</span>
+                      </div>
+                      <div className="flex justify-between items-baseline">
+                        <span className="text-[13px] font-medium text-white/60">
+                          {profile?.role === "Dentist" && "Phụ cấp chuyên môn (ca điều trị):"}
+                          {profile?.role === "Staff" && "Phụ cấp tăng ca/trách nhiệm:"}
+                          {profile?.role === "Admin" && "Phụ cấp thâm niên:"}
+                        </span>
+                        <span className="text-[16px] font-bold text-emerald-400">+{formatCurrency(profile?.allowance || 0)}</span>
+                      </div>
+                      <div className="border-t border-white/5 my-1" />
+                      <div className="flex justify-between items-baseline">
+                        <span className="text-[14px] font-bold text-white/80">Tổng thu nhập tạm tính:</span>
+                        <span className="text-[20px] font-black text-amber-300">
+                          {formatCurrency((profile?.baseSalary || 0) + (profile?.allowance || 0))}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex justify-between items-baseline">
-                      <span className="text-[13px] font-medium text-white/60">
-                        {profile?.role === "Dentist" && "Phụ cấp chuyên môn (ca điều trị):"}
-                        {profile?.role === "Staff" && "Phụ cấp tăng ca/trách nhiệm:"}
-                        {profile?.role === "Admin" && "Phụ cấp thâm niên:"}
-                      </span>
-                      <span className="text-[16px] font-bold text-emerald-400">+{formatCurrency(profile?.allowance || 0)}</span>
-                    </div>
-                    <div className="border-t border-white/5 my-1" />
-                    <div className="flex justify-between items-baseline">
-                      <span className="text-[14px] font-bold text-white/80">Tổng thu nhập tạm tính:</span>
-                      <span className="text-[20px] font-black text-amber-300">
-                        {formatCurrency((profile?.baseSalary || 0) + (profile?.allowance || 0))}
-                      </span>
-                    </div>
-                  </div>
 
-                  {profile?.salaryNote && (
-                    <p className="text-[11.5px] italic text-white/50 leading-relaxed border-t border-white/10 pt-3">
-                      * {profile.salaryNote}
-                    </p>
-                  )}
-                </div>
+                    {profile?.salaryNote && (
+                      <p className="text-[11.5px] italic text-white/50 leading-relaxed border-t border-white/10 pt-3">
+                        * {profile.salaryNote}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Right Column - Detailed Form */}
@@ -986,7 +1047,67 @@ export default function ProfilePageContent({ sidebar }: ProfilePageContentProps)
                     </div>
                   )}
 
-                  {profile?.role !== "Admin" && (
+                  {/* Read-Only section for Owner inside form */}
+                  {profile?.role === "Owner" && (
+                    <div className="border-t border-slate-100 pt-5 mt-2 flex flex-col gap-5">
+                      <h4 className="text-[15px] font-extrabold text-slate-900 flex items-center gap-1.5">
+                        ⚙️ Thông tin Tài khoản <span className="text-[11.5px] font-normal text-slate-400">(Chỉ đọc)</span>
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[13px] font-extrabold text-slate-400 uppercase tracking-wide">
+                            Tên đăng nhập (Username)
+                          </label>
+                          <div className="w-full px-4 py-2.5 rounded-xl border border-slate-100 bg-slate-50 text-slate-500 font-bold select-all flex justify-between items-center cursor-not-allowed">
+                            <span>{profile?.username || "N/A"}</span>
+                            <span className="text-xs text-slate-400">🔒</span>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[13px] font-extrabold text-slate-400 uppercase tracking-wide">
+                            Vai trò hệ thống
+                          </label>
+                          <div className="w-full px-4 py-2.5 rounded-xl border border-slate-100 bg-slate-50 text-slate-500 font-bold select-none flex justify-between items-center cursor-not-allowed">
+                            <span>Owner (Chủ phòng khám)</span>
+                            <span className="text-xs text-slate-400">🔒</span>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[13px] font-extrabold text-slate-400 uppercase tracking-wide">
+                            Trạng thái tài khoản
+                          </label>
+                          <div className="w-full px-4 py-2.5 rounded-xl border border-slate-100 bg-slate-50 text-emerald-600 font-extrabold select-none flex justify-between items-center cursor-not-allowed">
+                            <span>Đang hoạt động</span>
+                            <span className="text-xs text-slate-400">🔒</span>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[13px] font-extrabold text-slate-400 uppercase tracking-wide">
+                            Ngày tạo tài khoản
+                          </label>
+                          <div className="w-full px-4 py-2.5 rounded-xl border border-slate-100 bg-slate-50 text-slate-500 font-bold select-none flex justify-between items-center cursor-not-allowed">
+                            <span>{formatTimestamp(profile?.createdAt)}</span>
+                            <span className="text-xs text-slate-400">🔒</span>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col md:col-span-2 gap-1.5">
+                          <label className="text-[13px] font-extrabold text-slate-400 uppercase tracking-wide">
+                            Đăng nhập gần nhất (Last Login)
+                          </label>
+                          <div className="w-full px-4 py-2.5 rounded-xl border border-slate-100 bg-slate-50 text-slate-500 font-bold select-none flex justify-between items-center cursor-not-allowed">
+                            <span>{simulatedLogs[0]?.time || "Hôm nay, 17:10:00"} (Safari trên macOS)</span>
+                            <span className="text-xs text-slate-400">🔒</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {profile?.role !== "Admin" && profile?.role !== "Owner" && (
                     <div className="flex flex-col gap-1.5">
                       <label className="text-[13px] font-extrabold text-slate-500 uppercase tracking-wide">
                         {profile?.role === "Dentist"
