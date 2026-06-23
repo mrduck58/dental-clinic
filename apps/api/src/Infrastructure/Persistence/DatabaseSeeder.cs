@@ -58,7 +58,11 @@ public static class DatabaseSeeder
                 CertificateIssuedBy:   null,
                 Education:             "Đại học Y Dược TP.HCM - Bác sĩ Răng Hàm Mặt",
                 Bio:                   "Bác sĩ chuyên khoa Răng Hàm Mặt với 8 năm kinh nghiệm.",
-                Position:              "Bác sĩ điều trị"));
+                Position:              "Bác sĩ điều trị",
+                EmploymentType:        "Full-time",
+                BaseSalary:            30000000,
+                SalaryUnit:            "Theo tháng",
+                LeaveAccrued:          12));
 
             db.Users.Add(dentistUser);
             await db.SaveChangesAsync();
@@ -217,8 +221,11 @@ public static class DatabaseSeeder
                 CertificateIssuedBy:   null,
                 Education:             "Đại học KHXH&NV",
                 Bio:                   "Lễ tân tận tâm, chu đáo và nhiệt tình.",
-                Position:              "Nhân viên trực quầy"
-            ));
+                Position:              "Nhân viên trực quầy",
+                EmploymentType:        "Full-time",
+                BaseSalary:            10000000,
+                SalaryUnit:            "Theo tháng",
+                LeaveAccrued:          12));
             db.Users.Add(staff);
             await db.SaveChangesAsync();
             Console.WriteLine("─────────────────────────────────────────────");
@@ -251,8 +258,11 @@ public static class DatabaseSeeder
                 CertificateIssuedBy:   "Sở Y tế TP.HCM",
                 Education:             "Đại học Y Dược TP.HCM",
                 Bio:                   "Bác sĩ chuyên khoa Răng Hàm Mặt với 5 năm kinh nghiệm điều trị lâm sàng.",
-                Position:              "Bác sĩ chính"
-            ));
+                Position:              "Bác sĩ chính",
+                EmploymentType:        "Full-time",
+                BaseSalary:            25000000,
+                SalaryUnit:            "Theo tháng",
+                LeaveAccrued:          12));
             db.Users.Add(dentist);
             await db.SaveChangesAsync();
             Console.WriteLine("─────────────────────────────────────────────");
