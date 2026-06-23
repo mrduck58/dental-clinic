@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
@@ -12,6 +12,10 @@
     <Content Remove="tests/**" />
     <None Remove="tests/**" />
     <EmbeddedResource Remove="tests/**" />
+    <Compile Remove="DentalClinic.API.Tests/**" />
+    <Content Remove="DentalClinic.API.Tests/**" />
+    <None Remove="DentalClinic.API.Tests/**" />
+    <EmbeddedResource Remove="DentalClinic.API.Tests/**" />
   </ItemGroup>
 
   <ItemGroup>

@@ -144,6 +144,33 @@ public class User
         Gender = gender;
     }
 
+    public void UpdatePersonalProfile(
+        string fullName,
+        string? phoneNumber,
+        DateOnly? dateOfBirth,
+        string? gender,
+        string? address,
+        string? profilePictureUrl,
+        string? bio,
+        string? education,
+        string? specialty = null,
+        int? yearsOfExperience = null)
+    {
+        FullName = fullName;
+        PhoneNumber = phoneNumber;
+        DateOfBirth = dateOfBirth;
+        Gender = gender;
+        Address = address;
+        ProfilePictureUrl = profilePictureUrl;
+        Bio = bio;
+        Education = education;
+        if (Role == "Dentist")
+        {
+            Specialty = specialty ?? Specialty;
+            YearsOfExperience = yearsOfExperience ?? YearsOfExperience;
+        }
+    }
+
     public void ResetPassword(string newPasswordHash) => PasswordHash = newPasswordHash;
 
     public void SetActive(bool isActive) => IsActive = isActive;

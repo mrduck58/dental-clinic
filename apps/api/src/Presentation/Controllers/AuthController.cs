@@ -16,6 +16,7 @@ public class AuthController(
     ResendOtpHandler resendOtpHandler,
     FillProfileHandler fillProfileHandler,
     GetMyProfileHandler getMyProfileHandler,
+    ChangePasswordHandler changePasswordHandler,
     CreateAccountHandler createAccountHandler,
     GetAccountsHandler getAccountsHandler) : ControllerBase
 {
@@ -103,7 +104,7 @@ public class AuthController(
         return Ok(result);
     }
 
-    /// <summary>PUT api/auth/me/profile — Điền thông tin cá nhân sau đăng ký</summary>
+    /// <summary>PUT api/auth/me/profile — Điền và cập nhật thông tin cá nhân</summary>
     [HttpPut("me/profile")]
     [Authorize]
     public async Task<IActionResult> FillProfile(
@@ -117,8 +118,40 @@ public class AuthController(
         var userId = Guid.Parse(userIdString);
 
         await fillProfileHandler.HandleAsync(
-            new FillProfileCommand(userId, request.FirstName, request.LastName,
-                request.PhoneNumber, request.DateOfBirth, request.Gender),
+            new FillProfileCommand(
+                userId,
+                request.FirstName,
+                request.LastName,
+                request.FullName,
+                request.PhoneNumber,
+                request.DateOfBirth,
+                request.Gender,
+                request.Address,
+                request.ProfilePictureUrl,
+                request.Bio,
+                request.Education,
+                request.Specialty,
+                request.YearsOfExperience),
+            cancellationToken);
+
+        return NoContent();
+    }
+
+    /// <summary>PUT api/auth/me/change-password — Đổi mật khẩu tài khoản hiện tại</summary>
+    [HttpPut("me/change-password")]
+    [Authorize]
+    public async Task<IActionResult> ChangePassword(
+        [FromBody] ChangePasswordRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var userIdString = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+            ?? User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? throw new UnauthorizedAccessException("Không thể xác thực người dùng.");
+
+        var userId = Guid.Parse(userIdString);
+
+        await changePasswordHandler.HandleAsync(
+            new ChangePasswordCommand(userId, request.CurrentPassword, request.NewPassword),
             cancellationToken);
 
         return NoContent();

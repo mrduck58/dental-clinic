@@ -9,6 +9,7 @@ export interface AuthUser {
   fullName: string | null;
   role: string;
   isActive: boolean;
+  profilePictureUrl: string | null;
 }
 
 export interface AccountDto {
@@ -1789,5 +1790,103 @@ export async function endTreatmentApi(id: string): Promise<void> {
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { title?: string }).title ?? "Kết thúc điều trị thất bại");
+  }
+}
+
+// ── Profile APIs ──────────────────────────────────────────────────────────
+
+export interface UserProfileDto {
+  id: string;
+  fullName: string;
+  email: string;
+  phoneNumber: string | null;
+  dateOfBirth: string | null;
+  gender: string | null;
+  profilePictureUrl: string | null;
+  role: string;
+  employeeId: string | null;
+  department: string | null;
+  employmentStatus: string | null;
+  position: string | null;
+  startDate: string | null;
+  specialty: string | null;
+  licenseNumber: string | null;
+  yearsOfExperience: number | null;
+  education: string | null;
+  bio: string | null;
+  address: string | null;
+  baseSalary: number;
+  allowance: number;
+  salaryNote: string;
+  certificateIssuedDate: string | null;
+  certificateIssuedBy: string | null;
+  servicesHandled: string | null;
+}
+
+export interface UpdateMyProfileCommand {
+  fullName: string;
+  phoneNumber: string;
+  dateOfBirth: string | null;
+  gender: string | null;
+  address?: string | null;
+  profilePictureUrl?: string | null;
+  bio?: string | null;
+  education?: string | null;
+  specialty?: string | null;
+  yearsOfExperience?: number | null;
+}
+
+export async function getMyProfileApi(): Promise<UserProfileDto> {
+  const res = await fetch(`${API_URL}/api/auth/me/profile`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải thông tin cá nhân");
+  }
+  return res.json() as Promise<UserProfileDto>;
+}
+
+export async function updateMyProfileApi(data: UpdateMyProfileCommand): Promise<void> {
+  const res = await fetch(`${API_URL}/api/auth/me/profile`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Cập nhật thông tin cá nhân thất bại");
+  }
+
+  // Update cached user session in local storage
+  if (typeof window !== "undefined") {
+    const rawUser = localStorage.getItem("dental_clinic_user");
+    if (rawUser) {
+      try {
+        const cachedUser = JSON.parse(rawUser) as AuthUser;
+        cachedUser.fullName = data.fullName;
+        if (data.profilePictureUrl !== undefined) {
+          cachedUser.profilePictureUrl = data.profilePictureUrl;
+        }
+        localStorage.setItem("dental_clinic_user", JSON.stringify(cachedUser));
+      } catch (e) {
+        console.error("Failed to update cached user", e);
+      }
+    }
+  }
+}
+
+export async function changePasswordApi(currentPassword: string, newPassword: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/auth/me/change-password`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Đổi mật khẩu thất bại");
   }
 }

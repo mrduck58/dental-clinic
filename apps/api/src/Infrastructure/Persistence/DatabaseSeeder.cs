@@ -14,28 +14,96 @@ public static class DatabaseSeeder
 
     private static async Task SeedUsersAsync(AppDbContext db)
     {
-        if (await db.Users.AnyAsync())
-            return;
+        // 1. Seed admin if not present
+        if (!await db.Users.AnyAsync(u => u.Role == "Admin"))
+        {
+            const string defaultPassword = "Admin@123456";
+            var hash = BCrypt.Net.BCrypt.HashPassword(defaultPassword, workFactor: 12);
+            var admin = User.Create(
+                username:     "admin",
+                email:        "admin@dentalclinic.com",
+                passwordHash: hash,
+                role:         "Admin",
+                phoneNumber:  null);
 
-        const string defaultPassword = "Admin@123456";
-        var hash = BCrypt.Net.BCrypt.HashPassword(defaultPassword, workFactor: 12);
+            db.Users.Add(admin);
+            await db.SaveChangesAsync();
 
-        var admin = User.Create(
-            username:     "admin",
-            email:        "admin@dentalclinic.com",
-            passwordHash: hash,
-            role:         "Admin",
-            phoneNumber:  null);
+            Console.WriteLine("─────────────────────────────────────────────");
+            Console.WriteLine("  [SEED] Tài khoản Admin mặc định đã tạo:");
+            Console.WriteLine($"  Email:    admin@dentalclinic.com");
+            Console.WriteLine($"  Password: {defaultPassword}");
+            Console.WriteLine("  ⚠️  Đổi mật khẩu ngay sau khi đăng nhập!");
+            Console.WriteLine("─────────────────────────────────────────────");
+        }
 
-        db.Users.Add(admin);
-        await db.SaveChangesAsync();
+        // 2. Ensure test staff user exists
+        if (!await db.Users.AnyAsync(u => u.Email == "staff_test@dentalclinic.com"))
+        {
+            var hash = BCrypt.Net.BCrypt.HashPassword("Staff@123456", workFactor: 10);
+            var staff = User.Create("staff_test", "staff_test@dentalclinic.com", hash, "Staff", "0908888888", "Staff Test");
+            staff.SetStaffProfile(new StaffProfileData(
+                EmployeeId:            "NV-0099",
+                Department:            "Lễ tân",
+                EmploymentStatus:      "Active",
+                ProfilePictureUrl:     null,
+                ProfessionalNotes:     null,
+                Specialty:             null,
+                LicenseNumber:         null,
+                YearsOfExperience:     null,
+                Gender:                "Nữ",
+                DateOfBirth:           new DateOnly(1998, 5, 20),
+                Address:               "123 Nguyễn Trãi, Quận 1, TP.HCM",
+                StartDate:             new DateOnly(2025, 1, 15),
+                ServicesHandled:       null,
+                CertificateIssuedDate: null,
+                CertificateIssuedBy:   null,
+                Education:             "Đại học KHXH&NV",
+                Bio:                   "Lễ tân tận tâm, chu đáo và nhiệt tình.",
+                Position:              "Nhân viên trực quầy"
+            ));
+            db.Users.Add(staff);
+            await db.SaveChangesAsync();
+            Console.WriteLine("─────────────────────────────────────────────");
+            Console.WriteLine("[SEED] Đã tạo tài khoản nhân viên test:");
+            Console.WriteLine("Email:    staff_test@dentalclinic.com");
+            Console.WriteLine("Password: Staff@123456");
+            Console.WriteLine("─────────────────────────────────────────────");
+        }
 
-        Console.WriteLine("─────────────────────────────────────────────");
-        Console.WriteLine("  [SEED] Tài khoản Admin mặc định đã tạo:");
-        Console.WriteLine($"  Email:    admin@dentalclinic.com");
-        Console.WriteLine($"  Password: {defaultPassword}");
-        Console.WriteLine("  ⚠️  Đổi mật khẩu ngay sau khi đăng nhập!");
-        Console.WriteLine("─────────────────────────────────────────────");
+        // 3. Ensure test dentist user exists
+        if (!await db.Users.AnyAsync(u => u.Email == "dentist_test@dentalclinic.com"))
+        {
+            var hash = BCrypt.Net.BCrypt.HashPassword("Staff@123456", workFactor: 10);
+            var dentist = User.Create("dentist_test", "dentist_test@dentalclinic.com", hash, "Dentist", "0909999999", "Dentist Test");
+            dentist.SetStaffProfile(new StaffProfileData(
+                EmployeeId:            "NV-0088",
+                Department:            "Nha khoa",
+                EmploymentStatus:      "Active",
+                ProfilePictureUrl:     null,
+                ProfessionalNotes:     null,
+                Specialty:             "Răng Hàm Mặt",
+                LicenseNumber:         "CCHN-2026-9999",
+                YearsOfExperience:     5,
+                Gender:                "Nam",
+                DateOfBirth:           new DateOnly(1990, 8, 15),
+                Address:               "456 Lê Lợi, Quận 1, TP.HCM",
+                StartDate:             new DateOnly(2024, 6, 1),
+                ServicesHandled:       "Khám tổng quát, Nhổ răng khôn, Hàn răng",
+                CertificateIssuedDate: new DateOnly(2023, 12, 10),
+                CertificateIssuedBy:   "Sở Y tế TP.HCM",
+                Education:             "Đại học Y Dược TP.HCM",
+                Bio:                   "Bác sĩ chuyên khoa Răng Hàm Mặt với 5 năm kinh nghiệm điều trị lâm sàng.",
+                Position:              "Bác sĩ chính"
+            ));
+            db.Users.Add(dentist);
+            await db.SaveChangesAsync();
+            Console.WriteLine("─────────────────────────────────────────────");
+            Console.WriteLine("[SEED] Đã tạo tài khoản bác sĩ test:");
+            Console.WriteLine("Email:    dentist_test@dentalclinic.com");
+            Console.WriteLine("Password: Staff@123456");
+            Console.WriteLine("─────────────────────────────────────────────");
+        }
     }
 
     private static async Task SeedRoomsAsync(AppDbContext db)
