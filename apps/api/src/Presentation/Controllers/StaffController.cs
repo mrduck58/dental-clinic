@@ -6,7 +6,7 @@ namespace DentalClinic.API.Presentation.Controllers;
 
 [ApiController]
 [Route("api/staff")]
-[Authorize(Roles = "Admin")]
+[Authorize(Roles = "Admin,Owner")]
 public class StaffController(
     GetStaffHandler getStaffHandler,
     CreateStaffHandler createStaffHandler,

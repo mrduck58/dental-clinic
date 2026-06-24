@@ -167,7 +167,7 @@ public class AuthController(
 
     /// <summary>POST api/auth/accounts — Admin tạo tài khoản cho nhân viên</summary>
     [HttpPost("accounts")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Owner")]
     public async Task<IActionResult> CreateAccount(
         [FromBody] CreateAccountRequestDto request,
         CancellationToken cancellationToken)
@@ -181,7 +181,7 @@ public class AuthController(
 
     /// <summary>GET api/auth/accounts — Admin lấy danh sách tài khoản</summary>
     [HttpGet("accounts")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Owner")]
     public async Task<IActionResult> GetAccounts(CancellationToken cancellationToken)
     {
         var result = await getAccountsHandler.HandleAsync(cancellationToken);
