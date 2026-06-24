@@ -34,6 +34,8 @@ export default function LoginPage() {
         router.push("/dentist");
       } else if (role === "Staff") {
         router.push("/staff");
+      } else if (role === "Owner") {
+        router.push("/owner");
       } else {
         router.push("/");
       }
