@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.UseCases.Appointments;
 using DentalClinic.API.Application.UseCases.Auth;
+using DentalClinic.API.Application.UseCases.ClinicInfo;
 using DentalClinic.API.Application.UseCases.Medicines;
 using DentalClinic.API.Application.UseCases.Feedbacks;
 using DentalClinic.API.Application.UseCases.LeaveRequests;
@@ -46,6 +47,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IPromotionRepository, PromotionRepository>();
         services.AddScoped<IRoomRepository, RoomRepository>();
         services.AddScoped<IMedicineRepository, MedicineRepository>();
+        services.AddScoped<IClinicInfoRepository, ClinicInfoRepository>();
 
         // ── Services ────────────────────────────────────────────────────────
         services.AddScoped<IJwtService, JwtService>();
@@ -135,6 +137,9 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<UpdateRoomHandler>();
         services.AddScoped<DeleteRoomHandler>();
         services.AddScoped<ChangeRoomStatusHandler>();
+
+        services.AddScoped<GetClinicInfoHandler>();
+        services.AddScoped<UpdateClinicInfoHandler>();
 
         return services;
     }
