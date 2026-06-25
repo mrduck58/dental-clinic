@@ -69,11 +69,14 @@ public class DentistDashboardHandler(AppDbContext dbContext)
             .ToListAsync(ct);
 
         int totalToday      = todayAppointments.Count(a =>
+            a.Status == AppointmentStatus.Confirmed      ||
             a.Status == AppointmentStatus.CheckedIn      ||
             a.Status == AppointmentStatus.InProgress     ||
             a.Status == AppointmentStatus.PendingPayment ||
             a.Status == AppointmentStatus.Completed);
-        int totalWaiting    = todayAppointments.Count(a => a.Status == AppointmentStatus.CheckedIn);
+        int totalWaiting    = todayAppointments.Count(a =>
+            a.Status == AppointmentStatus.Confirmed ||
+            a.Status == AppointmentStatus.CheckedIn);
         int totalInProgress = todayAppointments.Count(a => a.Status == AppointmentStatus.InProgress);
         int totalCompleted  = todayAppointments.Count(a =>
             a.Status == AppointmentStatus.Completed ||
