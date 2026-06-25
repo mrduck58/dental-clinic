@@ -90,14 +90,11 @@ app.UseMiddleware<ExceptionMiddleware>();
 app.UseCors();
 app.UseStaticFiles();
 
-// Auto-migrate + seed admin lần đầu
+// Auto-migrate
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     await db.Database.MigrateAsync();
-    await DatabaseSeeder.SeedAsync(db);
-    await DatabaseSeeder.SeedLeaveRequestsAsync(db);
-    await DatabaseSeeder.SeedDentistDashboardAsync(db);
 }
 if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();

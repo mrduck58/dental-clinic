@@ -28,5 +28,13 @@ public class PostConfiguration : IEntityTypeConfiguration<Post>
         // Không giới hạn độ dài — frontend có thể lưu base64 image hoặc URL dài
         builder.Property(p => p.ThumbnailUrl)
             .HasColumnType("text");
+
+        // Bài viết → Dịch vụ (tùy chọn). Xóa dịch vụ thì bài viết vẫn còn, ServiceId = null.
+        builder.HasOne(p => p.Service)
+            .WithMany()
+            .HasForeignKey(p => p.ServiceId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasIndex(p => p.ServiceId);
     }
 }

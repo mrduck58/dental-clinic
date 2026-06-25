@@ -27,6 +27,15 @@ public class FeedbacksController(
         return Ok(result);
     }
 
+    /// <summary>GET api/feedbacks/featured — Đánh giá nổi bật (Public)</summary>
+    [HttpGet("featured")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetFeatured(CancellationToken ct)
+    {
+        var result = await getFeedbacks.HandleAsync("Featured", null, ct);
+        return Ok(result);
+    }
+
     /// <summary>GET api/feedbacks/{id} — Chi tiết phản hồi (Admin)</summary>
     [HttpGet("{id:guid}")]
     [Authorize(Roles = "Admin")]

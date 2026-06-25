@@ -21,9 +21,10 @@ public class PostsController(
         [FromQuery] string? category,
         [FromQuery] string? status,
         [FromQuery] string? search,
+        [FromQuery] Guid? serviceId,
         CancellationToken ct)
     {
-        var result = await getPosts.HandleAsync(category, status, search, ct);
+        var result = await getPosts.HandleAsync(category, status, search, serviceId, ct);
         return Ok(result);
     }
 
