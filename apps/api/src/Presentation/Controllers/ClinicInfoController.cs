@@ -22,7 +22,7 @@ public class ClinicInfoController(
 
     /// <summary>PUT api/clinic-info — Cập nhật thông tin phòng khám (Admin).</summary>
     [HttpPut]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Owner")]
     public async Task<IActionResult> Update([FromBody] UpdateClinicInfoRequest request, CancellationToken ct)
     {
         var result = await update.HandleAsync(request, ct);

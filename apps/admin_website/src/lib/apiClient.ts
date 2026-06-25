@@ -1960,3 +1960,86 @@ export async function changePasswordApi(currentPassword: string, newPassword: st
     throw new Error((err as { title?: string }).title ?? "Đổi mật khẩu thất bại");
   }
 }
+
+// ── Clinic Info types & endpoints ───────────────────────────────────────────
+
+export interface MilestoneDto {
+  year: number;
+  description: string;
+}
+
+export interface FeatureDto {
+  title: string;
+  description: string;
+}
+
+export interface TreatmentStepDto {
+  title: string;
+  description: string;
+}
+
+export interface StatisticDto {
+  value: string;
+  label: string;
+}
+
+export interface ClinicInfoDto {
+  id: string;
+  aboutTitle: string;
+  aboutDescription: string;
+  foundedYear: number;
+  aboutImageUrl: string | null;
+  phone: string;
+  email: string;
+  address: string;
+  milestones: MilestoneDto[];
+  certifications: string[];
+  features: FeatureDto[];
+  treatmentSteps: TreatmentStepDto[];
+  statistics: StatisticDto[];
+  createdAt: string;
+  updatedAt?: string | null;
+}
+
+export interface UpdateClinicInfoRequest {
+  aboutTitle: string;
+  aboutDescription: string;
+  foundedYear: number;
+  phone: string;
+  email: string;
+  address: string;
+  aboutImageUrl: string | null;
+  milestones?: MilestoneDto[] | null;
+  certifications?: string[] | null;
+  features?: FeatureDto[] | null;
+  treatmentSteps?: TreatmentStepDto[] | null;
+  statistics?: StatisticDto[] | null;
+}
+
+export async function getClinicInfoApi(): Promise<ClinicInfoDto> {
+  const res = await fetch(`${API_URL}/api/clinic-info`, {
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải thông tin phòng khám");
+  }
+  return res.json() as Promise<ClinicInfoDto>;
+}
+
+export async function updateClinicInfoApi(data: UpdateClinicInfoRequest): Promise<ClinicInfoDto> {
+  const res = await fetch(`${API_URL}/api/clinic-info`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(),
+    },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Cập nhật thông tin phòng khám thất bại");
+  }
+  return res.json() as Promise<ClinicInfoDto>;
+}
