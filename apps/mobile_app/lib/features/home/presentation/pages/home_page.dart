@@ -90,7 +90,7 @@ class _HomePageState extends State<HomePage> {
                     : _doctors.isEmpty
                         ? const _EmptySection(message: 'Chưa có thông tin nha sĩ.')
                         : SizedBox(
-                            height: 132,
+                            height: 150,
                             child: ListView.separated(
                               scrollDirection: Axis.horizontal,
                               itemCount: _doctors.length,
@@ -101,25 +101,39 @@ class _HomePageState extends State<HomePage> {
                           ),
                 const SizedBox(height: 26),
 
-                // Dịch vụ nổi bật
-                const HomeSectionHeader(title: 'Dịch vụ nổi bật'),
+                 // Dịch vụ nổi bật
+                HomeSectionHeader(
+                  title: 'Dịch vụ nổi bật',
+                  onSeeAll: () => context.push(AppRoutes.servicesList),
+                ),
                 const SizedBox(height: 14),
                 _isLoading
                     ? const _LoadingColumn()
                     : _services.isEmpty
                         ? const _EmptySection(message: 'Chưa có dịch vụ.')
-                        : ServicesGrid(services: _services),
+                        : Column(
+                            children: List.generate(
+                              _services.take(5).length,
+                              (i) => Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: ServiceCard(service: _services[i], index: i),
+                              ),
+                            ),
+                          ),
                 const SizedBox(height: 26),
 
                 // Tin tức nổi bật
-                const HomeSectionHeader(title: 'Tin tức nổi bật'),
+                HomeSectionHeader(
+                  title: 'Tin tức nổi bật',
+                  onSeeAll: () => context.push(AppRoutes.postsList),
+                ),
                 const SizedBox(height: 14),
                 if (_isLoading)
                   const _LoadingColumn()
                 else if (_posts.isEmpty)
                   const _EmptySection(message: 'Chưa có tin tức.')
                 else
-                  ..._posts.map(
+                  ..._posts.take(5).map(
                     (post) => Padding(
                       padding: const EdgeInsets.only(bottom: 14),
                       child: NewsCard(post: post),
