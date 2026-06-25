@@ -7,7 +7,7 @@ namespace DentalClinic.API.Presentation.Controllers;
 
 [ApiController]
 [Route("api/rooms")]
-[Authorize(Roles = "Admin")]
+[Authorize(Roles = "Admin,Owner")]
 public class RoomsController(
     GetRoomsHandler getRooms,
     GetRoomByIdHandler getById,

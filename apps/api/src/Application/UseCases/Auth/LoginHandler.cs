@@ -33,6 +33,6 @@ public class LoginHandler(IUserRepository userRepository, IJwtService jwtService
         return new LoginResponseDto(
             AccessToken: token,
             ExpiresIn: 15 * 60,
-            User: new AuthUserDto(user.Id, user.Username ?? user.Email, user.FullName, user.Email, user.Role, user.IsActive));
+            User: new AuthUserDto(user.Id, user.Username ?? user.Email, user.FullName, user.Email, user.Role, user.IsActive, user.ProfilePictureUrl));
     }
 }

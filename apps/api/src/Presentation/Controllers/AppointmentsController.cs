@@ -57,7 +57,7 @@ public class AppointmentsController(
 
     /// <summary>GET api/appointments — Danh sách tất cả lịch hẹn (Staff/Admin)</summary>
     [HttpGet]
-    [Authorize(Roles = "Staff,Admin")]
+    [Authorize(Roles = "Staff,Admin,Owner")]
     public async Task<IActionResult> GetAllAppointments(
         [FromQuery] DateOnly? date,
         [FromQuery] string? status,
@@ -69,7 +69,7 @@ public class AppointmentsController(
 
     /// <summary>PUT api/appointments/{id}/confirm — Xác nhận lịch hẹn (Staff/Admin)</summary>
     [HttpPut("{id}/confirm")]
-    [Authorize(Roles = "Staff,Admin")]
+    [Authorize(Roles = "Staff,Admin,Owner")]
     public async Task<IActionResult> ConfirmAppointment(Guid id, CancellationToken cancellationToken)
     {
         await updateAppointmentStatusHandler.ConfirmAsync(id, cancellationToken);
@@ -78,7 +78,7 @@ public class AppointmentsController(
 
     /// <summary>PUT api/appointments/{id}/cancel — Hủy lịch hẹn (Staff/Admin)</summary>
     [HttpPut("{id}/cancel")]
-    [Authorize(Roles = "Staff,Admin")]
+    [Authorize(Roles = "Staff,Admin,Owner")]
     public async Task<IActionResult> CancelAppointment(Guid id, CancellationToken cancellationToken)
     {
         await updateAppointmentStatusHandler.CancelAsync(id, cancellationToken);
@@ -87,7 +87,7 @@ public class AppointmentsController(
 
     /// <summary>PUT api/appointments/{id}/checkin — Check-in bệnh nhân (Staff/Admin)</summary>
     [HttpPut("{id}/checkin")]
-    [Authorize(Roles = "Staff,Admin")]
+    [Authorize(Roles = "Staff,Admin,Owner")]
     public async Task<IActionResult> CheckInAppointment(Guid id, CancellationToken cancellationToken)
     {
         await updateAppointmentStatusHandler.CheckInAsync(id, cancellationToken);
@@ -105,7 +105,7 @@ public class AppointmentsController(
 
     /// <summary>PUT api/appointments/{id}/complete — Hoàn thành khám (Staff/Admin)</summary>
     [HttpPut("{id}/complete")]
-    [Authorize(Roles = "Staff,Admin")]
+    [Authorize(Roles = "Staff,Admin,Owner")]
     public async Task<IActionResult> CompleteTreatment(Guid id, CancellationToken cancellationToken)
     {
         await updateAppointmentStatusHandler.CompleteAsync(id, cancellationToken);
@@ -356,7 +356,7 @@ public class AppointmentsController(
 
     /// <summary>GET api/appointments/queue — Lấy hàng đợi theo bác sĩ (Staff/Admin)</summary>
     [HttpGet("queue")]
-    [Authorize(Roles = "Staff,Admin")]
+    [Authorize(Roles = "Staff,Admin,Owner")]
     public async Task<IActionResult> GetWaitingQueue(
         [FromQuery] DateOnly? date,
         CancellationToken cancellationToken)

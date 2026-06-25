@@ -21,7 +21,7 @@ public class LeaveRequestsController(
 {
     /// <summary>GET api/leave-requests — Tất cả đơn nghỉ (Admin)</summary>
     [HttpGet]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Owner")]
     public async Task<IActionResult> GetAll(
         [FromQuery] string? status,
         [FromQuery] string? search,
@@ -59,7 +59,7 @@ public class LeaveRequestsController(
 
     /// <summary>PUT api/leave-requests/{id}/approve — Duyệt đơn nghỉ (Admin)</summary>
     [HttpPut("{id:guid}/approve")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Owner")]
     public async Task<IActionResult> Approve(Guid id, CancellationToken ct)
     {
         var result = await approve.HandleAsync(id, ct);
@@ -68,7 +68,7 @@ public class LeaveRequestsController(
 
     /// <summary>PUT api/leave-requests/{id}/reject — Từ chối đơn nghỉ (Admin)</summary>
     [HttpPut("{id:guid}/reject")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Owner")]
     public async Task<IActionResult> Reject(Guid id, [FromBody] RejectLeaveRequestRequest request, CancellationToken ct)
     {
         var result = await reject.HandleAsync(id, request, ct);

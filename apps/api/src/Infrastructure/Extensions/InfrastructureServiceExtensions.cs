@@ -61,6 +61,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<ResendOtpHandler>();
         services.AddScoped<FillProfileHandler>();
         services.AddScoped<GetMyProfileHandler>();
+        services.AddScoped<ChangePasswordHandler>();
         services.AddScoped<CreateAccountHandler>();
         services.AddScoped<GetAccountsHandler>();
 
