@@ -114,46 +114,58 @@ class _ProfilePageState extends State<ProfilePage> {
             const SizedBox(height: 28),
 
             // ── Avatar + Name + Email ──────────────────────────────────────
-            Container(
-              width: 96,
-              height: 96,
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Color(0xFFDC2626), Color(0xFFB91C1C)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: Text(
-                  _initials(),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 32,
-                    fontWeight: FontWeight.w900,
+            GestureDetector(
+              onTap: () async {
+                final updated = await context.push(AppRoutes.editProfile);
+                if (updated == true && mounted) {
+                  _loadUserInfo();
+                }
+              },
+              behavior: HitTestBehavior.opaque,
+              child: Column(
+                children: [
+                  Container(
+                    width: 96,
+                    height: 96,
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Color(0xFFDC2626), Color(0xFFB91C1C)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        _initials(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 32,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 14),
+                  Text(
+                    _userName.isNotEmpty ? _userName : 'Bệnh nhân',
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _userEmail,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 14),
-            Text(
-              _userName.isNotEmpty ? _userName : 'Bệnh nhân',
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              _userEmail,
-              style: const TextStyle(
-                fontSize: 14,
-                color: AppColors.textSecondary,
-              ),
-            ),
-
             const SizedBox(height: 32),
 
             // ── Menu Items ─────────────────────────────────────────────────
@@ -167,7 +179,12 @@ class _ProfilePageState extends State<ProfilePage> {
                       iconBg: AppColors.primaryLight,
                       iconColor: AppColors.primary,
                       label: 'Chỉnh sửa hồ sơ',
-                      onTap: () => _showComingSoon('Chỉnh sửa hồ sơ'),
+                      onTap: () async {
+                        final updated = await context.push(AppRoutes.editProfile);
+                        if (updated == true && mounted) {
+                          _loadUserInfo();
+                        }
+                      },
                     ),
                     const SizedBox(height: 12),
                     _MenuItem(
@@ -180,10 +197,10 @@ class _ProfilePageState extends State<ProfilePage> {
                     const SizedBox(height: 12),
                     _MenuItem(
                       icon: Iconsax.shield_tick,
-                      iconBg: const Color(0xFFE8FAF0),
-                      iconColor: const Color(0xFF22C55E),
+                      iconBg: const Color(0xFFFEE2E2),
+                      iconColor: AppColors.primary,
                       label: 'Bảo mật',
-                      onTap: () => _showComingSoon('Bảo mật'),
+                      onTap: () => context.push(AppRoutes.security),
                     ),
                     const SizedBox(height: 12),
                     _MenuItem(
