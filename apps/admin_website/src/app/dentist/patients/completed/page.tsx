@@ -2,11 +2,11 @@
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
-import DentistSidebar from "../../../components/shared/DentistSidebar";
-import DentistPageHeader from "../../../components/shared/DentistPageHeader";
-import { useRequireDentist } from "../../../hooks/useRequireDentist";
-import { getDentistPatientsApi, type DentistPatientDto, type DentistPatientsResponse } from "../../../lib/apiClient";
-import { supabase } from "../../../lib/supabaseClient";
+import DentistSidebar from "../../../../components/shared/DentistSidebar";
+import DentistPageHeader from "../../../../components/shared/DentistPageHeader";
+import { useRequireDentist } from "../../../../hooks/useRequireDentist";
+import { getDentistPatientsApi, type DentistPatientDto, type DentistPatientsResponse } from "../../../../lib/apiClient";
+import { supabase } from "../../../../lib/supabaseClient";
 
 type PatientStatus = "waiting" | "in_progress" | "done";
 
@@ -18,13 +18,6 @@ const STATUS_MAP: Record<string, PatientStatus> = {
   "Completed":      "done",
 };
 
-const STATUS_FILTERS = [
-  { key: "all", label: "Tất cả", statuses: ["waiting", "in_progress", "done"] as PatientStatus[], color: "bg-slate-100 text-slate-600 border-slate-200" },
-  { key: "waiting", label: "Chờ khám", statuses: ["waiting"] as PatientStatus[], color: "bg-amber-50 text-amber-700 border-amber-200" },
-  { key: "in_progress", label: "Đang khám", statuses: ["in_progress"] as PatientStatus[], color: "bg-sky-50 text-sky-700 border-sky-200" },
-  { key: "done", label: "Hoàn thành", statuses: ["done"] as PatientStatus[], color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-];
-
 const STATUS_CFG: Record<PatientStatus, { label: string; bar: string; badge: string; dot: string }> = {
   waiting:     { label: "Đang chờ",   bar: "bg-amber-400",  badge: "bg-amber-50 text-amber-700 border border-amber-200",   dot: "bg-amber-500"  },
   in_progress: { label: "Đang khám",  bar: "bg-sky-400",    badge: "bg-sky-50 text-sky-700 border border-sky-200",         dot: "bg-sky-500"    },
@@ -34,8 +27,6 @@ const STATUS_CFG: Record<PatientStatus, { label: string; bar: string; badge: str
 function PatientRow({ p, idx }: { p: DentistPatientDto; idx: number }) {
   const status = STATUS_MAP[p.status] ?? "waiting";
   const s = STATUS_CFG[status];
-  const isActive = status === "in_progress";
-  const isDone   = status === "done";
   const initials = p.patientName.trim().split(/\s+/).slice(-2).map((w: string) => w[0]).join("").toUpperCase();
 
   const fmtTime = (iso: string) => {
@@ -47,9 +38,7 @@ function PatientRow({ p, idx }: { p: DentistPatientDto; idx: number }) {
   const shift = new Date(p.appointmentDate).getHours() < 12 ? "morning" : "afternoon";
 
   return (
-    <div className={`flex rounded-2xl border overflow-hidden transition-all hover:shadow-md ${
-      isActive ? "bg-white border-sky-200 shadow-sm shadow-sky-100/40" : "bg-white border-slate-200/70 hover:-translate-y-px"
-    }`}>
+    <div className="flex rounded-2xl border overflow-hidden transition-all hover:shadow-md bg-white border-slate-200/70 hover:-translate-y-px">
       {/* Status accent bar */}
       <div className={`w-1.5 shrink-0 ${s.bar}`} />
 
@@ -74,7 +63,7 @@ function PatientRow({ p, idx }: { p: DentistPatientDto; idx: number }) {
         {/* Main info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className={`text-[15px] font-black leading-tight ${isDone ? "text-slate-400" : "text-slate-900"}`}>{p.patientName}</span>
+            <span className="text-[15px] font-black leading-tight text-slate-400">{p.patientName}</span>
             {p.isNew && (
               <span className="px-1.5 py-0.5 bg-violet-100 text-violet-700 text-[10px] font-black rounded-md tracking-wide">MỚI</span>
             )}
@@ -84,7 +73,7 @@ function PatientRow({ p, idx }: { p: DentistPatientDto; idx: number }) {
             <svg className="w-3.5 h-3.5 text-slate-300 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
             </svg>
-            <span className={`text-[13.5px] font-semibold truncate ${isDone ? "text-slate-400" : "text-slate-700"}`}>{p.symptoms ?? p.serviceName ?? "Khám tổng quát"}</span>
+            <span className="text-[13.5px] font-semibold truncate text-slate-400">{p.symptoms ?? p.serviceName ?? "Khám tổng quát"}</span>
           </div>
           <div className="text-[12px] text-slate-400 font-medium mt-0.5 font-mono">{p.phone ?? "—"}</div>
         </div>
@@ -92,7 +81,7 @@ function PatientRow({ p, idx }: { p: DentistPatientDto; idx: number }) {
         {/* Status badge */}
         <div className="shrink-0 flex flex-col items-end gap-2">
           <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-black whitespace-nowrap ${s.badge}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${s.dot} ${isActive ? "animate-pulse" : ""}`} />
+            <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
             {s.label}
           </span>
           <span className={`text-[11px] font-bold px-2 py-0.5 rounded-lg ${shift === "morning" ? "bg-red-50 text-primary" : "bg-indigo-50 text-indigo-600"}`}>
@@ -103,15 +92,9 @@ function PatientRow({ p, idx }: { p: DentistPatientDto; idx: number }) {
         {/* Action button */}
         <Link
           href={`/dentist/patients/${p.appointmentId}`}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-bold transition-all shrink-0 ${
-            isActive
-              ? "bg-primary text-white hover:bg-red-600 shadow-sm shadow-primary/25"
-              : isDone
-                ? "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                : "bg-red-50 text-primary border border-primary/20 hover:bg-primary hover:text-white"
-          }`}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-bold transition-all shrink-0 bg-slate-100 text-slate-500 hover:bg-slate-200"
         >
-          {isActive ? "Tiếp tục khám" : isDone ? "Xem hồ sơ" : "Bắt đầu khám"}
+          Xem hồ sơ
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
           </svg>
@@ -121,8 +104,8 @@ function PatientRow({ p, idx }: { p: DentistPatientDto; idx: number }) {
   );
 }
 
-function ShiftSection({ label, icon, patients, emptyMsg }: {
-  label: string; icon: string; patients: DentistPatientDto[]; emptyMsg: string;
+function ShiftSection({ label, icon, patients }: {
+  label: string; icon: string; patients: DentistPatientDto[];
 }) {
   if (patients.length === 0) return null;
   return (
@@ -144,7 +127,7 @@ function ShiftSection({ label, icon, patients, emptyMsg }: {
   );
 }
 
-export default function DentistPatientsPage() {
+export default function CompletedPatientsPage() {
   useRequireDentist();
 
   const [response, setResponse] = useState<DentistPatientsResponse | null>(null);
@@ -152,7 +135,6 @@ export default function DentistPatientsPage() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [shiftFilter, setShiftFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
 
   const today = useMemo(() => {
     const d = new Date();
@@ -175,7 +157,7 @@ export default function DentistPatientsPage() {
   useEffect(() => {
     void loadPatients();
     const channel = supabase
-      .channel("dentist-patients-page")
+      .channel("dentist-patients-completed-page")
       .on("postgres_changes", { event: "*", schema: "public", table: "Appointments" }, () => {
         void loadPatients();
       })
@@ -185,22 +167,20 @@ export default function DentistPatientsPage() {
 
   const patients = response?.patients ?? [];
 
+  // Chỉ hiển thị bệnh nhân đã hoàn thành
   const filtered = useMemo(() => {
-    const filter = STATUS_FILTERS.find(f => f.key === statusFilter)!;
     return patients.filter((p) => {
       const q = search.toLowerCase();
       const matchSearch = q === "" || p.patientName.toLowerCase().includes(q) || (p.symptoms ?? "").toLowerCase().includes(q) || (p.phone ?? "").includes(q);
       const status = STATUS_MAP[p.status] ?? "waiting";
-      const matchStatus = filter.statuses.includes(status);
+      const matchStatus = status === "done";
       const shift = new Date(p.appointmentDate).getHours() < 12 ? "morning" : "afternoon";
       const matchShift = shiftFilter === "all" || shift === shiftFilter;
       return matchSearch && matchStatus && matchShift;
     });
-  }, [patients, search, shiftFilter, statusFilter]);
+  }, [patients, search, shiftFilter]);
 
-  const waiting = patients.filter(p => (STATUS_MAP[p.status] ?? "waiting") === "waiting").length;
-  const active = patients.filter(p => (STATUS_MAP[p.status] ?? "waiting") === "in_progress").length;
-  const done = patients.filter(p => (STATUS_MAP[p.status] ?? "waiting") === "done").length;
+  const doneCount = patients.filter(p => (STATUS_MAP[p.status] ?? "waiting") === "done").length;
 
   const morning = filtered.filter(p => new Date(p.appointmentDate).getHours() < 12);
   const afternoon = filtered.filter(p => new Date(p.appointmentDate).getHours() >= 12);
@@ -213,13 +193,17 @@ export default function DentistPatientsPage() {
 
       <main className="flex-1 flex flex-col min-w-0">
         <DentistPageHeader
-          title="Bệnh Nhân Hôm Nay"
+          title="Hoàn Thành"
           subtitle={today}
           right={
             <div className="flex items-center gap-2 text-[12.5px] font-bold">
-              <span className="px-2.5 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl">{waiting} chờ</span>
-              <span className="px-2.5 py-1.5 bg-sky-50 text-sky-700 border border-sky-200 rounded-xl">{active} đang khám</span>
-              <span className="px-2.5 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl">{done} hoàn thành</span>
+              <Link
+                href="/dentist/patients"
+                className="px-3 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-xl hover:bg-primary/20 transition-colors"
+              >
+                Bắt đầu khám
+              </Link>
+              <span className="px-2.5 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl">{doneCount} hoàn thành</span>
             </div>
           }
         />
@@ -246,35 +230,6 @@ export default function DentistPatientsPage() {
             </div>
           </div>
 
-          {/* Status Filter Buttons */}
-          <div className="flex gap-2">
-            {STATUS_FILTERS.map((filter) => {
-              const count = patients.filter(p => {
-                const status = STATUS_MAP[p.status] ?? "waiting";
-                return filter.statuses.includes(status);
-              }).length;
-              const isActive = statusFilter === filter.key;
-              return (
-                <button
-                  key={filter.key}
-                  onClick={() => setStatusFilter(filter.key)}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-bold transition-all ${
-                    isActive
-                      ? `${filter.color} border shadow-sm`
-                      : "bg-white text-slate-500 border border-slate-200 hover:border-slate-300"
-                  }`}
-                >
-                  {filter.label}
-                  <span className={`px-2 py-0.5 rounded-lg text-[11px] ${
-                    isActive ? "bg-white/50" : "bg-slate-100"
-                  }`}>
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
           {/* Loading state */}
           {loading && (
             <div className="flex items-center justify-center py-20">
@@ -299,13 +254,11 @@ export default function DentistPatientsPage() {
                 label="Ca sáng"
                 icon="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"
                 patients={morning}
-                emptyMsg="Không có bệnh nhân ca sáng"
               />
               <ShiftSection
                 label="Ca chiều"
                 icon="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z"
                 patients={afternoon}
-                emptyMsg="Không có bệnh nhân ca chiều"
               />
             </div>
           ) : !loading && !error && (
@@ -313,7 +266,8 @@ export default function DentistPatientsPage() {
               <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center">
                 <svg className="w-7 h-7 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
               </div>
-              <p className="text-[14px] font-bold text-slate-500">Không tìm thấy bệnh nhân phù hợp.</p>
+              <p className="text-[14px] font-bold text-slate-500">Chưa có bệnh nhân hoàn thành.</p>
+              <p className="text-[13px] text-slate-400">Nhấn <Link href="/dentist/patients" className="text-primary font-semibold hover:underline">vào đây</Link> để xem bệnh nhân cần khám.</p>
             </div>
           )}
         </div>
