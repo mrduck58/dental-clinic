@@ -41,7 +41,8 @@ public class GetDentistPatientsHandler(AppDbContext dbContext)
             .Where(a => a.DentistId == dentistId &&
                         a.AppointmentDate >= utcStart &&
                         a.AppointmentDate < utcEnd &&
-                        (a.Status == AppointmentStatus.CheckedIn    ||
+                        (a.Status == AppointmentStatus.Confirmed    ||
+                         a.Status == AppointmentStatus.CheckedIn    ||
                          a.Status == AppointmentStatus.InProgress   ||
                          a.Status == AppointmentStatus.PendingPayment ||
                          a.Status == AppointmentStatus.Completed))

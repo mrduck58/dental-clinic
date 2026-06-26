@@ -10,7 +10,7 @@ abstract class ApiConstants {
   static const String verifyOtp = '/auth/verify-otp';
   static const String resendOtp = '/auth/resend-otp';
   static const String fillProfile = '/auth/me/profile';
-
+  static const String changePassword = '/auth/me/change-password';
   static const String logout = '/auth/logout';
 
   static const String dentists = '/dentists';

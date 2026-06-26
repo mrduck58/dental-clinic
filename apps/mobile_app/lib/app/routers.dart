@@ -25,6 +25,13 @@ import 'package:mobile_app/features/home/presentation/pages/services_list_page.d
 import 'package:mobile_app/features/home/presentation/pages/posts_list_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/post_detail_page.dart';
 import 'package:mobile_app/features/home/data/models/post_model.dart';
+import 'package:mobile_app/features/profile/presentation/pages/edit_profile_page.dart';
+import 'package:mobile_app/features/profile/presentation/pages/medical_history_page.dart';
+import 'package:mobile_app/features/profile/data/family_member.dart';
+import 'package:mobile_app/features/profile/presentation/pages/add_member_page.dart';
+import 'package:mobile_app/features/profile/presentation/pages/edit_member_page.dart';
+import 'package:mobile_app/features/profile/presentation/pages/security_page.dart';
+import 'package:mobile_app/features/profile/presentation/pages/change_password_page.dart';
 
 final GoRouter appRouter = GoRouter(
   initialLocation: AppRoutes.splash,
@@ -73,6 +80,14 @@ final GoRouter appRouter = GoRouter(
         GoRoute(
           path: AppRoutes.profile,
           builder: (context, state) => const ProfilePage(),
+        ),
+        GoRoute(
+          path: AppRoutes.editProfile,
+          builder: (context, state) => const EditProfilePage(),
+        ),
+        GoRoute(
+          path: AppRoutes.medicalHistory,
+          builder: (context, state) => const MedicalHistoryPage(),
         ),
       ],
     ),
@@ -124,6 +139,32 @@ final GoRouter appRouter = GoRouter(
         }
         return const _PlaceholderPage(title: 'Chi tiết bài viết');
       },
+      path: AppRoutes.addFamilyMember,
+      builder: (context, state) => const AddMemberPage(),
+    ),
+    GoRoute(
+      path: AppRoutes.editFamilyMember,
+      builder: (context, state) {
+        final member = state.extra as FamilyMember?;
+        if (member != null) {
+          return EditMemberPage(member: member);
+        }
+        // Fallback khi reload trang Web (F5) khiến state.extra bị null
+        final id = state.uri.queryParameters['id'];
+        final found = FamilyService().getMembers().firstWhere(
+              (m) => m.id == id,
+              orElse: () => FamilyService().getMembers().first,
+            );
+        return EditMemberPage(member: found);
+      },
+    ),
+    GoRoute(
+      path: AppRoutes.security,
+      builder: (context, state) => const SecurityPage(),
+    ),
+    GoRoute(
+      path: AppRoutes.changePassword,
+      builder: (context, state) => const ChangePasswordPage(),
     ),
     GoRoute(
       path: AppRoutes.payment,
@@ -190,6 +231,12 @@ abstract class AppRoutes {
   static const servicesList = '/services';
   static const postsList = '/posts';
   static const postDetail = '/post/detail';
+  static const editProfile = '/profile/edit';
+  static const medicalHistory = '/profile/medical-history';
+  static const addFamilyMember = '/profile/family/add';
+  static const editFamilyMember = '/profile/family/edit';
+  static const security = '/profile/security';
+  static const changePassword = '/profile/security/change-password';
   static const payment = '/payment';
   static const chat = '/chat';
 
