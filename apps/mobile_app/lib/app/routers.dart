@@ -139,6 +139,8 @@ final GoRouter appRouter = GoRouter(
         }
         return const _PlaceholderPage(title: 'Chi tiết bài viết');
       },
+    ),
+    GoRoute(
       path: AppRoutes.addFamilyMember,
       builder: (context, state) => const AddMemberPage(),
     ),
