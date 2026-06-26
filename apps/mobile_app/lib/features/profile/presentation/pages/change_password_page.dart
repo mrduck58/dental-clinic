@@ -2,7 +2,6 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
-import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/core/network/api_client.dart';
 import 'package:mobile_app/features/auth/data/auth_service.dart';
@@ -78,14 +77,14 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     return 1; // Weak
   }
 
-  String _getStrengthText(int strength, bool isVi) {
+  String _getStrengthText(int strength) {
     switch (strength) {
       case 1:
-        return isVi ? 'Yếu' : 'Weak';
+        return 'Yếu';
       case 2:
-        return isVi ? 'Trung bình' : 'Medium';
+        return 'Trung bình';
       case 3:
-        return isVi ? 'Mạnh' : 'Strong';
+        return 'Mạnh';
       default:
         return '';
     }
@@ -105,31 +104,30 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
   }
 
   Future<void> _submit() async {
-    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     final current = _currentPasswordCtrl.text;
     final newPass = _newPasswordCtrl.text;
     final confirm = _confirmPasswordCtrl.text;
 
     if (current.isEmpty) {
-      _showSnackbar(isVi ? 'Mật khẩu hiện tại không được để trống.' : 'Current password cannot be empty.');
+      _showSnackbar('Mật khẩu hiện tại không được để trống.');
       return;
     }
     if (newPass.isEmpty) {
-      _showSnackbar(isVi ? 'Mật khẩu mới không được để trống.' : 'New password cannot be empty.');
+      _showSnackbar('Mật khẩu mới không được để trống.');
       return;
     }
     if (newPass.length < 8) {
-      _showSnackbar(isVi ? 'Mật khẩu mới phải có ít nhất 8 ký tự.' : 'New password must be at least 8 characters.');
+      _showSnackbar('Mật khẩu mới phải có ít nhất 8 ký tự.');
       return;
     }
     if (!RegExp(r'[A-Z]').hasMatch(newPass) || 
         !RegExp(r'[a-z]').hasMatch(newPass) || 
         !RegExp(r'[0-9]').hasMatch(newPass)) {
-      _showSnackbar(isVi ? 'Mật khẩu phải bao gồm cả chữ hoa, chữ thường và chữ số.' : 'Password must contain uppercase, lowercase, and numbers.');
+      _showSnackbar('Mật khẩu phải bao gồm cả chữ hoa, chữ thường và chữ số.');
       return;
     }
     if (confirm != newPass) {
-      _showSnackbar(isVi ? 'Mật khẩu xác nhận không khớp.' : 'Confirm password does not match.');
+      _showSnackbar('Mật khẩu xác nhận không khớp.');
       return;
     }
 
@@ -138,7 +136,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     try {
       final token = await _auth.getToken();
       if (token == null) {
-        throw Exception(isVi ? 'Phiên đăng nhập hết hạn.' : 'Login session expired.');
+        throw Exception('Phiên đăng nhập hết hạn.');
       }
 
       await _auth.changePassword(
@@ -150,11 +148,11 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Row(
+            content: const Row(
               children: [
                 Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
                 SizedBox(width: 8),
-                Text(isVi ? 'Đổi mật khẩu thành công!' : 'Password changed successfully!'),
+                Text('Đổi mật khẩu thành công!'),
               ],
             ),
             backgroundColor: AppColors.success,
@@ -162,12 +160,12 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
-        context.pop(); // Return
+        context.pop(); // Quay lại trang SecurityPage
       }
     } on DioException catch (e) {
       _showSnackbar(ApiClient.errorMessage(e));
     } catch (e) {
-      _showSnackbar(isVi ? 'Đã xảy ra lỗi khi cập nhật mật khẩu.' : 'An error occurred while updating the password.');
+      _showSnackbar('Đã xảy ra lỗi khi cập nhật mật khẩu.');
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -186,22 +184,21 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     final strength = _calculateStrength(_newPassword);
-    final strengthText = _getStrengthText(strength, isVi);
+    final strengthText = _getStrengthText(strength);
     final strengthColor = _getStrengthColor(strength);
 
     return Scaffold(
-      backgroundColor: context.bg,
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        backgroundColor: context.card,
+        backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: context.textPrimary, size: 20),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.textPrimary, size: 20),
           onPressed: () => context.pop(),
         ),
-        title: Text(
-          isVi ? 'Đổi mật khẩu' : 'Change Password',
+        title: const Text(
+          'Đổi mật khẩu',
           style: TextStyle(
             color: AppColors.primary,
             fontWeight: FontWeight.w800,
@@ -211,13 +208,13 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         centerTitle: false,
         actions: [
           Padding(
-            padding: EdgeInsets.only(right: 16.0),
+            padding: const EdgeInsets.only(right: 16.0),
             child: CircleAvatar(
               radius: 18,
               backgroundColor: AppColors.primary,
               child: Text(
                 _initials(),
-                style: TextStyle(
+                style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
                   fontSize: 14,
@@ -229,7 +226,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(
-            color: context.divider,
+            color: AppColors.divider,
             height: 1,
           ),
         ),
@@ -239,38 +236,36 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
           children: [
             Expanded(
               child: SingleChildScrollView(
-                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      isVi ? 'Cập nhật thông tin đăng nhập' : 'Update login credentials',
+                    const Text(
+                      'Cập nhật thông tin đăng nhập',
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w800,
-                        color: context.textPrimary,
+                        color: AppColors.textPrimary,
                       ),
                     ),
-                    SizedBox(height: 6),
-                    Text(
-                      isVi 
-                          ? 'Đảm bảo tài khoản của bạn được bảo mật bằng một mật khẩu mạnh.'
-                          : 'Ensure your account is secured with a strong password.',
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Đảm bảo tài khoản của bạn được bảo mật bằng một mật khẩu mạnh.',
                       style: TextStyle(
                         fontSize: 13,
-                        color: context.textSecondary,
+                        color: AppColors.textSecondary,
                         height: 1.4,
                       ),
                     ),
-                    SizedBox(height: 24),
+                    const SizedBox(height: 24),
 
                     // Secure Protection Card
                     Container(
-                      padding: EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: context.card,
+                        color: const Color(0xFFF8FAFC),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: context.divider),
+                        border: Border.all(color: AppColors.divider),
                       ),
                       child: Row(
                         children: [
@@ -278,36 +273,34 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                             width: 44,
                             height: 44,
                             decoration: BoxDecoration(
-                              color: context.primaryLight,
+                              color: AppColors.successLight,
                               shape: BoxShape.circle,
                             ),
-                            child: Icon(
+                            child: const Icon(
                               Iconsax.shield_tick,
-                              color: AppColors.primary,
+                              color: AppColors.success,
                               size: 22,
                             ),
                           ),
-                          SizedBox(width: 14),
+                          const SizedBox(width: 14),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
+                              children: const [
                                 Text(
-                                  isVi ? 'Bảo vệ mật khẩu' : 'Password Protection',
+                                  'Bảo vệ mật khẩu',
                                   style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w700,
-                                    color: context.textPrimary,
+                                    color: AppColors.textPrimary,
                                   ),
                                 ),
                                 SizedBox(height: 2),
                                 Text(
-                                  isVi 
-                                      ? 'Mật khẩu tối thiểu 8 ký tự bao gồm chữ hoa, chữ thường và chữ số.'
-                                      : 'Password must be at least 8 characters and include uppercase, lowercase, and numbers.',
+                                  'Mật khẩu tối thiểu 8 ký tự bao gồm chữ hoa, chữ thường và chữ số.',
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: context.textSecondary,
+                                    color: AppColors.textSecondary,
                                     height: 1.3,
                                   ),
                                 ),
@@ -317,45 +310,45 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                         ],
                       ),
                     ),
-                    SizedBox(height: 24),
+                    const SizedBox(height: 24),
 
                     // Current Password Field
-                    _buildLabel(context.l10n('current_password')),
+                    _buildLabel('Mật khẩu hiện tại'),
                     _buildPasswordField(
                       controller: _currentPasswordCtrl,
                       obscure: _obscureCurrent,
                       onToggle: () => setState(() => _obscureCurrent = !_obscureCurrent),
                     ),
-                    SizedBox(height: 20),
+                    const SizedBox(height: 20),
 
                     // New Password Field
-                    _buildLabel(context.l10n('new_password')),
+                    _buildLabel('Mật khẩu mới'),
                     _buildPasswordField(
                       controller: _newPasswordCtrl,
                       obscure: _obscureNew,
                       onToggle: () => setState(() => _obscureNew = !_obscureNew),
                     ),
-                    SizedBox(height: 20),
+                    const SizedBox(height: 20),
 
                     // Confirm Password Field
-                    _buildLabel(context.l10n('confirm_password')),
+                    _buildLabel('Xác nhận mật khẩu mới'),
                     _buildPasswordField(
                       controller: _confirmPasswordCtrl,
                       obscure: _obscureConfirm,
                       onToggle: () => setState(() => _obscureConfirm = !_obscureConfirm),
                     ),
-                    SizedBox(height: 20),
+                    const SizedBox(height: 20),
 
                     // Password Strength
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          isVi ? 'Độ mạnh mật khẩu' : 'Password Strength',
+                        const Text(
+                          'Độ mạnh mật khẩu',
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: context.textSecondary,
+                            color: AppColors.textSecondary,
                           ),
                         ),
                         if (strengthText.isNotEmpty)
@@ -369,7 +362,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                           ),
                       ],
                     ),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     Row(
                       children: List.generate(3, (index) {
                         final filled = index < strength;
@@ -380,40 +373,38 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                               right: index < 2 ? 8 : 0,
                             ),
                             decoration: BoxDecoration(
-                              color: filled ? strengthColor : context.divider,
+                              color: filled ? strengthColor : const Color(0xFFE2E8F0),
                               borderRadius: BorderRadius.circular(999),
                             ),
                           ),
                         );
                       }),
                     ),
-                    SizedBox(height: 24),
+                    const SizedBox(height: 24),
 
                     // Security Tip Information Banner
                     Container(
-                      padding: EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: context.isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+                        color: const Color(0xFFF1F5F9),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: context.divider),
+                        border: Border.all(color: AppColors.divider),
                       ),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(
+                          const Icon(
                             Iconsax.info_circle,
-                            color: context.textSecondary,
+                            color: AppColors.textSecondary,
                             size: 20,
                           ),
-                          SizedBox(width: 12),
+                          const SizedBox(width: 12),
                           Expanded(
-                            child: Text(
-                              isVi 
-                                  ? 'Thay đổi mật khẩu sẽ đăng xuất bạn khỏi tất cả các phiên hoạt động khác trên thiết bị di động và máy tính vì lý do bảo mật.'
-                                  : 'Changing password will log you out of all other active sessions on mobile and desktop for security reasons.',
+                            child: const Text(
+                              'Thay đổi mật khẩu sẽ đăng xuất bạn khỏi tất cả các phiên hoạt động khác trên thiết bị di động và máy tính vì lý do bảo mật.',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: context.textSecondary,
+                                color: AppColors.textSecondary,
                                 height: 1.4,
                               ),
                             ),
@@ -421,7 +412,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                         ],
                       ),
                     ),
-                    SizedBox(height: 24),
+                    const SizedBox(height: 24),
                   ],
                 ),
               ),
@@ -429,11 +420,11 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
             
             // Cancel and Save buttons at the bottom
             Container(
-              padding: EdgeInsets.fromLTRB(24, 16, 24, 24),
-              decoration: BoxDecoration(
-                color: context.card,
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+              decoration: const BoxDecoration(
+                color: Colors.white,
                 border: Border(
-                  top: BorderSide(color: context.divider),
+                  top: BorderSide(color: AppColors.divider),
                 ),
               ),
               child: Row(
@@ -442,29 +433,29 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                     child: OutlinedButton(
                       onPressed: _isSaving ? null : () => context.pop(),
                       style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: context.divider),
-                        padding: EdgeInsets.symmetric(vertical: 16),
+                        side: const BorderSide(color: Color(0xFFCBD5E1)),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(999),
                         ),
                       ),
-                      child: Text(
-                        context.l10n('cancel'),
+                      child: const Text(
+                        'Hủy',
                         style: TextStyle(
-                          color: context.textSecondary,
+                          color: AppColors.textSecondary,
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
                   ),
-                  SizedBox(width: 16),
+                  const SizedBox(width: 16),
                   Expanded(
                     child: ElevatedButton(
                       onPressed: _isSaving ? null : _submit,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
-                        padding: EdgeInsets.symmetric(vertical: 16),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
                         elevation: 0,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(999),
@@ -479,8 +470,8 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                                 strokeWidth: 2.5,
                               ),
                             )
-                          : Text(
-                              isVi ? 'Lưu thay đổi' : 'Save Changes',
+                          : const Text(
+                              'Lưu thay đổi',
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 15,
@@ -500,13 +491,13 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
 
   Widget _buildLabel(String text) {
     return Padding(
-      padding: EdgeInsets.only(bottom: 8.0),
+      padding: const EdgeInsets.only(bottom: 8.0),
       child: Text(
         text,
-        style: TextStyle(
+        style: const TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w700,
-          color: context.textPrimary,
+          color: AppColors.textPrimary,
         ),
       ),
     );
@@ -519,26 +510,26 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: context.card,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: context.divider),
+        border: Border.all(color: AppColors.divider),
       ),
       child: TextField(
         controller: controller,
         obscureText: obscure,
-        style: TextStyle(
-          color: context.textPrimary,
+        style: const TextStyle(
+          color: AppColors.textPrimary,
           fontSize: 15,
         ),
         decoration: InputDecoration(
           hintText: '••••••••',
-          hintStyle: TextStyle(color: context.textMuted, fontSize: 15),
-          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 15),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           border: InputBorder.none,
           suffixIcon: IconButton(
             icon: Icon(
               obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-              color: context.textMuted,
+              color: AppColors.textMuted,
               size: 20,
             ),
             onPressed: onToggle,
@@ -548,4 +539,3 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     );
   }
 }
-

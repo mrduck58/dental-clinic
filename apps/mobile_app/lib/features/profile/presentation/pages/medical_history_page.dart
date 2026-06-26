@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
@@ -47,7 +47,7 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
   void _showComingSoon(String feature) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('T├¡nh n─âng chß╗ënh sß╗¡a "$feature" ─æang ─æ╞░ß╗úc ph├ít triß╗ân.'),
+        content: Text('Tính năng chỉnh sửa "$feature" đang được phát triển.'),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         duration: const Duration(seconds: 2),
@@ -67,7 +67,7 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
           onPressed: () => context.pop(),
         ),
         title: const Text(
-          'Tiß╗ün sß╗¡ bß╗çnh l├╜',
+          'Tiền sử bệnh lý',
           style: TextStyle(
             color: Color(0xFFDC2626),
             fontWeight: FontWeight.w800,
@@ -100,7 +100,7 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ΓöÇΓöÇ Red Header Card ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+                  // ── Red Header Card ──────────────────────────────────────────
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(20),
@@ -145,7 +145,7 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                'M├ú BN: $_patientId  ΓÇó  Cß║¡p nhß║¡t: 2 ng├áy tr╞░ß╗¢c',
+                                'Mã BN: $_patientId  •  Cập nhật: 2 ngày trước',
                                 style: TextStyle(
                                   color: Colors.white.withOpacity(0.9),
                                   fontSize: 13,
@@ -160,12 +160,12 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
                   ),
                   const SizedBox(height: 24),
 
-                  // ΓöÇΓöÇ Allergies Section ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+                  // ── Allergies Section ────────────────────────────────────────
                   _buildSectionContainer(
-                    title: 'Dß╗ï ß╗⌐ng',
+                    title: 'Dị ứng',
                     icon: Icons.error_outline_rounded,
                     iconColor: Colors.red,
-                    onEdit: () => _showComingSoon('Dß╗ï ß╗⌐ng'),
+                    onEdit: () => _showComingSoon('Dị ứng'),
                     child: Column(
                       children: [
                         _buildSubItem(
@@ -176,8 +176,8 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
                         ),
                         const SizedBox(height: 12),
                         _buildSubItem(
-                          title: 'Nhß╗▒a cao su (Latex)',
-                          badgeText: 'NHß║╕',
+                          title: 'Nhựa cao su (Latex)',
+                          badgeText: 'NHẸ',
                           badgeColor: const Color(0xFFF1F5F9),
                           badgeTextColor: const Color(0xFF64748B),
                         ),
@@ -186,53 +186,53 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
                   ),
                   const SizedBox(height: 20),
 
-                  // ΓöÇΓöÇ Chronic Conditions Section ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+                  // ── Chronic Conditions Section ──────────────────────────────
                   _buildSectionContainer(
-                    title: 'Bß╗çnh m├ún t├¡nh',
+                    title: 'Bệnh mãn tính',
                     icon: Icons.contact_page_outlined,
                     iconColor: Colors.red,
-                    onEdit: () => _showComingSoon('Bß╗çnh m├ún t├¡nh'),
+                    onEdit: () => _showComingSoon('Bệnh mãn tính'),
                     child: Column(
                       children: [
                         _buildChronicItem(
-                          title: 'Tiß╗âu ─æ╞░ß╗¥ng tu├╜p 2',
-                          description: 'Chß║⌐n ─æo├ín: 2019  ΓÇó  BS. Sarah Williams',
+                          title: 'Tiểu đường tuýp 2',
+                          description: 'Chẩn đoán: 2019  •  BS. Sarah Williams',
                         ),
                         const SizedBox(height: 12),
                         _buildChronicItem(
-                          title: 'Cao huyß║┐t ├íp',
-                          description: 'Kiß╗âm so├ít tß╗½ 2021  ΓÇó  Theo d├╡i h├áng ng├áy',
+                          title: 'Cao huyết áp',
+                          description: 'Kiểm soát từ 2021  •  Theo dõi hàng ngày',
                         ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 20),
 
-                  // ΓöÇΓöÇ Current Medications Section ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+                  // ── Current Medications Section ─────────────────────────────
                   _buildSectionContainer(
-                    title: 'Thuß╗æc ─æang sß╗¡ dß╗Ñng',
+                    title: 'Thuốc đang sử dụng',
                     icon: Icons.medication_outlined,
                     iconColor: Colors.red,
-                    onEdit: () => _showComingSoon('Thuß╗æc ─æang sß╗¡ dß╗Ñng'),
+                    onEdit: () => _showComingSoon('Thuốc đang sử dụng'),
                     child: Column(
                       children: [
                         _buildMedicationItem(
                           title: 'Metformin',
-                          description: '500mg  ΓÇó  2 lß║ºn / ng├áy',
+                          description: '500mg  •  2 lần / ngày',
                         ),
                         const Divider(color: Color(0xFFF1F5F9), height: 24, thickness: 1),
                         _buildMedicationItem(
                           title: 'Lisinopril',
-                          description: '10mg  ΓÇó  Mß╗ùi buß╗òi s├íng',
+                          description: '10mg  •  Mỗi buổi sáng',
                         ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 24),
 
-                  // ΓöÇΓöÇ Connected Profiles Section ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+                  // ── Connected Profiles Section ──────────────────────────────
                   const Text(
-                    'Hß╗Æ S╞á LI├èN Kß║╛T',
+                    'HỒ SƠ LIÊN KẾT',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w800,
@@ -310,7 +310,7 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
                             ),
                             const SizedBox(height: 6),
                             const Text(
-                              'Th├¬m mß╗¢i',
+                              'Thêm mới',
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
