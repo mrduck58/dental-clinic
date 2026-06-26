@@ -222,7 +222,7 @@ export default function AddPromotionPage() {
                       </svg>
                       <div className="flex-1">
                         <span className="text-[14px] font-bold text-primary">{selectedServiceData.name}</span>
-                        <span className="ml-2 text-[12px] text-slate-500 font-semibold">{selectedServiceData.category}</span>
+                        <span className="ml-2 text-[12px] text-slate-500 font-semibold">{selectedServiceData.durationMinutes} phút</span>
                       </div>
                       <button
                         type="button"

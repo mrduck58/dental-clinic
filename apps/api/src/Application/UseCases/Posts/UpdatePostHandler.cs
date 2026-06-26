@@ -16,7 +16,8 @@ public class UpdatePostHandler(IPostRepository postRepository)
             request.Category,
             request.Content,
             request.ThumbnailUrl,
-            request.IsPublished);
+            request.IsPublished,
+            request.ServiceId);
 
         await postRepository.UpdateAsync(post, ct);
         return GetPostsHandler.ToDto(post);

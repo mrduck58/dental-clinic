@@ -8,6 +8,8 @@ public record PostDto(
     string Content,
     string? ThumbnailUrl,
     bool IsPublished,
+    Guid? ServiceId,
+    string? ServiceName,
     DateTimeOffset CreatedAt,
     DateTimeOffset? UpdatedAt,
     DateTimeOffset? PublishedAt);
@@ -18,11 +20,13 @@ public record CreatePostRequest(
     string Author,
     string Content,
     string? ThumbnailUrl,
-    bool IsPublished);
+    bool IsPublished,
+    Guid? ServiceId);
 
 public record UpdatePostRequest(
     string Title,
     string Category,
     string Content,
     string? ThumbnailUrl,
-    bool IsPublished);
+    bool IsPublished,
+    Guid? ServiceId);

@@ -1,0 +1,179 @@
+using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
+using DentalClinic.API.Domain.Exceptions;
+using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+
+namespace DentalClinic.API.Application.UseCases.Appointments;
+
+public class ExaminationDto
+{
+    public Guid AppointmentId { get; set; }
+    public string AppointmentCode { get; set; } = string.Empty;
+    public PatientBriefDto Patient { get; set; } = null!;
+    public DentistBriefDto Dentist { get; set; } = null!;
+    public string? ServiceName { get; set; }
+    public DateTimeOffset AppointmentDate { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public string? Symptoms { get; set; }
+    public string? Notes { get; set; }
+    public DateTimeOffset? StartTime { get; set; }
+    public List<DiagnosisDto> Diagnoses { get; set; } = new();
+    public List<TreatmentPlanDto> TreatmentPlans { get; set; } = new();
+    public PrescriptionDto? Prescription { get; set; }
+}
+
+public class PatientBriefDto
+{
+    public Guid Id { get; set; }
+    public string FullName { get; set; } = string.Empty;
+    public string? PhoneNumber { get; set; }
+    public string? Email { get; set; }
+    public DateOnly? DateOfBirth { get; set; }
+    public string? Gender { get; set; }
+}
+
+public class DentistBriefDto
+{
+    public Guid Id { get; set; }
+    public string FullName { get; set; } = string.Empty;
+}
+
+public class DiagnosisDto
+{
+    public Guid Id { get; set; }
+    public string DiagnosisCode { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public string? Notes { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+public class TreatmentPlanDto
+{
+    public Guid Id { get; set; }
+    public string Description { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public decimal? EstimatedCost { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public List<TreatmentPlanStepDto> Steps { get; set; } = new();
+}
+
+public class TreatmentPlanStepDto
+{
+    public Guid Id { get; set; }
+    public int StepNumber { get; set; }
+    public string Description { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public string? Notes { get; set; }
+}
+
+public class PrescriptionDto
+{
+    public Guid Id { get; set; }
+    public string? Notes { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public List<PrescriptionItemDto> Items { get; set; } = new();
+}
+
+public class PrescriptionItemDto
+{
+    public Guid Id { get; set; }
+    public string MedicineName { get; set; } = string.Empty;
+    public string Dosage { get; set; } = string.Empty;
+    public int Quantity { get; set; }
+    public string Unit { get; set; } = string.Empty;
+    public string Usage { get; set; } = string.Empty;
+    public string? Notes { get; set; }
+}
+
+public class GetExaminationHandler(AppDbContext dbContext)
+{
+    public async Task<ExaminationDto?> HandleAsync(Guid appointmentId, CancellationToken ct = default)
+    {
+        var appointment = await dbContext.Appointments
+            .Include(a => a.Patient).ThenInclude(p => p.User)
+            .Include(a => a.Dentist)
+            .Include(a => a.Service)
+            .Include(a => a.Diagnoses)
+            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Steps)
+            .Include(a => a.Prescriptions).ThenInclude(p => p.Items)
+            .FirstOrDefaultAsync(a => a.Id == appointmentId, ct);
+
+        if (appointment == null)
+            return null;
+
+        return ToDto(appointment);
+    }
+
+    public static ExaminationDto ToDto(Appointment appointment)
+    {
+        return new ExaminationDto
+        {
+            AppointmentId = appointment.Id,
+            AppointmentCode = $"DK{appointment.AppointmentDate:yyyyMMdd}{appointment.Id.ToString("N")[..6].ToUpper()}",
+            Patient = new PatientBriefDto
+            {
+                Id = appointment.PatientId,
+                FullName = appointment.Patient.FullName,
+                PhoneNumber = appointment.Patient.User?.PhoneNumber,
+                Email = appointment.Patient.User?.Email,
+                DateOfBirth = appointment.Patient.DateOfBirth,
+                Gender = appointment.Patient.Gender
+            },
+            Dentist = new DentistBriefDto
+            {
+                Id = appointment.DentistId,
+                FullName = appointment.Dentist.FullName
+            },
+            ServiceName = appointment.Service?.Name,
+            AppointmentDate = appointment.AppointmentDate,
+            Status = appointment.Status.ToString(),
+            Symptoms = appointment.Symptoms,
+            Notes = appointment.Notes,
+            StartTime = appointment.Status == AppointmentStatus.InProgress ? DateTimeOffset.UtcNow : null,
+            Diagnoses = appointment.Diagnoses.Select(d => new DiagnosisDto
+            {
+                Id = d.Id,
+                DiagnosisCode = d.DiagnosisCode,
+                Description = d.Description,
+                Notes = d.Notes,
+                CreatedAt = d.CreatedAt
+            }).ToList(),
+            TreatmentPlans = appointment.TreatmentPlans.Select(tp => new TreatmentPlanDto
+            {
+                Id = tp.Id,
+                Description = tp.Description,
+                Status = tp.Status.ToString(),
+                EstimatedCost = tp.EstimatedCost,
+                CreatedAt = tp.CreatedAt,
+                Steps = tp.Steps.OrderBy(s => s.StepNumber).Select(s => new TreatmentPlanStepDto
+                {
+                    Id = s.Id,
+                    StepNumber = s.StepNumber,
+                    Description = s.Description,
+                    Status = s.Status.ToString(),
+                    Notes = s.Notes
+                }).ToList()
+            }).ToList(),
+            Prescription = appointment.Prescriptions.FirstOrDefault() != null
+                ? new PrescriptionDto
+                {
+                    Id = appointment.Prescriptions.First().Id,
+                    Notes = appointment.Prescriptions.First().Notes,
+                    CreatedAt = appointment.Prescriptions.First().CreatedAt,
+                    Items = appointment.Prescriptions.First().Items.Select(i => new PrescriptionItemDto
+                    {
+                        Id = i.Id,
+                        MedicineName = i.MedicineName,
+                        Dosage = i.Dosage,
+                        Quantity = i.Quantity,
+                        Unit = i.Unit,
+                        Usage = i.Usage,
+                        Notes = i.Notes
+                    }).ToList()
+                }
+                : null
+        };
+    }
+}

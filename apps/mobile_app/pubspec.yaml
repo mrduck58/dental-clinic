@@ -19,7 +19,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.11.5
+  sdk: ^3.10.4
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -39,10 +39,16 @@ dependencies:
   go_router: ^14.0.0
 
   # Font chữ Nunito từ Google Fonts
-  google_fonts: ^6.2.1
+  google_fonts: ^8.1.0
 
   # Bộ icon hiện đại Iconsax
   iconsax: ^0.0.8
+
+  # HTTP client
+  dio: ^5.7.0
+
+  # Lưu token / trạng thái đăng nhập
+  shared_preferences: ^2.3.4
 
 
 dev_dependencies:

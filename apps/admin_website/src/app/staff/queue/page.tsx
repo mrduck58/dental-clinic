@@ -1,58 +1,216 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import StaffSidebar from "../../../components/shared/StaffSidebar";
 import StaffPageHeader from "../../../components/shared/StaffPageHeader";
 import { useRequireStaff } from "../../../hooks/useRequireStaff";
+import {
+  getWaitingQueueApi,
+  completeTreatmentApi,
+  type WaitingQueueResponse,
+  type DentistQueueDto,
+  type QueuePatientDto,
+} from "../../../lib/apiClient";
+import { supabase } from "../../../lib/supabaseClient";
 
-type QueueStatus = "waiting" | "inprogress" | "done";
+const DENTIST_COLOR: Record<string, { bg: string; border: string; text: string }> = {
+  sky:     { bg: "bg-sky-50",     border: "border-sky-100",     text: "text-sky-700" },
+  violet:  { bg: "bg-violet-50",  border: "border-violet-100",  text: "text-violet-700" },
+  rose:    { bg: "bg-rose-50",    border: "border-rose-100",    text: "text-rose-700" },
+  amber:   { bg: "bg-amber-50",   border: "border-amber-100",   text: "text-amber-700" },
+  slate:   { bg: "bg-slate-50",   border: "border-slate-100",   text: "text-slate-700" },
+};
 
-interface QueueItem {
-  id: string; name: string; service: string; time: string;
-  dentist: string; room: string; waitMin: number; status: QueueStatus; note?: string;
+const DENTIST_ROOM: Record<string, string> = {
+  "BS. Thảo": "Phòng 1",
+  "BS. Minh": "Phòng 2",
+  "BS. Linh": "Phòng 3",
+  "BS. Hùng": "Phòng 4",
+  "BS. Lê Minh Tuấn": "Phòng 1",
+  "BS. Nguyễn Văn Hùng": "Phòng 2",
+};
+
+const STATUS_CONFIG = {
+  CheckedIn:   { label: "Đang chờ",   bar: "bg-amber-400",   badge: "bg-amber-50 text-amber-700 border-amber-200",   dot: "bg-amber-500"   },
+  InProgress:  { label: "Đang khám",  bar: "bg-violet-400",  badge: "bg-violet-50 text-violet-700 border-violet-200", dot: "bg-violet-500"  },
+  Completed:   { label: "Hoàn thành",  bar: "bg-emerald-400",  badge: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" },
+};
+
+function DentistQueueCard({ dentist, onComplete, loadingId }: {
+  dentist: DentistQueueDto;
+  onComplete: (id: string) => void;
+  loadingId: string | null;
+}) {
+  const color = DENTIST_COLOR[dentist.dentistColor] ?? DENTIST_COLOR.slate;
+  const waitingPatients = dentist.patients.filter(p => p.status === "CheckedIn");
+  const inProgressPatients = dentist.patients.filter(p => p.status === "InProgress");
+  const completedPatients = dentist.patients.filter(p => p.status === "Completed");
+
+  const fmtTime = (iso: string) => {
+    const d = new Date(iso);
+    return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm overflow-hidden">
+      {/* Header */}
+      <div className={`px-5 py-4 ${color.bg} border-b ${color.border}`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-xl ${color.bg} border ${color.border} flex items-center justify-center font-black text-[13px] ${color.text}`}>
+              {dentist.dentistName.trim().split(/\s+/).slice(-2).map(w => w[0]).join("").toUpperCase()}
+            </div>
+            <div>
+              {(dentist.roomName ?? DENTIST_ROOM[dentist.dentistName]) && (
+                <div className="text-[11px] font-bold text-slate-500 mb-0.5">{dentist.roomName ?? DENTIST_ROOM[dentist.dentistName]}</div>
+              )}
+              <div className={`text-[14px] font-black ${color.text}`}>{dentist.dentistName}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {waitingPatients.length > 0 && (
+              <span className="px-2.5 py-1 bg-amber-100 text-amber-700 rounded-lg text-[11.5px] font-black">
+                {waitingPatients.length} chờ
+              </span>
+            )}
+            {inProgressPatients.length > 0 && (
+              <span className="px-2.5 py-1 bg-violet-100 text-violet-700 rounded-lg text-[11.5px] font-black">
+                {inProgressPatients.length} khám
+              </span>
+            )}
+            {completedPatients.length > 0 && (
+              <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-[11.5px] font-black">
+                {completedPatients.length} xong
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Patient list */}
+      <div className="divide-y divide-slate-100">
+        {dentist.patients.length === 0 ? (
+          <div className="py-10 text-center text-[13px] text-slate-400 font-semibold">
+            Chưa có bệnh nhân
+          </div>
+        ) : (
+          dentist.patients.map(patient => {
+            const cfg = STATUS_CONFIG[patient.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.CheckedIn;
+            const initials = patient.patientName.trim().split(/\s+/).slice(-2).map(w => w[0]).join("").toUpperCase();
+            const isLoading = loadingId === patient.appointmentId;
+
+            return (
+              <div key={patient.appointmentId} className="px-5 py-4">
+                <div className="flex items-center gap-4">
+                  {/* Status bar */}
+                  <div className={`w-1.5 h-12 rounded-full ${cfg.bar} shrink-0`} />
+
+                  {/* Avatar */}
+                  <div className="w-10 h-10 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center font-black text-[11px] text-sky-700 shrink-0">
+                    {initials}
+                  </div>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[14px] font-black text-slate-900">{patient.patientName}</span>
+                      <span className="text-[12px] font-mono font-bold text-slate-400">{fmtTime(patient.appointmentDate)}</span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-[12px] text-slate-500 font-semibold">{patient.serviceName ?? "Khám tổng quát"}</span>
+                      {patient.status === "CheckedIn" && patient.waitMinutes > 0 && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-600 border border-amber-100 rounded-lg text-[11px] font-black">
+                          ~{patient.waitMinutes}p
+                        </span>
+                      )}
+                    </div>
+                    {patient.symptoms && (
+                      <div className="mt-1.5 text-[11.5px] text-amber-600 font-semibold bg-amber-50 px-2 py-1 rounded-lg inline-block">
+                        {patient.symptoms}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Status badge */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={`px-2.5 py-1 rounded-lg text-[11.5px] font-black border ${cfg.badge}`}>
+                      {cfg.label}
+                    </span>
+
+                    {patient.status === "InProgress" && (
+                      <button
+                        onClick={() => onComplete(patient.appointmentId)}
+                        disabled={isLoading}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-[12px] font-bold hover:bg-emerald-100 disabled:opacity-50 transition-all cursor-pointer">
+                        {isLoading ? (
+                          <span className="w-3.5 h-3.5 border-2 border-emerald-300/40 border-t-emerald-500 rounded-full animate-spin" />
+                        ) : (
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                        )}
+                        Xong
+                      </button>
+                    )}
+
+                    {patient.status === "Completed" && (
+                      <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
 }
-
-const INITIAL_QUEUE: QueueItem[] = [
-  { id: "Q001", name: "Nguyễn Văn An",   service: "Nhổ răng khôn",       time: "08:30", dentist: "BS. Thảo", room: "Phòng 1", waitMin: 12, status: "inprogress" },
-  { id: "Q002", name: "Trần Thị Bích",   service: "Trám răng số 6",      time: "09:00", dentist: "BS. Minh", room: "Phòng 2", waitMin: 5,  status: "inprogress" },
-  { id: "Q003", name: "Phạm Minh Cường", service: "Kiểm tra định kỳ",    time: "09:30", dentist: "BS. Thảo", room: "Phòng 1", waitMin: 28, status: "waiting"    },
-  { id: "Q004", name: "Lê Thu Hà",       service: "Tẩy trắng răng Zoom", time: "10:00", dentist: "BS. Linh", room: "Phòng 3", waitMin: 45, status: "waiting"    },
-  { id: "Q005", name: "Hoàng Văn Đức",   service: "Cấy ghép Implant",    time: "10:30", dentist: "BS. Minh", room: "Phòng 2", waitMin: 60, status: "waiting",   note: "Dị ứng penicillin" },
-  { id: "Q006", name: "Vũ Thị Ngọc",     service: "Bọc răng sứ",         time: "08:00", dentist: "BS. Linh", room: "Phòng 3", waitMin: 0,  status: "done"       },
-  { id: "Q007", name: "Đỗ Quang Huy",    service: "Lấy cao răng",        time: "07:30", dentist: "BS. Thảo", room: "Phòng 1", waitMin: 0,  status: "done"       },
-];
-
-const COL_CFG: Record<QueueStatus, { label: string; bar: string; badge: string; dot: string; header: string; emptyBorder: string }> = {
-  waiting:    { label: "Đang chờ",  bar: "bg-amber-400",  badge: "bg-amber-50 text-amber-700 border border-amber-200",   dot: "bg-amber-500",  header: "text-amber-700",  emptyBorder: "border-amber-200"  },
-  inprogress: { label: "Đang khám", bar: "bg-violet-400", badge: "bg-violet-50 text-violet-700 border border-violet-200",dot: "bg-violet-500", header: "text-violet-700", emptyBorder: "border-violet-200" },
-  done:       { label: "Hoàn thành",bar: "bg-emerald-400",badge: "bg-emerald-50 text-emerald-700 border border-emerald-200",dot: "bg-emerald-500",header: "text-emerald-700",emptyBorder: "border-emerald-200"},
-};
-
-const DENTIST_BADGE: Record<string, string> = {
-  "BS. Thảo": "bg-sky-50 text-sky-700 border-sky-100",
-  "BS. Minh": "bg-violet-50 text-violet-700 border-violet-100",
-  "BS. Linh": "bg-rose-50 text-rose-700 border-rose-100",
-  "BS. Hùng": "bg-amber-50 text-amber-700 border-amber-100",
-};
-
-const NEXT_STATUS: Partial<Record<QueueStatus, QueueStatus>> = { waiting: "inprogress", inprogress: "done" };
-const NEXT_LABEL:  Record<QueueStatus, string> = { waiting: "Bắt đầu khám →", inprogress: "Hoàn thành →", done: "" };
 
 export default function QueuePage() {
   useRequireStaff();
-  const [queue, setQueue] = useState<QueueItem[]>(INITIAL_QUEUE);
+  const [queueData, setQueueData] = useState<WaitingQueueResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [loadingId, setLoadingId] = useState<string | null>(null);
 
-  const advance = (id: string) => setQueue(prev => prev.map(item => {
-    if (item.id !== id) return item;
-    const next = NEXT_STATUS[item.status];
-    return next ? { ...item, status: next, waitMin: 0 } : item;
-  }));
+  const loadQueue = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await getWaitingQueueApi();
+      setQueueData(data);
+      setError(null);
+    } catch {
+      setError("Không thể tải hàng đợi");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const revert = (id: string) => setQueue(prev => prev.map(item => {
-    if (item.id !== id) return item;
-    const prev2: QueueStatus = item.status === "inprogress" ? "waiting" : item.status === "done" ? "inprogress" : "waiting";
-    return { ...item, status: prev2 };
-  }));
+  useEffect(() => {
+    void loadQueue();
+    const channel = supabase
+      .channel("staff-queue-page")
+      .on("postgres_changes", { event: "*", schema: "public", table: "Appointments" }, () => {
+        void loadQueue();
+      })
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [loadQueue]);
+
+  const handleComplete = async (id: string) => {
+    setLoadingId(id);
+    try {
+      await completeTreatmentApi(id);
+      await loadQueue();
+    } catch {
+      alert("Hoàn thành khám thất bại. Vui lòng thử lại.");
+    } finally {
+      setLoadingId(null);
+    }
+  };
+
+  const today = queueData?.date
+    ? new Date(queueData.date).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })
+    : new Date().toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
 
   return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
@@ -60,143 +218,58 @@ export default function QueuePage() {
       <main className="flex-1 flex flex-col min-w-0">
         <StaffPageHeader
           title="Hàng Đợi"
-          subtitle="Theo dõi tiến trình khám bệnh theo thời gian thực"
+          subtitle={`Danh sách bệnh nhân theo phòng khám · ${today}`}
           right={
-            <div className="flex items-center gap-2 text-[12.5px] font-bold">
-              <span className="px-2.5 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl">{queue.filter(q => q.status === "waiting").length} chờ</span>
-              <span className="px-2.5 py-1.5 bg-violet-50 text-violet-700 border border-violet-200 rounded-xl">{queue.filter(q => q.status === "inprogress").length} đang khám</span>
-              <span className="px-2.5 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl">{queue.filter(q => q.status === "done").length} xong</span>
-            </div>
+            queueData ? (
+              <div className="flex items-center gap-2 text-[12.5px] font-bold">
+                <span className="px-2.5 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl">
+                  {queueData.totalWaiting} chờ
+                </span>
+                <span className="px-2.5 py-1.5 bg-violet-50 text-violet-700 border border-violet-200 rounded-xl">
+                  {queueData.totalInProgress} đang khám
+                </span>
+                <span className="px-2.5 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl">
+                  {queueData.totalCompleted} xong
+                </span>
+              </div>
+            ) : null
           }
         />
 
         <div className="p-8 flex-1 overflow-y-auto">
-          {/* Progress bar */}
-          <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm px-6 py-4 flex items-center gap-5 mb-5">
-            <div className="flex flex-col gap-1 shrink-0">
-              <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Tiến độ hôm nay</span>
-              <span className="text-[24px] font-black text-slate-900 leading-none">
-                {queue.filter(q => q.status === "done").length}<span className="text-[14px] text-slate-400 font-bold">/{queue.length}</span>
-              </span>
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="w-8 h-8 border-3 border-primary/20 border-t-primary rounded-full animate-spin" />
             </div>
-            <div className="flex-1 flex flex-col gap-1.5">
-              <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-primary to-red-400 rounded-full transition-all duration-500"
-                  style={{ width: `${Math.round(queue.filter(q => q.status === "done").length / queue.length * 100)}%` }} />
+          ) : error ? (
+            <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm flex flex-col items-center gap-3 py-16">
+              <p className="text-[14px] font-semibold text-red-500">{error}</p>
+              <button onClick={loadQueue} className="px-4 py-2 text-[13px] font-bold bg-primary text-white rounded-xl cursor-pointer">
+                Thử lại
+              </button>
+            </div>
+          ) : queueData && queueData.dentists.length > 0 ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5">
+              {queueData.dentists.map(dentist => (
+                <DentistQueueCard
+                  key={dentist.dentistId}
+                  dentist={dentist}
+                  onComplete={handleComplete}
+                  loadingId={loadingId}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm flex flex-col items-center gap-3 py-20">
+              <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center">
+                <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+                </svg>
               </div>
-              <div className="flex items-center gap-4 text-[11.5px] font-semibold">
-                <span className="flex items-center gap-1 text-emerald-600"><span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />{queue.filter(q => q.status === "done").length} hoàn thành</span>
-                <span className="flex items-center gap-1 text-violet-600"><span className="w-2 h-2 rounded-full bg-violet-400 animate-pulse inline-block" />{queue.filter(q => q.status === "inprogress").length} đang khám</span>
-                <span className="flex items-center gap-1 text-amber-600"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />{queue.filter(q => q.status === "waiting").length} đang chờ</span>
-              </div>
+              <p className="text-[14px] font-bold text-slate-500">Chưa có bệnh nhân nào trong hàng đợi</p>
+              <p className="text-[12.5px] text-slate-400 font-semibold">Bệnh nhân sẽ xuất hiện sau khi check-in</p>
             </div>
-            <div className="text-right shrink-0">
-              <span className="text-[28px] font-black text-slate-800 leading-none">{Math.round(queue.filter(q => q.status === "done").length / queue.length * 100)}%</span>
-              <div className="text-[11px] font-bold text-slate-400 mt-0.5">hoàn thành</div>
-            </div>
-          </div>
-
-          {/* Kanban columns */}
-          <div className="grid grid-cols-3 gap-5">
-            {(["waiting","inprogress","done"] as QueueStatus[]).map(col => {
-              const cfg   = COL_CFG[col];
-              const items = queue.filter(q => q.status === col);
-              return (
-                <div key={col} className="flex flex-col gap-3">
-                  {/* Column header */}
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className={`w-2.5 h-2.5 rounded-full ${cfg.bar} ${col === "inprogress" ? "animate-pulse" : ""}`} />
-                      <span className={`text-[13px] font-black uppercase tracking-wider ${cfg.header}`}>{cfg.label}</span>
-                    </div>
-                    <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${cfg.badge}`}>{items.length}</span>
-                    <div className="flex-1 h-px bg-slate-200" />
-                  </div>
-
-                  {/* Cards */}
-                  {items.length === 0 ? (
-                    <div className={`rounded-2xl border-2 border-dashed ${cfg.emptyBorder} p-8 text-center text-[12.5px] font-semibold text-slate-400`}>
-                      Không có bệnh nhân
-                    </div>
-                  ) : (
-                    <div className="flex flex-col gap-2.5">
-                      {items.map(item => {
-                        const initials = item.name.trim().split(/\s+/).slice(-2).map(w => w[0]).join("").toUpperCase();
-                        return (
-                          <div key={item.id} className={`flex rounded-2xl border bg-white overflow-hidden shadow-sm transition-all ${
-                            col === "done" ? "opacity-70 border-slate-200/60" : col === "inprogress" ? "border-violet-200 shadow-violet-100/40" : "border-slate-200/70 hover:shadow-md"
-                          }`}>
-                            <div className={`w-1.5 shrink-0 ${cfg.bar}`} />
-                            <div className="flex flex-col gap-3 px-4 py-4 flex-1">
-                              {/* Header row */}
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-9 h-9 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center font-black text-[11px] text-sky-700 shrink-0">
-                                    {initials}
-                                  </div>
-                                  <div>
-                                    <div className="text-[14px] font-black text-slate-900 leading-tight">{item.name}</div>
-                                    <div className="text-[12px] text-slate-500 font-semibold mt-0.5 truncate">{item.service}</div>
-                                  </div>
-                                </div>
-                                <span className="text-[13px] font-mono font-black text-slate-500 shrink-0">{item.time}</span>
-                              </div>
-
-                              {/* Dentist + room */}
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className={`px-2 py-0.5 rounded-lg border text-[11.5px] font-black ${DENTIST_BADGE[item.dentist] ?? "bg-slate-50 text-slate-600 border-slate-100"}`}>
-                                  {item.dentist}
-                                </span>
-                                <span className="px-2 py-0.5 rounded-lg bg-slate-50 text-slate-500 border border-slate-100 text-[11.5px] font-semibold">
-                                  {item.room}
-                                </span>
-                                {col === "waiting" && item.waitMin > 0 && (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-50 text-amber-600 border border-amber-100 text-[11px] font-black">
-                                    ~{item.waitMin} phút
-                                  </span>
-                                )}
-                              </div>
-
-                              {/* Note */}
-                              {item.note && (
-                                <div className="flex items-start gap-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl">
-                                  <svg className="w-3.5 h-3.5 text-amber-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
-                                  <span className="text-[11.5px] font-semibold text-amber-800">{item.note}</span>
-                                </div>
-                              )}
-
-                              {/* Actions */}
-                              {col !== "done" ? (
-                                <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
-                                  <button onClick={() => advance(item.id)}
-                                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[12.5px] font-bold cursor-pointer transition-all ${
-                                      col === "waiting"
-                                        ? "bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-100"
-                                        : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-100"
-                                    }`}>
-                                    {NEXT_LABEL[col]}
-                                  </button>
-                                  <button onClick={() => revert(item.id)}
-                                    className="px-3 py-2 rounded-xl text-[12.5px] font-bold text-slate-400 hover:text-slate-600 hover:bg-slate-100 border border-slate-100 cursor-pointer transition-all">
-                                    ←
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-1.5 text-[12px] font-bold text-emerald-600 pt-1 border-t border-slate-100">
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                  Đã hoàn thành
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          )}
         </div>
       </main>
     </div>
