@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/home/data/models/post_model.dart';
 
@@ -33,7 +35,7 @@ class NewsCard extends StatelessWidget {
       shadowColor: Colors.black.withValues(alpha: 0.07),
       elevation: 4,
       child: InkWell(
-        onTap: () {},
+        onTap: () => context.push(AppRoutes.postDetail, extra: post),
         borderRadius: BorderRadius.circular(20),
         child: Padding(
           padding: const EdgeInsets.all(12),

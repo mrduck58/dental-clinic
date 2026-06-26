@@ -17,6 +17,14 @@ import 'package:mobile_app/features/booking/presentation/pages/select_service_pa
 import 'package:mobile_app/features/booking/presentation/pages/service_detail_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/home_page.dart';
 import 'package:mobile_app/features/profile/presentation/pages/profile_page.dart';
+import 'package:mobile_app/features/home/presentation/pages/dentist_profile_page.dart';
+import 'package:mobile_app/features/home/presentation/pages/dentist_reviews_page.dart';
+import 'package:mobile_app/features/home/presentation/pages/write_review_page.dart';
+import 'package:mobile_app/features/home/data/models/doctor_model.dart';
+import 'package:mobile_app/features/home/presentation/pages/services_list_page.dart';
+import 'package:mobile_app/features/home/presentation/pages/posts_list_page.dart';
+import 'package:mobile_app/features/home/presentation/pages/post_detail_page.dart';
+import 'package:mobile_app/features/home/data/models/post_model.dart';
 import 'package:mobile_app/features/profile/presentation/pages/edit_profile_page.dart';
 import 'package:mobile_app/features/profile/presentation/pages/medical_history_page.dart';
 import 'package:mobile_app/features/profile/data/family_member.dart';
@@ -85,6 +93,52 @@ final GoRouter appRouter = GoRouter(
     ),
     // ── Màn hình standalone khác ──────────────────────────────────────────
     GoRoute(
+      path: AppRoutes.dentistProfile,
+      builder: (context, state) {
+        final doctor = state.extra as DoctorModel?;
+        if (doctor != null) {
+          return DentistProfilePage(doctor: doctor);
+        }
+        return const _PlaceholderPage(title: 'Hồ sơ nha sĩ');
+      },
+    ),
+    GoRoute(
+      path: AppRoutes.dentistReviews,
+      builder: (context, state) {
+        final doctor = state.extra as DoctorModel?;
+        if (doctor != null) {
+          return DentistReviewsPage(doctor: doctor);
+        }
+        return const _PlaceholderPage(title: 'Đánh giá nha sĩ');
+      },
+    ),
+    GoRoute(
+      path: AppRoutes.writeReview,
+      builder: (context, state) {
+        final doctor = state.extra as DoctorModel?;
+        if (doctor != null) {
+          return WriteReviewPage(doctor: doctor);
+        }
+        return const _PlaceholderPage(title: 'Viết đánh giá');
+      },
+    ),
+    GoRoute(
+      path: AppRoutes.servicesList,
+      builder: (context, state) => const ServicesListPage(),
+    ),
+    GoRoute(
+      path: AppRoutes.postsList,
+      builder: (context, state) => const PostsListPage(),
+    ),
+    GoRoute(
+      path: AppRoutes.postDetail,
+      builder: (context, state) {
+        final post = state.extra as PostModel?;
+        if (post != null) {
+          return PostDetailPage(post: post);
+        }
+        return const _PlaceholderPage(title: 'Chi tiết bài viết');
+      },
       path: AppRoutes.addFamilyMember,
       builder: (context, state) => const AddMemberPage(),
     ),
@@ -171,6 +225,12 @@ abstract class AppRoutes {
   static const appointments = '/appointments';
   static const medicalRecords = '/medical-records';
   static const profile = '/profile';
+  static const dentistProfile = '/dentist/profile';
+  static const dentistReviews = '/dentist/reviews';
+  static const writeReview = '/dentist/reviews/write';
+  static const servicesList = '/services';
+  static const postsList = '/posts';
+  static const postDetail = '/post/detail';
   static const editProfile = '/profile/edit';
   static const medicalHistory = '/profile/medical-history';
   static const addFamilyMember = '/profile/family/add';
