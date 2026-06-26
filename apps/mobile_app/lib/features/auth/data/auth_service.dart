@@ -68,6 +68,7 @@ class VerifyOtpResult {
 }
 
 class UserProfile {
+  final String? id;
   final String fullName;
   final String email;
   final String? phoneNumber;
@@ -76,6 +77,7 @@ class UserProfile {
   final String? profilePictureUrl;
 
   const UserProfile({
+    this.id,
     required this.fullName,
     required this.email,
     this.phoneNumber,
@@ -85,6 +87,7 @@ class UserProfile {
   });
 
   factory UserProfile.fromJson(Map<String, dynamic> json) => UserProfile(
+        id: json['id']?.toString(),
         fullName: json['fullName'] as String? ?? '',
         email: json['email'] as String? ?? '',
         phoneNumber: json['phoneNumber'] as String?,
@@ -168,8 +171,48 @@ class AuthService {
         'firstName': firstName,
         'lastName': lastName,
         'phoneNumber': phoneNumber,
-        'dateOfBirth': ?dob,
-        'gender': ?gender,
+        'dateOfBirth': dob,
+        'gender': gender,
+      },
+      token: token,
+    );
+  }
+
+  Future<void> updateProfile({
+    required String token,
+    required String fullName,
+    required String phoneNumber,
+    DateTime? dateOfBirth,
+    String? gender,
+  }) async {
+    final dob = dateOfBirth == null
+        ? null
+        : '${dateOfBirth.year.toString().padLeft(4, '0')}'
+            '-${dateOfBirth.month.toString().padLeft(2, '0')}'
+            '-${dateOfBirth.day.toString().padLeft(2, '0')}';
+
+    await _client.put(
+      ApiConstants.fillProfile,
+      {
+        'fullName': fullName,
+        'phoneNumber': phoneNumber,
+        'dateOfBirth': dob,
+        'gender': gender,
+      },
+      token: token,
+    );
+  }
+
+  Future<void> changePassword({
+    required String token,
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    await _client.put(
+      ApiConstants.changePassword,
+      {
+        'currentPassword': currentPassword,
+        'newPassword': newPassword,
       },
       token: token,
     );
