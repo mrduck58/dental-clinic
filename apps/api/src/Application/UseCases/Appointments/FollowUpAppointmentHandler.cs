@@ -11,7 +11,8 @@ public record CreateFollowUpRequest(
     DateTimeOffset AppointmentDate,
     string? Symptoms,
     Guid? ServiceId,
-    string? Notes);
+    string? Notes,
+    Guid? DentistId = null);
 
 public class FollowUpAppointmentHandler(AppDbContext dbContext)
 {
@@ -25,10 +26,13 @@ public class FollowUpAppointmentHandler(AppDbContext dbContext)
         if (originalAppointment == null)
             throw new KeyNotFoundException("Không tìm thấy lịch hẹn gốc.");
 
+        // Cho phép chọn bác sĩ khác cho buổi tái khám; mặc định dùng bác sĩ của lịch gốc
+        var dentistId = request.DentistId ?? originalAppointment.DentistId;
+
         var followUpAppointment = Appointment.CreateFollowUp(
             request.OriginalAppointmentId,
             originalAppointment.PatientId,
-            originalAppointment.DentistId,
+            dentistId,
             request.AppointmentDate,
             request.Symptoms,
             request.ServiceId,

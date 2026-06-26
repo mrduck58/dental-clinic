@@ -1784,6 +1784,7 @@ export interface CreateFollowUpRequest {
   symptoms?: string;
   serviceId?: string;
   notes?: string;
+  dentistId?: string;
 }
 
 export async function createFollowUpApi(appointmentId: string, request: CreateFollowUpRequest): Promise<FollowUpAppointmentDto> {
@@ -1846,6 +1847,32 @@ export async function getFollowUpSlotsApi(dentistId: string, date: string): Prom
     throw new Error((err as { title?: string }).title ?? "Không thể tải lịch khám");
   }
   return res.json() as Promise<FollowUpSlotsResultDto>;
+}
+
+export interface DentistFollowUpSlotsDto {
+  dentistId: string;
+  fullName: string;
+  specialization: string;
+  shift: string;
+  slots: FollowUpSlotDto[];
+}
+
+export interface DentistsFollowUpSlotsResultDto {
+  hasSchedule: boolean;
+  message: string | null;
+  dentists: DentistFollowUpSlotsDto[];
+}
+
+export async function getDentistsWithSlotsApi(date: string): Promise<DentistsFollowUpSlotsResultDto> {
+  const res = await fetch(`${API_URL}/api/dentists/followup-slots?date=${date}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải lịch khám");
+  }
+  return res.json() as Promise<DentistsFollowUpSlotsResultDto>;
 }
 
 // End Treatment API
