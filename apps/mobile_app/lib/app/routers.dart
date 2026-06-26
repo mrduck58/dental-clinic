@@ -178,6 +178,21 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) =>
           const _PlaceholderPage(title: 'Hỏi đáp AI'),
     ),
+    GoRoute(
+      path: AppRoutes.familyMembers,
+      builder: (context, state) =>
+          const _PlaceholderPage(title: 'Thành viên gia đình'),
+    ),
+    GoRoute(
+      path: AppRoutes.paymentHistory,
+      builder: (context, state) =>
+          const _PlaceholderPage(title: 'Lịch sử thanh toán & Công nợ'),
+    ),
+    GoRoute(
+      path: AppRoutes.notifications,
+      builder: (context, state) =>
+          const _PlaceholderPage(title: 'Thông báo'),
+    ),
 
     // ── Booking flow (standalone, không có Bottom Nav) ────────────────────
     GoRoute(
@@ -241,6 +256,9 @@ abstract class AppRoutes {
   static const changePassword = '/profile/security/change-password';
   static const payment = '/payment';
   static const chat = '/chat';
+  static const familyMembers = '/profile/family';
+  static const paymentHistory = '/profile/payment-history';
+  static const notifications = '/profile/notifications';
 
   // ── Booking flow ────────────────────────────────────────────────────────────
   static const bookingSelectPatient = '/booking/patient';
