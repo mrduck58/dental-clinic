@@ -1372,6 +1372,76 @@ export interface DentistDashboardResponse {
   upcomingPatients: DentistDashboardPatientDto[];
 }
 
+// ── Staff Walk-in Schedule ─────────────────────────────────────────────────
+
+export interface StaffScheduleSlot {
+  time: string;
+  isBooked: boolean;
+  patientName: string | null;
+}
+
+export interface StaffScheduleDentistDto {
+  dentistId: string;
+  name: string;
+  room: string;
+  morningSlots: StaffScheduleSlot[];
+  afternoonSlots: StaffScheduleSlot[];
+}
+
+export interface StaffScheduleResponse {
+  date: string;
+  dentists: StaffScheduleDentistDto[];
+}
+
+export async function getStaffScheduleApi(date?: string): Promise<StaffScheduleResponse> {
+  const params = new URLSearchParams();
+  if (date) params.set("date", date);
+  const query = params.toString() ? `?${params}` : "";
+  const res = await fetch(`${API_URL}/api/appointments/staff/schedule${query}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải lịch trống");
+  }
+  return res.json() as Promise<StaffScheduleResponse>;
+}
+
+export interface CreateWalkInRequest {
+  dentistId: string;
+  appointmentDate: string;
+  patientName: string;
+  patientPhone: string;
+  dateOfBirth: string;   // "YYYY-MM-DD"
+  gender: string;        // "Nam" | "Nữ" | "Khác"
+  serviceId?: string;
+  symptoms?: string;
+}
+
+export interface CreateWalkInResult {
+  appointmentId: string;
+  appointmentCode: string;
+  patientName: string;
+  status: string;
+}
+
+export async function createWalkInAppointmentApi(request: CreateWalkInRequest): Promise<CreateWalkInResult> {
+  const res = await fetch(`${API_URL}/api/appointments/walkin`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(request),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Đặt lịch tại quầy thất bại");
+  }
+  return res.json() as Promise<CreateWalkInResult>;
+}
+
+// ── Dentist Dashboard ──────────────────────────────────────────────────────
+
 export async function getDentistDashboardApi(): Promise<DentistDashboardResponse> {
   const res = await fetch(`${API_URL}/api/appointments/dentist/dashboard`, {
     headers: { ...authHeaders() },
