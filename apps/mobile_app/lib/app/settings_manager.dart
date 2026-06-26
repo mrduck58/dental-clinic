@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SettingsManager {
@@ -272,5 +272,3 @@ extension AppThemeAndLocaleExtension on BuildContext {
   Color get divider => isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
   Color get primaryLight => isDark ? const Color(0xFF450A0A) : const Color(0xFFFEE2E2);
 }
-
-The above content shows the entire, complete file contents of the requested file.

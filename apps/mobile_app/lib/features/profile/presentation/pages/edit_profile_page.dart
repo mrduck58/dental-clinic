@@ -1,4 +1,4 @@
-﻿import 'package:dio/dio.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
@@ -6,7 +6,6 @@ import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/core/network/api_client.dart';
 import 'package:mobile_app/features/auth/data/auth_service.dart';
 import 'package:mobile_app/app/routers.dart';
-import 'package:mobile_app/app/settings_manager.dart';
 
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
@@ -90,9 +89,11 @@ class _EditProfilePageState extends State<EditProfilePage> {
       confirmText: 'Chọn',
       builder: (context, child) => Theme(
         data: Theme.of(context).copyWith(
-          colorScheme: Theme.of(context).colorScheme.copyWith(
+          colorScheme: const ColorScheme.light(
             primary: AppColors.primary,
             onPrimary: Colors.white,
+            surface: Colors.white,
+            onSurface: AppColors.textPrimary,
           ),
         ),
         child: child!,
@@ -190,18 +191,18 @@ class _EditProfilePageState extends State<EditProfilePage> {
     final patientId = _getPatientId(_profile?.id);
 
     return Scaffold(
-      backgroundColor: context.bg,
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        backgroundColor: context.card,
-        elevation: 0.5,
+        backgroundColor: Colors.white,
+        elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: context.textPrimary, size: 20),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.primary, size: 20),
           onPressed: () => context.pop(),
         ),
-        title: Text(
-          context.l10n('edit_profile'),
+        title: const Text(
+          'Chỉnh sửa hồ sơ',
           style: TextStyle(
-            color: context.textPrimary,
+            color: AppColors.primaryDark,
             fontWeight: FontWeight.w800,
             fontSize: 20,
           ),
@@ -212,11 +213,18 @@ class _EditProfilePageState extends State<EditProfilePage> {
             padding: const EdgeInsets.only(right: 16.0),
             child: CircleAvatar(
               radius: 18,
-              backgroundColor: context.divider,
+              backgroundColor: const Color(0xFFE2E8F0),
               backgroundImage: const AssetImage('assets/images/bac_si_1.png'),
             ),
           ),
         ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(
+            color: const Color(0xFFE2E8F0),
+            height: 1,
+          ),
+        ),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
@@ -249,7 +257,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                               height: 120,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                border: Border.all(color: context.divider, width: 3),
+                                border: Border.all(color: const Color(0xFFE2E8F0), width: 3),
                                 image: const DecorationImage(
                                   image: AssetImage('assets/images/bac_si_1.png'),
                                   fit: BoxFit.cover,
@@ -267,7 +275,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                                   decoration: BoxDecoration(
                                     color: AppColors.primary,
                                     shape: BoxShape.circle,
-                                    border: Border.all(color: context.card, width: 2),
+                                    border: Border.all(color: Colors.white, width: 2),
                                   ),
                                   child: const Icon(
                                     Icons.camera_alt_outlined,
@@ -288,18 +296,18 @@ class _EditProfilePageState extends State<EditProfilePage> {
                           children: [
                             Text(
                               _nameCtrl.text.isNotEmpty ? _nameCtrl.text : 'Alex Reed',
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 22,
                                 fontWeight: FontWeight.w800,
-                                color: context.textPrimary,
+                                color: Color(0xFF0F172A),
                               ),
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              '${context.l10n('patient_id')}: $patientId',
-                              style: TextStyle(
+                              'Mã bệnh nhân: $patientId',
+                              style: const TextStyle(
                                 fontSize: 14,
-                                color: context.textSecondary,
+                                color: Color(0xFF64748B),
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -309,16 +317,16 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       const SizedBox(height: 28),
 
                       // Full Name Field
-                      _buildLabel(context.l10n('fullname')),
+                      _buildLabel('Họ và tên'),
                       _buildTextField(
                         controller: _nameCtrl,
                         icon: Iconsax.user,
-                        hint: context.l10n('fullname'),
+                        hint: 'Nhập họ và tên của bạn',
                       ),
                       const SizedBox(height: 20),
 
                       // Email Address Field (Disabled/Read-only)
-                      _buildLabel(context.l10n('email')),
+                      _buildLabel('Địa chỉ Email'),
                       _buildTextField(
                         controller: _emailCtrl,
                         icon: Iconsax.sms,
@@ -328,11 +336,11 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       const SizedBox(height: 20),
 
                       // Phone Number Field
-                      _buildLabel(context.l10n('phone')),
+                      _buildLabel('Số điện thoại'),
                       _buildTextField(
                         controller: _phoneCtrl,
                         icon: Iconsax.call,
-                        hint: context.l10n('phone'),
+                        hint: 'Nhập số điện thoại của bạn',
                         keyboardType: TextInputType.phone,
                       ),
                       const SizedBox(height: 20),
@@ -344,32 +352,32 @@ class _EditProfilePageState extends State<EditProfilePage> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                _buildLabel(context.l10n('dob')),
+                                _buildLabel('Ngày sinh'),
                                 GestureDetector(
                                   onTap: _pickDate,
                                   child: Container(
                                     height: 56,
                                     padding: const EdgeInsets.symmetric(horizontal: 16),
                                     decoration: BoxDecoration(
-                                      color: context.card,
+                                      color: Colors.white,
                                       borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(color: context.divider),
+                                      border: Border.all(color: const Color(0xFFE2E8F0)),
                                     ),
                                     child: Row(
                                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                       children: [
                                         Text(
-                                          _dob != null ? _formatDate(_dob) : context.l10n('select'),
+                                          _dob != null ? _formatDate(_dob) : 'Chọn ngày sinh',
                                           style: TextStyle(
                                             color: _dob != null
-                                                ? context.textPrimary
-                                                : context.textMuted,
+                                                ? const Color(0xFF0F172A)
+                                                : const Color(0xFF94A3B8),
                                             fontSize: 15,
                                           ),
                                         ),
-                                        Icon(
+                                        const Icon(
                                           Iconsax.calendar,
-                                          color: context.textMuted,
+                                          color: Color(0xFF94A3B8),
                                           size: 20,
                                         ),
                                       ],
@@ -384,31 +392,30 @@ class _EditProfilePageState extends State<EditProfilePage> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                _buildLabel(context.l10n('gender')),
+                                _buildLabel('Giới tính'),
                                 Container(
                                   height: 56,
                                   padding: const EdgeInsets.symmetric(horizontal: 16),
                                   decoration: BoxDecoration(
-                                    color: context.card,
+                                    color: Colors.white,
                                     borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: context.divider),
+                                    border: Border.all(color: const Color(0xFFE2E8F0)),
                                   ),
                                   child: DropdownButtonHideUnderline(
                                     child: DropdownButton<String>(
-                                      dropdownColor: context.card,
                                       value: _genderOptions.contains(_gender) ? _gender : null,
-                                      hint: Text(
-                                        context.l10n('select'),
-                                        style: TextStyle(color: context.textMuted, fontSize: 15),
+                                      hint: const Text(
+                                        'Chọn',
+                                        style: TextStyle(color: Color(0xFF94A3B8), fontSize: 15),
                                       ),
-                                      icon: Icon(
+                                      icon: const Icon(
                                         Icons.keyboard_arrow_down_rounded,
-                                        color: context.textMuted,
+                                        color: Color(0xFF94A3B8),
                                         size: 20,
                                       ),
                                       isExpanded: true,
-                                      style: TextStyle(
-                                        color: context.textPrimary,
+                                      style: const TextStyle(
+                                        color: Color(0xFF0F172A),
                                         fontSize: 15,
                                       ),
                                       items: _genderOptions.map((String val) {
@@ -430,6 +437,62 @@ class _EditProfilePageState extends State<EditProfilePage> {
                           ),
                         ],
                       ),
+                      const SizedBox(height: 28),
+
+                      // Medical Information Card
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFDF2F2),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFFDE2E2)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: const [
+                                Icon(
+                                  Iconsax.shield_security,
+                                  color: AppColors.primary,
+                                  size: 20,
+                                ),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Thông tin y tế',
+                                  style: TextStyle(
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Cập nhật thông tin y tế để đảm bảo quá trình thanh toán và điều trị diễn ra thuận lợi.',
+                              style: TextStyle(
+                                color: Color(0xFF475569),
+                                fontSize: 13,
+                                height: 1.4,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            InkWell(
+                              onTap: () => context.push(AppRoutes.medicalHistory),
+                              child: const Text(
+                                'Xem chi tiết >',
+                                style: TextStyle(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                       const SizedBox(height: 32),
 
                       // Update Profile Button
@@ -439,7 +502,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         child: ElevatedButton(
                           onPressed: _isSaving ? null : _submit,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
+                            backgroundColor: const Color(0xFFFF3B30),
                             elevation: 0,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(27),
@@ -453,12 +516,12 @@ class _EditProfilePageState extends State<EditProfilePage> {
                                 )
                               : Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const Icon(Icons.check_circle_outline_rounded, color: Colors.white, size: 22),
-                                    const SizedBox(width: 8),
+                                  children: const [
+                                    Icon(Icons.check_circle_outline_rounded, color: Colors.white, size: 22),
+                                    SizedBox(width: 8),
                                     Text(
-                                      context.l10n('save_changes'),
-                                      style: const TextStyle(
+                                      'Cập nhật hồ sơ',
+                                      style: TextStyle(
                                         color: Colors.white,
                                         fontSize: 16,
                                         fontWeight: FontWeight.bold,
@@ -479,10 +542,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
       padding: const EdgeInsets.only(bottom: 8.0),
       child: Text(
         text,
-        style: TextStyle(
+        style: const TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w600,
-          color: context.textSecondary,
+          color: Color(0xFF334155),
         ),
       ),
     );
@@ -497,10 +560,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: enabled ? context.card : (context.isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
+        color: enabled ? Colors.white : const Color(0xFFF1F5F9),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: context.divider,
+          color: const Color(0xFFE2E8F0),
         ),
       ),
       child: TextField(
@@ -508,17 +571,17 @@ class _EditProfilePageState extends State<EditProfilePage> {
         enabled: enabled,
         keyboardType: keyboardType,
         style: TextStyle(
-          color: enabled ? context.textPrimary : context.textSecondary,
+          color: enabled ? const Color(0xFF0F172A) : const Color(0xFF64748B),
           fontSize: 15,
         ),
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: TextStyle(color: context.textMuted, fontSize: 15),
+          hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 15),
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           border: InputBorder.none,
           suffixIcon: Icon(
             icon,
-            color: context.textMuted,
+            color: const Color(0xFF94A3B8),
             size: 20,
           ),
         ),
@@ -526,4 +589,3 @@ class _EditProfilePageState extends State<EditProfilePage> {
     );
   }
 }
-
