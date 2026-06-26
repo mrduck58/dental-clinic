@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:mobile_app/app/routers.dart';
+import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 
 class HomeHeader extends StatelessWidget {
@@ -21,14 +24,14 @@ class HomeHeader extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Xin chào',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 15),
+                  Text(
+                    context.l10n('hello'),
+                    style: TextStyle(color: context.textSecondary, fontSize: 15),
                   ),
                   Text(
-                    userName.isNotEmpty ? userName : 'Bạn',
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
+                    userName.isNotEmpty ? userName : context.l10n('user'),
+                    style: TextStyle(
+                      color: context.textPrimary,
                       fontSize: 20,
                       fontWeight: FontWeight.w900,
                     ),
@@ -89,22 +92,25 @@ class _NotificationBell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        shape: BoxShape.circle,
-        border: Border.all(color: AppColors.divider, width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+    return GestureDetector(
+      onTap: () => context.push(AppRoutes.notifications),
+      child: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: context.card,
+          shape: BoxShape.circle,
+          border: Border.all(color: context.divider, width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: context.isDark ? 0.2 : 0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Icon(Iconsax.notification, size: 24, color: context.textPrimary),
       ),
-      child: const Icon(Iconsax.notification, size: 24, color: AppColors.textPrimary),
     );
   }
 }

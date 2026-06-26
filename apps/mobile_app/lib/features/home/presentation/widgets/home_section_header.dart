@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 
 class HomeSectionHeader extends StatelessWidget {
@@ -24,11 +25,11 @@ class HomeSectionHeader extends StatelessWidget {
                 borderRadius: BorderRadius.circular(999),
               ),
             ),
-            const SizedBox(width: 10),
+            SizedBox(width: 10),
             Text(
               title,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
+              style: TextStyle(
+                color: context.textPrimary,
                 fontSize: 20,
                 fontWeight: FontWeight.w900,
               ),
@@ -38,10 +39,10 @@ class HomeSectionHeader extends StatelessWidget {
         if (onSeeAll != null)
           GestureDetector(
             onTap: onSeeAll,
-            child: const Row(
+            child: Row(
               children: [
                 Text(
-                  'Xem tất cả',
+                  context.l10n('see_all'),
                   style: TextStyle(
                     color: AppColors.primary,
                     fontSize: 15,

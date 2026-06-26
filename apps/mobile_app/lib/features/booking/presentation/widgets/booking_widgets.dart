@@ -30,11 +30,11 @@ class BookingAppBar extends StatelessWidget implements PreferredSizeWidget {
       scrolledUnderElevation: 0,
       leading: GestureDetector(
         onTap: onBack ?? () => Navigator.of(context).pop(),
-        child: const Icon(Iconsax.arrow_left, color: AppColors.primary, size: 28, fontWeight: FontWeight.w800),
+        child: Icon(Iconsax.arrow_left, color: AppColors.primary, size: 28, fontWeight: FontWeight.w800),
       ),
       title: Text(
         title,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 22,
           fontWeight: FontWeight.w800,
           color: AppColors.primary,
@@ -45,7 +45,7 @@ class BookingAppBar extends StatelessWidget implements PreferredSizeWidget {
           ? [
               GestureDetector(
                 onTap: () => context.go(AppRoutes.home),
-                child: const Padding(
+                child: Padding(
                   padding: EdgeInsets.only(right: 16),
                   child: Icon(Iconsax.home_2, color: AppColors.primary, size: 28, fontWeight: FontWeight.w800),
                 ),
@@ -88,7 +88,7 @@ class BookingBottomBar extends StatelessWidget {
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 12,
-            offset: const Offset(0, -4),
+            offset: Offset(0, -4),
           ),
         ],
       ),
@@ -96,7 +96,7 @@ class BookingBottomBar extends StatelessWidget {
           ? Row(
               children: [
                 leading!,
-                const SizedBox(width: 10),
+                SizedBox(width: 10),
                 Expanded(child: _Button(label: label, onTap: onTap, isLoading: isLoading)),
               ],
             )
@@ -125,7 +125,7 @@ class _Button extends StatelessWidget {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
         child: isLoading
-            ? const SizedBox(
+            ? SizedBox(
                 width: 20,
                 height: 20,
                 child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
@@ -135,11 +135,11 @@ class _Button extends StatelessWidget {
                 children: [
                   Text(
                     label,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                   ),
                   if (onTap != null) ...[
-                    const SizedBox(width: 6),
-                    const Icon(Iconsax.arrow_right, size: 18),
+                    SizedBox(width: 6),
+                    Icon(Iconsax.arrow_right, size: 18),
                   ],
                 ],
               ),
@@ -158,11 +158,11 @@ class BookingSectionLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       color: AppColors.background,
       child: Text(
         text,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 13,
           fontWeight: FontWeight.w600,
           color: AppColors.textMuted,

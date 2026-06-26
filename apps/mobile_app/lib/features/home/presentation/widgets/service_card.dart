@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
+import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/home/data/models/service_model.dart';
 import 'package:mobile_app/features/booking/data/booking_models.dart';
@@ -29,7 +30,7 @@ class ServiceCard extends StatelessWidget {
     final quickInfo = '${service.durationText} • Tại phòng khám';
 
     return Material(
-      color: Colors.white,
+      color: context.card,
       borderRadius: BorderRadius.circular(18),
       shadowColor: Colors.black.withValues(alpha: 0.05),
       elevation: 2,
@@ -48,7 +49,7 @@ class ServiceCard extends StatelessWidget {
         },
         borderRadius: BorderRadius.circular(18),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           child: Row(
             children: [
               Container(
@@ -64,14 +65,14 @@ class ServiceCard extends StatelessWidget {
                 ),
                 child: Icon(icon, color: Colors.white, size: 22),
               ),
-              const SizedBox(width: 14),
+              SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       service.name,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
@@ -79,10 +80,10 @@ class ServiceCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4),
                     Text(
                       quickInfo,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textMuted,
                         fontSize: 12,
                       ),
@@ -90,20 +91,20 @@ class ServiceCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
                     service.formattedPrice,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.primary,
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  const Icon(
+                  SizedBox(height: 4),
+                  Icon(
                     Iconsax.arrow_right_3,
                     color: AppColors.textMuted,
                     size: 14,
@@ -127,18 +128,18 @@ class ServicesGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     final rows = <Widget>[];
     for (var i = 0; i < services.length; i += 2) {
-      if (i > 0) rows.add(const SizedBox(height: 12));
+      if (i > 0) rows.add(SizedBox(height: 12));
       rows.add(
         IntrinsicHeight(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Expanded(child: ServiceCard(service: services[i], index: i)),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Expanded(
                 child: i + 1 < services.length
                     ? ServiceCard(service: services[i + 1], index: i + 1)
-                    : const SizedBox(),
+                    : SizedBox(),
               ),
             ],
           ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
+import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/auth/data/auth_service.dart';
 import 'package:mobile_app/features/booking/data/booking_models.dart';
@@ -27,12 +28,15 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
   }
 
   Future<void> _load() async {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     try {
       final profile = await _auth.getMyProfile();
       final me = PatientInfo(
         id: 'self',
-        name: profile.fullName.isEmpty ? 'Người dùng' : profile.fullName.toUpperCase(),
-        relationship: 'Tôi',
+        name: profile.fullName.isEmpty 
+            ? (isVi ? 'Người dùng' : 'User') 
+            : profile.fullName.toUpperCase(),
+        relationship: isVi ? 'Tôi' : 'Self',
         phone: profile.phoneNumber,
         dob: _formatDob(profile.dateOfBirth),
         gender: profile.gender ?? 'Nam',
@@ -43,8 +47,8 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
       final name = await _auth.getUserName() ?? '';
       final me = PatientInfo(
         id: 'self',
-        name: name.isEmpty ? 'Người dùng' : name.toUpperCase(),
-        relationship: 'Tôi',
+        name: name.isEmpty ? (isVi ? 'Người dùng' : 'User') : name.toUpperCase(),
+        relationship: isVi ? 'Tôi' : 'Self',
         gender: 'Nam',
       );
       if (mounted) setState(() { _patients = [me]; _loading = false; });
@@ -70,7 +74,7 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: BookingAppBar(title: 'Đặt khám', onBack: () => context.pop()),
+      appBar: BookingAppBar(title: context.l10n('book_appointment'), onBack: () => context.pop()),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : CustomScrollView(
@@ -87,8 +91,8 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
                     padding: const EdgeInsets.fromLTRB(16, 20, 16, 14),
                     child: Row(
                       children: [
-                        const Text(
-                          'Chọn hồ sơ',
+                        Text(
+                          context.l10n('select_profile'),
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w800,
@@ -109,7 +113,7 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
                               color: AppColors.primary,
                               borderRadius: BorderRadius.circular(999),
                             ),
-                            child: const Row(
+                            child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(
@@ -119,7 +123,7 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
                                 ),
                                 SizedBox(width: 6),
                                 Text(
-                                  'Thêm mới hồ sơ',
+                                  context.l10n('add_new_profile'),
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontSize: 13,
