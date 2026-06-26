@@ -33,12 +33,6 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.Bio).HasMaxLength(2000);
         builder.Property(u => u.Position).HasMaxLength(100);
 
-        // Salary & Leave fields
-        builder.Property(u => u.EmploymentType).HasMaxLength(50);
-        builder.Property(u => u.BaseSalary).HasPrecision(18, 2);
-        builder.Property(u => u.SalaryUnit).HasMaxLength(50);
-        builder.Property(u => u.LeaveAccrued).HasPrecision(5, 2);
-
         builder.HasIndex(u => u.Email).IsUnique();
         builder.HasIndex(u => u.Username).IsUnique().HasFilter("\"Username\" IS NOT NULL");
     }

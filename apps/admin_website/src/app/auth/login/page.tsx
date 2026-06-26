@@ -27,18 +27,12 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       const data = await loginApi(email, password);
-      saveSession(data);
-
-      const role = data.user.role;
-      if (role === "Dentist") {
-        router.push("/dentist");
-      } else if (role === "Staff") {
-        router.push("/staff");
-      } else if (role === "Owner") {
-        router.push("/owner");
-      } else {
-        router.push("/");
+      if (data.user.role !== "Admin") {
+        setError("Tài khoản không có quyền truy cập hệ thống quản trị.");
+        return;
       }
+      saveSession(data);
+      router.push("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Đăng nhập thất bại");
     } finally {

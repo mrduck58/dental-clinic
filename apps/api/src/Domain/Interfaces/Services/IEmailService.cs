@@ -7,9 +7,4 @@ public interface IEmailService
         string recipientName,
         string password,
         CancellationToken ct = default);
-
-    Task SendOtpAsync(
-        string recipientEmail,
-        string code,
-        CancellationToken ct = default);
 }

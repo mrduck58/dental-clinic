@@ -32,18 +32,7 @@ public class ExceptionMiddleware(RequestDelegate next, ILogger<ExceptionMiddlewa
         ctx.Response.StatusCode  = status;
         ctx.Response.ContentType = "application/json";
 
-        // If ValidationException has field-level errors, include them in the response
-        object body;
-        if (ex is ValidationException validationEx && validationEx.Errors.Count > 0)
-        {
-            body = new { title, status, errors = validationEx.Errors };
-        }
-        else
-        {
-            body = new { title, status };
-        }
-
-        var json = JsonSerializer.Serialize(body);
-        return ctx.Response.WriteAsync(json);
+        var body = JsonSerializer.Serialize(new { title, status });
+        return ctx.Response.WriteAsync(body);
     }
 }

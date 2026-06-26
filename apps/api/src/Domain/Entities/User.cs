@@ -38,12 +38,6 @@ public class User
     public string? Bio { get; private set; }
     public string? Position { get; private set; }
 
-    // Salary & Leave fields
-    public string? EmploymentType { get; private set; }   // "Full-time", "Part-time", "Intern"
-    public decimal? BaseSalary { get; private set; }
-    public string? SalaryUnit { get; private set; }       // "Theo tháng", "Theo ngày", "Theo ca"
-    public decimal? LeaveAccrued { get; private set; }    // Ngày phép tích luỹ/tháng
-
     public bool HasAccount => PasswordHash != null;
 
     // Navigation properties
@@ -114,10 +108,6 @@ public class User
         Education = profile.Education;
         Bio = profile.Bio;
         Position = profile.Position;
-        EmploymentType = profile.EmploymentType;
-        BaseSalary = profile.BaseSalary;
-        SalaryUnit = profile.SalaryUnit;
-        LeaveAccrued = profile.LeaveAccrued;
     }
 
     public void Update(UpdateStaffData data)
@@ -144,45 +134,6 @@ public class User
         Education = data.Education;
         Bio = data.Bio;
         Position = data.Position;
-        EmploymentType = data.EmploymentType;
-        BaseSalary = data.BaseSalary;
-        SalaryUnit = data.SalaryUnit;
-        LeaveAccrued = data.LeaveAccrued;
-    }
-
-    public void UpdatePatientProfile(string fullName, string phoneNumber, DateOnly? dateOfBirth, string? gender)
-    {
-        FullName = fullName;
-        PhoneNumber = phoneNumber;
-        DateOfBirth = dateOfBirth;
-        Gender = gender;
-    }
-
-    public void UpdatePersonalProfile(
-        string fullName,
-        string? phoneNumber,
-        DateOnly? dateOfBirth,
-        string? gender,
-        string? address,
-        string? profilePictureUrl,
-        string? bio,
-        string? education,
-        string? specialty = null,
-        int? yearsOfExperience = null)
-    {
-        FullName = fullName;
-        PhoneNumber = phoneNumber;
-        DateOfBirth = dateOfBirth;
-        Gender = gender;
-        Address = address;
-        ProfilePictureUrl = profilePictureUrl;
-        Bio = bio;
-        Education = education;
-        if (Role == "Dentist")
-        {
-            Specialty = specialty ?? Specialty;
-            YearsOfExperience = yearsOfExperience ?? YearsOfExperience;
-        }
     }
 
     public void ResetPassword(string newPasswordHash) => PasswordHash = newPasswordHash;
@@ -208,11 +159,7 @@ public record StaffProfileData(
     string? CertificateIssuedBy,
     string? Education,
     string? Bio,
-    string? Position,
-    string? EmploymentType,
-    decimal? BaseSalary,
-    string? SalaryUnit,
-    decimal? LeaveAccrued);
+    string? Position);
 
 public record UpdateStaffData(
     string FullName,
@@ -236,8 +183,4 @@ public record UpdateStaffData(
     string? CertificateIssuedBy,
     string? Education,
     string? Bio,
-    string? Position,
-    string? EmploymentType,
-    decimal? BaseSalary,
-    string? SalaryUnit,
-    decimal? LeaveAccrued);
+    string? Position);

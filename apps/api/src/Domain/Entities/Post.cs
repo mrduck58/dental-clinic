@@ -9,11 +9,6 @@ public class Post
     public string Content { get; private set; } = string.Empty;
     public string? ThumbnailUrl { get; private set; }
     public bool IsPublished { get; private set; }
-
-    /// <summary>Dịch vụ mà bài viết này mô tả (null = tin tức chung, không gắn dịch vụ nào).</summary>
-    public Guid? ServiceId { get; private set; }
-    public Service? Service { get; private set; }
-
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset? UpdatedAt { get; private set; }
     public DateTimeOffset? PublishedAt { get; private set; }
@@ -26,8 +21,7 @@ public class Post
         string author,
         string content,
         string? thumbnailUrl,
-        bool isPublished,
-        Guid? serviceId = null)
+        bool isPublished)
         => new()
         {
             Id = Guid.NewGuid(),
@@ -37,7 +31,6 @@ public class Post
             Content = content,
             ThumbnailUrl = thumbnailUrl,
             IsPublished = isPublished,
-            ServiceId = serviceId,
             CreatedAt = DateTimeOffset.UtcNow,
             PublishedAt = isPublished ? DateTimeOffset.UtcNow : null,
         };
@@ -47,14 +40,12 @@ public class Post
         string category,
         string content,
         string? thumbnailUrl,
-        bool isPublished,
-        Guid? serviceId = null)
+        bool isPublished)
     {
         Title = title;
         Category = category;
         Content = content;
         if (thumbnailUrl is not null) ThumbnailUrl = thumbnailUrl;
-        ServiceId = serviceId;
         if (isPublished && !IsPublished) PublishedAt = DateTimeOffset.UtcNow;
         IsPublished = isPublished;
         UpdatedAt = DateTimeOffset.UtcNow;

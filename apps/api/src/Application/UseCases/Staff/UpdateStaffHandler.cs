@@ -1,7 +1,6 @@
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
-using DentalClinic.API.Domain.Validators;
 
 namespace DentalClinic.API.Application.UseCases.Staff;
 
@@ -28,27 +27,12 @@ public record UpdateStaffCommand(
     string? CertificateIssuedBy,
     string? Education,
     string? Bio,
-    string? Position,
-    string? EmploymentType,
-    decimal? BaseSalary,
-    string? SalaryUnit,
-    decimal? LeaveAccrued);
+    string? Position);
 
 public class UpdateStaffHandler(IUserRepository userRepository)
 {
     public async Task<StaffItemDto> HandleAsync(UpdateStaffCommand command, CancellationToken ct = default)
     {
-        // Validate all fields
-        StaffValidator.ValidateUpdate(
-            command.FullName, command.Email, command.PhoneNumber, command.Role,
-            command.Gender, command.DateOfBirth, command.Address,
-            command.Specialty, command.LicenseNumber, command.YearsOfExperience,
-            command.StartDate, command.ServicesHandled,
-            command.CertificateIssuedDate, command.CertificateIssuedBy,
-            command.Education, command.Bio, command.Position, command.Department,
-            command.EmploymentType, command.BaseSalary, command.SalaryUnit,
-            command.LeaveAccrued, command.EmploymentStatus);
-
         var user = await userRepository.GetByIdAsync(command.Id, ct)
             ?? throw new NotFoundException($"Không tìm thấy nhân viên với ID '{command.Id}'.");
 
@@ -65,8 +49,7 @@ public class UpdateStaffHandler(IUserRepository userRepository)
             command.Specialty, command.LicenseNumber, command.YearsOfExperience,
             command.Gender, command.DateOfBirth, command.Address,
             command.StartDate, command.ServicesHandled, command.CertificateIssuedDate,
-            command.CertificateIssuedBy, command.Education, command.Bio, command.Position,
-            command.EmploymentType, command.BaseSalary, command.SalaryUnit, command.LeaveAccrued));
+            command.CertificateIssuedBy, command.Education, command.Bio, command.Position));
 
         await userRepository.UpdateAsync(user, ct);
 
