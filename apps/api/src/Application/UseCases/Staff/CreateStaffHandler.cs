@@ -2,6 +2,7 @@ using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Validators;
+using DentalClinic.API.Infrastructure.Persistence;
 
 namespace DentalClinic.API.Application.UseCases.Staff;
 
@@ -33,7 +34,7 @@ public record CreateStaffCommand(
     string? SalaryUnit,
     decimal? LeaveAccrued);
 
-public class CreateStaffHandler(IUserRepository userRepository)
+public class CreateStaffHandler(IUserRepository userRepository, AppDbContext dbContext)
 {
     public async Task<StaffItemDto> HandleAsync(CreateStaffCommand command, CancellationToken ct = default)
     {
@@ -62,6 +63,17 @@ public class CreateStaffHandler(IUserRepository userRepository)
             command.CertificateIssuedBy, command.Education, command.Bio, command.Position,
             command.EmploymentType, command.BaseSalary, command.SalaryUnit, command.LeaveAccrued));
 
+        // Tạo Dentist entry cho bác sĩ để FK appointment hoạt động và hiện đúng trong lịch
+        if (string.Equals(command.Role, "Dentist", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(command.Role, "Doctor",  StringComparison.OrdinalIgnoreCase))
+        {
+            var dentist = Dentist.Create(user.Id, command.FullName,
+                command.Specialty ?? "Nha khoa tổng quát",
+                command.YearsOfExperience ?? 0);
+            dbContext.Dentists.Add(dentist);
+        }
+
+        // userRepository.AddAsync gọi SaveChangesAsync — lưu cả User lẫn Dentist trong cùng transaction
         await userRepository.AddAsync(user, ct);
 
         return GetStaffHandler.ToDto(user);

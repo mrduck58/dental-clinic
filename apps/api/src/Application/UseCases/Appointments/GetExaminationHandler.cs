@@ -116,8 +116,9 @@ public class GetExaminationHandler(AppDbContext dbContext)
             {
                 Id = appointment.PatientId,
                 FullName = appointment.Patient.FullName,
-                PhoneNumber = appointment.Patient.User?.PhoneNumber,
-                Email = appointment.Patient.User?.Email,
+                PhoneNumber = appointment.Patient.PhoneNumber ?? appointment.Patient.User?.PhoneNumber,
+                // Walk-in patients (có PhoneNumber trực tiếp trên Patient) không hiện email vì staff không thu thập
+                Email = appointment.Patient.PhoneNumber == null ? appointment.Patient.User?.Email : null,
                 DateOfBirth = appointment.Patient.DateOfBirth,
                 Gender = appointment.Patient.Gender
             },
