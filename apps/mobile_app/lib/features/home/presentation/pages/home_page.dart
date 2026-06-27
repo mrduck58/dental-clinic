@@ -73,6 +73,8 @@ class _HomePageState extends State<HomePage> {
               delegate: SliverChildListDelegate([
                 const HomeBanner(),
                 const SizedBox(height: 26),
+                const _QuickAccessPanel(),
+                const SizedBox(height: 26),
 
                 // Lịch hẹn sắp tới
                 HomeSectionHeader(
@@ -271,6 +273,185 @@ class _EmptySection extends StatelessWidget {
         child: Text(
           message,
           style: const TextStyle(color: AppColors.textMuted, fontSize: 14),
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickAccessPanel extends StatelessWidget {
+  const _QuickAccessPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          isVi ? 'Truy cập nhanh' : 'Quick Access',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+            color: context.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Left - Book Appointment
+            Expanded(
+              flex: 4,
+              child: GestureDetector(
+                onTap: () => context.push(AppRoutes.bookingSelectPatient),
+                child: Container(
+                  height: 140,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primary.withValues(alpha: 0.2),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Iconsax.calendar_add,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                      Text(
+                        isVi ? 'Đặt khám' : 'Book Appointment',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Right - Grid of 2x2
+            Expanded(
+              flex: 6,
+              child: SizedBox(
+                height: 140,
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: Row(
+                        children: [
+                          _buildSmallCard(
+                            context,
+                            icon: Icons.smart_toy_rounded,
+                            label: 'DENTAL AI',
+                            onTap: () => context.push(AppRoutes.chat),
+                          ),
+                          const SizedBox(width: 12),
+                          _buildSmallCard(
+                            context,
+                            icon: Iconsax.notification,
+                            label: isVi ? 'NHẮC NHỞ' : 'REMINDER',
+                            onTap: () => context.push(AppRoutes.reminders),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: Row(
+                        children: [
+                          _buildSmallCard(
+                            context,
+                            icon: Iconsax.folder,
+                            label: isVi ? 'HỒ SƠ' : 'RECORDS',
+                            onTap: () => context.push(AppRoutes.medicalHistory),
+                          ),
+                          const SizedBox(width: 12),
+                          _buildSmallCard(
+                            context,
+                            icon: Iconsax.timer,
+                            label: isVi ? 'HÀNG CHỜ' : 'QUEUE',
+                            onTap: () => context.push(AppRoutes.queue),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSmallCard(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    final bgColor = context.card;
+    final iconColor = context.isDark ? Colors.white : AppColors.primary;
+    final textColor = context.textPrimary;
+
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: context.divider),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: iconColor, size: 20),
+              const SizedBox(height: 6),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    color: textColor,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

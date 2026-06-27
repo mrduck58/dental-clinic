@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
+import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/booking/data/booking_models.dart';
 import 'package:mobile_app/features/booking/data/booking_service.dart';
@@ -21,8 +22,11 @@ class _SelectDoctorPageState extends State<SelectDoctorPage> {
   bool _loading = true;
   String? _error;
 
-  static const _weekdays = [
+  static const _weekdaysVi = [
     '', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy', 'Chủ Nhật'
+  ];
+  static const _weekdaysEn = [
+    '', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
   ];
 
   @override
@@ -43,15 +47,19 @@ class _SelectDoctorPageState extends State<SelectDoctorPage> {
   String _fmtDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
-  String _dayLabel(DateTime d) => '${_fmtDate(d)} - ${_weekdays[d.weekday]}';
+  String _dayLabel(DateTime d, bool isVi) {
+    final weekdays = isVi ? _weekdaysVi : _weekdaysEn;
+    return '${_fmtDate(d)} - ${weekdays[d.weekday]}';
+  }
 
   @override
   Widget build(BuildContext context) {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     final date = widget.draft.date!;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: BookingAppBar(title: 'Chọn khung giờ khám', showHome: false),
+      backgroundColor: context.bg,
+      appBar: BookingAppBar(title: isVi ? 'Chọn khung giờ khám' : 'Select Time Slot', showHome: false),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
@@ -59,9 +67,15 @@ class _SelectDoctorPageState extends State<SelectDoctorPage> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(_error!, style: const TextStyle(color: AppColors.textMuted)),
+                      Text(
+                        isVi ? 'Không thể tải thông tin bác sĩ.' : 'Unable to load doctor info.',
+                        style: TextStyle(color: context.textSecondary),
+                      ),
                       const SizedBox(height: 12),
-                      TextButton(onPressed: _load, child: const Text('Thử lại')),
+                      TextButton(
+                        onPressed: _load,
+                        child: Text(isVi ? 'Thử lại' : 'Retry'),
+                      ),
                     ],
                   ),
                 )
@@ -70,31 +84,35 @@ class _SelectDoctorPageState extends State<SelectDoctorPage> {
                     // ── Header ────────────────────────────────────────────
                     SliverToBoxAdapter(
                       child: ColoredBox(
-                        color: AppColors.surface,
+                        color: context.card,
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                'Chọn khung giờ khám',
+                              Text(
+                                isVi ? 'Chọn khung giờ khám' : 'Select Time Slot',
                                 style: TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w700,
-                                  color: AppColors.textPrimary,
+                                  color: context.textPrimary,
                                 ),
                               ),
                               const SizedBox(height: 4),
                               RichText(
-                                text: const TextSpan(
+                                text: TextSpan(
                                   style: TextStyle(
                                     fontSize: 13,
-                                    color: AppColors.textSecondary,
+                                    color: context.textSecondary,
                                     fontStyle: FontStyle.italic,
                                   ),
                                   children: [
-                                    TextSpan(text: 'Vui lòng bấm chọn khung giờ '),
                                     TextSpan(
+                                      text: isVi 
+                                          ? 'Vui lòng bấm chọn khung giờ '
+                                          : 'Please select a slot highlighted in ',
+                                    ),
+                                    const TextSpan(
                                       text: 'màu đỏ',
                                       style: TextStyle(
                                         color: AppColors.primary,
@@ -102,7 +120,9 @@ class _SelectDoctorPageState extends State<SelectDoctorPage> {
                                         fontStyle: FontStyle.italic,
                                       ),
                                     ),
-                                    TextSpan(text: ' để đặt khám'),
+                                    TextSpan(
+                                      text: isVi ? ' để đặt khám' : ' to book appointment',
+                                    ),
                                   ],
                                 ),
                               ),
@@ -118,7 +138,7 @@ class _SelectDoctorPageState extends State<SelectDoctorPage> {
                         (_, i) => _DoctorSlotCard(
                           doctor: _doctors[i],
                           date: date,
-                          dayLabel: _dayLabel(date),
+                          dayLabel: _dayLabel(date, isVi),
                           onSlotSelected: (slot) {
                             final doctorInfo = _doctors[i].toDoctorInfo();
                             final draft2 = widget.draft.copyWith(
@@ -155,14 +175,18 @@ class _DoctorSlotCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     final isMorning = doctor.shift == 'morning';
-    final sessionLabel = isMorning ? 'Buổi sáng' : 'Buổi chiều';
+    final sessionLabel = isMorning 
+        ? (isVi ? 'Buổi sáng' : 'Morning')
+        : (isVi ? 'Buổi chiều' : 'Afternoon');
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.card,
         borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: context.divider),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
@@ -187,18 +211,18 @@ class _DoctorSlotCard extends StatelessWidget {
                     children: [
                       Text(
                         doctor.fullName,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
-                          color: AppColors.primary,
+                          color: context.isDark ? Colors.white : AppColors.primary,
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         doctor.specialization,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
-                          color: AppColors.textSecondary,
+                          color: context.textSecondary,
                         ),
                       ),
                       const SizedBox(height: 6),
@@ -207,23 +231,23 @@ class _DoctorSlotCard extends StatelessWidget {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: AppColors.primaryLight.withValues(alpha: 0.6),
+                            color: context.isDark ? const Color(0xFF451A1A) : AppColors.primaryLight.withValues(alpha: 0.6),
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(color: AppColors.primary.withValues(alpha: 0.1)),
                           ),
-                          child: const Row(
+                          child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                'Thông tin bác sĩ',
+                                isVi ? 'Thông tin bác sĩ' : 'Dentist Info',
                                 style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w500,
-                                  color: AppColors.primary,
+                                  color: context.isDark ? Colors.white : AppColors.primary,
                                 ),
                               ),
-                              SizedBox(width: 3),
-                              Icon(Iconsax.arrow_right_2, size: 10, color: AppColors.primary),
+                              const SizedBox(width: 3),
+                              Icon(Iconsax.arrow_right_2, size: 10, color: context.isDark ? Colors.white : AppColors.primary),
                             ],
                           ),
                         ),
@@ -231,12 +255,12 @@ class _DoctorSlotCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                const Icon(Iconsax.arrow_down_2, color: AppColors.textMuted, size: 22),
+                Icon(Iconsax.arrow_down_2, color: context.textSecondary, size: 22),
               ],
             ),
           ),
 
-          const Divider(color: AppColors.divider, height: 1),
+          Divider(color: context.divider, height: 1),
 
           // ── Date chip ─────────────────────────────────────────────────
           SizedBox(
@@ -286,7 +310,7 @@ class _DoctorSlotCard extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.all(14),
             child: Text(
-              '${_fmtDateInline(date)} - $sessionLabel (${_weekdayShort(date)})',
+              '${_fmtDateInline(date)} - $sessionLabel (${_weekdayShort(date, isVi)})',
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w800,
@@ -307,15 +331,21 @@ class _DoctorSlotCard extends StatelessWidget {
               childAspectRatio: 4.2,
               children: doctor.slots.map((slot) {
                 final booked = slot.isBooked;
+                final cellBg = booked
+                    ? (context.isDark ? const Color(0xFF1E293B) : AppColors.background)
+                    : (context.isDark ? const Color(0xFF451A1A) : AppColors.primaryLight.withValues(alpha: 0.55));
+                final cellText = booked
+                    ? context.textSecondary.withValues(alpha: 0.4)
+                    : (context.isDark ? Colors.white : AppColors.primary);
+
                 return GestureDetector(
                   onTap: booked ? null : () => onSlotSelected(slot),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 150),
                     decoration: BoxDecoration(
-                      color: booked
-                          ? AppColors.background
-                          : AppColors.primaryLight.withValues(alpha: 0.55),
+                      color: cellBg,
                       borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: context.divider),
                     ),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -325,15 +355,13 @@ class _DoctorSlotCard extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
-                            color: booked
-                                ? AppColors.textMuted.withValues(alpha: 0.5)
-                                : AppColors.primary,
+                            color: cellText,
                           ),
                         ),
                         if (booked)
-                          const Text(
-                            'Hết số',
-                            style: TextStyle(fontSize: 9, color: AppColors.textMuted),
+                          Text(
+                            isVi ? 'Hết số' : 'Booked',
+                            style: TextStyle(fontSize: 9, color: context.textSecondary.withValues(alpha: 0.5)),
                           ),
                       ],
                     ),
@@ -350,8 +378,10 @@ class _DoctorSlotCard extends StatelessWidget {
   String _fmtDateInline(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
-  static const _wdShort = ['', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'CN'];
-  String _weekdayShort(DateTime d) => _wdShort[d.weekday];
+  static const _wdShortVi = ['', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'CN'];
+  static const _wdShortEn = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  String _weekdayShort(DateTime d, bool isVi) =>
+      isVi ? _wdShortVi[d.weekday] : _wdShortEn[d.weekday];
 }
 
 // ─── Doctor Avatar ────────────────────────────────────────────────────────────
@@ -366,10 +396,10 @@ class _DoctorAvatar extends StatelessWidget {
       width: 60,
       height: 60,
       decoration: BoxDecoration(
-        color: AppColors.primaryLight,
+        color: context.isDark ? const Color(0xFF451A1A) : AppColors.primaryLight,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: const Icon(Iconsax.profile_circle, color: AppColors.primary, size: 30),
+      child: Icon(Iconsax.profile_circle, color: context.isDark ? Colors.white : AppColors.primary, size: 30),
     );
 
     if (avatarUrl == null || avatarUrl!.isEmpty) return placeholder;
@@ -388,7 +418,7 @@ class _DoctorAvatar extends StatelessWidget {
             width: 60,
             height: 60,
             decoration: BoxDecoration(
-              color: AppColors.background,
+              color: context.isDark ? const Color(0xFF1E293B) : AppColors.background,
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Center(

@@ -17,6 +17,7 @@ import 'package:mobile_app/features/booking/presentation/pages/select_patient_pa
 import 'package:mobile_app/features/booking/presentation/pages/select_service_page.dart';
 import 'package:mobile_app/features/booking/presentation/pages/service_detail_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/home_page.dart';
+import 'package:mobile_app/features/home/presentation/pages/queue_page.dart';
 import 'package:mobile_app/features/profile/presentation/pages/profile_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/dentist_profile_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/dentist_reviews_page.dart';
@@ -177,23 +178,27 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: AppRoutes.chat,
-      builder: (context, state) =>
-          const _PlaceholderPage(title: 'Hỏi đáp AI'),
-    ),
-    GoRoute(
-      path: AppRoutes.familyMembers,
-      builder: (context, state) =>
-          const _PlaceholderPage(title: 'Thành viên gia đình'),
-    ),
-    GoRoute(
-      path: AppRoutes.paymentHistory,
-      builder: (context, state) =>
-          const _PlaceholderPage(title: 'Lịch sử thanh toán & Công nợ'),
+      builder: (context, state) => const ChatbotPage(),
     ),
     GoRoute(
       path: AppRoutes.notifications,
-      builder: (context, state) =>
-          const _PlaceholderPage(title: 'Thông báo'),
+      builder: (context, state) => const NotificationsPage(),
+    ),
+    GoRoute(
+      path: AppRoutes.paymentHistory,
+      builder: (context, state) => const PaymentHistoryPage(),
+    ),
+    GoRoute(
+      path: AppRoutes.familyMembers,
+      builder: (context, state) => const FamilyMembersPage(),
+    ),
+    GoRoute(
+      path: AppRoutes.reminders,
+      builder: (context, state) => const RemindersPage(),
+    ),
+    GoRoute(
+      path: AppRoutes.queue,
+      builder: (context, state) => const QueuePage(),
     ),
 
     // ── Booking flow (standalone, không có Bottom Nav) ────────────────────
@@ -258,9 +263,11 @@ abstract class AppRoutes {
   static const changePassword = '/profile/security/change-password';
   static const payment = '/payment';
   static const chat = '/chat';
-  static const familyMembers = '/profile/family';
   static const paymentHistory = '/profile/payment-history';
-  static const notifications = '/profile/notifications';
+  static const notifications = '/notifications';
+  static const familyMembers = '/profile/family';
+  static const reminders = '/reminders';
+  static const queue = '/queue';
 
   // ── Booking flow ────────────────────────────────────────────────────────────
   static const bookingSelectPatient = '/booking/patient';

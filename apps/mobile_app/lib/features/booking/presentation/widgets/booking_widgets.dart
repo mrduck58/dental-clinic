@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
+import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 
 // ─── AppBar ───────────────────────────────────────────────────────────────────
@@ -23,8 +24,11 @@ class BookingAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    final titleColor = context.isDark ? Colors.white : AppColors.primary;
+    final iconColor = context.isDark ? Colors.white : AppColors.primary;
+
     return AppBar(
-      backgroundColor: AppColors.surface,
+      backgroundColor: context.card,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       scrolledUnderElevation: 0,
@@ -37,7 +41,7 @@ class BookingAppBar extends StatelessWidget implements PreferredSizeWidget {
         style: TextStyle(
           fontSize: 22,
           fontWeight: FontWeight.w800,
-          color: AppColors.primary,
+          color: titleColor,
         ),
       ),
       centerTitle: true,
@@ -54,7 +58,7 @@ class BookingAppBar extends StatelessWidget implements PreferredSizeWidget {
           : null,
       bottom: PreferredSize(
         preferredSize: const Size.fromHeight(1),
-        child: Container(height: 1, color: AppColors.divider),
+        child: Container(height: 1, color: context.divider),
       ),
     );
   }
@@ -82,8 +86,8 @@ class BookingBottomBar extends StatelessWidget {
     return Container(
       padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + bottomPad),
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        border: Border(top: BorderSide(color: AppColors.divider)),
+        color: context.card,
+        border: Border(top: BorderSide(color: context.divider)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.06),
@@ -113,14 +117,16 @@ class _Button extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final inactiveBg = context.isDark ? const Color(0xFF334155) : AppColors.divider;
+
     return SizedBox(
       height: 52,
       child: ElevatedButton(
         onPressed: isLoading ? null : onTap,
         style: ElevatedButton.styleFrom(
-          backgroundColor: onTap != null ? AppColors.primary : AppColors.divider,
+          backgroundColor: onTap != null ? AppColors.primary : inactiveBg,
           foregroundColor: Colors.white,
-          disabledBackgroundColor: AppColors.divider,
+          disabledBackgroundColor: inactiveBg,
           elevation: 0,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
@@ -165,7 +171,7 @@ class BookingSectionLabel extends StatelessWidget {
         style: TextStyle(
           fontSize: 13,
           fontWeight: FontWeight.w600,
-          color: AppColors.textMuted,
+          color: context.textSecondary,
           letterSpacing: 0.3,
         ),
       ),
