@@ -107,12 +107,6 @@ class _PostsListPageState extends State<PostsListPage> {
           ),
         ),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: Icon(Iconsax.notification, color: context.textPrimary),
-            onPressed: () => context.push(AppRoutes.notifications),
-          ),
-        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(

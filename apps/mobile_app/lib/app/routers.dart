@@ -29,6 +29,7 @@ import 'package:mobile_app/features/home/presentation/pages/write_review_page.da
 import 'package:mobile_app/features/home/data/models/doctor_model.dart';
 import 'package:mobile_app/features/home/presentation/pages/services_list_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/posts_list_page.dart';
+import 'package:mobile_app/features/home/presentation/pages/dentists_list_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/post_detail_page.dart';
 import 'package:mobile_app/features/home/data/models/post_model.dart';
 import 'package:mobile_app/features/profile/presentation/pages/edit_profile_page.dart';
@@ -39,6 +40,15 @@ import 'package:mobile_app/features/profile/presentation/pages/edit_member_page.
 import 'package:mobile_app/features/profile/presentation/pages/security_page.dart';
 import 'package:mobile_app/features/profile/presentation/pages/change_password_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/notifications_page.dart';
+import 'package:mobile_app/features/appointment/presentation/screens/appointment_details_page.dart';
+import 'package:mobile_app/features/profile/presentation/pages/examine_history_page.dart';
+import 'package:mobile_app/features/profile/presentation/pages/examination_detail_page.dart';
+import 'package:mobile_app/features/profile/presentation/pages/treatment_plan_page.dart';
+import 'package:mobile_app/features/profile/presentation/pages/phase_detail_page.dart';
+import 'package:mobile_app/features/profile/presentation/pages/treatment_detail_page.dart';
+import 'package:mobile_app/features/profile/presentation/pages/prescription_detail_page.dart';
+import 'package:mobile_app/features/profile/presentation/pages/medicine_detail_page.dart';
+import 'package:mobile_app/features/profile/data/medical_record_mock.dart';
 
 final GoRouter appRouter = GoRouter(
   initialLocation: AppRoutes.splash,
@@ -81,8 +91,7 @@ final GoRouter appRouter = GoRouter(
         ),
         GoRoute(
           path: AppRoutes.medicalRecords,
-          builder: (context, state) =>
-              const _PlaceholderPage(title: 'Hồ sơ bệnh án'),
+          builder: (context, state) => const ExamineHistoryPage(),
         ),
         GoRoute(
           path: AppRoutes.profile,
@@ -136,6 +145,10 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: AppRoutes.postsList,
       builder: (context, state) => const PostsListPage(),
+    ),
+    GoRoute(
+      path: AppRoutes.dentistsList,
+      builder: (context, state) => const DentistsListPage(),
     ),
     GoRoute(
       path: AppRoutes.postDetail,
@@ -204,6 +217,34 @@ final GoRouter appRouter = GoRouter(
       path: AppRoutes.queue,
       builder: (context, state) => const QueuePage(),
     ),
+    GoRoute(
+      path: AppRoutes.appointmentDetails,
+      builder: (context, state) => AppointmentDetailsPage(item: state.extra as MyAppointmentItem),
+    ),
+    GoRoute(
+      path: AppRoutes.examinationDetail,
+      builder: (context, state) => ExaminationDetailPage(event: state.extra as MedicalRecordEvent),
+    ),
+    GoRoute(
+      path: AppRoutes.treatmentPlan,
+      builder: (context, state) => TreatmentPlanPage(event: state.extra as MedicalRecordEvent),
+    ),
+    GoRoute(
+      path: AppRoutes.phaseDetail,
+      builder: (context, state) => PhaseDetailPage(phase: state.extra as TreatmentPlanPhase),
+    ),
+    GoRoute(
+      path: AppRoutes.treatmentDetail,
+      builder: (context, state) => const TreatmentDetailPage(),
+    ),
+    GoRoute(
+      path: AppRoutes.prescriptionDetail,
+      builder: (context, state) => const PrescriptionDetailPage(),
+    ),
+    GoRoute(
+      path: AppRoutes.medicineDetail,
+      builder: (context, state) => MedicineDetailPage(medicine: state.extra as MedicineModel),
+    ),
 
     // ── Booking flow (standalone, không có Bottom Nav) ────────────────────
     GoRoute(
@@ -258,6 +299,7 @@ abstract class AppRoutes {
   static const writeReview = '/dentist/reviews/write';
   static const servicesList = '/services';
   static const postsList = '/posts';
+  static const dentistsList = '/dentists';
   static const postDetail = '/post/detail';
   static const editProfile = '/profile/edit';
   static const medicalHistory = '/profile/medical-history';
@@ -272,6 +314,13 @@ abstract class AppRoutes {
   static const familyMembers = '/profile/family';
   static const reminders = '/reminders';
   static const queue = '/queue';
+  static const appointmentDetails = '/appointments/details';
+  static const examinationDetail = '/medical-records/exam-detail';
+  static const treatmentPlan = '/medical-records/treatment-plan';
+  static const phaseDetail = '/medical-records/phase-detail';
+  static const treatmentDetail = '/medical-records/treatment-detail';
+  static const prescriptionDetail = '/medical-records/prescription-detail';
+  static const medicineDetail = '/medical-records/medicine-detail';
 
   // ── Booking flow ────────────────────────────────────────────────────────────
   static const bookingSelectPatient = '/booking/patient';

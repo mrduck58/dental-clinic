@@ -34,7 +34,7 @@ class BookingAppBar extends StatelessWidget implements PreferredSizeWidget {
       scrolledUnderElevation: 0,
       leading: GestureDetector(
         onTap: onBack ?? () => Navigator.of(context).pop(),
-        child: Icon(Iconsax.arrow_left, color: AppColors.primary, size: 28, fontWeight: FontWeight.w800),
+        child: Icon(Iconsax.arrow_left, color: iconColor, size: 28),
       ),
       title: Text(
         title,
@@ -50,8 +50,8 @@ class BookingAppBar extends StatelessWidget implements PreferredSizeWidget {
               GestureDetector(
                 onTap: () => context.go(AppRoutes.home),
                 child: Padding(
-                  padding: EdgeInsets.only(right: 16),
-                  child: Icon(Iconsax.home_2, color: AppColors.primary, size: 28, fontWeight: FontWeight.w800),
+                  padding: const EdgeInsets.only(right: 16),
+                  child: Icon(Iconsax.home_2, color: iconColor, size: 28),
                 ),
               ),
             ]
