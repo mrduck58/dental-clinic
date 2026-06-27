@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/auth/data/auth_service.dart';
 import 'package:mobile_app/features/home/data/models/doctor_model.dart';
@@ -8,7 +9,6 @@ import 'package:mobile_app/features/home/data/review_service.dart';
 
 class WriteReviewPage extends StatefulWidget {
   final DoctorModel doctor;
-
   const WriteReviewPage({super.key, required this.doctor});
 
   @override
@@ -21,15 +21,6 @@ class _WriteReviewPageState extends State<WriteReviewPage> {
   final _commentCtrl = TextEditingController();
 
   double _rating = 0.0;
-  final List<String> _tags = const [
-    'Không đau',
-    'Bác sĩ thân thiện',
-    'Cơ sở sạch sẽ',
-    'Chi phí hợp lý',
-    'Chuyên nghiệp',
-    'Nhiệt tình',
-    'Nhẹ nhàng',
-  ];
   final List<String> _selectedTags = [];
   String _patientName = '';
 
@@ -49,7 +40,7 @@ class _WriteReviewPageState extends State<WriteReviewPage> {
     final name = await _auth.getUserName();
     if (mounted) {
       setState(() {
-        _patientName = name ?? 'Bệnh nhân';
+        _patientName = name ?? 'Patient';
       });
     }
   }
@@ -65,14 +56,15 @@ class _WriteReviewPageState extends State<WriteReviewPage> {
   }
 
   void _submit() {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     final comment = _commentCtrl.text.trim();
 
     if (_rating == 0.0) {
-      _showSnackbar('Vui lòng chọn số sao đánh giá (1 - 5 sao).');
+      _showSnackbar(isVi ? 'Vui lòng chọn số sao đánh giá (1 - 5 sao).' : 'Please select a star rating (1-5 stars).');
       return;
     }
     if (comment.isEmpty) {
-      _showSnackbar('Vui lòng nhập nội dung đánh giá.');
+      _showSnackbar(isVi ? 'Vui lòng nhập nội dung đánh giá.' : 'Please enter your review content.');
       return;
     }
 
@@ -99,13 +91,14 @@ class _WriteReviewPageState extends State<WriteReviewPage> {
   }
 
   void _showSuccessDialog() {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     showDialog(
       context: context,
       barrierDismissible: false,
       barrierColor: Colors.black.withValues(alpha: 0.5),
-      builder: (context) {
+      builder: (ctx) {
         return Dialog(
-          backgroundColor: Colors.white,
+          backgroundColor: context.card,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           insetPadding: const EdgeInsets.symmetric(horizontal: 32),
           child: Padding(
@@ -120,30 +113,20 @@ class _WriteReviewPageState extends State<WriteReviewPage> {
                     color: AppColors.successLight,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
-                    Iconsax.like_15,
-                    color: AppColors.success,
-                    size: 36,
-                  ),
+                  child: const Icon(Iconsax.like_15, color: AppColors.success, size: 36),
                 ),
                 const SizedBox(height: 20),
-                const Text(
-                  'Gửi đánh giá thành công!',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.textPrimary,
-                  ),
+                Text(
+                  isVi ? 'Gửi đánh giá thành công!' : 'Review Submitted!',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: context.textPrimary),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Cảm ơn đóng góp của bạn. Ý kiến của bạn giúp chúng tôi cải thiện chất lượng phục vụ tốt hơn.',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textSecondary,
-                    height: 1.4,
-                  ),
+                Text(
+                  isVi
+                      ? 'Cảm ơn đóng góp của bạn. Ý kiến của bạn giúp chúng tôi cải thiện chất lượng phục vụ tốt hơn.'
+                      : 'Thank you for your feedback. Your review helps us improve our service quality.',
+                  style: TextStyle(fontSize: 13, color: context.textSecondary, height: 1.4),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 24),
@@ -152,23 +135,17 @@ class _WriteReviewPageState extends State<WriteReviewPage> {
                   height: 48,
                   child: ElevatedButton(
                     onPressed: () {
-                      Navigator.of(context).pop(); // Close dialog
-                      context.pop(true); // Pop back to reviews list with success flag
+                      Navigator.of(ctx).pop();
+                      context.pop(true);
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(999),
-                      ),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                     ),
-                    child: const Text(
-                      'Đóng',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
+                    child: Text(
+                      isVi ? 'Đóng' : 'Close',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
                     ),
                   ),
                 ),
@@ -182,32 +159,31 @@ class _WriteReviewPageState extends State<WriteReviewPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     final doc = widget.doctor;
 
+    final tags = isVi
+        ? ['Không đau', 'Bác sĩ thân thiện', 'Cơ sở sạch sẽ', 'Chi phí hợp lý', 'Chuyên nghiệp', 'Nhiệt tình', 'Nhẹ nhàng']
+        : ['Painless', 'Friendly Doctor', 'Clean Facility', 'Affordable', 'Professional', 'Attentive', 'Gentle'];
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.bg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: context.card,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.textPrimary, size: 20),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: context.textPrimary, size: 20),
           onPressed: () => context.pop(),
         ),
-        title: const Text(
-          'Viết đánh giá',
-          style: TextStyle(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.w800,
-            fontSize: 18,
-          ),
+        title: Text(
+          isVi ? 'Viết đánh giá' : 'Write a Review',
+          style: TextStyle(color: context.textPrimary, fontWeight: FontWeight.w800, fontSize: 18),
         ),
         centerTitle: true,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
-          child: Container(
-            color: AppColors.divider,
-            height: 1,
-          ),
+          child: Container(color: context.divider, height: 1),
         ),
       ),
       body: SafeArea(
@@ -227,7 +203,7 @@ class _WriteReviewPageState extends State<WriteReviewPage> {
                           height: 64,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            border: Border.all(color: AppColors.divider, width: 2),
+                            border: Border.all(color: context.divider, width: 2),
                           ),
                           child: ClipOval(
                             child: doc.profilePictureUrl != null
@@ -246,20 +222,12 @@ class _WriteReviewPageState extends State<WriteReviewPage> {
                             children: [
                               Text(
                                 doc.fullName,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.textPrimary,
-                                ),
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: context.textPrimary),
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                doc.specialty ?? 'Nha sĩ chuyên khoa',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.textSecondary,
-                                  fontWeight: FontWeight.w500,
-                                ),
+                                doc.specialty ?? (isVi ? 'Nha sĩ chuyên khoa' : 'Specialist Dentist'),
+                                style: TextStyle(fontSize: 12, color: context.textSecondary, fontWeight: FontWeight.w500),
                               ),
                             ],
                           ),
@@ -267,18 +235,14 @@ class _WriteReviewPageState extends State<WriteReviewPage> {
                       ],
                     ),
                     const SizedBox(height: 28),
-                    const Divider(height: 1, color: AppColors.divider),
+                    Divider(height: 1, color: context.divider),
                     const SizedBox(height: 24),
 
                     // Star Rating Picker
-                    const Center(
+                    Center(
                       child: Text(
-                        'Bạn đánh giá thế nào về trải nghiệm của mình?',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary,
-                        ),
+                        isVi ? 'Bạn đánh giá thế nào về trải nghiệm của mình?' : 'How would you rate your experience?',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: context.textPrimary),
                         textAlign: TextAlign.center,
                       ),
                     ),
@@ -290,16 +254,12 @@ class _WriteReviewPageState extends State<WriteReviewPage> {
                           final score = index + 1.0;
                           final active = score <= _rating;
                           return GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _rating = score;
-                              });
-                            },
+                            onTap: () => setState(() => _rating = score),
                             child: Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 6),
                               child: Icon(
                                 active ? Icons.star_rounded : Icons.star_outline_rounded,
-                                color: active ? Colors.amber : const Color(0xFFCBD5E1),
+                                color: active ? Colors.amber : (context.isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1)),
                                 size: 44,
                               ),
                             ),
@@ -309,51 +269,45 @@ class _WriteReviewPageState extends State<WriteReviewPage> {
                     ),
                     const SizedBox(height: 28),
 
-                    // Comment Input Area
-                    const Text(
-                      'Chia sẻ chi tiết trải nghiệm khám',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
-                      ),
+                    // Comment Input
+                    Text(
+                      isVi ? 'Chia sẻ chi tiết trải nghiệm khám' : 'Share Your Experience',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: context.textPrimary),
                     ),
                     const SizedBox(height: 10),
                     Container(
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
+                        color: context.isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppColors.divider),
+                        border: Border.all(color: context.divider),
                       ),
                       child: TextField(
                         controller: _commentCtrl,
                         maxLines: 6,
                         minLines: 4,
-                        style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
-                        decoration: const InputDecoration(
-                          hintText: 'Hãy chia sẻ về thái độ phục vụ, mức độ hài lòng, thời gian chờ khám hoặc bất kỳ điều gì bạn muốn chia sẻ...',
-                          hintStyle: TextStyle(color: AppColors.textMuted, fontSize: 13, height: 1.4),
-                          contentPadding: EdgeInsets.all(16),
+                        style: TextStyle(fontSize: 14, color: context.textPrimary),
+                        decoration: InputDecoration(
+                          hintText: isVi
+                              ? 'Hãy chia sẻ về thái độ phục vụ, mức độ hài lòng, thời gian chờ khám...'
+                              : 'Share about service quality, satisfaction level, waiting time...',
+                          hintStyle: TextStyle(color: context.textMuted, fontSize: 13, height: 1.4),
+                          contentPadding: const EdgeInsets.all(16),
                           border: InputBorder.none,
                         ),
                       ),
                     ),
                     const SizedBox(height: 28),
 
-                    // Predefined tags list
-                    const Text(
-                      'Chọn nhãn đánh giá nổi bật',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
-                      ),
+                    // Tags
+                    Text(
+                      isVi ? 'Chọn nhãn đánh giá nổi bật' : 'Select Highlight Tags',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: context.textPrimary),
                     ),
                     const SizedBox(height: 12),
                     Wrap(
                       spacing: 8,
                       runSpacing: 10,
-                      children: _tags.map((tag) {
+                      children: tags.map((tag) {
                         final active = _selectedTags.contains(tag);
                         return GestureDetector(
                           onTap: () => _toggleTag(tag),
@@ -361,10 +315,10 @@ class _WriteReviewPageState extends State<WriteReviewPage> {
                             duration: const Duration(milliseconds: 180),
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                             decoration: BoxDecoration(
-                              color: active ? AppColors.primary : Colors.white,
+                              color: active ? AppColors.primary : context.card,
                               borderRadius: BorderRadius.circular(999),
                               border: Border.all(
-                                color: active ? AppColors.primary : const Color(0xFFCBD5E1),
+                                color: active ? AppColors.primary : context.divider,
                               ),
                             ),
                             child: Text(
@@ -372,7 +326,7 @@ class _WriteReviewPageState extends State<WriteReviewPage> {
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
-                                color: active ? Colors.white : AppColors.textSecondary,
+                                color: active ? Colors.white : context.textSecondary,
                               ),
                             ),
                           ),
@@ -388,11 +342,9 @@ class _WriteReviewPageState extends State<WriteReviewPage> {
             // Submit Button
             Container(
               padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                border: Border(
-                  top: BorderSide(color: AppColors.divider),
-                ),
+              decoration: BoxDecoration(
+                color: context.card,
+                border: Border(top: BorderSide(color: context.divider)),
               ),
               child: SizedBox(
                 width: double.infinity,
@@ -402,17 +354,11 @@ class _WriteReviewPageState extends State<WriteReviewPage> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(999),
-                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                   ),
-                  child: const Text(
-                    'Gửi đánh giá',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  child: Text(
+                    isVi ? 'Gửi đánh giá' : 'Submit Review',
+                    style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700),
                   ),
                 ),
               ),
