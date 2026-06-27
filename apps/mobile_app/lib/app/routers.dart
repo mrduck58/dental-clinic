@@ -18,7 +18,11 @@ import 'package:mobile_app/features/booking/presentation/pages/select_service_pa
 import 'package:mobile_app/features/booking/presentation/pages/service_detail_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/home_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/queue_page.dart';
+import 'package:mobile_app/features/home/presentation/pages/chatbot_page.dart';
+import 'package:mobile_app/features/home/presentation/pages/reminders_page.dart';
 import 'package:mobile_app/features/profile/presentation/pages/profile_page.dart';
+import 'package:mobile_app/features/profile/presentation/pages/family_members_page.dart';
+import 'package:mobile_app/features/profile/presentation/pages/payment_history_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/dentist_profile_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/dentist_reviews_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/write_review_page.dart';

@@ -101,8 +101,11 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
                         ),
                         const Spacer(),
                         GestureDetector(
-                          onTap: () {
-                            // TODO: mở form thêm hồ sơ
+                          onTap: () async {
+                            final added = await context.push(AppRoutes.addFamilyMember);
+                            if (added == true && mounted) {
+                              _load();
+                            }
                           },
                           child: Container(
                             padding: const EdgeInsets.symmetric(

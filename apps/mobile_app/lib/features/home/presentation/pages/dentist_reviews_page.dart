@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
+import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/home/data/models/doctor_model.dart';
 import 'package:mobile_app/features/home/data/models/review_model.dart';
@@ -9,7 +10,6 @@ import 'package:mobile_app/features/home/data/review_service.dart';
 
 class DentistReviewsPage extends StatefulWidget {
   final DoctorModel doctor;
-
   const DentistReviewsPage({super.key, required this.doctor});
 
   @override
@@ -20,7 +20,7 @@ class _DentistReviewsPageState extends State<DentistReviewsPage> {
   final _reviewService = ReviewService();
   List<ReviewModel> _reviews = [];
   double _avgRating = 5.0;
-  String _sortBy = 'highest'; // 'highest' or 'latest'
+  String _sortBy = 'highest';
 
   @override
   void initState() {
@@ -31,19 +31,15 @@ class _DentistReviewsPageState extends State<DentistReviewsPage> {
   void _loadReviews() {
     final list = _reviewService.getReviewsForDentist(widget.doctor.id);
     final avg = _reviewService.getAverageRating(widget.doctor.id);
-    
-    // Sort logic
     if (_sortBy == 'highest') {
       list.sort((a, b) => b.rating.compareTo(a.rating));
     } else {
-      // Latest is based on ID (rev_timestamp or mock order)
       list.sort((a, b) {
         if (a.id.startsWith('rev_') && !b.id.startsWith('rev_')) return -1;
         if (!a.id.startsWith('rev_') && b.id.startsWith('rev_')) return 1;
         return b.id.compareTo(a.id);
       });
     }
-
     setState(() {
       _reviews = list;
       _avgRating = avg;
@@ -52,38 +48,33 @@ class _DentistReviewsPageState extends State<DentistReviewsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     final doc = widget.doctor;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: context.bg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: context.card,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.textPrimary, size: 20),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: context.textPrimary, size: 20),
           onPressed: () => context.pop(),
         ),
-        title: const Text(
-          'Đánh giá từ bệnh nhân',
-          style: TextStyle(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.w800,
-            fontSize: 18,
-          ),
+        title: Text(
+          isVi ? 'Đánh giá từ bệnh nhân' : 'Patient Reviews',
+          style: TextStyle(color: context.textPrimary, fontWeight: FontWeight.w800, fontSize: 18),
         ),
         centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(Iconsax.notification, color: AppColors.textPrimary),
+            icon: Icon(Iconsax.notification, color: context.textPrimary),
             onPressed: () {},
           ),
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
-          child: Container(
-            color: AppColors.divider,
-            height: 1,
-          ),
+          child: Container(color: context.divider, height: 1),
         ),
       ),
       body: SafeArea(
@@ -92,19 +83,19 @@ class _DentistReviewsPageState extends State<DentistReviewsPage> {
             Expanded(
               child: CustomScrollView(
                 slivers: [
-                  // Rating Overview Section
+                  // Rating Overview
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
                       child: Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: context.card,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: AppColors.divider),
+                          border: Border.all(color: context.divider),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.03),
+                              color: Colors.black.withValues(alpha: context.isDark ? 0.15 : 0.03),
                               blurRadius: 12,
                               offset: const Offset(0, 4),
                             ),
@@ -114,23 +105,15 @@ class _DentistReviewsPageState extends State<DentistReviewsPage> {
                           children: [
                             Text(
                               doc.fullName,
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.textPrimary,
-                              ),
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: context.textPrimary),
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              doc.specialty ?? 'Nha sĩ chuyên khoa',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: AppColors.textSecondary,
-                                fontWeight: FontWeight.w500,
-                              ),
+                              doc.specialty ?? (isVi ? 'Nha sĩ chuyên khoa' : 'Specialist Dentist'),
+                              style: TextStyle(fontSize: 13, color: context.textSecondary, fontWeight: FontWeight.w500),
                             ),
                             const SizedBox(height: 16),
-                            const Divider(height: 1, color: AppColors.divider),
+                            Divider(height: 1, color: context.divider),
                             const SizedBox(height: 16),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -139,11 +122,7 @@ class _DentistReviewsPageState extends State<DentistReviewsPage> {
                                   children: [
                                     Text(
                                       _avgRating.toString(),
-                                      style: const TextStyle(
-                                        fontSize: 34,
-                                        fontWeight: FontWeight.w900,
-                                        color: AppColors.textPrimary,
-                                      ),
+                                      style: TextStyle(fontSize: 34, fontWeight: FontWeight.w900, color: context.textPrimary),
                                     ),
                                     const SizedBox(height: 4),
                                     Row(
@@ -151,49 +130,34 @@ class _DentistReviewsPageState extends State<DentistReviewsPage> {
                                         final filled = index < _avgRating.round();
                                         return Icon(
                                           Icons.star_rounded,
-                                          color: filled ? Colors.amber : const Color(0xFFE2E8F0),
+                                          color: filled ? Colors.amber : (context.isDark ? const Color(0xFF475569) : const Color(0xFFE2E8F0)),
                                           size: 16,
                                         );
                                       }),
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      '${_reviews.length} Đánh giá',
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        color: AppColors.textMuted,
-                                        fontWeight: FontWeight.w600,
-                                      ),
+                                      '${_reviews.length} ${isVi ? 'Đánh giá' : 'Reviews'}',
+                                      style: TextStyle(fontSize: 11, color: context.textMuted, fontWeight: FontWeight.w600),
                                     ),
                                   ],
                                 ),
-                                Container(width: 1, height: 60, color: AppColors.divider),
+                                Container(width: 1, height: 60, color: context.divider),
                                 Column(
-                                  children: const [
+                                  children: [
                                     Text(
                                       '98%',
-                                      style: TextStyle(
-                                        fontSize: 34,
-                                        fontWeight: FontWeight.w900,
-                                        color: AppColors.textPrimary,
-                                      ),
+                                      style: TextStyle(fontSize: 34, fontWeight: FontWeight.w900, color: context.textPrimary),
                                     ),
-                                    SizedBox(height: 4),
+                                    const SizedBox(height: 4),
                                     Text(
-                                      'Bệnh nhân khuyên dùng',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: AppColors.textSecondary,
-                                        fontWeight: FontWeight.w600,
-                                      ),
+                                      isVi ? 'Bệnh nhân khuyên dùng' : 'Recommend',
+                                      style: TextStyle(fontSize: 12, color: context.textSecondary, fontWeight: FontWeight.w600),
                                     ),
-                                    SizedBox(height: 4),
+                                    const SizedBox(height: 4),
                                     Text(
-                                      'Độ hài lòng cao',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: AppColors.textMuted,
-                                      ),
+                                      isVi ? 'Độ hài lòng cao' : 'High satisfaction',
+                                      style: TextStyle(fontSize: 11, color: context.textMuted),
                                     ),
                                   ],
                                 ),
@@ -212,44 +176,37 @@ class _DentistReviewsPageState extends State<DentistReviewsPage> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
-                            'SẮP XẾP THEO',
+                          Text(
+                            isVi ? 'SẮP XẾP THEO' : 'SORT BY',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w800,
-                              color: AppColors.textSecondary,
+                              color: context.textSecondary,
                               letterSpacing: 0.5,
                             ),
                           ),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: context.card,
                               borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: AppColors.divider),
+                              border: Border.all(color: context.divider),
                             ),
                             child: DropdownButtonHideUnderline(
                               child: DropdownButton<String>(
                                 value: _sortBy,
                                 isDense: true,
-                                icon: const Icon(
-                                  Icons.keyboard_arrow_down_rounded,
-                                  color: AppColors.textSecondary,
-                                  size: 18,
-                                ),
-                                style: const TextStyle(
-                                  color: AppColors.textPrimary,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                                items: const [
+                                dropdownColor: context.card,
+                                icon: Icon(Icons.keyboard_arrow_down_rounded, color: context.textSecondary, size: 18),
+                                style: TextStyle(color: context.textPrimary, fontSize: 13, fontWeight: FontWeight.w700),
+                                items: [
                                   DropdownMenuItem(
                                     value: 'highest',
-                                    child: Text('Đánh giá cao nhất'),
+                                    child: Text(isVi ? 'Đánh giá cao nhất' : 'Highest Rated'),
                                   ),
                                   DropdownMenuItem(
                                     value: 'latest',
-                                    child: Text('Gần đây nhất'),
+                                    child: Text(isVi ? 'Gần đây nhất' : 'Most Recent'),
                                   ),
                                 ],
                                 onChanged: (val) {
@@ -270,12 +227,12 @@ class _DentistReviewsPageState extends State<DentistReviewsPage> {
 
                   // Reviews List
                   _reviews.isEmpty
-                      ? const SliverFillRemaining(
+                      ? SliverFillRemaining(
                           hasScrollBody: false,
                           child: Center(
                             child: Text(
-                              'Chưa có đánh giá nào cho nha sĩ này.',
-                              style: TextStyle(color: AppColors.textMuted),
+                              isVi ? 'Chưa có đánh giá nào cho nha sĩ này.' : 'No reviews yet for this dentist.',
+                              style: TextStyle(color: context.textMuted),
                             ),
                           ),
                         )
@@ -283,12 +240,10 @@ class _DentistReviewsPageState extends State<DentistReviewsPage> {
                           padding: const EdgeInsets.fromLTRB(24, 8, 24, 40),
                           sliver: SliverList(
                             delegate: SliverChildBuilderDelegate(
-                              (context, index) {
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 16),
-                                  child: _buildReviewCard(_reviews[index]),
-                                );
-                              },
+                              (context, index) => Padding(
+                                padding: const EdgeInsets.only(bottom: 16),
+                                child: _buildReviewCard(_reviews[index]),
+                              ),
                               childCount: _reviews.length,
                             ),
                           ),
@@ -297,14 +252,12 @@ class _DentistReviewsPageState extends State<DentistReviewsPage> {
               ),
             ),
 
-            // Write Review Bottom Bar
+            // Write Review Button
             Container(
               padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                border: Border(
-                  top: BorderSide(color: AppColors.divider),
-                ),
+              decoration: BoxDecoration(
+                color: context.card,
+                border: Border(top: BorderSide(color: context.divider)),
               ),
               child: SizedBox(
                 width: double.infinity,
@@ -312,29 +265,21 @@ class _DentistReviewsPageState extends State<DentistReviewsPage> {
                 child: ElevatedButton(
                   onPressed: () async {
                     final added = await context.push(AppRoutes.writeReview, extra: doc);
-                    if (added == true) {
-                      _loadReviews();
-                    }
+                    if (added == true) _loadReviews();
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(999),
-                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
-                      Icon(Iconsax.edit, color: Colors.white, size: 20),
-                      SizedBox(width: 8),
+                    children: [
+                      const Icon(Iconsax.edit, color: Colors.white, size: 20),
+                      const SizedBox(width: 8),
                       Text(
-                        'Viết đánh giá của bạn',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                        ),
+                        isVi ? 'Viết đánh giá của bạn' : 'Write a Review',
+                        style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700),
                       ),
                     ],
                   ),
@@ -354,12 +299,12 @@ class _DentistReviewsPageState extends State<DentistReviewsPage> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider),
+        border: Border.all(color: context.divider),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: Colors.black.withValues(alpha: context.isDark ? 0.12 : 0.02),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -368,7 +313,6 @@ class _DentistReviewsPageState extends State<DentistReviewsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header info: Avatar, Name, Rating, Date
           Row(
             children: [
               CircleAvatar(
@@ -376,11 +320,7 @@ class _DentistReviewsPageState extends State<DentistReviewsPage> {
                 backgroundColor: AppColors.primaryLight,
                 child: Text(
                   avatarChar,
-                  style: const TextStyle(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 14,
-                  ),
+                  style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800, fontSize: 14),
                 ),
               ),
               const SizedBox(width: 12),
@@ -390,11 +330,7 @@ class _DentistReviewsPageState extends State<DentistReviewsPage> {
                   children: [
                     Text(
                       review.patientName,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
-                      ),
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: context.textPrimary),
                     ),
                     const SizedBox(height: 2),
                     Row(
@@ -404,19 +340,13 @@ class _DentistReviewsPageState extends State<DentistReviewsPage> {
                             final filled = index < review.rating.round();
                             return Icon(
                               Icons.star_rounded,
-                              color: filled ? Colors.amber : const Color(0xFFE2E8F0),
+                              color: filled ? Colors.amber : (context.isDark ? const Color(0xFF475569) : const Color(0xFFE2E8F0)),
                               size: 14,
                             );
                           }),
                         ),
                         const SizedBox(width: 8),
-                        Text(
-                          review.date,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: AppColors.textMuted,
-                          ),
-                        ),
+                        Text(review.date, style: TextStyle(fontSize: 11, color: context.textMuted)),
                       ],
                     ),
                   ],
@@ -425,20 +355,12 @@ class _DentistReviewsPageState extends State<DentistReviewsPage> {
             ],
           ),
           const SizedBox(height: 12),
-
-          // Comment
           Text(
             review.comment,
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppColors.textSecondary,
-              height: 1.45,
-            ),
+            style: TextStyle(fontSize: 13, color: context.textSecondary, height: 1.45),
           ),
-          const SizedBox(height: 12),
-
-          // Tags
-          if (review.tags.isNotEmpty)
+          if (review.tags.isNotEmpty) ...[
+            const SizedBox(height: 12),
             Wrap(
               spacing: 6,
               runSpacing: 6,
@@ -446,20 +368,14 @@ class _DentistReviewsPageState extends State<DentistReviewsPage> {
                 return Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
+                    color: context.isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: Text(
-                    tag,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  child: Text(tag, style: TextStyle(fontSize: 11, color: context.textSecondary, fontWeight: FontWeight.w600)),
                 );
               }).toList(),
             ),
+          ],
         ],
       ),
     );
