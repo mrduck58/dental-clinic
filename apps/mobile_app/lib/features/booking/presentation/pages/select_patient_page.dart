@@ -73,7 +73,7 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.bg,
       appBar: BookingAppBar(title: context.l10n('book_appointment'), onBack: () => context.pop()),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -153,7 +153,7 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
                         final p = _patients[i];
                         final active = _selectedId == p.id;
                         final avatarBg = active
-                            ? (context.isDark ? const Color(0xFF451A1A) : AppColors.primaryLight)
+                            ? (context.isDark ? AppColors.primary.withValues(alpha: 0.15) : AppColors.primaryLight)
                             : context.bg;
 
                         return GestureDetector(
@@ -365,7 +365,7 @@ class _PatientCard extends StatelessWidget {
                       ),
                       decoration: BoxDecoration(
                         color: selected
-                            ? (context.isDark ? const Color(0xFF451A1A) : AppColors.primaryLight)
+                            ? (context.isDark ? AppColors.primary.withValues(alpha: 0.15) : AppColors.primaryLight)
                             : context.card,
                         borderRadius: BorderRadius.circular(999),
                         border: Border.all(

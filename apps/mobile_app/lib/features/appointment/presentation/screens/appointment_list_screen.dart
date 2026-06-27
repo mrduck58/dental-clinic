@@ -43,68 +43,99 @@ class _AppointmentListScreenState extends State<AppointmentListScreen> {
     }
   }
 
+  Widget _buildTabContent(List<MyAppointmentItem> items, bool isVi) {
+    return RefreshIndicator(
+      onRefresh: _load,
+      color: AppColors.primary,
+      child: items.isEmpty
+          ? _EmptyView(
+              onBook: () => context.push(AppRoutes.bookingSelectPatient),
+              isVi: isVi,
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+              itemCount: items.length,
+              itemBuilder: (_, i) => _AppointmentCard(item: items[i], isVi: isVi),
+            ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
-    return Scaffold(
-      backgroundColor: context.bg,
-      appBar: AppBar(
-        backgroundColor: context.card,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: context.textPrimary, size: 20),
-          onPressed: () => context.pop(),
-        ),
-        title: Text(
-          context.l10n('my_appointments'),
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: context.textPrimary,
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        backgroundColor: context.bg,
+        appBar: AppBar(
+          backgroundColor: context.card,
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back_ios_new_rounded, color: context.textPrimary, size: 20),
+            onPressed: () => context.pop(),
+          ),
+          title: Text(
+            context.l10n('my_appointments'),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: context.textPrimary,
+            ),
+          ),
+          centerTitle: true,
+          actions: [
+            IconButton(
+              icon: Icon(Iconsax.refresh, color: context.textMuted, size: 20),
+              onPressed: _load,
+            ),
+          ],
+          bottom: TabBar(
+            labelColor: AppColors.primary,
+            unselectedLabelColor: context.textSecondary,
+            indicatorColor: AppColors.primary,
+            indicatorSize: TabBarIndicatorSize.tab,
+            indicatorWeight: 3,
+            labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+            unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+            tabs: [
+              Tab(text: isVi ? 'Sắp tới' : 'Upcoming'),
+              Tab(text: isVi ? 'Hoàn thành' : 'Completed'),
+              Tab(text: isVi ? 'Đã hủy' : 'Cancelled'),
+            ],
           ),
         ),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: Icon(Iconsax.refresh, color: context.textMuted, size: 20),
-            onPressed: _load,
+        body: _loading
+            ? Center(child: CircularProgressIndicator(color: AppColors.primary))
+            : _error != null
+                 ? _ErrorView(message: _error!, onRetry: _load, isVi: isVi)
+                 : TabBarView(
+                     children: [
+                       _buildTabContent(
+                         _items.where((item) =>
+                             item.status.toLowerCase() != 'completed' &&
+                             item.status.toLowerCase() != 'cancelled').toList(),
+                         isVi,
+                       ),
+                       _buildTabContent(
+                         _items.where((item) => item.status.toLowerCase() == 'completed').toList(),
+                         isVi,
+                       ),
+                       _buildTabContent(
+                         _items.where((item) => item.status.toLowerCase() == 'cancelled').toList(),
+                         isVi,
+                       ),
+                     ],
+                   ),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: () => context.push(AppRoutes.bookingSelectPatient),
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+          elevation: 2,
+          icon: Icon(Iconsax.calendar_add, size: 20),
+          label: Text(
+            context.l10n('book_new'),
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
           ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(
-            color: context.divider,
-            height: 1,
-          ),
-        ),
-      ),
-      body: _loading
-          ? Center(child: CircularProgressIndicator(color: AppColors.primary))
-          : _error != null
-               ? _ErrorView(message: _error!, onRetry: _load, isVi: isVi)
-               : RefreshIndicator(
-                   onRefresh: _load,
-                   color: AppColors.primary,
-                   child: _items.isEmpty
-                       ? _EmptyView(
-                           onBook: () => context.push(AppRoutes.bookingSelectPatient),
-                           isVi: isVi,
-                         )
-                       : ListView.builder(
-                           padding: EdgeInsets.fromLTRB(16, 12, 16, 100),
-                           itemCount: _items.length,
-                           itemBuilder: (_, i) => _AppointmentCard(item: _items[i], isVi: isVi),
-                         ),
-                 ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push(AppRoutes.bookingSelectPatient),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        elevation: 2,
-        icon: Icon(Iconsax.calendar_add, size: 20),
-        label: Text(
-          context.l10n('book_new'),
-          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
         ),
       ),
     );
@@ -219,6 +250,26 @@ class _AppointmentCard extends StatelessWidget {
                   _DetailRow(icon: Iconsax.note_text, text: item.symptoms!, muted: true),
                 ],
               ],
+            ),
+          ),
+          Divider(color: context.divider, height: 1),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: SizedBox(
+              width: double.infinity,
+              height: 38,
+              child: OutlinedButton(
+                onPressed: () => context.push(AppRoutes.appointmentDetails, extra: item),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  side: const BorderSide(color: AppColors.primary),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                child: Text(
+                  isVi ? 'Xem chi tiết' : 'View Details',
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                ),
+              ),
             ),
           ),
         ],

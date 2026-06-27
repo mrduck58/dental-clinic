@@ -86,7 +86,10 @@ class _HomePageState extends State<HomePage> {
                 const SizedBox(height: 26),
 
                 // Nha sĩ nổi bật
-                HomeSectionHeader(title: context.l10n('featured_dentists')),
+                HomeSectionHeader(
+                  title: context.l10n('featured_dentists'),
+                  onSeeAll: () => context.push(AppRoutes.dentistsList),
+                ),
                 const SizedBox(height: 14),
                 _isLoading
                     ? const _LoadingRow()
@@ -96,7 +99,7 @@ class _HomePageState extends State<HomePage> {
                             height: 150,
                             child: ListView.separated(
                               scrollDirection: Axis.horizontal,
-                              itemCount: _doctors.length,
+                              itemCount: _doctors.length > 4 ? 4 : _doctors.length,
                               separatorBuilder: (_, _) => const SizedBox(width: 16),
                               itemBuilder: (_, i) =>
                                   DoctorAvatarCard(doctor: _doctors[i]),
