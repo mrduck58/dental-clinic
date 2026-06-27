@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
+import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/home/data/models/post_model.dart';
 
@@ -26,11 +27,12 @@ class NewsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     final tagColor = _tagColor();
     final tagBg = _tagBg();
 
     return Material(
-      color: Colors.white,
+      color: context.card,
       borderRadius: BorderRadius.circular(20),
       shadowColor: Colors.black.withValues(alpha: 0.07),
       elevation: 4,
@@ -66,7 +68,7 @@ class NewsCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
-                        post.category,
+                        post.getLocalizedCategory(isVi),
                         style: TextStyle(
                           color: tagColor,
                           fontSize: 13,
@@ -77,8 +79,8 @@ class NewsCard extends StatelessWidget {
                     const SizedBox(height: 7),
                     Text(
                       post.title,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
+                      style: TextStyle(
+                        color: context.textPrimary,
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
                         height: 1.35,
@@ -89,13 +91,13 @@ class NewsCard extends StatelessWidget {
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        const Icon(Iconsax.clock, size: 13, color: AppColors.textMuted),
+                        Icon(Iconsax.clock, size: 13, color: context.textSecondary),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
-                            '${post.formattedDate} · ${post.readTimeText} đọc',
-                            style: const TextStyle(
-                              color: AppColors.textMuted,
+                            '${post.getFormattedDate(isVi)} · ${post.getReadTimeText(isVi)} ${isVi ? 'đọc' : 'read'}',
+                            style: TextStyle(
+                              color: context.textSecondary,
                               fontSize: 13,
                             ),
                             maxLines: 1,

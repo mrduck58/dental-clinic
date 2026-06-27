@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
+import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/auth/data/auth_service.dart';
 import 'package:mobile_app/features/booking/data/booking_models.dart';
@@ -27,12 +28,15 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
   }
 
   Future<void> _load() async {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     try {
       final profile = await _auth.getMyProfile();
       final me = PatientInfo(
         id: 'self',
-        name: profile.fullName.isEmpty ? 'Người dùng' : profile.fullName.toUpperCase(),
-        relationship: 'Tôi',
+        name: profile.fullName.isEmpty 
+            ? (isVi ? 'Người dùng' : 'User') 
+            : profile.fullName.toUpperCase(),
+        relationship: isVi ? 'Tôi' : 'Self',
         phone: profile.phoneNumber,
         dob: _formatDob(profile.dateOfBirth),
         gender: profile.gender ?? 'Nam',
@@ -43,8 +47,8 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
       final name = await _auth.getUserName() ?? '';
       final me = PatientInfo(
         id: 'self',
-        name: name.isEmpty ? 'Người dùng' : name.toUpperCase(),
-        relationship: 'Tôi',
+        name: name.isEmpty ? (isVi ? 'Người dùng' : 'User') : name.toUpperCase(),
+        relationship: isVi ? 'Tôi' : 'Self',
         gender: 'Nam',
       );
       if (mounted) setState(() { _patients = [me]; _loading = false; });
@@ -69,16 +73,16 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: BookingAppBar(title: 'Đặt khám', onBack: () => context.pop()),
+      backgroundColor: context.bg,
+      appBar: BookingAppBar(title: context.l10n('book_appointment'), onBack: () => context.pop()),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : CustomScrollView(
         slivers: [
-          // ── Header + avatar row — nền trắng ──────────────────────────────
+          // ── Header + avatar row ──────────────────────────────
           SliverToBoxAdapter(
             child: ColoredBox(
-              color: AppColors.surface,
+              color: context.card,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -87,12 +91,12 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
                     padding: const EdgeInsets.fromLTRB(16, 20, 16, 14),
                     child: Row(
                       children: [
-                        const Text(
-                          'Chọn hồ sơ',
+                        Text(
+                          context.l10n('select_profile'),
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w800,
-                            color: AppColors.textPrimary,
+                            color: context.textPrimary,
                           ),
                         ),
                         const Spacer(),
@@ -109,18 +113,18 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
                               color: AppColors.primary,
                               borderRadius: BorderRadius.circular(999),
                             ),
-                            child: const Row(
+                            child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(
+                                const Icon(
                                   Iconsax.user_cirlce_add,
                                   color: Colors.white,
                                   size: 20,
                                 ),
-                                SizedBox(width: 6),
+                                const SizedBox(width: 6),
                                 Text(
-                                  'Thêm mới hồ sơ',
-                                  style: TextStyle(
+                                  context.l10n('add_new_profile'),
+                                  style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 13,
                                     fontWeight: FontWeight.w700,
@@ -145,6 +149,10 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
                       itemBuilder: (_, i) {
                         final p = _patients[i];
                         final active = _selectedId == p.id;
+                        final avatarBg = active
+                            ? (context.isDark ? const Color(0xFF451A1A) : AppColors.primaryLight)
+                            : context.bg;
+
                         return GestureDetector(
                           onTap: () => _select(i),
                           child: Column(
@@ -154,14 +162,12 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
                                 width: 60,
                                 height: 60,
                                 decoration: BoxDecoration(
-                                  color: active
-                                      ? AppColors.primaryLight
-                                      : AppColors.background,
+                                  color: avatarBg,
                                   shape: BoxShape.circle,
                                   border: Border.all(
                                     color: active
                                         ? AppColors.primary
-                                        : AppColors.divider,
+                                        : context.divider,
                                     width: active ? 2.5 : 1.5,
                                   ),
                                 ),
@@ -169,7 +175,7 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
                                   Iconsax.profile_circle,
                                   color: active
                                       ? AppColors.primary
-                                      : AppColors.textMuted,
+                                      : context.textSecondary,
                                   size: 30,
                                 ),
                               ),
@@ -181,7 +187,7 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
                                   fontWeight: FontWeight.w700,
                                   color: active
                                       ? AppColors.primary
-                                      : AppColors.textPrimary,
+                                      : context.textPrimary,
                                 ),
                               ),
                               if (p.patientCode != null)
@@ -191,7 +197,7 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
                                     fontSize: 10,
                                     color: active
                                         ? AppColors.primary
-                                        : AppColors.textPrimary,
+                                        : context.textSecondary,
                                   ),
                                 ),
                             ],
@@ -247,8 +253,9 @@ class _PatientCard extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: context.card,
           borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: selected ? AppColors.primary : context.divider),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
@@ -268,7 +275,7 @@ class _PatientCard extends StatelessWidget {
                   Icon(
                     Iconsax.element_4,
                     size: 18,
-                    color: selected ? AppColors.primary : AppColors.textMuted,
+                    color: selected ? AppColors.primary : context.textSecondary,
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -278,21 +285,21 @@ class _PatientCard extends StatelessWidget {
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
                         color: selected
-                            ? AppColors.primary
-                            : AppColors.textPrimary,
+                            ? (context.isDark ? Colors.white : AppColors.primary)
+                            : context.textPrimary,
                       ),
                     ),
                   ),
-                  const Icon(
+                  Icon(
                     Iconsax.arrow_right_2,
                     size: 20,
-                    color: AppColors.textMuted,
+                    color: context.textSecondary,
                   ),
                 ],
               ),
             ),
 
-            // ── Info pill — nền xám bo viền ──────────────────────────────────
+            // ── Info pill ──────────────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
               child: Container(
@@ -301,24 +308,24 @@ class _PatientCard extends StatelessWidget {
                   vertical: 10,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.background,
+                  color: context.bg,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Row(
                   children: [
                     // Mã bệnh nhân
                     if (patient.patientCode != null) ...[
-                      const Icon(
+                      Icon(
                         Iconsax.personalcard,
                         size: 15,
-                        color: AppColors.textSecondary,
+                        color: context.textSecondary,
                       ),
                       const SizedBox(width: 5),
                       Text(
                         patient.patientCode!,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
-                          color: AppColors.textSecondary,
+                          color: context.textSecondary,
                         ),
                       ),
                       Padding(
@@ -326,23 +333,23 @@ class _PatientCard extends StatelessWidget {
                         child: Container(
                           width: 1,
                           height: 14,
-                          color: AppColors.divider,
+                          color: context.divider,
                         ),
                       ),
                     ],
                     // SĐT
                     if (patient.phone != null) ...[
-                      const Icon(
+                      Icon(
                         Iconsax.call,
                         size: 15,
-                        color: AppColors.textSecondary,
+                        color: context.textSecondary,
                       ),
                       const SizedBox(width: 5),
                       Text(
                         patient.phone!,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
-                          color: AppColors.textSecondary,
+                          color: context.textSecondary,
                         ),
                       ),
                     ],
@@ -355,13 +362,13 @@ class _PatientCard extends StatelessWidget {
                       ),
                       decoration: BoxDecoration(
                         color: selected
-                            ? AppColors.primaryLight
-                            : AppColors.surface,
+                            ? (context.isDark ? const Color(0xFF451A1A) : AppColors.primaryLight)
+                            : context.card,
                         borderRadius: BorderRadius.circular(999),
                         border: Border.all(
                           color: selected
                               ? AppColors.primary
-                              : AppColors.divider,
+                              : context.divider,
                         ),
                       ),
                       child: Row(
@@ -372,7 +379,7 @@ class _PatientCard extends StatelessWidget {
                             size: 12,
                             color: selected
                                 ? AppColors.primary
-                                : AppColors.textMuted,
+                                : context.textSecondary,
                           ),
                           const SizedBox(width: 4),
                           Text(
@@ -381,8 +388,8 @@ class _PatientCard extends StatelessWidget {
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                               color: selected
-                                  ? AppColors.primary
-                                  : AppColors.textSecondary,
+                                  ? (context.isDark ? Colors.white : AppColors.primary)
+                                  : context.textSecondary,
                             ),
                           ),
                         ],

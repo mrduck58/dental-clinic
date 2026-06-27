@@ -26,12 +26,30 @@ class FamilyService {
   final List<FamilyMember> _members = [
     FamilyMember(
       id: 'member_1',
-      fullName: 'Emma Reed',
-      relationship: 'Em gái',
-      dateOfBirth: DateTime(2009, 10, 12),
+      fullName: 'Sarah Johnson',
+      relationship: 'Vợ/Chồng',
+      dateOfBirth: DateTime(1988, 5, 15),
       gender: 'Nữ',
       phoneNumber: '+1 555-0199',
+      profilePictureUrl: 'assets/images/bac_si_3.png',
+    ),
+    FamilyMember(
+      id: 'member_2',
+      fullName: 'Emily Johnson',
+      relationship: 'Con',
+      dateOfBirth: DateTime(2012, 8, 20),
+      gender: 'Nữ',
+      phoneNumber: '+1 555-0200',
       profilePictureUrl: 'assets/images/bac_si_4.png',
+    ),
+    FamilyMember(
+      id: 'member_3',
+      fullName: 'Leo Johnson',
+      relationship: 'Con',
+      dateOfBirth: DateTime(2015, 6, 14),
+      gender: 'Nam',
+      phoneNumber: '+1 555-0201',
+      profilePictureUrl: 'assets/images/bac_si_2.png',
     ),
   ];
 

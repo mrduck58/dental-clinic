@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile_app/app/main_shell.dart';
+import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/features/auth/presentation/pages/fill_profile_page.dart';
 import 'package:mobile_app/features/auth/presentation/pages/login_page.dart';
 import 'package:mobile_app/features/auth/presentation/pages/otp_page.dart';
@@ -16,6 +17,7 @@ import 'package:mobile_app/features/booking/presentation/pages/select_patient_pa
 import 'package:mobile_app/features/booking/presentation/pages/select_service_page.dart';
 import 'package:mobile_app/features/booking/presentation/pages/service_detail_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/home_page.dart';
+import 'package:mobile_app/features/home/presentation/pages/queue_page.dart';
 import 'package:mobile_app/features/profile/presentation/pages/profile_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/dentist_profile_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/dentist_reviews_page.dart';
@@ -32,6 +34,11 @@ import 'package:mobile_app/features/profile/presentation/pages/add_member_page.d
 import 'package:mobile_app/features/profile/presentation/pages/edit_member_page.dart';
 import 'package:mobile_app/features/profile/presentation/pages/security_page.dart';
 import 'package:mobile_app/features/profile/presentation/pages/change_password_page.dart';
+import 'package:mobile_app/features/home/presentation/pages/notifications_page.dart';
+import 'package:mobile_app/features/profile/presentation/pages/family_members_page.dart';
+import 'package:mobile_app/features/profile/presentation/pages/payment_history_page.dart';
+import 'package:mobile_app/features/home/presentation/pages/reminders_page.dart';
+import 'package:mobile_app/features/home/presentation/pages/chatbot_page.dart';
 
 final GoRouter appRouter = GoRouter(
   initialLocation: AppRoutes.splash,
@@ -175,23 +182,27 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: AppRoutes.chat,
-      builder: (context, state) =>
-          const _PlaceholderPage(title: 'Hỏi đáp AI'),
-    ),
-    GoRoute(
-      path: AppRoutes.familyMembers,
-      builder: (context, state) =>
-          const _PlaceholderPage(title: 'Thành viên gia đình'),
-    ),
-    GoRoute(
-      path: AppRoutes.paymentHistory,
-      builder: (context, state) =>
-          const _PlaceholderPage(title: 'Lịch sử thanh toán & Công nợ'),
+      builder: (context, state) => const ChatbotPage(),
     ),
     GoRoute(
       path: AppRoutes.notifications,
-      builder: (context, state) =>
-          const _PlaceholderPage(title: 'Thông báo'),
+      builder: (context, state) => const NotificationsPage(),
+    ),
+    GoRoute(
+      path: AppRoutes.paymentHistory,
+      builder: (context, state) => const PaymentHistoryPage(),
+    ),
+    GoRoute(
+      path: AppRoutes.familyMembers,
+      builder: (context, state) => const FamilyMembersPage(),
+    ),
+    GoRoute(
+      path: AppRoutes.reminders,
+      builder: (context, state) => const RemindersPage(),
+    ),
+    GoRoute(
+      path: AppRoutes.queue,
+      builder: (context, state) => const QueuePage(),
     ),
 
     // ── Booking flow (standalone, không có Bottom Nav) ────────────────────
@@ -256,9 +267,11 @@ abstract class AppRoutes {
   static const changePassword = '/profile/security/change-password';
   static const payment = '/payment';
   static const chat = '/chat';
-  static const familyMembers = '/profile/family';
   static const paymentHistory = '/profile/payment-history';
-  static const notifications = '/profile/notifications';
+  static const notifications = '/notifications';
+  static const familyMembers = '/profile/family';
+  static const reminders = '/reminders';
+  static const queue = '/queue';
 
   // ── Booking flow ────────────────────────────────────────────────────────────
   static const bookingSelectPatient = '/booking/patient';
@@ -278,12 +291,38 @@ class _PlaceholderPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
+      backgroundColor: context.bg,
+      appBar: AppBar(
+        backgroundColor: context.card,
+        elevation: 0.5,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: context.textPrimary, size: 20),
+          onPressed: () => context.pop(),
+        ),
+        title: Text(
+          title,
+          style: TextStyle(
+            color: context.textPrimary,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
       body: Center(
-        child: Text(
-          '🚧 Màn hình "$title" đang được xây dựng',
-          style: Theme.of(context).textTheme.titleMedium,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+          child: Text(
+            isVi 
+                ? '🚧 Màn hình "$title" đang được xây dựng'
+                : '🚧 Screen "$title" is under development',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: context.textPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ),
       ),
     );

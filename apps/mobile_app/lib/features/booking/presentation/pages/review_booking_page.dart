@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
+import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:dio/dio.dart';
 import 'package:mobile_app/core/network/api_client.dart';
@@ -22,8 +23,11 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
   final _bookingService = BookingService();
   bool _isLoading = false;
 
-  static const _weekdays = [
+  static const _weekdaysVi = [
     '', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy', 'Chủ Nhật'
+  ];
+  static const _weekdaysEn = [
+    '', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
   ];
 
   String _fmtDate(DateTime d) =>
@@ -35,7 +39,7 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
     super.dispose();
   }
 
-  Future<void> _confirm() async {
+  Future<void> _confirm(bool isVi) async {
     setState(() => _isLoading = true);
     try {
       final d = widget.draft;
@@ -61,7 +65,7 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Đặt lịch thất bại. Vui lòng thử lại.')),
+        SnackBar(content: Text(isVi ? 'Đặt lịch thất bại. Vui lòng thử lại.' : 'Booking failed. Please try again.')),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -70,12 +74,14 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     final d = widget.draft;
     final bottomPad = MediaQuery.of(context).padding.bottom;
+    final weekdays = isVi ? _weekdaysVi : _weekdaysEn;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: BookingAppBar(title: 'Xác nhận đặt khám'),
+      backgroundColor: context.bg,
+      appBar: BookingAppBar(title: isVi ? 'Xác nhận đặt khám' : 'Confirm Booking'),
       body: Column(
         children: [
           Expanded(
@@ -88,9 +94,9 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
                   Container(
                     margin: const EdgeInsets.symmetric(horizontal: 16),
                     decoration: BoxDecoration(
-                      color: AppColors.surface,
+                      color: context.card,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: AppColors.divider),
+                      border: Border.all(color: context.divider),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.04),
@@ -104,25 +110,25 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
                         if (d.service != null)
                           _InfoRow(
                             icon: Iconsax.health,
-                            label: 'Chuyên khoa',
+                            label: isVi ? 'Chuyên khoa' : 'Service',
                             value: d.service!.name,
                           ),
                         if (d.date != null)
                           _InfoRow(
                             icon: Iconsax.calendar,
-                            label: 'Ngày khám',
-                            value: '${_fmtDate(d.date!)} - ${_weekdays[d.date!.weekday]}',
+                            label: isVi ? 'Ngày khám' : 'Date',
+                            value: '${_fmtDate(d.date!)} - ${weekdays[d.date!.weekday]}',
                           ),
                         if (d.timeSlot != null)
                           _InfoRow(
                             icon: Iconsax.clock,
-                            label: 'Giờ khám',
+                            label: isVi ? 'Giờ khám' : 'Time Slot',
                             value: '${d.timeSlot!.range}, ${d.doctor?.room ?? ''}',
                           ),
                         if (d.doctor != null)
                           _InfoRow(
                             icon: Iconsax.profile_circle,
-                            label: 'Bác sĩ',
+                            label: isVi ? 'Bác sĩ' : 'Dentist',
                             value: d.doctor!.fullName,
                             isLast: true,
                           ),
@@ -136,23 +142,23 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
                     margin: const EdgeInsets.symmetric(horizontal: 16),
                     padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
                     decoration: BoxDecoration(
-                      color: AppColors.surface,
+                      color: context.card,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: AppColors.divider),
+                      border: Border.all(color: context.divider),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
-                          children: const [
-                            Icon(Iconsax.note_text, size: 16, color: AppColors.primary),
-                            SizedBox(width: 8),
+                          children: [
+                            const Icon(Iconsax.note_text, size: 16, color: AppColors.primary),
+                            const SizedBox(width: 8),
                             Text(
-                              'Triệu chứng',
+                              isVi ? 'Triệu chứng' : 'Symptoms',
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
-                                color: AppColors.textPrimary,
+                                color: context.textPrimary,
                               ),
                             ),
                           ],
@@ -162,29 +168,31 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
                           controller: _symptomCtrl,
                           maxLines: 4,
                           minLines: 3,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 14,
-                            color: AppColors.textPrimary,
+                            color: context.textPrimary,
                           ),
                           decoration: InputDecoration(
-                            hintText: 'Mô tả triệu chứng của bạn (đau răng, sâu răng, v.v.)',
-                            hintStyle: const TextStyle(
+                            hintText: isVi 
+                                ? 'Mô tả triệu chứng của bạn (đau răng, sâu răng, v.v.)'
+                                : 'Describe your symptoms (toothache, decay, etc.)',
+                            hintStyle: TextStyle(
                               fontSize: 13,
-                              color: AppColors.textMuted,
+                              color: context.textSecondary.withValues(alpha: 0.6),
                             ),
                             filled: true,
-                            fillColor: AppColors.background,
+                            fillColor: context.bg,
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 14,
                               vertical: 12,
                             ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
-                              borderSide: const BorderSide(color: AppColors.divider),
+                              borderSide: BorderSide(color: context.divider),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
-                              borderSide: const BorderSide(color: AppColors.divider),
+                              borderSide: BorderSide(color: context.divider),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
@@ -208,8 +216,8 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
           Container(
             padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + bottomPad),
             decoration: BoxDecoration(
-              color: AppColors.surface,
-              border: const Border(top: BorderSide(color: AppColors.divider)),
+              color: context.card,
+              border: Border(top: BorderSide(color: context.divider)),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.06),
@@ -222,7 +230,7 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
               width: double.infinity,
               height: 50,
               child: ElevatedButton(
-                onPressed: _isLoading ? null : _confirm,
+                onPressed: _isLoading ? null : () => _confirm(isVi),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
@@ -238,9 +246,9 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
                         child: CircularProgressIndicator(
                             color: Colors.white, strokeWidth: 2),
                       )
-                    : const Text(
-                        'Xác nhận đặt khám',
-                        style: TextStyle(
+                    : Text(
+                        isVi ? 'Xác nhận đặt khám' : 'Confirm Booking',
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
                         ),
@@ -281,7 +289,7 @@ class _InfoRow extends StatelessWidget {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: AppColors.background,
+                  color: context.bg,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(icon, size: 20, color: AppColors.primary),
@@ -293,18 +301,18 @@ class _InfoRow extends StatelessWidget {
                   children: [
                     Text(
                       label,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
-                        color: AppColors.textMuted,
+                        color: context.textSecondary,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       value,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.primary,
+                        fontWeight: FontWeight.w800,
+                        color: context.isDark ? Colors.white : AppColors.primary,
                       ),
                     ),
                   ],
@@ -315,8 +323,8 @@ class _InfoRow extends StatelessWidget {
           ),
         ),
         if (!isLast)
-          const Divider(
-              color: AppColors.divider, height: 1, indent: 16, endIndent: 16),
+          Divider(
+              color: context.divider, height: 1, indent: 16, endIndent: 16),
       ],
     );
   }

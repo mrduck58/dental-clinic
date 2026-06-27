@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
+import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/booking/data/booking_models.dart';
 import 'package:mobile_app/features/booking/data/booking_service.dart';
@@ -74,9 +75,11 @@ class _SelectServicePageState extends State<SelectServicePage> {
 
   @override
   Widget build(BuildContext context) {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
+
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: BookingAppBar(title: 'Chọn dịch vụ', showHome: false),
+      backgroundColor: context.bg,
+      appBar: BookingAppBar(title: isVi ? 'Chọn dịch vụ' : 'Select Service', showHome: false),
       body: Column(
         children: [
           // ── Search bar ────────────────────────────────────────────────────
@@ -84,21 +87,21 @@ class _SelectServicePageState extends State<SelectServicePage> {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
             child: TextField(
               controller: _searchCtrl,
-              style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
+              style: TextStyle(fontSize: 14, color: context.textPrimary),
               decoration: InputDecoration(
-                hintText: 'Tìm nhanh chuyên khoa',
-                hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 14),
-                prefixIcon: const Icon(Iconsax.search_normal, color: AppColors.textMuted, size: 20),
+                hintText: isVi ? 'Tìm nhanh chuyên khoa' : 'Search services...',
+                hintStyle: TextStyle(color: context.textSecondary, fontSize: 14),
+                prefixIcon: Icon(Iconsax.search_normal, color: context.textSecondary, size: 20),
                 filled: true,
-                fillColor: AppColors.surface,
+                fillColor: context.card,
                 contentPadding: const EdgeInsets.symmetric(vertical: 10),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: AppColors.divider),
+                  borderSide: BorderSide(color: context.divider),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: AppColors.divider),
+                  borderSide: BorderSide(color: context.divider),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
@@ -117,16 +120,16 @@ class _SelectServicePageState extends State<SelectServicePage> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(_error!, style: const TextStyle(color: AppColors.textMuted)),
+                            Text(isVi ? 'Không thể tải dịch vụ.' : 'Unable to load services.', style: TextStyle(color: context.textSecondary)),
                             const SizedBox(height: 12),
-                            TextButton(onPressed: _load, child: const Text('Thử lại')),
+                            TextButton(onPressed: _load, child: Text(isVi ? 'Thử lại' : 'Retry')),
                           ],
                         ),
                       )
                     : _filtered.isEmpty
-                        ? const Center(
-                            child: Text('Không tìm thấy dịch vụ phù hợp.',
-                                style: TextStyle(color: AppColors.textMuted)),
+                        ? Center(
+                            child: Text(isVi ? 'Không tìm thấy dịch vụ phù hợp.' : 'No matching services found.',
+                                style: TextStyle(color: context.textSecondary)),
                           )
                         : ListView.builder(
                             padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
@@ -165,12 +168,14 @@ class _ServiceItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
+
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.card,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.divider),
+        border: Border.all(color: context.divider),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -196,10 +201,10 @@ class _ServiceItem extends StatelessWidget {
                         Expanded(
                           child: Text(
                             service.name,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w800,
-                              color: AppColors.textPrimary,
+                              color: context.textPrimary,
                             ),
                           ),
                         ),
@@ -223,9 +228,9 @@ class _ServiceItem extends StatelessWidget {
                     service.description,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
-                      color: AppColors.textSecondary,
+                      color: context.textSecondary,
                       height: 1.5,
                     ),
                   ),
@@ -233,11 +238,11 @@ class _ServiceItem extends StatelessWidget {
 
                 GestureDetector(
                   onTap: onViewDetail,
-                  child: const Padding(
-                    padding: EdgeInsets.fromLTRB(16, 4, 0, 14),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 0, 14),
                     child: Text(
-                      'Xem thêm  ›',
-                      style: TextStyle(
+                      isVi ? 'Xem thêm  ›' : 'View detail  ›',
+                      style: const TextStyle(
                         fontSize: 13,
                         color: AppColors.primary,
                         fontWeight: FontWeight.w600,
@@ -250,9 +255,9 @@ class _ServiceItem extends StatelessWidget {
           ),
           GestureDetector(
             onTap: onTap,
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12),
-              child: Icon(Icons.arrow_forward_ios, color: AppColors.textMuted, size: 20),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Icon(Icons.arrow_forward_ios, color: context.textSecondary, size: 20),
             ),
           ),
         ],
