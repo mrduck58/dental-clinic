@@ -24,8 +24,8 @@ class _QueuePageState extends State<QueuePage> {
       SnackBar(
         content: Text(
           _isAway 
-              ? (isVi ? 'ÄÃ£ chuyá»ƒn tráº¡ng thÃ¡i sang "Táº¡m váº¯ng máº·t". Sá»‘ cá»§a báº¡n sáº½ táº¡m thá»i Ä‘Æ°á»£c lÃ¹i láº¡i.' : 'Status changed to "Absent". Your turn will be temporarily delayed.')
-              : (isVi ? 'ÄÃ£ sáºµn sÃ ng quay láº¡i hÃ ng chá».' : 'Ready to return to queue.'),
+              ? (isVi ? 'Đã chuyển trạng thái sang "Tạm vắng mặt". Số của bạn sẽ tạm thời được lùi lại.' : 'Status changed to "Absent". Your turn will be temporarily delayed.')
+              : (isVi ? 'Đã sẵn sàng quay lại hàng chờ.' : 'Ready to return to queue.'),
         ),
         backgroundColor: _isAway ? Colors.orange : const Color(0xFF10B981),
         duration: const Duration(seconds: 2),
@@ -71,7 +71,7 @@ class _QueuePageState extends State<QueuePage> {
 
               // Timeline Header
               Text(
-                isVi ? 'Tiáº¿n Ä‘á»™ hÃ ng chá» thá»±c táº¿' : 'Live Queue Progress',
+                isVi ? 'Tiến độ hàng chờ thực tế' : 'Live Queue Progress',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -113,7 +113,7 @@ class _QueuePageState extends State<QueuePage> {
       child: Column(
         children: [
           Text(
-            isVi ? 'Sá» THá»¨ Tá»° ÄANG PHá»¤C Vá»¤' : 'CURRENT SERVING NUMBER',
+            isVi ? 'SỐ THỨ TỰ ĐANG PHỤC VỤ' : 'CURRENT SERVING NUMBER',
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w900,
@@ -163,7 +163,7 @@ class _QueuePageState extends State<QueuePage> {
               ),
               const SizedBox(width: 8),
               Text(
-                isVi ? 'Äang cáº­p nháº­t trá»±c tiáº¿p...' : 'Live updating...',
+                isVi ? 'Đang cập nhật trực tiếp...' : 'Live updating...',
                 style: const TextStyle(
                   fontSize: 13,
                   color: Color(0xFF10B981),
@@ -188,11 +188,11 @@ class _QueuePageState extends State<QueuePage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildInfoItem(Iconsax.home_trend_up, isVi ? 'PhÃ²ng khÃ¡m' : 'Clinic Room', isVi ? 'PhÃ²ng 03\n(Táº§ng 2)' : 'Room 03\n(2nd Floor)'),
+          _buildInfoItem(Iconsax.home_trend_up, isVi ? 'Phòng khám' : 'Clinic Room', isVi ? 'Phòng 03\n(Tầng 2)' : 'Room 03\n(2nd Floor)'),
           Container(width: 1, height: 40, color: context.divider),
           _buildInfoItem(Iconsax.user_octagon, context.l10n('your_number'), '#108', isPrimaryText: true),
           Container(width: 1, height: 40, color: context.divider),
-          _buildInfoItem(Iconsax.clock, isVi ? 'Chá» dá»± kiáº¿n' : 'Est. Wait', isVi ? '~15 phÃºt' : '~15 mins'),
+          _buildInfoItem(Iconsax.clock, isVi ? 'Chờ dự kiến' : 'Est. Wait', isVi ? '~15 phút' : '~15 mins'),
         ],
       ),
     );
@@ -223,13 +223,13 @@ class _QueuePageState extends State<QueuePage> {
 
   Widget _buildQueueTimeline(bool isVi) {
     final List<Map<String, dynamic>> steps = [
-      {'number': '103', 'status': 'completed', 'label': isVi ? 'ÄÃ£ phá»¥c vá»¥ xong' : 'Served'},
-      {'number': '104', 'status': 'serving', 'label': isVi ? 'Äang trong phÃ²ng khÃ¡m' : 'In Consultation'},
-      {'number': '105', 'status': 'waiting', 'label': isVi ? 'Äang Ä‘á»£i á»Ÿ sáº£nh' : 'Waiting in lobby'},
-      {'number': '106', 'status': 'waiting', 'label': isVi ? 'Äang Ä‘á»£i á»Ÿ sáº£nh' : 'Waiting in lobby'},
-      {'number': '107', 'status': 'waiting', 'label': isVi ? 'Äang Ä‘á»£i á»Ÿ sáº£nh' : 'Waiting in lobby'},
-      {'number': '108', 'status': 'yours', 'label': _isAway ? (isVi ? 'Táº¡m váº¯ng máº·t' : 'Temporary Absent') : (isVi ? 'Vá»‹ trÃ­ cá»§a báº¡n (Káº¿ tiáº¿p)' : 'Your Position (Next)')},
-      {'number': '109', 'status': 'upcoming', 'label': isVi ? 'Äang Ä‘á»£i á»Ÿ sáº£nh' : 'Waiting in lobby'},
+      {'number': '103', 'status': 'completed', 'label': isVi ? 'Đã phục vụ xong' : 'Served'},
+      {'number': '104', 'status': 'serving', 'label': isVi ? 'Đang trong phòng khám' : 'In Consultation'},
+      {'number': '105', 'status': 'waiting', 'label': isVi ? 'Đang đợi ở sảnh' : 'Waiting in lobby'},
+      {'number': '106', 'status': 'waiting', 'label': isVi ? 'Đang đợi ở sảnh' : 'Waiting in lobby'},
+      {'number': '107', 'status': 'waiting', 'label': isVi ? 'Đang đợi ở sảnh' : 'Waiting in lobby'},
+      {'number': '108', 'status': 'yours', 'label': _isAway ? (isVi ? 'Tạm vắng mặt' : 'Temporary Absent') : (isVi ? 'Vị trí của bạn (Kế tiếp)' : 'Your Position (Next)')},
+      {'number': '109', 'status': 'upcoming', 'label': isVi ? 'Đang đợi ở sảnh' : 'Waiting in lobby'},
     ];
 
     return Container(
@@ -333,7 +333,7 @@ class _QueuePageState extends State<QueuePage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              isVi ? 'Sá»‘ thá»© tá»± #${step['number']}' : 'Queue No. #${step['number']}',
+                              isVi ? 'Số thứ tự #${step['number']}' : 'Queue No. #${step['number']}',
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: step['status'] == 'yours' || step['status'] == 'serving'
@@ -364,7 +364,7 @@ class _QueuePageState extends State<QueuePage> {
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
-                              _isAway ? (isVi ? 'Táº¡m váº¯ng' : 'Absent') : (isVi ? 'Sá»‘ cá»§a báº¡n' : 'Your Turn'),
+                              _isAway ? (isVi ? 'Tạm vắng' : 'Absent') : (isVi ? 'Số của bạn' : 'Your Turn'),
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 10,
@@ -398,12 +398,11 @@ class _QueuePageState extends State<QueuePage> {
         icon: Icon(_isAway ? Iconsax.play : Iconsax.pause),
         label: Text(
           _isAway 
-              ? (isVi ? 'Quay láº¡i hÃ ng chá» (Sáºµn sÃ ng)' : 'Return to queue (Ready)')
-              : (isVi ? 'Báº¡n cáº§n táº¡m nghá»‰? BÃ¡o váº¯ng máº·t táº¡m thá»i' : 'Need a break? Mark temporary absence'),
+              ? (isVi ? 'Quay lại hàng chờ (Sẵn sàng)' : 'Return to queue (Ready)')
+              : (isVi ? 'Bạn cần tạm nghỉ? Báo vắng mặt tạm thời' : 'Need a break? Mark temporary absence'),
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
         ),
       ),
     );
   }
 }
-

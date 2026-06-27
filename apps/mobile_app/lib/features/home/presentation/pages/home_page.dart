@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
+import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/auth/data/auth_service.dart';
 import 'package:mobile_app/features/home/data/home_service.dart';
@@ -61,7 +62,7 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final bottomPad = MediaQuery.of(context).padding.bottom + 16;
     return ColoredBox(
-      color: const Color(0xFFF8FAFC),
+      color: context.bg,
       child: CustomScrollView(
         slivers: [
           SliverToBoxAdapter(child: HomeHeader(userName: _userName)),
@@ -75,7 +76,7 @@ class _HomePageState extends State<HomePage> {
 
                 // Lịch hẹn sắp tới
                 HomeSectionHeader(
-                  title: 'Lịch hẹn sắp tới',
+                  title: context.l10n('upcoming_appointment'),
                   onSeeAll: () => context.go(AppRoutes.appointments),
                 ),
                 const SizedBox(height: 12),
@@ -83,12 +84,12 @@ class _HomePageState extends State<HomePage> {
                 const SizedBox(height: 26),
 
                 // Nha sĩ nổi bật
-                const HomeSectionHeader(title: 'Nha sĩ nổi bật'),
+                HomeSectionHeader(title: context.l10n('featured_dentists')),
                 const SizedBox(height: 14),
                 _isLoading
                     ? const _LoadingRow()
                     : _doctors.isEmpty
-                        ? const _EmptySection(message: 'Chưa có thông tin nha sĩ.')
+                        ? _EmptySection(message: context.l10n('load_doctors_failed'))
                         : SizedBox(
                             height: 150,
                             child: ListView.separated(
@@ -103,14 +104,14 @@ class _HomePageState extends State<HomePage> {
 
                  // Dịch vụ nổi bật
                 HomeSectionHeader(
-                  title: 'Dịch vụ nổi bật',
+                  title: context.l10n('our_services'),
                   onSeeAll: () => context.push(AppRoutes.servicesList),
                 ),
                 const SizedBox(height: 14),
                 _isLoading
                     ? const _LoadingColumn()
                     : _services.isEmpty
-                        ? const _EmptySection(message: 'Chưa có dịch vụ.')
+                        ? _EmptySection(message: context.l10n('load_services_failed'))
                         : Column(
                             children: List.generate(
                               _services.take(5).length,
@@ -124,14 +125,14 @@ class _HomePageState extends State<HomePage> {
 
                 // Tin tức nổi bật
                 HomeSectionHeader(
-                  title: 'Tin tức nổi bật',
+                  title: context.l10n('news'),
                   onSeeAll: () => context.push(AppRoutes.postsList),
                 ),
                 const SizedBox(height: 14),
                 if (_isLoading)
                   const _LoadingColumn()
                 else if (_posts.isEmpty)
-                  const _EmptySection(message: 'Chưa có tin tức.')
+                  const _EmptySection(message: 'No news.')
                 else
                   ..._posts.take(5).map(
                     (post) => Padding(
@@ -159,9 +160,9 @@ class _NoAppointmentCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.card,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.divider),
+        border: Border.all(color: context.divider),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
@@ -176,45 +177,48 @@ class _NoAppointmentCard extends StatelessWidget {
             width: 56,
             height: 56,
             decoration: BoxDecoration(
-              color: AppColors.primaryLight,
+              color: context.primaryLight,
               borderRadius: BorderRadius.circular(16),
             ),
             child: const Icon(Iconsax.calendar_tick, color: AppColors.primary, size: 28),
           ),
           const SizedBox(width: 16),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Chưa có lịch hẹn sắp tới',
+                  context.l10n('no_appointments'),
                   style: TextStyle(
-                    color: AppColors.textPrimary,
+                    color: context.textPrimary,
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 Text(
-                  'Đặt lịch ngay để gặp bác sĩ của bạn.',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                  context.l10n('book_now'),
+                  style: TextStyle(color: context.textSecondary, fontSize: 13),
                 ),
               ],
             ),
           ),
           const SizedBox(width: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: AppColors.primary,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: const Text(
-              'Đặt lịch',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
+          GestureDetector(
+            onTap: () => context.push(AppRoutes.bookingSelectPatient),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                context.l10n('book_button'),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ),

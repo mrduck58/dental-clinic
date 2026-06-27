@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
+import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/home/data/home_service.dart';
 import 'package:mobile_app/features/home/data/models/service_model.dart';
@@ -25,7 +26,7 @@ class _ServicesListPageState extends State<ServicesListPage> {
   String _selectedCategory = 'Tất cả';
   String _searchQuery = '';
 
-  final List<String> _categories = const [
+  final List<String> _categories = [
     'Tất cả',
     'Chỉnh nha',
     'Tổng quát',
@@ -101,21 +102,31 @@ class _ServicesListPageState extends State<ServicesListPage> {
     });
   }
 
+  String _getLocalizedCategoryName(String categoryKey, bool isVi) {
+    if (categoryKey == 'Tất cả') return isVi ? 'Tất cả' : 'All';
+    if (categoryKey == 'Chỉnh nha') return isVi ? 'Chỉnh nha' : 'Orthodontics';
+    if (categoryKey == 'Tổng quát') return isVi ? 'Tổng quát' : 'General';
+    if (categoryKey == 'Thẩm mỹ') return isVi ? 'Thẩm mỹ' : 'Cosmetic';
+    return categoryKey;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: context.bg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: context.card,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.textPrimary, size: 20),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: context.textPrimary, size: 20),
           onPressed: () => context.pop(),
         ),
-        title: const Text(
-          'Dịch vụ của chúng tôi',
+        title: Text(
+          context.l10n('our_services'),
           style: TextStyle(
-            color: AppColors.textPrimary,
+            color: context.textPrimary,
             fontWeight: FontWeight.w800,
             fontSize: 18,
           ),
@@ -124,31 +135,31 @@ class _ServicesListPageState extends State<ServicesListPage> {
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(
-            color: AppColors.divider,
+            color: context.divider,
             height: 1,
           ),
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          ? Center(child: CircularProgressIndicator(color: AppColors.primary))
           : Column(
               children: [
                 // Search Bar at the top
                 Container(
-                  color: Colors.white,
-                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+                  color: context.card,
+                  padding: EdgeInsets.fromLTRB(24, 16, 24, 8),
                   child: Container(
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F9),
+                      color: context.isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: TextField(
                       controller: _searchCtrl,
-                      style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
-                      decoration: const InputDecoration(
-                        hintText: 'Tìm kiếm dịch vụ nha khoa...',
-                        hintStyle: TextStyle(color: AppColors.textMuted, fontSize: 13),
-                        prefixIcon: Icon(Iconsax.search_normal, color: AppColors.textMuted, size: 18),
+                      style: TextStyle(fontSize: 14, color: context.textPrimary),
+                      decoration: InputDecoration(
+                        hintText: context.l10n('search_services'),
+                        hintStyle: TextStyle(color: context.textMuted, fontSize: 13),
+                        prefixIcon: Icon(Iconsax.search_normal, color: context.textMuted, size: 18),
                         contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                         border: InputBorder.none,
                       ),
@@ -158,11 +169,11 @@ class _ServicesListPageState extends State<ServicesListPage> {
 
                 // Category selector tabs row
                 Container(
-                  color: Colors.white,
+                  color: context.card,
                   height: 64,
                   child: ListView.builder(
                     scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                     itemCount: _categories.length,
                     itemBuilder: (context, index) {
                       final cat = _categories[index];
@@ -170,20 +181,20 @@ class _ServicesListPageState extends State<ServicesListPage> {
                       return GestureDetector(
                         onTap: () => _onCategorySelected(cat),
                         child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 180),
-                          margin: const EdgeInsets.only(right: 10),
-                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                          duration: Duration(milliseconds: 180),
+                          margin: EdgeInsets.only(right: 10),
+                          padding: EdgeInsets.symmetric(horizontal: 18, vertical: 8),
                           decoration: BoxDecoration(
-                            color: active ? AppColors.primary : const Color(0xFFF1F5F9),
+                            color: active ? AppColors.primary : (context.isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9)),
                             borderRadius: BorderRadius.circular(999),
                           ),
                           child: Center(
                             child: Text(
-                              cat,
+                              _getLocalizedCategoryName(cat, isVi),
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w800,
-                                color: active ? Colors.white : AppColors.textSecondary,
+                                color: active ? Colors.white : context.textSecondary,
                               ),
                             ),
                           ),
@@ -192,15 +203,15 @@ class _ServicesListPageState extends State<ServicesListPage> {
                     },
                   ),
                 ),
-                const Divider(height: 1, color: AppColors.divider),
+                Divider(height: 1, color: context.divider),
 
                 // Services List
                 Expanded(
                   child: _filteredServices.isEmpty
-                      ? const Center(
+                      ? Center(
                           child: Text(
-                            'Chưa có dịch vụ nào phù hợp.',
-                            style: TextStyle(color: AppColors.textMuted),
+                            context.l10n('no_matching_services'),
+                            style: TextStyle(color: context.textMuted),
                           ),
                         )
                       : CustomScrollView(
@@ -212,15 +223,15 @@ class _ServicesListPageState extends State<ServicesListPage> {
 
                             // Other Services Header Label
                             if (_filteredServices.length > 1)
-                              const SliverToBoxAdapter(
+                              SliverToBoxAdapter(
                                 child: Padding(
                                   padding: EdgeInsets.fromLTRB(24, 24, 24, 12),
                                   child: Text(
-                                    'Dịch vụ khác',
+                                    context.l10n('other_services'),
                                     style: TextStyle(
                                       fontSize: 18,
                                       fontWeight: FontWeight.w800,
-                                      color: AppColors.textPrimary,
+                                      color: context.textPrimary,
                                     ),
                                   ),
                                 ),
@@ -228,13 +239,13 @@ class _ServicesListPageState extends State<ServicesListPage> {
 
                             // Remaining list below
                             SliverPadding(
-                              padding: const EdgeInsets.fromLTRB(24, 0, 24, 40),
+                              padding: EdgeInsets.fromLTRB(24, 0, 24, 40),
                               sliver: SliverList(
                                 delegate: SliverChildBuilderDelegate(
                                   (context, index) {
                                     // Skip first one as it is in the banner
                                     return Padding(
-                                      padding: const EdgeInsets.only(bottom: 14),
+                                      padding: EdgeInsets.only(bottom: 14),
                                       child: ServiceCard(
                                         service: _filteredServices[index + 1],
                                         index: index + 1,
@@ -254,8 +265,9 @@ class _ServicesListPageState extends State<ServicesListPage> {
   }
 
   Widget _buildFeaturedServiceBanner(ServiceModel service) {
-    final cat = _getServiceCategory(service).toUpperCase();
-    final quickInfo = '${service.durationText} • Tại phòng khám';
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
+    final cat = _getLocalizedCategoryName(_getServiceCategory(service), isVi).toUpperCase();
+    final quickInfo = '${service.durationText} • ${isVi ? 'Tại phòng khám' : 'At Clinic'}';
 
     return GestureDetector(
       onTap: () {
@@ -266,21 +278,21 @@ class _ServicesListPageState extends State<ServicesListPage> {
             name: service.name,
             description: service.description,
             price: service.formattedPrice,
-            note: '$quickInfo • Khám sơ bộ miễn phí',
+            note: '$quickInfo • ${isVi ? 'Khám sơ bộ miễn phí' : 'Free preliminary exam'}',
           ),
         );
       },
       child: Container(
-        margin: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+        margin: EdgeInsets.fromLTRB(24, 24, 24, 0),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.card,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.divider),
+          border: Border.all(color: context.divider),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 16,
-              offset: const Offset(0, 6),
+              offset: Offset(0, 6),
             ),
           ],
         ),
@@ -291,7 +303,7 @@ class _ServicesListPageState extends State<ServicesListPage> {
             Container(
               height: 140,
               width: double.infinity,
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [Color(0xFFDC2626), Color(0xFFF87171)],
                   begin: Alignment.topLeft,
@@ -311,7 +323,7 @@ class _ServicesListPageState extends State<ServicesListPage> {
                       color: Colors.white.withValues(alpha: 0.08),
                     ),
                   ),
-                  const Column(
+                  Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
@@ -321,7 +333,7 @@ class _ServicesListPageState extends State<ServicesListPage> {
                       ),
                       SizedBox(height: 8),
                       Text(
-                        'DỊCH VỤ NỔI BẬT NHẤT',
+                        context.l10n('featured_service_title'),
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 12,
@@ -337,7 +349,7 @@ class _ServicesListPageState extends State<ServicesListPage> {
 
             // Service details
             Padding(
-              padding: const EdgeInsets.all(20),
+              padding: EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -345,14 +357,14 @@ class _ServicesListPageState extends State<ServicesListPage> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: AppColors.primaryLight,
+                          color: context.primaryLight,
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
                           cat,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: AppColors.primary,
                             fontSize: 10,
                             fontWeight: FontWeight.w800,
@@ -362,7 +374,7 @@ class _ServicesListPageState extends State<ServicesListPage> {
                       ),
                       Text(
                         service.formattedPrice,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.primary,
                           fontSize: 16,
                           fontWeight: FontWeight.w800,
@@ -370,48 +382,48 @@ class _ServicesListPageState extends State<ServicesListPage> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12),
                   Text(
                     service.name,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
-                      color: AppColors.textPrimary,
+                      color: context.textPrimary,
                       height: 1.35,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   Text(
                     service.description,
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
+                    style: TextStyle(
+                      color: context.textSecondary,
                       fontSize: 13,
                       height: 1.45,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 12),
-                  const Divider(color: AppColors.divider, height: 1),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12),
+                  Divider(color: context.divider, height: 1),
+                  SizedBox(height: 12),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Row(
                         children: [
-                          const Icon(Iconsax.clock, size: 14, color: AppColors.textMuted),
-                          const SizedBox(width: 4),
+                          Icon(Iconsax.clock, size: 14, color: context.textMuted),
+                          SizedBox(width: 4),
                           Text(
                             quickInfo,
-                            style: const TextStyle(
-                              color: AppColors.textSecondary,
+                            style: TextStyle(
+                              color: context.textSecondary,
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
                         ],
                       ),
-                      const Icon(
+                      Icon(
                         Iconsax.arrow_right_3,
                         color: AppColors.primary,
                         size: 16,

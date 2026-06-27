@@ -74,6 +74,7 @@ class ServiceCard extends StatelessWidget {
                     Text(
                       service.name,
                       style: TextStyle(
+                        color: AppColors.textPrimary,
                         color: context.textPrimary,
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
@@ -85,6 +86,7 @@ class ServiceCard extends StatelessWidget {
                     Text(
                       quickInfo,
                       style: TextStyle(
+                        color: AppColors.textMuted,
                         color: context.textSecondary,
                         fontSize: 12,
                       ),

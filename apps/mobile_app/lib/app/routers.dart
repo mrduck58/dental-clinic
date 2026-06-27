@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile_app/app/main_shell.dart';
+import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/features/auth/presentation/pages/fill_profile_page.dart';
 import 'package:mobile_app/features/auth/presentation/pages/login_page.dart';
 import 'package:mobile_app/features/auth/presentation/pages/otp_page.dart';
@@ -32,6 +33,7 @@ import 'package:mobile_app/features/profile/presentation/pages/add_member_page.d
 import 'package:mobile_app/features/profile/presentation/pages/edit_member_page.dart';
 import 'package:mobile_app/features/profile/presentation/pages/security_page.dart';
 import 'package:mobile_app/features/profile/presentation/pages/change_password_page.dart';
+import 'package:mobile_app/features/home/presentation/pages/notifications_page.dart';
 
 final GoRouter appRouter = GoRouter(
   initialLocation: AppRoutes.splash,
@@ -278,12 +280,38 @@ class _PlaceholderPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
+      backgroundColor: context.bg,
+      appBar: AppBar(
+        backgroundColor: context.card,
+        elevation: 0.5,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: context.textPrimary, size: 20),
+          onPressed: () => context.pop(),
+        ),
+        title: Text(
+          title,
+          style: TextStyle(
+            color: context.textPrimary,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
       body: Center(
-        child: Text(
-          '🚧 Màn hình "$title" đang được xây dựng',
-          style: Theme.of(context).textTheme.titleMedium,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+          child: Text(
+            isVi 
+                ? '🚧 Màn hình "$title" đang được xây dựng'
+                : '🚧 Screen "$title" is under development',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: context.textPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ),
       ),
     );

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/profile/data/family_member.dart';
 
@@ -38,14 +39,15 @@ class _AddMemberPageState extends State<AddMemberPage> {
 
   Future<void> _pickDate() async {
     final now = DateTime.now();
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     final picked = await showDatePicker(
       context: context,
       initialDate: _dob ?? DateTime(now.year - 15, now.month, now.day),
       firstDate: DateTime(1900),
       lastDate: now,
-      helpText: 'Chọn ngày sinh',
-      cancelText: 'Hủy',
-      confirmText: 'Chọn',
+      helpText: isVi ? 'Chọn ngày sinh' : 'Select Date of Birth',
+      cancelText: context.l10n('cancel'),
+      confirmText: isVi ? 'Chọn' : 'Select',
       builder: (context, child) => Theme(
         data: Theme.of(context).copyWith(
           colorScheme: const ColorScheme.light(
@@ -126,19 +128,20 @@ class _AddMemberPageState extends State<AddMemberPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: context.bg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: context.card,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.primary, size: 20),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.primary, size: 20),
           onPressed: () => context.pop(),
         ),
-        title: const Text(
-          'Thêm thành viên',
+        title: Text(
+          isVi ? 'Thêm thành viên' : 'Add Family Member',
           style: TextStyle(
-            color: AppColors.primaryDark,
+            color: AppColors.primary,
             fontWeight: FontWeight.w800,
             fontSize: 20,
           ),
@@ -147,7 +150,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(
-            color: const Color(0xFFE2E8F0),
+            color: context.divider,
             height: 1,
           ),
         ),
@@ -162,9 +165,9 @@ class _AddMemberPageState extends State<AddMemberPage> {
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFFFDF2F2),
+                color: context.primaryLight,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFFDE2E2)),
+                border: Border.all(color: context.isDark ? Colors.transparent : const Color(0xFFFDE2E2)),
               ),
               child: Row(
                 children: [
@@ -185,20 +188,22 @@ class _AddMemberPageState extends State<AddMemberPage> {
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
+                      children: [
                         Text(
-                          'Mở rộng vòng kết nối chăm sóc',
-                          style: TextStyle(
+                          isVi ? 'Mở rộng vòng kết nối chăm sóc' : 'Expand Care Circle',
+                          style: const TextStyle(
                             color: AppColors.primary,
                             fontWeight: FontWeight.w700,
                             fontSize: 15,
                           ),
                         ),
-                        SizedBox(height: 4),
+                        const SizedBox(height: 4),
                         Text(
-                          'Quản lý hồ sơ nha khoa và lịch hẹn cho người thân của bạn tại một nơi.',
+                          isVi
+                              ? 'Quản lý hồ sơ nha khoa và lịch hẹn cho người thân của bạn tại một nơi.'
+                              : 'Manage dental records and appointments for your loved ones in one place.',
                           style: TextStyle(
-                            color: Color(0xFF475569),
+                            color: context.textSecondary,
                             fontSize: 12,
                             height: 1.35,
                           ),
@@ -212,44 +217,55 @@ class _AddMemberPageState extends State<AddMemberPage> {
             const SizedBox(height: 28),
 
             // Full Name Field
-            _buildLabel('Họ và tên'),
+            _buildLabel(context.l10n('fullname')),
             _buildTextField(
               controller: _nameCtrl,
-              hint: 'Nhập họ và tên',
+              hint: isVi ? 'Nhập họ và tên' : 'Enter full name',
             ),
             const SizedBox(height: 20),
 
             // Relationship Field
-            _buildLabel('Mối quan hệ'),
+            _buildLabel(isVi ? 'Mối quan hệ' : 'Relationship'),
             Container(
               height: 56,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: context.card,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
+                border: Border.all(color: context.divider),
               ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
                   value: _relationship,
-                  hint: const Text(
-                    'Chọn mối quan hệ',
-                    style: TextStyle(color: Color(0xFF94A3B8), fontSize: 15),
+                  dropdownColor: context.card,
+                  hint: Text(
+                    isVi ? 'Chọn mối quan hệ' : 'Select relationship',
+                    style: TextStyle(color: context.textMuted, fontSize: 15),
                   ),
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.keyboard_arrow_down_rounded,
-                    color: Color(0xFF94A3B8),
+                    color: context.textMuted,
                     size: 20,
                   ),
                   isExpanded: true,
-                  style: const TextStyle(
-                    color: Color(0xFF0F172A),
+                  style: TextStyle(
+                    color: context.textPrimary,
                     fontSize: 15,
                   ),
                   items: _relationshipOptions.map((String val) {
+                    // Translate relationships in dropdown UI if needed
+                    String labelVi = val;
+                    String labelEn = val;
+                    if (val == 'Bố') labelEn = 'Father';
+                    if (val == 'Mẹ') labelEn = 'Mother';
+                    if (val == 'Vợ/Chồng') labelEn = 'Spouse';
+                    if (val == 'Con') labelEn = 'Child';
+                    if (val == 'Anh/Chị/Em') labelEn = 'Sibling';
+                    if (val == 'Khác') labelEn = 'Other';
+
                     return DropdownMenuItem<String>(
                       value: val,
-                      child: Text(val),
+                      child: Text(isVi ? labelVi : labelEn),
                     );
                   }).toList(),
                   onChanged: (val) {
@@ -263,32 +279,30 @@ class _AddMemberPageState extends State<AddMemberPage> {
             const SizedBox(height: 20),
 
             // Date of Birth Field
-            _buildLabel('Ngày sinh'),
+            _buildLabel(context.l10n('dob')),
             GestureDetector(
               onTap: _pickDate,
               child: Container(
                 height: 56,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: context.card,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  border: Border.all(color: context.divider),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      _formatDate(_dob),
+                      _dob != null ? _formatDate(_dob) : (isVi ? 'Chọn ngày sinh' : 'Select date of birth'),
                       style: TextStyle(
-                        color: _dob != null
-                            ? const Color(0xFF0F172A)
-                            : const Color(0xFF94A3B8),
+                        color: _dob != null ? context.textPrimary : context.textMuted,
                         fontSize: 15,
                       ),
                     ),
-                    const Icon(
+                    Icon(
                       Iconsax.calendar,
-                      color: Color(0xFF94A3B8),
+                      color: context.textMuted,
                       size: 20,
                     ),
                   ],
@@ -298,11 +312,11 @@ class _AddMemberPageState extends State<AddMemberPage> {
             const SizedBox(height: 20),
 
             // Gender Field
-            _buildLabel('Giới tính'),
+            _buildLabel(context.l10n('gender')),
             Container(
               height: 50,
               decoration: BoxDecoration(
-                color: const Color(0xFFE2E8F0).withOpacity(0.5),
+                color: context.divider,
                 borderRadius: BorderRadius.circular(12),
               ),
               padding: const EdgeInsets.all(4),
@@ -317,10 +331,10 @@ class _AddMemberPageState extends State<AddMemberPage> {
             const SizedBox(height: 20),
 
             // Phone Number Field
-            _buildLabel('Số điện thoại (tùy chọn)'),
+            _buildLabel('${context.l10n('phone')} ${isVi ? '(tùy chọn)' : '(optional)'}'),
             _buildTextField(
               controller: _phoneCtrl,
-              hint: 'Nhập số điện thoại của thành viên',
+              hint: isVi ? 'Nhập số điện thoại của thành viên' : 'Enter phone number',
               keyboardType: TextInputType.phone,
             ),
             const SizedBox(height: 28),
@@ -329,20 +343,22 @@ class _AddMemberPageState extends State<AddMemberPage> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
+                color: context.isDark ? const Color(0xFF334155) : const Color(0xFFF8FAFC),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
+                border: Border.all(color: context.divider),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Icon(Icons.info_outline_rounded, color: Color(0xFF475569), size: 20),
-                  SizedBox(width: 10),
+                children: [
+                  Icon(Icons.info_outline_rounded, color: context.textSecondary, size: 20),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Sau khi thêm, bạn có thể chuyển đổi hồ sơ từ tab "Cá nhân" để đặt lịch hẹn cho thành viên này.',
+                      isVi
+                          ? 'Sau khi thêm, bạn có thể chuyển đổi hồ sơ từ tab "Cá nhân" để đặt lịch hẹn cho thành viên này.'
+                          : 'After adding, you can switch profiles from the "Profile" tab to book appointments for this member.',
                       style: TextStyle(
-                        color: Color(0xFF475569),
+                        color: context.textSecondary,
                         fontSize: 13,
                         height: 1.4,
                       ),
@@ -356,9 +372,9 @@ class _AddMemberPageState extends State<AddMemberPage> {
       ),
       bottomNavigationBar: Container(
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 30),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+        decoration: BoxDecoration(
+          color: context.card,
+          border: Border(top: BorderSide(color: context.divider)),
         ),
         child: Row(
           children: [
@@ -374,9 +390,9 @@ class _AddMemberPageState extends State<AddMemberPage> {
                       borderRadius: BorderRadius.circular(26),
                     ),
                   ),
-                  child: const Text(
-                    'Hủy',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  child: Text(
+                    context.l10n('cancel'),
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ),
               ),
@@ -394,9 +410,9 @@ class _AddMemberPageState extends State<AddMemberPage> {
                       borderRadius: BorderRadius.circular(26),
                     ),
                   ),
-                  child: const Text(
-                    'Lưu thành viên',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  child: Text(
+                    isVi ? 'Lưu thành viên' : 'Save Member',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ),
               ),
@@ -408,18 +424,24 @@ class _AddMemberPageState extends State<AddMemberPage> {
   }
 
   Widget _buildGenderSegment(String val) {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     final isSelected = _gender == val;
+    String displayVal = val;
+    if (val == 'Nam') displayVal = isVi ? 'Nam' : 'Male';
+    if (val == 'Nữ') displayVal = isVi ? 'Nữ' : 'Female';
+    if (val == 'Khác') displayVal = isVi ? 'Khác' : 'Other';
+
     return Expanded(
       child: GestureDetector(
         onTap: () => setState(() => _gender = val),
         child: Container(
           decoration: BoxDecoration(
-            color: isSelected ? Colors.white : Colors.transparent,
+            color: isSelected ? context.card : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
             boxShadow: isSelected
                 ? [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.08),
+                      color: Colors.black.withValues(alpha: 0.08),
                       blurRadius: 4,
                       offset: const Offset(0, 2),
                     ),
@@ -428,9 +450,9 @@ class _AddMemberPageState extends State<AddMemberPage> {
           ),
           alignment: Alignment.center,
           child: Text(
-            val,
+            displayVal,
             style: TextStyle(
-              color: isSelected ? AppColors.primary : const Color(0xFF475569),
+              color: isSelected ? AppColors.primary : context.textSecondary,
               fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
               fontSize: 14,
             ),
@@ -445,10 +467,10 @@ class _AddMemberPageState extends State<AddMemberPage> {
       padding: const EdgeInsets.only(bottom: 8.0),
       child: Text(
         text,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w600,
-          color: Color(0xFF334155),
+          color: context.textPrimary,
         ),
       ),
     );
@@ -461,22 +483,22 @@ class _AddMemberPageState extends State<AddMemberPage> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.card,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: const Color(0xFFE2E8F0),
+          color: context.divider,
         ),
       ),
       child: TextField(
         controller: controller,
         keyboardType: keyboardType,
-        style: const TextStyle(
-          color: Color(0xFF0F172A),
+        style: TextStyle(
+          color: context.textPrimary,
           fontSize: 15,
         ),
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 15),
+          hintStyle: TextStyle(color: context.textMuted, fontSize: 15),
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           border: InputBorder.none,
         ),

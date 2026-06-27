@@ -32,7 +32,14 @@ class _AppointmentListScreenState extends State<AppointmentListScreen> {
       final list = await _service.getMyAppointments();
       if (mounted) setState(() { _items = list; _loading = false; });
     } catch (e) {
-      if (mounted) setState(() { _error = 'KhÃ´ng thá»ƒ táº£i lá»‹ch háº¹n.'; _loading = false; });
+      if (mounted) {
+        setState(() { 
+          _error = context.l10n('load_appointments_failed') == 'load_appointments_failed'
+              ? 'Không thể tải lịch hẹn.'
+              : context.l10n('load_appointments_failed'); 
+          _loading = false; 
+        });
+      }
     }
   }
 
@@ -51,7 +58,7 @@ class _AppointmentListScreenState extends State<AppointmentListScreen> {
         title: Text(
           context.l10n('my_appointments'),
           style: TextStyle(
-            fontSize: 17,
+            fontSize: 18,
             fontWeight: FontWeight.w800,
             color: context.textPrimary,
           ),
@@ -65,27 +72,29 @@ class _AppointmentListScreenState extends State<AppointmentListScreen> {
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
-          child: Container(color: context.divider, height: 1),
+          child: Container(
+            color: context.divider,
+            height: 1,
+          ),
         ),
       ),
       body: _loading
           ? Center(child: CircularProgressIndicator(color: AppColors.primary))
           : _error != null
-              ? _ErrorView(message: _error!, onRetry: _load, isVi: isVi)
-              : RefreshIndicator(
-                  onRefresh: _load,
-                  color: AppColors.primary,
-                  child: _items.isEmpty
-                      ? _EmptyView(
-                          onBook: () => context.push(AppRoutes.bookingSelectPatient),
-                          isVi: isVi,
-                        )
-                      : ListView.builder(
-                          padding: EdgeInsets.fromLTRB(16, 12, 16, 100),
-                          itemCount: _items.length,
-                          itemBuilder: (_, i) => _AppointmentCard(item: _items[i], isVi: isVi),
-                        ),
-                ),
+               ? _ErrorView(message: _error!, onRetry: _load)
+               : RefreshIndicator(
+                   onRefresh: _load,
+                   color: AppColors.primary,
+                   child: _items.isEmpty
+                       ? _EmptyView(
+                           onBook: () => context.push(AppRoutes.bookingSelectPatient),
+                         )
+                       : ListView.builder(
+                           padding: EdgeInsets.fromLTRB(16, 12, 16, 100),
+                           itemCount: _items.length,
+                           itemBuilder: (_, i) => _AppointmentCard(item: _items[i]),
+                         ),
+                 ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push(AppRoutes.bookingSelectPatient),
         backgroundColor: AppColors.primary,
@@ -93,7 +102,7 @@ class _AppointmentListScreenState extends State<AppointmentListScreen> {
         elevation: 2,
         icon: Icon(Iconsax.calendar_add, size: 20),
         label: Text(
-          context.l10n('book_appointment'),
+          context.l10n('book_new'),
           style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
         ),
       ),
@@ -108,18 +117,20 @@ class _AppointmentCard extends StatelessWidget {
   final bool isVi;
   const _AppointmentCard({required this.item, required this.isVi});
 
-  static const _weekdaysVi = ['', 'Thá»© Hai', 'Thá»© Ba', 'Thá»© TÆ°', 'Thá»© NÄƒm', 'Thá»© SÃ¡u', 'Thá»© Báº£y', 'Chá»§ Nháº­t'];
-  static const _weekdaysEn = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
   @override
   Widget build(BuildContext context) {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
+    final weekdays = isVi
+        ? ['', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy', 'Chủ Nhật']
+        : ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
     final date = item.parsedDate;
     final dateStr =
         '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
     final timeStr =
         '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-    final dayLabel = isVi ? _weekdaysVi[date.weekday] : _weekdaysEn[date.weekday];
-    final (statusLabel, statusColor, statusBg) = _statusStyle(item.status, isVi, context);
+    final dayLabel = weekdays[date.weekday];
+    final (statusLabel, statusColor, statusBg) = _statusStyle(item.status, isVi);
 
     return Container(
       margin: EdgeInsets.only(bottom: 12),
@@ -195,7 +206,7 @@ class _AppointmentCard extends StatelessWidget {
               children: [
                 _DetailRow(icon: Iconsax.tag, text: '#${item.appointmentCode}', bold: true),
                 SizedBox(height: 8),
-                _DetailRow(icon: Iconsax.calendar_1, text: '$dateStr Â· $dayLabel'),
+                _DetailRow(icon: Iconsax.calendar_1, text: '$dateStr · $dayLabel'),
                 SizedBox(height: 8),
                 _DetailRow(icon: Iconsax.clock, text: timeStr),
                 if (item.serviceName != null) ...[
@@ -214,16 +225,16 @@ class _AppointmentCard extends StatelessWidget {
     );
   }
 
-  static (String, Color, Color) _statusStyle(String status, bool isVi, BuildContext context) {
+  static (String, Color, Color) _statusStyle(String status, bool isVi) {
     switch (status.toLowerCase()) {
       case 'confirmed':
-        return (isVi ? 'ÄÃ£ xÃ¡c nháº­n' : 'Confirmed', Color(0xFF16A34A), Color(0xFFDCFCE7));
+        return (isVi ? 'Đã xác nhận' : 'Confirmed', const Color(0xFF16A34A), const Color(0xFFDCFCE7));
       case 'completed':
-        return (isVi ? 'HoÃ n thÃ nh' : 'Completed', Color(0xFF0284C7), Color(0xFFE0F2FE));
+        return (isVi ? 'Hoàn thành' : 'Completed', const Color(0xFF0284C7), const Color(0xFFE0F2FE));
       case 'cancelled':
-        return (isVi ? 'ÄÃ£ huá»·' : 'Cancelled', context.textMuted, context.isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9));
+        return (isVi ? 'Đã hủy' : 'Cancelled', const Color(0xFF64748B), const Color(0xFFF1F5F9));
       default:
-        return (isVi ? 'Chá» xÃ¡c nháº­n' : 'Pending', Color(0xFFD97706), Color(0xFFFEF3C7));
+        return (isVi ? 'Chờ xác nhận' : 'Pending', const Color(0xFFD97706), const Color(0xFFFEF3C7));
     }
   }
 }
@@ -331,20 +342,18 @@ class _EmptyView extends StatelessWidget {
                 ),
                 child: Icon(Iconsax.calendar_1, color: AppColors.primary, size: 36),
               ),
-              SizedBox(height: 20),
+              const SizedBox(height: 20),
               Text(
-                isVi ? 'ChÆ°a cÃ³ lá»‹ch háº¹n nÃ o' : 'No appointments yet',
+                context.l10n('no_appointments_yet'),
                 style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w700,
                   color: context.textPrimary,
                 ),
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               Text(
-                isVi
-                    ? 'Äáº·t lá»‹ch khÃ¡m Ä‘á»ƒ báº¯t Ä‘áº§u theo dÃµi\nlá»‹ch sá»­ khÃ¡m chá»¯a bá»‡nh cá»§a báº¡n.'
-                    : 'Book an appointment to start tracking\nyour dental health history.',
+                context.l10n('book_to_start_tracking'),
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 14,
@@ -361,10 +370,10 @@ class _EmptyView extends StatelessWidget {
                   padding: EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                icon: Icon(Iconsax.calendar_add, size: 18),
+                icon: const Icon(Iconsax.calendar_add, size: 18),
                 label: Text(
-                  isVi ? 'Äáº·t lá»‹ch ngay' : 'Book Now',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                  context.l10n('book_now_btn'),
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
                 ),
               ),
             ],
@@ -390,8 +399,14 @@ class _ErrorView extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(message, style: TextStyle(color: context.textMuted)),
-          SizedBox(height: 12),
-          TextButton(onPressed: onRetry, child: Text(isVi ? 'Thá»­ láº¡i' : 'Retry')),
+          const SizedBox(height: 12),
+          TextButton(
+            onPressed: onRetry,
+            child: Text(
+              context.l10n('retry') == 'retry' ? 'Thử lại' : context.l10n('retry'),
+              style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
+            ),
+          ),
         ],
       ),
     );
