@@ -411,6 +411,39 @@ function WalkinTab() {
   const [saving,    setSaving]    = useState(false);
   const [saved,     setSaved]     = useState(false);
   const [bookError, setBookError] = useState<string | null>(null);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [dobError,   setDobError]   = useState<string | null>(null);
+
+  const handleDobChange = (raw: string) => {
+    const cleaned = raw.replace(/[^\d/]/g, '').slice(0, 10);
+    setForm(p => ({ ...p, dob: cleaned }));
+    setDobError(null);
+  };
+
+  const handlePhoneChange = (val: string) => {
+    const digits = val.replace(/\D/g, '').slice(0, 11);
+    setForm(p => ({ ...p, phone: digits }));
+    setPhoneError(null);
+  };
+
+  const validatePhone = (val: string) => {
+    if (val.length === 0) return;
+    if (val.length !== 10 && val.length !== 11)
+      setPhoneError(`Số điện thoại phải có 10 hoặc 11 chữ số (đang nhập ${val.length} số)`);
+  };
+
+  const validateDob = (val: string) => {
+    const d = val.replace(/\D/g, '');
+    if (d.length === 0) return;
+    if (d.length !== 8) { setDobError('Chưa đủ 8 chữ số, nhập theo định dạng dd/mm/yyyy'); return; }
+    const day = +d.slice(0, 2), mon = +d.slice(2, 4), yr = +d.slice(4, 8);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    if (mon < 1 || mon > 12 || day < 1 || day > new Date(yr, mon, 0).getDate() || yr < 1900 || yr > today.getFullYear()) {
+      setDobError('Ngày sinh không hợp lệ (năm phải từ 1900 đến nay)'); return;
+    }
+    if (new Date(yr, mon - 1, day) >= today) { setDobError('Ngày sinh không được là hôm nay hoặc tương lai'); return; }
+    setDobError(null);
+  };
 
   const load = useCallback(async () => {
     try {
@@ -436,6 +469,37 @@ function WalkinTab() {
     if (!selected) return;
     setBookError(null);
 
+    // Validate số điện thoại: 10 hoặc 11 chữ số
+    const phoneDigits = form.phone.replace(/\D/g, '');
+    if (phoneDigits.length !== 10 && phoneDigits.length !== 11) {
+      setPhoneError('Số điện thoại phải có 10 hoặc 11 chữ số');
+      return;
+    }
+
+    // Validate ngày sinh
+    const dobDigits = form.dob.replace(/\D/g, '');
+    if (dobDigits.length !== 8) {
+      setDobError('Vui lòng nhập đúng định dạng dd/mm/yyyy');
+      return;
+    }
+    const dd   = +dobDigits.slice(0, 2);
+    const mm   = +dobDigits.slice(2, 4);
+    const yyyy = +dobDigits.slice(4, 8);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    if (
+      mm < 1 || mm > 12 ||
+      dd < 1 || dd > new Date(yyyy, mm, 0).getDate() ||
+      yyyy < 1900 || yyyy > today.getFullYear()
+    ) {
+      setDobError('Ngày sinh không hợp lệ (năm phải từ 1900 đến nay)');
+      return;
+    }
+    if (new Date(yyyy, mm - 1, dd) >= today) {
+      setDobError('Ngày sinh không được là hôm nay hoặc tương lai');
+      return;
+    }
+    const isoDate = `${yyyy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+
     // Chuyển giờ Việt Nam (UTC+7) sang UTC
     // Dùng Date.UTC để treat components là giờ VN, rồi trừ offset +7h
     const now = new Date();
@@ -449,8 +513,8 @@ function WalkinTab() {
         dentistId:       selected.dentistId,
         appointmentDate: utcDate.toISOString(),
         patientName:     form.name,
-        patientPhone:    form.phone,
-        dateOfBirth:     form.dob,
+        patientPhone:    phoneDigits,
+        dateOfBirth:     isoDate,
         gender:          form.gender,
         serviceId:       form.serviceId || undefined,
         symptoms:        form.note || undefined,
@@ -478,6 +542,8 @@ function WalkinTab() {
       setTimeout(() => {
         setSaved(false);
         setForm(p => ({ name: "", phone: "", dob: "", gender: "Nam", serviceId: p.serviceId, note: "" }));
+        setPhoneError(null);
+        setDobError(null);
       }, 2000);
     } catch (e) {
       setBookError(e instanceof Error ? e.message : "Đặt lịch thất bại");
@@ -627,14 +693,30 @@ function WalkinTab() {
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">Số điện thoại *</label>
-                  <input required value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}
-                    placeholder="09xx xxx xxx" className={inputCls} />
+                  <input
+                    required
+                    value={form.phone}
+                    onChange={e => handlePhoneChange(e.target.value)}
+                    onBlur={() => validatePhone(form.phone)}
+                    placeholder="0912345678"
+                    inputMode="numeric"
+                    className={`${inputCls} ${phoneError ? "border-red-400 bg-red-50 focus:border-red-400 focus:ring-red-200" : ""}`}
+                  />
+                  {phoneError && <p className="text-[11.5px] font-semibold text-red-500">{phoneError}</p>}
                 </div>
                 <div className="flex gap-3">
                   <div className="flex flex-col gap-1.5 flex-1">
                     <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">Ngày sinh *</label>
-                    <input required type="date" value={form.dob} onChange={e => setForm(p => ({ ...p, dob: e.target.value }))}
-                      className={inputCls} />
+                    <input
+                      required
+                      value={form.dob}
+                      onChange={e => handleDobChange(e.target.value)}
+                      onBlur={() => validateDob(form.dob)}
+                      placeholder="dd/mm/yyyy"
+                      inputMode="numeric"
+                      className={`${inputCls} ${dobError ? "border-red-400 bg-red-50 focus:border-red-400 focus:ring-red-200" : ""}`}
+                    />
+                    {dobError && <p className="text-[11.5px] font-semibold text-red-500">{dobError}</p>}
                   </div>
                   <div className="flex flex-col gap-1.5 w-28 shrink-0">
                     <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">Giới tính *</label>
