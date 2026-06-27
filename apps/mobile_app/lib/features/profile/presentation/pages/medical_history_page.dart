@@ -232,6 +232,99 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
                     ),
                   ),
                   const SizedBox(height: 24),
+
+                  // Connected Profiles Section
+                  Text(
+                    context.l10n('family_members').toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: context.textMuted,
+                      letterSpacing: 1.1,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      ..._familyService.getMembers().map((member) {
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 20.0),
+                          child: GestureDetector(
+                            onTap: () async {
+                              final updated = await context.push(
+                                '${AppRoutes.editFamilyMember}?id=${member.id}',
+                                extra: member,
+                              );
+                              if (updated == true && mounted) {
+                                setState(() {});
+                              }
+                            },
+                            child: Column(
+                              children: [
+                                Container(
+                                  width: 60,
+                                  height: 60,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: AppColors.primary, width: 2),
+                                    image: DecorationImage(
+                                      image: AssetImage(member.profilePictureUrl ?? 'assets/images/bac_si_4.png'),
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  member.fullName.split(' ').last,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: context.textPrimary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                      // Add new button
+                      GestureDetector(
+                        onTap: () async {
+                          final added = await context.push(AppRoutes.addFamilyMember);
+                          if (added == true && mounted) {
+                            setState(() {});
+                          }
+                        },
+                        child: Column(
+                          children: [
+                            Container(
+                              width: 60,
+                              height: 60,
+                              decoration: BoxDecoration(
+                                color: context.isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+                                shape: BoxShape.circle,
+                                border: Border.all(color: context.divider),
+                              ),
+                              child: Icon(
+                                Icons.add_rounded,
+                                color: context.textSecondary,
+                                size: 28,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              isVi ? 'Thêm mới' : 'Add New',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: context.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),

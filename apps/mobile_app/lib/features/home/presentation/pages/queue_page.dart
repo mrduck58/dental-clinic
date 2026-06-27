@@ -13,8 +13,7 @@ class QueuePage extends StatefulWidget {
 
 class _QueuePageState extends State<QueuePage> {
   bool _isAway = false;
-  final int _currentServing = 104;
-  final int _userNumber = 108;
+  int _currentServing = 104;
 
   void _toggleStatus() {
     final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
@@ -25,7 +24,7 @@ class _QueuePageState extends State<QueuePage> {
       SnackBar(
         content: Text(
           _isAway 
-              ? (isVi ? 'Đã chuyển trạng thái sang "Tạm vắng mặt".' : 'Status changed to "Absent".')
+              ? (isVi ? 'Đã chuyển trạng thái sang "Tạm vắng mặt". Số của bạn sẽ tạm thời được lùi lại.' : 'Status changed to "Absent". Your turn will be temporarily delayed.')
               : (isVi ? 'Đã sẵn sàng quay lại hàng chờ.' : 'Ready to return to queue.'),
         ),
         backgroundColor: _isAway ? Colors.orange : const Color(0xFF10B981),
@@ -37,7 +36,6 @@ class _QueuePageState extends State<QueuePage> {
   @override
   Widget build(BuildContext context) {
     final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
-    final brandRed = context.isDark ? const Color(0xFFDC2626) : const Color(0xFF8B1D2F);
 
     return Scaffold(
       backgroundColor: context.bg,
@@ -45,236 +43,194 @@ class _QueuePageState extends State<QueuePage> {
         backgroundColor: context.card,
         elevation: 0.5,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: context.textPrimary, size: 20),
+          icon: Icon(Iconsax.arrow_left, color: context.textPrimary),
           onPressed: () => context.pop(),
         ),
         title: Text(
-          'DentalCare',
+          context.l10n('queue_title'),
           style: TextStyle(
-            color: brandRed,
-            fontWeight: FontWeight.w900,
-            fontSize: 22,
-            letterSpacing: -0.5,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: context.textPrimary,
           ),
         ),
-        centerTitle: false,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: CircleAvatar(
-              radius: 18,
-              backgroundColor: context.isDark ? Colors.grey[800] : const Color(0xFFF1F5F9),
-              backgroundImage: const AssetImage('assets/images/bac_si_4.png'),
-            ),
-          ),
-        ],
       ),
       body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(18.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Serving Panel Header
-                  Center(
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 12),
-                        Text(
-                          (isVi ? 'SỐ THỨ TỰ ĐANG PHỤC VỤ' : 'CURRENT NUMBER BEING SERVED').toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w900,
-                            color: context.textSecondary,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        // Big Circular Badge
-                        Container(
-                          width: 140,
-                          height: 140,
-                          decoration: BoxDecoration(
-                            color: context.isDark ? const Color(0xFF451A1A) : const Color(0xFFFFECEF),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: brandRed.withValues(alpha: 0.15),
-                              width: 6,
-                            ),
-                          ),
-                          child: Center(
-                            child: Text(
-                              '#$_currentServing',
-                              style: TextStyle(
-                                fontSize: 44,
-                                fontWeight: FontWeight.w900,
-                                color: brandRed,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          isVi ? 'Phòng khám số 3 - BS. Sarah Williams' : 'Room 3 - Dr. Sarah Williams',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: context.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 28),
+        child: Padding(
+          padding: const EdgeInsets.all(18.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Serving Panel Card
+              _buildServingPanel(isVi),
+              SizedBox(height: 24),
 
-                  // Stats Info Cards (Side by side)
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildStatCard(
-                          icon: Iconsax.user_octagon,
-                          label: isVi ? 'Số của bạn' : 'Your Number',
-                          value: '#$_userNumber',
-                          subtitle: isVi ? 'Lượt tiếp theo' : 'Average wait',
-                          isHighlighted: true,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: _buildStatCard(
-                          icon: Iconsax.clock,
-                          label: isVi ? 'Thời gian chờ' : 'Est. Wait Time',
-                          value: '15 min',
-                          subtitle: isVi ? 'Đang đúng tiến độ' : 'Status: on track',
-                          isHighlighted: false,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 28),
+              // Room info & Your status
+              _buildInfoGrid(isVi),
+              SizedBox(height: 28),
 
-                  // Live Queue Track Header
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        isVi ? 'Tiến trình Hàng chờ' : 'Live Queue Track',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w900,
-                          color: context.textPrimary,
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFEE2E2),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: const Text(
-                          'LIVE',
-                          style: TextStyle(
-                            color: Color(0xFFDC2626),
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Timeline Widget
-                  _buildQueueTimeline(isVi),
-                  const SizedBox(height: 24),
-
-                  // Action Button
-                  _buildActionRow(isVi),
-                ],
+              // Timeline Header
+              Text(
+                isVi ? 'Tiến độ hàng chờ thực tế' : 'Live Queue Progress',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: context.textPrimary,
+                ),
               ),
-            ),
+              SizedBox(height: 16),
 
-            // Bottom Joint card matching the design mockup
-            _buildJoinFooter(isVi),
-          ],
+              // Timeline Widget
+              _buildQueueTimeline(isVi),
+              SizedBox(height: 32),
+
+              // Break Button
+              _buildBreakButton(isVi),
+              SizedBox(height: 24),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildStatCard({
-    required IconData icon,
-    required String label,
-    required String value,
-    required String subtitle,
-    required bool isHighlighted,
-  }) {
-    final cardBg = context.card;
-    final brandRed = context.isDark ? const Color(0xFFDC2626) : const Color(0xFF8B1D2F);
-
+  Widget _buildServingPanel(bool isVi) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      width: double.infinity,
       decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isHighlighted ? brandRed.withValues(alpha: 0.3) : context.divider,
-          width: 1.5,
-        ),
+        color: context.card,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: context.divider),
       ),
+      padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            icon,
-            color: isHighlighted ? brandRed : context.textSecondary,
-            size: 20,
-          ),
-          const SizedBox(height: 8),
           Text(
-            value,
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w900,
-              color: isHighlighted ? brandRed : context.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
+            isVi ? 'SỐ THỨ TỰ ĐANG PHỤC VỤ' : 'CURRENT SERVING NUMBER',
             style: TextStyle(
               fontSize: 12,
-              fontWeight: FontWeight.w800,
-              color: context.textPrimary,
+              fontWeight: FontWeight.w900,
+              color: context.textSecondary,
+              letterSpacing: 1.2,
             ),
           ),
-          const SizedBox(height: 2),
-          Text(
-            subtitle,
-            style: TextStyle(
-              fontSize: 11,
-              color: context.textSecondary,
+          SizedBox(height: 16),
+          // Circular Badge
+          Container(
+            width: 110,
+            height: 110,
+            decoration: BoxDecoration(
+              color: context.primaryLight,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.primary.withValues(alpha: 0.2), width: 3),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
+            child: Center(
+              child: Text(
+                '#$_currentServing',
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.primary,
+                ),
+              ),
+            ),
+          ),
+          SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF10B981),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                isVi ? 'Đang cập nhật trực tiếp...' : 'Live updating...',
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: Color(0xFF10B981),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildInfoGrid(bool isVi) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: context.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: context.divider),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildInfoItem(Iconsax.home_trend_up, isVi ? 'Phòng khám' : 'Clinic Room', isVi ? 'Phòng 03\n(Tầng 2)' : 'Room 03\n(2nd Floor)'),
+          Container(width: 1, height: 40, color: context.divider),
+          _buildInfoItem(Iconsax.user_octagon, context.l10n('your_number'), '#108', isPrimaryText: true),
+          Container(width: 1, height: 40, color: context.divider),
+          _buildInfoItem(Iconsax.clock, isVi ? 'Chờ dự kiến' : 'Est. Wait', isVi ? '~15 phút' : '~15 mins'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoItem(IconData icon, String label, String value, {bool isPrimaryText = false}) {
+    return Column(
+      children: [
+        Icon(icon, color: isPrimaryText ? AppColors.primary : context.textSecondary, size: 22),
+        SizedBox(height: 6),
+        Text(
+          label,
+          style: TextStyle(fontSize: 11, color: context.textSecondary),
+        ),
+        SizedBox(height: 4),
+        Text(
+          value,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: isPrimaryText ? AppColors.primary : context.textPrimary,
+          ),
+        ),
+      ],
     );
   }
 
   Widget _buildQueueTimeline(bool isVi) {
     final List<Map<String, dynamic>> steps = [
-      {'number': '103', 'status': 'completed', 'label': isVi ? 'Đã khám xong' : 'Completed'},
-      {'number': '104', 'status': 'serving', 'label': isVi ? 'Đang khám - BS. Williams' : 'In room 3 - Dr. Williams'},
-      {'number': '105', 'status': 'waiting', 'label': isVi ? 'Đang đợi' : 'Waiting'},
-      {'number': '106', 'status': 'waiting', 'label': isVi ? 'Đang đợi' : 'Waiting'},
-      {'number': '108', 'status': 'yours', 'label': _isAway ? (isVi ? 'Tạm vắng mặt' : 'Absent') : (isVi ? 'Lượt của bạn (Dự kiến 10:15)' : 'Estimated 10:15 AM')},
-      {'number': '109', 'status': 'upcoming', 'label': isVi ? 'Đang đợi' : 'Upcoming'},
+      {'number': '103', 'status': 'completed', 'label': isVi ? 'Đã phục vụ xong' : 'Served'},
+      {'number': '104', 'status': 'serving', 'label': isVi ? 'Đang trong phòng khám' : 'In Consultation'},
+      {'number': '105', 'status': 'waiting', 'label': isVi ? 'Đang đợi ở sảnh' : 'Waiting in lobby'},
+      {'number': '106', 'status': 'waiting', 'label': isVi ? 'Đang đợi ở sảnh' : 'Waiting in lobby'},
+      {'number': '107', 'status': 'waiting', 'label': isVi ? 'Đang đợi ở sảnh' : 'Waiting in lobby'},
+      {'number': '108', 'status': 'yours', 'label': _isAway ? (isVi ? 'Tạm vắng mặt' : 'Temporary Absent') : (isVi ? 'Vị trí của bạn (Kế tiếp)' : 'Your Position (Next)')},
+      {'number': '109', 'status': 'upcoming', 'label': isVi ? 'Đang đợi ở sảnh' : 'Waiting in lobby'},
     ];
-
-    final brandRed = context.isDark ? const Color(0xFFDC2626) : const Color(0xFF8B1D2F);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
@@ -291,73 +247,83 @@ class _QueuePageState extends State<QueuePage> {
           final step = steps[i];
           final isLast = i == steps.length - 1;
 
-          Color dotColor;
-          Widget dotIcon;
-          bool isHighlighted = false;
+          Color indicatorColor;
+          Widget indicatorIcon;
+          bool highlight = false;
 
           switch (step['status']) {
             case 'completed':
-              dotColor = const Color(0xFFCBD5E1);
-              dotIcon = const Icon(Icons.check, color: Colors.white, size: 10);
+              indicatorColor = const Color(0xFF10B981);
+              indicatorIcon = const Icon(Icons.check, color: Colors.white, size: 14);
               break;
             case 'serving':
-              dotColor = brandRed;
-              dotIcon = Container(
-                width: 6,
-                height: 6,
+              indicatorColor = AppColors.primary;
+              indicatorIcon = Container(
+                width: 8,
+                height: 8,
                 decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
               );
+              highlight = true;
               break;
             case 'yours':
-              dotColor = _isAway ? Colors.orange : brandRed;
-              dotIcon = const Icon(Iconsax.user, color: Colors.white, size: 10);
-              isHighlighted = true;
+              indicatorColor = _isAway ? Colors.orange : AppColors.primary;
+              indicatorIcon = const Icon(Iconsax.notification, color: Colors.white, size: 13);
+              highlight = true;
               break;
             case 'upcoming':
             case 'waiting':
             default:
-              dotColor = const Color(0xFFE2E8F0);
-              dotIcon = const SizedBox();
+              indicatorColor = const Color(0xFFCBD5E1);
+              indicatorIcon = const SizedBox();
               break;
           }
 
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Indicator Line
+              // Left Column: Dot & Line
               Column(
                 children: [
                   Container(
-                    width: 20,
-                    height: 20,
+                    width: 26,
+                    height: 26,
                     decoration: BoxDecoration(
-                      color: dotColor,
+                      color: indicatorColor,
                       shape: BoxShape.circle,
+                      boxShadow: highlight
+                          ? [
+                              BoxShadow(
+                                color: indicatorColor.withValues(alpha: 0.3),
+                                blurRadius: 6,
+                                spreadRadius: 1,
+                              )
+                            ]
+                          : null,
                     ),
-                    child: Center(child: dotIcon),
+                    child: Center(child: indicatorIcon),
                   ),
                   if (!isLast)
                     Container(
                       width: 2,
-                      height: 38,
+                      height: 40,
                       color: context.divider,
                     ),
                 ],
               ),
-              const SizedBox(width: 14),
-              // Timeline details card
+              const SizedBox(width: 16),
+              // Right Column: Details
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.only(top: 2),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     decoration: BoxDecoration(
-                      color: isHighlighted
-                          ? (context.isDark ? const Color(0xFF451A1A) : const Color(0xFFFFECEF))
-                          : Colors.transparent,
+                      color: step['status'] == 'yours'
+                          ? (_isAway ? Colors.orange.withValues(alpha: 0.08) : context.primaryLight)
+                          : (step['status'] == 'serving' ? (context.isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9)) : Colors.transparent),
                       borderRadius: BorderRadius.circular(12),
-                      border: isHighlighted
-                          ? Border.all(color: _isAway ? Colors.orange : brandRed, width: 1.5)
+                      border: step['status'] == 'yours'
+                          ? Border.all(color: _isAway ? Colors.orange : AppColors.primary, width: 1.5)
                           : null,
                     ),
                     child: Row(
@@ -367,35 +333,41 @@ class _QueuePageState extends State<QueuePage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              isVi ? 'Hàng chờ #${step['number']}' : '#${step['number']} Queue',
+                              isVi ? 'Số thứ tự #${step['number']}' : 'Queue No. #${step['number']}',
                               style: TextStyle(
-                                fontSize: 13.5,
-                                fontWeight: isHighlighted ? FontWeight.w900 : FontWeight.bold,
-                                color: isHighlighted ? brandRed : context.textPrimary,
+                                fontSize: 14,
+                                fontWeight: step['status'] == 'yours' || step['status'] == 'serving'
+                                    ? FontWeight.bold
+                                    : FontWeight.w600,
+                                color: step['status'] == 'yours' && !_isAway
+                                    ? AppColors.primary
+                                    : context.textPrimary,
                               ),
                             ),
-                            const SizedBox(height: 2),
+                            const SizedBox(height: 3),
                             Text(
                               step['label'] as String,
                               style: TextStyle(
                                 fontSize: 12,
-                                color: isHighlighted ? brandRed.withValues(alpha: 0.8) : context.textSecondary,
+                                color: step['status'] == 'yours' && !_isAway
+                                    ? AppColors.primary.withValues(alpha: 0.8)
+                                    : context.textSecondary,
                               ),
                             ),
                           ],
                         ),
-                        if (isHighlighted)
+                        if (step['status'] == 'yours')
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: _isAway ? Colors.orange : brandRed,
-                              borderRadius: BorderRadius.circular(4),
+                              color: _isAway ? Colors.orange : AppColors.primary,
+                              borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
-                              _isAway ? (isVi ? 'Tạm vắng' : 'ABSENT') : (isVi ? 'Lượt của bạn' : 'YOURS'),
+                              _isAway ? (isVi ? 'Tạm vắng' : 'Absent') : (isVi ? 'Số của bạn' : 'Your Turn'),
                               style: const TextStyle(
                                 color: Colors.white,
-                                fontSize: 8,
+                                fontSize: 10,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -412,84 +384,23 @@ class _QueuePageState extends State<QueuePage> {
     );
   }
 
-  Widget _buildActionRow(bool isVi) {
+  Widget _buildBreakButton(bool isVi) {
     return SizedBox(
       width: double.infinity,
-      height: 48,
+      height: 52,
       child: OutlinedButton.icon(
         onPressed: _toggleStatus,
         style: OutlinedButton.styleFrom(
           foregroundColor: _isAway ? AppColors.primary : Colors.orange,
           side: BorderSide(color: _isAway ? AppColors.primary : Colors.orange, width: 1.5),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         ),
         icon: Icon(_isAway ? Iconsax.play : Iconsax.pause),
         label: Text(
           _isAway 
-              ? (isVi ? 'Quay lại hàng chờ' : 'Return to Queue')
-              : (isVi ? 'Báo vắng mặt tạm thời' : 'Mark Absent Temporary'),
-          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildJoinFooter(bool isVi) {
-    final brandRed = context.isDark ? const Color(0xFFDC2626) : const Color(0xFF8B1D2F);
-
-    return Container(
-      color: context.isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      child: SafeArea(
-        top: false,
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    isVi ? 'Cấp thành viên: Vàng' : 'Member Level: Gold',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: context.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    isVi ? 'Được tự động xếp lịch ưu tiên' : 'Auto-prioritized checking',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: context.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(isVi ? 'Bạn đã tham gia hàng chờ!' : 'Joined queue successfully!'),
-                    backgroundColor: brandRed,
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: brandRed,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              ),
-              child: Text(
-                isVi ? 'THAM GIA' : 'JOIN',
-                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
-              ),
-            ),
-          ],
+              ? (isVi ? 'Quay lại hàng chờ (Sẵn sàng)' : 'Return to queue (Ready)')
+              : (isVi ? 'Bạn cần tạm nghỉ? Báo vắng mặt tạm thời' : 'Need a break? Mark temporary absence'),
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
         ),
       ),
     );

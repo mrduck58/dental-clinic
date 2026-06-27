@@ -35,10 +35,6 @@ import 'package:mobile_app/features/profile/presentation/pages/edit_member_page.
 import 'package:mobile_app/features/profile/presentation/pages/security_page.dart';
 import 'package:mobile_app/features/profile/presentation/pages/change_password_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/notifications_page.dart';
-import 'package:mobile_app/features/profile/presentation/pages/family_members_page.dart';
-import 'package:mobile_app/features/profile/presentation/pages/payment_history_page.dart';
-import 'package:mobile_app/features/home/presentation/pages/reminders_page.dart';
-import 'package:mobile_app/features/home/presentation/pages/chatbot_page.dart';
 
 final GoRouter appRouter = GoRouter(
   initialLocation: AppRoutes.splash,

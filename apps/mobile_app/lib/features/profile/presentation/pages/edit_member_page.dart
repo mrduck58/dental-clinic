@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/profile/data/family_member.dart';
 
@@ -50,14 +51,15 @@ class _EditMemberPageState extends State<EditMemberPage> {
 
   Future<void> _pickDate() async {
     final now = DateTime.now();
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     final picked = await showDatePicker(
       context: context,
       initialDate: _dob ?? DateTime(now.year - 15, now.month, now.day),
       firstDate: DateTime(1900),
       lastDate: now,
-      helpText: 'Chọn ngày sinh',
-      cancelText: 'Hủy',
-      confirmText: 'Chọn',
+      helpText: isVi ? 'Chọn ngày sinh' : 'Select Date of Birth',
+      cancelText: context.l10n('cancel'),
+      confirmText: isVi ? 'Chọn' : 'Select',
       builder: (context, child) => Theme(
         data: Theme.of(context).copyWith(
           colorScheme: const ColorScheme.light(
@@ -179,19 +181,20 @@ class _EditMemberPageState extends State<EditMemberPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: context.bg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: context.card,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.primary, size: 20),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.primary, size: 20),
           onPressed: () => context.pop(),
         ),
-        title: const Text(
-          'Chỉnh sửa thành viên',
+        title: Text(
+          isVi ? 'Chỉnh sửa thành viên' : 'Edit Member',
           style: TextStyle(
-            color: AppColors.primaryDark,
+            color: AppColors.primary,
             fontWeight: FontWeight.w800,
             fontSize: 20,
           ),
@@ -210,7 +213,7 @@ class _EditMemberPageState extends State<EditMemberPage> {
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(
-            color: const Color(0xFFE2E8F0),
+            color: context.divider,
             height: 1,
           ),
         ),
@@ -229,7 +232,7 @@ class _EditMemberPageState extends State<EditMemberPage> {
                     height: 120,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: const Color(0xFFE2E8F0), width: 3),
+                      border: Border.all(color: context.divider, width: 3),
                       image: DecorationImage(
                         image: AssetImage(widget.member.profilePictureUrl ?? 'assets/images/bac_si_4.png'),
                         fit: BoxFit.cover,
@@ -240,14 +243,14 @@ class _EditMemberPageState extends State<EditMemberPage> {
                     bottom: 0,
                     right: 4,
                     child: GestureDetector(
-                      onTap: () => _showSnackbar('Tính năng chỉnh sửa ảnh thành viên đang được phát triển.'),
+                      onTap: () => _showSnackbar(isVi ? 'Tính năng chỉnh sửa ảnh thành viên đang được phát triển.' : 'Edit member photo feature is under development.'),
                       child: Container(
                         width: 34,
                         height: 34,
                         decoration: BoxDecoration(
                           color: AppColors.primary,
                           shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2),
+                          border: Border.all(color: context.card, width: 2),
                         ),
                         child: const Icon(
                           Icons.edit,
@@ -261,11 +264,11 @@ class _EditMemberPageState extends State<EditMemberPage> {
               ),
             ),
             const SizedBox(height: 12),
-            const Center(
+            Center(
               child: Text(
-                'Cập nhật ảnh thành viên',
+                isVi ? 'Cập nhật ảnh thành viên' : 'Update Member Photo',
                 style: TextStyle(
-                  color: Color(0xFF475569),
+                  color: context.textSecondary,
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                 ),
@@ -274,44 +277,55 @@ class _EditMemberPageState extends State<EditMemberPage> {
             const SizedBox(height: 28),
 
             // Full Name Field
-            _buildLabel('Họ và tên'),
+            _buildLabel(context.l10n('fullname')),
             _buildTextField(
               controller: _nameCtrl,
-              hint: 'Nhập họ và tên',
+              hint: isVi ? 'Nhập họ và tên' : 'Enter full name',
             ),
             const SizedBox(height: 20),
 
             // Relationship Field
-            _buildLabel('Mối quan hệ'),
+            _buildLabel(isVi ? 'Mối quan hệ' : 'Relationship'),
             Container(
               height: 56,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: context.card,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
+                border: Border.all(color: context.divider),
               ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
                   value: _relationship,
-                  hint: const Text(
-                    'Chọn mối quan hệ',
-                    style: TextStyle(color: Color(0xFF94A3B8), fontSize: 15),
+                  dropdownColor: context.card,
+                  hint: Text(
+                    isVi ? 'Chọn mối quan hệ' : 'Select relationship',
+                    style: TextStyle(color: context.textMuted, fontSize: 15),
                   ),
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.keyboard_arrow_down_rounded,
-                    color: Color(0xFF94A3B8),
+                    color: context.textMuted,
                     size: 20,
                   ),
                   isExpanded: true,
-                  style: const TextStyle(
-                    color: Color(0xFF0F172A),
+                  style: TextStyle(
+                    color: context.textPrimary,
                     fontSize: 15,
                   ),
                   items: _relationshipOptions.map((String val) {
+                    // Translate relationships in dropdown UI
+                    String labelVi = val;
+                    String labelEn = val;
+                    if (val == 'Bố') labelEn = 'Father';
+                    if (val == 'Mẹ') labelEn = 'Mother';
+                    if (val == 'Vợ/Chồng') labelEn = 'Spouse';
+                    if (val == 'Con') labelEn = 'Child';
+                    if (val == 'Anh/Chị/Em') labelEn = 'Sibling';
+                    if (val == 'Khác') labelEn = 'Other';
+
                     return DropdownMenuItem<String>(
                       value: val,
-                      child: Text(val),
+                      child: Text(isVi ? labelVi : labelEn),
                     );
                   }).toList(),
                   onChanged: (val) {
@@ -325,32 +339,30 @@ class _EditMemberPageState extends State<EditMemberPage> {
             const SizedBox(height: 20),
 
             // Date of Birth Field
-            _buildLabel('Ngày sinh'),
+            _buildLabel(context.l10n('dob')),
             GestureDetector(
               onTap: _pickDate,
               child: Container(
                 height: 56,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: context.card,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  border: Border.all(color: context.divider),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      _formatDate(_dob),
+                      _dob != null ? _formatDate(_dob) : (isVi ? 'Chọn ngày sinh' : 'Select date of birth'),
                       style: TextStyle(
-                        color: _dob != null
-                            ? const Color(0xFF0F172A)
-                            : const Color(0xFF94A3B8),
+                        color: _dob != null ? context.textPrimary : context.textMuted,
                         fontSize: 15,
                       ),
                     ),
-                    const Icon(
+                    Icon(
                       Iconsax.calendar,
-                      color: Color(0xFF94A3B8),
+                      color: context.textMuted,
                       size: 20,
                     ),
                   ],
@@ -360,11 +372,11 @@ class _EditMemberPageState extends State<EditMemberPage> {
             const SizedBox(height: 20),
 
             // Gender Field
-            _buildLabel('Giới tính'),
+            _buildLabel(context.l10n('gender')),
             Container(
               height: 50,
               decoration: BoxDecoration(
-                color: const Color(0xFFE2E8F0).withOpacity(0.5),
+                color: context.divider,
                 borderRadius: BorderRadius.circular(12),
               ),
               padding: const EdgeInsets.all(4),
@@ -379,10 +391,10 @@ class _EditMemberPageState extends State<EditMemberPage> {
             const SizedBox(height: 20),
 
             // Phone Number Field
-            _buildLabel('Số điện thoại'),
+            _buildLabel(context.l10n('phone')),
             _buildTextField(
               controller: _phoneCtrl,
-              hint: 'Nhập số điện thoại của thành viên',
+              hint: isVi ? 'Nhập số điện thoại của thành viên' : 'Enter phone number',
               keyboardType: TextInputType.phone,
             ),
             const SizedBox(height: 36),
@@ -401,9 +413,9 @@ class _EditMemberPageState extends State<EditMemberPage> {
                     borderRadius: BorderRadius.circular(27),
                   ),
                 ),
-                child: const Text(
-                  'Lưu thay đổi',
-                  style: TextStyle(
+                child: Text(
+                  isVi ? 'Lưu thay đổi' : 'Save Changes',
+                  style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
@@ -419,17 +431,17 @@ class _EditMemberPageState extends State<EditMemberPage> {
               child: OutlinedButton.icon(
                 onPressed: _remove,
                 icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFEF4444), size: 20),
-                label: const Text(
-                  'Xóa thành viên',
-                  style: TextStyle(
+                label: Text(
+                  isVi ? 'Xóa thành viên' : 'Delete Member',
+                  style: const TextStyle(
                     color: Color(0xFFEF4444),
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 style: OutlinedButton.styleFrom(
-                  backgroundColor: const Color(0xFFFEF2F2),
-                  side: const BorderSide(color: Color(0xFFFEE2E2)),
+                  backgroundColor: context.isDark ? const Color(0xFF450A0A) : const Color(0xFFFEF2F2),
+                  side: BorderSide(color: context.isDark ? Colors.transparent : const Color(0xFFFEE2E2)),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(27),
                   ),
@@ -443,18 +455,24 @@ class _EditMemberPageState extends State<EditMemberPage> {
   }
 
   Widget _buildGenderSegment(String val) {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     final isSelected = _gender == val;
+    String displayVal = val;
+    if (val == 'Nam') displayVal = isVi ? 'Nam' : 'Male';
+    if (val == 'Nữ') displayVal = isVi ? 'Nữ' : 'Female';
+    if (val == 'Khác') displayVal = isVi ? 'Khác' : 'Other';
+
     return Expanded(
       child: GestureDetector(
         onTap: () => setState(() => _gender = val),
         child: Container(
           decoration: BoxDecoration(
-            color: isSelected ? Colors.white : Colors.transparent,
+            color: isSelected ? context.card : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
             boxShadow: isSelected
                 ? [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.08),
+                      color: Colors.black.withValues(alpha: 0.08),
                       blurRadius: 4,
                       offset: const Offset(0, 2),
                     ),
@@ -463,9 +481,9 @@ class _EditMemberPageState extends State<EditMemberPage> {
           ),
           alignment: Alignment.center,
           child: Text(
-            val,
+            displayVal,
             style: TextStyle(
-              color: isSelected ? AppColors.primary : const Color(0xFF475569),
+              color: isSelected ? AppColors.primary : context.textSecondary,
               fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
               fontSize: 14,
             ),
@@ -480,10 +498,10 @@ class _EditMemberPageState extends State<EditMemberPage> {
       padding: const EdgeInsets.only(bottom: 8.0),
       child: Text(
         text,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w600,
-          color: Color(0xFF334155),
+          color: context.textPrimary,
         ),
       ),
     );
@@ -496,22 +514,22 @@ class _EditMemberPageState extends State<EditMemberPage> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.card,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: const Color(0xFFE2E8F0),
+          color: context.divider,
         ),
       ),
       child: TextField(
         controller: controller,
         keyboardType: keyboardType,
-        style: const TextStyle(
-          color: Color(0xFF0F172A),
+        style: TextStyle(
+          color: context.textPrimary,
           fontSize: 15,
         ),
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 15),
+          hintStyle: TextStyle(color: context.textMuted, fontSize: 15),
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           border: InputBorder.none,
         ),

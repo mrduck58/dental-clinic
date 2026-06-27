@@ -73,7 +73,7 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: context.bg,
+      backgroundColor: AppColors.background,
       appBar: BookingAppBar(title: context.l10n('book_appointment'), onBack: () => context.pop()),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -124,7 +124,7 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
                                 const SizedBox(width: 6),
                                 Text(
                                   context.l10n('add_new_profile'),
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     color: Colors.white,
                                     fontSize: 13,
                                     fontWeight: FontWeight.w700,

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
@@ -114,7 +114,8 @@ class _AppointmentListScreenState extends State<AppointmentListScreen> {
 
 class _AppointmentCard extends StatelessWidget {
   final MyAppointmentItem item;
-  const _AppointmentCard({required this.item});
+  final bool isVi;
+  const _AppointmentCard({required this.item, required this.isVi});
 
   @override
   Widget build(BuildContext context) {
@@ -320,7 +321,8 @@ class _DoctorAvatar extends StatelessWidget {
 
 class _EmptyView extends StatelessWidget {
   final VoidCallback onBook;
-  const _EmptyView({required this.onBook});
+  final bool isVi;
+  const _EmptyView({required this.onBook, required this.isVi});
 
   @override
   Widget build(BuildContext context) {
@@ -387,7 +389,8 @@ class _EmptyView extends StatelessWidget {
 class _ErrorView extends StatelessWidget {
   final String message;
   final VoidCallback onRetry;
-  const _ErrorView({required this.message, required this.onRetry});
+  final bool isVi;
+  const _ErrorView({required this.message, required this.onRetry, required this.isVi});
 
   @override
   Widget build(BuildContext context) {

@@ -11,6 +11,7 @@ public class Patient
     public string FullName { get; private set; } = string.Empty;
     public DateOnly DateOfBirth { get; private set; }
     public string Gender { get; private set; } = string.Empty;
+    public string? PhoneNumber { get; private set; } // Lưu trực tiếp cho walk-in patient chưa có tài khoản
     public string? Address { get; private set; }
     public string? MedicalHistory { get; private set; } // Tiền sử bệnh lý, dị ứng thuốc...
 
@@ -21,7 +22,7 @@ public class Patient
 
     private Patient() { }
 
-    public static Patient Create(string fullName, DateOnly dateOfBirth, string gender, Guid? userId = null)
+    public static Patient Create(string fullName, DateOnly dateOfBirth, string gender, Guid? userId = null, string? phoneNumber = null)
     {
         return new Patient
         {
@@ -29,9 +30,13 @@ public class Patient
             FullName = fullName,
             DateOfBirth = dateOfBirth,
             Gender = gender,
-            UserId = userId
+            UserId = userId,
+            PhoneNumber = phoneNumber
         };
     }
 
+    public void SetPhoneNumber(string? phone) => PhoneNumber = phone;
+    public void SetDateOfBirth(DateOnly dob) => DateOfBirth = dob;
+    public void SetGender(string gender) => Gender = gender;
     public void UpdateMedicalHistory(string history) => MedicalHistory = history;
 }
