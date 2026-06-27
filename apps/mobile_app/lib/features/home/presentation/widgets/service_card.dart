@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
@@ -74,7 +74,6 @@ class ServiceCard extends StatelessWidget {
                     Text(
                       service.name,
                       style: TextStyle(
-                        color: AppColors.textPrimary,
                         color: context.textPrimary,
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
@@ -86,7 +85,6 @@ class ServiceCard extends StatelessWidget {
                     Text(
                       quickInfo,
                       style: TextStyle(
-                        color: AppColors.textMuted,
                         color: context.textSecondary,
                         fontSize: 12,
                       ),

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
@@ -81,18 +81,19 @@ class _AppointmentListScreenState extends State<AppointmentListScreen> {
       body: _loading
           ? Center(child: CircularProgressIndicator(color: AppColors.primary))
           : _error != null
-               ? _ErrorView(message: _error!, onRetry: _load)
+               ? _ErrorView(message: _error!, onRetry: _load, isVi: isVi)
                : RefreshIndicator(
                    onRefresh: _load,
                    color: AppColors.primary,
                    child: _items.isEmpty
                        ? _EmptyView(
                            onBook: () => context.push(AppRoutes.bookingSelectPatient),
+                           isVi: isVi,
                          )
                        : ListView.builder(
                            padding: EdgeInsets.fromLTRB(16, 12, 16, 100),
                            itemCount: _items.length,
-                           itemBuilder: (_, i) => _AppointmentCard(item: _items[i]),
+                           itemBuilder: (_, i) => _AppointmentCard(item: _items[i], isVi: isVi),
                          ),
                  ),
       floatingActionButton: FloatingActionButton.extended(
