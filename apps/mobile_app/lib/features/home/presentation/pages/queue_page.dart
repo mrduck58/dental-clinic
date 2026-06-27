@@ -43,7 +43,7 @@ class _QueuePageState extends State<QueuePage> {
         backgroundColor: context.card,
         elevation: 0.5,
         leading: IconButton(
-          icon: Icon(Iconsax.arrow_left, color: AppColors.textPrimary),
+          icon: Icon(Iconsax.arrow_left, color: context.textPrimary),
           onPressed: () => context.pop(),
         ),
         title: Text(
@@ -51,7 +51,7 @@ class _QueuePageState extends State<QueuePage> {
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
-            color: AppColors.textPrimary,
+            color: context.textPrimary,
           ),
         ),
       ),

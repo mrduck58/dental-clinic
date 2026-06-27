@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
@@ -45,6 +45,7 @@ class _AppointmentListScreenState extends State<AppointmentListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     return Scaffold(
       backgroundColor: context.bg,
       appBar: AppBar(
@@ -109,11 +110,12 @@ class _AppointmentListScreenState extends State<AppointmentListScreen> {
   }
 }
 
-// ─── Appointment Card ──────────────────────────────────────────────────────────
+// â”€â”€ Appointment Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _AppointmentCard extends StatelessWidget {
   final MyAppointmentItem item;
-  const _AppointmentCard({required this.item});
+  final bool isVi;
+  const _AppointmentCard({required this.item, required this.isVi});
 
   @override
   Widget build(BuildContext context) {
@@ -146,7 +148,7 @@ class _AppointmentCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // ── Header ─────────────────────────────────────────────────────────
+          // Header
           Padding(
             padding: EdgeInsets.fromLTRB(16, 14, 16, 12),
             child: Row(
@@ -197,7 +199,7 @@ class _AppointmentCard extends StatelessWidget {
 
           Divider(color: context.divider, height: 1),
 
-          // ── Detail rows ────────────────────────────────────────────────────
+          // Detail rows
           Padding(
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Column(
@@ -237,7 +239,7 @@ class _AppointmentCard extends StatelessWidget {
   }
 }
 
-// ─── Detail Row ───────────────────────────────────────────────────────────────
+// â”€â”€ Detail Row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _DetailRow extends StatelessWidget {
   final IconData icon;
@@ -267,7 +269,7 @@ class _DetailRow extends StatelessWidget {
   }
 }
 
-// ─── Doctor Avatar ─────────────────────────────────────────────────────────────
+// â”€â”€ Doctor Avatar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _DoctorAvatar extends StatelessWidget {
   final String? avatarUrl;
@@ -315,17 +317,18 @@ class _DoctorAvatar extends StatelessWidget {
   }
 }
 
-// ─── Empty View ───────────────────────────────────────────────────────────────
+// â”€â”€ Empty View â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _EmptyView extends StatelessWidget {
   final VoidCallback onBook;
-  const _EmptyView({required this.onBook});
+  final bool isVi;
+  const _EmptyView({required this.onBook, required this.isVi});
 
   @override
   Widget build(BuildContext context) {
     return ListView(
       children: [
-        const SizedBox(height: 80),
+        SizedBox(height: 80),
         Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -358,13 +361,13 @@ class _EmptyView extends StatelessWidget {
                   height: 1.6,
                 ),
               ),
-              const SizedBox(height: 28),
+              SizedBox(height: 28),
               ElevatedButton.icon(
                 onPressed: onBook,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 icon: const Icon(Iconsax.calendar_add, size: 18),
@@ -381,12 +384,13 @@ class _EmptyView extends StatelessWidget {
   }
 }
 
-// ─── Error View ───────────────────────────────────────────────────────────────
+// â”€â”€ Error View â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _ErrorView extends StatelessWidget {
   final String message;
   final VoidCallback onRetry;
-  const _ErrorView({required this.message, required this.onRetry});
+  final bool isVi;
+  const _ErrorView({required this.message, required this.onRetry, required this.isVi});
 
   @override
   Widget build(BuildContext context) {
@@ -408,3 +412,4 @@ class _ErrorView extends StatelessWidget {
     );
   }
 }
+

@@ -15,7 +15,7 @@ class HomeSearchBar extends StatelessWidget {
         decoration: BoxDecoration(
           color: context.card,
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: context.divider, width: 1),
+          border: Border.all(color: context.divider),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.07),
@@ -30,7 +30,7 @@ class HomeSearchBar extends StatelessWidget {
             Expanded(
               child: Text(
                 context.l10n('search_hint_home'),
-                style: TextStyle(color: context.textMuted, fontSize: 15),
+                style: TextStyle(color: context.textMuted, fontSize: 16),
               ),
             ),
             Container(

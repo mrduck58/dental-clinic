@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
@@ -27,7 +27,8 @@ class ServiceCard extends StatelessWidget {
     final style = _styles[index % _styles.length];
     final gradientColors = style.$1;
     final icon = style.$2;
-    final quickInfo = '${service.durationText} • Tại phòng khám';
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
+    final quickInfo = '${service.durationText} â€¢ ${context.l10n('at_clinic')}';
 
     return Material(
       color: context.card,
@@ -43,7 +44,7 @@ class ServiceCard extends StatelessWidget {
               name: service.name,
               description: service.description,
               price: service.formattedPrice,
-              note: '${service.durationText} • Khám sơ bộ miễn phí',
+              note: '${service.durationText} â€¢ ${context.l10n('free_checkup')}',
             ),
           );
         },
@@ -74,6 +75,7 @@ class ServiceCard extends StatelessWidget {
                       service.name,
                       style: TextStyle(
                         color: AppColors.textPrimary,
+                        color: context.textPrimary,
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
                       ),
@@ -85,6 +87,7 @@ class ServiceCard extends StatelessWidget {
                       quickInfo,
                       style: TextStyle(
                         color: AppColors.textMuted,
+                        color: context.textSecondary,
                         fontSize: 12,
                       ),
                     ),
@@ -106,7 +109,7 @@ class ServiceCard extends StatelessWidget {
                   SizedBox(height: 4),
                   Icon(
                     Iconsax.arrow_right_3,
-                    color: AppColors.textMuted,
+                    color: context.textMuted,
                     size: 14,
                   ),
                 ],
@@ -149,3 +152,4 @@ class ServicesGrid extends StatelessWidget {
     return Column(children: rows);
   }
 }
+
