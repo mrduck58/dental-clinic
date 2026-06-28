@@ -17,6 +17,7 @@ using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using DentalClinic.API.Infrastructure.Services;
 using DentalClinic.API.Infrastructure.Settings;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace DentalClinic.API.Infrastructure.Extensions;
 
@@ -28,7 +29,8 @@ public static class InfrastructureServiceExtensions
     {
         // ── Database ────────────────────────────────────────────────────────
         services.AddDbContext<AppDbContext>(options =>
-            options.UseNpgsql(configuration.GetConnectionString("DefaultConnection")));
+            options.UseNpgsql(configuration.GetConnectionString("DefaultConnection"))
+                   .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning)));
 
         // ── Settings ────────────────────────────────────────────────────────
         services.Configure<JwtSettings>(configuration.GetSection("JwtSettings"));
@@ -64,6 +66,8 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<ChangePasswordHandler>();
         services.AddScoped<CreateAccountHandler>();
         services.AddScoped<GetAccountsHandler>();
+        services.AddScoped<ForgotPasswordHandler>();
+        services.AddScoped<ResetPasswordHandler>();
 
         services.AddScoped<GetStaffHandler>();
         services.AddScoped<GetDentistsHandler>();

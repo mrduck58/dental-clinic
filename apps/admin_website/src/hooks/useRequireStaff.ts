@@ -17,6 +17,6 @@ export function useRequireStaff() {
     const token = getToken();
     const user = getUser();
     if (!token || !user) { router.replace("/auth/login"); return; }
-    if (user.role !== "Staff" && user.role !== "Admin") { router.replace("/auth/login"); }
+    if (user.role !== "Staff") { router.replace("/auth/login"); }
   }, [mounted, router]);
 }

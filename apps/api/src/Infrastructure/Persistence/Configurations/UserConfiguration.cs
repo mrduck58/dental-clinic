@@ -39,6 +39,9 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.SalaryUnit).HasMaxLength(50);
         builder.Property(u => u.LeaveAccrued).HasPrecision(5, 2);
 
+        // Password reset fields
+        builder.Property(u => u.PasswordResetToken).HasMaxLength(100);
+
         builder.HasIndex(u => u.Email).IsUnique();
         builder.HasIndex(u => u.Username).IsUnique().HasFilter("\"Username\" IS NOT NULL");
     }
