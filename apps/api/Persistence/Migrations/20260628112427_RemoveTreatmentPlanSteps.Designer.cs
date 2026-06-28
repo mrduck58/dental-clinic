@@ -3,17 +3,20 @@ using System;
 using DentalClinic.API.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
+namespace DentalClinic.API.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260628112427_RemoveTreatmentPlanSteps")]
+    partial class RemoveTreatmentPlanSteps
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -361,15 +364,8 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("AppointmentId")
                         .HasColumnType("uuid");
 
-                    b.Property<bool>("CollectingRemaining")
-                        .HasColumnType("boolean");
-
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<decimal>("DepositAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
 
                     b.Property<decimal>("Discount")
                         .HasPrecision(18, 2)
@@ -380,23 +376,14 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
 
-                    b.Property<bool>("IsSettled")
-                        .HasColumnType("boolean");
-
                     b.Property<string>("Notes")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
-
-                    b.Property<Guid?>("ParentInvoiceId")
-                        .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset?>("PaymentDate")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("PaymentMethod")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("PaymentType")
                         .HasColumnType("integer");
 
                     b.Property<int>("Status")
@@ -412,12 +399,11 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AppointmentId");
+                    b.HasIndex("AppointmentId")
+                        .IsUnique();
 
                     b.HasIndex("InvoiceNumber")
                         .IsUnique();
-
-                    b.HasIndex("ParentInvoiceId");
 
                     b.ToTable("Invoices", (string)null);
                 });
@@ -1193,15 +1179,10 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Invoice", b =>
                 {
                     b.HasOne("DentalClinic.API.Domain.Entities.Appointment", "Appointment")
-                        .WithMany("Invoices")
-                        .HasForeignKey("AppointmentId")
+                        .WithOne("Invoice")
+                        .HasForeignKey("DentalClinic.API.Domain.Entities.Invoice", "AppointmentId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.HasOne("DentalClinic.API.Domain.Entities.Invoice", null)
-                        .WithMany()
-                        .HasForeignKey("ParentInvoiceId")
-                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Appointment");
                 });
@@ -1311,7 +1292,7 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 
                     b.Navigation("FollowUpAppointments");
 
-                    b.Navigation("Invoices");
+                    b.Navigation("Invoice");
 
                     b.Navigation("MedicalRecord");
 

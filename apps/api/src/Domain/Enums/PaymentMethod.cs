@@ -13,3 +13,9 @@ public enum PaymentStatus
     Paid,     // Đã thanh toán
     Refunded  // Đã hoàn tiền
 }
+
+public enum PaymentType
+{
+    Full,     // Thanh toán toàn bộ
+    Deposit   // Đặt cọc (thanh toán một phần)
+}

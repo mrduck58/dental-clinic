@@ -8,9 +8,3 @@ public enum TreatmentPlanStatus
     InProgress = 2,
     Completed = 3
 }
-
-public enum TreatmentStepStatus
-{
-    Pending = 1,
-    Completed = 2
-}
