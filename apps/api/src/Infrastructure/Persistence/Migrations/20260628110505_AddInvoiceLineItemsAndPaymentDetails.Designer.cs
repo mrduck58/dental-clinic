@@ -9,11 +9,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace DentalClinic.API.Persistence.Migrations
+namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260620173151_AddAppointmentServiceRelationship")]
-    partial class AddAppointmentServiceRelationship
+    [Migration("20260628110505_AddInvoiceLineItemsAndPaymentDetails")]
+    partial class AddInvoiceLineItemsAndPaymentDetails
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -40,6 +40,9 @@ namespace DentalClinic.API.Persistence.Migrations
                     b.Property<Guid>("DentistId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("FollowUpFromAppointmentId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Notes")
                         .HasColumnType("text");
 
@@ -59,11 +62,110 @@ namespace DentalClinic.API.Persistence.Migrations
 
                     b.HasIndex("DentistId");
 
+                    b.HasIndex("FollowUpFromAppointmentId");
+
                     b.HasIndex("PatientId");
 
                     b.HasIndex("ServiceId");
 
                     b.ToTable("Appointments");
+                });
+
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.ClinicInfo", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AboutDescription")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("AboutImageUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("AboutTitle")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("Address")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("CertificationsJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("[]");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("FeaturesJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("[]");
+
+                    b.Property<int>("FoundedYear")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("MilestonesJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("[]");
+
+                    b.Property<string>("Phone")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("StatisticsJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("[]");
+
+                    b.Property<string>("TreatmentStepsJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("[]");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ClinicInfos");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("c1100000-0000-0000-0000-000000000001"),
+                            AboutDescription = "Sơn Giang Dental được thành lập năm 2009 với sứ mệnh mang lại dịch vụ chăm sóc răng miệng chất lượng cao, tiệm cận chuẩn quốc tế, với mức chi phí phù hợp nhất cho người Việt.\n\nTrải qua hơn 15 năm phát triển, chúng tôi đã xây dựng được đội ngũ hơn 20 bác sĩ chuyên khoa, trang bị công nghệ điều trị hàng đầu và phục vụ hơn 10.000 khách hàng hài lòng trên khắp cả nước.",
+                            AboutTitle = "Hơn 15 Năm Kiến Tạo Nụ Cười Việt Nam",
+                            Address = "123 Đường Ba Tháng Hai, Quận 10, TP.HCM",
+                            CertificationsJson = "[\"ISO 9001:2015\",\"Invisalign Provider\",\"Bộ Y tế cấp phép\",\"ADA Member\"]",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Email = "contact@songiangdental.vn",
+                            FeaturesJson = "[{\"title\":\"Công nghệ hiện đại hàng đầu\",\"description\":\"Trang bị máy CT Cone Beam 3D, laser nha khoa, kính lúp phẫu thuật và hệ thống CAD/CAM làm sứ ngay tại phòng khám.\"},{\"title\":\"Đội ngũ bác sĩ chuyên sâu\",\"description\":\"100% bác sĩ có chứng chỉ chuyên khoa, tu nghiệp tại Pháp, Mỹ, Nhật — liên tục cập nhật kỹ thuật mới nhất.\"},{\"title\":\"Cam kết minh bạch giá cả\",\"description\":\"Báo giá rõ ràng trước điều trị, không phát sinh, bảo hành lên đến 10 năm cho các ca phục hình cao cấp.\"},{\"title\":\"Môi trường vô trùng tuyệt đối\",\"description\":\"Quy trình tiệt khuẩn đạt chuẩn CDC/ADA, mỗi bệnh nhân dùng bộ dụng cụ riêng đóng gói sealed.\"}]",
+                            FoundedYear = 2009,
+                            MilestonesJson = "[{\"year\":2009,\"description\":\"Thành lập phòng khám đầu tiên tại TP.HCM\"},{\"year\":2015,\"description\":\"Mở rộng lên 3 cơ sở, đạt chứng nhận ISO 9001\"},{\"year\":2019,\"description\":\"Đối tác chính thức của Invisalign tại Việt Nam\"},{\"year\":2023,\"description\":\"Ra mắt ứng dụng đặt lịch trên di động\"}]",
+                            Phone = "1900 6789 — 028 7300 1234",
+                            StatisticsJson = "[{\"value\":\"10.000+\",\"label\":\"Khách hàng hài lòng\"},{\"value\":\"20+\",\"label\":\"Bác sĩ chuyên khoa\"},{\"value\":\"15+\",\"label\":\"Năm kinh nghiệm\"},{\"value\":\"99%\",\"label\":\"Đánh giá 5 sao\"}]",
+                            TreatmentStepsJson = "[{\"title\":\"Tải App & Đặt Lịch\",\"description\":\"Tải app Sơn Giang Dental, chọn dịch vụ và đặt lịch trong 30 giây. Xác nhận ngay lập tức.\"},{\"title\":\"Khám & Tư Vấn\",\"description\":\"Bác sĩ chuyên khoa thăm khám toàn diện, chụp X-quang và tư vấn phác đồ phù hợp.\"},{\"title\":\"Điều Trị\",\"description\":\"Thực hiện điều trị theo phác đồ đã tư vấn với công nghệ hiện đại, không đau, an toàn.\"},{\"title\":\"Theo Dõi Sau Điều Trị\",\"description\":\"Tái khám định kỳ miễn phí, bảo hành dài hạn và hỗ trợ 24/7 khi có vấn đề phát sinh.\"}]"
+                        });
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Dentist", b =>
@@ -99,6 +201,39 @@ namespace DentalClinic.API.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("Dentists");
+                });
+
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.Diagnosis", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AppointmentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("DiagnosisCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppointmentId");
+
+                    b.ToTable("Diagnoses", (string)null);
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Feedback", b =>
@@ -229,6 +364,22 @@ namespace DentalClinic.API.Persistence.Migrations
                     b.Property<Guid>("AppointmentId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("Discount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("InvoiceNumber")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
                     b.Property<DateTimeOffset?>("PaymentDate")
                         .HasColumnType("timestamp with time zone");
 
@@ -238,15 +389,51 @@ namespace DentalClinic.API.Persistence.Migrations
                     b.Property<int>("Status")
                         .HasColumnType("integer");
 
+                    b.Property<decimal>("Subtotal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
                     b.Property<decimal>("TotalAmount")
-                        .HasColumnType("numeric");
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
 
                     b.HasKey("Id");
 
                     b.HasIndex("AppointmentId")
                         .IsUnique();
 
-                    b.ToTable("Invoices");
+                    b.HasIndex("InvoiceNumber")
+                        .IsUnique();
+
+                    b.ToTable("Invoices", (string)null);
+                });
+
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.InvoiceItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("InvoiceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InvoiceId");
+
+                    b.ToTable("InvoiceItems", (string)null);
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.LeaveRequest", b =>
@@ -480,6 +667,9 @@ namespace DentalClinic.API.Persistence.Migrations
                     b.Property<DateTimeOffset?>("PublishedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("ServiceId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("ThumbnailUrl")
                         .HasColumnType("text");
 
@@ -493,7 +683,78 @@ namespace DentalClinic.API.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ServiceId");
+
                     b.ToTable("Posts");
+                });
+
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.Prescription", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AppointmentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppointmentId");
+
+                    b.ToTable("Prescriptions", (string)null);
+                });
+
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.PrescriptionItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Dosage")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("MedicineName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("PrescriptionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Usage")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PrescriptionId");
+
+                    b.ToTable("PrescriptionItems", (string)null);
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Promotion", b =>
@@ -648,6 +909,75 @@ namespace DentalClinic.API.Persistence.Migrations
                     b.ToTable("Services");
                 });
 
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.TreatmentPlan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AppointmentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<decimal?>("EstimatedCost")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppointmentId");
+
+                    b.ToTable("TreatmentPlans", (string)null);
+                });
+
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.TreatmentPlanStep", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<int>("StepNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TreatmentPlanId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TreatmentPlanId");
+
+                    b.ToTable("TreatmentPlanSteps", (string)null);
+                });
+
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -657,6 +987,10 @@ namespace DentalClinic.API.Persistence.Migrations
                     b.Property<string>("Address")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
+
+                    b.Property<decimal?>("BaseSalary")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<string>("Bio")
                         .HasMaxLength(2000)
@@ -696,6 +1030,10 @@ namespace DentalClinic.API.Persistence.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<string>("EmploymentType")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
                     b.Property<string>("FullName")
                         .HasColumnType("text");
 
@@ -705,6 +1043,10 @@ namespace DentalClinic.API.Persistence.Migrations
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
+
+                    b.Property<decimal?>("LeaveAccrued")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
 
                     b.Property<string>("LicenseNumber")
                         .HasMaxLength(100)
@@ -729,6 +1071,10 @@ namespace DentalClinic.API.Persistence.Migrations
 
                     b.Property<string>("Role")
                         .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("SalaryUnit")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
@@ -819,6 +1165,11 @@ namespace DentalClinic.API.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("DentalClinic.API.Domain.Entities.Appointment", "FollowUpFromAppointment")
+                        .WithMany("FollowUpAppointments")
+                        .HasForeignKey("FollowUpFromAppointmentId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("DentalClinic.API.Domain.Entities.Patient", "Patient")
                         .WithMany("Appointments")
                         .HasForeignKey("PatientId")
@@ -831,6 +1182,8 @@ namespace DentalClinic.API.Persistence.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Dentist");
+
+                    b.Navigation("FollowUpFromAppointment");
 
                     b.Navigation("Patient");
 
@@ -848,6 +1201,17 @@ namespace DentalClinic.API.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.Diagnosis", b =>
+                {
+                    b.HasOne("DentalClinic.API.Domain.Entities.Appointment", "Appointment")
+                        .WithMany("Diagnoses")
+                        .HasForeignKey("AppointmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Appointment");
+                });
+
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Invoice", b =>
                 {
                     b.HasOne("DentalClinic.API.Domain.Entities.Appointment", "Appointment")
@@ -857,6 +1221,17 @@ namespace DentalClinic.API.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Appointment");
+                });
+
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.InvoiceItem", b =>
+                {
+                    b.HasOne("DentalClinic.API.Domain.Entities.Invoice", "Invoice")
+                        .WithMany("Items")
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Invoice");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.LeaveRequest", b =>
@@ -904,11 +1279,73 @@ namespace DentalClinic.API.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.Post", b =>
+                {
+                    b.HasOne("DentalClinic.API.Domain.Entities.Service", "Service")
+                        .WithMany()
+                        .HasForeignKey("ServiceId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Service");
+                });
+
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.Prescription", b =>
+                {
+                    b.HasOne("DentalClinic.API.Domain.Entities.Appointment", "Appointment")
+                        .WithMany("Prescriptions")
+                        .HasForeignKey("AppointmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Appointment");
+                });
+
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.PrescriptionItem", b =>
+                {
+                    b.HasOne("DentalClinic.API.Domain.Entities.Prescription", "Prescription")
+                        .WithMany("Items")
+                        .HasForeignKey("PrescriptionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Prescription");
+                });
+
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.TreatmentPlan", b =>
+                {
+                    b.HasOne("DentalClinic.API.Domain.Entities.Appointment", "Appointment")
+                        .WithMany("TreatmentPlans")
+                        .HasForeignKey("AppointmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Appointment");
+                });
+
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.TreatmentPlanStep", b =>
+                {
+                    b.HasOne("DentalClinic.API.Domain.Entities.TreatmentPlan", "TreatmentPlan")
+                        .WithMany("Steps")
+                        .HasForeignKey("TreatmentPlanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("TreatmentPlan");
+                });
+
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Appointment", b =>
                 {
+                    b.Navigation("Diagnoses");
+
+                    b.Navigation("FollowUpAppointments");
+
                     b.Navigation("Invoice");
 
                     b.Navigation("MedicalRecord");
+
+                    b.Navigation("Prescriptions");
+
+                    b.Navigation("TreatmentPlans");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Dentist", b =>
@@ -916,11 +1353,26 @@ namespace DentalClinic.API.Persistence.Migrations
                     b.Navigation("Appointments");
                 });
 
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.Invoice", b =>
+                {
+                    b.Navigation("Items");
+                });
+
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Patient", b =>
                 {
                     b.Navigation("Appointments");
 
                     b.Navigation("MedicalRecords");
+                });
+
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.Prescription", b =>
+                {
+                    b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.TreatmentPlan", b =>
+                {
+                    b.Navigation("Steps");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.User", b =>

@@ -9,11 +9,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace DentalClinic.API.Persistence.Migrations
+namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260628115206_AddInvoicePaymentType")]
-    partial class AddInvoicePaymentType
+    [Migration("20260628154920_AddInvoiceRemainingPayment")]
+    partial class AddInvoiceRemainingPayment
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -364,6 +364,9 @@ namespace DentalClinic.API.Persistence.Migrations
                     b.Property<Guid>("AppointmentId")
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("CollectingRemaining")
+                        .HasColumnType("boolean");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -380,9 +383,15 @@ namespace DentalClinic.API.Persistence.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
 
+                    b.Property<bool>("IsSettled")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Notes")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid?>("ParentInvoiceId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset?>("PaymentDate")
                         .HasColumnType("timestamp with time zone");
@@ -406,11 +415,12 @@ namespace DentalClinic.API.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AppointmentId")
-                        .IsUnique();
+                    b.HasIndex("AppointmentId");
 
                     b.HasIndex("InvoiceNumber")
                         .IsUnique();
+
+                    b.HasIndex("ParentInvoiceId");
 
                     b.ToTable("Invoices", (string)null);
                 });
@@ -1186,10 +1196,15 @@ namespace DentalClinic.API.Persistence.Migrations
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Invoice", b =>
                 {
                     b.HasOne("DentalClinic.API.Domain.Entities.Appointment", "Appointment")
-                        .WithOne("Invoice")
-                        .HasForeignKey("DentalClinic.API.Domain.Entities.Invoice", "AppointmentId")
+                        .WithMany("Invoices")
+                        .HasForeignKey("AppointmentId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("DentalClinic.API.Domain.Entities.Invoice", null)
+                        .WithMany()
+                        .HasForeignKey("ParentInvoiceId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Appointment");
                 });
@@ -1299,7 +1314,7 @@ namespace DentalClinic.API.Persistence.Migrations
 
                     b.Navigation("FollowUpAppointments");
 
-                    b.Navigation("Invoice");
+                    b.Navigation("Invoices");
 
                     b.Navigation("MedicalRecord");
 

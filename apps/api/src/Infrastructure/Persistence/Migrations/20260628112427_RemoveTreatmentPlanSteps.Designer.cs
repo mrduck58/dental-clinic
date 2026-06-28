@@ -9,11 +9,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace DentalClinic.API.Persistence.Migrations
+namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260628110505_AddInvoiceLineItemsAndPaymentDetails")]
-    partial class AddInvoiceLineItemsAndPaymentDetails
+    [Migration("20260628112427_RemoveTreatmentPlanSteps")]
+    partial class RemoveTreatmentPlanSteps
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -942,42 +942,6 @@ namespace DentalClinic.API.Persistence.Migrations
                     b.ToTable("TreatmentPlans", (string)null);
                 });
 
-            modelBuilder.Entity("DentalClinic.API.Domain.Entities.TreatmentPlanStep", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<int>("StepNumber")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("TreatmentPlanId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TreatmentPlanId");
-
-                    b.ToTable("TreatmentPlanSteps", (string)null);
-                });
-
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1322,17 +1286,6 @@ namespace DentalClinic.API.Persistence.Migrations
                     b.Navigation("Appointment");
                 });
 
-            modelBuilder.Entity("DentalClinic.API.Domain.Entities.TreatmentPlanStep", b =>
-                {
-                    b.HasOne("DentalClinic.API.Domain.Entities.TreatmentPlan", "TreatmentPlan")
-                        .WithMany("Steps")
-                        .HasForeignKey("TreatmentPlanId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("TreatmentPlan");
-                });
-
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Appointment", b =>
                 {
                     b.Navigation("Diagnoses");
@@ -1368,11 +1321,6 @@ namespace DentalClinic.API.Persistence.Migrations
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Prescription", b =>
                 {
                     b.Navigation("Items");
-                });
-
-            modelBuilder.Entity("DentalClinic.API.Domain.Entities.TreatmentPlan", b =>
-                {
-                    b.Navigation("Steps");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.User", b =>

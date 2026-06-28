@@ -9,11 +9,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace DentalClinic.API.Persistence.Migrations
+namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260621123227_AddExaminationEntities")]
-    partial class AddExaminationEntities
+    [Migration("20260623183741_AddServiceIdToPost")]
+    partial class AddServiceIdToPost
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -518,6 +518,9 @@ namespace DentalClinic.API.Persistence.Migrations
                     b.Property<DateTimeOffset?>("PublishedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("ServiceId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("ThumbnailUrl")
                         .HasColumnType("text");
 
@@ -530,6 +533,8 @@ namespace DentalClinic.API.Persistence.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ServiceId");
 
                     b.ToTable("Posts");
                 });
@@ -834,6 +839,10 @@ namespace DentalClinic.API.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<decimal?>("BaseSalary")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
                     b.Property<string>("Bio")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
@@ -872,6 +881,10 @@ namespace DentalClinic.API.Persistence.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<string>("EmploymentType")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
                     b.Property<string>("FullName")
                         .HasColumnType("text");
 
@@ -881,6 +894,10 @@ namespace DentalClinic.API.Persistence.Migrations
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
+
+                    b.Property<decimal?>("LeaveAccrued")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
 
                     b.Property<string>("LicenseNumber")
                         .HasMaxLength(100)
@@ -905,6 +922,10 @@ namespace DentalClinic.API.Persistence.Migrations
 
                     b.Property<string>("Role")
                         .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("SalaryUnit")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
@@ -1096,6 +1117,16 @@ namespace DentalClinic.API.Persistence.Migrations
                         .HasForeignKey("DentalClinic.API.Domain.Entities.Patient", "UserId");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.Post", b =>
+                {
+                    b.HasOne("DentalClinic.API.Domain.Entities.Service", "Service")
+                        .WithMany()
+                        .HasForeignKey("ServiceId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Service");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Prescription", b =>

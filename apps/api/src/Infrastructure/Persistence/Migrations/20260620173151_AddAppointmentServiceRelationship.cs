@@ -2,7 +2,7 @@
 
 #nullable disable
 
-namespace DentalClinic.API.Persistence.Migrations
+namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 {
     /// <inheritdoc />
     public partial class AddAppointmentServiceRelationship : Migration
