@@ -150,12 +150,16 @@ public class User
         LeaveAccrued = data.LeaveAccrued;
     }
 
-    public void UpdatePatientProfile(string fullName, string phoneNumber, DateOnly? dateOfBirth, string? gender)
+    public void UpdatePatientProfile(string fullName, string phoneNumber, DateOnly? dateOfBirth, string? gender, string? profilePictureUrl = null)
     {
         FullName = fullName;
         PhoneNumber = phoneNumber;
         DateOfBirth = dateOfBirth;
         Gender = gender;
+        if (profilePictureUrl != null)
+        {
+            ProfilePictureUrl = profilePictureUrl;
+        }
     }
 
     public void UpdatePersonalProfile(

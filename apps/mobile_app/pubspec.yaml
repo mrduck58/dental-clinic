@@ -49,6 +49,7 @@ dependencies:
 
   # Lưu token / trạng thái đăng nhập
   shared_preferences: ^2.3.4
+  image_picker: ^1.2.2
 
 
 dev_dependencies:
