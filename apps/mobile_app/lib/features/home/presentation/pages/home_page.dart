@@ -32,6 +32,7 @@ class _HomePageState extends State<HomePage> {
   List<ServiceModel> _services = [];
   List<PostModel> _posts = [];
   String _userName = '';
+  String? _avatarUrl;
   bool _isLoading = true;
 
   @override
@@ -47,6 +48,7 @@ class _HomePageState extends State<HomePage> {
       _homeService.getServices().catchError((_) => <ServiceModel>[]),
       _homeService.getPosts().catchError((_) => <PostModel>[]),
       _auth.getUserName(),
+      _auth.getUserAvatar(),
     ]);
     if (!mounted) return;
     setState(() {
@@ -54,8 +56,23 @@ class _HomePageState extends State<HomePage> {
       _services = List<ServiceModel>.from(results[1] as List);
       _posts = List<PostModel>.from(results[2] as List);
       _userName = (results[3] as String?) ?? '';
+      _avatarUrl = results[4] as String?;
       _isLoading = false;
     });
+
+    try {
+      final p = await _auth.getMyProfile();
+      if (mounted) {
+        setState(() {
+          _userName = p.fullName;
+          _avatarUrl = p.profilePictureUrl;
+        });
+        _auth.saveUserName(p.fullName);
+        if (p.profilePictureUrl != null) {
+          _auth.saveUserAvatar(p.profilePictureUrl!);
+        }
+      }
+    } catch (_) {}
   }
 
   @override
@@ -65,7 +82,7 @@ class _HomePageState extends State<HomePage> {
       color: context.bg,
       child: CustomScrollView(
         slivers: [
-          SliverToBoxAdapter(child: HomeHeader(userName: _userName)),
+          SliverToBoxAdapter(child: HomeHeader(userName: _userName, avatarUrl: _avatarUrl)),
           const SliverToBoxAdapter(child: HomeSearchBar()),
           SliverPadding(
             padding: EdgeInsets.fromLTRB(18, 0, 18, bottomPad),
