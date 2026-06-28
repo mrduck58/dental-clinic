@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
@@ -64,7 +64,7 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
 
           {/* Quản lí nhân viên */}
           <Link
-            href="/dashboard/employee"
+            href="/admin/employee"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "staff"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
@@ -78,7 +78,7 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
 
           {/* Quản lí dịch vụ */}
           <Link
-            href="/dashboard/services"
+            href="/admin/services"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "services"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
@@ -92,7 +92,7 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
 
           {/* Quản lí thuốc */}
           <Link
-            href="/dashboard/medicines"
+            href="/admin/medicines"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "medicines"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
@@ -107,7 +107,7 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
 
           {/* Quản lí bài viết */}
           <Link
-            href="/dashboard/posts"
+            href="/admin/posts"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "articles"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
@@ -121,7 +121,7 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
 
           {/* Quản lí phòng */}
           <Link
-            href="/dashboard/rooms"
+            href="/admin/rooms"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "rooms"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
@@ -135,7 +135,7 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
 
           {/* Lịch làm việc nhân viên */}
           <Link
-            href="/dashboard/schedule"
+            href="/admin/schedule"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "schedule"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
@@ -149,7 +149,7 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
 
           {/* Tài khoản và phân quyền */}
           <Link
-            href="/dashboard/permissions"
+            href="/admin/permissions"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "permissions"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
@@ -163,7 +163,7 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
 
           {/* Phản hồi */}
           <Link
-            href="/dashboard/feedback"
+            href="/admin/feedback"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "feedback"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
@@ -177,7 +177,7 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
 
           {/* Đơn xin nghỉ */}
           <Link
-            href="/dashboard/leaves"
+            href="/admin/leaves"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "leaves"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
@@ -191,7 +191,7 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
 
           {/* Lịch sử hoạt động */}
           <Link
-            href="/dashboard/activity-logs"
+            href="/admin/activity-logs"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "history"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
@@ -212,21 +212,21 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
           {dropdownOpen && (
             <div className="absolute bottom-full left-0 mb-2 w-full bg-white border border-slate-200 rounded-xl shadow-lg p-2 z-50 flex flex-col gap-0.5 animate-fade-in font-sans">
               <Link
-                href="/dashboard/profile?tab=personal"
+                href="/admin/profile?tab=personal"
                 onClick={() => setDropdownOpen(false)}
                 className="flex items-center gap-2.5 px-3.5 py-2.5 text-[13.5px] font-bold text-slate-700 hover:text-primary hover:bg-red-50/40 rounded-lg transition-all"
               >
                 👤 Thông tin cá nhân
               </Link>
               <Link
-                href="/dashboard/profile?tab=password"
+                href="/admin/profile?tab=password"
                 onClick={() => setDropdownOpen(false)}
                 className="flex items-center gap-2.5 px-3.5 py-2.5 text-[13.5px] font-bold text-slate-700 hover:text-primary hover:bg-red-50/40 rounded-lg transition-all"
               >
                 🔒 Đổi mật khẩu
               </Link>
               <Link
-                href="/dashboard/profile?tab=activities"
+                href="/admin/profile?tab=activities"
                 onClick={() => setDropdownOpen(false)}
                 className="flex items-center gap-2.5 px-3.5 py-2.5 text-[13.5px] font-bold text-slate-700 hover:text-primary hover:bg-red-50/40 rounded-lg transition-all"
               >

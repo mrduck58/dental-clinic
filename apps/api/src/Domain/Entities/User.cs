@@ -44,6 +44,10 @@ public class User
     public string? SalaryUnit { get; private set; }       // "Theo tháng", "Theo ngày", "Theo ca"
     public decimal? LeaveAccrued { get; private set; }    // Ngày phép tích luỹ/tháng
 
+    // Password reset
+    public string? PasswordResetToken { get; private set; }
+    public DateTimeOffset? PasswordResetTokenExpiry { get; private set; }
+
     public bool HasAccount => PasswordHash != null;
 
     // Navigation properties
@@ -185,7 +189,24 @@ public class User
         }
     }
 
-    public void ResetPassword(string newPasswordHash) => PasswordHash = newPasswordHash;
+    public void ResetPassword(string newPasswordHash)
+    {
+        PasswordHash = newPasswordHash;
+        PasswordResetToken = null;
+        PasswordResetTokenExpiry = null;
+    }
+
+    public void SetPasswordResetToken(string token, DateTimeOffset expiry)
+    {
+        PasswordResetToken = token;
+        PasswordResetTokenExpiry = expiry;
+    }
+
+    public void ClearPasswordResetToken()
+    {
+        PasswordResetToken = null;
+        PasswordResetTokenExpiry = null;
+    }
 
     public void SetActive(bool isActive) => IsActive = isActive;
 }

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
@@ -28,7 +28,7 @@ const TYPE_ICON: Record<string, { path: string; bg: string; color: string }> = {
 
 interface NotificationBellProps { href?: string }
 
-export default function NotificationBell({ href = "/dashboard/notifications" }: NotificationBellProps) {
+export default function NotificationBell({ href = "/admin/notifications" }: NotificationBellProps) {
   const [open, setOpen]   = useState(false);
   const [notes, setNotes] = useState(MOCK_NOTIFICATIONS);
   const ref               = useRef<HTMLDivElement>(null);

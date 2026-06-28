@@ -39,6 +39,30 @@ export interface LoginResponse {
 
 // ── Auth endpoints ─────────────────────────────────────────────────────────
 
+export async function forgotPasswordApi(email: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/auth/forgot-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Gửi yêu cầu thất bại");
+  }
+}
+
+export async function resetPasswordApi(email: string, token: string, newPassword: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/auth/reset-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, token, newPassword }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Đặt lại mật khẩu thất bại");
+  }
+}
+
 export async function loginApi(email: string, password: string): Promise<LoginResponse> {
   const res = await fetch(`${API_URL}/api/auth/staff/login`, {
     method: "POST",
@@ -82,25 +106,59 @@ export async function createAccountApi(data: CreateAccountCommand): Promise<void
 
 const TOKEN_KEY = "dental_clinic_token";
 const USER_KEY = "dental_clinic_user";
+const REMEMBER_EMAIL_KEY = "dental_clinic_remember_email";
 
-export function saveSession(data: LoginResponse): void {
-  localStorage.setItem(TOKEN_KEY, data.accessToken);
-  localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+export function saveSession(data: LoginResponse, rememberMe: boolean): void {
+  const storage = rememberMe ? localStorage : sessionStorage;
+  storage.setItem(TOKEN_KEY, data.accessToken);
+  storage.setItem(USER_KEY, JSON.stringify(data.user));
+  // Clean up the other storage to avoid stale tokens
+  const other = rememberMe ? sessionStorage : localStorage;
+  other.removeItem(TOKEN_KEY);
+  other.removeItem(USER_KEY);
+}
+
+const REMEMBER_PASSWORD_KEY = "dental_clinic_remember_password";
+
+export function saveRememberCredentials(email: string, password: string): void {
+  localStorage.setItem(REMEMBER_EMAIL_KEY, email);
+  localStorage.setItem(REMEMBER_PASSWORD_KEY, password);
+}
+
+export function clearRememberCredentials(): void {
+  localStorage.removeItem(REMEMBER_EMAIL_KEY);
+  localStorage.removeItem(REMEMBER_PASSWORD_KEY);
+}
+
+export function getRememberedCredentials(): { email: string; password: string } | null {
+  if (typeof globalThis.window === "undefined") return null;
+  const email = localStorage.getItem(REMEMBER_EMAIL_KEY);
+  const password = localStorage.getItem(REMEMBER_PASSWORD_KEY);
+  if (!email || !password) return null;
+  return { email, password };
+}
+
+/** @deprecated use getRememberedCredentials */
+export function getRememberedEmail(): string | null {
+  if (typeof globalThis.window === "undefined") return null;
+  return localStorage.getItem(REMEMBER_EMAIL_KEY);
 }
 
 export function clearSession(): void {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  sessionStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(USER_KEY);
 }
 
 export function getToken(): string | null {
   if (typeof globalThis.window === "undefined") return null;
-  return localStorage.getItem(TOKEN_KEY);
+  return localStorage.getItem(TOKEN_KEY) ?? sessionStorage.getItem(TOKEN_KEY);
 }
 
 export function getUser(): AuthUser | null {
   if (typeof globalThis.window === "undefined") return null;
-  const raw = localStorage.getItem(USER_KEY);
+  const raw = localStorage.getItem(USER_KEY) ?? sessionStorage.getItem(USER_KEY);
   if (!raw) return null;
   try {
     return JSON.parse(raw) as AuthUser;

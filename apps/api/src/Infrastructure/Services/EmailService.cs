@@ -88,6 +88,80 @@ public class EmailService(IOptions<EmailSettings> options, ILogger<EmailService>
         await smtp.DisconnectAsync(quit: true, ct);
     }
 
+    public async Task SendPasswordResetAsync(
+        string recipientEmail,
+        string recipientName,
+        string resetLink,
+        CancellationToken ct = default)
+    {
+        if (!_settings.IsConfigured)
+        {
+            logger.LogWarning("[DEV-EMAIL] Reset mật khẩu: Email={Email} | Link={Link}", recipientEmail, resetLink);
+            return;
+        }
+
+        var message = new MimeMessage();
+        message.From.Add(new MailboxAddress(_settings.FromName, _settings.FromEmail));
+        message.To.Add(new MailboxAddress(recipientName, recipientEmail));
+        message.Subject = $"[{_settings.ClinicName}] Đặt lại mật khẩu của bạn";
+
+        message.Body = new BodyBuilder
+        {
+            HtmlBody = BuildPasswordResetHtml(recipientName, resetLink),
+            TextBody = $"Nhấp vào liên kết sau để đặt lại mật khẩu (hiệu lực 1 giờ):\n{resetLink}\n\nNếu bạn không yêu cầu, hãy bỏ qua email này.",
+        }.ToMessageBody();
+
+        using var smtp = new SmtpClient();
+        await smtp.ConnectAsync(
+            _settings.SmtpHost,
+            _settings.SmtpPort,
+            _settings.UseSsl ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTls,
+            ct);
+
+        if (!string.IsNullOrWhiteSpace(_settings.Username))
+            await smtp.AuthenticateAsync(_settings.Username, _settings.Password, ct);
+
+        await smtp.SendAsync(message, ct);
+        await smtp.DisconnectAsync(quit: true, ct);
+    }
+
+    private string BuildPasswordResetHtml(string name, string resetLink) => $"""
+        <!DOCTYPE html>
+        <html lang="vi">
+        <head><meta charset="utf-8"/></head>
+        <body style="font-family:Arial,sans-serif;color:#333;max-width:600px;margin:0 auto;padding:20px;">
+          <div style="background:#c0392b;padding:24px 20px;border-radius:10px 10px 0 0;text-align:center;">
+            <h1 style="color:#fff;margin:0;font-size:22px;">🦷 {_settings.ClinicName}</h1>
+            <p style="color:rgba(255,255,255,.8);margin:6px 0 0;font-size:13px;">Hệ thống quản lý nội bộ</p>
+          </div>
+          <div style="background:#fff;padding:32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">
+            <h2 style="color:#1e293b;margin-top:0;">Đặt lại mật khẩu</h2>
+            <p style="color:#475569;">Xin chào <strong>{name}</strong>,</p>
+            <p style="color:#475569;">Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản của bạn. Nhấp vào nút bên dưới để tiến hành. Liên kết có hiệu lực trong <strong>1 giờ</strong>.</p>
+
+            <div style="text-align:center;margin:32px 0;">
+              <a href="{resetLink}"
+                 style="background:#c0392b;color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:700;font-size:15px;display:inline-block;">
+                Đặt lại mật khẩu
+              </a>
+            </div>
+
+            <p style="color:#64748b;font-size:13px;">Hoặc dán liên kết sau vào trình duyệt:</p>
+            <p style="word-break:break-all;color:#c0392b;font-size:12px;">{resetLink}</p>
+
+            <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:16px;margin:24px 0;">
+              <p style="color:#9a3412;font-size:13px;margin:0;">⚠️ Nếu bạn <strong>không</strong> thực hiện yêu cầu này, hãy bỏ qua email — mật khẩu của bạn vẫn an toàn. Không chia sẻ liên kết này cho bất kỳ ai.</p>
+            </div>
+
+            <p style="color:#94a3b8;font-size:12px;border-top:1px solid #f1f5f9;padding-top:16px;margin-bottom:0;">
+              Email này được gửi tự động — vui lòng không trả lời.<br/>
+              <strong>{_settings.ClinicName}</strong>
+            </p>
+          </div>
+        </body>
+        </html>
+        """;
+
     private string BuildOtpHtml(string code) => $"""
         <!DOCTYPE html>
         <html lang="vi">
