@@ -32,7 +32,8 @@ public record CreateStaffCommand(
     string? EmploymentType,
     decimal? BaseSalary,
     string? SalaryUnit,
-    decimal? LeaveAccrued);
+    decimal? LeaveAccrued,
+    decimal? Allowance);
 
 public class CreateStaffHandler(IUserRepository userRepository, AppDbContext dbContext)
 {
@@ -61,7 +62,8 @@ public class CreateStaffHandler(IUserRepository userRepository, AppDbContext dbC
             command.Gender, command.DateOfBirth, command.Address,
             command.StartDate, command.ServicesHandled, command.CertificateIssuedDate,
             command.CertificateIssuedBy, command.Education, command.Bio, command.Position,
-            command.EmploymentType, command.BaseSalary, command.SalaryUnit, command.LeaveAccrued));
+            command.EmploymentType, command.BaseSalary, command.SalaryUnit, command.LeaveAccrued,
+            command.Allowance));
 
         // Tạo Dentist entry cho bác sĩ để FK appointment hoạt động và hiện đúng trong lịch
         if (string.Equals(command.Role, "Dentist", StringComparison.OrdinalIgnoreCase) ||

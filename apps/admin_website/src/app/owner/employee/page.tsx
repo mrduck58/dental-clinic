@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -8,10 +8,10 @@ import { useRequireOwner } from "../../../hooks/useRequireOwner";
 import { getStaffApi, getWeekScheduleApi, getLeaveRequestsAdminApi, type StaffDto, type StaffStatsDto, type ScheduleEntryDto } from "../../../lib/apiClient";
 import * as XLSX from "xlsx";
 
-type TabKey = "staff" | "doctors";
+type TabKey = "staff" | "dentists";
 
 const TABS: Array<{ key: TabKey; label: string; scopeRoles: string; defaultAddRole: string }> = [
-  { key: "doctors", label: "Bác sĩ",     scopeRoles: "Doctor,Dentist", defaultAddRole: "Dentist" },
+  { key: "dentists", label: "Nha sĩ",     scopeRoles: "Doctor,Dentist", defaultAddRole: "Dentist" },
   { key: "staff",   label: "Nhân viên",  scopeRoles: "Staff",    defaultAddRole: "Staff"   },
 ];
 
@@ -20,16 +20,16 @@ const ROLE_OPTIONS: Record<TabKey, Array<{ value: string; label: string }>> = {
     { value: "",       label: "Tất cả nhân viên"  },
     { value: "Staff",  label: "Lễ tân / Trợ lý"  },
   ],
-  doctors: [
-    { value: "",        label: "Tất cả bác sĩ"       },
+  dentists: [
+    { value: "",        label: "Tất cả nha sĩ"       },
     { value: "Dentist", label: "Nha sĩ"               },
-    { value: "Doctor",  label: "Bác sĩ chuyên khoa"  },
+    { value: "Doctor",  label: "Nha sĩ chuyên khoa"  },
   ],
 };
 
 const ROLE_LABELS: Record<string, string> = {
-  Admin: "Quản trị viên", Doctor: "Bác sĩ",
-  Dentist: "Bác sĩ",      Staff: "Lễ tân / Trợ lý",
+  Admin: "Quản trị viên", Doctor: "Nha sĩ",
+  Dentist: "Nha sĩ",      Staff: "Lễ tân / Trợ lý",
 };
 
 const ROLE_BADGES: Record<string, string> = {
@@ -69,7 +69,7 @@ export default function OwnerStaffManagementPage() {
   useRequireOwner();
   const router = useRouter();
 
-  const [activeTab, setActiveTab]       = useState<TabKey>("doctors");
+  const [activeTab, setActiveTab]       = useState<TabKey>("dentists");
   const [staffList, setStaffList]       = useState<StaffDto[]>([]);
   const [stats, setStats]               = useState<StaffStatsDto>({ totalDentists: 0, totalEmployees: 0, totalDoctors: 0 });
   const [totalCount, setTotalCount]     = useState(0);
@@ -83,8 +83,8 @@ export default function OwnerStaffManagementPage() {
 
   const [toast, setToast] = useState<{ show: boolean; message: string } | null>(null);
   const [todaySchedule, setTodaySchedule] = useState<ScheduleEntryDto[]>([]);
-  const [onLeaveCount, setOnLeaveCount]   = useState({ doctors: 0, staff: 0 });
-  const [baseTotal, setBaseTotal]         = useState({ doctors: 0, staff: 0 });
+  const [onLeaveCount, setOnLeaveCount]   = useState({ dentists: 0, staff: 0 });
+  const [baseTotal, setBaseTotal]         = useState({ dentists: 0, staff: 0 });
   const [pendingLeaveCount, setPendingLeaveCount] = useState(0);
 
   const tab = TABS.find((t) => t.key === activeTab)!;
@@ -133,9 +133,9 @@ export default function OwnerStaffManagementPage() {
       getStaffApi({ role: "Staff",           status: "Active",   page: 1, pageSize: 1 }),
       getLeaveRequestsAdminApi("Pending").catch(() => []),
     ]).then(([drLeave, stLeave, drActive, stActive, pendingLeaves]) => {
-      setOnLeaveCount({ doctors: drLeave.totalCount, staff: stLeave.totalCount });
+      setOnLeaveCount({ dentists: drLeave.totalCount, staff: stLeave.totalCount });
       setBaseTotal({
-        doctors: drActive.totalCount + drLeave.totalCount,
+        dentists: drActive.totalCount + drLeave.totalCount,
         staff: stActive.totalCount + stLeave.totalCount
       });
       setPendingLeaveCount(pendingLeaves.length);
@@ -155,7 +155,7 @@ export default function OwnerStaffManagementPage() {
 
   const workingTodayDoctors = new Set(todaySchedule.filter(e => e.role === "dentist").map(e => e.name)).size;
   const workingTodayStaff   = new Set(todaySchedule.filter(e => e.role === "staff" || e.role === "assistant").map(e => e.name)).size;
-  const offTodayDoctors     = Math.max(0, baseTotal.doctors - workingTodayDoctors);
+  const offTodayDoctors     = Math.max(0, baseTotal.dentists - workingTodayDoctors);
   const offTodayStaff       = Math.max(0, baseTotal.staff   - workingTodayStaff);
 
   const ICON_USERS   = <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.109A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" /></svg>;
@@ -171,30 +171,30 @@ export default function OwnerStaffManagementPage() {
         { label: "Đơn xin nghỉ phép",   sub: "Đang chờ phê duyệt",         value: pendingLeaveCount,    numClass: "text-indigo-700",  bg: "bg-indigo-50",  iconCls: "text-indigo-500",  icon: ICON_LEAVE, onClick: () => router.push("/admin/leaves")  },
       ]
     : [
-        { label: "Tổng bác sĩ",         sub: "Nha sĩ và bác sĩ chuyên khoa", value: baseTotal.doctors,  numClass: "text-slate-900",   bg: "bg-slate-50",   iconCls: "text-slate-500",   icon: ICON_USERS  },
+        { label: "Tổng nha sĩ",         sub: "Nha sĩ và nha sĩ chuyên khoa", value: baseTotal.dentists,  numClass: "text-slate-900",   bg: "bg-slate-50",   iconCls: "text-slate-500",   icon: ICON_USERS  },
         { label: "Làm việc hôm nay",    sub: "Có lịch trong ngày",            value: workingTodayDoctors, numClass: "text-green-700", bg: "bg-green-50",   iconCls: "text-green-600",   icon: ICON_CHECK  },
         { label: "Nghỉ hôm nay",        sub: "Không có lịch trong ngày",      value: offTodayDoctors,    numClass: "text-amber-700",  bg: "bg-amber-50",   iconCls: "text-amber-600",   icon: ICON_OFF    },
         { label: "Đơn xin nghỉ phép",   sub: "Đang chờ phê duyệt",            value: pendingLeaveCount,   numClass: "text-indigo-700", bg: "bg-indigo-50", iconCls: "text-indigo-500", icon: ICON_LEAVE, onClick: () => router.push("/admin/leaves")  },
       ];
 
   const handleExportExcel = () => {
-    const headers = activeTab === "doctors"
+    const headers = activeTab === "dentists"
       ? ["Họ tên", "Email", "SĐT", "Vai trò", "Chuyên khoa", "Trạng thái"]
       : ["Họ tên", "Email", "SĐT", "Vai trò", "Bộ phận", "Trạng thái"];
     const rows = staffList.map((u) => [
-      u.fullName || u.username, u.email,
+      u.fullName || u.email, u.email,
       u.phoneNumber || "—", ROLE_LABELS[u.role] || u.role,
-      activeTab === "doctors" ? (u.specialty || "—") : (u.department || "—"),
+      activeTab === "dentists" ? (u.specialty || "—") : (u.department || "—"),
       STATUS_LABELS[u.employmentStatus || "Active"],
     ]);
     const ws = XLSX.utils.aoa_to_sheet([
-      [`DANH SÁCH - ${activeTab === "staff" ? "NHÂN VIÊN" : "BÁC SĨ"}`],
+      [`DANH SÁCH - ${activeTab === "staff" ? "NHÂN VIÊN" : "NHA SĨ"}`],
       headers,
       ...rows,
     ]);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, activeTab === "staff" ? "NhanVien" : "BacSi");
-    XLSX.writeFile(wb, `${activeTab === "staff" ? "NhanVien" : "BacSi"}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, activeTab === "staff" ? "NhanVien" : "NhaSi");
+    XLSX.writeFile(wb, `${activeTab === "staff" ? "NhanVien" : "NhaSi"}.xlsx`);
     showToast("Đã xuất file Excel thành công.");
   };
 
@@ -294,7 +294,7 @@ export default function OwnerStaffManagementPage() {
                   onChange={(e) => { setSpecialtyFilter(e.target.value); setCurrentPage(1); }}
                   className={selectClass}
                 >
-                  {activeTab === "doctors" ? (
+                  {activeTab === "dentists" ? (
                     <>
                       <option value="">Tất cả chuyên khoa</option>
                       <option value="Răng Hàm Mặt">Răng Hàm Mặt</option>
@@ -340,7 +340,7 @@ export default function OwnerStaffManagementPage() {
 
               {/* Add */}
               <button
-                onClick={() => router.push(activeTab === "doctors" ? "/owner/employee/add-doctor" : "/owner/employee/add-staff")}
+                onClick={() => router.push(activeTab === "dentists" ? "/owner/employee/add-dentist" : "/owner/employee/add-staff")}
                 className="flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-white text-[14px] font-extrabold px-5 py-2.5 rounded-xl shadow-md shadow-primary/20 hover:shadow-lg transition-all hover:translate-y-[-1px] cursor-pointer"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -395,7 +395,7 @@ export default function OwnerStaffManagementPage() {
                     <th className="px-6 py-3 font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Nhân viên</th>
                     <th className="px-6 py-3 font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Liên hệ</th>
                     <th className="px-6 py-3 font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">
-                      {activeTab === "doctors" ? "Chuyên khoa" : "Chức vụ / Bộ phận"}
+                      {activeTab === "dentists" ? "Chuyên khoa" : "Chức vụ / Bộ phận"}
                     </th>
                     <th className="px-6 py-3 font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Hình thức</th>
                     <th className="px-6 py-3 font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Lương cơ bản</th>
@@ -415,11 +415,14 @@ export default function OwnerStaffManagementPage() {
                     staffList.map((item) => {
                       const initials = item.fullName
                         ? item.fullName.trim().split(/\s+/).slice(-2).map((w) => w[0]).join("").toUpperCase()
-                        : (item.username?.slice(0, 2).toUpperCase() ?? "??");
+                        : item.email.slice(0, 2).toUpperCase();
                       return (
                         <tr
                           key={item.id}
-                          onClick={() => router.push(`/owner/employee/detail/${item.id}`)}
+                          onClick={() => {
+                            sessionStorage.setItem("staffDetailData", JSON.stringify(item));
+                            router.push(`/owner/employee/detail/${item.id}`);
+                          }}
                           className="hover:bg-slate-50/50 transition-colors cursor-pointer group"
                         >
                           <td className="px-6 py-4.5">
@@ -433,7 +436,7 @@ export default function OwnerStaffManagementPage() {
                               )}
                               <div>
                                 <span className="font-extrabold text-slate-900 block group-hover:text-primary transition-colors leading-tight">
-                                  {item.fullName || item.username}
+                                  {item.fullName || item.email}
                                 </span>
                                 {/* Role badge removed */}
                               </div>
@@ -444,7 +447,7 @@ export default function OwnerStaffManagementPage() {
                             <span className="text-[12px] text-slate-400 font-bold block mt-0.5">{item.phoneNumber || "—"}</span>
                           </td>
                           <td className="px-6 py-4.5">
-                            {activeTab === "doctors" ? (
+                            {activeTab === "dentists" ? (
                               <span className="font-bold text-slate-700 block">{item.specialty || "—"}</span>
                             ) : (
                               <>
@@ -456,10 +459,10 @@ export default function OwnerStaffManagementPage() {
                           <td className="px-6 py-4.5">
                             {(() => {
                               const exp = item.yearsOfExperience ?? 5;
-                              const isDoctor = item.role === "Doctor" || item.role === "Dentist";
-                              const isPartTime = exp % 2 === 0 && isDoctor;
+                              const isDentist = item.role === "Doctor" || item.role === "Dentist";
+                              const isPartTime = exp % 2 === 0 && isDentist;
                               const isShift = !isPartTime && (item.role === "Staff" && (item.position?.toLowerCase().includes("lễ tân") || item.position?.toLowerCase().includes("tiếp đón")));
-                              const type = isPartTime ? "Part-time" : isShift ? "Shift-based" : "Full-time";
+                              const type = item.employmentType || (isPartTime ? "Part-time" : isShift ? "Shift-based" : "Full-time");
                               return (
                                 <div className="group relative inline-flex items-center gap-1">
                                   {type === "Full-time" ? (
@@ -484,12 +487,13 @@ export default function OwnerStaffManagementPage() {
                           </td>
                           <td className="px-6 py-4.5 text-slate-900 font-bold">
                             {(() => {
-                              const isDoctor = item.role === "Doctor" || item.role === "Dentist";
+                              const isDentist = item.role === "Doctor" || item.role === "Dentist";
                               const exp = item.yearsOfExperience ?? 5;
-                              const isPartTime = exp % 2 === 0 && isDoctor;
+                              const isPartTime = exp % 2 === 0 && isDentist;
                               const isShift = !isPartTime && (item.role === "Staff" && (item.position?.toLowerCase().includes("lễ tân") || item.position?.toLowerCase().includes("tiếp đón")));
-                              const baseSalary = isDoctor ? (25000000 + exp * 1500000) : (10000000 + (item.fullName?.length || 5) * 200000);
-                              const unit = isPartTime ? "ngày" : isShift ? "ca" : "tháng";
+                              const baseSalary = item.baseSalary ?? (isDentist ? (25000000 + exp * 1500000) : (10000000 + (item.fullName?.length || 5) * 200000));
+                              const rawUnit = item.salaryUnit || (isPartTime ? "Theo ngày" : isShift ? "Theo ca" : "Theo tháng");
+                              const unit = rawUnit.toLowerCase().includes("tháng") ? "tháng" : rawUnit.toLowerCase().includes("ngày") ? "ngày" : rawUnit.toLowerCase().includes("ca") ? "ca" : "giờ";
                               const formatted = new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(baseSalary);
                               return (
                                 <>
@@ -503,12 +507,13 @@ export default function OwnerStaffManagementPage() {
                           </td>
                           <td className="px-6 py-4.5 text-center font-bold text-slate-500">
                             {(() => {
-                              const isDoctor = item.role === "Doctor" || item.role === "Dentist";
+                              if (item.leaveAccrued != null) return `${item.leaveAccrued} ngày`;
+                              const isDentist = item.role === "Doctor" || item.role === "Dentist";
                               const exp = item.yearsOfExperience ?? 5;
-                              const isPartTime = exp % 2 === 0 && isDoctor;
+                              const isPartTime = exp % 2 === 0 && isDentist;
                               const isShift = !isPartTime && (item.role === "Staff" && (item.position?.toLowerCase().includes("lễ tân") || item.position?.toLowerCase().includes("tiếp đón")));
                               const isFullTime = !isPartTime && !isShift;
-                              return isFullTime ? (isDoctor ? "1.5 ngày" : "1 ngày") : "—";
+                              return isFullTime ? (isDentist ? "1.5 ngày" : "1 ngày") : "—";
                             })()}
                           </td>
                           <td className="px-6 py-4.5 text-center" onClick={(e) => e.stopPropagation()}>
@@ -546,7 +551,7 @@ export default function OwnerStaffManagementPage() {
                                   sessionStorage.setItem("staffEditData", JSON.stringify(item));
                                   router.push(
                                     (item.role === "Doctor" || item.role === "Dentist")
-                                      ? `/owner/employee/edit-doctor/${item.id}`
+                                      ? `/owner/employee/edit-dentist/${item.id}`
                                       : `/owner/employee/edit-staff/${item.id}`
                                   );
                                 }}

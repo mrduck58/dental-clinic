@@ -5,18 +5,18 @@ import { useRouter, useParams } from "next/navigation";
 import OwnerSidebar from "../../../../../components/shared/OwnerSidebar";
 import NotificationBell from "../../../../../components/shared/NotificationBell";
 import { useRequireOwner } from "../../../../../hooks/useRequireOwner";
-import { getWeekScheduleApi, type StaffDto, type ScheduleEntryDto } from "../../../../../lib/apiClient";
+import { getWeekScheduleApi, getStaffByIdApi, type StaffDto, type ScheduleEntryDto } from "../../../../../lib/apiClient";
 
 // ── Mock review data — TODO: replace with real reviews API ────────────────
 const MOCK_RATING = 4.8;
 const MOCK_REVIEWS = [
-  { id: "1", patient: "Nguyễn V.A.", date: "10/06/2026", rating: 5, comment: "Bác sĩ rất tận tâm, giải thích rõ ràng từng bước điều trị. Rất hài lòng với kết quả!" },
+  { id: "1", patient: "Nguyễn V.A.", date: "10/06/2026", rating: 5, comment: "Nha sĩ rất tận tâm, giải thích rõ ràng từng bước điều trị. Rất hài lòng với kết quả!" },
   { id: "2", patient: "Trần T.B.", date: "08/06/2026", rating: 4, comment: "Tay nghề tốt, ít đau. Thái độ phục vụ thân thiện và chuyên nghiệp, sẽ quay lại." },
-  { id: "3", patient: "Lê Văn C.", date: "05/06/2026", rating: 5, comment: "Phòng khám sạch sẽ, bác sĩ giỏi và nhiệt tình. Đã giới thiệu cho nhiều người thân!" },
-  { id: "4", patient: "Phạm T.D.", date: "01/06/2026", rating: 3, comment: "Chờ khá lâu nhưng bác sĩ điều trị tốt và cẩn thận." },
-  { id: "5", patient: "Hoàng V.E.", date: "28/05/2026", rating: 5, comment: "Rất chuyên nghiệp! Bác sĩ giải thích kỹ từng vấn đề, tôi rất an tâm điều trị." },
-  { id: "6", patient: "Vũ T.F.", date: "25/05/2026", rating: 4, comment: "Kỹ thuật tốt, giá cả hợp lý. Sẽ giới thiệu bác sĩ cho người thân." },
-  { id: "7", patient: "Đặng T.G.", date: "20/05/2026", rating: 2, comment: "Hơi vội, không giải thích nhiều. Mong bác sĩ dành thêm thời gian cho bệnh nhân." },
+  { id: "3", patient: "Lê Văn C.", date: "05/06/2026", rating: 5, comment: "Phòng khám sạch sẽ, nha sĩ giỏi và nhiệt tình. Đã giới thiệu cho nhiều người thân!" },
+  { id: "4", patient: "Phạm T.D.", date: "01/06/2026", rating: 3, comment: "Chờ khá lâu nhưng nha sĩ điều trị tốt và cẩn thận." },
+  { id: "5", patient: "Hoàng V.E.", date: "28/05/2026", rating: 5, comment: "Rất chuyên nghiệp! Nha sĩ giải thích kỹ từng vấn đề, tôi rất an tâm điều trị." },
+  { id: "6", patient: "Vũ T.F.", date: "25/05/2026", rating: 4, comment: "Kỹ thuật tốt, giá cả hợp lý. Sẽ giới thiệu nha sĩ cho người thân." },
+  { id: "7", patient: "Đặng T.G.", date: "20/05/2026", rating: 2, comment: "Hơi vội, không giải thích nhiều. Mong nha sĩ dành thêm thời gian cho bệnh nhân." },
 ];
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -28,7 +28,7 @@ const MONTH_NAMES = [
 const DAY_HEADERS = ["T2","T3","T4","T5","T6","T7","CN"];
 
 const ROLE_LABELS: Record<string, string> = {
-  Doctor: "Bác sĩ", Dentist: "Bác sĩ",
+  Doctor: "Nha sĩ", Dentist: "Nha sĩ",
   Staff: "Lễ tân / Trợ lý", Admin: "Quản trị viên",
 };
 const ROLE_COLORS: Record<string, string> = {
@@ -141,9 +141,12 @@ function Stars({ rating, size = 12 }: { rating: number; size?: number }) {
 export default function StaffDetailPage() {
   useRequireOwner();
   const router = useRouter();
-  useParams(); // id available in URL; staff data passed via sessionStorage
+  const params = useParams();
+  const id = params?.id as string;
 
   const [staff, setStaff] = useState<StaffDto | null>(null);
+  const [isLoadingStaff, setIsLoadingStaff] = useState(true);
+  const [errorStaff, setErrorStaff] = useState<string | null>(null);
   const [monthSchedule, setMonthSchedule] = useState<ScheduleEntryDto[]>([]);
   const [isLoadingSchedule, setIsLoadingSchedule] = useState(true);
   const [starFilter, setStarFilter] = useState<number | null>(null);
@@ -153,15 +156,31 @@ export default function StaffDetailPage() {
   const [viewYear,  setViewYear]  = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
 
-  const isDoctor = staff?.role === "Doctor" || staff?.role === "Dentist";
+  const isDentist = staff?.role === "Doctor" || staff?.role === "Dentist";
 
   useEffect(() => {
     const raw = sessionStorage.getItem("staffDetailData");
     if (raw) {
       setStaff(JSON.parse(raw) as StaffDto);
+      setIsLoadingStaff(false);
       sessionStorage.removeItem("staffDetailData");
+    } else if (id) {
+      setIsLoadingStaff(true);
+      getStaffByIdApi(id)
+        .then((res) => {
+          setStaff(res);
+          setErrorStaff(null);
+        })
+        .catch((err) => {
+          setErrorStaff(err instanceof Error ? err.message : "Không thể tải thông tin nhân viên");
+        })
+        .finally(() => {
+          setIsLoadingStaff(false);
+        });
+    } else {
+      setIsLoadingStaff(false);
     }
-  }, []);
+  }, [id]);
 
   useEffect(() => {
     setIsLoadingSchedule(true);
@@ -179,9 +198,21 @@ export default function StaffDetailPage() {
     setViewMonth(m); setViewYear(y);
   };
 
-  // ── Empty state ────────────────────────────────────────────────────────
+  // ── Loading state ──────────────────────────────────────────────────────
+  if (isLoadingStaff) {
+    return (
+      <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
+        <OwnerSidebar activeMenu="staff" />
+        <main className="flex-1 flex flex-col items-center justify-center gap-4">
+          <div className="w-12 h-12 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+          <p className="text-slate-500 font-bold text-[14px]">Đang tải hồ sơ nhân sự...</p>
+        </main>
+      </div>
+    );
+  }
 
-  if (!staff) {
+  // ── Empty / Error state ──────────────────────────────────────────────────
+  if (errorStaff || !staff) {
     return (
       <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
         <OwnerSidebar activeMenu="staff" />
@@ -189,7 +220,7 @@ export default function StaffDetailPage() {
           <svg className="w-14 h-14 text-slate-300" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
           </svg>
-          <p className="text-slate-500 font-bold text-[15px]">Không tìm thấy dữ liệu.</p>
+          <p className="text-slate-500 font-bold text-[15px]">{errorStaff || "Không tìm thấy dữ liệu."}</p>
           <button onClick={() => router.push("/owner/employee")} className="px-6 py-3 bg-primary text-white font-extrabold rounded-xl cursor-pointer">
             Quay lại danh sách
           </button>
@@ -215,13 +246,13 @@ export default function StaffDetailPage() {
     : staff.email.slice(0, 2).toUpperCase();
 
   const exp = staff.yearsOfExperience ?? 5;
-  const isPartTime = exp % 2 === 0 && isDoctor;
+  const isPartTime = exp % 2 === 0 && isDentist;
   const isShift = !isPartTime && (staff.role === "Staff" && (staff.position?.toLowerCase().includes("lễ tân") || staff.position?.toLowerCase().includes("tiếp đón")));
-  const employmentType = isPartTime ? "Part-time" : isShift ? "Shift-based" : "Full-time";
-  const baseSalary = isDoctor ? (25000000 + exp * 1500000) : (10000000 + (staff.fullName?.length || 5) * 200000);
-  const salaryUnit = isPartTime ? "Theo ngày" : isShift ? "Theo ca" : "Theo tháng";
-  const leaveAccrued = isDoctor ? 1.5 : 1;
-  const leaveMax = isDoctor ? 3 : 2;
+  const employmentType = staff.employmentType || (isPartTime ? "Part-time" : isShift ? "Shift-based" : "Full-time");
+  const baseSalary = staff.baseSalary ?? (isDentist ? (25000000 + exp * 1500000) : (10000000 + (staff.fullName?.length || 5) * 200000));
+  const salaryUnit = staff.salaryUnit || (isPartTime ? "Theo ngày" : isShift ? "Theo ca" : "Theo tháng");
+  const leaveAccrued = staff.leaveAccrued ?? (isDentist ? 1.5 : 1);
+  const leaveMax = staff.leaveAccrued ? Math.ceil(staff.leaveAccrued * 2) : (isDentist ? 3 : 2);
 
   // ── Reviews ────────────────────────────────────────────────────────────
   const starCounts = [5, 4, 3, 2, 1].map(s => ({
@@ -249,7 +280,7 @@ export default function StaffDetailPage() {
             <div>
               <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Chi Tiết Nhân Sự</h1>
               <p className="text-[13px] text-slate-400 font-semibold mt-0.5">
-                Hồ sơ và thông tin làm việc của {isDoctor ? "bác sĩ" : "nhân viên"}
+                Hồ sơ và thông tin làm việc của {isDentist ? "nha sĩ" : "nhân viên"}
               </p>
             </div>
           </div>
@@ -257,8 +288,8 @@ export default function StaffDetailPage() {
             <button
               onClick={() => {
                 sessionStorage.setItem("staffEditData", JSON.stringify(staff));
-                router.push(isDoctor
-                  ? `/owner/employee/edit-doctor/${staff.id}`
+                router.push(isDentist
+                  ? `/owner/employee/edit-dentist/${staff.id}`
                   : `/owner/employee/edit-staff/${staff.id}`
                 );
               }}
@@ -340,7 +371,7 @@ export default function StaffDetailPage() {
 
             {/* ── Stat Cards ── */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {isDoctor ? (
+              {isDentist ? (
                 <div className="bg-white rounded-2xl border border-amber-100 shadow-sm p-4 flex flex-col gap-1.5">
                   <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Đánh giá</span>
                   <div className="flex items-baseline gap-1.5">
@@ -397,8 +428,8 @@ export default function StaffDetailPage() {
                   <FieldRow label="Tạo hồ sơ ngày" value={fmt(staff.createdAt?.split("T")[0])} />
                 </div>
 
-                {/* Doctor: chuyên môn */}
-                {isDoctor && (
+                {/* Dentist: chuyên môn */}
+                {isDentist && (
                   <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
                     <div className="flex items-center gap-2 mb-4">
                       <div className="w-1 h-4 bg-secondary rounded-full" />
@@ -422,7 +453,7 @@ export default function StaffDetailPage() {
                 )}
 
                 {/* Staff: công việc */}
-                {!isDoctor && (
+                {!isDentist && (
                   <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
                     <div className="flex items-center gap-2 mb-4">
                       <div className="w-1 h-4 bg-primary rounded-full" />
@@ -619,8 +650,8 @@ export default function StaffDetailPage() {
                   )}
                 </div>
 
-                {/* ── Doctor: Reviews ── */}
-                {isDoctor && (
+                {/* ── Dentist: Reviews ── */}
+                {isDentist && (
                   <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
                     {/* Header */}
                     <div className="flex items-center justify-between mb-3">

@@ -42,7 +42,8 @@ public record StaffItemDto(
     string? EmploymentType,
     decimal? BaseSalary,
     string? SalaryUnit,
-    decimal? LeaveAccrued);
+    decimal? LeaveAccrued,
+    decimal? Allowance);
 
 public record StaffStatsDto(int TotalEmployees, int TotalDentists, int TotalDoctors);
 
@@ -91,5 +92,5 @@ public class GetStaffHandler(IUserRepository userRepository)
         u.Gender, u.DateOfBirth, u.Address,
         u.StartDate, u.ServicesHandled, u.CertificateIssuedDate,
         u.CertificateIssuedBy, u.Education, u.Bio, u.Position,
-        u.EmploymentType, u.BaseSalary, u.SalaryUnit, u.LeaveAccrued);
+        u.EmploymentType, u.BaseSalary, u.SalaryUnit, u.LeaveAccrued, u.Allowance);
 }
