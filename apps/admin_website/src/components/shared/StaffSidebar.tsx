@@ -128,21 +128,30 @@ export default function StaffSidebar({ activeMenu }: StaffSidebarProps) {
                 onClick={() => setDropdownOpen(false)}
                 className="flex items-center gap-2.5 px-3.5 py-2.5 text-[13.5px] font-bold text-slate-700 hover:text-emerald-600 hover:bg-emerald-50/40 rounded-lg transition-all"
               >
-                👤 Thông tin cá nhân
+                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                </svg>
+                Thông tin cá nhân
               </Link>
               <Link
                 href="/staff/profile?tab=password"
                 onClick={() => setDropdownOpen(false)}
                 className="flex items-center gap-2.5 px-3.5 py-2.5 text-[13.5px] font-bold text-slate-700 hover:text-emerald-600 hover:bg-emerald-50/40 rounded-lg transition-all"
               >
-                🔒 Đổi mật khẩu
+                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                </svg>
+                Đổi mật khẩu
               </Link>
               <Link
                 href="/staff/profile?tab=activities"
                 onClick={() => setDropdownOpen(false)}
                 className="flex items-center gap-2.5 px-3.5 py-2.5 text-[13.5px] font-bold text-slate-700 hover:text-emerald-600 hover:bg-emerald-50/40 rounded-lg transition-all"
               >
-                📜 Lịch sử hoạt động
+                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Lịch sử hoạt động
               </Link>
             </div>
           )}
