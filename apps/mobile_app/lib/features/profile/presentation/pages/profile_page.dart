@@ -5,6 +5,7 @@ import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/auth/data/auth_service.dart';
+import 'package:mobile_app/core/constants/api_constants.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -27,6 +28,19 @@ class _ProfilePageState extends State<ProfilePage> {
     _darkModeVal = SettingsManager.instance.isDarkMode.value;
   }
 
+  String? _avatarUrl;
+
+  ImageProvider _getAvatarProvider() {
+    if (_avatarUrl != null && _avatarUrl!.isNotEmpty) {
+      if (_avatarUrl!.startsWith('http')) {
+        return NetworkImage(_avatarUrl!);
+      }
+      final baseUrlHost = ApiConstants.baseUrl.replaceAll('/api', '');
+      return NetworkImage('$baseUrlHost$_avatarUrl');
+    }
+    return const AssetImage('assets/images/bac_si_1.png');
+  }
+
   Future<void> _loadUserInfo() async {
     final name = await _auth.getUserName();
     final email = await _auth.getUserEmail();
@@ -36,6 +50,17 @@ class _ProfilePageState extends State<ProfilePage> {
         _userEmail = email ?? '';
       });
     }
+
+    try {
+      final p = await _auth.getMyProfile();
+      if (mounted) {
+        setState(() {
+          _userName = p.fullName;
+          _userEmail = p.email;
+          _avatarUrl = p.profilePictureUrl;
+        });
+      }
+    } catch (_) {}
   }
 
   String _initials() {
@@ -324,16 +349,21 @@ class _ProfilePageState extends State<ProfilePage> {
               CircleAvatar(
                 radius: 26,
                 backgroundColor: AppColors.primary,
-                child: Text(
-                  _initials(),
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                backgroundImage: _avatarUrl != null && _avatarUrl!.isNotEmpty
+                    ? _getAvatarProvider()
+                    : null,
+                child: _avatarUrl == null || _avatarUrl!.isEmpty
+                    ? Text(
+                        _initials(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      )
+                    : null,
               ),
-              SizedBox(width: 14),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

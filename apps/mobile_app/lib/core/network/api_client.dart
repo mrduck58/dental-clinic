@@ -19,7 +19,7 @@ class ApiClient {
 
   Future<Response<dynamic>> post(
     String path,
-    Map<String, dynamic> data, {
+    dynamic data, {
     String? token,
   }) {
     return _dio.post(
@@ -43,7 +43,7 @@ class ApiClient {
 
   Future<Response<dynamic>> put(
     String path,
-    Map<String, dynamic> data, {
+    dynamic data, {
     String? token,
   }) {
     return _dio.put(

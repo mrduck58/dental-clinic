@@ -16,7 +16,7 @@ export function useRequireOwner() {
       return;
     }
 
-    if (user.role !== "Admin" && user.role !== "Owner") {
+    if (user.role !== "Owner") {
       router.replace("/auth/login");
     }
   }, [router]);

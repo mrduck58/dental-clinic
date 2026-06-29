@@ -26,6 +26,7 @@ public class OtpCode
         };
     }
 
+
     public bool IsValid() => !IsUsed && DateTime.UtcNow < ExpiresAt;
 
     public void MarkUsed() => IsUsed = true;

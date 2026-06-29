@@ -64,7 +64,7 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
 
           {/* Quản lí dịch vụ */}
           <Link
-            href="/dashboard/services"
+            href="/admin/services"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "services"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
@@ -78,7 +78,7 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
 
           {/* Quản lí thuốc */}
           <Link
-            href="/dashboard/medicines"
+            href="/admin/medicines"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "medicines"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
@@ -93,7 +93,7 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
 
           {/* Quản lí phòng */}
           <Link
-            href="/dashboard/rooms"
+            href="/admin/rooms"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "rooms"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
@@ -107,7 +107,7 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
 
           {/* Tài khoản và phân quyền */}
           <Link
-            href="/dashboard/permissions"
+            href="/admin/permissions"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "permissions"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
@@ -121,7 +121,7 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
 
           {/* Lịch sử hoạt động */}
           <Link
-            href="/dashboard/activity-logs"
+            href="/admin/activity-logs"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "history"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
@@ -142,25 +142,34 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
           {dropdownOpen && (
             <div className="absolute bottom-full left-0 mb-2 w-full bg-white border border-slate-200 rounded-xl shadow-lg p-2 z-50 flex flex-col gap-0.5 animate-fade-in font-sans">
               <Link
-                href="/dashboard/profile?tab=personal"
+                href="/admin/profile?tab=personal"
                 onClick={() => setDropdownOpen(false)}
                 className="flex items-center gap-2.5 px-3.5 py-2.5 text-[13.5px] font-bold text-slate-700 hover:text-primary hover:bg-red-50/40 rounded-lg transition-all"
               >
-                👤 Thông tin cá nhân
+                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                </svg>
+                Thông tin cá nhân
               </Link>
               <Link
-                href="/dashboard/profile?tab=password"
+                href="/admin/profile?tab=password"
                 onClick={() => setDropdownOpen(false)}
                 className="flex items-center gap-2.5 px-3.5 py-2.5 text-[13.5px] font-bold text-slate-700 hover:text-primary hover:bg-red-50/40 rounded-lg transition-all"
               >
-                🔒 Đổi mật khẩu
+                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                </svg>
+                Đổi mật khẩu
               </Link>
               <Link
-                href="/dashboard/profile?tab=activities"
+                href="/admin/profile?tab=activities"
                 onClick={() => setDropdownOpen(false)}
                 className="flex items-center gap-2.5 px-3.5 py-2.5 text-[13.5px] font-bold text-slate-700 hover:text-primary hover:bg-red-50/40 rounded-lg transition-all"
               >
-                📜 Lịch sử hoạt động
+                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Lịch sử hoạt động
               </Link>
             </div>
           )}

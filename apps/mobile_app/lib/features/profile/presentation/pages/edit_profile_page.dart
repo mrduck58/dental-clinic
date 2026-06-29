@@ -1,4 +1,4 @@
-﻿import 'package:dio/dio.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
@@ -7,6 +7,9 @@ import 'package:mobile_app/core/network/api_client.dart';
 import 'package:mobile_app/features/auth/data/auth_service.dart';
 import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
+import 'package:mobile_app/core/constants/api_constants.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:http_parser/http_parser.dart';
 
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
@@ -30,6 +33,54 @@ class _EditProfilePageState extends State<EditProfilePage> {
   UserProfile? _profile;
 
   final List<String> _genderOptions = ['Nam', 'Nữ', 'Khác'];
+  String? _avatarUrl;
+
+  ImageProvider _getAvatarProvider() {
+    if (_avatarUrl != null && _avatarUrl!.isNotEmpty) {
+      if (_avatarUrl!.startsWith('http')) {
+        return NetworkImage(_avatarUrl!);
+      }
+      final baseUrlHost = ApiConstants.baseUrl.replaceAll('/api', '');
+      return NetworkImage('$baseUrlHost$_avatarUrl');
+    }
+    return const AssetImage('assets/images/bac_si_1.png');
+  }
+
+  Future<void> _pickAndUploadAvatar() async {
+    final picker = ImagePicker();
+    try {
+      final file = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 80,
+      );
+      if (file == null) return;
+
+      setState(() => _isSaving = true);
+      
+      final bytes = await file.readAsBytes();
+      final formData = FormData.fromMap({
+        'file': MultipartFile.fromBytes(
+          bytes,
+          filename: file.name,
+          contentType: MediaType('image', file.name.split('.').last),
+        ),
+      });
+
+      final response = await ApiClient().post('/files/upload', formData);
+      final url = response.data['url'] as String;
+
+      setState(() {
+        _avatarUrl = url;
+        _isSaving = false;
+      });
+      _showSnackbar('Chọn ảnh đại diện mới thành công!');
+    } catch (e) {
+      setState(() => _isSaving = false);
+      _showSnackbar('Không thể tải ảnh lên: $e');
+    }
+  }
 
   @override
   void initState() {
@@ -63,6 +114,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
         }
         
         _gender = p.gender; // Directly maps Nam / Nữ / Khác
+        _avatarUrl = p.profilePictureUrl;
+        if (_avatarUrl != null) {
+          _auth.saveUserAvatar(_avatarUrl!);
+        }
         _isLoading = false;
       });
     } on DioException catch (e) {
@@ -144,9 +199,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
         phoneNumber: phone,
         dateOfBirth: _dob,
         gender: _gender,
+        profilePictureUrl: _avatarUrl,
       );
 
       await _auth.saveUserName(name);
+      if (_avatarUrl != null) {
+        await _auth.saveUserAvatar(_avatarUrl!);
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -213,7 +272,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
             child: CircleAvatar(
               radius: 18,
               backgroundColor: context.divider,
-              backgroundImage: const AssetImage('assets/images/bac_si_1.png'),
+              backgroundImage: _getAvatarProvider(),
             ),
           ),
         ],
@@ -250,17 +309,29 @@ class _EditProfilePageState extends State<EditProfilePage> {
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 border: Border.all(color: context.divider, width: 3),
-                                image: const DecorationImage(
-                                  image: AssetImage('assets/images/bac_si_1.png'),
+                                image: DecorationImage(
+                                  image: _getAvatarProvider(),
                                   fit: BoxFit.cover,
                                 ),
                               ),
                             ),
+                            if (_isSaving)
+                              Positioned.fill(
+                                child: Container(
+                                  decoration: const BoxDecoration(
+                                    color: Colors.black38,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Center(
+                                    child: CircularProgressIndicator(color: Colors.white),
+                                  ),
+                                ),
+                              ),
                             Positioned(
                               bottom: 0,
                               right: 4,
                               child: GestureDetector(
-                                onTap: () => _showSnackbar('Tính năng tải ảnh lên đang được phát triển.'),
+                                onTap: _pickAndUploadAvatar,
                                 child: Container(
                                   width: 34,
                                   height: 34,
