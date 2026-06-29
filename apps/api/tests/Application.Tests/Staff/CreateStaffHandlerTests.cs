@@ -26,7 +26,7 @@ public class CreateStaffHandlerTests
     [Test]
     public async Task HandleAsync_NewEmail_CallsAddAsyncOnce()
     {
-        var handler = new CreateStaffHandler(_userRepo);
+        var handler = new CreateStaffHandler(_userRepo, null!);
 
         await handler.HandleAsync(BuildCommand());
 
@@ -40,7 +40,7 @@ public class CreateStaffHandlerTests
     [Test]
     public async Task HandleAsync_NewEmail_ReturnedDtoHasNoAccount()
     {
-        var handler = new CreateStaffHandler(_userRepo);
+        var handler = new CreateStaffHandler(_userRepo, null!);
 
         var result = await handler.HandleAsync(BuildCommand());
 
@@ -54,7 +54,7 @@ public class CreateStaffHandlerTests
     public async Task HandleAsync_DuplicateEmail_ThrowsConflictException()
     {
         _userRepo.ExistsByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(true);
-        var handler = new CreateStaffHandler(_userRepo);
+        var handler = new CreateStaffHandler(_userRepo, null!);
 
         Func<Task> act = () => handler.HandleAsync(BuildCommand());
 
@@ -68,7 +68,7 @@ public class CreateStaffHandlerTests
     public async Task HandleAsync_DuplicateEmail_DoesNotCallAddAsync()
     {
         _userRepo.ExistsByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(true);
-        var handler = new CreateStaffHandler(_userRepo);
+        var handler = new CreateStaffHandler(_userRepo, null!);
 
         Assert.CatchAsync(() => handler.HandleAsync(BuildCommand()));
 
@@ -82,5 +82,6 @@ public class CreateStaffHandlerTests
             LicenseNumber: null, YearsOfExperience: null, Gender: null, DateOfBirth: null,
             Address: null, StartDate: null, ServicesHandled: null,
             CertificateIssuedDate: null, CertificateIssuedBy: null,
-            Education: null, Bio: null, Position: null);
+            Education: null, Bio: null, Position: null,
+            EmploymentType: null, BaseSalary: null, SalaryUnit: null, LeaveAccrued: null);
 }

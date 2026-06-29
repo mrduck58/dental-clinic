@@ -13,6 +13,7 @@ public class LoginHandlerTests
 {
     private IUserRepository _userRepo = null!;
     private IJwtService _jwtService = null!;
+    private IActivityLogService _activityLog = null!;
     private LoginHandler _handler = null!;
 
     [SetUp]
@@ -20,7 +21,8 @@ public class LoginHandlerTests
     {
         _userRepo = Substitute.For<IUserRepository>();
         _jwtService = Substitute.For<IJwtService>();
-        _handler = new LoginHandler(_userRepo, _jwtService);
+        _activityLog = Substitute.For<IActivityLogService>();
+        _handler = new LoginHandler(_userRepo, _jwtService, _activityLog);
     }
 
     // ── Happy path ────────────────────────────────────────────────────────────

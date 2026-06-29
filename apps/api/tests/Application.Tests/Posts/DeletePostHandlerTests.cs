@@ -2,6 +2,7 @@ using DentalClinic.API.Application.UseCases.Posts;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Domain.Interfaces.Services;
 using FluentAssertions;
 using NSubstitute;
 using NUnit.Framework;
@@ -12,9 +13,16 @@ namespace DentalClinic.API.Application.Tests.Posts;
 public class DeletePostHandlerTests
 {
     private IPostRepository _repo = null!;
+    private IActivityLogService _activityLog = null!;
+    private ICurrentUserService _currentUser = null!;
 
     [SetUp]
-    public void SetUp() => _repo = Substitute.For<IPostRepository>();
+    public void SetUp()
+    {
+        _repo = Substitute.For<IPostRepository>();
+        _activityLog = Substitute.For<IActivityLogService>();
+        _currentUser = Substitute.For<ICurrentUserService>();
+    }
 
     /// <summary>
     /// Xóa bài viết tồn tại phải gọi DeleteAsync đúng 1 lần với đúng entity.
@@ -24,7 +32,7 @@ public class DeletePostHandlerTests
     {
         var post = MakePost();
         _repo.GetByIdAsync(post.Id, Arg.Any<CancellationToken>()).Returns(post);
-        var handler = new DeletePostHandler(_repo);
+        var handler = new DeletePostHandler(_repo, _activityLog, _currentUser);
 
         await handler.HandleAsync(post.Id);
 
@@ -38,7 +46,7 @@ public class DeletePostHandlerTests
     public async Task HandleAsync_PostNotFound_ThrowsNotFoundException()
     {
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Post?)null);
-        var handler = new DeletePostHandler(_repo);
+        var handler = new DeletePostHandler(_repo, _activityLog, _currentUser);
 
         Func<Task> act = () => handler.HandleAsync(Guid.NewGuid());
 
@@ -53,7 +61,7 @@ public class DeletePostHandlerTests
     public async Task HandleAsync_PostNotFound_DoesNotCallDeleteAsync()
     {
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Post?)null);
-        var handler = new DeletePostHandler(_repo);
+        var handler = new DeletePostHandler(_repo, _activityLog, _currentUser);
 
         Assert.CatchAsync(() => handler.HandleAsync(Guid.NewGuid()));
 

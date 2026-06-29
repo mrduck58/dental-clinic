@@ -13,6 +13,8 @@ public class CreateAccountHandlerTests
 {
     private IUserRepository _userRepo = null!;
     private IEmailService _emailService = null!;
+    private IActivityLogService _activityLog = null!;
+    private ICurrentUserService _currentUser = null!;
     private CreateAccountHandler _handler = null!;
 
     private static readonly CreateAccountCommand ValidCommand = new(
@@ -26,7 +28,9 @@ public class CreateAccountHandlerTests
     {
         _userRepo = Substitute.For<IUserRepository>();
         _emailService = Substitute.For<IEmailService>();
-        _handler = new CreateAccountHandler(_userRepo, _emailService);
+        _activityLog = Substitute.For<IActivityLogService>();
+        _currentUser = Substitute.For<ICurrentUserService>();
+        _handler = new CreateAccountHandler(_userRepo, _emailService, _activityLog, _currentUser);
 
         // Mặc định: email và username chưa tồn tại
         _userRepo.ExistsByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(false);

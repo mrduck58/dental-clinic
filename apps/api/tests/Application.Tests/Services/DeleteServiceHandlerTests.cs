@@ -2,6 +2,7 @@ using DentalClinic.API.Application.UseCases.Services;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Domain.Interfaces.Services;
 using FluentAssertions;
 using NSubstitute;
 using NUnit.Framework;
@@ -12,9 +13,16 @@ namespace DentalClinic.API.Application.Tests.Services;
 public class DeleteServiceHandlerTests
 {
     private IServiceRepository _repo = null!;
+    private IActivityLogService _activityLog = null!;
+    private ICurrentUserService _currentUser = null!;
 
     [SetUp]
-    public void SetUp() => _repo = Substitute.For<IServiceRepository>();
+    public void SetUp()
+    {
+        _repo = Substitute.For<IServiceRepository>();
+        _activityLog = Substitute.For<IActivityLogService>();
+        _currentUser = Substitute.For<ICurrentUserService>();
+    }
 
     /// <summary>
     /// Xóa dịch vụ tồn tại phải gọi DeleteAsync 1 lần với đúng entity.
@@ -24,7 +32,7 @@ public class DeleteServiceHandlerTests
     {
         var service = Service.Create("Nhổ răng", 200000m, 30, "Mô tả", null);
         _repo.GetByIdAsync(service.Id, Arg.Any<CancellationToken>()).Returns(service);
-        var handler = new DeleteServiceHandler(_repo);
+        var handler = new DeleteServiceHandler(_repo, _activityLog, _currentUser);
 
         await handler.HandleAsync(service.Id);
 
@@ -38,7 +46,7 @@ public class DeleteServiceHandlerTests
     public async Task HandleAsync_NotFound_ThrowsNotFoundException()
     {
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Service?)null);
-        var handler = new DeleteServiceHandler(_repo);
+        var handler = new DeleteServiceHandler(_repo, _activityLog, _currentUser);
 
         Func<Task> act = () => handler.HandleAsync(Guid.NewGuid());
 

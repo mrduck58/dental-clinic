@@ -27,7 +27,7 @@ public class GetPostsHandlerTests
         });
         var handler = new GetPostsHandler(_repo);
 
-        var result = await handler.HandleAsync(null, null, null);
+        var result = await handler.HandleAsync(null, null, null, null);
 
         result.Should().HaveCount(3);
     }
@@ -44,7 +44,7 @@ public class GetPostsHandlerTests
         });
         var handler = new GetPostsHandler(_repo);
 
-        var result = await handler.HandleAsync(category: "Tư vấn", null, null);
+        var result = await handler.HandleAsync(category: "Tư vấn", null, null, null);
 
         result.Should().HaveCount(2);
         result.Should().OnlyContain(p => p.Category == "Tư vấn");
@@ -62,7 +62,7 @@ public class GetPostsHandlerTests
         });
         var handler = new GetPostsHandler(_repo);
 
-        var result = await handler.HandleAsync(null, status: "published", null);
+        var result = await handler.HandleAsync(null, status: "published", null, null);
 
         result.Should().HaveCount(2);
         result.Should().OnlyContain(p => p.IsPublished);
@@ -80,7 +80,7 @@ public class GetPostsHandlerTests
         });
         var handler = new GetPostsHandler(_repo);
 
-        var result = await handler.HandleAsync(null, status: "draft", null);
+        var result = await handler.HandleAsync(null, status: "draft", null, null);
 
         result.Should().HaveCount(2);
         result.Should().OnlyContain(p => !p.IsPublished);
@@ -98,7 +98,7 @@ public class GetPostsHandlerTests
         });
         var handler = new GetPostsHandler(_repo);
 
-        var result = await handler.HandleAsync(null, status: "PUBLISHED", null);
+        var result = await handler.HandleAsync(null, status: "PUBLISHED", null, null);
 
         result.Should().HaveCount(1);
         result.Single().IsPublished.Should().BeTrue();
@@ -118,7 +118,7 @@ public class GetPostsHandlerTests
         });
         var handler = new GetPostsHandler(_repo);
 
-        var result = await handler.HandleAsync(null, null, search: "chăm sóc");
+        var result = await handler.HandleAsync(null, null, search: "chăm sóc", serviceId: null);
 
         result.Should().HaveCount(2);
     }
@@ -135,7 +135,7 @@ public class GetPostsHandlerTests
         });
         var handler = new GetPostsHandler(_repo);
 
-        var result = await handler.HandleAsync(null, null, search: "nguyễn");
+        var result = await handler.HandleAsync(null, null, search: "nguyễn", serviceId: null);
 
         result.Should().HaveCount(2);
     }
@@ -155,7 +155,7 @@ public class GetPostsHandlerTests
         });
         var handler = new GetPostsHandler(_repo);
 
-        var result = await handler.HandleAsync(category: "Tư vấn", status: "published", search: "chăm sóc");
+        var result = await handler.HandleAsync(category: "Tư vấn", status: "published", search: "chăm sóc", serviceId: null);
 
         result.Should().HaveCount(1);
     }
@@ -169,7 +169,7 @@ public class GetPostsHandlerTests
         _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<Post> { MakePost(category: "Tư vấn") });
         var handler = new GetPostsHandler(_repo);
 
-        var result = await handler.HandleAsync(category: "KhôngTồnTại", null, null);
+        var result = await handler.HandleAsync(category: "KhôngTồnTại", null, null, null);
 
         result.Should().BeEmpty();
     }

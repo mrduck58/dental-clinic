@@ -2,6 +2,7 @@ using DentalClinic.API.Application.DTOs.Promotions;
 using DentalClinic.API.Application.UseCases.Promotions;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Domain.Interfaces.Services;
 using FluentAssertions;
 using NSubstitute;
 using NUnit.Framework;
@@ -12,9 +13,16 @@ namespace DentalClinic.API.Application.Tests.Promotions;
 public class CreatePromotionHandlerTests
 {
     private IPromotionRepository _repo = null!;
+    private IActivityLogService _activityLog = null!;
+    private ICurrentUserService _currentUser = null!;
 
     [SetUp]
-    public void SetUp() => _repo = Substitute.For<IPromotionRepository>();
+    public void SetUp()
+    {
+        _repo = Substitute.For<IPromotionRepository>();
+        _activityLog = Substitute.For<IActivityLogService>();
+        _currentUser = Substitute.For<ICurrentUserService>();
+    }
 
     /// <summary>
     /// Tạo khuyến mãi hợp lệ phải gọi AddAsync 1 lần và trả về Guid của khuyến mãi mới.
@@ -22,7 +30,7 @@ public class CreatePromotionHandlerTests
     [Test]
     public async Task HandleAsync_ValidRequest_CallsAddAsyncAndReturnsGuid()
     {
-        var handler = new CreatePromotionHandler(_repo);
+        var handler = new CreatePromotionHandler(_repo, _activityLog, _currentUser);
 
         var result = await handler.HandleAsync(BuildCreateRequest("SALE10"));
 
@@ -39,7 +47,7 @@ public class CreatePromotionHandlerTests
     {
         Promotion? captured = null;
         await _repo.AddAsync(Arg.Do<Promotion>(p => captured = p), Arg.Any<CancellationToken>());
-        var handler = new CreatePromotionHandler(_repo);
+        var handler = new CreatePromotionHandler(_repo, _activityLog, _currentUser);
 
         await handler.HandleAsync(BuildCreateRequest("sale10"));
 

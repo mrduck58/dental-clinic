@@ -2,6 +2,7 @@ using DentalClinic.API.Application.UseCases.Rooms;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Domain.Interfaces.Services;
 using FluentAssertions;
 using NSubstitute;
 using NUnit.Framework;
@@ -12,9 +13,16 @@ namespace DentalClinic.API.Application.Tests.Rooms;
 public class DeleteRoomHandlerTests
 {
     private IRoomRepository _repo = null!;
+    private IActivityLogService _activityLog = null!;
+    private ICurrentUserService _currentUser = null!;
 
     [SetUp]
-    public void SetUp() => _repo = Substitute.For<IRoomRepository>();
+    public void SetUp()
+    {
+        _repo = Substitute.For<IRoomRepository>();
+        _activityLog = Substitute.For<IActivityLogService>();
+        _currentUser = Substitute.For<ICurrentUserService>();
+    }
 
     /// <summary>
     /// Xóa phòng tồn tại phải gọi DeleteAsync 1 lần với đúng entity.
@@ -24,7 +32,7 @@ public class DeleteRoomHandlerTests
     {
         var room = Room.Create("P01", "Phòng 1", "1", "Loại", "Mô tả");
         _repo.GetByIdAsync(room.Id, Arg.Any<CancellationToken>()).Returns(room);
-        var handler = new DeleteRoomHandler(_repo);
+        var handler = new DeleteRoomHandler(_repo, _activityLog, _currentUser);
 
         await handler.HandleAsync(room.Id);
 
@@ -38,7 +46,7 @@ public class DeleteRoomHandlerTests
     public async Task HandleAsync_NotFound_ThrowsNotFoundException()
     {
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Room?)null);
-        var handler = new DeleteRoomHandler(_repo);
+        var handler = new DeleteRoomHandler(_repo, _activityLog, _currentUser);
 
         Func<Task> act = () => handler.HandleAsync(Guid.NewGuid());
 
