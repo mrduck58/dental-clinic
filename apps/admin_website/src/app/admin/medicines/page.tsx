@@ -237,7 +237,7 @@ export default function MedicinesPage() {
                         <td className="px-6 py-4.5">
                           <div className="flex items-center justify-center gap-1">
                             <Link
-                              href={`/dashboard/medicines/edit/${medicine.id}`}
+                              href={`/admin/medicines/edit/${medicine.id}`}
                               title="Sửa thông tin"
                               className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer"
                             >

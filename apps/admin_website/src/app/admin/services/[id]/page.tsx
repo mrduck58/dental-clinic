@@ -137,7 +137,7 @@ export default function ServiceDetailPage({ params }: ServiceDetailPageProps) {
 
           <div className="flex items-center gap-3">
             <Link
-              href={`/dashboard/services/edit/${service.id}`}
+              href={`/admin/services/edit/${service.id}`}
               className="flex items-center gap-2 px-4 py-2 text-[14px] font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 rounded-xl transition-all cursor-pointer"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">

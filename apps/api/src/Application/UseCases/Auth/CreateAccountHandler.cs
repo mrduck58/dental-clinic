@@ -31,10 +31,20 @@ public class CreateAccountHandler(IUserRepository userRepository, IEmailService 
 
         var user = User.Create(username, command.Email, passwordHash, command.Role, command.PhoneNumber, command.FullName);
 
-        if (string.Equals(command.Role, "Dentist", StringComparison.OrdinalIgnoreCase))
+        switch (command.Role.ToLowerInvariant())
         {
-            var dentist = Dentist.Create(user.Id, command.FullName, "Nha khoa tổng quát", 0);
-            dbContext.Dentists.Add(dentist);
+            case "dentist":
+                dbContext.Dentists.Add(Dentist.Create(user.Id, command.FullName, "Nha khoa tổng quát", 0));
+                break;
+            case "admin":
+                dbContext.Admins.Add(Admin.Create(user.Id, command.FullName));
+                break;
+            case "staff":
+                dbContext.StaffMembers.Add(StaffMember.Create(user.Id, command.FullName));
+                break;
+            case "owner":
+                dbContext.Owners.Add(Owner.Create(user.Id, command.FullName));
+                break;
         }
 
         await userRepository.AddAsync(user, ct);

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect } from "react";
 import OwnerSidebar from "../../../components/shared/OwnerSidebar";
@@ -141,7 +141,7 @@ export default function OwnerPayrollPage() {
             <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Bảng Lương Nhân Viên</h1>
             <p className="text-[13px] text-slate-400 font-semibold mt-0.5">Quản lý đãi ngộ, phê duyệt bảng thanh toán lương hàng tháng.</p>
           </div>
-          <NotificationBell />
+          <NotificationBell href="/owner/notifications" />
         </header>
 
         <div className="flex-1 p-8 overflow-y-auto space-y-6">

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import OwnerSidebar from "../../../components/shared/OwnerSidebar";
@@ -84,7 +84,7 @@ export default function OwnerInventoryPage() {
               Quản lý kho vật tư và dụng cụ y tế phục vụ vận hành.
             </p>
           </div>
-          <NotificationBell />
+          <NotificationBell href="/owner/notifications" />
         </header>
 
         <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-5">

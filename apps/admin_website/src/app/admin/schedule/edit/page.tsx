@@ -376,7 +376,7 @@ function EditScheduleContent() {
   const handleCancelEditing = () => {
     showToast("Đã hủy bỏ toàn bộ chỉnh sửa!", "info");
     setTimeout(() => {
-      router.push(`/dashboard/schedule?week=${weekParam}`);
+      router.push(`/admin/schedule?week=${weekParam}`);
     }, 1000);
   };
 
@@ -629,7 +629,7 @@ function EditScheduleContent() {
       await saveWeekScheduleApi(weekParam, entries);
       showToast("Cập nhật lịch làm việc thành công!", "success");
       setTimeout(() => {
-        router.push(`/dashboard/schedule?week=${weekParam}`);
+        router.push(`/admin/schedule?week=${weekParam}`);
       }, 1200);
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Lưu lịch thất bại", "error");

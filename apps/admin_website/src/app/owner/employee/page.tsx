@@ -211,7 +211,7 @@ export default function OwnerStaffManagementPage() {
               Tra cứu hồ sơ nhân sự phòng khám phục vụ vận hành.
             </p>
           </div>
-          <NotificationBell />
+          <NotificationBell href="/owner/notifications" />
         </header>
 
         <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-6">

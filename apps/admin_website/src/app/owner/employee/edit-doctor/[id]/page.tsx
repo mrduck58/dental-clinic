@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
@@ -249,7 +249,7 @@ export default function EditDoctorPage() {
               </p>
             </div>
           </div>
-          <NotificationBell />
+          <NotificationBell href="/owner/notifications" />
         </header>
 
         <div className="flex-1 p-8 flex justify-center overflow-y-auto">

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import OwnerSidebar from "../../../components/shared/OwnerSidebar";
@@ -573,7 +573,7 @@ export default function OwnerAppointmentsPage() {
                 {TODAY_APPOINTMENTS.length} lịch hôm nay
               </span>
             </div>
-            <NotificationBell />
+            <NotificationBell href="/owner/notifications" />
           </div>
         </header>
 

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect } from "react";
 import OwnerSidebar from "../../components/shared/OwnerSidebar";
@@ -59,7 +59,7 @@ export default function OwnerDashboardPage() {
             </h1>
             <p className="text-[13px] text-slate-400 font-semibold mt-0.5">Báo cáo kinh doanh phòng khám và xếp hạng hiệu suất hoạt động.</p>
           </div>
-          <NotificationBell />
+          <NotificationBell href="/owner/notifications" />
         </header>
 
         <div className="flex-1 p-8 overflow-y-auto space-y-6">

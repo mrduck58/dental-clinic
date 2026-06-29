@@ -450,7 +450,7 @@ export default function ServicesPage() {
                         <td className="px-6 py-4.5">
                           <div className="flex items-center justify-center gap-4">
                             <Link
-                              href={`/dashboard/services/${service.id}`}
+                              href={`/admin/services/${service.id}`}
                               title="Xem chi tiết"
                               className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all cursor-pointer"
                             >
@@ -461,7 +461,7 @@ export default function ServicesPage() {
                             </Link>
 
                             <Link
-                              href={`/dashboard/services/edit/${service.id}`}
+                              href={`/admin/services/edit/${service.id}`}
                               title="Sửa thông tin"
                               className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer"
                             >
@@ -690,7 +690,7 @@ export default function ServicesPage() {
                         <td className="px-6 py-4">
                           <div className="flex items-center justify-center gap-4">
                             <Link
-                              href={`/dashboard/services/promotions/${promo.id}`}
+                              href={`/admin/services/promotions/${promo.id}`}
                               title="Xem chi tiết"
                               className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all cursor-pointer"
                             >
@@ -702,7 +702,7 @@ export default function ServicesPage() {
 
                             <button
                               title="Chỉnh sửa"
-                              onClick={() => router.push(`/dashboard/services/promotions/edit/${promo.id}`)}
+                              onClick={() => router.push(`/admin/services/promotions/edit/${promo.id}`)}
                               className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer"
                             >
                               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">

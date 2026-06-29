@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
@@ -388,7 +388,7 @@ export default function LeavesPage() {
                           </td>
                           <td className="px-5 py-4 text-center">
                             <Link
-                              href={`/dashboard/leaves/${leave.id}`}
+                              href={`/admin/leaves/${leave.id}`}
                               title={leave.status === "Pending" ? "Xem & duyệt đơn" : "Xem chi tiết"}
                               className="relative p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all inline-block cursor-pointer"
                             >

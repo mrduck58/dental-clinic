@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -202,7 +202,7 @@ export default function AddStaffPage() {
               <p className="text-[13px] text-slate-400 font-semibold mt-0.5">Lưu hồ sơ nhân viên. Tài khoản đăng nhập có thể tạo sau.</p>
             </div>
           </div>
-          <NotificationBell />
+          <NotificationBell href="/owner/notifications" />
         </header>
 
         <div className="flex-1 p-8 flex justify-center overflow-y-auto">

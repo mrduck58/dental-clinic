@@ -119,7 +119,7 @@ export default function PostsListPage() {
 
           {/* Notifications (no search) */}
           <div className="flex items-center gap-6">
-            <NotificationBell />
+            <NotificationBell href="/staff/notifications" />
           </div>
         </header>
 

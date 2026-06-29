@@ -17,7 +17,7 @@ interface Prefill {
 }
 
 const ROLE_LABELS: Record<string, string> = {
-  Admin: "Quản trị viên", Dentist: "Nha sĩ / Bác sĩ CK", Staff: "Lễ tân / Trợ lý",
+  Admin: "Quản trị viên", Dentist: "Nha sĩ / Bác sĩ CK", Staff: "Lễ tân / Trợ lý", Owner: "Chủ phòng khám",
 };
 const ROLE_BADGES: Record<string, string> = {
   Admin: "bg-purple-50 text-purple-700 border-purple-200",
@@ -231,6 +231,7 @@ export default function CreateAccountPage() {
                           <option value="Staff">Lễ tân / Trợ lý</option>
                           <option value="Dentist">Nha sĩ / Bác sĩ chuyên khoa</option>
                           <option value="Admin">Quản trị viên (Admin)</option>
+                          <option value="Owner">Chủ phòng khám</option>
                         </select>
                         <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">

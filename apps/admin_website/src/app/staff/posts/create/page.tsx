@@ -90,7 +90,7 @@ export default function CreatePostPage() {
         thumbnailUrl: thumbnail || null,
         isPublished,
       });
-      router.push("/dashboard/posts");
+      router.push("/staff/posts");
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : "Tạo bài viết thất bại.");
     } finally {
@@ -131,7 +131,7 @@ export default function CreatePostPage() {
               />
             </div>
 
-            <NotificationBell />
+            <NotificationBell href="/staff/notifications" />
           </div>
         </header>
 
@@ -143,7 +143,7 @@ export default function CreatePostPage() {
             {/* Title Bar & Back button */}
             <div className="flex items-center justify-between">
               <Link
-                href="/dashboard/posts"
+                href="/staff/posts"
                 className="inline-flex items-center gap-2 text-slate-500 hover:text-primary font-bold text-[14px] transition-all"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">

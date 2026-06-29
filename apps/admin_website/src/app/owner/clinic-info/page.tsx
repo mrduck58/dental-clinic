@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect } from "react";
 import OwnerSidebar from "../../../components/shared/OwnerSidebar";
@@ -305,7 +305,7 @@ export default function OwnerClinicInfoPage() {
             </h1>
             <p className="text-[13px] text-slate-400 font-semibold mt-0.5">Cấu hình thông tin giới thiệu và thông tin liên hệ hiển thị ở trang Landing Page khách hàng.</p>
           </div>
-          <NotificationBell />
+          <NotificationBell href="/owner/notifications" />
         </header>
 
         <div className="flex-1 px-8 py-5 overflow-y-auto w-full">

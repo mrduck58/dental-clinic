@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
@@ -269,7 +269,7 @@ export default function StaffDetailPage() {
               </svg>
               Chỉnh sửa
             </button>
-            <NotificationBell />
+            <NotificationBell href="/owner/notifications" />
           </div>
         </header>
 
