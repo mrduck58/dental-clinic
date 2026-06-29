@@ -184,6 +184,7 @@ class AuthService {
     required String phoneNumber,
     DateTime? dateOfBirth,
     String? gender,
+    String? profilePictureUrl,
   }) async {
     final dob = dateOfBirth == null
         ? null
@@ -198,6 +199,7 @@ class AuthService {
         'phoneNumber': phoneNumber,
         'dateOfBirth': dob,
         'gender': gender,
+        'profilePictureUrl': profilePictureUrl,
       },
       token: token,
     );
@@ -259,10 +261,23 @@ class AuthService {
     return prefs.getString(_emailKey);
   }
 
+  static const _avatarKey = 'user_avatar';
+
+  Future<void> saveUserAvatar(String url) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_avatarKey, url);
+  }
+
+  Future<String?> getUserAvatar() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_avatarKey);
+  }
+
   Future<void> clearAll() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
     await prefs.remove(_nameKey);
     await prefs.remove(_emailKey);
+    await prefs.remove(_avatarKey);
   }
 }

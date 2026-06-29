@@ -3,12 +3,13 @@ import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
-import 'package:mobile_app/core/constants/app_colors.dart';
+import 'package:mobile_app/core/constants/api_constants.dart';
 
 class HomeHeader extends StatelessWidget {
   final String userName;
+  final String? avatarUrl;
 
-  const HomeHeader({super.key, required this.userName});
+  const HomeHeader({super.key, required this.userName, this.avatarUrl});
 
   @override
   Widget build(BuildContext context) {
@@ -18,7 +19,7 @@ class HomeHeader extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
         child: Row(
           children: [
-            _Avatar(name: userName),
+            _Avatar(name: userName, avatarUrl: avatarUrl),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -51,7 +52,9 @@ class HomeHeader extends StatelessWidget {
 
 class _Avatar extends StatelessWidget {
   final String name;
-  const _Avatar({required this.name});
+  final String? avatarUrl;
+
+  const _Avatar({required this.name, this.avatarUrl});
 
   String _initials() {
     final words = name.trim().split(' ').where((w) => w.isNotEmpty).toList();
@@ -60,29 +63,51 @@ class _Avatar extends StatelessWidget {
     return '${words.first[0]}${words.last[0]}'.toUpperCase();
   }
 
+  ImageProvider? _getAvatarProvider() {
+    if (avatarUrl != null && avatarUrl!.isNotEmpty) {
+      if (avatarUrl!.startsWith('http')) {
+        return NetworkImage(avatarUrl!);
+      }
+      final baseUrlHost = ApiConstants.baseUrl.replaceAll('/api', '');
+      return NetworkImage('$baseUrlHost$avatarUrl');
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final provider = _getAvatarProvider();
     return Container(
       width: 48,
       height: 48,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFFDC2626), Color(0xFFB91C1C)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+      decoration: BoxDecoration(
+        gradient: provider == null
+            ? const LinearGradient(
+                colors: [Color(0xFFDC2626), Color(0xFFB91C1C)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : null,
+        image: provider != null
+            ? DecorationImage(
+                image: provider,
+                fit: BoxFit.cover,
+              )
+            : null,
         shape: BoxShape.circle,
       ),
-      child: Center(
-        child: Text(
-          _initials(),
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-      ),
+      child: provider == null
+          ? Center(
+              child: Text(
+                _initials(),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            )
+          : null,
     );
   }
 }

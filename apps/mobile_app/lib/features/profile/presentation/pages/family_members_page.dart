@@ -75,25 +75,7 @@ class _FamilyMembersPageState extends State<FamilyMembersPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              isVi ? 'Thành viên gia đình' : 'Family Members',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w900,
-                color: context.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              isVi
-                  ? 'Quản lý liên kết và kiểm tra hồ sơ sức khỏe của gia đình bạn'
-                  : 'Manage connections and check records for your family',
-              style: TextStyle(
-                fontSize: 14,
-                color: context.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 24),
+
 
             // Members list
             ...members.map((member) {

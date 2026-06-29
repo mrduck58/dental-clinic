@@ -40,6 +40,7 @@ import 'package:mobile_app/features/profile/presentation/pages/edit_member_page.
 import 'package:mobile_app/features/profile/presentation/pages/security_page.dart';
 import 'package:mobile_app/features/profile/presentation/pages/change_password_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/notifications_page.dart';
+import 'package:mobile_app/features/home/presentation/pages/search_page.dart';
 import 'package:mobile_app/features/appointment/presentation/screens/appointment_details_page.dart';
 import 'package:mobile_app/features/profile/presentation/pages/examine_history_page.dart';
 import 'package:mobile_app/features/profile/presentation/pages/examination_detail_page.dart';
@@ -149,6 +150,10 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: AppRoutes.dentistsList,
       builder: (context, state) => const DentistsListPage(),
+    ),
+    GoRoute(
+      path: AppRoutes.search,
+      builder: (context, state) => const SearchPage(),
     ),
     GoRoute(
       path: AppRoutes.postDetail,
@@ -311,6 +316,7 @@ abstract class AppRoutes {
   static const chat = '/chat';
   static const paymentHistory = '/profile/payment-history';
   static const notifications = '/notifications';
+  static const search = '/search';
   static const familyMembers = '/profile/family';
   static const reminders = '/reminders';
   static const queue = '/queue';

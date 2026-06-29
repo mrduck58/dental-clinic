@@ -18,7 +18,9 @@ public class AuthController(
     GetMyProfileHandler getMyProfileHandler,
     ChangePasswordHandler changePasswordHandler,
     CreateAccountHandler createAccountHandler,
-    GetAccountsHandler getAccountsHandler) : ControllerBase
+    GetAccountsHandler getAccountsHandler,
+    ForgotPasswordHandler forgotPasswordHandler,
+    ResetPasswordHandler resetPasswordHandler) : ControllerBase
 {
     /// <summary>POST api/auth/login — Bệnh nhân đăng nhập từ app di động (role: Patient)</summary>
     [HttpPost("login")]
@@ -186,5 +188,33 @@ public class AuthController(
     {
         var result = await getAccountsHandler.HandleAsync(cancellationToken);
         return Ok(result);
+    }
+
+    /// <summary>POST api/auth/forgot-password — Gửi email đặt lại mật khẩu</summary>
+    [HttpPost("forgot-password")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ForgotPassword(
+        [FromBody] ForgotPasswordRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        await forgotPasswordHandler.HandleAsync(
+            new ForgotPasswordCommand(request.Email),
+            cancellationToken);
+
+        return Ok(new { message = "Nếu email tồn tại trong hệ thống, bạn sẽ nhận được hướng dẫn đặt lại mật khẩu." });
+    }
+
+    /// <summary>POST api/auth/reset-password — Đặt lại mật khẩu bằng token</summary>
+    [HttpPost("reset-password")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ResetPassword(
+        [FromBody] ResetPasswordRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        await resetPasswordHandler.HandleAsync(
+            new ResetPasswordCommand(request.Email, request.Token, request.NewPassword),
+            cancellationToken);
+
+        return Ok(new { message = "Mật khẩu đã được đặt lại thành công." });
     }
 }
