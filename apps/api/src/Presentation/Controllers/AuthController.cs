@@ -29,8 +29,9 @@ public class AuthController(
         [FromBody] LoginRequestDto request,
         CancellationToken cancellationToken)
     {
+        var ip = GetClientIp();
         var result = await loginHandler.HandleAsync(
-            new LoginCommand(request.Email, request.Password, AllowedRoles: ["Patient"]),
+            new LoginCommand(request.Email, request.Password, AllowedRoles: ["Patient"], IpAddress: ip),
             cancellationToken);
 
         return Ok(result);
@@ -43,8 +44,9 @@ public class AuthController(
         [FromBody] LoginRequestDto request,
         CancellationToken cancellationToken)
     {
+        var ip = GetClientIp();
         var result = await loginHandler.HandleAsync(
-            new LoginCommand(request.Email, request.Password, AllowedRoles: ["Admin", "Dentist", "Staff", "Owner"]),
+            new LoginCommand(request.Email, request.Password, AllowedRoles: ["Admin", "Dentist", "Staff", "Owner"], IpAddress: ip),
             cancellationToken);
 
         return Ok(result);
@@ -216,5 +218,13 @@ public class AuthController(
             cancellationToken);
 
         return Ok(new { message = "Mật khẩu đã được đặt lại thành công." });
+    }
+
+    private string? GetClientIp()
+    {
+        var forwarded = Request.Headers["X-Forwarded-For"].FirstOrDefault();
+        if (!string.IsNullOrWhiteSpace(forwarded))
+            return forwarded.Split(',')[0].Trim();
+        return HttpContext.Connection.RemoteIpAddress?.ToString();
     }
 }

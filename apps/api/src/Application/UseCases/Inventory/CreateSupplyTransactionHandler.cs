@@ -1,12 +1,13 @@
 using DentalClinic.API.Application.DTOs.Inventory;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
+using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.Inventory;
 
-public class CreateSupplyTransactionHandler(AppDbContext db)
+public class CreateSupplyTransactionHandler(AppDbContext db, IActivityLogService activityLogService, ICurrentUserService currentUser)
 {
     public async Task<SupplyTransactionDto> HandleAsync(
         CreateSupplyTransactionRequest request,
@@ -33,6 +34,19 @@ public class CreateSupplyTransactionHandler(AppDbContext db)
 
         // Một lần SaveChanges duy nhất — atomic
         await db.SaveChangesAsync(ct);
+
+        var actionType = request.Type == "import" ? "nhập kho" : "xuất kho";
+        await activityLogService.LogAsync(
+            userId: currentUser.UserId,
+            userName: currentUser.UserName,
+            userRole: currentUser.UserRole,
+            action: ActivityAction.Create,
+            module: ActivityModule.Inventory,
+            description: $"{actionType}: {item.Name} x{request.Quantity} {(request.Note != null ? $"({request.Note})" : "")}",
+            status: ActivityStatus.Success,
+            ipAddress: currentUser.IpAddress,
+            targetId: tx.Id.ToString(),
+            ct: ct);
 
         return new SupplyTransactionDto(tx.Id, item.Id, item.Name, tx.Type, tx.Quantity, tx.Note, tx.CreatedBy, tx.CreatedAt);
     }

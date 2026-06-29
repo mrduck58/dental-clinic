@@ -1,3 +1,4 @@
+using DentalClinic.API.Application.UseCases.ActivityLogs;
 using DentalClinic.API.Application.UseCases.Appointments;
 using DentalClinic.API.Application.UseCases.Inventory;
 using DentalClinic.API.Application.UseCases.Auth;
@@ -53,11 +54,15 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<ISupplyItemRepository, SupplyItemRepository>();
         services.AddScoped<ISupplyTransactionRepository, SupplyTransactionRepository>();
         services.AddScoped<IClinicInfoRepository, ClinicInfoRepository>();
+        services.AddScoped<IActivityLogRepository, ActivityLogRepository>();
 
         // ── Services ────────────────────────────────────────────────────────
         services.AddScoped<IJwtService, JwtService>();
+        services.AddScoped<IActivityLogService, ActivityLogService>();
+        services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddScoped<IEmailService, EmailService>();
         services.AddScoped<IFileStorageService, LocalFileStorageService>();
+        services.AddHttpContextAccessor();
 
         // ── Use Case Handlers ────────────────────────────────────────────────
         services.AddScoped<LoginHandler>();
@@ -154,6 +159,8 @@ public static class InfrastructureServiceExtensions
 
         services.AddScoped<GetClinicInfoHandler>();
         services.AddScoped<UpdateClinicInfoHandler>();
+
+        services.AddScoped<GetActivityLogsHandler>();
 
         return services;
     }

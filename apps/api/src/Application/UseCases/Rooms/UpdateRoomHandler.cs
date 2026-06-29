@@ -1,10 +1,14 @@
 using DentalClinic.API.Application.DTOs.Rooms;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Domain.Interfaces.Services;
 
 namespace DentalClinic.API.Application.UseCases.Rooms;
 
-public class UpdateRoomHandler(IRoomRepository roomRepository)
+public class UpdateRoomHandler(
+    IRoomRepository roomRepository,
+    IActivityLogService activityLogService,
+    ICurrentUserService currentUser)
 {
     public async Task<RoomDto> HandleAsync(Guid id, UpdateRoomRequest request, CancellationToken ct = default)
     {
@@ -19,6 +23,18 @@ public class UpdateRoomHandler(IRoomRepository roomRepository)
 
         room.Update(request.Code, request.Name, request.Floor, request.Type, request.Description);
         await roomRepository.UpdateAsync(room, ct);
+
+        await activityLogService.LogAsync(
+            userId: currentUser.UserId,
+            userName: currentUser.UserName,
+            userRole: currentUser.UserRole,
+            action: ActivityAction.Edit,
+            module: ActivityModule.Room,
+            description: $"Cập nhật phòng: {room.Name}",
+            status: ActivityStatus.Success,
+            ipAddress: currentUser.IpAddress,
+            targetId: id.ToString(),
+            ct: ct);
 
         return new RoomDto(
             room.Id, room.Code, room.Name, room.Floor, room.Type,

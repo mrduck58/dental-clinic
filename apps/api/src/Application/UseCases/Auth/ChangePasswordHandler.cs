@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Domain.Interfaces.Services;
 
 namespace DentalClinic.API.Application.UseCases.Auth;
 
@@ -11,7 +12,7 @@ public record ChangePasswordCommand(
     string CurrentPassword,
     string NewPassword);
 
-public class ChangePasswordHandler(IUserRepository userRepository)
+public class ChangePasswordHandler(IUserRepository userRepository, IActivityLogService activityLogService, ICurrentUserService currentUser)
 {
     public async Task HandleAsync(ChangePasswordCommand command, CancellationToken ct = default)
     {
@@ -25,5 +26,17 @@ public class ChangePasswordHandler(IUserRepository userRepository)
         user.ResetPassword(newPasswordHash);
 
         await userRepository.UpdateAsync(user, ct);
+
+        await activityLogService.LogAsync(
+            userId: currentUser.UserId,
+            userName: currentUser.UserName,
+            userRole: currentUser.UserRole,
+            action: ActivityAction.Edit,
+            module: ActivityModule.Account,
+            description: "Đổi mật khẩu tài khoản",
+            status: ActivityStatus.Success,
+            ipAddress: currentUser.IpAddress,
+            targetId: command.UserId.ToString(),
+            ct: ct);
     }
 }

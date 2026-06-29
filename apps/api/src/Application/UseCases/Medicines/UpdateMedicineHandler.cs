@@ -1,11 +1,14 @@
 using DentalClinic.API.Application.DTOs.Medicines;
-using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Domain.Interfaces.Services;
 
 namespace DentalClinic.API.Application.UseCases.Medicines;
 
-public class UpdateMedicineHandler(IMedicineRepository repository)
+public class UpdateMedicineHandler(
+    IMedicineRepository repository,
+    IActivityLogService activityLogService,
+    ICurrentUserService currentUser)
 {
     public async Task<MedicineDto> HandleAsync(Guid id, UpdateMedicineRequest request, CancellationToken ct = default)
     {
@@ -20,6 +23,18 @@ public class UpdateMedicineHandler(IMedicineRepository repository)
             request.Description);
 
         await repository.UpdateAsync(medicine, ct);
+
+        await activityLogService.LogAsync(
+            userId: currentUser.UserId,
+            userName: currentUser.UserName,
+            userRole: currentUser.UserRole,
+            action: ActivityAction.Edit,
+            module: ActivityModule.Medicine,
+            description: $"Cập nhật thuốc: {medicine.Name}",
+            status: ActivityStatus.Success,
+            ipAddress: currentUser.IpAddress,
+            targetId: id.ToString(),
+            ct: ct);
 
         return new MedicineDto(
             medicine.Id,

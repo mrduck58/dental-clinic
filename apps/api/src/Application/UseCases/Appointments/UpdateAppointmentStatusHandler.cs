@@ -1,11 +1,14 @@
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Domain.Interfaces.Services;
 using Microsoft.Extensions.Logging;
 
 namespace DentalClinic.API.Application.UseCases.Appointments;
 
 public class UpdateAppointmentStatusHandler(
     IAppointmentRepository appointmentRepository,
+    IActivityLogService activityLogService,
+    ICurrentUserService currentUser,
     ILogger<UpdateAppointmentStatusHandler>? logger = null)
 {
     public async Task ConfirmAsync(Guid appointmentId, CancellationToken ct = default)
@@ -19,6 +22,18 @@ public class UpdateAppointmentStatusHandler(
         appointment.Confirm();
         await appointmentRepository.UpdateAsync(appointment, ct);
         logger?.LogInformation("Appointment {Id} confirmed successfully", appointmentId);
+
+        await activityLogService.LogAsync(
+            userId: currentUser.UserId,
+            userName: currentUser.UserName,
+            userRole: currentUser.UserRole,
+            action: ActivityAction.Approve,
+            module: ActivityModule.Appointment,
+            description: $"Xác nhận lịch hẹn ID: {appointmentId}",
+            status: ActivityStatus.Success,
+            ipAddress: currentUser.IpAddress,
+            targetId: appointmentId.ToString(),
+            ct: ct);
     }
 
     public async Task CancelAsync(Guid appointmentId, CancellationToken ct = default)
@@ -32,6 +47,18 @@ public class UpdateAppointmentStatusHandler(
         appointment.Cancel();
         await appointmentRepository.UpdateAsync(appointment, ct);
         logger?.LogInformation("Appointment {Id} cancelled", appointmentId);
+
+        await activityLogService.LogAsync(
+            userId: currentUser.UserId,
+            userName: currentUser.UserName,
+            userRole: currentUser.UserRole,
+            action: ActivityAction.Cancel,
+            module: ActivityModule.Appointment,
+            description: $"Hủy lịch hẹn ID: {appointmentId}",
+            status: ActivityStatus.Success,
+            ipAddress: currentUser.IpAddress,
+            targetId: appointmentId.ToString(),
+            ct: ct);
     }
 
     public async Task CheckInAsync(Guid appointmentId, CancellationToken ct = default)
@@ -54,6 +81,18 @@ public class UpdateAppointmentStatusHandler(
         appointment.CheckIn();
         await appointmentRepository.UpdateAsync(appointment, ct);
         logger?.LogInformation("Appointment {Id} checked in successfully", appointmentId);
+
+        await activityLogService.LogAsync(
+            userId: currentUser.UserId,
+            userName: currentUser.UserName,
+            userRole: currentUser.UserRole,
+            action: ActivityAction.Edit,
+            module: ActivityModule.Appointment,
+            description: $"Check-in lịch hẹn ID: {appointmentId}",
+            status: ActivityStatus.Success,
+            ipAddress: currentUser.IpAddress,
+            targetId: appointmentId.ToString(),
+            ct: ct);
     }
 
     public async Task StartTreatmentAsync(Guid appointmentId, CancellationToken ct = default)
@@ -83,6 +122,18 @@ public class UpdateAppointmentStatusHandler(
 
         appointment.Complete();
         await appointmentRepository.UpdateAsync(appointment, ct);
+
+        await activityLogService.LogAsync(
+            userId: currentUser.UserId,
+            userName: currentUser.UserName,
+            userRole: currentUser.UserRole,
+            action: ActivityAction.Edit,
+            module: ActivityModule.Appointment,
+            description: $"Hoàn thành lịch hẹn ID: {appointmentId}",
+            status: ActivityStatus.Success,
+            ipAddress: currentUser.IpAddress,
+            targetId: appointmentId.ToString(),
+            ct: ct);
     }
 
     public async Task EndTreatmentAsync(Guid appointmentId, CancellationToken ct = default)

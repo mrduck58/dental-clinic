@@ -13,7 +13,7 @@ public record CreateAccountCommand(
     string PhoneNumber,
     string Role);
 
-public class CreateAccountHandler(IUserRepository userRepository, IEmailService emailService)
+public class CreateAccountHandler(IUserRepository userRepository, IEmailService emailService, IActivityLogService activityLogService, ICurrentUserService currentUser)
 {
     public async Task<CreateAccountResponseDto> HandleAsync(CreateAccountCommand command, CancellationToken ct = default)
     {
@@ -32,6 +32,18 @@ public class CreateAccountHandler(IUserRepository userRepository, IEmailService 
         await userRepository.AddAsync(user, ct);
 
         await emailService.SendStaffCredentialsAsync(command.Email, command.FullName, rawPassword, ct);
+
+        await activityLogService.LogAsync(
+            userId: currentUser.UserId,
+            userName: currentUser.UserName,
+            userRole: currentUser.UserRole,
+            action: ActivityAction.Create,
+            module: ActivityModule.Account,
+            description: $"Tạo tài khoản mới: {command.FullName} ({command.Email}) - Role: {command.Role}",
+            status: ActivityStatus.Success,
+            ipAddress: currentUser.IpAddress,
+            targetId: user.Id.ToString(),
+            ct: ct);
 
         return new CreateAccountResponseDto(user.Id, user.Username!, user.Email, user.Role, user.CreatedAt);
     }
