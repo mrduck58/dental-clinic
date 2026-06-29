@@ -4,6 +4,7 @@ using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
+using DentalClinic.API.Infrastructure.Persistence;
 
 namespace DentalClinic.API.Application.UseCases.Auth;
 
@@ -13,7 +14,7 @@ public record CreateAccountCommand(
     string PhoneNumber,
     string Role);
 
-public class CreateAccountHandler(IUserRepository userRepository, IEmailService emailService)
+public class CreateAccountHandler(IUserRepository userRepository, IEmailService emailService, AppDbContext dbContext)
 {
     public async Task<CreateAccountResponseDto> HandleAsync(CreateAccountCommand command, CancellationToken ct = default)
     {
@@ -29,6 +30,13 @@ public class CreateAccountHandler(IUserRepository userRepository, IEmailService 
         var passwordHash = BCrypt.Net.BCrypt.HashPassword(rawPassword, workFactor: 12);
 
         var user = User.Create(username, command.Email, passwordHash, command.Role, command.PhoneNumber, command.FullName);
+
+        if (string.Equals(command.Role, "Dentist", StringComparison.OrdinalIgnoreCase))
+        {
+            var dentist = Dentist.Create(user.Id, command.FullName, "Nha khoa tổng quát", 0);
+            dbContext.Dentists.Add(dentist);
+        }
+
         await userRepository.AddAsync(user, ct);
 
         await emailService.SendStaffCredentialsAsync(command.Email, command.FullName, rawPassword, ct);

@@ -17,11 +17,10 @@ interface Prefill {
 }
 
 const ROLE_LABELS: Record<string, string> = {
-  Admin: "Quản trị viên", Doctor: "Bác sĩ CK", Dentist: "Nha sĩ", Staff: "Lễ tân / Trợ lý",
+  Admin: "Quản trị viên", Dentist: "Nha sĩ / Bác sĩ CK", Staff: "Lễ tân / Trợ lý",
 };
 const ROLE_BADGES: Record<string, string> = {
   Admin: "bg-purple-50 text-purple-700 border-purple-200",
-  Doctor: "bg-emerald-50 text-emerald-700 border-emerald-200",
   Dentist: "bg-sky-50 text-sky-700 border-sky-200",
   Staff: "bg-green-50 text-green-700 border-green-200",
 };
@@ -230,8 +229,7 @@ export default function CreateAccountPage() {
                         <select value={role} onChange={(e) => setRole(e.target.value)}
                           className="w-full px-4 py-3 text-[14px] bg-white border border-slate-200 rounded-xl focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-semibold appearance-none pr-8 cursor-pointer">
                           <option value="Staff">Lễ tân / Trợ lý</option>
-                          <option value="Dentist">Nha sĩ</option>
-                          <option value="Doctor">Bác sĩ chuyên khoa</option>
+                          <option value="Dentist">Nha sĩ / Bác sĩ chuyên khoa</option>
                           <option value="Admin">Quản trị viên (Admin)</option>
                         </select>
                         <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400">

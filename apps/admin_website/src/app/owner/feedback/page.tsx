@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import StaffSidebar from "../../../components/shared/StaffSidebar";
-import StaffPageHeader from "../../../components/shared/StaffPageHeader";
-import { useRequireStaff } from "../../../hooks/useRequireStaff";
+import OwnerSidebar from "../../../components/shared/OwnerSidebar";
+import NotificationBell from "../../../components/shared/NotificationBell";
+import { useRequireOwner } from "../../../hooks/useRequireOwner";
 import {
   getFeedbacksApi,
   featureFeedbackApi,
@@ -12,8 +12,10 @@ import {
   type FeedbackDto,
 } from "../../../lib/apiClient";
 
-export default function StaffFeedbackPage() {
-  useRequireStaff();
+const DAYS = ["Chủ Nhật","Thứ Hai","Thứ Ba","Thứ Tư","Thứ Năm","Thứ Sáu","Thứ Bảy"];
+
+export default function OwnerFeedbackPage() {
+  useRequireOwner();
 
   const [feedbacks, setFeedbacks] = useState<FeedbackDto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -27,7 +29,8 @@ export default function StaffFeedbackPage() {
   const [replyContent, setReplyContent] = useState("");
 
   const [toast, setToast] = useState<{ show: boolean; message: string; isError?: boolean } | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [time, setTime] = useState<string | null>(null);
+  const [date, setDate] = useState<string | null>(null);
 
   const showToast = (message: string, isError = false) => {
     setToast({ show: true, message, isError });
@@ -35,16 +38,26 @@ export default function StaffFeedbackPage() {
   };
 
   useEffect(() => {
+    const tick = () => {
+      const now = new Date();
+      setTime(now.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }));
+      const d = now.getDate().toString().padStart(2, "0");
+      const m = (now.getMonth() + 1).toString().padStart(2, "0");
+      setDate(`${DAYS[now.getDay()]} · ${d}/${m}/${now.getFullYear()}`);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
     async function load() {
       setIsLoading(true);
-      setLoadError(null);
       try {
         const data = await getFeedbacksApi();
         setFeedbacks(data);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "Không thể tải danh sách phản hồi.";
-        setLoadError(msg);
-        console.error("[FeedbackPage] load error:", err);
+      } catch {
+        showToast("Không thể tải danh sách phản hồi.", true);
       } finally {
         setIsLoading(false);
       }
@@ -124,9 +137,35 @@ export default function StaffFeedbackPage() {
 
   return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
-      <StaffSidebar activeMenu="feedback" />
+      <OwnerSidebar activeMenu="feedback" />
       <main className="flex-1 flex flex-col min-w-0">
-        <StaffPageHeader title="Phản hồi" subtitle="Quản lý đánh giá và phản hồi khách hàng" />
+
+        {/* Header */}
+        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-16 flex items-center justify-between shrink-0 shadow-sm shadow-slate-100/50">
+          <div className="min-w-0">
+            <h1 className="text-[18px] font-black text-slate-900 leading-tight truncate">Phản Hồi & Đánh Giá</h1>
+            <p className="text-[12.5px] text-slate-400 font-semibold mt-0.5 truncate">Quản lý đánh giá và phản hồi khách hàng</p>
+          </div>
+          <div className="flex items-center gap-2.5 shrink-0">
+            {date !== null && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl">
+                <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+                </svg>
+                <span className="text-[13px] font-semibold text-slate-700">{date}</span>
+              </div>
+            )}
+            {time !== null && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl">
+                <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="text-[13px] font-mono font-black text-slate-700 tabular-nums">{time}</span>
+              </div>
+            )}
+            <NotificationBell href="/owner/notifications" />
+          </div>
+        </header>
 
         <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-6">
 
@@ -143,22 +182,6 @@ export default function StaffFeedbackPage() {
                 </div>
                 <span className="text-[13px] font-black text-slate-900">{toast.message}</span>
               </div>
-            </div>
-          )}
-
-          {/* LOAD ERROR */}
-          {loadError && (
-            <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start gap-3 shrink-0">
-              <svg className="w-5 h-5 text-red-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" /></svg>
-              <div className="flex-1">
-                <p className="text-[13px] font-black text-red-700">Không thể tải dữ liệu phản hồi</p>
-                <p className="text-[12px] text-red-500 font-semibold mt-0.5">{loadError}</p>
-                <p className="text-[11px] text-red-400 font-semibold mt-1">Kiểm tra xem backend API có đang chạy không (port 5239) và xem Console trong DevTools.</p>
-              </div>
-              <button onClick={() => { setLoadError(null); window.location.reload(); }}
-                className="text-[12px] font-bold text-red-600 hover:text-red-800 border border-red-200 hover:bg-red-100 px-3 py-1 rounded-lg transition-all cursor-pointer shrink-0">
-                Thử lại
-              </button>
             </div>
           )}
 
@@ -328,7 +351,7 @@ export default function StaffFeedbackPage() {
                             {fb.replyText && (
                               <div className="bg-slate-50 border border-slate-150/60 rounded-xl p-3.5 mt-1.5 shadow-sm">
                                 <div className="flex items-center gap-1.5 text-slate-400 text-[10px] font-extrabold uppercase tracking-wider mb-1">
-                                  <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" /></svg>
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" /></svg>
                                   Phản hồi từ phòng khám:
                                 </div>
                                 <p className="text-slate-600 font-bold text-[13px] leading-relaxed">{fb.replyText}</p>
@@ -366,14 +389,12 @@ export default function StaffFeedbackPage() {
                                 </button>
                               </>
                             )}
-
                             {fb.status === "Hidden" && (
                               <button onClick={() => handleFeature(fb.id)}
                                 className="border border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-600 font-bold text-[13px] px-3.5 py-1.5 rounded-lg transition-all cursor-pointer">
                                 Hiện lại
                               </button>
                             )}
-
                             <button onClick={() => handleReplyClick(fb)}
                               className="border border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-600 font-bold text-[13px] px-3.5 py-1.5 rounded-lg transition-all cursor-pointer">
                               Trả lời
@@ -398,7 +419,7 @@ export default function StaffFeedbackPage() {
                 </span>
                 <div className="flex items-center gap-1.5">
                   {[
-                    { label: "|<", action: () => setCurrentPage(1),            disabled: currentPage === 1 },
+                    { label: "|<", action: () => setCurrentPage(1), disabled: currentPage === 1 },
                     { label: "<",  action: () => setCurrentPage(p => Math.max(1, p - 1)), disabled: currentPage === 1 },
                   ].map(btn => (
                     <button key={btn.label} onClick={btn.action} disabled={btn.disabled}
@@ -410,14 +431,14 @@ export default function StaffFeedbackPage() {
                     const p = idx + 1;
                     return (
                       <button key={p} onClick={() => setCurrentPage(p)}
-                        className={`w-9 h-9 rounded-xl border flex items-center justify-center font-extrabold text-[14px] transition-all cursor-pointer ${currentPage === p ? "bg-white border-primary text-primary shadow-sm font-black" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
+                        className={`w-9 h-9 rounded-xl border flex items-center justify-center font-extrabold text-[14px] transition-all cursor-pointer ${currentPage === p ? "bg-white border-primary text-primary shadow-sm" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
                         {p}
                       </button>
                     );
                   })}
                   {[
                     { label: ">",  action: () => setCurrentPage(p => Math.min(totalPages, p + 1)), disabled: currentPage === totalPages },
-                    { label: ">|", action: () => setCurrentPage(totalPages),   disabled: currentPage === totalPages },
+                    { label: ">|", action: () => setCurrentPage(totalPages), disabled: currentPage === totalPages },
                   ].map(btn => (
                     <button key={btn.label} onClick={btn.action} disabled={btn.disabled}
                       className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${btn.disabled ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed" : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"}`}>
