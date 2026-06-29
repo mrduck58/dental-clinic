@@ -20,6 +20,7 @@ public class FillProfileHandlerTests
         UserId: TestUserId,
         FirstName: "An",
         LastName: "Nguyễn",
+        FullName: null,
         PhoneNumber: "0901234567",
         DateOfBirth: new DateOnly(2000, 1, 15),
         Gender: "Male");

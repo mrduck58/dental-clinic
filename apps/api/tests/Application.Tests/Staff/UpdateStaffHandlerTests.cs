@@ -91,5 +91,6 @@ public class UpdateStaffHandlerTests
             Specialty: null, LicenseNumber: null, YearsOfExperience: null,
             Gender: null, DateOfBirth: null, Address: null, StartDate: null,
             ServicesHandled: null, CertificateIssuedDate: null, CertificateIssuedBy: null,
-            Education: null, Bio: null, Position: null);
+            Education: null, Bio: null, Position: null,
+            EmploymentType: null, BaseSalary: null, SalaryUnit: null, LeaveAccrued: null);
 }

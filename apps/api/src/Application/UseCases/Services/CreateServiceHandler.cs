@@ -1,10 +1,12 @@
-using DentalClinic.API.Application.DTOs.Services;
+﻿using DentalClinic.API.Application.DTOs.Services;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Domain.Interfaces.Services;
+using DentalClinic.API.Domain.Constants;
 
 namespace DentalClinic.API.Application.UseCases.Services;
 
-public class CreateServiceHandler(IServiceRepository serviceRepository)
+public class CreateServiceHandler(IServiceRepository serviceRepository, IActivityLogService activityLogService, ICurrentUserService currentUser)
 {
     public async Task<ServiceDto> HandleAsync(CreateServiceRequest request, CancellationToken ct = default)
     {
@@ -16,6 +18,18 @@ public class CreateServiceHandler(IServiceRepository serviceRepository)
             request.ImageUrl);
 
         await serviceRepository.AddAsync(service, ct);
+
+        await activityLogService.LogAsync(
+            userId: currentUser.UserId,
+            userName: currentUser.UserName,
+            userRole: currentUser.UserRole,
+            action: ActivityAction.Create,
+            module: ActivityModule.Service,
+            description: $"Tạo dịch vụ mới: {request.Name}",
+            status: ActivityStatus.Success,
+            ipAddress: currentUser.IpAddress,
+            targetId: service.Id.ToString(),
+            ct: ct);
 
         return new ServiceDto(
             service.Id, service.Name, service.Price,

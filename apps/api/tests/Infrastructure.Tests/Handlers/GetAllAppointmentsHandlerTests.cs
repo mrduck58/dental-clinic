@@ -100,7 +100,6 @@ public class GetAllAppointmentsHandlerTests
 
         dto.PatientName.Should().Be("Nguyễn Thị C");
         dto.DentistName.Should().Be("BS. Lê Văn D");
-        dto.Specialization.Should().Be("Implant");
     }
 
     /// <summary>

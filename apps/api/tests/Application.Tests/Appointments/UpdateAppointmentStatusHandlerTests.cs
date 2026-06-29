@@ -2,6 +2,7 @@ using DentalClinic.API.Application.UseCases.Appointments;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Domain.Interfaces.Services;
 using FluentAssertions;
 using NSubstitute;
 using NUnit.Framework;
@@ -12,13 +13,17 @@ namespace DentalClinic.API.Application.Tests.Appointments;
 public class UpdateAppointmentStatusHandlerTests
 {
     private IAppointmentRepository _repo = null!;
+    private IActivityLogService _activityLog = null!;
+    private ICurrentUserService _currentUser = null!;
     private UpdateAppointmentStatusHandler _handler = null!;
 
     [SetUp]
     public void SetUp()
     {
         _repo = Substitute.For<IAppointmentRepository>();
-        _handler = new UpdateAppointmentStatusHandler(_repo);
+        _activityLog = Substitute.For<IActivityLogService>();
+        _currentUser = Substitute.For<ICurrentUserService>();
+        _handler = new UpdateAppointmentStatusHandler(_repo, _activityLog, _currentUser);
     }
 
     private static Appointment MakeAppointment() =>

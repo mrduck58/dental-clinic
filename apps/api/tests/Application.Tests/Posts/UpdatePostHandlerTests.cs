@@ -3,6 +3,7 @@ using DentalClinic.API.Application.UseCases.Posts;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Domain.Interfaces.Services;
 using FluentAssertions;
 using NSubstitute;
 using NUnit.Framework;
@@ -13,9 +14,16 @@ namespace DentalClinic.API.Application.Tests.Posts;
 public class UpdatePostHandlerTests
 {
     private IPostRepository _repo = null!;
+    private IActivityLogService _activityLog = null!;
+    private ICurrentUserService _currentUser = null!;
 
     [SetUp]
-    public void SetUp() => _repo = Substitute.For<IPostRepository>();
+    public void SetUp()
+    {
+        _repo = Substitute.For<IPostRepository>();
+        _activityLog = Substitute.For<IActivityLogService>();
+        _currentUser = Substitute.For<ICurrentUserService>();
+    }
 
     /// <summary>
     /// Cập nhật bài viết tồn tại phải gọi UpdateAsync đúng 1 lần.
@@ -25,7 +33,7 @@ public class UpdatePostHandlerTests
     {
         var post = MakePost();
         _repo.GetByIdAsync(post.Id, Arg.Any<CancellationToken>()).Returns(post);
-        var handler = new UpdatePostHandler(_repo);
+        var handler = new UpdatePostHandler(_repo, _activityLog, _currentUser);
 
         await handler.HandleAsync(post.Id, BuildRequest());
 
@@ -40,7 +48,7 @@ public class UpdatePostHandlerTests
     {
         var post = MakePost(title: "Tiêu đề cũ");
         _repo.GetByIdAsync(post.Id, Arg.Any<CancellationToken>()).Returns(post);
-        var handler = new UpdatePostHandler(_repo);
+        var handler = new UpdatePostHandler(_repo, _activityLog, _currentUser);
 
         var result = await handler.HandleAsync(post.Id, BuildRequest(title: "Tiêu đề mới"));
 
@@ -54,7 +62,7 @@ public class UpdatePostHandlerTests
     public async Task HandleAsync_PostNotFound_ThrowsNotFoundException()
     {
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Post?)null);
-        var handler = new UpdatePostHandler(_repo);
+        var handler = new UpdatePostHandler(_repo, _activityLog, _currentUser);
 
         Func<Task> act = () => handler.HandleAsync(Guid.NewGuid(), BuildRequest());
 
@@ -70,7 +78,7 @@ public class UpdatePostHandlerTests
     {
         var post = MakePost(thumbnailUrl: "https://cdn/old-thumb.jpg");
         _repo.GetByIdAsync(post.Id, Arg.Any<CancellationToken>()).Returns(post);
-        var handler = new UpdatePostHandler(_repo);
+        var handler = new UpdatePostHandler(_repo, _activityLog, _currentUser);
 
         var result = await handler.HandleAsync(post.Id, BuildRequest(thumbnailUrl: null));
 
@@ -86,7 +94,7 @@ public class UpdatePostHandlerTests
     {
         var post = MakePost(isPublished: false);
         _repo.GetByIdAsync(post.Id, Arg.Any<CancellationToken>()).Returns(post);
-        var handler = new UpdatePostHandler(_repo);
+        var handler = new UpdatePostHandler(_repo, _activityLog, _currentUser);
 
         var result = await handler.HandleAsync(post.Id, BuildRequest(isPublished: true));
 
@@ -103,7 +111,7 @@ public class UpdatePostHandlerTests
         var post = MakePost(isPublished: true);
         var originalPublishedAt = post.PublishedAt;
         _repo.GetByIdAsync(post.Id, Arg.Any<CancellationToken>()).Returns(post);
-        var handler = new UpdatePostHandler(_repo);
+        var handler = new UpdatePostHandler(_repo, _activityLog, _currentUser);
 
         var result = await handler.HandleAsync(post.Id, BuildRequest(isPublished: true));
 
@@ -120,5 +128,5 @@ public class UpdatePostHandlerTests
         string title = "Tiêu đề đã cập nhật",
         string? thumbnailUrl = "https://cdn/new-thumb.jpg",
         bool isPublished = false)
-        => new(title, "Tư vấn", "Nội dung mới", thumbnailUrl, isPublished);
+        => new(title, "Tư vấn", "Nội dung mới", thumbnailUrl, isPublished, null);
 }

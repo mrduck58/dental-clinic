@@ -3,6 +3,7 @@ using DentalClinic.API.Application.UseCases.LeaveRequests;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Domain.Interfaces.Services;
 using FluentAssertions;
 using NSubstitute;
 using NUnit.Framework;
@@ -13,9 +14,16 @@ namespace DentalClinic.API.Application.Tests.LeaveRequests;
 public class CreateLeaveRequestHandlerTests
 {
     private ILeaveRequestRepository _repo = null!;
+    private IActivityLogService _activityLog = null!;
+    private ICurrentUserService _currentUser = null!;
 
     [SetUp]
-    public void SetUp() => _repo = Substitute.For<ILeaveRequestRepository>();
+    public void SetUp()
+    {
+        _repo = Substitute.For<ILeaveRequestRepository>();
+        _activityLog = Substitute.For<IActivityLogService>();
+        _currentUser = Substitute.For<ICurrentUserService>();
+    }
 
     /// <summary>
     /// Tạo đơn nghỉ phép hợp lệ phải gọi AddAsync 1 lần và trả về DTO với status Pending.
@@ -26,7 +34,7 @@ public class CreateLeaveRequestHandlerTests
         var user = User.Create("emp", "emp@test.com", "hash", "Staff", null, "Nhân Viên Test");
         _repo.When(r => r.AddAsync(Arg.Any<LeaveRequest>(), Arg.Any<CancellationToken>()))
             .Do(call => typeof(LeaveRequest).GetProperty("User")!.SetValue(call.Arg<LeaveRequest>(), user));
-        var handler = new CreateLeaveRequestHandler(_repo);
+        var handler = new CreateLeaveRequestHandler(_repo, _activityLog, _currentUser);
 
         var result = await handler.HandleAsync(Guid.NewGuid(), BuildRequest("Annual", "Lý do hợp lệ"));
 
@@ -40,7 +48,7 @@ public class CreateLeaveRequestHandlerTests
     [Test]
     public async Task HandleAsync_EmptyReason_ThrowsValidationException()
     {
-        var handler = new CreateLeaveRequestHandler(_repo);
+        var handler = new CreateLeaveRequestHandler(_repo, _activityLog, _currentUser);
 
         Func<Task> act = () => handler.HandleAsync(Guid.NewGuid(), BuildRequest("Annual", ""));
 
@@ -53,7 +61,7 @@ public class CreateLeaveRequestHandlerTests
     [Test]
     public async Task HandleAsync_ReasonOver1000Chars_ThrowsValidationException()
     {
-        var handler = new CreateLeaveRequestHandler(_repo);
+        var handler = new CreateLeaveRequestHandler(_repo, _activityLog, _currentUser);
 
         Func<Task> act = () => handler.HandleAsync(Guid.NewGuid(), BuildRequest("Annual", new string('a', 1001)));
 
@@ -66,7 +74,7 @@ public class CreateLeaveRequestHandlerTests
     [Test]
     public async Task HandleAsync_InvalidLeaveType_ThrowsValidationException()
     {
-        var handler = new CreateLeaveRequestHandler(_repo);
+        var handler = new CreateLeaveRequestHandler(_repo, _activityLog, _currentUser);
 
         Func<Task> act = () => handler.HandleAsync(Guid.NewGuid(), BuildRequest("InvalidType", "Lý do"));
 
@@ -79,7 +87,7 @@ public class CreateLeaveRequestHandlerTests
     [Test]
     public async Task HandleAsync_EndDateBeforeStartDate_ThrowsValidationException()
     {
-        var handler = new CreateLeaveRequestHandler(_repo);
+        var handler = new CreateLeaveRequestHandler(_repo, _activityLog, _currentUser);
         var req = new CreateLeaveRequestRequest(
             "Annual",
             DateOnly.FromDateTime(DateTime.Today.AddDays(3)),

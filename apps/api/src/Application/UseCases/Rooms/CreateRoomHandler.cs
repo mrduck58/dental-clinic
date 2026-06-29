@@ -1,11 +1,13 @@
-using DentalClinic.API.Application.DTOs.Rooms;
+﻿using DentalClinic.API.Application.DTOs.Rooms;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Domain.Interfaces.Services;
+using DentalClinic.API.Domain.Constants;
 
 namespace DentalClinic.API.Application.UseCases.Rooms;
 
-public class CreateRoomHandler(IRoomRepository roomRepository)
+public class CreateRoomHandler(IRoomRepository roomRepository, IActivityLogService activityLogService, ICurrentUserService currentUser)
 {
     public async Task<RoomDto> HandleAsync(CreateRoomRequest request, CancellationToken ct = default)
     {
@@ -23,6 +25,18 @@ public class CreateRoomHandler(IRoomRepository roomRepository)
             request.Description);
 
         await roomRepository.AddAsync(room, ct);
+
+        await activityLogService.LogAsync(
+            userId: currentUser.UserId,
+            userName: currentUser.UserName,
+            userRole: currentUser.UserRole,
+            action: ActivityAction.Create,
+            module: ActivityModule.Room,
+            description: $"Tạo phòng mới: {request.Name} (mã: {request.Code})",
+            status: ActivityStatus.Success,
+            ipAddress: currentUser.IpAddress,
+            targetId: room.Id.ToString(),
+            ct: ct);
 
         return new RoomDto(
             room.Id, room.Code, room.Name, room.Floor, room.Type,

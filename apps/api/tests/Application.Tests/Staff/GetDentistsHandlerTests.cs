@@ -27,8 +27,8 @@ public class GetDentistsHandlerTests
     // ── Query behavior ────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Handler phải query staff active với pageSize=50, không lọc role ở tầng repo
-    /// (lọc bằng LINQ trong bộ nhớ sau khi nhận dữ liệu).
+    /// Handler lấy toàn bộ nhân sự (status=null, pageSize=500) rồi lọc bằng LINQ trong bộ nhớ,
+    /// vì DB có thể lưu role/status với cách viết hoa khác nhau ("Dentist"/"doctor"/"Active").
     /// </summary>
     [Test]
     public async Task HandleAsync_CallsRepoWithCorrectParameters()
@@ -36,7 +36,7 @@ public class GetDentistsHandlerTests
         await _handler.HandleAsync();
 
         await _userRepo.Received(1).GetStaffPagedAsync(
-            null, null, "active", 1, 50, Arg.Any<CancellationToken>());
+            null, null, null, 1, 500, Arg.Any<CancellationToken>());
     }
 
     /// <summary>

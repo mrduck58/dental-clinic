@@ -2411,3 +2411,59 @@ export async function confirmInvoicePaymentApi(invoiceId: string, paymentMethod?
   }
   return res.json() as Promise<InvoiceDto>;
 }
+
+// ── Activity Logs ───────────────────────────────────────────────────────────
+
+export interface ActivityLogItemDto {
+  id: number;
+  userId: string | null;
+  userName: string;
+  userRole: string;
+  action: string;
+  module: string;
+  description: string;
+  ipAddress: string | null;
+  status: string;
+  targetId: string | null;
+  createdAt: string;
+}
+
+export interface ActivityLogPagedDto {
+  items: ActivityLogItemDto[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export async function getActivityLogsApi(params?: {
+  action?: string;
+  module?: string;
+  status?: string;
+  search?: string;
+  startDate?: string;
+  endDate?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<ActivityLogPagedDto> {
+  const qs = new URLSearchParams();
+  if (params?.action)    qs.set("action",    params.action);
+  if (params?.module)    qs.set("module",    params.module);
+  if (params?.status)    qs.set("status",    params.status);
+  if (params?.search)    qs.set("search",    params.search);
+  if (params?.startDate) qs.set("startDate", params.startDate);
+  if (params?.endDate)   qs.set("endDate",   params.endDate);
+  if (params?.page)      qs.set("page",      String(params.page));
+  if (params?.pageSize)  qs.set("pageSize",  String(params.pageSize));
+  const query = qs.toString() ? `?${qs.toString()}` : "";
+
+  const res = await fetch(`${API_URL}/api/activity-logs${query}`, {
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải lịch sử hoạt động");
+  }
+  return res.json() as Promise<ActivityLogPagedDto>;
+}

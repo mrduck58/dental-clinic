@@ -1,10 +1,15 @@
-using DentalClinic.API.Application.DTOs.Services;
+﻿using DentalClinic.API.Application.DTOs.Services;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Domain.Interfaces.Services;
+using DentalClinic.API.Domain.Constants;
 
 namespace DentalClinic.API.Application.UseCases.Services;
 
-public class UpdateServiceHandler(IServiceRepository serviceRepository)
+public class UpdateServiceHandler(
+    IServiceRepository serviceRepository,
+    IActivityLogService activityLogService,
+    ICurrentUserService currentUser)
 {
     public async Task<ServiceDto> HandleAsync(Guid id, UpdateServiceRequest request, CancellationToken ct = default)
     {
@@ -19,6 +24,18 @@ public class UpdateServiceHandler(IServiceRepository serviceRepository)
             request.ImageUrl);
 
         await serviceRepository.UpdateAsync(service, ct);
+
+        await activityLogService.LogAsync(
+            userId: currentUser.UserId,
+            userName: currentUser.UserName,
+            userRole: currentUser.UserRole,
+            action: ActivityAction.Edit,
+            module: ActivityModule.Service,
+            description: $"Cập nhật dịch vụ: {service.Name}",
+            status: ActivityStatus.Success,
+            ipAddress: currentUser.IpAddress,
+            targetId: id.ToString(),
+            ct: ct);
 
         return new ServiceDto(
             service.Id, service.Name, service.Price,

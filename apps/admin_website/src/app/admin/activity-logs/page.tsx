@@ -1,26 +1,17 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import AdminSidebar from "../../../components/shared/AdminSidebar";
 import NotificationBell from "../../../components/shared/NotificationBell";
 import { useRequireAdmin } from "../../../hooks/useRequireAdmin";
+import { getActivityLogsApi, type ActivityLogItemDto } from "../../../lib/apiClient";
+import { supabase } from "../../../lib/supabaseClient";
 
-type ActionType = "login" | "create" | "edit" | "delete" | "export" | "view" | "permission";
-type ModuleType = "account" | "service" | "post" | "schedule" | "system";
+type ActionType = "login" | "create" | "edit" | "delete" | "export" | "view" | "permission" | "approve" | "reject" | "cancel" | "payment";
+type ModuleType = "account" | "service" | "post" | "schedule" | "system" | "appointment" | "room" | "medicine" | "inventory" | "leave" | "invoice" | "feedback" | "promotion";
 type StatusType = "success" | "failed" | "warning";
 
-interface ActivityLog {
-  id: string;
-  timestamp: string;
-  user: { name: string; role: string; initials: string; colorClass: string };
-  action: ActionType;
-  module: ModuleType;
-  description: string;
-  ip: string;
-  status: StatusType;
-}
-
-const ACTION_CONFIG: Record<ActionType, { label: string; badgeClass: string; dot: string; iconPath: string }> = {
+const ACTION_CONFIG: Record<string, { label: string; badgeClass: string; dot: string; iconPath: string }> = {
   login: {
     label: "Đăng nhập",
     badgeClass: "bg-green-50 text-green-700 border border-green-100",
@@ -63,50 +54,90 @@ const ACTION_CONFIG: Record<ActionType, { label: string; badgeClass: string; dot
     dot: "bg-orange-500",
     iconPath: "M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.57-.598-3.751A11.956 11.956 0 0112 2.714z",
   },
+  approve: {
+    label: "Duyệt",
+    badgeClass: "bg-emerald-50 text-emerald-700 border border-emerald-100",
+    dot: "bg-emerald-500",
+    iconPath: "M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
+  },
+  reject: {
+    label: "Từ chối",
+    badgeClass: "bg-rose-50 text-rose-700 border border-rose-100",
+    dot: "bg-rose-500",
+    iconPath: "M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
+  },
+  cancel: {
+    label: "Hủy",
+    badgeClass: "bg-gray-100 text-gray-600 border border-gray-200",
+    dot: "bg-gray-400",
+    iconPath: "M6 18L18 6M6 6l12 12",
+  },
+  payment: {
+    label: "Thanh toán",
+    badgeClass: "bg-teal-50 text-teal-700 border border-teal-100",
+    dot: "bg-teal-500",
+    iconPath: "M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z",
+  },
 };
 
-const MODULE_LABELS: Record<ModuleType, string> = {
-  account: "Tài khoản",
-  service: "Dịch vụ",
-  post: "Bài viết",
-  schedule: "Lịch làm việc",
-  system: "Hệ thống",
+const MODULE_LABELS: Record<string, string> = {
+  account:     "Tài khoản",
+  service:     "Dịch vụ",
+  post:        "Bài viết",
+  schedule:    "Lịch làm việc",
+  system:      "Hệ thống",
+  appointment: "Lịch hẹn",
+  room:        "Phòng khám",
+  medicine:    "Thuốc",
+  inventory:   "Kho vật tư",
+  leave:       "Nghỉ phép",
+  invoice:     "Hóa đơn",
+  feedback:    "Phản hồi",
+  promotion:   "Khuyến mãi",
 };
 
-const MODULE_COLORS: Record<ModuleType, string> = {
-  account: "bg-red-50 text-primary",
-  service: "bg-sky-50 text-secondary",
-  post: "bg-emerald-50 text-emerald-700",
-  schedule: "bg-amber-50 text-amber-700",
-  system: "bg-slate-100 text-slate-600",
+const MODULE_COLORS: Record<string, string> = {
+  account:     "bg-red-50 text-primary",
+  service:     "bg-sky-50 text-secondary",
+  post:        "bg-emerald-50 text-emerald-700",
+  schedule:    "bg-amber-50 text-amber-700",
+  system:      "bg-slate-100 text-slate-600",
+  appointment: "bg-blue-50 text-blue-700",
+  room:        "bg-indigo-50 text-indigo-700",
+  medicine:    "bg-teal-50 text-teal-700",
+  inventory:   "bg-cyan-50 text-cyan-700",
+  leave:       "bg-orange-50 text-orange-700",
+  invoice:     "bg-violet-50 text-violet-700",
+  feedback:    "bg-rose-50 text-rose-700",
+  promotion:   "bg-fuchsia-50 text-fuchsia-700",
 };
 
-const STATUS_CONFIG: Record<StatusType, { label: string; badgeClass: string; dotClass: string }> = {
+const ROLE_COLORS: Record<string, string> = {
+  Admin:   "bg-red-50 text-primary",
+  Owner:   "bg-purple-50 text-purple-700",
+  Dentist: "bg-sky-50 text-sky-700",
+  Staff:   "bg-green-50 text-green-700",
+  Patient: "bg-amber-50 text-amber-700",
+};
+
+const STATUS_CONFIG: Record<string, { label: string; badgeClass: string; dotClass: string }> = {
   success: { label: "Thành công", badgeClass: "bg-green-50 text-green-700 border border-green-100", dotClass: "bg-green-500" },
-  failed: { label: "Thất bại", badgeClass: "bg-red-50 text-red-700 border border-red-100", dotClass: "bg-red-500" },
-  warning: { label: "Cảnh báo", badgeClass: "bg-amber-50 text-amber-700 border border-amber-100", dotClass: "bg-amber-500" },
+  failed:  { label: "Thất bại",   badgeClass: "bg-red-50 text-red-700 border border-red-100",     dotClass: "bg-red-500"   },
+  warning: { label: "Cảnh báo",   badgeClass: "bg-amber-50 text-amber-700 border border-amber-100", dotClass: "bg-amber-500" },
 };
-
-const MOCK_LOGS: ActivityLog[] = [
-  { id: "L001", timestamp: "2026-06-12T08:32:14", user: { name: "Nguyễn Minh Đức", role: "Admin", initials: "NĐ", colorClass: "bg-red-50 text-primary" }, action: "login", module: "system", description: "Đăng nhập hệ thống thành công từ trình duyệt Chrome", ip: "192.168.1.10", status: "success" },
-  { id: "L002", timestamp: "2026-06-12T08:45:02", user: { name: "Nguyễn Minh Đức", role: "Admin", initials: "NĐ", colorClass: "bg-red-50 text-primary" }, action: "create", module: "service", description: "Tạo dịch vụ mới: \"Tẩy trắng răng Zoom Advanced\"", ip: "192.168.1.10", status: "success" },
-  { id: "L004", timestamp: "2026-06-12T09:30:20", user: { name: "Nguyễn Minh Đức", role: "Admin", initials: "NĐ", colorClass: "bg-red-50 text-primary" }, action: "edit", module: "service", description: "Cập nhật giá dịch vụ \"Cấy ghép Implant\" từ 15.000.000đ → 16.500.000đ", ip: "192.168.1.10", status: "success" },
-  { id: "L005", timestamp: "2026-06-12T10:05:43", user: { name: "Trần Thị Hương", role: "Lễ tân", initials: "TH", colorClass: "bg-green-50 text-green-700" }, action: "login", module: "system", description: "Đăng nhập thất bại — sai mật khẩu (lần 1/3)", ip: "192.168.1.30", status: "failed" },
-  { id: "L006", timestamp: "2026-06-12T10:06:10", user: { name: "Trần Thị Hương", role: "Lễ tân", initials: "TH", colorClass: "bg-green-50 text-green-700" }, action: "login", module: "system", description: "Đăng nhập hệ thống thành công", ip: "192.168.1.30", status: "success" },
-  { id: "L008", timestamp: "2026-06-12T11:00:15", user: { name: "Phạm Văn Bình", role: "Kế toán", initials: "PB", colorClass: "bg-amber-50 text-amber-700" }, action: "view", module: "service", description: "Xem báo cáo doanh thu tháng 6/2026", ip: "192.168.1.42", status: "success" },
-  { id: "L009", timestamp: "2026-06-12T11:15:28", user: { name: "Phạm Văn Bình", role: "Kế toán", initials: "PB", colorClass: "bg-amber-50 text-amber-700" }, action: "export", module: "schedule", description: "Xuất file CSV lịch làm việc tuần 24/2026", ip: "192.168.1.42", status: "success" },
-  { id: "L010", timestamp: "2026-06-12T13:30:05", user: { name: "Nguyễn Minh Đức", role: "Admin", initials: "NĐ", colorClass: "bg-red-50 text-primary" }, action: "create", module: "schedule", description: "Tạo lịch làm việc tuần 25 (16/06 – 22/06/2026) cho 8 nhân sự", ip: "192.168.1.10", status: "success" },
-  { id: "L012", timestamp: "2026-06-12T14:20:11", user: { name: "Nguyễn Minh Đức", role: "Admin", initials: "NĐ", colorClass: "bg-red-50 text-primary" }, action: "create", module: "account", description: "Tạo tài khoản mới: \"Trần Quốc Bảo\" (Bác sĩ) — email xác nhận đã gửi", ip: "192.168.1.10", status: "success" },
-  { id: "L013", timestamp: "2026-06-12T14:45:30", user: { name: "Nguyễn Minh Đức", role: "Admin", initials: "NĐ", colorClass: "bg-red-50 text-primary" }, action: "edit", module: "post", description: "Chỉnh sửa bài viết #P023 — cập nhật ảnh thumbnail và mô tả SEO", ip: "192.168.1.10", status: "success" },
-  { id: "L014", timestamp: "2026-06-12T15:10:22", user: { name: "Trần Thị Hương", role: "Lễ tân", initials: "TH", colorClass: "bg-green-50 text-green-700" }, action: "view", module: "schedule", description: "Xem lịch làm việc tuần 24 — ca sáng nhân viên hành chính", ip: "192.168.1.30", status: "success" },
-  { id: "L015", timestamp: "2026-06-12T15:30:00", user: { name: "Phạm Văn Bình", role: "Kế toán", initials: "PB", colorClass: "bg-amber-50 text-amber-700" }, action: "delete", module: "service", description: "Xóa chương trình khuyến mãi đã hết hạn: \"Giảm 20% tháng 5/2026\"", ip: "192.168.1.42", status: "warning" },
-  { id: "L016", timestamp: "2026-06-11T17:05:18", user: { name: "Nguyễn Minh Đức", role: "Admin", initials: "NĐ", colorClass: "bg-red-50 text-primary" }, action: "edit", module: "schedule", description: "Chỉnh sửa lịch làm việc tuần 24 — đổi ca chiều ngày Thứ Năm", ip: "192.168.1.10", status: "success" },
-  { id: "L018", timestamp: "2026-06-11T14:22:33", user: { name: "Nguyễn Minh Đức", role: "Admin", initials: "NĐ", colorClass: "bg-red-50 text-primary" }, action: "export", module: "account", description: "Xuất danh sách toàn bộ tài khoản nhân sự hệ thống (CSV)", ip: "192.168.1.10", status: "success" },
-  { id: "L019", timestamp: "2026-06-11T11:55:12", user: { name: "Trần Thị Hương", role: "Lễ tân", initials: "TH", colorClass: "bg-green-50 text-green-700" }, action: "login", module: "system", description: "Đăng nhập từ IP không quen thuộc: 103.45.67.89 (ngoài mạng nội bộ)", ip: "103.45.67.89", status: "warning" },
-  { id: "L020", timestamp: "2026-06-11T09:30:45", user: { name: "Phạm Văn Bình", role: "Kế toán", initials: "PB", colorClass: "bg-amber-50 text-amber-700" }, action: "login", module: "system", description: "Đăng nhập hệ thống thành công từ trình duyệt Firefox", ip: "192.168.1.42", status: "success" },
-];
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
+
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  const last = parts[parts.length - 1]?.[0] ?? "";
+  const first = parts[0]?.[0] ?? "";
+  return (parts.length > 1 ? last + first : first).toUpperCase();
+}
+
+function getRoleColor(role: string): string {
+  return ROLE_COLORS[role] ?? "bg-slate-100 text-slate-600";
+}
 
 function getPageNumbers(current: number, total: number): (number | "...")[] {
   if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
@@ -115,8 +146,19 @@ function getPageNumbers(current: number, total: number): (number | "...")[] {
   return [1, "...", current - 1, current, current + 1, "...", total];
 }
 
+function getTodayIso() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export default function ActivityLogsPage() {
   useRequireAdmin();
+
+  const [logs, setLogs] = useState<ActivityLogItemDto[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [actionFilter, setActionFilter] = useState("all");
@@ -124,40 +166,100 @@ export default function ActivityLogsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
+  const [newCount, setNewCount] = useState(0);
+
+  // Stats (today's data)
+  const [stats, setStats] = useState({ todayTotal: 0, todaySuccess: 0, warnings: 0, activeUsers: 0 });
+
+  const currentPageRef = useRef(currentPage);
+  useEffect(() => { currentPageRef.current = currentPage; }, [currentPage]);
 
   const resetPage = () => setCurrentPage(1);
 
-  const filteredLogs = useMemo(() => {
-    return MOCK_LOGS.filter((log) => {
-      const q = searchQuery.toLowerCase();
-      const matchesSearch =
-        q === "" ||
-        log.user.name.toLowerCase().includes(q) ||
-        log.description.toLowerCase().includes(q) ||
-        log.ip.includes(q);
-      const matchesAction = actionFilter === "all" || log.action === actionFilter;
-      const matchesModule = moduleFilter === "all" || log.module === moduleFilter;
-      const matchesStatus = statusFilter === "all" || log.status === statusFilter;
-      return matchesSearch && matchesAction && matchesModule && matchesStatus;
-    });
-  }, [searchQuery, actionFilter, moduleFilter, statusFilter]);
+  const fetchLogs = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await getActivityLogsApi({
+        action:   actionFilter !== "all" ? actionFilter : undefined,
+        module:   moduleFilter !== "all" ? moduleFilter : undefined,
+        status:   statusFilter !== "all" ? statusFilter : undefined,
+        search:   searchQuery || undefined,
+        page:     currentPage,
+        pageSize,
+      });
+      setLogs(data.items);
+      setTotalCount(data.totalCount);
+      setTotalPages(data.totalPages);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Lỗi không xác định");
+    } finally {
+      setLoading(false);
+    }
+  }, [actionFilter, moduleFilter, statusFilter, searchQuery, currentPage, pageSize]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredLogs.length / pageSize));
-  const safePage = Math.min(currentPage, totalPages);
-  const startIndex = (safePage - 1) * pageSize;
-  const pagedLogs = filteredLogs.slice(startIndex, startIndex + pageSize);
-  const pageNumbers = getPageNumbers(safePage, totalPages);
-
-  const stats = useMemo(() => {
-    const today = MOCK_LOGS.filter((l) => l.timestamp.startsWith("2026-06-12"));
-    const uniqueUsers = new Set(today.map((l) => l.user.name)).size;
-    return {
-      todayTotal: today.length,
-      todaySuccess: today.filter((l) => l.status === "success").length,
-      warnings: MOCK_LOGS.filter((l) => l.status === "warning" || l.status === "failed").length,
-      activeUsers: uniqueUsers,
-    };
+  const fetchStats = useCallback(async () => {
+    const today = getTodayIso();
+    try {
+      const [todayData, warningData] = await Promise.all([
+        getActivityLogsApi({ startDate: `${today}T00:00:00+07:00`, endDate: `${today}T23:59:59+07:00`, pageSize: 1000 }),
+        getActivityLogsApi({ status: "failed", pageSize: 1, page: 1 }),
+      ]);
+      const warningCount1 = warningData.totalCount;
+      const warningData2 = await getActivityLogsApi({ status: "warning", pageSize: 1, page: 1 });
+      const todayItems = todayData.items;
+      const activeUsers = new Set(todayItems.map((l) => l.userId ?? l.userName)).size;
+      setStats({
+        todayTotal: todayData.totalCount,
+        todaySuccess: todayItems.filter((l) => l.status === "success").length,
+        warnings: warningCount1 + warningData2.totalCount,
+        activeUsers,
+      });
+    } catch {
+      // Stats are optional — don't block the main view
+    }
   }, []);
+
+  useEffect(() => {
+    fetchLogs();
+  }, [fetchLogs]);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
+
+  // Realtime subscription — Supabase INSERT on ActivityLogs
+  useEffect(() => {
+    const channel = supabase
+      .channel("activity-logs-realtime")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "ActivityLogs" },
+        () => {
+          if (currentPageRef.current === 1) {
+            // On page 1: auto-refresh to show newest row at top
+            fetchLogs();
+            fetchStats();
+            setNewCount(0);
+          } else {
+            // On other pages: show badge so user can navigate back
+            setNewCount((c) => c + 1);
+            fetchStats();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleGoToLatest = () => {
+    setCurrentPage(1);
+    setNewCount(0);
+  };
 
   const formatTimestamp = (ts: string) => {
     const d = new Date(ts);
@@ -168,22 +270,41 @@ export default function ActivityLogsPage() {
     };
   };
 
-  const handleExport = () => {
-    const headers = "ID,Thoi gian,Nguoi dung,Vai tro,Hanh dong,Phan he,Mo ta,Dia chi IP,Trang thai\n";
-    const rows = filteredLogs
-      .map((log) => {
-        const { date, time } = formatTimestamp(log.timestamp);
-        return `"${log.id}","${date} ${time}","${log.user.name}","${log.user.role}","${ACTION_CONFIG[log.action].label}","${MODULE_LABELS[log.module]}","${log.description}","${log.ip}","${STATUS_CONFIG[log.status].label}"`;
-      })
-      .join("\n");
-    const csv = "data:text/csv;charset=utf-8,﻿" + encodeURIComponent(headers + rows);
-    const link = document.createElement("a");
-    link.setAttribute("href", csv);
-    link.setAttribute("download", "LichSuHoatDong.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleExport = async () => {
+    try {
+      const all = await getActivityLogsApi({
+        action: actionFilter !== "all" ? actionFilter : undefined,
+        module: moduleFilter !== "all" ? moduleFilter : undefined,
+        status: statusFilter !== "all" ? statusFilter : undefined,
+        search: searchQuery || undefined,
+        pageSize: 10000,
+        page: 1,
+      });
+      const headers = "ID,Thoi gian,Nguoi dung,Vai tro,Hanh dong,Phan he,Mo ta,Dia chi IP,Trang thai\n";
+      const rows = all.items
+        .map((log) => {
+          const { date, time } = formatTimestamp(log.createdAt);
+          const actionLabel = ACTION_CONFIG[log.action]?.label ?? log.action;
+          const moduleLabel = MODULE_LABELS[log.module] ?? log.module;
+          const statusLabel = STATUS_CONFIG[log.status]?.label ?? log.status;
+          return `"${log.id}","${date} ${time}","${log.userName}","${log.userRole}","${actionLabel}","${moduleLabel}","${log.description}","${log.ipAddress ?? ""}","${statusLabel}"`;
+        })
+        .join("\n");
+      const csv = "data:text/csv;charset=utf-8,﻿" + encodeURIComponent(headers + rows);
+      const link = document.createElement("a");
+      link.setAttribute("href", csv);
+      link.setAttribute("download", "LichSuHoatDong.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch {
+      // silently ignore export errors
+    }
   };
+
+  const safePage = Math.min(currentPage, totalPages);
+  const startIndex = (safePage - 1) * pageSize;
+  const pageNumbers = getPageNumbers(safePage, totalPages);
 
   const selectClass =
     "w-full px-4 py-2.5 text-[13px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-bold text-slate-600 appearance-none pr-8 cursor-pointer";
@@ -196,11 +317,35 @@ export default function ActivityLogsPage() {
         {/* HEADER */}
         <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-16 flex items-center justify-between shrink-0 shadow-sm shadow-slate-100/50">
           <div className="flex flex-col">
-            <h1 className="text-[18px] font-black text-slate-900 leading-tight">Lịch Sử Hoạt Động</h1>
+            <div className="flex items-center gap-2.5">
+              <h1 className="text-[18px] font-black text-slate-900 leading-tight">Lịch Sử Hoạt Động</h1>
+              <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-green-50 border border-green-100 text-[10.5px] font-extrabold text-green-600 uppercase tracking-wider">
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500"></span>
+                </span>
+                Realtime
+              </span>
+            </div>
             <p className="text-[12.5px] text-slate-400 font-semibold mt-0.5">Theo dõi toàn bộ thao tác và sự kiện hệ thống</p>
           </div>
           <NotificationBell />
         </header>
+
+        {/* NEW ACTIVITY BANNER — shown when user is not on page 1 */}
+        {newCount > 0 && (
+          <div className="sticky top-16 z-10 mx-8 mt-0">
+            <button
+              onClick={handleGoToLatest}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white text-[13px] font-bold rounded-b-2xl shadow-lg hover:bg-primary/90 transition-all animate-fade-in cursor-pointer"
+            >
+              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 19.5v-15m0 0l-6.75 6.75M12 4.5l6.75 6.75" />
+              </svg>
+              {newCount} hoạt động mới — Nhấn để xem mới nhất
+            </button>
+          </div>
+        )}
 
         <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-6">
 
@@ -275,7 +420,6 @@ export default function ActivityLogsPage() {
 
           {/* TOOLBAR */}
           <div className="bg-white px-5 py-4 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col gap-3 shrink-0">
-            {/* Row 1: Search + Filters */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-wrap">
               {/* Search */}
               <div className="relative flex-1 min-w-[200px]">
@@ -293,7 +437,7 @@ export default function ActivityLogsPage() {
                 />
               </div>
 
-              {/* Action type */}
+              {/* Action */}
               <div className="relative sm:w-44">
                 <select value={actionFilter} onChange={(e) => { setActionFilter(e.target.value); resetPage(); }} className={selectClass}>
                   <option value="all">Tất cả thao tác</option>
@@ -301,9 +445,12 @@ export default function ActivityLogsPage() {
                   <option value="create">Tạo mới</option>
                   <option value="edit">Chỉnh sửa</option>
                   <option value="delete">Xóa</option>
+                  <option value="approve">Duyệt</option>
+                  <option value="reject">Từ chối</option>
+                  <option value="cancel">Hủy</option>
+                  <option value="payment">Thanh toán</option>
                   <option value="export">Xuất dữ liệu</option>
                   <option value="view">Xem</option>
-                  <option value="permission">Phân quyền</option>
                 </select>
                 <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
@@ -315,9 +462,17 @@ export default function ActivityLogsPage() {
                 <select value={moduleFilter} onChange={(e) => { setModuleFilter(e.target.value); resetPage(); }} className={selectClass}>
                   <option value="all">Tất cả phân hệ</option>
                   <option value="account">Tài khoản</option>
+                  <option value="appointment">Lịch hẹn</option>
                   <option value="service">Dịch vụ</option>
                   <option value="post">Bài viết</option>
                   <option value="schedule">Lịch làm việc</option>
+                  <option value="room">Phòng khám</option>
+                  <option value="medicine">Thuốc</option>
+                  <option value="inventory">Kho vật tư</option>
+                  <option value="leave">Nghỉ phép</option>
+                  <option value="invoice">Hóa đơn</option>
+                  <option value="feedback">Phản hồi</option>
+                  <option value="promotion">Khuyến mãi</option>
                   <option value="system">Hệ thống</option>
                 </select>
                 <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400">
@@ -360,7 +515,7 @@ export default function ActivityLogsPage() {
                 <span className="text-[12.5px] text-slate-400 font-semibold whitespace-nowrap">mục / trang</span>
                 <span className="text-[12.5px] text-slate-300 font-semibold">·</span>
                 <span className="text-[12.5px] text-slate-400 font-semibold whitespace-nowrap">
-                  <span className="font-bold text-slate-600">{filteredLogs.length}</span> kết quả
+                  <span className="font-bold text-slate-600">{totalCount}</span> kết quả
                 </span>
               </div>
 
@@ -392,11 +547,35 @@ export default function ActivityLogsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {pagedLogs.length > 0 ? (
-                    pagedLogs.map((log) => {
-                      const { date, time } = formatTimestamp(log.timestamp);
-                      const actionCfg = ACTION_CONFIG[log.action];
-                      const statusCfg = STATUS_CONFIG[log.status];
+                  {loading ? (
+                    <tr>
+                      <td colSpan={7} className="px-6 py-16 text-center">
+                        <div className="flex flex-col items-center gap-3">
+                          <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                          <div className="text-[13px] font-semibold text-slate-400">Đang tải dữ liệu...</div>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : error ? (
+                    <tr>
+                      <td colSpan={7} className="px-6 py-16 text-center">
+                        <div className="text-[14px] font-bold text-red-500">{error}</div>
+                      </td>
+                    </tr>
+                  ) : logs.length > 0 ? (
+                    logs.map((log) => {
+                      const { date, time } = formatTimestamp(log.createdAt);
+                      const actionCfg = ACTION_CONFIG[log.action] ?? {
+                        label: log.action,
+                        badgeClass: "bg-slate-100 text-slate-600 border border-slate-200",
+                        dot: "bg-slate-400",
+                        iconPath: "M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z",
+                      };
+                      const statusCfg = STATUS_CONFIG[log.status] ?? STATUS_CONFIG.warning;
+                      const moduleColor = MODULE_COLORS[log.module] ?? "bg-slate-100 text-slate-600";
+                      const moduleLabel = MODULE_LABELS[log.module] ?? log.module;
+                      const roleColor = getRoleColor(log.userRole);
+                      const initials = getInitials(log.userName);
                       const rowBg =
                         log.status === "failed"
                           ? "bg-red-50/30 hover:bg-red-50/50"
@@ -406,27 +585,23 @@ export default function ActivityLogsPage() {
 
                       return (
                         <tr key={log.id} className={`transition-colors ${rowBg}`}>
-
-                          {/* Timestamp */}
                           <td className="px-5 py-3.5">
                             <div className="text-[12.5px] font-bold text-slate-800">{date}</div>
                             <div className="text-[11.5px] font-mono font-semibold text-slate-400 mt-0.5">{time}</div>
                           </td>
 
-                          {/* User */}
                           <td className="px-5 py-3.5">
                             <div className="flex items-center gap-2.5">
-                              <div className={`w-8 h-8 rounded-full ${log.user.colorClass} flex items-center justify-center font-black text-[10px] shrink-0 border border-white shadow-sm`}>
-                                {log.user.initials}
+                              <div className={`w-8 h-8 rounded-full ${roleColor} flex items-center justify-center font-black text-[10px] shrink-0 border border-white shadow-sm`}>
+                                {initials}
                               </div>
                               <div className="min-w-0">
-                                <div className="font-extrabold text-slate-900 text-[13px] truncate">{log.user.name}</div>
-                                <div className="text-[11px] text-slate-400 font-semibold mt-0.5">{log.user.role}</div>
+                                <div className="font-extrabold text-slate-900 text-[13px] truncate">{log.userName}</div>
+                                <div className="text-[11px] text-slate-400 font-semibold mt-0.5">{log.userRole}</div>
                               </div>
                             </div>
                           </td>
 
-                          {/* Action */}
                           <td className="px-5 py-3.5">
                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-black whitespace-nowrap ${actionCfg.badgeClass}`}>
                               <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -436,24 +611,20 @@ export default function ActivityLogsPage() {
                             </span>
                           </td>
 
-                          {/* Module */}
                           <td className="px-5 py-3.5">
-                            <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-[12px] font-bold whitespace-nowrap ${MODULE_COLORS[log.module]}`}>
-                              {MODULE_LABELS[log.module]}
+                            <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-[12px] font-bold whitespace-nowrap ${moduleColor}`}>
+                              {moduleLabel}
                             </span>
                           </td>
 
-                          {/* Description */}
                           <td className="px-5 py-3.5">
                             <span className="text-[13px] text-slate-700 font-medium leading-relaxed">{log.description}</span>
                           </td>
 
-                          {/* IP */}
                           <td className="px-5 py-3.5">
-                            <span className="font-mono text-[12px] text-slate-500 font-semibold">{log.ip}</span>
+                            <span className="font-mono text-[12px] text-slate-500 font-semibold">{log.ipAddress ?? "—"}</span>
                           </td>
 
-                          {/* Status */}
                           <td className="px-5 py-3.5 text-center">
                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-black whitespace-nowrap ${statusCfg.badgeClass}`}>
                               <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusCfg.dotClass}`}></span>
@@ -482,13 +653,12 @@ export default function ActivityLogsPage() {
               </table>
             </div>
 
-            {filteredLogs.length > 0 && (
+            {!loading && totalCount > 0 && (
               <div className="px-5 py-3.5 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50/30">
-                {/* Left: range + real-time dot */}
                 <div className="flex items-center gap-3">
                   <span className="text-[12.5px] text-slate-400 font-semibold whitespace-nowrap">
-                    {startIndex + 1}–{Math.min(startIndex + pageSize, filteredLogs.length)} trong{" "}
-                    <span className="font-bold text-slate-600">{filteredLogs.length}</span> kết quả
+                    {startIndex + 1}–{Math.min(startIndex + pageSize, totalCount)} trong{" "}
+                    <span className="font-bold text-slate-600">{totalCount}</span> kết quả
                   </span>
                   <span className="text-slate-200">|</span>
                   <div className="flex items-center gap-1.5 text-[11.5px] text-slate-400 font-semibold whitespace-nowrap">
@@ -500,9 +670,7 @@ export default function ActivityLogsPage() {
                   </div>
                 </div>
 
-                {/* Right: pagination */}
                 <div className="flex items-center gap-1">
-                  {/* Prev */}
                   <button
                     onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                     disabled={safePage === 1}
@@ -513,12 +681,9 @@ export default function ActivityLogsPage() {
                     </svg>
                   </button>
 
-                  {/* Page numbers */}
                   {pageNumbers.map((p, i) =>
                     p === "..." ? (
-                      <span key={`ellipsis-${i}`} className="w-8 h-8 flex items-center justify-center text-[13px] text-slate-400 font-bold select-none">
-                        ···
-                      </span>
+                      <span key={`ellipsis-${i}`} className="w-8 h-8 flex items-center justify-center text-[13px] text-slate-400 font-bold select-none">···</span>
                     ) : (
                       <button
                         key={p}
@@ -534,7 +699,6 @@ export default function ActivityLogsPage() {
                     )
                   )}
 
-                  {/* Next */}
                   <button
                     onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                     disabled={safePage === totalPages}
