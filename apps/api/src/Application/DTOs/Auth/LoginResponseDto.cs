@@ -11,5 +11,4 @@ public record AuthUserDto(
     string? FullName,
     string Email,
     string Role,
-    bool IsActive,
-    string? ProfilePictureUrl);
+    bool IsActive);

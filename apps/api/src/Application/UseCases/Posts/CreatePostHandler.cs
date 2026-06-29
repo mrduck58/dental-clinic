@@ -14,8 +14,7 @@ public class CreatePostHandler(IPostRepository postRepository)
             request.Author,
             request.Content,
             request.ThumbnailUrl,
-            request.IsPublished,
-            request.ServiceId);
+            request.IsPublished);
 
         await postRepository.AddAsync(post, ct);
         return GetPostsHandler.ToDto(post);

@@ -9,13 +9,9 @@ public class GetPostsHandler(IPostRepository postRepository)
         string? category,
         string? status,
         string? search,
-        Guid? serviceId,
         CancellationToken ct = default)
     {
         var posts = await postRepository.GetAllAsync(ct);
-
-        if (serviceId.HasValue)
-            posts = posts.Where(p => p.ServiceId == serviceId.Value);
 
         if (!string.IsNullOrWhiteSpace(category))
             posts = posts.Where(p => p.Category == category);
@@ -40,6 +36,5 @@ public class GetPostsHandler(IPostRepository postRepository)
     internal static PostDto ToDto(DentalClinic.API.Domain.Entities.Post p) => new(
         p.Id, p.Title, p.Category, p.Author,
         p.Content, p.ThumbnailUrl, p.IsPublished,
-        p.ServiceId, p.Service?.Name,
         p.CreatedAt, p.UpdatedAt, p.PublishedAt);
 }

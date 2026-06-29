@@ -1,13 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import DentistSidebar from "../../../../../../components/shared/DentistSidebar";
 import DentistPageHeader from "../../../../../../components/shared/DentistPageHeader";
 import { useRequireDentist } from "../../../../../../hooks/useRequireDentist";
-import { createPrescriptionApi, addPrescriptionItemApi, getMedicinesApi, getExaminationApi } from "../../../../../../lib/apiClient";
-import type { MedicineDto } from "../../../../../../lib/apiClient";
 
 const COMMON_MEDS = [
   "Amoxicillin 500mg","Amoxicillin + Clavulanate 875mg","Metronidazole 250mg",
@@ -20,93 +18,27 @@ const FREQUENCIES = ["1 lần/ngày","2 lần/ngày","3 lần/ngày","4 lần/ng
 const DURATIONS   = ["3 ngày","5 ngày","7 ngày","10 ngày","14 ngày","1 tháng"];
 const QUICK_NOTES = ["Uống sau ăn","Uống trước ăn 30 phút","Uống với nhiều nước","Súc miệng 30 giây rồi nhổ","Bôi vào vùng điều trị","Không lái xe sau khi uống","Tránh tiếp xúc ánh nắng"];
 
-interface MedItem { name: string; dosage: string; frequency: string; duration: string; note: string }
+interface MedItem { id: string; name: string; dosage: string; frequency: string; duration: string; note: string }
+
+const BLANK = { name: COMMON_MEDS[0], dosage: DOSAGES[1], frequency: FREQUENCIES[2], duration: DURATIONS[2], note: "" };
 
 export default function NewPrescriptionPage() {
   useRequireDentist();
   const { id }  = useParams<{ id: string }>();
   const router  = useRouter();
 
-  const [medicines,  setMedicines]  = useState<MedicineDto[]>([]);
-  const [loadingMeds, setLoadingMeds] = useState(true);
-  const [existingPrescriptionId, setExistingPrescriptionId] = useState<string | null>(null);
   const [items,      setItems]  = useState<MedItem[]>([]);
-  const [form,       setForm]   = useState({ name: "", dosage: DOSAGES[1], frequency: FREQUENCIES[2], duration: DURATIONS[2], note: "" });
+  const [form,       setForm]   = useState(BLANK);
   const [customName, setCustom] = useState("");
   const [saving,     setSaving] = useState(false);
-  const [error,      setError]  = useState<string | null>(null);
-
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const [medsData, examData] = await Promise.all([
-          getMedicinesApi({ status: "active" }),
-          getExaminationApi(id).catch(() => null)
-        ]);
-        setMedicines(medsData);
-        if (medsData.length > 0) {
-          setForm(f => ({ ...f, name: medsData[0].name }));
-        }
-        // Check if prescription already exists
-        if (examData?.prescription?.id) {
-          setExistingPrescriptionId(examData.prescription.id);
-        }
-      } catch {
-        // Fallback to common meds on error
-      } finally {
-        setLoadingMeds(false);
-      }
-    };
-    loadData();
-  }, [id]);
-
-  const medicineOptions = medicines.length > 0
-    ? [...medicines.map((m, i) => ({ key: m.id || `med-${i}`, label: m.name })), { key: "khac", label: "Khác" }]
-    : COMMON_MEDS.map((m, i) => ({ key: `common-${i}`, label: m }));
-
-  const defaultMedName = medicines.length > 0 ? medicines[0].name : (COMMON_MEDS[0] ?? "");
 
   const canAdd = form.name !== "Khác" || customName.trim() !== "";
 
   const addItem = () => {
     if (!canAdd) return;
     const name = form.name === "Khác" ? customName.trim() : form.name;
-    setItems(p => [...p, { name, dosage: form.dosage, frequency: form.frequency, duration: form.duration, note: form.note }]);
-    setForm({ name: defaultMedName, dosage: form.dosage, frequency: form.frequency, duration: form.duration, note: "" }); setCustom("");
-  };
-
-  const handleSave = async () => {
-    if (items.length === 0) return;
-    setSaving(true);
-    setError(null);
-
-    try {
-      let prescriptionId = existingPrescriptionId;
-
-      // If no existing prescription, create a new one
-      if (!prescriptionId) {
-        const prescription = await createPrescriptionApi(id, { notes: "" });
-        prescriptionId = prescription.id;
-      }
-
-      // Add each item
-      for (const item of items) {
-        await addPrescriptionItemApi({
-          prescriptionId,
-          medicineName: item.name,
-          dosage: item.dosage,
-          quantity: 1,
-          unit: "viên",
-          usage: `${item.frequency}, ${item.duration}`,
-          notes: item.note || undefined,
-        });
-      }
-
-      router.push(`/dentist/patients/${id}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Lưu đơn thuốc thất bại");
-      setSaving(false);
-    }
+    setItems(p => [...p, { id: String(Date.now()), name, dosage: form.dosage, frequency: form.frequency, duration: form.duration, note: form.note }]);
+    setForm(BLANK); setCustom("");
   };
 
   const sel = "w-full px-4 py-2.5 text-[13.5px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-semibold text-slate-700 appearance-none pr-8 cursor-pointer";
@@ -123,8 +55,8 @@ export default function NewPrescriptionPage() {
       <DentistSidebar activeMenu="patients" />
       <main className="flex-1 flex flex-col min-w-0">
         <DentistPageHeader
-          title={existingPrescriptionId ? "Cập nhật đơn thuốc" : "Lập đơn thuốc mới"}
-          subtitle={`Bệnh nhân #${id}${existingPrescriptionId ? " · Đơn thuốc đã tồn tại" : ""}`}
+          title="Lập đơn thuốc"
+          subtitle={`Bệnh nhân #${id}`}
           left={
             <Link href={`/dentist/patients/${id}`} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-all shrink-0">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
@@ -133,12 +65,6 @@ export default function NewPrescriptionPage() {
         />
 
         <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-6">
-
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-[13px] text-red-700 font-semibold">
-              {error}
-            </div>
-          )}
 
           {/* Top: form + queue */}
           <div className="grid gap-6" style={{ gridTemplateColumns: "1fr 320px" }}>
@@ -157,15 +83,7 @@ export default function NewPrescriptionPage() {
                 {/* Tên thuốc */}
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[12px] font-extrabold text-slate-500 uppercase tracking-wider">Tên thuốc</label>
-                  <div className="relative">
-                    <select value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} className={sel}>
-                      {loadingMeds ? (
-                        <option value="">Đang tải...</option>
-                      ) : (
-                        medicineOptions.map(m => <option key={m.key} value={m.label}>{m.label}</option>)
-                      )}
-                    </select>{chevron}
-                  </div>
+                  <div className="relative"><select value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} className={sel}>{COMMON_MEDS.map(m => <option key={m} value={m}>{m}</option>)}</select>{chevron}</div>
                   {form.name === "Khác" && (
                     <input value={customName} onChange={e => setCustom(e.target.value)}
                       placeholder="Nhập tên thuốc..." className={inp + " mt-1"} />
@@ -176,46 +94,19 @@ export default function NewPrescriptionPage() {
                 <div className="grid grid-cols-3 gap-3">
                   <div className="flex flex-col gap-1.5">
                     <label className="text-[12px] font-extrabold text-slate-500 uppercase tracking-wider">Liều dùng</label>
-                    <input
-                      list="dosage-list"
-                      value={form.dosage}
-                      onChange={e => setForm(f => ({...f, dosage: e.target.value}))}
-                      placeholder="Chọn hoặc nhập..."
-                      className={inp}
-                    />
-                    <datalist id="dosage-list">
-                      {DOSAGES.map(d => <option key={d} value={d} />)}
-                    </datalist>
+                    <div className="relative"><select value={form.dosage} onChange={e => setForm(f => ({...f, dosage: e.target.value}))} className={sel}>{DOSAGES.map(d => <option key={d} value={d}>{d}</option>)}</select>{chevron}</div>
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <label className="text-[12px] font-extrabold text-slate-500 uppercase tracking-wider">Tần suất</label>
-                    <input
-                      list="frequency-list"
-                      value={form.frequency}
-                      onChange={e => setForm(f => ({...f, frequency: e.target.value}))}
-                      placeholder="Chọn hoặc nhập..."
-                      className={inp}
-                    />
-                    <datalist id="frequency-list">
-                      {FREQUENCIES.map(f => <option key={f} value={f} />)}
-                    </datalist>
+                    <div className="relative"><select value={form.frequency} onChange={e => setForm(f => ({...f, frequency: e.target.value}))} className={sel}>{FREQUENCIES.map(f => <option key={f} value={f}>{f}</option>)}</select>{chevron}</div>
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <label className="text-[12px] font-extrabold text-slate-500 uppercase tracking-wider">Thời gian</label>
-                    <input
-                      list="duration-list"
-                      value={form.duration}
-                      onChange={e => setForm(f => ({...f, duration: e.target.value}))}
-                      placeholder="Chọn hoặc nhập..."
-                      className={inp}
-                    />
-                    <datalist id="duration-list">
-                      {DURATIONS.map(d => <option key={d} value={d} />)}
-                    </datalist>
+                    <div className="relative"><select value={form.duration} onChange={e => setForm(f => ({...f, duration: e.target.value}))} className={sel}>{DURATIONS.map(d => <option key={d} value={d}>{d}</option>)}</select>{chevron}</div>
                   </div>
                 </div>
 
-                {/* Hướng dẫn */}
+                {/* Hướng dẫn — field nhập tự do duy nhất */}
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[12px] font-extrabold text-slate-500 uppercase tracking-wider">Hướng dẫn sử dụng</label>
                   <div className="flex flex-wrap gap-1.5 mb-1">
@@ -268,14 +159,14 @@ export default function NewPrescriptionPage() {
               ) : (
                 <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
                   {items.map((item, i) => (
-                    <div key={i} className="px-5 py-3.5 flex items-start gap-3">
+                    <div key={item.id} className="px-5 py-3.5 flex items-start gap-3">
                       <div className="w-6 h-6 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-[11px] font-black shrink-0 mt-0.5">{i + 1}</div>
                       <div className="flex-1 min-w-0">
                         <div className="text-[13px] font-black text-slate-900 leading-snug">{item.name}</div>
                         <div className="text-[12px] font-semibold text-slate-500">{item.dosage} · {item.frequency} · {item.duration}</div>
                         {item.note && <div className="text-[11.5px] text-slate-400 mt-0.5 line-clamp-1">{item.note}</div>}
                       </div>
-                      <button onClick={() => setItems(p => p.filter((_, idx) => idx !== i))}
+                      <button onClick={() => setItems(p => p.filter(x => x.id !== item.id))}
                         className="p-1 rounded-lg hover:bg-red-50 text-slate-300 hover:text-primary transition-all cursor-pointer shrink-0 mt-0.5">
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                       </button>
@@ -310,7 +201,7 @@ export default function NewPrescriptionPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {items.map((item, i) => (
-                    <tr key={i} className="hover:bg-slate-50/50">
+                    <tr key={item.id} className="hover:bg-slate-50/50">
                       <td className="px-5 py-3.5 text-slate-400 font-bold">{i + 1}</td>
                       <td className="px-5 py-3.5 font-black text-slate-900">{item.name}</td>
                       <td className="px-5 py-3.5 font-semibold text-slate-700">{item.dosage}</td>
@@ -331,7 +222,7 @@ export default function NewPrescriptionPage() {
               Hủy
             </Link>
             <button
-              onClick={handleSave}
+              onClick={() => { if (items.length === 0) return; setSaving(true); setTimeout(() => router.push(`/dentist/patients/${id}`), 800); }}
               disabled={items.length === 0 || saving}
               className="flex items-center gap-2 px-6 py-3 bg-violet-600 text-white text-[14px] font-black rounded-xl hover:bg-violet-700 transition-all shadow-sm shadow-violet-500/25 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed">
               {saving

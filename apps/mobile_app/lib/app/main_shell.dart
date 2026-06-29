@@ -1,8 +1,7 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
-import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 
 class MainShell extends StatelessWidget {
@@ -21,7 +20,7 @@ class MainShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: context.bg,
+      backgroundColor: AppColors.background,
       extendBody: true,
       body: child,
       bottomNavigationBar: _BottomNavBar(
@@ -38,15 +37,15 @@ class MainShell extends StatelessWidget {
               context.go(AppRoutes.profile);
           }
         },
-        onFabTap: () => context.push(AppRoutes.bookingSelectPatient),
+        onFabTap: () => context.go(AppRoutes.appointments),
       ),
     );
   }
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────
 // Custom Bottom Navigation Bar
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────
 class _BottomNavBar extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
@@ -58,23 +57,22 @@ class _BottomNavBar extends StatelessWidget {
     required this.onFabTap,
   });
 
-  List<_NavItem> _items(BuildContext context) => [
-    _NavItem(icon: Iconsax.home_2, activeIcon: Iconsax.home_25, label: context.l10n('home')),
-    _NavItem(icon: Iconsax.calendar_2, activeIcon: Iconsax.calendar_25, label: context.l10n('appointments')),
-    _NavItem(icon: Iconsax.document, activeIcon: Iconsax.document_text, label: context.l10n('medical_record')),
-    _NavItem(icon: Iconsax.user, activeIcon: Iconsax.user_octagon, label: context.l10n('profile')),
+  static const _items = [
+    _NavItem(icon: Iconsax.home, activeIcon: Iconsax.home_2, label: 'Trang chủ'),
+    _NavItem(icon: Iconsax.calendar, activeIcon: Iconsax.calendar_2, label: 'Lịch hẹn'),
+    _NavItem(icon: Iconsax.document, activeIcon: Iconsax.document_text, label: 'Hồ sơ'),
+    _NavItem(icon: Iconsax.user, activeIcon: Iconsax.user_octagon, label: 'Cá nhân'),
   ];
 
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).padding.bottom;
-    final items = _items(context);
     return Container(
       decoration: BoxDecoration(
-        color: context.card,
+        color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: context.isDark ? 0.25 : 0.10),
+            color: Colors.black.withValues(alpha: 0.10),
             blurRadius: 24,
             offset: const Offset(0, -6),
           ),
@@ -94,12 +92,12 @@ class _BottomNavBar extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _NavButton(item: items[0], isActive: currentIndex == 0, onTap: () => onTap(0)),
-              _NavButton(item: items[1], isActive: currentIndex == 1, onTap: () => onTap(1)),
-              // NÃºt + ngang hÃ ng vá»›i cÃ¡c icon
+              _NavButton(item: _items[0], isActive: currentIndex == 0, onTap: () => onTap(0)),
+              _NavButton(item: _items[1], isActive: currentIndex == 1, onTap: () => onTap(1)),
+              // Nút + ngang hàng với các icon
               _CenterFab(onTap: onFabTap),
-              _NavButton(item: items[2], isActive: currentIndex == 2, onTap: () => onTap(2)),
-              _NavButton(item: items[3], isActive: currentIndex == 3, onTap: () => onTap(3)),
+              _NavButton(item: _items[2], isActive: currentIndex == 2, onTap: () => onTap(2)),
+              _NavButton(item: _items[3], isActive: currentIndex == 3, onTap: () => onTap(3)),
             ],
           ),
         ),
@@ -108,9 +106,9 @@ class _BottomNavBar extends StatelessWidget {
   }
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Center FAB â€” tráº¯ng, shadow Ä‘á»
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────
+// Center FAB — trắng, shadow đỏ
+// ─────────────────────────────────────────────────
 class _CenterFab extends StatelessWidget {
   final VoidCallback onTap;
   const _CenterFab({required this.onTap});
@@ -123,7 +121,7 @@ class _CenterFab extends StatelessWidget {
         width: 54,
         height: 54,
         decoration: BoxDecoration(
-          color: context.card,
+          color: Colors.white,
           shape: BoxShape.circle,
           border: Border.all(color: AppColors.primary.withValues(alpha: 0.15), width: 1.5),
           boxShadow: [
@@ -145,9 +143,9 @@ class _CenterFab extends StatelessWidget {
   }
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────
 // Nav Button
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────
 class _NavButton extends StatelessWidget {
   final _NavItem item;
   final bool isActive;
@@ -163,7 +161,7 @@ class _NavButton extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 240),
         curve: Curves.easeOut,
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 13),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
         decoration: BoxDecoration(
           color: isActive ? AppColors.primary : Colors.transparent,
           borderRadius: BorderRadius.circular(999),
@@ -179,7 +177,7 @@ class _NavButton extends StatelessWidget {
         ),
         child: Icon(
           isActive ? item.activeIcon : item.icon,
-          color: isActive ? Colors.white : context.textMuted,
+          color: isActive ? Colors.white : AppColors.textMuted,
           size: 28,
         ),
       ),
@@ -193,4 +191,3 @@ class _NavItem {
   final String label;
   const _NavItem({required this.icon, required this.activeIcon, required this.label});
 }
-
