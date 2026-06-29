@@ -1,6 +1,7 @@
-using DentalClinic.API.Domain.Enums;
+﻿using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
+using DentalClinic.API.Domain.Constants;
 using Microsoft.Extensions.Logging;
 
 namespace DentalClinic.API.Application.UseCases.Appointments;

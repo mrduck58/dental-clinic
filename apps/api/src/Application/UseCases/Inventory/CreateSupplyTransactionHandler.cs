@@ -1,7 +1,8 @@
-using DentalClinic.API.Application.DTOs.Inventory;
+﻿using DentalClinic.API.Application.DTOs.Inventory;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Services;
+using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 

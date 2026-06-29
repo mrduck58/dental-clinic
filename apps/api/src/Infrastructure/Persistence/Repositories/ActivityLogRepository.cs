@@ -36,11 +36,11 @@ public class ActivityLogRepository(AppDbContext db) : IActivityLogRepository
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            var term = search.Trim().ToLower();
+            var term = $"%{search.Trim()}%";
             query = query.Where(a =>
-                a.UserName.ToLower().Contains(term) ||
-                a.Description.ToLower().Contains(term) ||
-                (a.IpAddress != null && a.IpAddress.Contains(term)));
+                EF.Functions.ILike(a.UserName, term) ||
+                EF.Functions.ILike(a.Description, term) ||
+                (a.IpAddress != null && EF.Functions.ILike(a.IpAddress, term)));
         }
 
         if (startDate.HasValue)

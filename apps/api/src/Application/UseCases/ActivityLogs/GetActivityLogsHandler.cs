@@ -20,13 +20,20 @@ public class GetActivityLogsHandler(IActivityLogRepository repository)
         var pageSize = Math.Clamp(query.PageSize, 1, 100);
         var page     = Math.Max(query.Page, 1);
 
+        // If endDate has no time component (midnight), extend to end-of-day so the full day is included
+        var endDate = query.EndDate.HasValue
+            ? query.EndDate.Value.TimeOfDay == TimeSpan.Zero
+                ? query.EndDate.Value.AddDays(1).AddTicks(-1)
+                : query.EndDate.Value
+            : (DateTimeOffset?)null;
+
         var (items, total) = await repository.GetPagedAsync(
             query.Action,
             query.Module,
             query.Status,
             query.Search,
             query.StartDate,
-            query.EndDate,
+            endDate,
             page,
             pageSize,
             ct);

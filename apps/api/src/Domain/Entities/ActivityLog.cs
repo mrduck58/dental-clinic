@@ -2,6 +2,7 @@ namespace DentalClinic.API.Domain.Entities;
 
 public class ActivityLog
 {
+    // int PK is intentional for audit logs: sequential, insert-ordered, avoids UUID fragmentation
     public int Id { get; private set; }
     public Guid? UserId { get; private set; }
     public string UserName { get; private set; } = string.Empty;

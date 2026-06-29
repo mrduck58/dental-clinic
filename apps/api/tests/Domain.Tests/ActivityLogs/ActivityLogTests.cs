@@ -1,5 +1,5 @@
+using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Entities;
-using DentalClinic.API.Domain.Interfaces.Services;
 using FluentAssertions;
 using NUnit.Framework;
 
