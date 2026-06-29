@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import OwnerSidebar from "../../../components/shared/OwnerSidebar";
 import NotificationBell from "../../../components/shared/NotificationBell";
 import { useRequireOwner } from "../../../hooks/useRequireOwner";
-import { getStaffApi, type StaffDto } from "../../../lib/apiClient";
+import { getStaffApi, getLeaveRequestsAdminApi, type StaffDto, type LeaveRequestDto } from "../../../lib/apiClient";
 import * as XLSX from "xlsx";
 
 interface PayrollItem {
@@ -15,6 +15,9 @@ interface PayrollItem {
   netSalary: number;
   status: "Paid" | "Pending";
   paymentDate: string | null;
+  takenDaysInMonth: number;
+  allowedLeave: number;
+  exceededDays: number;
 }
 
 export default function OwnerPayrollPage() {
@@ -26,17 +29,47 @@ export default function OwnerPayrollPage() {
   const [payrollList, setPayrollList] = useState<PayrollItem[]>([]);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+
   useEffect(() => {
-    getStaffApi({ page: 1, pageSize: 100 })
-      .then((res) => {
-        const items = res.items.map((staff) => {
-          const isDoctor = staff.role === "Doctor" || staff.role === "Dentist";
+    setIsLoading(true);
+    Promise.all([
+      getStaffApi({ page: 1, pageSize: 100 }),
+      getLeaveRequestsAdminApi("Approved"),
+    ])
+      .then(([staffRes, leavesRes]) => {
+        const items = staffRes.items.map((staff) => {
+          const isDentist = staff.role === "Doctor" || staff.role === "Dentist";
           const exp = staff.yearsOfExperience ?? 5;
-          const basicSalary = isDoctor ? (25000000 + exp * 1500000) : (10000000 + (staff.fullName?.length || 5) * 200000);
-          // Mock allowance & deduction based on role/type
-          const allowance = staff.role === "Dentist" || staff.role === "Doctor" ? 2500000 : 1200000;
-          const deduction = staff.employmentStatus === "On Leave" ? 1000000 : 200000;
+          
+          const basicSalary = staff.baseSalary ?? (isDentist ? (25000000 + exp * 1500000) : (10000000 + (staff.fullName?.length || 5) * 200000));
+          const allowance = staff.allowance ?? (isDentist ? 2500000 : 1200000);
+          
+          // Tính tổng ngày nghỉ thực tế được duyệt trong tháng đã chọn
+          const staffLeaves = leavesRes.filter(l => l.userId === staff.id);
+          let takenDaysInMonth = 0;
+          
+          staffLeaves.forEach(leave => {
+            if (!leave.startDate || !leave.endDate) return;
+            const start = new Date(leave.startDate);
+            const end = new Date(leave.endDate);
+            
+            let current = new Date(start);
+            while (current <= end) {
+              if (current.getMonth() + 1 === selectedMonth && current.getFullYear() === selectedYear) {
+                takenDaysInMonth += 1;
+              }
+              current.setDate(current.getDate() + 1);
+            }
+          });
+          
+          const allowedLeave = staff.leaveAccrued ?? (isDentist ? 1.5 : 1);
+          const exceededDays = takenDaysInMonth > allowedLeave ? takenDaysInMonth - allowedLeave : 0;
+          const deduction = exceededDays > 0 ? Math.round(exceededDays * (basicSalary / 26)) : 0;
+          
           const netSalary = basicSalary + allowance - deduction;
+          
           return {
             staff,
             basicSalary,
@@ -45,6 +78,9 @@ export default function OwnerPayrollPage() {
             netSalary,
             status: "Pending" as const,
             paymentDate: null,
+            takenDaysInMonth,
+            allowedLeave,
+            exceededDays,
           };
         });
         setPayrollList(items);
@@ -55,7 +91,7 @@ export default function OwnerPayrollPage() {
       .finally(() => {
         setIsLoading(false);
       });
-  }, []);
+  }, [selectedMonth, selectedYear]);
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat("vi-VN").format(val) + " đ";
@@ -101,6 +137,9 @@ export default function OwnerPayrollPage() {
       "Chức vụ": item.staff.position ?? "Nha sĩ",
       "Lương cơ bản": item.basicSalary,
       "Phụ cấp": item.allowance,
+      "Nghỉ thực tế (ngày)": item.takenDaysInMonth,
+      "Định mức phép (ngày)": item.allowedLeave,
+      "Vượt phép (ngày)": item.exceededDays,
       "Khấu trừ": item.deduction,
       "Thực nhận (Net)": item.netSalary,
       "Trạng thái": item.status === "Paid" ? "Đã thanh toán" : "Chưa thanh toán",
@@ -110,7 +149,7 @@ export default function OwnerPayrollPage() {
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "BangLuong");
-    XLSX.writeFile(workbook, `Bang_Luong_Nhan_Vien_${new Date().getMonth() + 1}_2026.xlsx`);
+    XLSX.writeFile(workbook, `Bang_Luong_Nhan_Vien_Thang_${selectedMonth}_Nam_${selectedYear}.xlsx`);
   };
 
   const filteredList = payrollList.filter((item) => {
@@ -209,7 +248,43 @@ export default function OwnerPayrollPage() {
                   <option value="All">Tất cả bộ phận</option>
                   <option value="Đón tiếp & CSKH">Đón tiếp & CSKH</option>
                   <option value="Phụ tá lâm sàng">Phụ tá lâm sàng</option>
-                  <option value="Dentist">Nha sĩ / Bác sĩ</option>
+                  <option value="Dentist">Nha sĩ</option>
+                </select>
+                <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                  </svg>
+                </span>
+              </div>
+
+              {/* Month Selector */}
+              <div className="relative">
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                  className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:outline-none transition-all font-semibold text-slate-600 text-[13px] pr-8 appearance-none cursor-pointer"
+                >
+                  {Array.from({ length: 12 }, (_, i) => (
+                    <option key={i + 1} value={i + 1}>Tháng {i + 1}</option>
+                  ))}
+                </select>
+                <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                  </svg>
+                </span>
+              </div>
+
+              {/* Year Selector */}
+              <div className="relative">
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(Number(e.target.value))}
+                  className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:outline-none transition-all font-semibold text-slate-600 text-[13px] pr-8 appearance-none cursor-pointer"
+                >
+                  {[2025, 2026, 2027].map((yr) => (
+                    <option key={yr} value={yr}>Năm {yr}</option>
+                  ))}
                 </select>
                 <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -276,11 +351,20 @@ export default function OwnerPayrollPage() {
                         </td>
                         <td className="px-5 py-4">
                           <div className="font-semibold text-slate-700">{item.staff.department ?? "Nha sĩ"}</div>
-                          <div className="text-[11px] text-slate-400 font-semibold mt-0.5">{item.staff.position ?? "Bác sĩ điều trị"}</div>
+                          <div className="text-[11px] text-slate-400 font-semibold mt-0.5">{item.staff.position ?? "Nha sĩ điều trị"}</div>
                         </td>
                         <td className="px-5 py-4 text-right font-bold text-slate-700">{formatCurrency(item.basicSalary)}</td>
                         <td className="px-5 py-4 text-right text-emerald-600 font-bold">+{formatCurrency(item.allowance)}</td>
-                        <td className="px-5 py-4 text-right text-rose-500 font-bold">-{formatCurrency(item.deduction)}</td>
+                        <td className="px-5 py-4 text-right">
+                          <div className="text-rose-500 font-bold">-{formatCurrency(item.deduction)}</div>
+                          <div className="text-[10px] text-slate-400 font-bold mt-0.5 block whitespace-nowrap">
+                            {item.takenDaysInMonth > 0 ? (
+                              <span>Nghỉ {item.takenDaysInMonth}n/{item.allowedLeave}n phép {item.exceededDays > 0 && <span className="text-rose-400 font-extrabold">(vượt {item.exceededDays})</span>}</span>
+                            ) : (
+                              <span>Chưa nghỉ phép</span>
+                            )}
+                          </div>
+                        </td>
                         <td className="px-5 py-4 text-right font-black text-slate-900">{formatCurrency(item.netSalary)}</td>
                         <td className="px-5 py-4 text-center">
                           <span

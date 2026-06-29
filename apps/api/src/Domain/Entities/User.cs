@@ -43,6 +43,7 @@ public class User
     public decimal? BaseSalary { get; private set; }
     public string? SalaryUnit { get; private set; }       // "Theo tháng", "Theo ngày", "Theo ca"
     public decimal? LeaveAccrued { get; private set; }    // Ngày phép tích luỹ/tháng
+    public decimal? Allowance { get; private set; }       // Phụ cấp/tháng
 
     // Password reset
     public string? PasswordResetToken { get; private set; }
@@ -122,6 +123,7 @@ public class User
         BaseSalary = profile.BaseSalary;
         SalaryUnit = profile.SalaryUnit;
         LeaveAccrued = profile.LeaveAccrued;
+        Allowance = profile.Allowance;
     }
 
     public void Update(UpdateStaffData data)
@@ -152,6 +154,7 @@ public class User
         BaseSalary = data.BaseSalary;
         SalaryUnit = data.SalaryUnit;
         LeaveAccrued = data.LeaveAccrued;
+        Allowance = data.Allowance;
     }
 
     public void UpdatePatientProfile(string fullName, string phoneNumber, DateOnly? dateOfBirth, string? gender, string? profilePictureUrl = null)
@@ -237,7 +240,8 @@ public record StaffProfileData(
     string? EmploymentType,
     decimal? BaseSalary,
     string? SalaryUnit,
-    decimal? LeaveAccrued);
+    decimal? LeaveAccrued,
+    decimal? Allowance);
 
 public record UpdateStaffData(
     string FullName,
@@ -265,4 +269,5 @@ public record UpdateStaffData(
     string? EmploymentType,
     decimal? BaseSalary,
     string? SalaryUnit,
-    decimal? LeaveAccrued);
+    decimal? LeaveAccrued,
+    decimal? Allowance);

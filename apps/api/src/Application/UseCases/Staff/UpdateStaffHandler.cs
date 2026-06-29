@@ -32,7 +32,8 @@ public record UpdateStaffCommand(
     string? EmploymentType,
     decimal? BaseSalary,
     string? SalaryUnit,
-    decimal? LeaveAccrued);
+    decimal? LeaveAccrued,
+    decimal? Allowance);
 
 public class UpdateStaffHandler(IUserRepository userRepository)
 {
@@ -66,7 +67,8 @@ public class UpdateStaffHandler(IUserRepository userRepository)
             command.Gender, command.DateOfBirth, command.Address,
             command.StartDate, command.ServicesHandled, command.CertificateIssuedDate,
             command.CertificateIssuedBy, command.Education, command.Bio, command.Position,
-            command.EmploymentType, command.BaseSalary, command.SalaryUnit, command.LeaveAccrued));
+            command.EmploymentType, command.BaseSalary, command.SalaryUnit, command.LeaveAccrued,
+            command.Allowance));
 
         await userRepository.UpdateAsync(user, ct);
 

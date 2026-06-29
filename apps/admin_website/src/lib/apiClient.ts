@@ -229,6 +229,11 @@ export interface StaffDto {
   education: string | null;
   bio: string | null;
   position: string | null;
+  employmentType: string | null;
+  baseSalary: number | null;
+  salaryUnit: string | null;
+  leaveAccrued: number | null;
+  allowance: number | null;
 }
 
 
@@ -273,6 +278,7 @@ export interface CreateStaffCommand {
   baseSalary?: number | null;
   salaryUnit?: string | null;
   leaveAccrued?: number | null;
+  allowance?: number | null;
 }
 
 export interface UpdateStaffCommand {
@@ -303,6 +309,7 @@ export interface UpdateStaffCommand {
   baseSalary?: number | null;
   salaryUnit?: string | null;
   leaveAccrued?: number | null;
+  allowance?: number | null;
 }
 
 export interface ResetPasswordResponse {
@@ -335,6 +342,19 @@ export async function getStaffApi(params?: {
   }
   return res.json() as Promise<StaffListResponse>;
 }
+
+export async function getStaffByIdApi(id: string): Promise<StaffDto> {
+  const res = await fetch(`${API_URL}/api/staff/${id}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải chi tiết nhân viên");
+  }
+  return res.json() as Promise<StaffDto>;
+}
+
 
 export async function createStaffApi(data: CreateStaffCommand): Promise<void> {
   const res = await fetch(`${API_URL}/api/staff`, {
