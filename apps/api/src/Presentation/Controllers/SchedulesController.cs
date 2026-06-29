@@ -7,7 +7,7 @@ namespace DentalClinic.API.Presentation.Controllers;
 
 [ApiController]
 [Route("api/schedules")]
-[Authorize(Roles = "Admin,Owner")]
+[Authorize(Roles = "Owner")]
 public class SchedulesController(
     GetWeekScheduleHandler getWeekSchedule,
     SaveWeekScheduleHandler saveWeekSchedule) : ControllerBase
