@@ -19,6 +19,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Appointment> Appointments => Set<Appointment>();
     public DbSet<MedicalRecord> MedicalRecords => Set<MedicalRecord>();
     public DbSet<Invoice> Invoices => Set<Invoice>();
+    public DbSet<InvoiceItem> InvoiceItems => Set<InvoiceItem>();
     public DbSet<Service> Services => Set<Service>();
     public DbSet<Post> Posts => Set<Post>();
     public DbSet<Feedback> Feedbacks => Set<Feedback>();
@@ -31,7 +32,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<SupplyTransaction> SupplyTransactions => Set<SupplyTransaction>();
     public DbSet<Diagnosis> Diagnoses => Set<Diagnosis>();
     public DbSet<TreatmentPlan> TreatmentPlans => Set<TreatmentPlan>();
-    public DbSet<TreatmentPlanStep> TreatmentPlanSteps => Set<TreatmentPlanStep>();
     public DbSet<Prescription> Prescriptions => Set<Prescription>();
     public DbSet<PrescriptionItem> PrescriptionItems => Set<PrescriptionItem>();
     public DbSet<ClinicInfo> ClinicInfos => Set<ClinicInfo>();

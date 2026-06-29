@@ -7,7 +7,7 @@ import NotificationBell from "../../../../../components/shared/NotificationBell"
 import { useRequireOwner } from "../../../../../hooks/useRequireOwner";
 import { updateStaffApi, uploadFileApi, ApiValidationError, type StaffDto, type UpdateStaffCommand } from "../../../../../lib/apiClient";
 
-interface DoctorEditForm {
+interface DentistEditForm {
   fullName: string;
   gender: string;
   dateOfBirth: string;
@@ -29,7 +29,7 @@ interface DoctorEditForm {
   isActive: boolean;
 }
 
-export default function EditDoctorPage() {
+export default function EditDentistPage() {
   useRequireOwner();
   const router = useRouter();
   const params = useParams();
@@ -37,7 +37,7 @@ export default function EditDoctorPage() {
 
   const [staff, setStaff] = useState<StaffDto | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const [formData, setFormData] = useState<DoctorEditForm>({
+  const [formData, setFormData] = useState<DentistEditForm>({
     fullName: "", gender: "", dateOfBirth: "", phoneNumber: "", email: "",
     address: "", profilePictureUrl: "", specialty: "", licenseNumber: "",
     servicesHandled: "", startDate: "", certificateIssuedDate: "",
@@ -52,6 +52,7 @@ export default function EditDoctorPage() {
   const [formBaseSalary, setFormBaseSalary] = useState(25000000);
   const [formSalaryUnit, setFormSalaryUnit] = useState("Theo tháng");
   const [formLeaveAccrued, setFormLeaveAccrued] = useState(1.5);
+  const [formAllowance, setFormAllowance] = useState(2500000);
 
   useEffect(() => {
     if (formEmploymentType === "Full-time") {
@@ -66,18 +67,19 @@ export default function EditDoctorPage() {
       setStaff(data);
 
       const exp = data.yearsOfExperience ?? 5;
-      const isDoctor = data.role === "Doctor" || data.role === "Dentist";
-      const isPartTime = exp % 2 === 0 && isDoctor;
+      const isDentist = data.role === "Doctor" || data.role === "Dentist";
+      const isPartTime = exp % 2 === 0 && isDentist;
       const isShift = !isPartTime && (data.role === "Staff" && (data.position?.toLowerCase().includes("lễ tân") || data.position?.toLowerCase().includes("tiếp đón")));
       const calculatedType = isPartTime ? "Part-time" : isShift ? "Shift-based" : "Full-time";
-      const calculatedSalary = isDoctor ? (25000000 + exp * 1500000) : (10000000 + (data.fullName?.length || 5) * 200000);
+      const calculatedSalary = isDentist ? (25000000 + exp * 1500000) : (10000000 + (data.fullName?.length || 5) * 200000);
       const calculatedUnit = isPartTime ? "Theo ngày" : isShift ? "Theo ca" : "Theo tháng";
-      const calculatedLeave = isDoctor ? 1.5 : 1;
+      const calculatedLeave = isDentist ? 1.5 : 1;
 
-      setFormEmploymentType(calculatedType);
-      setFormBaseSalary(calculatedSalary);
-      setFormSalaryUnit(calculatedUnit);
-      setFormLeaveAccrued(calculatedLeave);
+      setFormEmploymentType(data.employmentType || calculatedType);
+      setFormBaseSalary(data.baseSalary ?? calculatedSalary);
+      setFormSalaryUnit(data.salaryUnit || calculatedUnit);
+      setFormLeaveAccrued(data.leaveAccrued ?? calculatedLeave);
+      setFormAllowance(data.allowance ?? (isDentist ? 2500000 : 1200000));
 
       setFormData({
         fullName: data.fullName || "",
@@ -180,9 +182,10 @@ export default function EditDoctorPage() {
         baseSalary: formBaseSalary,
         salaryUnit: formSalaryUnit,
         leaveAccrued: formLeaveAccrued,
+        allowance: formAllowance,
       };
       await updateStaffApi(id, payload);
-      sessionStorage.setItem("staffSuccessMsg", `Cập nhật thông tin bác sĩ ${formData.fullName.trim()} thành công!`);
+      sessionStorage.setItem("staffSuccessMsg", `Cập nhật thông tin nha sĩ ${formData.fullName.trim()} thành công!`);
       router.push("/owner/employee");
     } catch (err: unknown) {
       if (err instanceof ApiValidationError) {
@@ -220,7 +223,7 @@ export default function EditDoctorPage() {
           <svg className="w-14 h-14 text-slate-300 animate-pulse" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
           </svg>
-          <p className="text-slate-500 font-bold text-[15px]">Không tìm thấy dữ liệu bác sĩ.</p>
+          <p className="text-slate-500 font-bold text-[15px]">Không tìm thấy dữ liệu nha sĩ.</p>
           <button onClick={() => router.push("/owner/employee")} className="px-6 py-2.5 bg-primary hover:bg-primary-hover text-white font-extrabold rounded-xl transition-all cursor-pointer shadow-md">
             Quay lại danh sách
           </button>
@@ -242,7 +245,7 @@ export default function EditDoctorPage() {
               </svg>
             </button>
             <div>
-              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Chỉnh Sửa Hồ Sơ Bác Sĩ</h1>
+              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Chỉnh Sửa Hồ Sơ Nha Sĩ</h1>
               <p className="text-[13px] text-slate-400 font-semibold mt-0.5">
                 {staff.employeeId && <span className="font-mono text-primary font-bold mr-2">{staff.employeeId}</span>}
                 {staff.fullName || staff.email}
@@ -268,9 +271,9 @@ export default function EditDoctorPage() {
               {/* Form Header Action Bar */}
               <div className="flex items-center justify-between border-b border-slate-200 pb-4 mb-2 shrink-0">
                 <div>
-                  <h3 className="text-lg font-extrabold text-slate-900 tracking-tight">Chỉnh sửa hồ sơ Bác sĩ</h3>
+                  <h3 className="text-lg font-extrabold text-slate-900 tracking-tight">Chỉnh sửa hồ sơ Nha sĩ</h3>
                   <p className="text-[13px] text-slate-400 font-semibold mt-1">
-                    Cập nhật các thông tin của bác sĩ và bấm lưu để cập nhật hồ sơ.
+                    Cập nhật các thông tin của nha sĩ và bấm lưu để cập nhật hồ sơ.
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -301,7 +304,7 @@ export default function EditDoctorPage() {
                   </h4>
                   {staff.employeeId && (
                     <div className="text-[12px] font-bold text-slate-500">
-                      Mã bác sĩ: <span className="bg-red-50 border border-red-100 text-primary px-2.5 py-1 rounded font-mono font-extrabold">{staff.employeeId}</span>
+                      Mã nha sĩ: <span className="bg-red-50 border border-red-100 text-primary px-2.5 py-1 rounded font-mono font-extrabold">{staff.employeeId}</span>
                     </div>
                   )}
                 </div>
@@ -588,7 +591,7 @@ export default function EditDoctorPage() {
                     <textarea
                       name="bio"
                       rows={4}
-                      placeholder="Mô tả tóm tắt kinh nghiệm, chuyên môn và quá trình làm việc của bác sĩ..."
+                      placeholder="Mô tả tóm tắt kinh nghiệm, chuyên môn và quá trình làm việc của nha sĩ..."
                       value={formData.bio}
                       onChange={handleChange}
                       className={`w-full px-4 py-2.5 border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary transition-all font-semibold text-[14px] resize-none ${
@@ -635,6 +638,20 @@ export default function EditDoctorPage() {
                       className={inp("baseSalary")}
                     />
                     {errMsg("baseSalary")}
+                  </div>
+
+                  <div>
+                    <label className={lbl}>Phụ cấp * (VNĐ)</label>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      placeholder="2.500.000"
+                      value={formAllowance}
+                      onChange={(e) => setFormAllowance(Number(e.target.value))}
+                      className={inp("allowance")}
+                    />
+                    {errMsg("allowance")}
                   </div>
 
                   {/* Row 2 */}
@@ -686,7 +703,7 @@ export default function EditDoctorPage() {
                   <div>
                     <label className={lbl}>Vai trò</label>
                     <div className="flex items-center gap-2.5 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl">
-                      <span className="text-[14px] font-bold text-slate-600">Bác sĩ</span>
+                      <span className="text-[14px] font-bold text-slate-600">Nha sĩ</span>
                       <span className="text-[10px] bg-slate-200/70 text-slate-500 px-2 py-0.5 rounded font-bold uppercase tracking-wide">Cố định</span>
                     </div>
                   </div>
@@ -734,7 +751,7 @@ export default function EditDoctorPage() {
                   disabled={isSubmitting}
                   className="px-8 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-xl text-[14px] font-bold shadow-md shadow-primary/15 hover:shadow-lg transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50"
                 >
-                  {isSubmitting ? "Đang lưu..." : "Lưu hồ sơ bác sĩ"}
+                  {isSubmitting ? "Đang lưu..." : "Lưu hồ sơ nha sĩ"}
                 </button>
               </div>
             </form>

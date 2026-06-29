@@ -54,6 +54,7 @@ export default function AddStaffPage() {
   const [formBaseSalary, setFormBaseSalary] = useState(12000000);
   const [formSalaryUnit, setFormSalaryUnit] = useState("Theo tháng");
   const [formLeaveAccrued, setFormLeaveAccrued] = useState(1);
+  const [formAllowance, setFormAllowance] = useState(1200000);
 
   useEffect(() => {
     if (formEmploymentType === "Full-time") {
@@ -153,6 +154,7 @@ export default function AddStaffPage() {
         baseSalary: formBaseSalary,
         salaryUnit: formSalaryUnit,
         leaveAccrued: formLeaveAccrued,
+        allowance: formAllowance,
       };
       await createStaffApi(payload);
       sessionStorage.setItem("staffSuccessMsg", `Thêm nhân viên ${formData.fullName.trim()} (${staffCode}) thành công!`);
@@ -500,6 +502,20 @@ export default function AddStaffPage() {
                       className={inp("baseSalary")}
                     />
                     {errMsg("baseSalary")}
+                  </div>
+
+                  <div>
+                    <label className={lbl}>Phụ cấp * (VNĐ)</label>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      placeholder="1.200.000"
+                      value={formAllowance}
+                      onChange={(e) => setFormAllowance(Number(e.target.value))}
+                      className={inp("allowance")}
+                    />
+                    {errMsg("allowance")}
                   </div>
 
                   {/* Row 2 */}

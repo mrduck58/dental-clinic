@@ -23,7 +23,7 @@ export default function RootLayout({
       lang="vi"
       className={`${nunito.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col font-sans">{children}</body>
+      <body suppressHydrationWarning className="min-h-full flex flex-col font-sans">{children}</body>
     </html>
   );
 }

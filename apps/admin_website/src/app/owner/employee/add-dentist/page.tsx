@@ -7,7 +7,7 @@ import NotificationBell from "../../../../components/shared/NotificationBell";
 import { useRequireOwner } from "../../../../hooks/useRequireOwner";
 import { createStaffApi, getStaffApi, uploadFileApi, ApiValidationError, type CreateStaffCommand } from "../../../../lib/apiClient";
 
-interface DoctorForm {
+interface DentistForm {
   fullName: string;
   gender: string;
   dateOfBirth: string;
@@ -28,15 +28,15 @@ interface DoctorForm {
   isActive: boolean;
 }
 
-export default function AddDoctorPage() {
+export default function AddDentistPage() {
   useRequireOwner();
   const router = useRouter();
 
-  const [doctorCode, setDoctorCode] = useState<string>("");
+  const [dentistCode, setDentistCode] = useState<string>("");
   const [isLoadingCode, setIsLoadingCode] = useState(true);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
 
-  const [formData, setFormData] = useState<DoctorForm>({
+  const [formData, setFormData] = useState<DentistForm>({
     fullName: "",
     gender: "",
     dateOfBirth: "",
@@ -64,6 +64,7 @@ export default function AddDoctorPage() {
   const [formBaseSalary, setFormBaseSalary] = useState(25000000);
   const [formSalaryUnit, setFormSalaryUnit] = useState("Theo tháng");
   const [formLeaveAccrued, setFormLeaveAccrued] = useState(1.5);
+  const [formAllowance, setFormAllowance] = useState(2500000);
 
   useEffect(() => {
     if (formEmploymentType === "Full-time") {
@@ -75,9 +76,9 @@ export default function AddDoctorPage() {
     getStaffApi({ role: "Doctor,Dentist", page: 1, pageSize: 1 })
       .then((res) => {
         const next = res.totalCount + 1;
-        setDoctorCode(`BS-${String(next).padStart(2, "0")}`);
+        setDentistCode(`NS-${String(next).padStart(2, "0")}`);
       })
-      .catch(() => setDoctorCode("BS-01"))
+      .catch(() => setDentistCode("NS-01"))
       .finally(() => setIsLoadingCode(false));
   }, []);
 
@@ -135,7 +136,7 @@ export default function AddDoctorPage() {
         email: formData.email.trim(),
         phoneNumber: formData.phoneNumber.trim(),
         role: "Dentist",
-        employeeId: doctorCode || null,
+        employeeId: dentistCode || null,
         employmentStatus: formData.employmentStatus,
         specialty: formData.specialty.trim() || null,
         licenseNumber: formData.licenseNumber.trim() || null,
@@ -154,9 +155,10 @@ export default function AddDoctorPage() {
         baseSalary: formBaseSalary,
         salaryUnit: formSalaryUnit,
         leaveAccrued: formLeaveAccrued,
+        allowance: formAllowance,
       };
       await createStaffApi(payload);
-      sessionStorage.setItem("staffSuccessMsg", `Thêm bác sĩ ${formData.fullName.trim()} (${doctorCode}) thành công!`);
+      sessionStorage.setItem("staffSuccessMsg", `Thêm nha sĩ ${formData.fullName.trim()} (${dentistCode}) thành công!`);
       router.push("/owner/employee");
     } catch (err: unknown) {
       if (err instanceof ApiValidationError) {
@@ -199,8 +201,8 @@ export default function AddDoctorPage() {
               </svg>
             </button>
             <div>
-              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Thêm Bác Sĩ Mới</h1>
-              <p className="text-[13px] text-slate-400 font-semibold mt-0.5">Tạo hồ sơ nha sĩ / bác sĩ chuyên khoa. Tài khoản có thể tạo sau.</p>
+              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Thêm Nha Sĩ Mới</h1>
+              <p className="text-[13px] text-slate-400 font-semibold mt-0.5">Tạo hồ sơ nha sĩ / nha sĩ chuyên khoa. Tài khoản có thể tạo sau.</p>
             </div>
           </div>
           <NotificationBell href="/owner/notifications" />
@@ -222,7 +224,7 @@ export default function AddDoctorPage() {
               {/* Form Header Action Bar */}
               <div className="flex items-center justify-between border-b border-slate-200 pb-4 mb-2 shrink-0">
                 <div>
-                  <h3 className="text-lg font-extrabold text-slate-900 tracking-tight">Thêm mới hồ sơ Bác sĩ</h3>
+                  <h3 className="text-lg font-extrabold text-slate-900 tracking-tight">Thêm mới hồ sơ Nha sĩ</h3>
                   <p className="text-[13px] text-slate-400 font-semibold mt-1">
                     Điền đầy đủ thông tin bên dưới và bấm nút lưu để lưu hồ sơ.
                   </p>
@@ -254,7 +256,7 @@ export default function AddDoctorPage() {
                     Thông tin cơ bản
                   </h4>
                   <div className="text-[12px] font-bold text-slate-500">
-                    Mã bác sĩ: <span className="bg-red-50 border border-red-100 text-primary px-2.5 py-1 rounded font-mono font-extrabold">{isLoadingCode ? "Đang tạo..." : doctorCode}</span>
+                    Mã nha sĩ: <span className="bg-red-50 border border-red-100 text-primary px-2.5 py-1 rounded font-mono font-extrabold">{isLoadingCode ? "Đang tạo..." : dentistCode}</span>
                   </div>
                 </div>
 
@@ -540,7 +542,7 @@ export default function AddDoctorPage() {
                     <textarea
                       name="bio"
                       rows={4}
-                      placeholder="Mô tả tóm tắt kinh nghiệm, chuyên môn và quá trình làm việc của bác sĩ..."
+                      placeholder="Mô tả tóm tắt kinh nghiệm, chuyên môn và quá trình làm việc của nha sĩ..."
                       value={formData.bio}
                       onChange={handleChange}
                       className={`w-full px-4 py-2.5 border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary transition-all font-semibold text-[14px] resize-none ${
@@ -587,6 +589,20 @@ export default function AddDoctorPage() {
                       className={inp("baseSalary")}
                     />
                     {errMsg("baseSalary")}
+                  </div>
+
+                  <div>
+                    <label className={lbl}>Phụ cấp * (VNĐ)</label>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      placeholder="2.500.000"
+                      value={formAllowance}
+                      onChange={(e) => setFormAllowance(Number(e.target.value))}
+                      className={inp("allowance")}
+                    />
+                    {errMsg("allowance")}
                   </div>
 
                   {/* Row 2 */}
@@ -678,7 +694,7 @@ export default function AddDoctorPage() {
                   disabled={isSubmitting || isLoadingCode}
                   className="px-8 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-xl text-[14px] font-bold shadow-md shadow-primary/15 hover:shadow-lg transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50"
                 >
-                  {isSubmitting ? "Đang lưu..." : "Lưu hồ sơ bác sĩ"}
+                  {isSubmitting ? "Đang lưu..." : "Lưu hồ sơ nha sĩ"}
                 </button>
               </div>
             </form>
