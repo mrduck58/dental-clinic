@@ -30,12 +30,6 @@ const DENTIST_ROOM: Record<string, string> = {
   "BS. Nguyễn Văn Hùng": "Phòng 2",
 };
 
-const STATUS_CONFIG = {
-  CheckedIn:   { label: "Đang chờ",   bar: "bg-amber-400",   badge: "bg-amber-50 text-amber-700 border-amber-200",   dot: "bg-amber-500"   },
-  InProgress:  { label: "Đang khám",  bar: "bg-violet-400",  badge: "bg-violet-50 text-violet-700 border-violet-200", dot: "bg-violet-500"  },
-  Completed:   { label: "Hoàn thành",  bar: "bg-emerald-400",  badge: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" },
-};
-
 function DentistQueueCard({ dentist, onComplete, loadingId }: {
   dentist: DentistQueueDto;
   onComplete: (id: string) => void;
@@ -43,8 +37,6 @@ function DentistQueueCard({ dentist, onComplete, loadingId }: {
 }) {
   const color = DENTIST_COLOR[dentist.dentistColor] ?? DENTIST_COLOR.slate;
   const waitingPatients = dentist.patients.filter(p => p.status === "CheckedIn");
-  const inProgressPatients = dentist.patients.filter(p => p.status === "InProgress");
-  const completedPatients = dentist.patients.filter(p => p.status === "Completed");
 
   const fmtTime = (iso: string) => {
     const d = new Date(iso);
@@ -68,34 +60,21 @@ function DentistQueueCard({ dentist, onComplete, loadingId }: {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {waitingPatients.length > 0 && (
-              <span className="px-2.5 py-1 bg-amber-100 text-amber-700 rounded-lg text-[11.5px] font-black">
-                {waitingPatients.length} chờ
-              </span>
-            )}
-            {inProgressPatients.length > 0 && (
-              <span className="px-2.5 py-1 bg-violet-100 text-violet-700 rounded-lg text-[11.5px] font-black">
-                {inProgressPatients.length} khám
-              </span>
-            )}
-            {completedPatients.length > 0 && (
-              <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-[11.5px] font-black">
-                {completedPatients.length} xong
-              </span>
-            )}
+            <span className="px-2.5 py-1 bg-amber-100 text-amber-700 rounded-lg text-[11.5px] font-black">
+              {waitingPatients.length} chờ
+            </span>
           </div>
         </div>
       </div>
 
       {/* Patient list */}
       <div className="divide-y divide-slate-100">
-        {dentist.patients.length === 0 ? (
+        {waitingPatients.length === 0 ? (
           <div className="py-10 text-center text-[13px] text-slate-400 font-semibold">
-            Chưa có bệnh nhân
+            Chưa có bệnh nhân chờ
           </div>
         ) : (
-          dentist.patients.map(patient => {
-            const cfg = STATUS_CONFIG[patient.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.CheckedIn;
+          waitingPatients.map(patient => {
             const initials = patient.patientName.trim().split(/\s+/).slice(-2).map(w => w[0]).join("").toUpperCase();
             const isLoading = loadingId === patient.appointmentId;
 
@@ -103,7 +82,7 @@ function DentistQueueCard({ dentist, onComplete, loadingId }: {
               <div key={patient.appointmentId} className="px-5 py-4">
                 <div className="flex items-center gap-4">
                   {/* Status bar */}
-                  <div className={`w-1.5 h-12 rounded-full ${cfg.bar} shrink-0`} />
+                  <div className="w-1.5 h-12 rounded-full bg-amber-400 shrink-0" />
 
                   {/* Avatar */}
                   <div className="w-10 h-10 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center font-black text-[11px] text-sky-700 shrink-0">
@@ -118,7 +97,7 @@ function DentistQueueCard({ dentist, onComplete, loadingId }: {
                     </div>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="text-[12px] text-slate-500 font-semibold">{patient.serviceName ?? "Khám tổng quát"}</span>
-                      {patient.status === "CheckedIn" && patient.waitMinutes > 0 && (
+                      {patient.waitMinutes > 0 && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-600 border border-amber-100 rounded-lg text-[11px] font-black">
                           ~{patient.waitMinutes}p
                         </span>
@@ -133,27 +112,9 @@ function DentistQueueCard({ dentist, onComplete, loadingId }: {
 
                   {/* Status badge */}
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className={`px-2.5 py-1 rounded-lg text-[11.5px] font-black border ${cfg.badge}`}>
-                      {cfg.label}
+                    <span className="px-2.5 py-1 rounded-lg text-[11.5px] font-black border bg-amber-50 text-amber-700 border-amber-200">
+                      Đang chờ
                     </span>
-
-                    {patient.status === "InProgress" && (
-                      <button
-                        onClick={() => onComplete(patient.appointmentId)}
-                        disabled={isLoading}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-[12px] font-bold hover:bg-emerald-100 disabled:opacity-50 transition-all cursor-pointer">
-                        {isLoading ? (
-                          <span className="w-3.5 h-3.5 border-2 border-emerald-300/40 border-t-emerald-500 rounded-full animate-spin" />
-                        ) : (
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
-                        )}
-                        Xong
-                      </button>
-                    )}
-
-                    {patient.status === "Completed" && (
-                      <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    )}
                   </div>
                 </div>
               </div>
@@ -224,12 +185,6 @@ export default function QueuePage() {
               <div className="flex items-center gap-2 text-[12.5px] font-bold">
                 <span className="px-2.5 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl">
                   {queueData.totalWaiting} chờ
-                </span>
-                <span className="px-2.5 py-1.5 bg-violet-50 text-violet-700 border border-violet-200 rounded-xl">
-                  {queueData.totalInProgress} đang khám
-                </span>
-                <span className="px-2.5 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl">
-                  {queueData.totalCompleted} xong
                 </span>
               </div>
             ) : null

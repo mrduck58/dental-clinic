@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Stop-Process -Id 21252 -Force -ErrorAction SilentlyContinue)",
+      "PowerShell(Stop-Process -Id 10192 -Force -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-Process -Name \"DentalClinic.API\" -ErrorAction SilentlyContinue)",
+      "PowerShell(\"Stopped. Remaining DentalClinic processes:\")"
+    ]
+  }
+}

@@ -2,6 +2,7 @@ using DentalClinic.API.Application.UseCases.Appointments;
 using DentalClinic.API.Application.UseCases.Inventory;
 using DentalClinic.API.Application.UseCases.Auth;
 using DentalClinic.API.Application.UseCases.ClinicInfo;
+using DentalClinic.API.Application.UseCases.Invoices;
 using DentalClinic.API.Application.UseCases.Medicines;
 using DentalClinic.API.Application.UseCases.Feedbacks;
 using DentalClinic.API.Application.UseCases.LeaveRequests;
@@ -154,6 +155,8 @@ public static class InfrastructureServiceExtensions
 
         services.AddScoped<GetClinicInfoHandler>();
         services.AddScoped<UpdateClinicInfoHandler>();
+
+        services.AddScoped<InvoiceHandler>();
 
         return services;
     }

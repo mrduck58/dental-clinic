@@ -40,9 +40,18 @@ public class DentistsController(
         [FromQuery] DateOnly date,
         CancellationToken cancellationToken)
     {
-        Console.WriteLine($"[CONTROLLER] GetFollowUpSlots called: dentistId={dentistId}, date={date}");
         var result = await getFollowUpSlotsHandler.HandleAsync(dentistId, date, cancellationToken);
-        Console.WriteLine($"[CONTROLLER] Result: HasSchedule={result.HasSchedule}, Message={result.Message}, Slots={result.Slots.Count}");
+        return Ok(result);
+    }
+
+    /// <summary>GET api/dentists/followup-slots?date=2026-06-20 — Tất cả bác sĩ làm việc trong ngày kèm slots (tái khám)</summary>
+    [HttpGet("followup-slots")]
+    [Authorize(Roles = "Dentist,Admin,Staff")]
+    public async Task<IActionResult> GetDentistsWithFollowUpSlots(
+        [FromQuery] DateOnly date,
+        CancellationToken cancellationToken)
+    {
+        var result = await getFollowUpSlotsHandler.HandleAllAsync(date, cancellationToken);
         return Ok(result);
     }
 }

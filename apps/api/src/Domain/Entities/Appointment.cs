@@ -18,7 +18,7 @@ public class Appointment
     public Patient Patient { get; private set; } = null!;
     public Dentist Dentist { get; private set; } = null!;
     public Service? Service { get; private set; }
-    public Invoice? Invoice { get; private set; }
+    public ICollection<Invoice> Invoices { get; private set; } = new List<Invoice>();
     public MedicalRecord? MedicalRecord { get; private set; }
 
     // Examination related
