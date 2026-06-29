@@ -1007,6 +1007,111 @@ export async function toggleMedicineStatusApi(id: string): Promise<MedicineDto> 
   return res.json() as Promise<MedicineDto>;
 }
 
+// ── Inventory types ────────────────────────────────────────────────────────
+
+export interface SupplyItemDto {
+  id: string;
+  code: string;
+  name: string;
+  category: string;
+  unit: string;
+  quantity: number;
+  minQuantity: number;
+  isLow: boolean;
+  createdAt: string;
+  updatedAt: string | null;
+}
+
+export interface SupplyTransactionDto {
+  id: string;
+  supplyItemId: string;
+  itemName: string;
+  type: "import" | "export";
+  quantity: number;
+  note: string | null;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface CreateSupplyItemRequest {
+  code: string;
+  name: string;
+  category: string;
+  unit: string;
+  quantity: number;
+  minQuantity: number;
+}
+
+export interface CreateSupplyTransactionRequest {
+  supplyItemId: string;
+  type: "import" | "export";
+  quantity: number;
+  note?: string;
+}
+
+// ── Inventory endpoints ────────────────────────────────────────────────────
+
+export async function createSupplyItemApi(data: CreateSupplyItemRequest): Promise<SupplyItemDto> {
+  const res = await fetch(`${API_URL}/api/inventory/items`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Thêm vật tư thất bại");
+  }
+  return res.json() as Promise<SupplyItemDto>;
+}
+
+export async function getSupplyItemsApi(params?: {
+  search?: string;
+  category?: string;
+}): Promise<SupplyItemDto[]> {
+  const qs = new URLSearchParams();
+  if (params?.search) qs.set("search", params.search);
+  if (params?.category) qs.set("category", params.category);
+  const query = qs.toString() ? `?${qs.toString()}` : "";
+  const res = await fetch(`${API_URL}/api/inventory/items${query}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách vật tư");
+  }
+  return res.json() as Promise<SupplyItemDto[]>;
+}
+
+export async function getSupplyTransactionsApi(): Promise<SupplyTransactionDto[]> {
+  const res = await fetch(`${API_URL}/api/inventory/transactions`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải lịch sử giao dịch");
+  }
+  return res.json() as Promise<SupplyTransactionDto[]>;
+}
+
+export async function createSupplyTransactionApi(
+  data: CreateSupplyTransactionRequest
+): Promise<SupplyTransactionDto> {
+  const res = await fetch(`${API_URL}/api/inventory/transactions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Tạo giao dịch thất bại");
+  }
+  return res.json() as Promise<SupplyTransactionDto>;
+}
+
 // ── Room types ─────────────────────────────────────────────────────────────
 
 export interface RoomDto {

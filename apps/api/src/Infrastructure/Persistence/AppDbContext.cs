@@ -24,6 +24,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<LeaveRequest> LeaveRequests => Set<LeaveRequest>();
     public DbSet<Room> Rooms => Set<Room>();
     public DbSet<Medicine> Medicines => Set<Medicine>();
+    public DbSet<SupplyItem> SupplyItems => Set<SupplyItem>();
+    public DbSet<SupplyTransaction> SupplyTransactions => Set<SupplyTransaction>();
     public DbSet<Diagnosis> Diagnoses => Set<Diagnosis>();
     public DbSet<TreatmentPlan> TreatmentPlans => Set<TreatmentPlan>();
     public DbSet<TreatmentPlanStep> TreatmentPlanSteps => Set<TreatmentPlanStep>();

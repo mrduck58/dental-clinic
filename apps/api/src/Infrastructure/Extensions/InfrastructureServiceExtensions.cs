@@ -1,4 +1,5 @@
 using DentalClinic.API.Application.UseCases.Appointments;
+using DentalClinic.API.Application.UseCases.Inventory;
 using DentalClinic.API.Application.UseCases.Auth;
 using DentalClinic.API.Application.UseCases.ClinicInfo;
 using DentalClinic.API.Application.UseCases.Medicines;
@@ -49,6 +50,8 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IPromotionRepository, PromotionRepository>();
         services.AddScoped<IRoomRepository, RoomRepository>();
         services.AddScoped<IMedicineRepository, MedicineRepository>();
+        services.AddScoped<ISupplyItemRepository, SupplyItemRepository>();
+        services.AddScoped<ISupplyTransactionRepository, SupplyTransactionRepository>();
         services.AddScoped<IClinicInfoRepository, ClinicInfoRepository>();
 
         // ── Services ────────────────────────────────────────────────────────
@@ -95,6 +98,11 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<UpdateServiceHandler>();
         services.AddScoped<DeleteServiceHandler>();
         services.AddScoped<ToggleServiceStatusHandler>();
+
+        services.AddScoped<GetSupplyItemsHandler>();
+        services.AddScoped<GetSupplyTransactionsHandler>();
+        services.AddScoped<CreateSupplyItemHandler>();
+        services.AddScoped<CreateSupplyTransactionHandler>();
 
         services.AddScoped<GetMedicinesHandler>();
         services.AddScoped<GetMedicineByIdHandler>();
