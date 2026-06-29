@@ -14,10 +14,6 @@ import {
   createDiagnosisApi,
   updateDiagnosisApi,
   deleteDiagnosisApi,
-  createTreatmentPlanApi,
-  addTreatmentStepApi,
-  completeTreatmentStepApi,
-  createPrescriptionApi,
   addPrescriptionItemApi,
   deletePrescriptionItemApi,
   createFollowUpApi,
@@ -25,7 +21,6 @@ import {
   deleteFollowUpApi,
   getMedicinesApi,
   deleteTreatmentPlanApi,
-  deleteTreatmentStepApi,
   type ExaminationDto,
   type DiagnosisDto,
   type TreatmentPlanDto,
@@ -195,62 +190,6 @@ export default function PatientDetailPage() {
     }
   };
 
-  // Create treatment plan
-  const handleCreateTreatmentPlan = async () => {
-    if (!treatmentPlans.length) {
-      try {
-        await createTreatmentPlanApi(id, {
-          description: "Liệu trình điều trị mới",
-          estimatedCost: 0,
-        });
-        showToast("Đã tạo liệu trình!", "success");
-        await loadExamination();
-      } catch (err) {
-        showToast(err instanceof Error ? err.message : "Tạo liệu trình thất bại", "error");
-      }
-    }
-  };
-
-  // Add treatment step
-  const handleAddStep = async (treatmentPlanId: string) => {
-    try {
-      const nextStep = treatmentPlans.find(tp => tp.id === treatmentPlanId)?.steps.length ?? 0;
-      await addTreatmentStepApi({
-        treatmentPlanId,
-        stepNumber: nextStep + 1,
-        description: "Bước mới",
-      });
-      showToast("Đã thêm bước điều trị!", "success");
-      await loadExamination();
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : "Thêm bước thất bại", "error");
-    }
-  };
-
-  // Complete treatment step
-  const handleCompleteStep = async (stepId: string) => {
-    try {
-      await completeTreatmentStepApi(stepId);
-      showToast("Đã hoàn thành bước!", "success");
-      await loadExamination();
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : "Cập nhật thất bại", "error");
-    }
-  };
-
-  // Create prescription
-  const handleCreatePrescription = async () => {
-    if (!prescription) {
-      try {
-        await createPrescriptionApi(id, { notes: "" });
-        showToast("Đã tạo đơn thuốc!", "success");
-        await loadExamination();
-      } catch (err) {
-        showToast(err instanceof Error ? err.message : "Tạo đơn thuốc thất bại", "error");
-      }
-    }
-  };
-
   // Add prescription item
   const handleAddPrescriptionItem = async () => {
     if (!prescription) return;
@@ -282,21 +221,6 @@ export default function PatientDetailPage() {
       } : null);
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Xóa thuốc thất bại", "error");
-    }
-  };
-
-  // Delete treatment step
-  const handleDeleteTreatmentStep = async (stepId: string) => {
-    try {
-      await deleteTreatmentStepApi(stepId);
-      showToast("Đã xóa bước điều trị!", "success");
-      // Update state directly instead of reloading the whole page
-      setTreatmentPlans(prev => prev.map(tp => ({
-        ...tp,
-        steps: tp.steps.filter(s => s.id !== stepId)
-      })).filter(tp => tp.steps.length > 0));
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : "Xóa bước điều trị thất bại", "error");
     }
   };
 
@@ -548,16 +472,16 @@ return (
                 {treatmentPlans.length === 0 ? (
                   <p className="text-[13px] text-slate-400 font-semibold text-center py-4">Chưa có dịch vụ nào.</p>
                 ) : (
-                  treatmentPlans.flatMap(tp => tp.steps.map(step => ({ ...step, tpDescription: tp.description, tpPrice: tp.estimatedCost, tpId: tp.id }))).map((step, idx) => {
-                    const serviceName = step.description.split(" - Răng")[0] || step.description;
+                  treatmentPlans.map((tp) => {
+                    const serviceName = tp.description.split(" - Răng")[0] || tp.description;
                     return (
-                      <div key={step.id || idx} className="flex items-center justify-between py-3">
+                      <div key={tp.id} className="flex items-center justify-between py-3">
                         <span className="text-[13px] font-semibold text-slate-700">{serviceName}</span>
                         <div className="flex items-center gap-3">
-                          <span className="text-[13px] font-bold text-primary">{step.tpPrice ? step.tpPrice.toLocaleString("vi-VN") + "đ" : "Liên hệ"}</span>
+                          <span className="text-[13px] font-bold text-primary">{tp.estimatedCost ? tp.estimatedCost.toLocaleString("vi-VN") + "đ" : "Liên hệ"}</span>
                           {isInProgress && (
                             <button
-                              onClick={() => handleDeleteTreatmentStep(step.id)}
+                              onClick={() => handleDeleteTreatmentPlan(tp.id)}
                               className="p-1 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-all cursor-pointer"
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -578,23 +502,13 @@ return (
               icon="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23-.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5"
               action={
                 isInProgress && (
-                  prescription ? (
-                    <button
-                      onClick={() => router.push(`/dentist/patients/${id}/prescription/new`)}
-                      className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-600 hover:bg-slate-200 text-[13px] font-bold rounded-xl transition-all cursor-pointer"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                      Thêm thuốc
-                    </button>
-                  ) : (
-                    <button
-                      onClick={handleCreatePrescription}
-                      className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-[13px] font-bold rounded-xl hover:bg-red-600 transition-all shadow-sm cursor-pointer"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                      Tạo đơn thuốc
-                    </button>
-                  )
+                  <Link
+                    href={`/dentist/patients/${id}/prescription/new`}
+                    className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-[13px] font-bold rounded-xl hover:bg-red-600 transition-all shadow-sm cursor-pointer"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                    Tạo đơn thuốc
+                  </Link>
                 )
               } />
             {prescription ? (

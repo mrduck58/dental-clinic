@@ -186,7 +186,7 @@ function OnlineTab() {
                   <p className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider mb-3">Phân công lịch hẹn</p>
                   <div className="grid grid-cols-3 gap-3 mb-4">
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">Bác sĩ</label>
+                      <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">Nha sĩ</label>
                       <div className="relative">
                         <select value={confirmForm.dentist}
                           onChange={e => setConfirmForm(p => ({ ...p, dentist: e.target.value }))}

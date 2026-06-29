@@ -253,7 +253,7 @@ export default function OwnerSchedulePage() {
 
             <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex items-center justify-between">
               <div>
-                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Bác sĩ trực tuần</span>
+                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Nha sĩ trực tuần</span>
                 <span className="text-3xl font-black text-slate-900 block mt-1">{weekStats.dentists}</span>
               </div>
               <div className="w-12 h-12 rounded-xl bg-red-50 text-primary flex items-center justify-center shrink-0">
@@ -326,7 +326,7 @@ export default function OwnerSchedulePage() {
               <div className="relative w-56">
                 <input
                   type="text"
-                  placeholder="Tìm kiếm bác sĩ, phòng..."
+                  placeholder="Tìm kiếm nha sĩ, phòng..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-4 pr-4 py-2 text-[13.5px] bg-slate-100/80 rounded-full border border-transparent focus:bg-white focus:border-slate-200 focus:outline-none focus:ring-1 focus:ring-slate-200 transition-all font-semibold"

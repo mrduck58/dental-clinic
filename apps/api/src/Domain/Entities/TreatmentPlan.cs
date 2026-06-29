@@ -13,7 +13,6 @@ public class TreatmentPlan
 
     // Navigation property
     public Appointment Appointment { get; private set; } = null!;
-    public ICollection<TreatmentPlanStep> Steps { get; private set; } = new List<TreatmentPlanStep>();
 
     private TreatmentPlan() { }
 

@@ -38,6 +38,7 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.BaseSalary).HasPrecision(18, 2);
         builder.Property(u => u.SalaryUnit).HasMaxLength(50);
         builder.Property(u => u.LeaveAccrued).HasPrecision(5, 2);
+        builder.Property(u => u.Allowance).HasPrecision(18, 2);
 
         // Password reset fields
         builder.Property(u => u.PasswordResetToken).HasMaxLength(100);

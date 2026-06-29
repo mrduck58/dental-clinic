@@ -6,7 +6,7 @@ import Link from "next/link";
 import DentistSidebar from "../../../../../../components/shared/DentistSidebar";
 import DentistPageHeader from "../../../../../../components/shared/DentistPageHeader";
 import { useRequireDentist } from "../../../../../../hooks/useRequireDentist";
-import { createFollowUpApi, getFollowUpSlotsApi, type FollowUpSlotsResultDto } from "../../../../../../lib/apiClient";
+import { createFollowUpApi, getDentistsWithSlotsApi, type DentistsFollowUpSlotsResultDto } from "../../../../../../lib/apiClient";
 
 const REASONS = [
   "Kiểm tra sau điều trị",
@@ -20,12 +20,21 @@ const REASONS = [
   "Khác",
 ];
 
+function shiftLabel(shift: string): string {
+  const set = new Set(shift.split(",").map((s) => s.trim()).filter(Boolean));
+  if (set.has("morning") && set.has("afternoon")) return "Cả ngày";
+  if (set.has("afternoon")) return "Ca chiều";
+  if (set.has("morning")) return "Ca sáng";
+  return "";
+}
+
 export default function NewFollowUpPage() {
   useRequireDentist();
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
 
   const [date, setDate] = useState("");
+  const [selectedDentistId, setSelectedDentistId] = useState("");
   const [timeSlot, setTimeSlot] = useState("");
   const [reason, setReason] = useState(REASONS[0]);
   const [notes, setNotes] = useState("");
@@ -33,43 +42,24 @@ export default function NewFollowUpPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Slots state
-  const [slotsData, setSlotsData] = useState<FollowUpSlotsResultDto | null>(null);
+  const [slotsData, setSlotsData] = useState<DentistsFollowUpSlotsResultDto | null>(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
-  const [dentistId, setDentistId] = useState<string | null>(null);
 
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   const minDate = tomorrow.toISOString().split("T")[0];
 
-  // Load dentist ID from examination data
+  // Load dentists + slots when date changes
   useEffect(() => {
-    const fetchDentistId = async () => {
-      try {
-        const res = await fetch(`/api/appointments/${id}/examination`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setDentistId(data.dentist?.id);
-        }
-      } catch {
-        // ignore
-      }
-    };
-    void fetchDentistId();
-  }, [id]);
-
-  // Load slots when date or dentist changes
-  useEffect(() => {
-    if (!date || !dentistId) return;
+    if (!date) return;
 
     const loadSlots = async () => {
       setLoadingSlots(true);
+      setSelectedDentistId("");
       setTimeSlot("");
+      setError(null);
       try {
-        const data = await getFollowUpSlotsApi(dentistId, date);
+        const data = await getDentistsWithSlotsApi(date);
         setSlotsData(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Không thể tải lịch khám");
@@ -80,11 +70,13 @@ export default function NewFollowUpPage() {
     };
 
     void loadSlots();
-  }, [date, dentistId]);
+  }, [date]);
+
+  const selectedDentist = slotsData?.dentists.find((d) => d.dentistId === selectedDentistId);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!timeSlot) return;
+    if (!selectedDentistId || !timeSlot) return;
 
     setSaving(true);
     setError(null);
@@ -96,6 +88,7 @@ export default function NewFollowUpPage() {
         appointmentDate: appointmentDate.toISOString(),
         symptoms: reason,
         notes: notes || undefined,
+        dentistId: selectedDentistId,
       });
 
       router.push(`/dentist/patients/${id}`);
@@ -142,9 +135,9 @@ export default function NewFollowUpPage() {
               />
             </div>
 
-            {/* Time Slots */}
+            {/* Dentist + Time Slots */}
             <div className="flex flex-col gap-2">
-              <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">Giờ hẹn</label>
+              <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">Chọn bác sĩ & giờ hẹn</label>
 
               {!date && (
                 <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-[13px] text-slate-400 font-semibold text-center">
@@ -158,41 +151,72 @@ export default function NewFollowUpPage() {
                 </div>
               )}
 
-              {date && !loadingSlots && slotsData && !slotsData.hasSchedule && (
+              {date && !loadingSlots && slotsData && (!slotsData.hasSchedule || slotsData.dentists.length === 0) && (
                 <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-[13px] text-slate-500 font-semibold text-center">
-                  {slotsData.message ?? "Không có lịch làm việc"}
+                  {slotsData.message ?? "Không có bác sĩ làm việc ngày này"}
                 </div>
               )}
 
-              {date && !loadingSlots && slotsData && slotsData.hasSchedule && (
-                <div className="grid grid-cols-4 gap-2">
-                  {slotsData.slots.map((slot) => {
-                    const isDisabled = !slot.isAvailable;
-                    const isSelected = timeSlot === slot.time;
-
+              {date && !loadingSlots && slotsData && slotsData.hasSchedule && slotsData.dentists.length > 0 && (
+                <div className="flex flex-col gap-3">
+                  {slotsData.dentists.map((dentist) => {
+                    const isActiveDentist = selectedDentistId === dentist.dentistId;
                     return (
-                      <button
-                        key={slot.time}
-                        type="button"
-                        onClick={() => !isDisabled && setTimeSlot(slot.time)}
-                        disabled={isDisabled}
-                        className={`py-2.5 text-[13px] font-bold rounded-xl border transition-all ${
-                          isDisabled
-                            ? "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed"
-                            : isSelected
-                            ? "bg-primary text-white border-primary shadow-sm shadow-primary/25"
-                            : "border-slate-200 text-slate-600 hover:border-primary/40 hover:bg-red-50 hover:text-primary cursor-pointer"
+                      <div
+                        key={dentist.dentistId}
+                        className={`rounded-xl border p-4 transition-all ${
+                          isActiveDentist ? "border-primary/50 bg-red-50/40" : "border-slate-200 bg-white"
                         }`}
                       >
-                        {slot.time}
-                      </button>
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[13px] font-black shrink-0">
+                            {dentist.fullName.replace(/^(BS\.|BSCKII\.|ThS\.BS\.)\s*/, "").charAt(0)}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[13.5px] font-bold text-slate-700 truncate">{dentist.fullName}</p>
+                            <p className="text-[12px] text-slate-400 font-semibold truncate">
+                              {dentist.specialization}
+                              {shiftLabel(dentist.shift) && <span> · {shiftLabel(dentist.shift)}</span>}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-4 gap-2">
+                          {dentist.slots.map((slot) => {
+                            const isDisabled = !slot.isAvailable;
+                            const isSelected = isActiveDentist && timeSlot === slot.time;
+
+                            return (
+                              <button
+                                key={slot.time}
+                                type="button"
+                                onClick={() => {
+                                  if (isDisabled) return;
+                                  setSelectedDentistId(dentist.dentistId);
+                                  setTimeSlot(slot.time);
+                                }}
+                                disabled={isDisabled}
+                                className={`py-2.5 text-[13px] font-bold rounded-xl border transition-all ${
+                                  isDisabled
+                                    ? "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed"
+                                    : isSelected
+                                    ? "bg-primary text-white border-primary shadow-sm shadow-primary/25"
+                                    : "border-slate-200 text-slate-600 hover:border-primary/40 hover:bg-red-50 hover:text-primary cursor-pointer"
+                                }`}
+                              >
+                                {slot.time}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
                     );
                   })}
-                </div>
-              )}
 
-              {!timeSlot && date && !loadingSlots && slotsData?.hasSchedule && (
-                <p className="text-[12px] text-slate-400 font-semibold">Chưa chọn giờ</p>
+                  {!timeSlot && (
+                    <p className="text-[12px] text-slate-400 font-semibold">Chưa chọn bác sĩ & giờ</p>
+                  )}
+                </div>
               )}
             </div>
 
@@ -228,7 +252,7 @@ export default function NewFollowUpPage() {
             </div>
 
             {/* Summary */}
-            {date && timeSlot && (
+            {date && selectedDentist && timeSlot && (
               <div className="bg-green-50 border border-green-100 rounded-xl px-4 py-3 flex items-center gap-3 text-[13px] text-green-800">
                 <svg className="w-5 h-5 text-green-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
@@ -237,6 +261,8 @@ export default function NewFollowUpPage() {
                   <span className="font-black">{date.split("-").reverse().join("/")}</span>
                   {" lúc "}
                   <span className="font-black">{timeSlot}</span>
+                  {" với "}
+                  <span className="font-black">{selectedDentist.fullName}</span>
                   {" — "}{reason}
                 </span>
               </div>
@@ -250,7 +276,7 @@ export default function NewFollowUpPage() {
               </Link>
               <button
                 type="submit"
-                disabled={saving || !timeSlot}
+                disabled={saving || !selectedDentistId || !timeSlot}
                 className="flex-1 flex items-center justify-center gap-2 py-3 bg-primary text-white text-[14px] font-black rounded-xl hover:bg-red-600 transition-all shadow-sm shadow-primary/25 disabled:opacity-60 cursor-pointer"
               >
                 {saving ? (

@@ -210,50 +210,6 @@ public class AppointmentsController(
         return NoContent();
     }
 
-    /// <summary>POST api/appointments/treatment-plan/{treatmentPlanId}/steps — Thêm bước điều trị (Staff/Admin/Dentist)</summary>
-    [HttpPost("treatment-plan/{treatmentPlanId}/steps")]
-    [Authorize(Roles = "Staff,Admin,Dentist")]
-    public async Task<IActionResult> AddTreatmentStep(
-        Guid treatmentPlanId,
-        [FromBody] AddTreatmentStepRequest request,
-        CancellationToken cancellationToken)
-    {
-        var stepRequest = request with { TreatmentPlanId = treatmentPlanId };
-        var result = await treatmentPlanHandler.AddStepAsync(stepRequest, cancellationToken);
-        return Ok(result);
-    }
-
-    /// <summary>PUT api/appointments/treatment-steps/{stepId} — Cập nhật bước điều trị (Staff/Admin/Dentist)</summary>
-    [HttpPut("treatment-steps/{stepId}")]
-    [Authorize(Roles = "Staff,Admin,Dentist")]
-    public async Task<IActionResult> UpdateTreatmentStep(
-        Guid stepId,
-        [FromBody] UpdateTreatmentStepRequest request,
-        CancellationToken cancellationToken)
-    {
-        var updateRequest = request with { StepId = stepId };
-        var result = await treatmentPlanHandler.UpdateStepAsync(updateRequest, cancellationToken);
-        return Ok(result);
-    }
-
-    /// <summary>PUT api/appointments/treatment-steps/{stepId}/complete — Hoàn thành bước điều trị (Staff/Admin/Dentist)</summary>
-    [HttpPut("treatment-steps/{stepId}/complete")]
-    [Authorize(Roles = "Staff,Admin,Dentist")]
-    public async Task<IActionResult> CompleteTreatmentStep(Guid stepId, CancellationToken cancellationToken)
-    {
-        var result = await treatmentPlanHandler.CompleteStepAsync(stepId, cancellationToken);
-        return Ok(result);
-    }
-
-    /// <summary>DELETE api/appointments/treatment-steps/{stepId} — Xóa bước điều trị (Staff/Admin/Dentist)</summary>
-    [HttpDelete("treatment-steps/{stepId}")]
-    [Authorize(Roles = "Staff,Admin,Dentist")]
-    public async Task<IActionResult> DeleteTreatmentStep(Guid stepId, CancellationToken cancellationToken)
-    {
-        await treatmentPlanHandler.DeleteStepAsync(stepId, cancellationToken);
-        return NoContent();
-    }
-
     #endregion
 
     #region Prescription

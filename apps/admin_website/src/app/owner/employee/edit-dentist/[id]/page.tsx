@@ -1,13 +1,13 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import OwnerSidebar from "../../../../components/shared/OwnerSidebar";
-import NotificationBell from "../../../../components/shared/NotificationBell";
-import { useRequireOwner } from "../../../../hooks/useRequireOwner";
-import { createStaffApi, getStaffApi, uploadFileApi, ApiValidationError, type CreateStaffCommand } from "../../../../lib/apiClient";
+import { useRouter, useParams } from "next/navigation";
+import OwnerSidebar from "../../../../../components/shared/OwnerSidebar";
+import NotificationBell from "../../../../../components/shared/NotificationBell";
+import { useRequireOwner } from "../../../../../hooks/useRequireOwner";
+import { updateStaffApi, uploadFileApi, ApiValidationError, type StaffDto, type UpdateStaffCommand } from "../../../../../lib/apiClient";
 
-interface DoctorForm {
+interface DentistEditForm {
   fullName: string;
   gender: string;
   dateOfBirth: string;
@@ -24,37 +24,25 @@ interface DoctorForm {
   yearsOfExperience: string;
   education: string;
   bio: string;
+  role: string;
   employmentStatus: string;
   isActive: boolean;
 }
 
-export default function AddDoctorPage() {
+export default function EditDentistPage() {
   useRequireOwner();
   const router = useRouter();
+  const params = useParams();
+  const id = params.id as string;
 
-  const [doctorCode, setDoctorCode] = useState<string>("");
-  const [isLoadingCode, setIsLoadingCode] = useState(true);
+  const [staff, setStaff] = useState<StaffDto | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
-
-  const [formData, setFormData] = useState<DoctorForm>({
-    fullName: "",
-    gender: "",
-    dateOfBirth: "",
-    phoneNumber: "",
-    email: "",
-    address: "",
-    profilePictureUrl: "",
-    specialty: "",
-    licenseNumber: "",
-    servicesHandled: "",
-    startDate: "",
-    certificateIssuedDate: "",
-    certificateIssuedBy: "",
-    yearsOfExperience: "",
-    education: "",
-    bio: "",
-    employmentStatus: "Active",
-    isActive: true,
+  const [formData, setFormData] = useState<DentistEditForm>({
+    fullName: "", gender: "", dateOfBirth: "", phoneNumber: "", email: "",
+    address: "", profilePictureUrl: "", specialty: "", licenseNumber: "",
+    servicesHandled: "", startDate: "", certificateIssuedDate: "",
+    certificateIssuedBy: "", yearsOfExperience: "", education: "", bio: "",
+    role: "Dentist", employmentStatus: "Active", isActive: true,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -64,6 +52,7 @@ export default function AddDoctorPage() {
   const [formBaseSalary, setFormBaseSalary] = useState(25000000);
   const [formSalaryUnit, setFormSalaryUnit] = useState("Theo tháng");
   const [formLeaveAccrued, setFormLeaveAccrued] = useState(1.5);
+  const [formAllowance, setFormAllowance] = useState(2500000);
 
   useEffect(() => {
     if (formEmploymentType === "Full-time") {
@@ -72,13 +61,48 @@ export default function AddDoctorPage() {
   }, [formEmploymentType]);
 
   useEffect(() => {
-    getStaffApi({ role: "Doctor,Dentist", page: 1, pageSize: 1 })
-      .then((res) => {
-        const next = res.totalCount + 1;
-        setDoctorCode(`BS-${String(next).padStart(2, "0")}`);
-      })
-      .catch(() => setDoctorCode("BS-01"))
-      .finally(() => setIsLoadingCode(false));
+    const raw = sessionStorage.getItem("staffEditData");
+    if (raw) {
+      const data: StaffDto = JSON.parse(raw);
+      setStaff(data);
+
+      const exp = data.yearsOfExperience ?? 5;
+      const isDentist = data.role === "Doctor" || data.role === "Dentist";
+      const isPartTime = exp % 2 === 0 && isDentist;
+      const isShift = !isPartTime && (data.role === "Staff" && (data.position?.toLowerCase().includes("lễ tân") || data.position?.toLowerCase().includes("tiếp đón")));
+      const calculatedType = isPartTime ? "Part-time" : isShift ? "Shift-based" : "Full-time";
+      const calculatedSalary = isDentist ? (25000000 + exp * 1500000) : (10000000 + (data.fullName?.length || 5) * 200000);
+      const calculatedUnit = isPartTime ? "Theo ngày" : isShift ? "Theo ca" : "Theo tháng";
+      const calculatedLeave = isDentist ? 1.5 : 1;
+
+      setFormEmploymentType(data.employmentType || calculatedType);
+      setFormBaseSalary(data.baseSalary ?? calculatedSalary);
+      setFormSalaryUnit(data.salaryUnit || calculatedUnit);
+      setFormLeaveAccrued(data.leaveAccrued ?? calculatedLeave);
+      setFormAllowance(data.allowance ?? (isDentist ? 2500000 : 1200000));
+
+      setFormData({
+        fullName: data.fullName || "",
+        gender: data.gender || "",
+        dateOfBirth: data.dateOfBirth || "",
+        phoneNumber: data.phoneNumber || "",
+        email: data.email,
+        address: data.address || "",
+        profilePictureUrl: data.profilePictureUrl || "",
+        specialty: data.specialty || "",
+        licenseNumber: data.licenseNumber || "",
+        servicesHandled: data.servicesHandled || "",
+        startDate: data.startDate || "",
+        certificateIssuedDate: data.certificateIssuedDate || "",
+        certificateIssuedBy: data.certificateIssuedBy || "",
+        yearsOfExperience: data.yearsOfExperience != null ? String(data.yearsOfExperience) : "",
+        education: data.education || "",
+        bio: data.bio || "",
+        role: data.role,
+        employmentStatus: data.employmentStatus || "Active",
+        isActive: data.isActive,
+      });
+    }
   }, []);
 
   const validate = () => {
@@ -130,17 +154,20 @@ export default function AddDoctorPage() {
     if (!validate()) return;
     setIsSubmitting(true);
     try {
-      const payload: CreateStaffCommand = {
+      const payload: UpdateStaffCommand = {
+        id,
         fullName: formData.fullName.trim(),
         email: formData.email.trim(),
         phoneNumber: formData.phoneNumber.trim(),
-        role: "Dentist",
-        employeeId: doctorCode || null,
-        employmentStatus: formData.employmentStatus,
+        role: formData.role,
+        department: staff?.department ?? null,
+        employmentStatus: formData.employmentStatus || "Active",
+        profilePictureUrl: formData.profilePictureUrl.trim() || null,
+        professionalNotes: staff?.professionalNotes ?? null,
+        isActive: formData.isActive,
         specialty: formData.specialty.trim() || null,
         licenseNumber: formData.licenseNumber.trim() || null,
         yearsOfExperience: formData.yearsOfExperience ? Number(formData.yearsOfExperience) : null,
-        profilePictureUrl: formData.profilePictureUrl.trim() || null,
         gender: formData.gender || null,
         dateOfBirth: formData.dateOfBirth || null,
         address: formData.address.trim() || null,
@@ -150,13 +177,15 @@ export default function AddDoctorPage() {
         certificateIssuedBy: formData.certificateIssuedBy.trim() || null,
         education: formData.education.trim() || null,
         bio: formData.bio.trim() || null,
+        position: null,
         employmentType: formEmploymentType,
         baseSalary: formBaseSalary,
         salaryUnit: formSalaryUnit,
         leaveAccrued: formLeaveAccrued,
+        allowance: formAllowance,
       };
-      await createStaffApi(payload);
-      sessionStorage.setItem("staffSuccessMsg", `Thêm bác sĩ ${formData.fullName.trim()} (${doctorCode}) thành công!`);
+      await updateStaffApi(id, payload);
+      sessionStorage.setItem("staffSuccessMsg", `Cập nhật thông tin nha sĩ ${formData.fullName.trim()} thành công!`);
       router.push("/owner/employee");
     } catch (err: unknown) {
       if (err instanceof ApiValidationError) {
@@ -179,12 +208,29 @@ export default function AddDoctorPage() {
   };
 
   const inp = (field: string) =>
-    `w-full px-4 py-3 text-[14px] bg-white border rounded-xl focus:border-secondary focus:ring-1 focus:ring-sky-400 focus:outline-none transition-all font-semibold ${
+    `w-full px-4 py-3 text-[14px] bg-white border rounded-xl focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-semibold ${
       errors[field] ? "border-red-400 bg-red-50/30" : "border-slate-200"
     }`;
   const lbl = "text-[12px] font-extrabold text-slate-500 uppercase tracking-wider mb-1.5 block";
   const errMsg = (field: string) =>
     errors[field] ? <p className="text-red-500 text-[11px] font-bold mt-1">{errors[field]}</p> : null;
+
+  if (!staff) {
+    return (
+      <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
+        <OwnerSidebar activeMenu="staff" />
+        <main className="flex-1 flex flex-col items-center justify-center gap-4">
+          <svg className="w-14 h-14 text-slate-300 animate-pulse" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+          </svg>
+          <p className="text-slate-500 font-bold text-[15px]">Không tìm thấy dữ liệu nha sĩ.</p>
+          <button onClick={() => router.push("/owner/employee")} className="px-6 py-2.5 bg-primary hover:bg-primary-hover text-white font-extrabold rounded-xl transition-all cursor-pointer shadow-md">
+            Quay lại danh sách
+          </button>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
@@ -193,14 +239,17 @@ export default function AddDoctorPage() {
       <main className="flex-1 flex flex-col min-w-0">
         <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 shadow-sm shadow-slate-100/50">
           <div className="flex items-center gap-4">
-            <button onClick={() => router.back()} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all cursor-pointer">
+            <button onClick={() => router.push("/owner/employee")} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all cursor-pointer">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
               </svg>
             </button>
             <div>
-              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Thêm Bác Sĩ Mới</h1>
-              <p className="text-[13px] text-slate-400 font-semibold mt-0.5">Tạo hồ sơ nha sĩ / bác sĩ chuyên khoa. Tài khoản có thể tạo sau.</p>
+              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Chỉnh Sửa Hồ Sơ Nha Sĩ</h1>
+              <p className="text-[13px] text-slate-400 font-semibold mt-0.5">
+                {staff.employeeId && <span className="font-mono text-primary font-bold mr-2">{staff.employeeId}</span>}
+                {staff.fullName || staff.email}
+              </p>
             </div>
           </div>
           <NotificationBell />
@@ -222,15 +271,15 @@ export default function AddDoctorPage() {
               {/* Form Header Action Bar */}
               <div className="flex items-center justify-between border-b border-slate-200 pb-4 mb-2 shrink-0">
                 <div>
-                  <h3 className="text-lg font-extrabold text-slate-900 tracking-tight">Thêm mới hồ sơ Bác sĩ</h3>
+                  <h3 className="text-lg font-extrabold text-slate-900 tracking-tight">Chỉnh sửa hồ sơ Nha sĩ</h3>
                   <p className="text-[13px] text-slate-400 font-semibold mt-1">
-                    Điền đầy đủ thông tin bên dưới và bấm nút lưu để lưu hồ sơ.
+                    Cập nhật các thông tin của nha sĩ và bấm lưu để cập nhật hồ sơ.
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
                   <button
                     type="button"
-                    onClick={() => router.back()}
+                    onClick={() => router.push("/owner/employee")}
                     disabled={isSubmitting}
                     className="px-4 py-2 bg-white border border-slate-250 text-slate-600 rounded-xl text-[13px] font-bold transition-all hover:bg-slate-50 cursor-pointer shadow-sm disabled:opacity-50"
                   >
@@ -238,10 +287,10 @@ export default function AddDoctorPage() {
                   </button>
                   <button
                     type="submit"
-                    disabled={isSubmitting || isLoadingCode}
+                    disabled={isSubmitting}
                     className="px-5 py-2 bg-primary hover:bg-primary-hover text-white rounded-xl text-[13px] font-bold shadow-md shadow-primary/15 hover:shadow-lg transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50"
                   >
-                    {isSubmitting ? "Đang lưu..." : "Lưu hồ sơ"}
+                    {isSubmitting ? "Đang lưu..." : "Lưu thay đổi"}
                   </button>
                 </div>
               </div>
@@ -253,9 +302,11 @@ export default function AddDoctorPage() {
                     <span className="w-1.5 h-3.5 bg-primary rounded-full inline-block" />
                     Thông tin cơ bản
                   </h4>
-                  <div className="text-[12px] font-bold text-slate-500">
-                    Mã bác sĩ: <span className="bg-red-50 border border-red-100 text-primary px-2.5 py-1 rounded font-mono font-extrabold">{isLoadingCode ? "Đang tạo..." : doctorCode}</span>
-                  </div>
+                  {staff.employeeId && (
+                    <div className="text-[12px] font-bold text-slate-500">
+                      Mã nha sĩ: <span className="bg-red-50 border border-red-100 text-primary px-2.5 py-1 rounded font-mono font-extrabold">{staff.employeeId}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex flex-col md:flex-row gap-6">
@@ -540,7 +591,7 @@ export default function AddDoctorPage() {
                     <textarea
                       name="bio"
                       rows={4}
-                      placeholder="Mô tả tóm tắt kinh nghiệm, chuyên môn và quá trình làm việc của bác sĩ..."
+                      placeholder="Mô tả tóm tắt kinh nghiệm, chuyên môn và quá trình làm việc của nha sĩ..."
                       value={formData.bio}
                       onChange={handleChange}
                       className={`w-full px-4 py-2.5 border rounded-xl focus:outline-none focus:ring-1 focus:ring-primary transition-all font-semibold text-[14px] resize-none ${
@@ -589,6 +640,20 @@ export default function AddDoctorPage() {
                     {errMsg("baseSalary")}
                   </div>
 
+                  <div>
+                    <label className={lbl}>Phụ cấp * (VNĐ)</label>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      placeholder="2.500.000"
+                      value={formAllowance}
+                      onChange={(e) => setFormAllowance(Number(e.target.value))}
+                      className={inp("allowance")}
+                    />
+                    {errMsg("allowance")}
+                  </div>
+
                   {/* Row 2 */}
                   <div>
                     <label className={lbl}>Đơn vị tính lương *</label>
@@ -631,10 +696,18 @@ export default function AddDoctorPage() {
               <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
                 <h4 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider mb-6 pb-2 border-b border-slate-100 flex items-center gap-2">
                   <span className="w-1.5 h-3.5 bg-primary rounded-full inline-block" />
-                  Trạng thái tài khoản & công tác
+                  Vai trò & Trạng thái hoạt động
                 </h4>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+                  <div>
+                    <label className={lbl}>Vai trò</label>
+                    <div className="flex items-center gap-2.5 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl">
+                      <span className="text-[14px] font-bold text-slate-600">Nha sĩ</span>
+                      <span className="text-[10px] bg-slate-200/70 text-slate-500 px-2 py-0.5 rounded font-bold uppercase tracking-wide">Cố định</span>
+                    </div>
+                  </div>
+
                   <div>
                     <label className={lbl}>Trạng thái làm việc</label>
                     <select
@@ -655,9 +728,9 @@ export default function AddDoctorPage() {
                         type="checkbox"
                         checked={formData.isActive}
                         onChange={(e) => setFormData(prev => ({ ...prev, isActive: e.target.checked }))}
-                        className="w-5 h-5 rounded text-primary border-slate-350 focus:ring-primary"
+                        className="w-5 h-5 rounded text-primary border-slate-355 focus:ring-primary"
                       />
-                      <span className="text-[13px] font-bold text-slate-700">Kích hoạt tài khoản người dùng</span>
+                      <span className="text-[13px] font-bold text-slate-700">Tài khoản hoạt động</span>
                     </label>
                   </div>
                 </div>
@@ -667,7 +740,7 @@ export default function AddDoctorPage() {
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200 shrink-0">
                 <button
                   type="button"
-                  onClick={() => router.back()}
+                  onClick={() => router.push("/owner/employee")}
                   disabled={isSubmitting}
                   className="px-6 py-2.5 bg-white border border-slate-250 text-slate-600 rounded-xl text-[14px] font-bold transition-all hover:bg-slate-50 cursor-pointer shadow-sm disabled:opacity-50"
                 >
@@ -675,10 +748,10 @@ export default function AddDoctorPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmitting || isLoadingCode}
+                  disabled={isSubmitting}
                   className="px-8 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-xl text-[14px] font-bold shadow-md shadow-primary/15 hover:shadow-lg transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50"
                 >
-                  {isSubmitting ? "Đang lưu..." : "Lưu hồ sơ bác sĩ"}
+                  {isSubmitting ? "Đang lưu..." : "Lưu hồ sơ nha sĩ"}
                 </button>
               </div>
             </form>

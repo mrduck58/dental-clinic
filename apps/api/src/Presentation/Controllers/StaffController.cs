@@ -56,7 +56,8 @@ public class StaffController(
                 request.Gender, request.DateOfBirth, request.Address,
                 request.StartDate, request.ServicesHandled, request.CertificateIssuedDate,
                 request.CertificateIssuedBy, request.Education, request.Bio, request.Position,
-                request.EmploymentType, request.BaseSalary, request.SalaryUnit, request.LeaveAccrued),
+                request.EmploymentType, request.BaseSalary, request.SalaryUnit, request.LeaveAccrued,
+                request.Allowance),
             cancellationToken);
 
         return CreatedAtAction(nameof(GetStaffById), new { id = result.Id }, result);
@@ -78,7 +79,8 @@ public class StaffController(
                 request.Gender, request.DateOfBirth, request.Address,
                 request.StartDate, request.ServicesHandled, request.CertificateIssuedDate,
                 request.CertificateIssuedBy, request.Education, request.Bio, request.Position,
-                request.EmploymentType, request.BaseSalary, request.SalaryUnit, request.LeaveAccrued),
+                request.EmploymentType, request.BaseSalary, request.SalaryUnit, request.LeaveAccrued,
+                request.Allowance),
             cancellationToken);
 
         return Ok(result);
@@ -133,7 +135,8 @@ public record CreateStaffRequestDto(
     string? EmploymentType,
     decimal? BaseSalary,
     string? SalaryUnit,
-    decimal? LeaveAccrued);
+    decimal? LeaveAccrued,
+    decimal? Allowance);
 
 public record UpdateStaffRequestDto(
     string FullName,
@@ -161,4 +164,5 @@ public record UpdateStaffRequestDto(
     string? EmploymentType,
     decimal? BaseSalary,
     string? SalaryUnit,
-    decimal? LeaveAccrued);
+    decimal? LeaveAccrued,
+    decimal? Allowance);
