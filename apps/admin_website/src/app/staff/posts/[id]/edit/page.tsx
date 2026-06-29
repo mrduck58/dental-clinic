@@ -4,8 +4,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getPostByIdApi, updatePostApi } from "../../../../../lib/apiClient";
-import AdminSidebar from "../../../../../components/shared/AdminSidebar";
-import { useRequireAdmin } from "../../../../../hooks/useRequireAdmin";
+import StaffSidebar from "../../../../../components/shared/StaffSidebar";
+import { useRequireStaff } from "../../../../../hooks/useRequireStaff";
 import NotificationBell from "../../../../../components/shared/NotificationBell";
 
 const CATEGORIES = [
@@ -21,7 +21,7 @@ interface EditPostPageProps {
 }
 
 export default function EditPostPage({ params }: EditPostPageProps) {
-  useRequireAdmin();
+  useRequireStaff();
   const router = useRouter();
   
   // Unwrap parameters
@@ -126,7 +126,7 @@ export default function EditPostPage({ params }: EditPostPageProps) {
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
       
       {/* ── SIDEBAR ──────────────────────────────────────────────────────── */}
-      <AdminSidebar activeMenu="articles" />
+      <StaffSidebar activeMenu="articles" />
 
       {/* ── MAIN AREA ────────────────────────────────────────────────────── */}
       <main className="flex-1 flex flex-col min-w-0">

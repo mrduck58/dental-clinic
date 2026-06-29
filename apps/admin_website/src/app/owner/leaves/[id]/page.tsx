@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import AdminSidebar from "../../../../components/shared/AdminSidebar";
-import { useRequireAdmin } from "../../../../hooks/useRequireAdmin";
+import OwnerSidebar from "../../../../components/shared/OwnerSidebar";
+import { useRequireOwner } from "../../../../hooks/useRequireOwner";
 import {
   getLeaveRequestByIdApi,
   approveLeaveRequestApi,
@@ -63,7 +63,7 @@ const fmtDateTime = (s: string) =>
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function LeaveDetailPage() {
-  useRequireAdmin();
+  useRequireOwner();
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
@@ -120,7 +120,7 @@ export default function LeaveDetailPage() {
   if (isLoading) {
     return (
       <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
-        <AdminSidebar activeMenu="leaves" />
+        <OwnerSidebar activeMenu="leaves" />
         <main className="flex-1 flex flex-col min-w-0">
           <PageHeader />
           <div className="flex-1 flex items-center justify-center">
@@ -138,7 +138,7 @@ export default function LeaveDetailPage() {
   if (notFound || !leave) {
     return (
       <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
-        <AdminSidebar activeMenu="leaves" />
+        <OwnerSidebar activeMenu="leaves" />
         <main className="flex-1 flex flex-col min-w-0">
           <PageHeader />
           <div className="flex-1 flex items-center justify-center">
@@ -165,7 +165,7 @@ export default function LeaveDetailPage() {
 
   return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
-      <AdminSidebar activeMenu="leaves" />
+      <OwnerSidebar activeMenu="leaves" />
 
       <main className="flex-1 flex flex-col min-w-0">
         {/* HEADER */}

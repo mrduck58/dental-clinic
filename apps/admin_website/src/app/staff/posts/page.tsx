@@ -1,10 +1,10 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { getPostsApi, deletePostApi, type PostDto } from "../../../lib/apiClient";
-import AdminSidebar from "../../../components/shared/AdminSidebar";
-import { useRequireAdmin } from "../../../hooks/useRequireAdmin";
+import StaffSidebar from "../../../components/shared/StaffSidebar";
+import { useRequireStaff } from "../../../hooks/useRequireStaff";
 import NotificationBell from "../../../components/shared/NotificationBell";
 
 interface Post {
@@ -41,7 +41,7 @@ const CATEGORIES = [
 ];
 
 export default function PostsListPage() {
-  useRequireAdmin();
+  useRequireStaff();
   const [posts, setPosts] = useState<Post[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Tất cả danh mục");
@@ -104,7 +104,7 @@ export default function PostsListPage() {
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
       
       {/* ── SIDEBAR ──────────────────────────────────────────────────────── */}
-      <AdminSidebar activeMenu="articles" />
+      <StaffSidebar activeMenu="articles" />
 
       {/* ── MAIN AREA ────────────────────────────────────────────────────── */}
       <main className="flex-1 flex flex-col min-w-0">
@@ -243,7 +243,7 @@ export default function PostsListPage() {
 
                 {/* Create Button */}
                 <Link
-                  href="/dashboard/posts/create"
+                  href="/staff/posts/create"
                   className="inline-flex items-center gap-2 bg-primary hover:bg-primary-hover text-white font-bold text-[14px] px-5 py-2.5 rounded-xl transition-all shadow-md shadow-primary/25 shrink-0"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -338,7 +338,7 @@ export default function PostsListPage() {
                             <div className="flex items-center justify-center gap-4">
                               {/* Preview Button */}
                               <Link
-                                href={`/dashboard/posts/${post.id}/preview`}
+                                href={`/staff/posts/${post.id}/preview`}
                                 className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all"
                                 title="Xem trước bài viết"
                               >
@@ -349,7 +349,7 @@ export default function PostsListPage() {
                               </Link>
                               {/* Edit Button */}
                               <Link
-                                href={`/dashboard/posts/${post.id}/edit`}
+                                href={`/staff/posts/${post.id}/edit`}
                                 className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
                                 title="Chỉnh sửa bài viết"
                               >

@@ -94,7 +94,8 @@ export default function InventoryPage() {
   // form state
   const [selectedItemId, setSelectedItemId] = useState("");
   const [txType,         setTxType]         = useState<"import" | "export">("import");
-  const [txQty,          setTxQty]          = useState(1);
+  const [txItemSearch,   setTxItemSearch]   = useState(""); // text input for import
+  const [txQtyStr,       setTxQtyStr]       = useState("");
   const [txNote,         setTxNote]         = useState("");
   const [submitting,     setSubmitting]     = useState(false);
   const [saved,          setSaved]          = useState(false);
@@ -155,10 +156,46 @@ export default function InventoryPage() {
 
   const handleTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedItemId) return;
+
+    const txQty = Number(txQtyStr);
+    if (!txQtyStr || txQty <= 0) {
+      setError("Số lượng phải lớn hơn 0.");
+      return;
+    }
+
+    let itemId = selectedItemId;
+
+    // Nhập kho: nếu tên không khớp item có sẵn → tự tạo item mới
+    if (txType === "import" && !itemId) {
+      if (!txItemSearch.trim()) {
+        setError("Vui lòng nhập tên vật tư.");
+        return;
+      }
+      try {
+        const code = "VT" + Date.now().toString().slice(-5);
+        const newItem = await createSupplyItemApi({
+          code,
+          name: txItemSearch.trim(),
+          category: "Tiêu hao",
+          unit: "Cái",
+          quantity: 0,
+          minQuantity: 5,
+        });
+        setItems(prev => [...prev, newItem]);
+        itemId = newItem.id;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Không thể tạo vật tư mới.");
+        return;
+      }
+    }
+
+    if (!itemId) {
+      setError("Vui lòng chọn vật tư.");
+      return;
+    }
 
     if (txType === "export") {
-      const item = items.find(s => s.id === selectedItemId);
+      const item = items.find(s => s.id === itemId);
       if (item && txQty > item.quantity) {
         setError(`Số lượng xuất (${txQty}) vượt quá tồn kho hiện tại (${item.quantity} ${item.unit}).`);
         return;
@@ -169,7 +206,7 @@ export default function InventoryPage() {
     setError(null);
     try {
       const tx = await createSupplyTransactionApi({
-        supplyItemId: selectedItemId,
+        supplyItemId: itemId,
         type: txType,
         quantity: txQty,
         note: txNote || undefined,
@@ -183,7 +220,7 @@ export default function InventoryPage() {
       setLog(prev => [tx, ...prev]);
       setLogPage(1);
       setSaved(true);
-      setTimeout(() => { setSaved(false); setTxQty(1); setTxNote(""); }, 2000);
+      setTimeout(() => { setSaved(false); setTxQtyStr(""); setTxNote(""); setTxItemSearch(""); setSelectedItemId(""); }, 2000);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Tạo giao dịch thất bại");
     } finally {
@@ -363,7 +400,8 @@ export default function InventoryPage() {
                         { key: "import", label: "Nhập kho", activeCls: "bg-emerald-500 hover:bg-emerald-600 text-white border-emerald-500 shadow-sm shadow-emerald-200" },
                         { key: "export", label: "Xuất kho", activeCls: "bg-primary hover:bg-red-600 text-white border-primary shadow-sm shadow-primary/20" },
                       ] as const).map(t => (
-                        <button type="button" key={t.key} onClick={() => setTxType(t.key)}
+                        <button type="button" key={t.key}
+                          onClick={() => { setTxType(t.key); setTxItemSearch(""); setSelectedItemId(t.key === "export" && items.length > 0 ? items[0].id : ""); }}
                           className={`flex-1 py-3 rounded-xl text-[13.5px] font-black border-2 cursor-pointer transition-all ${
                             txType === t.key ? t.activeCls : "bg-white text-slate-400 border-slate-200 hover:border-slate-300"
                           }`}>
@@ -374,21 +412,43 @@ export default function InventoryPage() {
 
                     <div className="flex flex-col gap-1.5">
                       <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">Vật tư *</label>
-                      <div className="relative">
-                        <select value={selectedItemId} onChange={e => setSelectedItemId(e.target.value)} className={selectCls} required>
-                          {items.length === 0
-                            ? <option value="">Chưa có vật tư</option>
-                            : items.map(s => (
-                              <option key={s.id} value={s.id}>{s.name} — Tồn: {s.quantity} {s.unit}</option>
-                            ))}
-                        </select>
-                        <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400"><svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg></span>
-                      </div>
+                      {txType === "import" ? (
+                        <>
+                          <input
+                            value={txItemSearch}
+                            onChange={e => {
+                              setTxItemSearch(e.target.value);
+                              const match = items.find(s => s.name.toLowerCase() === e.target.value.toLowerCase().trim());
+                              setSelectedItemId(match ? match.id : "");
+                            }}
+                            placeholder="Nhập tên vật tư..."
+                            className={inputCls}
+                          />
+                          {txItemSearch && !selectedItemId && (
+                            <p className="text-[12px] text-emerald-600 font-semibold">Vật tư mới — sẽ được tạo tự động khi xác nhận.</p>
+                          )}
+                        </>
+                      ) : (
+                        <div className="relative">
+                          <select value={selectedItemId} onChange={e => setSelectedItemId(e.target.value)} className={selectCls} required>
+                            {items.length === 0
+                              ? <option value="">Chưa có vật tư</option>
+                              : items.map(s => (
+                                <option key={s.id} value={s.id}>{s.name} — Tồn: {s.quantity} {s.unit}</option>
+                              ))}
+                          </select>
+                          <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400"><svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg></span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex flex-col gap-1.5">
                       <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">Số lượng *</label>
-                      <input type="number" min={1} required value={txQty} onChange={e => setTxQty(Number(e.target.value))} className={inputCls} />
+                      <input type="number" min={0}
+                        value={txQtyStr}
+                        onChange={e => setTxQtyStr(e.target.value)}
+                        placeholder="Nhập số lượng..."
+                        className={`${inputCls} [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`} />
                     </div>
 
                     <div className="flex flex-col gap-1.5">

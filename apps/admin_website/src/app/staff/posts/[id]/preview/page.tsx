@@ -3,8 +3,8 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { getPostByIdApi, type PostDto } from "../../../../../lib/apiClient";
-import AdminSidebar from "../../../../../components/shared/AdminSidebar";
-import { useRequireAdmin } from "../../../../../hooks/useRequireAdmin";
+import StaffSidebar from "../../../../../components/shared/StaffSidebar";
+import { useRequireStaff } from "../../../../../hooks/useRequireStaff";
 import NotificationBell from "../../../../../components/shared/NotificationBell";
 
 interface PreviewPostPageProps {
@@ -12,7 +12,7 @@ interface PreviewPostPageProps {
 }
 
 export default function PreviewPostPage({ params }: PreviewPostPageProps) {
-  useRequireAdmin();
+  useRequireStaff();
 
   const resolvedParams = React.use(params);
   const id = resolvedParams.id;
@@ -35,7 +35,7 @@ export default function PreviewPostPage({ params }: PreviewPostPageProps) {
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
 
       {/* ── SIDEBAR ──────────────────────────────────────────────────────── */}
-      <AdminSidebar activeMenu="articles" />
+      <StaffSidebar activeMenu="articles" />
 
       {/* ── MAIN AREA ────────────────────────────────────────────────────── */}
       <main className="flex-1 flex flex-col min-w-0">
@@ -63,7 +63,7 @@ export default function PreviewPostPage({ params }: PreviewPostPageProps) {
           <div className="flex items-center gap-4">
             {post && (
               <Link
-                href={`/dashboard/posts/${id}/edit`}
+                href={`/staff/posts/${id}/edit`}
                 className="inline-flex items-center gap-2 bg-primary hover:bg-primary-hover text-white font-bold text-[13px] px-4 py-2 rounded-xl transition-all shadow-md shadow-primary/25"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">

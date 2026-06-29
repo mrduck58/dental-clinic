@@ -1,9 +1,9 @@
-"use client";
+﻿"use client";
 
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
-import AdminSidebar from "../../../components/shared/AdminSidebar";
-import { useRequireAdmin } from "../../../hooks/useRequireAdmin";
+import OwnerSidebar from "../../../components/shared/OwnerSidebar";
+import { useRequireOwner } from "../../../hooks/useRequireOwner";
 import {
   getLeaveRequestsAdminApi,
   type LeaveRequestDto,
@@ -64,7 +64,7 @@ const fmtDateTime = (s: string) => {
 // ── Page Component ────────────────────────────────────────────────────────────
 
 export default function LeavesPage() {
-  useRequireAdmin();
+  useRequireOwner();
 
   const [leaves, setLeaves] = useState<LeaveWithCode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -151,7 +151,7 @@ export default function LeavesPage() {
 
   return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
-      <AdminSidebar activeMenu="leaves" />
+      <OwnerSidebar activeMenu="leaves" />
 
       <main className="flex-1 flex flex-col min-w-0">
         {/* HEADER */}
@@ -388,7 +388,7 @@ export default function LeavesPage() {
                           </td>
                           <td className="px-5 py-4 text-center">
                             <Link
-                              href={`/dashboard/leaves/${leave.id}`}
+                              href={`/owner/leaves/${leave.id}`}
                               title={leave.status === "Pending" ? "Xem & duyệt đơn" : "Xem chi tiết"}
                               className="relative p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all inline-block cursor-pointer"
                             >

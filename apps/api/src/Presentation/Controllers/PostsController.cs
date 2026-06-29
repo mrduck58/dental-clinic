@@ -39,25 +39,25 @@ public class PostsController(
 
     /// <summary>POST api/posts — Tạo bài viết mới (Admin)</summary>
     [HttpPost]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Staff")]
     public async Task<IActionResult> Create([FromBody] CreatePostRequest request, CancellationToken ct)
     {
         var result = await create.HandleAsync(request, ct);
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
 
-    /// <summary>PUT api/posts/{id} — Cập nhật bài viết (Admin)</summary>
+    /// <summary>PUT api/posts/{id} — Cập nhật bài viết (Staff)</summary>
     [HttpPut("{id:guid}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Staff")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdatePostRequest request, CancellationToken ct)
     {
         var result = await update.HandleAsync(id, request, ct);
         return Ok(result);
     }
 
-    /// <summary>DELETE api/posts/{id} — Xóa bài viết (Admin)</summary>
+    /// <summary>DELETE api/posts/{id} — Xóa bài viết (Staff)</summary>
     [HttpDelete("{id:guid}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Staff")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         await delete.HandleAsync(id, ct);
