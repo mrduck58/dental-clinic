@@ -37,7 +37,8 @@ public class FillProfileHandler(IUserRepository userRepository)
                 fullName ?? string.Empty,
                 command.PhoneNumber ?? string.Empty,
                 command.DateOfBirth,
-                command.Gender);
+                command.Gender,
+                command.ProfilePictureUrl);
         }
         else
         {

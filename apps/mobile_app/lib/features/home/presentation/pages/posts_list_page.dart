@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
+import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/home/data/home_service.dart';
 import 'package:mobile_app/features/home/data/models/post_model.dart';
@@ -21,7 +22,7 @@ class _PostsListPageState extends State<PostsListPage> {
   bool _isLoading = true;
   String _selectedCategory = 'Tất cả';
 
-  final List<String> _categories = const [
+  final List<String> _categories = [
     'Tất cả',
     'Khuyến mãi',
     'Chăm sóc nha khoa',
@@ -76,51 +77,55 @@ class _PostsListPageState extends State<PostsListPage> {
     });
   }
 
+  String _getLocalizedCategoryName(String categoryKey, bool isVi) {
+    if (categoryKey == 'Tất cả') return isVi ? 'Tất cả' : 'All';
+    if (categoryKey == 'Khuyến mãi') return isVi ? 'Khuyến mãi' : 'Promotions';
+    if (categoryKey == 'Chăm sóc nha khoa') return isVi ? 'Chăm sóc nha khoa' : 'Dental Care';
+    if (categoryKey == 'Tin tức') return isVi ? 'Tin tức' : 'News';
+    return categoryKey;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: context.bg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: context.card,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.textPrimary, size: 20),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: context.textPrimary, size: 20),
           onPressed: () => context.pop(),
         ),
-        title: const Text(
-          'Tin tức nổi bật',
+        title: Text(
+          isVi ? 'Tin tức nổi bật' : 'Featured News',
           style: TextStyle(
-            color: AppColors.textPrimary,
+            color: context.textPrimary,
             fontWeight: FontWeight.w800,
             fontSize: 18,
           ),
         ),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Iconsax.notification, color: AppColors.textPrimary),
-            onPressed: () {},
-          ),
-        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(
-            color: AppColors.divider,
+            color: context.divider,
             height: 1,
           ),
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          ? Center(child: CircularProgressIndicator(color: AppColors.primary))
           : Column(
               children: [
                 // Category tabs row
                 Container(
-                  color: Colors.white,
+                  color: context.card,
                   height: 64,
                   child: ListView.builder(
                     scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                     itemCount: _categories.length,
                     itemBuilder: (context, index) {
                       final cat = _categories[index];
@@ -128,20 +133,20 @@ class _PostsListPageState extends State<PostsListPage> {
                       return GestureDetector(
                         onTap: () => _onCategorySelected(cat),
                         child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 180),
-                          margin: const EdgeInsets.only(right: 10),
-                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                          duration: Duration(milliseconds: 180),
+                          margin: EdgeInsets.only(right: 10),
+                          padding: EdgeInsets.symmetric(horizontal: 18, vertical: 8),
                           decoration: BoxDecoration(
-                            color: active ? AppColors.primary : const Color(0xFFF1F5F9),
+                            color: active ? AppColors.primary : (context.isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9)),
                             borderRadius: BorderRadius.circular(999),
                           ),
                           child: Center(
                             child: Text(
-                              cat,
+                              _getLocalizedCategoryName(cat, isVi),
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w800,
-                                color: active ? Colors.white : AppColors.textSecondary,
+                                color: active ? Colors.white : context.textSecondary,
                               ),
                             ),
                           ),
@@ -150,15 +155,15 @@ class _PostsListPageState extends State<PostsListPage> {
                     },
                   ),
                 ),
-                const Divider(height: 1, color: AppColors.divider),
+                Divider(height: 1, color: context.divider),
                 
                 // Content area
                 Expanded(
                   child: _filteredPosts.isEmpty
-                      ? const Center(
+                      ? Center(
                           child: Text(
-                            'Chưa có bài viết nào trong mục này.',
-                            style: TextStyle(color: AppColors.textMuted),
+                            isVi ? 'Chưa có bài viết nào trong mục này.' : 'No articles found in this category.',
+                            style: TextStyle(color: context.textMuted),
                           ),
                         )
                       : CustomScrollView(
@@ -170,15 +175,15 @@ class _PostsListPageState extends State<PostsListPage> {
                             
                             // Other Posts Label
                             if (_filteredPosts.length > 1)
-                              const SliverToBoxAdapter(
+                              SliverToBoxAdapter(
                                 child: Padding(
                                   padding: EdgeInsets.fromLTRB(24, 24, 24, 12),
                                   child: Text(
-                                    'Bài viết mới nhất',
+                                    isVi ? 'Bài viết mới nhất' : 'Latest Articles',
                                     style: TextStyle(
                                       fontSize: 18,
                                       fontWeight: FontWeight.w800,
-                                      color: AppColors.textPrimary,
+                                      color: context.textPrimary,
                                     ),
                                   ),
                                 ),
@@ -186,13 +191,13 @@ class _PostsListPageState extends State<PostsListPage> {
                               
                             // Remaining list
                             SliverPadding(
-                              padding: const EdgeInsets.fromLTRB(24, 0, 24, 40),
+                              padding: EdgeInsets.fromLTRB(24, 0, 24, 40),
                               sliver: SliverList(
                                 delegate: SliverChildBuilderDelegate(
                                   (context, index) {
                                     // Skip first one as it is in the banner
                                     return Padding(
-                                      padding: const EdgeInsets.only(bottom: 14),
+                                      padding: EdgeInsets.only(bottom: 14),
                                       child: NewsCard(post: _filteredPosts[index + 1]),
                                     );
                                   },
@@ -209,19 +214,24 @@ class _PostsListPageState extends State<PostsListPage> {
   }
 
   Widget _buildFeaturedBanner(PostModel post) {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
+    final categoryLabel = _getLocalizedCategoryName(post.category, isVi);
+    final rawMin = post.readTimeText.replaceAll(RegExp(r'\D'), '');
+    final readTimeLabel = isVi ? '$rawMin phút đọc' : '$rawMin min read';
+
     return GestureDetector(
       onTap: () => context.push(AppRoutes.postDetail, extra: post),
       child: Container(
-        margin: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+        margin: EdgeInsets.fromLTRB(24, 24, 24, 0),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.card,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.divider),
+          border: Border.all(color: context.divider),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 16,
-              offset: const Offset(0, 6),
+              offset: Offset(0, 6),
             ),
           ],
         ),
@@ -230,7 +240,7 @@ class _PostsListPageState extends State<PostsListPage> {
           children: [
             // Top Image
             ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
               child: post.thumbnailUrl != null
                   ? Image.network(
                       post.thumbnailUrl!,
@@ -244,21 +254,21 @@ class _PostsListPageState extends State<PostsListPage> {
             
             // Post Info
             Padding(
-              padding: const EdgeInsets.all(20),
+              padding: EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: AppColors.primaryLight,
+                          color: context.primaryLight,
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
-                          post.category.toUpperCase(),
-                          style: const TextStyle(
+                          categoryLabel.toUpperCase(),
+                          style: TextStyle(
                             color: AppColors.primary,
                             fontSize: 10,
                             fontWeight: FontWeight.w800,
@@ -266,35 +276,35 @@ class _PostsListPageState extends State<PostsListPage> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      SizedBox(width: 8),
                       Text(
-                        '${post.readTimeText} đọc',
-                        style: const TextStyle(
-                          color: AppColors.textMuted,
+                        readTimeLabel,
+                        style: TextStyle(
+                          color: context.textMuted,
                           fontSize: 12,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12),
                   Text(
                     post.title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
-                      color: AppColors.textPrimary,
+                      color: context.textPrimary,
                       height: 1.35,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   Text(
                     post.content.length > 120 
                         ? '${post.content.substring(0, 120).trim()}...' 
                         : post.content,
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
+                    style: TextStyle(
+                      color: context.textSecondary,
                       fontSize: 13,
                       height: 1.45,
                     ),
@@ -314,8 +324,8 @@ class _PostsListPageState extends State<PostsListPage> {
     return Container(
       height: 180,
       width: double.infinity,
-      color: AppColors.primaryLight,
-      child: const Icon(Iconsax.image, color: AppColors.primary, size: 48),
+      color: context.primaryLight,
+      child: Icon(Iconsax.image, color: AppColors.primary, size: 48),
     );
   }
 }

@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
-import 'package:mobile_app/core/constants/app_colors.dart';
+import 'package:mobile_app/app/routers.dart';
+import 'package:mobile_app/app/settings_manager.dart';
+import 'package:mobile_app/core/constants/api_constants.dart';
 
 class HomeHeader extends StatelessWidget {
   final String userName;
+  final String? avatarUrl;
 
-  const HomeHeader({super.key, required this.userName});
+  const HomeHeader({super.key, required this.userName, this.avatarUrl});
 
   @override
   Widget build(BuildContext context) {
@@ -15,20 +19,20 @@ class HomeHeader extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
         child: Row(
           children: [
-            _Avatar(name: userName),
+            _Avatar(name: userName, avatarUrl: avatarUrl),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Xin chào',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 15),
+                  Text(
+                    context.l10n('hello'),
+                    style: TextStyle(color: context.textSecondary, fontSize: 15),
                   ),
                   Text(
-                    userName.isNotEmpty ? userName : 'Bạn',
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
+                    userName.isNotEmpty ? userName : context.l10n('user'),
+                    style: TextStyle(
+                      color: context.textPrimary,
                       fontSize: 20,
                       fontWeight: FontWeight.w900,
                     ),
@@ -48,7 +52,9 @@ class HomeHeader extends StatelessWidget {
 
 class _Avatar extends StatelessWidget {
   final String name;
-  const _Avatar({required this.name});
+  final String? avatarUrl;
+
+  const _Avatar({required this.name, this.avatarUrl});
 
   String _initials() {
     final words = name.trim().split(' ').where((w) => w.isNotEmpty).toList();
@@ -57,29 +63,51 @@ class _Avatar extends StatelessWidget {
     return '${words.first[0]}${words.last[0]}'.toUpperCase();
   }
 
+  ImageProvider? _getAvatarProvider() {
+    if (avatarUrl != null && avatarUrl!.isNotEmpty) {
+      if (avatarUrl!.startsWith('http')) {
+        return NetworkImage(avatarUrl!);
+      }
+      final baseUrlHost = ApiConstants.baseUrl.replaceAll('/api', '');
+      return NetworkImage('$baseUrlHost$avatarUrl');
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final provider = _getAvatarProvider();
     return Container(
       width: 48,
       height: 48,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFFDC2626), Color(0xFFB91C1C)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+      decoration: BoxDecoration(
+        gradient: provider == null
+            ? const LinearGradient(
+                colors: [Color(0xFFDC2626), Color(0xFFB91C1C)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : null,
+        image: provider != null
+            ? DecorationImage(
+                image: provider,
+                fit: BoxFit.cover,
+              )
+            : null,
         shape: BoxShape.circle,
       ),
-      child: Center(
-        child: Text(
-          _initials(),
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-      ),
+      child: provider == null
+          ? Center(
+              child: Text(
+                _initials(),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            )
+          : null,
     );
   }
 }
@@ -89,22 +117,25 @@ class _NotificationBell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        shape: BoxShape.circle,
-        border: Border.all(color: AppColors.divider, width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+    return GestureDetector(
+      onTap: () => context.push(AppRoutes.notifications),
+      child: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: context.card,
+          shape: BoxShape.circle,
+          border: Border.all(color: context.divider, width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: context.isDark ? 0.2 : 0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Icon(Iconsax.notification, size: 24, color: context.textPrimary),
       ),
-      child: const Icon(Iconsax.notification, size: 24, color: AppColors.textPrimary),
     );
   }
 }

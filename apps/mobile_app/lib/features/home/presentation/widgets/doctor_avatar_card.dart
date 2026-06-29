@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
+import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/home/data/models/doctor_model.dart';
 
@@ -34,8 +35,8 @@ class DoctorAvatarCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               doctor.fullName,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
+              style: TextStyle(
+                color: context.textPrimary,
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
                 height: 1.3,
@@ -48,8 +49,8 @@ class DoctorAvatarCard extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 doctor.specialty!,
-                style: const TextStyle(
-                  color: AppColors.textMuted,
+                style: TextStyle(
+                  color: context.textMuted,
                   fontSize: 11,
                 ),
                 textAlign: TextAlign.center,

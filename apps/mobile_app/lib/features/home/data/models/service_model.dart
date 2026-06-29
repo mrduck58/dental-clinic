@@ -5,6 +5,7 @@ class ServiceModel {
   final int durationMinutes;
   final String description;
   final String? imageUrl;
+  final int viewCount;
 
   const ServiceModel({
     required this.id,
@@ -13,6 +14,7 @@ class ServiceModel {
     required this.durationMinutes,
     required this.description,
     this.imageUrl,
+    this.viewCount = 0,
   });
 
   factory ServiceModel.fromJson(Map<String, dynamic> json) {
@@ -23,6 +25,7 @@ class ServiceModel {
       durationMinutes: json['durationMinutes'] as int,
       description: json['description'] as String? ?? '',
       imageUrl: json['imageUrl'] as String?,
+      viewCount: json['viewCount'] as int? ?? json['ViewCount'] as int? ?? 0,
     );
   }
 

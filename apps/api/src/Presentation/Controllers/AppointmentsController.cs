@@ -24,7 +24,9 @@ public class AppointmentsController(
     DiagnosisHandler diagnosisHandler,
     TreatmentPlanHandler treatmentPlanHandler,
     PrescriptionHandler prescriptionHandler,
-    FollowUpAppointmentHandler followUpAppointmentHandler) : ControllerBase
+    FollowUpAppointmentHandler followUpAppointmentHandler,
+    GetStaffScheduleHandler staffScheduleHandler,
+    CreateWalkInAppointmentHandler createWalkInHandler) : ControllerBase
 {
     /// <summary>POST api/appointments — Đặt lịch khám mới</summary>
     [HttpPost]
@@ -424,6 +426,37 @@ public class AppointmentsController(
         });
     }
 
+    /// <summary>GET api/appointments/staff/schedule — Lịch trống hôm nay cho staff đặt tại quầy</summary>
+    [HttpGet("staff/schedule")]
+    [Authorize(Roles = "Staff,Admin")]
+    public async Task<IActionResult> GetStaffSchedule(
+        [FromQuery] DateOnly? date,
+        CancellationToken cancellationToken)
+    {
+        var result = await staffScheduleHandler.HandleAsync(date, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>POST api/appointments/walkin — Đặt lịch tại quầy (Staff/Admin)</summary>
+    [HttpPost("walkin")]
+    [Authorize(Roles = "Staff,Admin")]
+    public async Task<IActionResult> CreateWalkInAppointment(
+        [FromBody] CreateWalkInRequest request,
+        CancellationToken cancellationToken)
+    {
+        var cmd = new CreateWalkInCommand(
+            request.DentistId,
+            request.AppointmentDate,
+            request.PatientName,
+            request.PatientPhone,
+            request.DateOfBirth,
+            request.Gender,
+            request.ServiceId,
+            request.Symptoms);
+        var result = await createWalkInHandler.HandleAsync(cmd, cancellationToken);
+        return Ok(result);
+    }
+
     private Guid GetCurrentUserId()
     {
         var sub = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
@@ -438,3 +471,13 @@ public record CreateAppointmentRequest(
     DateTimeOffset AppointmentDate,
     string? Symptoms,
     Guid? ServiceId);
+
+public record CreateWalkInRequest(
+    Guid DentistId,
+    DateTimeOffset AppointmentDate,
+    string PatientName,
+    string PatientPhone,
+    DateOnly DateOfBirth,
+    string Gender,
+    Guid? ServiceId,
+    string? Symptoms);

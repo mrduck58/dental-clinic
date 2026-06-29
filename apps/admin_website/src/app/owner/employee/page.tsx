@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -168,13 +168,13 @@ export default function OwnerStaffManagementPage() {
         { label: "Tổng nhân viên",      sub: "Lễ tân và trợ lý",           value: baseTotal.staff,      numClass: "text-slate-900",   bg: "bg-slate-50",   iconCls: "text-slate-500",   icon: ICON_USERS  },
         { label: "Làm việc hôm nay",    sub: "Có lịch trong ngày",         value: workingTodayStaff,    numClass: "text-green-700",   bg: "bg-green-50",   iconCls: "text-green-600",   icon: ICON_CHECK  },
         { label: "Nghỉ hôm nay",        sub: "Không có lịch trong ngày",   value: offTodayStaff,        numClass: "text-amber-700",   bg: "bg-amber-50",   iconCls: "text-amber-600",   icon: ICON_OFF    },
-        { label: "Đơn xin nghỉ phép",   sub: "Đang chờ phê duyệt",         value: pendingLeaveCount,    numClass: "text-indigo-700",  bg: "bg-indigo-50",  iconCls: "text-indigo-500",  icon: ICON_LEAVE, onClick: () => router.push("/dashboard/leaves")  },
+        { label: "Đơn xin nghỉ phép",   sub: "Đang chờ phê duyệt",         value: pendingLeaveCount,    numClass: "text-indigo-700",  bg: "bg-indigo-50",  iconCls: "text-indigo-500",  icon: ICON_LEAVE, onClick: () => router.push("/admin/leaves")  },
       ]
     : [
         { label: "Tổng bác sĩ",         sub: "Nha sĩ và bác sĩ chuyên khoa", value: baseTotal.doctors,  numClass: "text-slate-900",   bg: "bg-slate-50",   iconCls: "text-slate-500",   icon: ICON_USERS  },
         { label: "Làm việc hôm nay",    sub: "Có lịch trong ngày",            value: workingTodayDoctors, numClass: "text-green-700", bg: "bg-green-50",   iconCls: "text-green-600",   icon: ICON_CHECK  },
         { label: "Nghỉ hôm nay",        sub: "Không có lịch trong ngày",      value: offTodayDoctors,    numClass: "text-amber-700",  bg: "bg-amber-50",   iconCls: "text-amber-600",   icon: ICON_OFF    },
-        { label: "Đơn xin nghỉ phép",   sub: "Đang chờ phê duyệt",            value: pendingLeaveCount,   numClass: "text-indigo-700", bg: "bg-indigo-50", iconCls: "text-indigo-500", icon: ICON_LEAVE, onClick: () => router.push("/dashboard/leaves")  },
+        { label: "Đơn xin nghỉ phép",   sub: "Đang chờ phê duyệt",            value: pendingLeaveCount,   numClass: "text-indigo-700", bg: "bg-indigo-50", iconCls: "text-indigo-500", icon: ICON_LEAVE, onClick: () => router.push("/admin/leaves")  },
       ];
 
   const handleExportExcel = () => {

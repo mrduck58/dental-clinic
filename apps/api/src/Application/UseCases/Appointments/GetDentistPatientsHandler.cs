@@ -55,7 +55,7 @@ public class GetDentistPatientsHandler(AppDbContext dbContext)
             a.Patient.FullName,
             CalculateAge(a.Patient.DateOfBirth),
             a.Patient.Gender ?? "Khác",
-            a.Patient.User?.PhoneNumber,
+            a.Patient.PhoneNumber ?? a.Patient.User?.PhoneNumber,
             a.AppointmentDate,
             a.Status.ToString(),
             a.Service?.Name,

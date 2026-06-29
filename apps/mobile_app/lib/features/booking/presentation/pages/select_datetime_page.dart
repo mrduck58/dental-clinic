@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
+import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/booking/data/booking_models.dart';
 import 'package:mobile_app/features/booking/presentation/widgets/booking_widgets.dart';
@@ -18,11 +19,18 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
   late DateTime _month;
   DateTime? _selected;
 
-  static const _headers = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
-  static const _monthNames = [
+  static const _headersVi = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+  static const _headersEn = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+
+  static const _monthNamesVi = [
     '', 'Tháng 01', 'Tháng 02', 'Tháng 03', 'Tháng 04',
     'Tháng 05', 'Tháng 06', 'Tháng 07', 'Tháng 08',
     'Tháng 09', 'Tháng 10', 'Tháng 11', 'Tháng 12',
+  ];
+  static const _monthNamesEn = [
+    '', 'January', 'February', 'March', 'April',
+    'May', 'June', 'July', 'August',
+    'September', 'October', 'November', 'December',
   ];
 
   @override
@@ -73,10 +81,14 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
 
   @override
   Widget build(BuildContext context) {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     final days = _buildDays();
+    final monthNames = isVi ? _monthNamesVi : _monthNamesEn;
+    final headers = isVi ? _headersVi : _headersEn;
+
     return Scaffold(
-      backgroundColor: AppColors.surface,
-      appBar: BookingAppBar(title: 'Chọn ngày khám'),
+      backgroundColor: context.bg,
+      appBar: BookingAppBar(title: isVi ? 'Chọn ngày khám' : 'Select Date'),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Column(
@@ -95,12 +107,12 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
                 ),
                 Expanded(
                   child: Text(
-                    '${_monthNames[_month.month]} - ${_month.year}',
+                    '${monthNames[_month.month]} - ${_month.year}',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.primary,
+                      fontWeight: FontWeight.w800,
+                      color: context.isDark ? Colors.white : AppColors.primary,
                     ),
                   ),
                 ),
@@ -111,12 +123,12 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
             // ── Day headers ──────────────────────────────────────────────────
             Row(
-              children: _headers.map((h) {
-                final isSun = h == 'CN';
+              children: headers.map((h) {
+                final isSun = h == 'CN' || h == 'SUN';
                 return Expanded(
                   child: Center(
                     child: Text(
@@ -124,14 +136,14 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w800,
-                        color: isSun ? AppColors.primary : AppColors.textSecondary,
+                        color: isSun ? AppColors.primary : context.textSecondary,
                       ),
                     ),
                   ),
                 );
               }).toList(),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
 
             // ── Calendar grid ────────────────────────────────────────────────
             GridView.count(
@@ -149,24 +161,24 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
 
                 Color cellColor;
                 if (selected) {
-                  cellColor = AppColors.primaryDark;
+                  cellColor = context.isDark ? const Color(0xFFDC2626) : AppColors.primaryDark;
                 } else if (today && available) {
-                  cellColor = AppColors.primaryLight;
+                  cellColor = context.isDark ? const Color(0xFF451A1A) : AppColors.primaryLight;
                 } else if (available) {
                   cellColor = AppColors.primary;
                 } else {
-                  cellColor = AppColors.background;
+                  cellColor = context.isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9);
                 }
 
                 Color textColor;
                 if (selected) {
                   textColor = Colors.white;
                 } else if (today && available) {
-                  textColor = AppColors.primary;
+                  textColor = context.isDark ? Colors.white : AppColors.primary;
                 } else if (available) {
                   textColor = Colors.white;
                 } else {
-                  textColor = AppColors.textMuted.withValues(alpha: 0.55);
+                  textColor = context.textSecondary.withValues(alpha: 0.4);
                 }
 
                 return GestureDetector(
@@ -196,7 +208,7 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
                             ),
                             if (today)
                               Text(
-                                'Hôm nay',
+                                isVi ? 'Hôm nay' : 'Today',
                                 style: TextStyle(
                                   fontSize: 6,
                                   fontWeight: FontWeight.w700,
@@ -218,7 +230,7 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
                 );
               }).toList(),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
 
             // ── Instruction ──────────────────────────────────────────────────
             Container(
@@ -230,22 +242,22 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
               ),
               child: RichText(
                 text: TextSpan(
-                  style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                  children: const [
-                    TextSpan(text: 'Chọn ngày '),
+                  style: TextStyle(fontSize: 13, color: context.textSecondary),
+                  children: [
+                    TextSpan(text: isVi ? 'Chọn ngày ' : 'Select '),
                     TextSpan(
-                      text: 'có màu xanh',
-                      style: TextStyle(
+                      text: isVi ? 'có màu đỏ' : 'highlighted date',
+                      style: const TextStyle(
                         color: AppColors.primary,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    TextSpan(text: ' để đặt khám.'),
+                    TextSpan(text: isVi ? ' để đặt khám.' : ' to schedule appointment.'),
                   ],
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
 
             // ── Legend ───────────────────────────────────────────────────────
             _Legend(),
@@ -267,20 +279,21 @@ class _NavBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final inactiveBg = context.isDark ? const Color(0xFF1E293B) : AppColors.background;
     return GestureDetector(
       onTap: enabled ? onTap : null,
       child: Container(
         width: 36,
         height: 36,
         decoration: BoxDecoration(
-          color: enabled ? AppColors.primary : AppColors.background,
+          color: enabled ? AppColors.primary : inactiveBg,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.divider),
+          border: Border.all(color: context.divider),
         ),
         child: Icon(
           icon,
           size: 20,
-          color: enabled ? Colors.white : AppColors.textMuted,
+          color: enabled ? Colors.white : context.textSecondary,
         ),
       ),
     );
@@ -292,24 +305,27 @@ class _NavBtn extends StatelessWidget {
 class _Legend extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
+    final inactiveBg = context.isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9);
+
     return Column(
       children: [
         _LegendRow(
           color: AppColors.primary,
-          label: 'Ngày có thể đặt khám',
+          label: isVi ? 'Ngày có thể đặt khám' : 'Available dates',
           isRect: true,
         ),
         const SizedBox(height: 6),
         _LegendRow(
-          color: AppColors.primaryLight,
-          label: 'Hôm nay',
+          color: context.isDark ? const Color(0xFF451A1A) : AppColors.primaryLight,
+          label: isVi ? 'Hôm nay' : 'Today',
           border: AppColors.primary,
           isCircle: true,
         ),
         const SizedBox(height: 6),
         _LegendRow(
-          color: AppColors.background,
-          label: 'Ngày đã qua',
+          color: inactiveBg,
+          label: isVi ? 'Ngày đã qua' : 'Past dates',
           isRect: true,
         ),
       ],
@@ -353,7 +369,7 @@ class _LegendRow extends StatelessWidget {
         const SizedBox(width: 10),
         Text(
           label,
-          style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+          style: TextStyle(fontSize: 13, color: context.textSecondary),
         ),
       ],
     );

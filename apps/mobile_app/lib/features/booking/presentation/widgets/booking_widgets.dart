@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
+import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 
 // ─── AppBar ───────────────────────────────────────────────────────────────────
@@ -23,21 +24,24 @@ class BookingAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    final titleColor = context.isDark ? Colors.white : AppColors.primary;
+    final iconColor = context.isDark ? Colors.white : AppColors.primary;
+
     return AppBar(
-      backgroundColor: AppColors.surface,
+      backgroundColor: context.card,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       scrolledUnderElevation: 0,
       leading: GestureDetector(
         onTap: onBack ?? () => Navigator.of(context).pop(),
-        child: const Icon(Iconsax.arrow_left, color: AppColors.primary, size: 28, fontWeight: FontWeight.w800),
+        child: Icon(Iconsax.arrow_left, color: iconColor, size: 28),
       ),
       title: Text(
         title,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 22,
           fontWeight: FontWeight.w800,
-          color: AppColors.primary,
+          color: titleColor,
         ),
       ),
       centerTitle: true,
@@ -45,16 +49,16 @@ class BookingAppBar extends StatelessWidget implements PreferredSizeWidget {
           ? [
               GestureDetector(
                 onTap: () => context.go(AppRoutes.home),
-                child: const Padding(
-                  padding: EdgeInsets.only(right: 16),
-                  child: Icon(Iconsax.home_2, color: AppColors.primary, size: 28, fontWeight: FontWeight.w800),
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 16),
+                  child: Icon(Iconsax.home_2, color: iconColor, size: 28),
                 ),
               ),
             ]
           : null,
       bottom: PreferredSize(
         preferredSize: const Size.fromHeight(1),
-        child: Container(height: 1, color: AppColors.divider),
+        child: Container(height: 1, color: context.divider),
       ),
     );
   }
@@ -82,13 +86,13 @@ class BookingBottomBar extends StatelessWidget {
     return Container(
       padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + bottomPad),
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        border: Border(top: BorderSide(color: AppColors.divider)),
+        color: context.card,
+        border: Border(top: BorderSide(color: context.divider)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 12,
-            offset: const Offset(0, -4),
+            offset: Offset(0, -4),
           ),
         ],
       ),
@@ -96,7 +100,7 @@ class BookingBottomBar extends StatelessWidget {
           ? Row(
               children: [
                 leading!,
-                const SizedBox(width: 10),
+                SizedBox(width: 10),
                 Expanded(child: _Button(label: label, onTap: onTap, isLoading: isLoading)),
               ],
             )
@@ -113,19 +117,21 @@ class _Button extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final inactiveBg = context.isDark ? const Color(0xFF334155) : AppColors.divider;
+
     return SizedBox(
       height: 52,
       child: ElevatedButton(
         onPressed: isLoading ? null : onTap,
         style: ElevatedButton.styleFrom(
-          backgroundColor: onTap != null ? AppColors.primary : AppColors.divider,
+          backgroundColor: onTap != null ? AppColors.primary : inactiveBg,
           foregroundColor: Colors.white,
-          disabledBackgroundColor: AppColors.divider,
+          disabledBackgroundColor: inactiveBg,
           elevation: 0,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
         child: isLoading
-            ? const SizedBox(
+            ? SizedBox(
                 width: 20,
                 height: 20,
                 child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
@@ -135,11 +141,11 @@ class _Button extends StatelessWidget {
                 children: [
                   Text(
                     label,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                   ),
                   if (onTap != null) ...[
-                    const SizedBox(width: 6),
-                    const Icon(Iconsax.arrow_right, size: 18),
+                    SizedBox(width: 6),
+                    Icon(Iconsax.arrow_right, size: 18),
                   ],
                 ],
               ),
@@ -158,14 +164,14 @@ class BookingSectionLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       color: AppColors.background,
       child: Text(
         text,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 13,
           fontWeight: FontWeight.w600,
-          color: AppColors.textMuted,
+          color: context.textSecondary,
           letterSpacing: 0.3,
         ),
       ),

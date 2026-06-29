@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
+import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/booking/data/booking_models.dart';
 
@@ -19,8 +20,11 @@ class _BookingSuccessPageState extends State<BookingSuccessPage>
   late final Animation<double> _scale;
   late final Animation<double> _fade;
 
-  static const _weekdays = [
+  static const _weekdaysVi = [
     '', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy', 'Chủ Nhật'
+  ];
+  static const _weekdaysEn = [
+    '', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
   ];
 
   @override
@@ -40,17 +44,20 @@ class _BookingSuccessPageState extends State<BookingSuccessPage>
     super.dispose();
   }
 
-  String _fmtDate(DateTime d) =>
-      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}'
-      ' - ${_weekdays[d.weekday]}';
+  String _fmtDate(DateTime d, bool isVi) {
+    final weekdays = isVi ? _weekdaysVi : _weekdaysEn;
+    return '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}'
+        ' - ${weekdays[d.weekday]}';
+  }
 
   @override
   Widget build(BuildContext context) {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     final d = widget.draft;
     final bottomPad = MediaQuery.of(context).padding.bottom;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.bg,
       body: SafeArea(
         child: Column(
           children: [
@@ -90,21 +97,23 @@ class _BookingSuccessPageState extends State<BookingSuccessPage>
                     ),
                     const SizedBox(height: 20),
 
-                    const Text(
-                      'Đặt lịch thành công!',
+                    Text(
+                      isVi ? 'Đặt lịch thành công!' : 'Booking Success!',
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.w800,
-                        color: AppColors.textPrimary,
+                        color: context.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 8),
-                    const Text(
-                      'Lịch khám của bạn đã được xác nhận.\nPhòng khám sẽ liên hệ nếu có thay đổi.',
+                    Text(
+                      isVi
+                          ? 'Lịch khám của bạn đã được xác nhận.\nPhòng khám sẽ liên hệ nếu có thay đổi.'
+                          : 'Your appointment is confirmed.\nWe will contact you if there are changes.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 14,
-                        color: AppColors.textSecondary,
+                        color: context.textSecondary,
                         height: 1.6,
                       ),
                     ),
@@ -114,9 +123,9 @@ class _BookingSuccessPageState extends State<BookingSuccessPage>
                     Container(
                       width: double.infinity,
                       decoration: BoxDecoration(
-                        color: AppColors.surface,
+                        color: context.card,
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppColors.divider),
+                        border: Border.all(color: context.divider),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withValues(alpha: 0.05),
@@ -149,17 +158,19 @@ class _BookingSuccessPageState extends State<BookingSuccessPage>
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      const Text(
-                                        'Chi tiết lịch hẹn',
+                                      Text(
+                                        isVi ? 'Chi tiết lịch hẹn' : 'Appointment Details',
                                         style: TextStyle(
                                           fontSize: 15,
                                           fontWeight: FontWeight.w700,
-                                          color: AppColors.textPrimary,
+                                          color: context.textPrimary,
                                         ),
                                       ),
                                       Text(
-                                        'Mã lịch: #${widget.draft.appointmentCode ?? 'DK...'}',
-                                        style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                                        isVi
+                                            ? 'Mã lịch: #${widget.draft.appointmentCode ?? 'DK...'}'
+                                            : 'Code: #${widget.draft.appointmentCode ?? 'DK...'}',
+                                        style: TextStyle(fontSize: 12, color: context.textSecondary),
                                       ),
                                     ],
                                   ),
@@ -171,9 +182,9 @@ class _BookingSuccessPageState extends State<BookingSuccessPage>
                                     color: AppColors.successLight,
                                     borderRadius: BorderRadius.circular(999),
                                   ),
-                                  child: const Text(
-                                    'Đã xác nhận',
-                                    style: TextStyle(
+                                  child: Text(
+                                    isVi ? 'Đã xác nhận' : 'Confirmed',
+                                    style: const TextStyle(
                                       fontSize: 11,
                                       fontWeight: FontWeight.w700,
                                       color: AppColors.success,
@@ -183,38 +194,38 @@ class _BookingSuccessPageState extends State<BookingSuccessPage>
                               ],
                             ),
                           ),
-                          const Divider(color: AppColors.divider, height: 1),
+                          Divider(color: context.divider, height: 1),
 
                           // Rows
                           if (d.patient != null)
                             _SummaryRow(
                               icon: Iconsax.profile_circle,
-                              label: 'Bệnh nhân',
+                              label: isVi ? 'Bệnh nhân' : 'Patient',
                               value:
                                   '${d.patient!.name} (${d.patient!.relationship})',
                             ),
                           if (d.service != null)
                             _SummaryRow(
                               icon: Iconsax.health,
-                              label: 'Dịch vụ',
+                              label: isVi ? 'Dịch vụ' : 'Service',
                               value: d.service!.name,
                             ),
                           if (d.doctor != null)
                             _SummaryRow(
                               icon: Iconsax.profile_circle,
-                              label: 'Bác sĩ',
+                              label: isVi ? 'Bác sĩ' : 'Dentist',
                               value: d.doctor!.fullName,
                             ),
                           if (d.date != null)
                             _SummaryRow(
                               icon: Iconsax.calendar_1,
-                              label: 'Ngày khám',
-                              value: _fmtDate(d.date!),
+                              label: isVi ? 'Ngày khám' : 'Date',
+                              value: _fmtDate(d.date!, isVi),
                             ),
                           if (d.timeSlot != null)
                             _SummaryRow(
                               icon: Iconsax.clock,
-                              label: 'Giờ khám',
+                              label: isVi ? 'Giờ khám' : 'Time Slot',
                               value: d.timeSlot!.range,
                               isLast: true,
                             ),
@@ -227,22 +238,24 @@ class _BookingSuccessPageState extends State<BookingSuccessPage>
                     Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: AppColors.secondaryLight,
+                        color: context.isDark ? const Color(0xFF1E293B) : AppColors.secondaryLight,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: AppColors.secondary.withValues(alpha: 0.25),
+                          color: context.isDark ? context.divider : AppColors.secondary.withValues(alpha: 0.25),
                         ),
                       ),
-                      child: const Row(
+                      child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Iconsax.notification_1,
+                          const Icon(Iconsax.notification_1,
                               color: AppColors.secondary, size: 18),
-                          SizedBox(width: 8),
+                          const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              'Bạn sẽ nhận thông báo nhắc lịch trước 24 giờ và 1 giờ trước giờ khám.',
-                              style: TextStyle(
+                              isVi
+                                  ? 'Bạn sẽ nhận thông báo nhắc lịch trước 24 giờ và 1 giờ trước giờ khám.'
+                                  : 'You will receive reminders 24 hours and 1 hour before your appointment.',
+                              style: const TextStyle(
                                 fontSize: 12,
                                 color: AppColors.secondary,
                                 height: 1.5,
@@ -276,9 +289,9 @@ class _BookingSuccessPageState extends State<BookingSuccessPage>
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: const Text(
-                        'Xem lịch hẹn của tôi',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                      child: Text(
+                        isVi ? 'Xem lịch hẹn của tôi' : 'View my appointments',
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                       ),
                     ),
                   ),
@@ -289,15 +302,15 @@ class _BookingSuccessPageState extends State<BookingSuccessPage>
                     child: OutlinedButton(
                       onPressed: () => context.go(AppRoutes.home),
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: AppColors.divider, width: 1.5),
-                        foregroundColor: AppColors.textPrimary,
+                        side: BorderSide(color: context.divider, width: 1.5),
+                        foregroundColor: context.textPrimary,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: const Text(
-                        'Về trang chủ',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                      child: Text(
+                        isVi ? 'Về trang chủ' : 'Back to Home',
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
                       ),
                     ),
                   ),
@@ -332,23 +345,23 @@ class _SummaryRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
             children: [
-              Icon(icon, size: 16, color: AppColors.textMuted),
+              Icon(icon, size: 16, color: context.textSecondary),
               const SizedBox(width: 10),
               SizedBox(
                 width: 80,
                 child: Text(
                   label,
-                  style: const TextStyle(
-                      fontSize: 13, color: AppColors.textMuted),
+                  style: TextStyle(
+                      fontSize: 13, color: context.textSecondary),
                 ),
               ),
               Expanded(
                 child: Text(
                   value,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
+                    color: context.textPrimary,
                   ),
                 ),
               ),
@@ -356,8 +369,8 @@ class _SummaryRow extends StatelessWidget {
           ),
         ),
         if (!isLast)
-          const Divider(
-              color: AppColors.divider, height: 1, indent: 16, endIndent: 16),
+          Divider(
+              color: context.divider, height: 1, indent: 16, endIndent: 16),
       ],
     );
   }

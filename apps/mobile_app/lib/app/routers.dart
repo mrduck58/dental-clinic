@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile_app/app/main_shell.dart';
+import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/features/auth/presentation/pages/fill_profile_page.dart';
 import 'package:mobile_app/features/auth/presentation/pages/login_page.dart';
 import 'package:mobile_app/features/auth/presentation/pages/otp_page.dart';
@@ -16,13 +17,19 @@ import 'package:mobile_app/features/booking/presentation/pages/select_patient_pa
 import 'package:mobile_app/features/booking/presentation/pages/select_service_page.dart';
 import 'package:mobile_app/features/booking/presentation/pages/service_detail_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/home_page.dart';
+import 'package:mobile_app/features/home/presentation/pages/queue_page.dart';
+import 'package:mobile_app/features/home/presentation/pages/chatbot_page.dart';
+import 'package:mobile_app/features/home/presentation/pages/reminders_page.dart';
 import 'package:mobile_app/features/profile/presentation/pages/profile_page.dart';
+import 'package:mobile_app/features/profile/presentation/pages/family_members_page.dart';
+import 'package:mobile_app/features/profile/presentation/pages/payment_history_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/dentist_profile_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/dentist_reviews_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/write_review_page.dart';
 import 'package:mobile_app/features/home/data/models/doctor_model.dart';
 import 'package:mobile_app/features/home/presentation/pages/services_list_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/posts_list_page.dart';
+import 'package:mobile_app/features/home/presentation/pages/dentists_list_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/post_detail_page.dart';
 import 'package:mobile_app/features/home/data/models/post_model.dart';
 import 'package:mobile_app/features/profile/presentation/pages/edit_profile_page.dart';
@@ -32,6 +39,17 @@ import 'package:mobile_app/features/profile/presentation/pages/add_member_page.d
 import 'package:mobile_app/features/profile/presentation/pages/edit_member_page.dart';
 import 'package:mobile_app/features/profile/presentation/pages/security_page.dart';
 import 'package:mobile_app/features/profile/presentation/pages/change_password_page.dart';
+import 'package:mobile_app/features/home/presentation/pages/notifications_page.dart';
+import 'package:mobile_app/features/home/presentation/pages/search_page.dart';
+import 'package:mobile_app/features/appointment/presentation/screens/appointment_details_page.dart';
+import 'package:mobile_app/features/profile/presentation/pages/examine_history_page.dart';
+import 'package:mobile_app/features/profile/presentation/pages/examination_detail_page.dart';
+import 'package:mobile_app/features/profile/presentation/pages/treatment_plan_page.dart';
+import 'package:mobile_app/features/profile/presentation/pages/phase_detail_page.dart';
+import 'package:mobile_app/features/profile/presentation/pages/treatment_detail_page.dart';
+import 'package:mobile_app/features/profile/presentation/pages/prescription_detail_page.dart';
+import 'package:mobile_app/features/profile/presentation/pages/medicine_detail_page.dart';
+import 'package:mobile_app/features/profile/data/medical_record_mock.dart';
 
 final GoRouter appRouter = GoRouter(
   initialLocation: AppRoutes.splash,
@@ -74,8 +92,7 @@ final GoRouter appRouter = GoRouter(
         ),
         GoRoute(
           path: AppRoutes.medicalRecords,
-          builder: (context, state) =>
-              const _PlaceholderPage(title: 'Hồ sơ bệnh án'),
+          builder: (context, state) => const ExamineHistoryPage(),
         ),
         GoRoute(
           path: AppRoutes.profile,
@@ -131,6 +148,14 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) => const PostsListPage(),
     ),
     GoRoute(
+      path: AppRoutes.dentistsList,
+      builder: (context, state) => const DentistsListPage(),
+    ),
+    GoRoute(
+      path: AppRoutes.search,
+      builder: (context, state) => const SearchPage(),
+    ),
+    GoRoute(
       path: AppRoutes.postDetail,
       builder: (context, state) {
         final post = state.extra as PostModel?;
@@ -175,8 +200,55 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: AppRoutes.chat,
-      builder: (context, state) =>
-          const _PlaceholderPage(title: 'Hỏi đáp AI'),
+      builder: (context, state) => const ChatbotPage(),
+    ),
+    GoRoute(
+      path: AppRoutes.notifications,
+      builder: (context, state) => const NotificationsPage(),
+    ),
+    GoRoute(
+      path: AppRoutes.paymentHistory,
+      builder: (context, state) => const PaymentHistoryPage(),
+    ),
+    GoRoute(
+      path: AppRoutes.familyMembers,
+      builder: (context, state) => const FamilyMembersPage(),
+    ),
+    GoRoute(
+      path: AppRoutes.reminders,
+      builder: (context, state) => const RemindersPage(),
+    ),
+    GoRoute(
+      path: AppRoutes.queue,
+      builder: (context, state) => const QueuePage(),
+    ),
+    GoRoute(
+      path: AppRoutes.appointmentDetails,
+      builder: (context, state) => AppointmentDetailsPage(item: state.extra as MyAppointmentItem),
+    ),
+    GoRoute(
+      path: AppRoutes.examinationDetail,
+      builder: (context, state) => ExaminationDetailPage(event: state.extra as MedicalRecordEvent),
+    ),
+    GoRoute(
+      path: AppRoutes.treatmentPlan,
+      builder: (context, state) => TreatmentPlanPage(event: state.extra as MedicalRecordEvent),
+    ),
+    GoRoute(
+      path: AppRoutes.phaseDetail,
+      builder: (context, state) => PhaseDetailPage(phase: state.extra as TreatmentPlanPhase),
+    ),
+    GoRoute(
+      path: AppRoutes.treatmentDetail,
+      builder: (context, state) => const TreatmentDetailPage(),
+    ),
+    GoRoute(
+      path: AppRoutes.prescriptionDetail,
+      builder: (context, state) => const PrescriptionDetailPage(),
+    ),
+    GoRoute(
+      path: AppRoutes.medicineDetail,
+      builder: (context, state) => MedicineDetailPage(medicine: state.extra as MedicineModel),
     ),
 
     // ── Booking flow (standalone, không có Bottom Nav) ────────────────────
@@ -232,6 +304,7 @@ abstract class AppRoutes {
   static const writeReview = '/dentist/reviews/write';
   static const servicesList = '/services';
   static const postsList = '/posts';
+  static const dentistsList = '/dentists';
   static const postDetail = '/post/detail';
   static const editProfile = '/profile/edit';
   static const medicalHistory = '/profile/medical-history';
@@ -241,6 +314,19 @@ abstract class AppRoutes {
   static const changePassword = '/profile/security/change-password';
   static const payment = '/payment';
   static const chat = '/chat';
+  static const paymentHistory = '/profile/payment-history';
+  static const notifications = '/notifications';
+  static const search = '/search';
+  static const familyMembers = '/profile/family';
+  static const reminders = '/reminders';
+  static const queue = '/queue';
+  static const appointmentDetails = '/appointments/details';
+  static const examinationDetail = '/medical-records/exam-detail';
+  static const treatmentPlan = '/medical-records/treatment-plan';
+  static const phaseDetail = '/medical-records/phase-detail';
+  static const treatmentDetail = '/medical-records/treatment-detail';
+  static const prescriptionDetail = '/medical-records/prescription-detail';
+  static const medicineDetail = '/medical-records/medicine-detail';
 
   // ── Booking flow ────────────────────────────────────────────────────────────
   static const bookingSelectPatient = '/booking/patient';
@@ -260,12 +346,38 @@ class _PlaceholderPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
+      backgroundColor: context.bg,
+      appBar: AppBar(
+        backgroundColor: context.card,
+        elevation: 0.5,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: context.textPrimary, size: 20),
+          onPressed: () => context.pop(),
+        ),
+        title: Text(
+          title,
+          style: TextStyle(
+            color: context.textPrimary,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
       body: Center(
-        child: Text(
-          '🚧 Màn hình "$title" đang được xây dựng',
-          style: Theme.of(context).textTheme.titleMedium,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+          child: Text(
+            isVi 
+                ? '🚧 Màn hình "$title" đang được xây dựng'
+                : '🚧 Screen "$title" is under development',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: context.textPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ),
       ),
     );

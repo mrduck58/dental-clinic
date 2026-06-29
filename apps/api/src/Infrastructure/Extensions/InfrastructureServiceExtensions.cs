@@ -1,4 +1,5 @@
 using DentalClinic.API.Application.UseCases.Appointments;
+using DentalClinic.API.Application.UseCases.Inventory;
 using DentalClinic.API.Application.UseCases.Auth;
 using DentalClinic.API.Application.UseCases.ClinicInfo;
 using DentalClinic.API.Application.UseCases.Invoices;
@@ -18,6 +19,7 @@ using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using DentalClinic.API.Infrastructure.Services;
 using DentalClinic.API.Infrastructure.Settings;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace DentalClinic.API.Infrastructure.Extensions;
 
@@ -29,7 +31,8 @@ public static class InfrastructureServiceExtensions
     {
         // ── Database ────────────────────────────────────────────────────────
         services.AddDbContext<AppDbContext>(options =>
-            options.UseNpgsql(configuration.GetConnectionString("DefaultConnection")));
+            options.UseNpgsql(configuration.GetConnectionString("DefaultConnection"))
+                   .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning)));
 
         // ── Settings ────────────────────────────────────────────────────────
         services.Configure<JwtSettings>(configuration.GetSection("JwtSettings"));
@@ -48,6 +51,8 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IPromotionRepository, PromotionRepository>();
         services.AddScoped<IRoomRepository, RoomRepository>();
         services.AddScoped<IMedicineRepository, MedicineRepository>();
+        services.AddScoped<ISupplyItemRepository, SupplyItemRepository>();
+        services.AddScoped<ISupplyTransactionRepository, SupplyTransactionRepository>();
         services.AddScoped<IClinicInfoRepository, ClinicInfoRepository>();
 
         // ── Services ────────────────────────────────────────────────────────
@@ -65,6 +70,8 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<ChangePasswordHandler>();
         services.AddScoped<CreateAccountHandler>();
         services.AddScoped<GetAccountsHandler>();
+        services.AddScoped<ForgotPasswordHandler>();
+        services.AddScoped<ResetPasswordHandler>();
 
         services.AddScoped<GetStaffHandler>();
         services.AddScoped<GetDentistsHandler>();
@@ -92,6 +99,11 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<UpdateServiceHandler>();
         services.AddScoped<DeleteServiceHandler>();
         services.AddScoped<ToggleServiceStatusHandler>();
+
+        services.AddScoped<GetSupplyItemsHandler>();
+        services.AddScoped<GetSupplyTransactionsHandler>();
+        services.AddScoped<CreateSupplyItemHandler>();
+        services.AddScoped<CreateSupplyTransactionHandler>();
 
         services.AddScoped<GetMedicinesHandler>();
         services.AddScoped<GetMedicineByIdHandler>();
@@ -131,6 +143,8 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<TreatmentPlanHandler>();
         services.AddScoped<PrescriptionHandler>();
         services.AddScoped<FollowUpAppointmentHandler>();
+        services.AddScoped<GetStaffScheduleHandler>();
+        services.AddScoped<CreateWalkInAppointmentHandler>();
 
         services.AddScoped<GetRoomsHandler>();
         services.AddScoped<GetRoomByIdHandler>();
