@@ -8,6 +8,12 @@ import { useRequireDentist } from "../../../hooks/useRequireDentist";
 import { getDentistPatientsApi, type DentistPatientDto, type DentistPatientsResponse } from "../../../lib/apiClient";
 import { supabase } from "../../../lib/supabaseClient";
 
+const todayIso = () => {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+};
+
 type PatientStatus = "waiting" | "in_progress" | "done";
 
 const STATUS_MAP: Record<string, PatientStatus> = {
@@ -154,15 +160,17 @@ export default function DentistPatientsPage() {
   const [shiftFilter, setShiftFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  const today = useMemo(() => {
-    const d = new Date();
-    return d.toLocaleDateString("vi-VN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
-  }, []);
+  const [selectedDate, setSelectedDate] = useState(todayIso());
+
+  const dateLabel = useMemo(
+    () => new Date(selectedDate + "T00:00:00").toLocaleDateString("vi-VN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }),
+    [selectedDate]
+  );
 
   const loadPatients = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await getDentistPatientsApi();
+      const data = await getDentistPatientsApi(selectedDate);
       setResponse(data);
       setError(null);
     } catch {
@@ -170,7 +178,7 @@ export default function DentistPatientsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedDate]);
 
   useEffect(() => {
     void loadPatients();
@@ -213,13 +221,27 @@ export default function DentistPatientsPage() {
 
       <main className="flex-1 flex flex-col min-w-0">
         <DentistPageHeader
-          title="Bệnh Nhân Hôm Nay"
-          subtitle={today}
+          title="Bệnh Nhân"
+          subtitle={dateLabel}
           right={
             <div className="flex items-center gap-2 text-[12.5px] font-bold">
               <span className="px-2.5 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl">{waiting} chờ</span>
               <span className="px-2.5 py-1.5 bg-sky-50 text-sky-700 border border-sky-200 rounded-xl">{active} đang khám</span>
               <span className="px-2.5 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl">{done} hoàn thành</span>
+              <div className="flex items-center gap-1.5 pl-1">
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={e => setSelectedDate(e.target.value || todayIso())}
+                  className="px-3 py-1.5 text-[12.5px] font-bold bg-white border border-slate-200 rounded-xl text-slate-700 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none cursor-pointer"
+                />
+                {selectedDate !== todayIso() && (
+                  <button onClick={() => setSelectedDate(todayIso())}
+                    className="px-2.5 py-1.5 rounded-xl border border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 transition-all cursor-pointer">
+                    Hôm nay
+                  </button>
+                )}
+              </div>
             </div>
           }
         />
