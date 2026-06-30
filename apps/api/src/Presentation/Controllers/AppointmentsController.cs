@@ -23,6 +23,7 @@ public class AppointmentsController(
     GetExaminationHandler getExaminationHandler,
     DiagnosisHandler diagnosisHandler,
     TreatmentPlanHandler treatmentPlanHandler,
+    TreatmentCourseHandler treatmentCourseHandler,
     PrescriptionHandler prescriptionHandler,
     FollowUpAppointmentHandler followUpAppointmentHandler,
     GetStaffScheduleHandler staffScheduleHandler,
@@ -208,6 +209,45 @@ public class AppointmentsController(
     {
         await treatmentPlanHandler.DeleteAsync(treatmentPlanId, cancellationToken);
         return NoContent();
+    }
+
+    #endregion
+
+    #region Treatment Course (liệu trình dài hạn)
+
+    /// <summary>GET api/appointments/{id}/treatment-course — Lấy liệu trình dài hạn gắn với buổi hẹn (nếu có).</summary>
+    [HttpGet("{id}/treatment-course")]
+    [Authorize(Roles = "Staff,Admin,Dentist")]
+    public async Task<IActionResult> GetTreatmentCourse(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await treatmentCourseHandler.GetByAppointmentAsync(id, cancellationToken);
+        return Ok(result); // null nếu buổi hẹn không thuộc liệu trình nào
+    }
+
+    /// <summary>POST api/appointments/{id}/treatment-course — Tạo liệu trình dài hạn (Dentist/Staff/Admin).</summary>
+    [HttpPost("{id}/treatment-course")]
+    [Authorize(Roles = "Staff,Admin,Dentist")]
+    public async Task<IActionResult> CreateTreatmentCourse(
+        Guid id,
+        [FromBody] CreateTreatmentCourseRequest request,
+        CancellationToken cancellationToken)
+    {
+        var courseRequest = request with { AppointmentId = id };
+        var result = await treatmentCourseHandler.CreateAsync(courseRequest, cancellationToken);
+        return CreatedAtAction(nameof(GetTreatmentCourse), new { id }, result);
+    }
+
+    /// <summary>PUT api/appointments/treatment-course/{courseId} — Cập nhật liệu trình (Dentist/Staff/Admin).</summary>
+    [HttpPut("treatment-course/{courseId}")]
+    [Authorize(Roles = "Staff,Admin,Dentist")]
+    public async Task<IActionResult> UpdateTreatmentCourse(
+        Guid courseId,
+        [FromBody] UpdateTreatmentCourseRequest request,
+        CancellationToken cancellationToken)
+    {
+        var updateRequest = request with { CourseId = courseId };
+        var result = await treatmentCourseHandler.UpdateAsync(updateRequest, cancellationToken);
+        return Ok(result);
     }
 
     #endregion

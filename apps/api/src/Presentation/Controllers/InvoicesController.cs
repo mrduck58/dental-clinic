@@ -51,6 +51,14 @@ public class InvoicesController(InvoiceHandler invoiceHandler) : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>GET api/invoices/outstanding-courses — Liệu trình dài hạn còn công nợ.</summary>
+    [HttpGet("outstanding-courses")]
+    public async Task<IActionResult> GetOutstandingCourses(CancellationToken cancellationToken)
+    {
+        var result = await invoiceHandler.GetOutstandingCoursesAsync(cancellationToken);
+        return Ok(result);
+    }
+
     /// <summary>PUT api/invoices/{id}/pay — Xác nhận đã thanh toán, hoàn tất lịch hẹn.</summary>
     [HttpPut("{id}/pay")]
     public async Task<IActionResult> ConfirmPayment(
