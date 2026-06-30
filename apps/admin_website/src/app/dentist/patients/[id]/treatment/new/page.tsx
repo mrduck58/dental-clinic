@@ -7,7 +7,7 @@ import DentistSidebar from "../../../../../../components/shared/DentistSidebar";
 import DentistPageHeader from "../../../../../../components/shared/DentistPageHeader";
 import ToothArchDiagram, { UPPER_TEETH, LOWER_TEETH } from "../../../../../../components/shared/ToothArchDiagram";
 import { useRequireDentist } from "../../../../../../hooks/useRequireDentist";
-import { createTreatmentPlanApi, getServicesApi, type ServiceDto } from "../../../../../../lib/apiClient";
+import { createTreatmentPlanApi, createTreatmentCourseApi, getServicesApi, type ServiceDto } from "../../../../../../lib/apiClient";
 
 const ALL_STR = [...UPPER_TEETH, ...LOWER_TEETH];
 
@@ -25,10 +25,17 @@ function NewTreatmentPageContent() {
   const router  = useRouter();
   const params  = useSearchParams();
 
+  // Chế độ tạo liệu trình dài hạn (?mode=course): chọn dịch vụ để tính tổng, rồi tạo liệu trình.
+  const isCourse = params.get("mode") === "course";
+
   const initTeeth = params.get("teeth")?.split(",").map(t => t.trim()).filter(Boolean) ?? [];
   const [sel, setSel] = useState<Set<string>>(new Set(initTeeth));
   const [items, setItems] = useState<StepItem[]>([]);
+  const [materials, setMaterials] = useState("");
   const [form, setForm] = useState({ serviceId: "", serviceName: "", servicePrice: 0, note: "" });
+
+  // Tên liệu trình dài hạn lấy tự động từ các dịch vụ đã chọn.
+  const courseDisplayName = [...new Set(items.map(i => i.serviceName))].join(", ");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchService, setSearchService] = useState("");
@@ -83,13 +90,19 @@ function NewTreatmentPageContent() {
     setError(null);
 
     try {
-      // Mỗi dịch vụ là một liệu trình riêng → hóa đơn sẽ tách dòng theo từng dịch vụ.
+      // Ghi nhận các dịch vụ đã chọn (hồ sơ chuyên môn của buổi).
       for (const item of items) {
         const note = item.note ? ` (${item.note})` : "";
         await createTreatmentPlanApi(id, {
           description: `${item.serviceName} - Răng ${item.teeth.join(", ")}${note}`,
           estimatedCost: item.servicePrice,
         });
+      }
+
+      // Chế độ dài hạn: tên liệu trình lấy từ dịch vụ, tổng = tổng dịch vụ đã chọn,
+      // kèm vật liệu cần thiết gửi sang kho.
+      if (isCourse) {
+        await createTreatmentCourseApi(id, courseDisplayName, totalCost, materials.trim() || undefined);
       }
 
       router.push(`/dentist/patients/${id}`);
@@ -104,8 +117,8 @@ function NewTreatmentPageContent() {
       <DentistSidebar activeMenu="patients" />
       <main className="flex-1 flex flex-col min-w-0">
         <DentistPageHeader
-          title="Lập liệu trình điều trị"
-          subtitle={`Bệnh nhân #${id}`}
+          title={isCourse ? "Lập liệu trình dài hạn" : "Lập liệu trình điều trị"}
+          subtitle={isCourse ? "Chọn dịch vụ để chốt tổng chi phí — bệnh nhân trả thành nhiều đợt" : `Bệnh nhân #${id}`}
           left={
             <Link href={`/dentist/patients/${id}`} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-all shrink-0">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
@@ -339,6 +352,23 @@ function NewTreatmentPageContent() {
             </div>
           )}
 
+          {/* Vật liệu cần thiết (chỉ ở chế độ liệu trình dài hạn) */}
+          {isCourse && (
+            <div className="bg-white rounded-2xl border border-indigo-200 shadow-sm p-5 flex flex-col gap-2">
+              <label className="text-[12px] font-extrabold text-slate-500 uppercase tracking-wider">Vật liệu cần thiết</label>
+              <textarea
+                value={materials}
+                onChange={e => setMaterials(e.target.value)}
+                rows={3}
+                placeholder="VD: Mắc cài kim loại 20 chiếc, dây cung 0.014 x4, thun chuỗi..."
+                className="w-full px-4 py-2.5 text-[13.5px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none font-semibold text-slate-700 resize-none"
+              />
+              <p className="text-[12px] font-semibold text-slate-400">
+                Danh sách vật liệu sẽ được gửi sang trang <strong>Nhập–xuất vật tư</strong> của staff để nhập kho. Tên liệu trình: <span className="text-indigo-700 font-black">{courseDisplayName || "—"}</span> · Tổng: <span className="text-indigo-700 font-black">{totalCost.toLocaleString("vi-VN")}đ</span>.
+              </p>
+            </div>
+          )}
+
           {/* Actions */}
           <div className="flex gap-3 justify-end">
             <Link href={`/dentist/patients/${id}`}
@@ -363,7 +393,7 @@ function NewTreatmentPageContent() {
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                   </svg>
-                  Lưu liệu trình
+                  {isCourse ? "Tạo liệu trình dài hạn" : "Lưu liệu trình"}
                 </>
               )}
             </button>

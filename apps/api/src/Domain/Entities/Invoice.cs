@@ -28,6 +28,9 @@ public class Invoice
     public bool IsSettled { get; private set; }          // hóa đơn đặt cọc đã được thu nốt phần còn lại
     public bool CollectingRemaining { get; private set; } // đang trong quy trình thu phần còn lại
 
+    // Liệu trình dài hạn — nếu hóa đơn này là một đợt thu của liệu trình
+    public Guid? CourseId { get; private set; }
+
     // Navigation properties
     public Appointment Appointment { get; private set; } = null!;
     public ICollection<InvoiceItem> Items { get; private set; } = new List<InvoiceItem>();
@@ -105,6 +108,39 @@ public class Invoice
         invoice.Discount = 0;
         invoice.TotalAmount = remainingAmount;
         invoice.DepositAmount = remainingAmount; // thu toàn bộ phần còn lại
+        return invoice;
+    }
+
+    /// <summary>
+    /// Tạo một đợt thu của liệu trình dài hạn (cọc / đợt giữa / tất toán).
+    /// Hóa đơn loại này chỉ là phiếu thu cho số tiền của đợt đó; công nợ được theo dõi ở cấp liệu trình.
+    /// </summary>
+    public static Invoice IssueCourseInstallment(
+        Guid appointmentId,
+        Guid courseId,
+        string invoiceNumber,
+        string lineName,
+        decimal amount,
+        PaymentMethod paymentMethod,
+        string? notes = null)
+    {
+        var invoice = new Invoice
+        {
+            Id = Guid.NewGuid(),
+            InvoiceNumber = invoiceNumber,
+            AppointmentId = appointmentId,
+            CourseId = courseId,
+            Status = PaymentStatus.Unpaid,
+            PaymentMethod = paymentMethod,
+            PaymentType = PaymentType.Full,
+            Notes = notes,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+        invoice.Items.Add(InvoiceItem.Create(invoice.Id, lineName, 1, amount));
+        invoice.Subtotal = amount;
+        invoice.Discount = 0;
+        invoice.TotalAmount = amount;
+        invoice.DepositAmount = amount;
         return invoice;
     }
 

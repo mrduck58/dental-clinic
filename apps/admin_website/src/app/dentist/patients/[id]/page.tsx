@@ -21,12 +21,14 @@ import {
   deleteFollowUpApi,
   getMedicinesApi,
   deleteTreatmentPlanApi,
+  getTreatmentCourseApi,
   type ExaminationDto,
   type DiagnosisDto,
   type TreatmentPlanDto,
   type PrescriptionDto,
   type FollowUpAppointmentDto,
   type MedicineDto,
+  type TreatmentCourseDto,
 } from "../../../../lib/apiClient";
 
 type ToothStatus = TS;
@@ -88,7 +90,10 @@ export default function PatientDetailPage() {
   
   // Treatment steps from API
   const [treatmentPlans, setTreatmentPlans] = useState<TreatmentPlanDto[]>([]);
-  
+
+  // Liệu trình dài hạn (course) — chỉ hiển thị; việc tạo nằm ở trang chọn dịch vụ.
+  const [course, setCourse] = useState<TreatmentCourseDto | null>(null);
+
   // Prescription from API
   const [prescription, setPrescription] = useState<PrescriptionDto | null>(null);
   
@@ -116,6 +121,7 @@ export default function PatientDetailPage() {
       setDiagnosis(data.diagnoses[0]?.description ?? "");
       setTreatmentPlans(data.treatmentPlans ?? []);
       setPrescription(data.prescription ?? null);
+      try { setCourse(await getTreatmentCourseApi(id)); } catch { /* ignore */ }
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không thể tải thông tin khám");
@@ -373,6 +379,13 @@ return (
                   Tạo liệu trình điều trị
                 </Link>
                 <Link
+                  href={`/dentist/patients/${id}/treatment/new?mode=course`}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[13px] font-bold rounded-xl transition-all"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                  Tạo liệu trình điều trị dài hạn
+                </Link>
+                <Link
                   href={`/dentist/patients/${id}/prescription/new`}
                   className="flex items-center gap-2 px-4 py-2.5 bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 text-[13px] font-bold rounded-xl transition-all"
                 >
@@ -446,6 +459,54 @@ return (
                   Lưu chuẩn đoán
                 </button>
               </div>
+            </div>
+          </section>
+
+          {/* 1.5 — LIỆU TRÌNH DÀI HẠN */}
+          <section className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
+            <SectionHeading color="bg-indigo-50 text-indigo-700" title="Liệu trình dài hạn"
+              icon="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+            <div className="p-6">
+              {course ? (
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[15px] font-black text-slate-900">{course.name}</span>
+                      <span className={`text-[11px] font-black px-2 py-0.5 rounded-lg border ${course.status === "Completed" ? "bg-green-50 text-green-700 border-green-200" : "bg-indigo-50 text-indigo-700 border-indigo-200"}`}>
+                        {course.status === "Completed" ? "Đã tất toán" : "Đang điều trị"}
+                      </span>
+                    </div>
+                    <span className="text-[12px] font-semibold text-slate-400">Thanh toán theo nhiều đợt qua các buổi tái khám</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { label: "Tổng chi phí", value: course.totalCost, cls: "text-slate-900" },
+                      { label: "Đã thu", value: course.amountPaid, cls: "text-emerald-600" },
+                      { label: "Còn lại", value: course.remainingAmount, cls: "text-orange-600" },
+                    ].map(s => (
+                      <div key={s.label} className="bg-slate-50 border border-slate-100 rounded-xl px-4 py-3">
+                        <div className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">{s.label}</div>
+                        <div className={`text-[15px] font-black mt-0.5 ${s.cls}`}>{s.value.toLocaleString("vi-VN")}đ</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : isInProgress ? (
+                <div className="flex flex-col gap-3">
+                  <p className="text-[13px] text-slate-500 font-semibold">
+                    Dùng cho điều trị lâu dài (niềng răng, implant…): chọn dịch vụ để chốt tổng chi phí, bệnh nhân trả thành nhiều đợt qua các lần tái khám.
+                  </p>
+                  <Link
+                    href={`/dentist/patients/${id}/treatment/new?mode=course`}
+                    className="self-start flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[13px] font-black rounded-xl transition-all shadow-sm cursor-pointer"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                    Tạo liệu trình dài hạn
+                  </Link>
+                </div>
+              ) : (
+                <p className="text-[13px] text-slate-400 font-semibold">Không có liệu trình dài hạn.</p>
+              )}
             </div>
           </section>
 

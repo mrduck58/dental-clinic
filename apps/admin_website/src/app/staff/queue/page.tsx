@@ -126,17 +126,24 @@ function DentistQueueCard({ dentist, onComplete, loadingId }: {
   );
 }
 
+const queueTodayIso = () => {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+};
+
 export default function QueuePage() {
   useRequireStaff();
   const [queueData, setQueueData] = useState<WaitingQueueResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState(queueTodayIso());
 
   const loadQueue = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await getWaitingQueueApi();
+      const data = await getWaitingQueueApi(selectedDate);
       setQueueData(data);
       setError(null);
     } catch {
@@ -144,7 +151,7 @@ export default function QueuePage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedDate]);
 
   useEffect(() => {
     void loadQueue();
@@ -181,13 +188,27 @@ export default function QueuePage() {
           title="Hàng Đợi"
           subtitle={`Danh sách bệnh nhân theo phòng khám · ${today}`}
           right={
-            queueData ? (
-              <div className="flex items-center gap-2 text-[12.5px] font-bold">
+            <div className="flex items-center gap-2 text-[12.5px] font-bold">
+              {queueData && (
                 <span className="px-2.5 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl">
                   {queueData.totalWaiting} chờ
                 </span>
+              )}
+              <div className="flex items-center gap-1.5 pl-1">
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={e => setSelectedDate(e.target.value || queueTodayIso())}
+                  className="px-3 py-1.5 text-[12.5px] font-bold bg-white border border-slate-200 rounded-xl text-slate-700 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none cursor-pointer"
+                />
+                {selectedDate !== queueTodayIso() && (
+                  <button onClick={() => setSelectedDate(queueTodayIso())}
+                    className="px-2.5 py-1.5 rounded-xl border border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 transition-all cursor-pointer">
+                    Hôm nay
+                  </button>
+                )}
               </div>
-            ) : null
+            </div>
           }
         />
 
