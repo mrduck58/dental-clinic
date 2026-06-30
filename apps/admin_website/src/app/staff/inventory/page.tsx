@@ -9,6 +9,7 @@ import {
   getSupplyTransactionsApi,
   createSupplyTransactionApi,
   createSupplyItemApi,
+  stockImportApi,
   getMaterialRequestsApi,
   markMaterialRequestDoneApi,
   type SupplyItemDto,
@@ -17,6 +18,7 @@ import {
 } from "../../../lib/apiClient";
 
 const ITEM_CATEGORIES = ["Bảo hộ", "Dụng cụ", "Vật liệu", "Tiêu hao", "Thuốc"];
+const SUPPLY_UNITS = ["Cái", "Hộp", "Tuýp", "Cuộn", "Chai", "Gói", "Bộ"];
 
 const CATEGORIES = ["Tất cả", "Bảo hộ", "Dụng cụ", "Vật liệu", "Tiêu hao", "Thuốc"];
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
@@ -101,8 +103,11 @@ export default function InventoryPage() {
   const [selectedItemId, setSelectedItemId] = useState("");
   const [txType,         setTxType]         = useState<"import" | "export">("import");
   const [txItemSearch,   setTxItemSearch]   = useState(""); // text input for import
+  const [txUnit,         setTxUnit]         = useState("Cái");
+  const [txCategory,     setTxCategory]     = useState(ITEM_CATEGORIES[0]);
   const [txQtyStr,       setTxQtyStr]       = useState("");
   const [txNote,         setTxNote]         = useState("");
+  const [txErrors,       setTxErrors]       = useState<{ name?: string; unit?: string; qty?: string }>({});
   const [submitting,     setSubmitting]     = useState(false);
   const [saved,          setSaved]          = useState(false);
 
@@ -197,69 +202,88 @@ export default function InventoryPage() {
     e.preventDefault();
 
     const txQty = Number(txQtyStr);
+
+    // ── Nhập kho: dùng endpoint mới (tự tạo hoặc cộng vào vật tư đã có) ──
+    if (txType === "import") {
+      const errors: { name?: string; unit?: string; qty?: string } = {};
+      if (!txItemSearch.trim()) errors.name = "Vui lòng nhập tên vật tư.";
+      if (!txUnit) errors.unit = "Vui lòng chọn đơn vị.";
+      if (!txQtyStr || txQty <= 0) errors.qty = "Số lượng phải lớn hơn 0.";
+
+      if (Object.keys(errors).length > 0) {
+        setTxErrors(errors);
+        return;
+      }
+      setTxErrors({});
+      setSubmitting(true);
+      setError(null);
+      try {
+        const tx = await stockImportApi({
+          name: txItemSearch.trim(),
+          unit: txUnit,
+          category: txCategory,
+          quantity: txQty,
+          note: txNote || undefined,
+        });
+        // Nếu vật tư đã có → cập nhật local state; nếu mới → refetch
+        const existingItem = items.find(it => it.id === tx.supplyItemId);
+        if (existingItem) {
+          setItems(prev => prev.map(it => {
+            if (it.id !== tx.supplyItemId) return it;
+            const newQty = it.quantity + txQty;
+            return { ...it, quantity: newQty, isLow: newQty <= it.minQuantity };
+          }));
+        } else {
+          await fetchItems();
+        }
+        setLog(prev => [tx, ...prev]);
+        setLogPage(1);
+        setSaved(true);
+        setTimeout(() => {
+          setSaved(false);
+          setTxQtyStr(""); setTxNote(""); setTxItemSearch(""); setTxUnit("Cái"); setTxCategory(ITEM_CATEGORIES[0]);
+        }, 2000);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Nhập kho thất bại");
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
+    // ── Xuất kho: giữ nguyên logic cũ ──
     if (!txQtyStr || txQty <= 0) {
       setError("Số lượng phải lớn hơn 0.");
       return;
     }
-
-    let itemId = selectedItemId;
-
-    // Nhập kho: nếu tên không khớp item có sẵn → tự tạo item mới
-    if (txType === "import" && !itemId) {
-      if (!txItemSearch.trim()) {
-        setError("Vui lòng nhập tên vật tư.");
-        return;
-      }
-      try {
-        const code = "VT" + Date.now().toString().slice(-5);
-        const newItem = await createSupplyItemApi({
-          code,
-          name: txItemSearch.trim(),
-          category: "Tiêu hao",
-          unit: "Cái",
-          quantity: 0,
-          minQuantity: 5,
-        });
-        setItems(prev => [...prev, newItem]);
-        itemId = newItem.id;
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Không thể tạo vật tư mới.");
-        return;
-      }
-    }
-
-    if (!itemId) {
+    if (!selectedItemId) {
       setError("Vui lòng chọn vật tư.");
       return;
     }
-
-    if (txType === "export") {
-      const item = items.find(s => s.id === itemId);
-      if (item && txQty > item.quantity) {
-        setError(`Số lượng xuất (${txQty}) vượt quá tồn kho hiện tại (${item.quantity} ${item.unit}).`);
-        return;
-      }
+    const exportItem = items.find(s => s.id === selectedItemId);
+    if (exportItem && txQty > exportItem.quantity) {
+      setError(`Số lượng xuất (${txQty}) vượt quá tồn kho hiện tại (${exportItem.quantity} ${exportItem.unit}).`);
+      return;
     }
 
     setSubmitting(true);
     setError(null);
     try {
       const tx = await createSupplyTransactionApi({
-        supplyItemId: itemId,
-        type: txType,
+        supplyItemId: selectedItemId,
+        type: "export",
         quantity: txQty,
         note: txNote || undefined,
       });
-      // Update item quantity locally
       setItems(prev => prev.map(it => {
         if (it.id !== tx.supplyItemId) return it;
-        const newQty = txType === "import" ? it.quantity + txQty : Math.max(0, it.quantity - txQty);
+        const newQty = Math.max(0, it.quantity - txQty);
         return { ...it, quantity: newQty, isLow: newQty <= it.minQuantity };
       }));
       setLog(prev => [tx, ...prev]);
       setLogPage(1);
       setSaved(true);
-      setTimeout(() => { setSaved(false); setTxQtyStr(""); setTxNote(""); setTxItemSearch(""); setSelectedItemId(""); }, 2000);
+      setTimeout(() => { setSaved(false); setTxQtyStr(""); setTxNote(""); }, 2000);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Tạo giao dịch thất bại");
     } finally {
@@ -355,11 +379,6 @@ export default function InventoryPage() {
                     </select>
                     <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400"><svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg></span>
                   </div>
-                  <button onClick={() => { setAddForm({ code: "", name: "", category: ITEM_CATEGORIES[0], unit: "", quantity: 0, minQuantity: 0 }); setAddError(null); setShowAddModal(true); }}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white text-[13.5px] font-black rounded-xl hover:bg-red-600 transition-all cursor-pointer shadow-sm shadow-primary/20 shrink-0">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                    Thêm vật tư
-                  </button>
                 </div>
                 <div className="flex items-center gap-2 text-[13px] text-slate-400 font-semibold border-t border-slate-100 pt-3">
                   <span>Hiển thị</span>
@@ -467,7 +486,7 @@ export default function InventoryPage() {
                         { key: "export", label: "Xuất kho", activeCls: "bg-primary hover:bg-red-600 text-white border-primary shadow-sm shadow-primary/20" },
                       ] as const).map(t => (
                         <button type="button" key={t.key}
-                          onClick={() => { setTxType(t.key); setTxItemSearch(""); setSelectedItemId(t.key === "export" && items.length > 0 ? items[0].id : ""); }}
+                          onClick={() => { setTxType(t.key); setTxItemSearch(""); setTxUnit("Cái"); setTxCategory(ITEM_CATEGORIES[0]); setTxErrors({}); setError(null); setSelectedItemId(t.key === "export" && items.length > 0 ? items[0].id : ""); }}
                           className={`flex-1 py-3 rounded-xl text-[13.5px] font-black border-2 cursor-pointer transition-all ${
                             txType === t.key ? t.activeCls : "bg-white text-slate-400 border-slate-200 hover:border-slate-300"
                           }`}>
@@ -484,13 +503,15 @@ export default function InventoryPage() {
                             value={txItemSearch}
                             onChange={e => {
                               setTxItemSearch(e.target.value);
+                              setTxErrors(prev => ({ ...prev, name: undefined }));
                               const match = items.find(s => s.name.toLowerCase() === e.target.value.toLowerCase().trim());
                               setSelectedItemId(match ? match.id : "");
                             }}
                             placeholder="Nhập tên vật tư..."
-                            className={inputCls}
+                            className={`${inputCls} ${txErrors.name ? "!border-red-300 focus:!border-red-400 focus:!ring-red-200" : ""}`}
                           />
-                          {txItemSearch && !selectedItemId && (
+                          {txErrors.name && <p className="text-[12px] text-red-500 font-semibold">{txErrors.name}</p>}
+                          {txItemSearch && !selectedItemId && !txErrors.name && (
                             <p className="text-[12px] text-emerald-600 font-semibold">Vật tư mới — sẽ được tạo tự động khi xác nhận.</p>
                           )}
                         </>
@@ -508,13 +529,49 @@ export default function InventoryPage() {
                       )}
                     </div>
 
+                    {txType === "import" && (
+                      <>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">Đơn vị *</label>
+                          <div className="relative">
+                            <select
+                              value={txUnit}
+                              onChange={e => { setTxUnit(e.target.value); setTxErrors(prev => ({ ...prev, unit: undefined })); }}
+                              className={`${selectCls} ${txErrors.unit ? "!border-red-300" : ""}`}
+                            >
+                              {SUPPLY_UNITS.map(u => <option key={u}>{u}</option>)}
+                            </select>
+                            <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400"><svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg></span>
+                          </div>
+                          {txErrors.unit && <p className="text-[12px] text-red-500 font-semibold">{txErrors.unit}</p>}
+                          <p className="text-[11.5px] text-slate-400 font-semibold">Nếu vật tư đã tồn tại, đơn vị trong kho sẽ được giữ nguyên.</p>
+                        </div>
+
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">Danh mục *</label>
+                          <div className="relative">
+                            <select
+                              value={txCategory}
+                              onChange={e => setTxCategory(e.target.value)}
+                              className={selectCls}
+                            >
+                              {ITEM_CATEGORIES.map(c => <option key={c}>{c}</option>)}
+                            </select>
+                            <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400"><svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg></span>
+                          </div>
+                          <p className="text-[11.5px] text-slate-400 font-semibold">Nếu vật tư đã tồn tại, danh mục trong kho sẽ được giữ nguyên.</p>
+                        </div>
+                      </>
+                    )}
+
                     <div className="flex flex-col gap-1.5">
                       <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">Số lượng *</label>
                       <input type="number" min={0}
                         value={txQtyStr}
-                        onChange={e => setTxQtyStr(e.target.value)}
+                        onChange={e => { setTxQtyStr(e.target.value); setTxErrors(prev => ({ ...prev, qty: undefined })); }}
                         placeholder="Nhập số lượng..."
-                        className={`${inputCls} [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`} />
+                        className={`${inputCls} [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${txErrors.qty ? "!border-red-300 focus:!border-red-400 focus:!ring-red-200" : ""}`} />
+                      {txErrors.qty && <p className="text-[12px] text-red-500 font-semibold">{txErrors.qty}</p>}
                     </div>
 
                     <div className="flex flex-col gap-1.5">
@@ -524,7 +581,7 @@ export default function InventoryPage() {
                         className={inputCls} />
                     </div>
 
-                    <button type="submit" disabled={submitting || items.length === 0}
+                    <button type="submit" disabled={submitting || (txType === "export" && items.length === 0)}
                       className={`flex items-center justify-center gap-2 w-full py-3 rounded-xl text-[14px] font-black transition-all cursor-pointer shadow-sm mt-1 disabled:opacity-60 disabled:cursor-not-allowed ${
                         txType === "import"
                           ? "bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-200"
