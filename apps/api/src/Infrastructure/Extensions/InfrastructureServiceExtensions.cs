@@ -112,6 +112,8 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<GetSupplyTransactionsHandler>();
         services.AddScoped<CreateSupplyItemHandler>();
         services.AddScoped<CreateSupplyTransactionHandler>();
+        services.AddScoped<GetMaterialRequestsHandler>();
+        services.AddScoped<MarkMaterialRequestDoneHandler>();
 
         services.AddScoped<GetMedicinesHandler>();
         services.AddScoped<GetMedicineByIdHandler>();

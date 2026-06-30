@@ -12,7 +12,9 @@ public class InventoryController(
     GetSupplyItemsHandler getItems,
     GetSupplyTransactionsHandler getTransactions,
     CreateSupplyItemHandler createItem,
-    CreateSupplyTransactionHandler createTransaction) : ControllerBase
+    CreateSupplyTransactionHandler createTransaction,
+    GetMaterialRequestsHandler getMaterialRequests,
+    MarkMaterialRequestDoneHandler markMaterialRequestDone) : ControllerBase
 {
     /// <summary>GET api/inventory/items — Danh sách vật tư</summary>
     [HttpGet("items")]
@@ -55,5 +57,25 @@ public class InventoryController(
 
         var result = await createTransaction.HandleAsync(request, createdBy, ct);
         return Ok(result);
+    }
+
+    /// <summary>GET api/inventory/material-requests — Yêu cầu vật tư từ bác sĩ</summary>
+    [HttpGet("material-requests")]
+    public async Task<IActionResult> GetMaterialRequests([FromQuery] string? status, CancellationToken ct)
+    {
+        var result = await getMaterialRequests.HandleAsync(status, ct);
+        return Ok(result);
+    }
+
+    /// <summary>PUT api/inventory/material-requests/{id}/done — Đánh dấu đã xử lý</summary>
+    [HttpPut("material-requests/{id}/done")]
+    public async Task<IActionResult> MarkMaterialRequestDone(Guid id, CancellationToken ct)
+    {
+        var handledBy = User.FindFirst("username")?.Value
+            ?? User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value
+            ?? "Nhân viên";
+
+        await markMaterialRequestDone.HandleAsync(id, handledBy, ct);
+        return NoContent();
     }
 }

@@ -1132,6 +1132,45 @@ export async function createSupplyTransactionApi(
   return res.json() as Promise<SupplyTransactionDto>;
 }
 
+// ── Material requests (yêu cầu vật tư từ bác sĩ) ─────────────────────────────
+
+export interface MaterialRequestDto {
+  id: string;
+  courseName: string;
+  patientName: string;
+  dentistName: string;
+  content: string;
+  status: string;        // "Pending" | "Done"
+  createdAt: string;
+  handledAt: string | null;
+  handledBy: string | null;
+}
+
+export async function getMaterialRequestsApi(status?: string): Promise<MaterialRequestDto[]> {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+  const res = await fetch(`${API_URL}/api/inventory/material-requests${qs}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải yêu cầu vật tư");
+  }
+  return res.json() as Promise<MaterialRequestDto[]>;
+}
+
+export async function markMaterialRequestDoneApi(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/inventory/material-requests/${id}/done`, {
+    method: "PUT",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Cập nhật yêu cầu vật tư thất bại");
+  }
+}
+
 // ── Room types ─────────────────────────────────────────────────────────────
 
 export interface RoomDto {

@@ -9,8 +9,11 @@ import {
   getSupplyTransactionsApi,
   createSupplyTransactionApi,
   createSupplyItemApi,
+  getMaterialRequestsApi,
+  markMaterialRequestDoneApi,
   type SupplyItemDto,
   type SupplyTransactionDto,
+  type MaterialRequestDto,
 } from "../../../lib/apiClient";
 
 const ITEM_CATEGORIES = ["Bảo hộ", "Dụng cụ", "Vật liệu", "Tiêu hao", "Thuốc"];
@@ -82,7 +85,10 @@ const inputCls  = "w-full px-4 py-2.5 text-[13.5px] bg-slate-50 border border-sl
 export default function InventoryPage() {
   useRequireStaff();
 
-  const [tab,           setTab]           = useState<"stock" | "transaction" | "log">("stock");
+  const [tab,           setTab]           = useState<"stock" | "transaction" | "log" | "requests">("stock");
+  const [requests,      setRequests]      = useState<MaterialRequestDto[]>([]);
+  const [loadingReqs,   setLoadingReqs]   = useState(false);
+  const [fulfilling,    setFulfilling]    = useState<MaterialRequestDto | null>(null);
   const [cat,           setCat]           = useState("Tất cả");
   const [search,        setSearch]        = useState("");
   const [items,         setItems]         = useState<SupplyItemDto[]>([]);
@@ -138,7 +144,40 @@ export default function InventoryPage() {
     }
   }, []);
 
-  useEffect(() => { fetchItems(); fetchLog(); }, []);
+  const fetchRequests = useCallback(async () => {
+    setLoadingReqs(true);
+    try {
+      setRequests(await getMaterialRequestsApi());
+    } catch {
+      // lỗi nhẹ, không block UI
+    } finally {
+      setLoadingReqs(false);
+    }
+  }, []);
+
+  const handleMarkRequestDone = async (id: string) => {
+    try {
+      await markMaterialRequestDoneApi(id);
+      if (fulfilling?.id === id) setFulfilling(null);
+      await fetchRequests();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Cập nhật yêu cầu vật tư thất bại");
+    }
+  };
+
+  // Bấm "Nhập" ở một yêu cầu → nhảy sang form nhập kho, kèm ngữ cảnh yêu cầu.
+  const handleImportForRequest = (r: MaterialRequestDto) => {
+    setFulfilling(r);
+    setTab("transaction");
+    setTxType("import");
+    setSelectedItemId("");
+    setTxItemSearch("");
+    setTxQtyStr("");
+    setTxNote(`Theo yêu cầu: ${r.courseName} · BS ${r.dentistName}`);
+    setError(null);
+  };
+
+  useEffect(() => { fetchItems(); fetchLog(); fetchRequests(); }, []);
 
   // Filter stock
   const filteredStock = items.filter(s => {
@@ -281,15 +320,19 @@ export default function InventoryPage() {
           {/* Tabs */}
           <div className="flex gap-2">
             {([
-              { key: "stock",       label: "Tồn kho"           },
-              { key: "transaction", label: "+ Nhập / Xuất"     },
-              { key: "log",         label: "Lịch sử giao dịch" },
+              { key: "stock",       label: "Tồn kho",           count: 0 },
+              { key: "transaction", label: "+ Nhập / Xuất",     count: 0 },
+              { key: "requests",    label: "Yêu cầu vật tư",     count: requests.filter(r => r.status === "Pending").length },
+              { key: "log",         label: "Lịch sử giao dịch", count: 0 },
             ] as const).map(t => (
               <button key={t.key} onClick={() => setTab(t.key)}
-                className={`px-5 py-2 rounded-xl text-[13.5px] font-bold transition-all cursor-pointer border ${
+                className={`flex items-center gap-2 px-5 py-2 rounded-xl text-[13.5px] font-bold transition-all cursor-pointer border ${
                   tab === t.key ? "bg-primary text-white border-primary shadow-sm shadow-primary/20" : "bg-white text-slate-500 border-slate-200 hover:border-primary/40 hover:text-primary"
                 }`}>
                 {t.label}
+                {t.count > 0 && (
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10.5px] font-black leading-none ${tab === t.key ? "bg-white/25 text-white" : "bg-amber-100 text-amber-700"}`}>{t.count}</span>
+                )}
               </button>
             ))}
           </div>
@@ -385,6 +428,29 @@ export default function InventoryPage() {
 
           {/* ── Tab: Nhập / Xuất ── */}
           {tab === "transaction" && (
+            <div className="flex flex-col gap-5">
+            {fulfilling && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-6 py-4 flex items-start gap-4">
+                <svg className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13.5px] font-black text-emerald-800">Đang nhập theo yêu cầu của bác sĩ — {fulfilling.courseName}</div>
+                  <div className="text-[12px] font-semibold text-emerald-700/80 mt-0.5">BN: {fulfilling.patientName} · BS: {fulfilling.dentistName}</div>
+                  <p className="mt-2 text-[13px] font-semibold text-slate-700 whitespace-pre-wrap bg-white border border-emerald-100 rounded-xl px-4 py-3">{fulfilling.content}</p>
+                  <p className="mt-2 text-[12px] font-semibold text-emerald-700/80">Nhập từng vật tư theo danh sách trên. Xong thì bấm “Đã xử lý xong”.</p>
+                </div>
+                <div className="shrink-0 flex flex-col gap-2">
+                  <button onClick={() => handleMarkRequestDone(fulfilling.id)}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-[12.5px] font-black rounded-xl transition-all shadow-sm cursor-pointer whitespace-nowrap">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                    Đã xử lý xong
+                  </button>
+                  <button onClick={() => setFulfilling(null)}
+                    className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-500 border border-slate-200 text-[12.5px] font-bold rounded-xl transition-all cursor-pointer whitespace-nowrap">
+                    Bỏ qua
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
               <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200/60 shadow-sm p-7 flex flex-col gap-5">
                 <h2 className="text-[15px] font-black text-slate-900">Tạo phiếu nhập / xuất</h2>
@@ -502,6 +568,7 @@ export default function InventoryPage() {
                 </ul>
               </div>
             </div>
+            </div>
           )}
 
           {/* ── Tab: Lịch sử giao dịch ── */}
@@ -566,6 +633,54 @@ export default function InventoryPage() {
                 <Pagination page={logPage} total={log.length} pageSize={logPageSize} onChange={setLogPage} />
               </div>
             </>
+          )}
+
+          {/* ── Tab: Yêu cầu vật tư ── */}
+          {tab === "requests" && (
+            <div className="flex flex-col gap-3">
+              <p className="text-[13px] text-slate-500 font-semibold">
+                Vật liệu bác sĩ yêu cầu khi lập liệu trình dài hạn. Nhập kho ở tab <strong>Nhập / Xuất</strong>, sau đó đánh dấu <strong>Đã xử lý</strong>.
+              </p>
+              {loadingReqs ? (
+                <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm py-16 text-center text-[13px] text-slate-400 font-semibold">Đang tải...</div>
+              ) : requests.length === 0 ? (
+                <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm py-16 text-center text-[13px] text-slate-400 font-semibold">Chưa có yêu cầu vật tư nào.</div>
+              ) : (
+                requests.map(r => (
+                  <div key={r.id} className={`bg-white rounded-2xl border shadow-sm px-6 py-4 flex items-start gap-4 ${r.status === "Pending" ? "border-amber-200" : "border-slate-200/70 opacity-75"}`}>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[14px] font-black text-slate-900">{r.courseName || "Liệu trình"}</span>
+                        {r.status === "Pending" ? (
+                          <span className="text-[11px] font-black px-2 py-0.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200">Chờ xử lý</span>
+                        ) : (
+                          <span className="text-[11px] font-black px-2 py-0.5 rounded-lg bg-green-50 text-green-700 border border-green-200">Đã xử lý</span>
+                        )}
+                      </div>
+                      <div className="text-[12px] text-slate-400 font-semibold mt-0.5">
+                        BN: {r.patientName} · BS: {r.dentistName} · {formatDate(r.createdAt)}
+                        {r.handledBy ? ` · Xử lý bởi ${r.handledBy}` : ""}
+                      </div>
+                      <p className="mt-2 text-[13px] font-semibold text-slate-700 whitespace-pre-wrap bg-slate-50 border border-slate-100 rounded-xl px-4 py-3">{r.content}</p>
+                    </div>
+                    {r.status === "Pending" && (
+                      <div className="shrink-0 flex items-center gap-2">
+                        <button onClick={() => handleImportForRequest(r)}
+                          className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-[13px] font-black rounded-xl transition-all shadow-sm shadow-emerald-200 cursor-pointer whitespace-nowrap">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                          Nhập
+                        </button>
+                        <button onClick={() => handleMarkRequestDone(r.id)}
+                          className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 text-slate-500 border border-slate-200 text-[13px] font-black rounded-xl transition-all cursor-pointer whitespace-nowrap">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                          Đã xử lý
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
           )}
         </div>
       </main>
