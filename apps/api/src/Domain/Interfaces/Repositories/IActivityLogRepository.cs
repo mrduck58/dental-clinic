@@ -7,6 +7,7 @@ public interface IActivityLogRepository
     Task AddAsync(ActivityLog log, CancellationToken ct = default);
 
     Task<(IReadOnlyList<ActivityLog> Items, int TotalCount)> GetPagedAsync(
+        Guid? userId,
         string? action,
         string? module,
         string? status,

@@ -8,7 +8,9 @@ import {
   updateMyProfileApi,
   changePasswordApi,
   uploadFileApi,
-  type UserProfileDto
+  type UserProfileDto,
+  getActivityLogsApi,
+  type ActivityLogItemDto
 } from "../../lib/apiClient";
 
 interface ProfilePageContentProps {
@@ -111,10 +113,38 @@ export default function ProfilePageContent({ sidebar, notificationHref = "/admin
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  // Simulated activity logs
-  const [simulatedLogs, setSimulatedLogs] = useState<SimulatedLog[]>([]);
+  // Real activity logs states
+  const [activityLogs, setActivityLogs] = useState<ActivityLogItemDto[]>([]);
+  const [logsLoading, setLogsLoading] = useState<boolean>(false);
+  const [logsTotal, setLogsTotal] = useState<number>(0);
+  const [logsPage, setLogsPage] = useState<number>(1);
+  const logsPageSize = 10;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const fetchActivityLogs = async (page: number) => {
+    if (!profile) return;
+    try {
+      setLogsLoading(true);
+      const data = await getActivityLogsApi({
+        userId: profile.id,
+        page,
+        pageSize: logsPageSize,
+      });
+      setActivityLogs(data.items || []);
+      setLogsTotal(data.totalCount || 0);
+    } catch (err: any) {
+      console.error("Failed to load activity logs:", err);
+    } finally {
+      setLogsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "activities" && profile) {
+      fetchActivityLogs(logsPage);
+    }
+  }, [activeTab, profile, logsPage]);
 
   useEffect(() => {
     fetchProfile();
@@ -142,208 +172,23 @@ export default function ProfilePageContent({ sidebar, notificationHref = "/admin
         setYearsOfExperience(data.yearsOfExperience || 0);
       }
 
-      generateSimulatedLogs(data.fullName || "Người dùng", data.role);
+      // Fetch initial logs to display last login on profile and pre-fill activities tab
+      try {
+        const logsData = await getActivityLogsApi({
+          userId: data.id,
+          page: 1,
+          pageSize: logsPageSize,
+        });
+        setActivityLogs(logsData.items || []);
+        setLogsTotal(logsData.totalCount || 0);
+      } catch (logErr) {
+        console.error("Failed to load initial activity logs:", logErr);
+      }
     } catch (err: any) {
       setError(err.message || "Không thể tải thông tin cá nhân.");
     } finally {
       setLoading(false);
     }
-  };
-
-  const generateSimulatedLogs = (name: string, role: string) => {
-    let logs: SimulatedLog[] = [];
-
-    if (role === "Admin") {
-      logs = [
-        {
-          id: "ACT-001",
-          time: "Hôm nay, 16:15:22",
-          action: "Đăng nhập hệ thống quản trị thành công (Chrome/Windows)",
-          module: "Hệ thống",
-          ip: "192.168.1.15",
-          status: "success",
-        },
-        {
-          id: "ACT-002",
-          time: "Hôm nay, 14:30:10",
-          action: "Tạo tài khoản mới cho bác sĩ Nguyễn Quốc Anh (Bác sĩ Nha khoa)",
-          module: "Tài khoản",
-          ip: "192.168.1.15",
-          status: "success",
-        },
-        {
-          id: "ACT-003",
-          time: "Hôm qua, 11:20:45",
-          action: "Cập nhật giá dịch vụ 'Cấy ghép răng Implant Nobel' thành 16.500.000đ",
-          module: "Dịch vụ",
-          ip: "192.168.1.15",
-          status: "success",
-        },
-        {
-          id: "ACT-004",
-          time: "Hôm qua, 09:15:00",
-          action: "Phê duyệt đơn xin nghỉ phép của nhân viên CSKH Lê Thị Hồng",
-          module: "Nhân sự",
-          ip: "192.168.1.15",
-          status: "success",
-        },
-        {
-          id: "ACT-005",
-          time: "2 ngày trước, 16:45:00",
-          action: "Đăng nhập hệ thống từ địa chỉ lạ (Cảnh báo bảo mật)",
-          module: "Hệ thống",
-          ip: "103.45.67.89",
-          status: "warning",
-        },
-        {
-          id: "ACT-006",
-          time: "3 ngày trước, 10:10:30",
-          action: "Thay đổi phân quyền truy cập phòng chức năng",
-          module: "Bảo mật",
-          ip: "192.168.1.10",
-          status: "success",
-        },
-        {
-          id: "ACT-007",
-          time: "5 ngày trước, 08:30:00",
-          action: "Xuất file báo cáo doanh thu phòng khám quý 2/2026",
-          module: "Hệ thống",
-          ip: "192.168.1.10",
-          status: "success",
-        }
-      ];
-    } else if (role === "Dentist") {
-      logs = [
-        {
-          id: "ACT-001",
-          time: "Hôm nay, 15:20:10",
-          action: "Đăng nhập tài khoản Bác sĩ thành công",
-          module: "Hệ thống",
-          ip: "192.168.1.25",
-          status: "success",
-        },
-        {
-          id: "ACT-002",
-          time: "Hôm nay, 14:05:32",
-          action: "Cập nhật bệnh án điều trị cho bệnh nhân Nguyễn Văn Nam",
-          module: "Bệnh án",
-          ip: "192.168.1.25",
-          status: "success",
-        },
-        {
-          id: "ACT-003",
-          time: "Hôm nay, 10:45:15",
-          action: "Kê đơn thuốc điều trị sau nhổ răng cho bệnh nhân Lê Hoài An",
-          module: "Đơn thuốc",
-          ip: "192.168.1.25",
-          status: "success",
-        },
-        {
-          id: "ACT-004",
-          time: "Hôm qua, 15:30:22",
-          action: "Chỉ định chụp X-Quang răng toàn cảnh cho bệnh nhân Vũ Thị Mai",
-          module: "Chỉ định",
-          ip: "192.168.1.25",
-          status: "success",
-        },
-        {
-          id: "ACT-005",
-          time: "Hôm qua, 08:45:00",
-          action: "Xác nhận lịch hẹn tái khám niềng răng Invisalign",
-          module: "Lịch hẹn",
-          ip: "192.168.1.25",
-          status: "success",
-        }
-      ];
-    } else if (role === "Owner") {
-      logs = [
-        {
-          id: "ACT-001",
-          time: "Hôm nay, 17:10:00",
-          action: "Đăng nhập hệ thống (Cổng thông tin Chủ phòng khám) thành công (Safari/macOS)",
-          module: "Hệ thống",
-          ip: "192.168.1.10",
-          status: "success",
-        },
-        {
-          id: "ACT-002",
-          time: "Hôm nay, 16:45:12",
-          action: "Xem báo cáo doanh thu chi tiết phòng khám tháng 6/2026",
-          module: "Báo cáo",
-          ip: "192.168.1.10",
-          status: "success",
-        },
-        {
-          id: "ACT-003",
-          time: "Hôm nay, 15:30:00",
-          action: "Kiểm tra nhật ký hoạt động của quản trị viên hệ thống",
-          module: "Hệ thống",
-          ip: "192.168.1.10",
-          status: "success",
-        },
-        {
-          id: "ACT-004",
-          time: "Hôm qua, 14:20:45",
-          action: "Xem lịch sử thay đổi bảng giá dịch vụ điều trị",
-          module: "Dịch vụ",
-          ip: "192.168.1.10",
-          status: "success",
-        },
-        {
-          id: "ACT-005",
-          time: "2 ngày trước, 09:15:00",
-          action: "Phê duyệt kế hoạch ngân sách mua vật tư y tế quý 3/2026",
-          module: "Tài chính",
-          ip: "192.168.1.10",
-          status: "success",
-        }
-      ];
-    } else {
-      logs = [
-        {
-          id: "ACT-001",
-          time: "Hôm nay, 16:02:11",
-          action: "Đăng nhập tài khoản Nhân sự thành công",
-          module: "Hệ thống",
-          ip: "192.168.1.30",
-          status: "success",
-        },
-        {
-          id: "ACT-002",
-          time: "Hôm nay, 15:45:30",
-          action: "Tạo hóa đơn thanh toán khám răng cho bệnh nhân Nguyễn Thị Lan",
-          module: "Hóa đơn",
-          ip: "192.168.1.30",
-          status: "success",
-        },
-        {
-          id: "ACT-003",
-          time: "Hôm nay, 11:15:00",
-          action: "Xác nhận đặt lịch hẹn mới cho khách hàng Trần Văn Đức",
-          module: "Lịch hẹn",
-          ip: "192.168.1.30",
-          status: "success",
-        },
-        {
-          id: "ACT-004",
-          time: "Hôm qua, 07:55:00",
-          action: "Check-in thành công ca làm việc sáng Thứ Ba",
-          module: "Chuyên cần",
-          ip: "192.168.1.30",
-          status: "success",
-        },
-        {
-          id: "ACT-005",
-          time: "2 ngày trước, 14:22:18",
-          action: "Ghi nhận phản hồi và đánh giá dịch vụ từ khách hàng",
-          module: "CSKH",
-          ip: "192.168.1.30",
-          status: "success",
-        }
-      ];
-    }
-
-    setSimulatedLogs(logs);
   };
 
   const handleAvatarClick = () => {
@@ -489,17 +334,6 @@ export default function ProfilePageContent({ sidebar, notificationHref = "/admin
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-
-      // Add a simulated log entry
-      const newLog: SimulatedLog = {
-        id: `ACT-${Date.now()}`,
-        time: "Vừa xong",
-        action: "Đổi mật khẩu tài khoản thành công",
-        module: "Bảo mật",
-        ip: "192.168.1.15",
-        status: "success",
-      };
-      setSimulatedLogs((prev) => [newLog, ...prev]);
 
     } catch (err: any) {
       const errMsg = err.message || "Đổi mật khẩu thất bại. Vui lòng kiểm tra lại mật khẩu hiện tại.";
@@ -1102,7 +936,14 @@ export default function ProfilePageContent({ sidebar, notificationHref = "/admin
                             Đăng nhập gần nhất (Last Login)
                           </label>
                           <div className="w-full px-4 py-2.5 rounded-xl border border-slate-100 bg-slate-50 text-slate-500 font-bold select-none flex justify-between items-center cursor-not-allowed">
-                            <span>{simulatedLogs[0]?.time || "Hôm nay, 17:10:00"} (Safari trên macOS)</span>
+                            <span>
+                              {(() => {
+                                const loginLog = activityLogs.find(log => log.action === "login");
+                                return loginLog 
+                                  ? `${formatTimestamp(loginLog.createdAt)} (IP: ${loginLog.ipAddress || "N/A"})`
+                                  : "Chưa ghi nhận đăng nhập gần đây";
+                              })()}
+                            </span>
                             <span className="text-xs text-slate-400">🔒</span>
                           </div>
                         </div>
@@ -1273,57 +1114,109 @@ export default function ProfilePageContent({ sidebar, notificationHref = "/admin
 
               {/* Responsive Log Table */}
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-[13px] min-w-[700px] font-sans">
-                  <thead>
-                    <tr className="bg-slate-50/60 font-extrabold text-slate-400 uppercase tracking-wider border-b border-slate-200/80 text-[11px] select-none">
-                      <th className="px-6 py-4 w-[160px]">Thời gian</th>
-                      <th className="px-6 py-4 w-[120px]">Phân hệ</th>
-                      <th className="px-6 py-4">Mô tả hoạt động</th>
-                      <th className="px-6 py-4 w-[130px]">Địa chỉ IP</th>
-                      <th className="px-6 py-4 w-[130px] text-center">Trạng thái</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-slate-700 font-semibold">
-                    {simulatedLogs.map((log) => (
-                      <tr key={log.id} className="hover:bg-slate-50/40 transition-colors">
-                        {/* Time */}
-                        <td className="px-6 py-3.5 font-bold text-slate-900">{log.time}</td>
-                        {/* Module */}
-                        <td className="px-6 py-3.5">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-600 text-[12px] font-bold">
-                            {log.module}
-                          </span>
-                        </td>
-                        {/* Description */}
-                        <td className="px-6 py-3.5 text-slate-600 font-medium">{log.action}</td>
-                        {/* IP */}
-                        <td className="px-6 py-3.5 font-mono text-slate-500 text-[12.5px]">{log.ip}</td>
-                        {/* Status */}
-                        <td className="px-6 py-3.5 text-center">
-                          <span
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-black ${
-                              log.status === "success"
-                                ? "bg-green-50 text-green-700 border border-green-100"
-                                : "bg-amber-50 text-amber-700 border border-amber-100"
-                            }`}
+                {logsLoading ? (
+                  <div className="flex flex-col items-center justify-center py-12 gap-3">
+                    <div className="w-8 h-8 rounded-full border-3 border-slate-200 border-t-primary animate-spin" />
+                    <span className="text-[13px] font-bold text-slate-400">Đang tải lịch sử...</span>
+                  </div>
+                ) : activityLogs.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-slate-400 font-bold text-[14px]">
+                    <span>Không tìm thấy hoạt động nào.</span>
+                  </div>
+                ) : (
+                  <>
+                    <table className="w-full text-left border-collapse text-[13px] min-w-[700px] font-sans">
+                      <thead>
+                        <tr className="bg-slate-50/60 font-extrabold text-slate-400 uppercase tracking-wider border-b border-slate-200/80 text-[11px] select-none">
+                          <th className="px-6 py-4 w-[180px]">Thời gian</th>
+                          <th className="px-6 py-4 w-[120px]">Phân hệ</th>
+                          <th className="px-6 py-4">Mô tả hoạt động</th>
+                          <th className="px-6 py-4 w-[130px]">Địa chỉ IP</th>
+                          <th className="px-6 py-4 w-[130px] text-center">Trạng thái</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-slate-700 font-semibold">
+                        {activityLogs.map((log) => {
+                          const statusStyle = (() => {
+                            const s = (log.status || "").toLowerCase();
+                            if (s === "success") return {
+                              bg: "bg-green-50 text-green-700 border border-green-100",
+                              dot: "bg-green-500",
+                              label: "Thành công"
+                            };
+                            if (s === "failed") return {
+                              bg: "bg-red-50 text-red-700 border border-red-100",
+                              dot: "bg-red-500",
+                              label: "Thất bại"
+                            };
+                            return {
+                              bg: "bg-amber-50 text-amber-700 border border-amber-100",
+                              dot: "bg-amber-500",
+                              label: "Cảnh báo"
+                            };
+                          })();
+
+                          return (
+                            <tr key={log.id} className="hover:bg-slate-50/40 transition-colors">
+                              {/* Time */}
+                              <td className="px-6 py-3.5 font-bold text-slate-900">{formatTimestamp(log.createdAt)}</td>
+                              {/* Module */}
+                              <td className="px-6 py-3.5">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-600 text-[12px] font-bold uppercase">
+                                  {log.module}
+                                </span>
+                              </td>
+                              {/* Description */}
+                              <td className="px-6 py-3.5 text-slate-600 font-medium">{log.description}</td>
+                              {/* IP */}
+                              <td className="px-6 py-3.5 font-mono text-slate-500 text-[12.5px]">{log.ipAddress || "N/A"}</td>
+                              {/* Status */}
+                              <td className="px-6 py-3.5 text-center">
+                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-black ${statusStyle.bg}`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusStyle.dot}`} />
+                                  {statusStyle.label}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+
+                    {/* Pagination controls */}
+                    {logsTotal > logsPageSize && (
+                      <div className="px-6 py-3 border-t border-slate-100 flex items-center justify-between">
+                        <span className="text-[12.5px] text-slate-400 font-bold">
+                          Hiển thị {activityLogs.length} trên {logsTotal} hoạt động
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            disabled={logsPage === 1}
+                            onClick={() => setLogsPage((prev) => Math.max(prev - 1, 1))}
+                            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-bold text-[12px] text-slate-600 transition-colors"
                           >
-                            <span
-                              className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                                log.status === "success" ? "bg-green-500" : "bg-amber-500"
-                              }`}
-                            />
-                            {log.status === "success" ? "Thành công" : "Cảnh báo"}
+                            Trước
+                          </button>
+                          <span className="text-[12.5px] font-bold text-slate-600">
+                            Trang {logsPage} / {Math.ceil(logsTotal / logsPageSize)}
                           </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                          <button
+                            disabled={logsPage >= Math.ceil(logsTotal / logsPageSize)}
+                            onClick={() => setLogsPage((prev) => prev + 1)}
+                            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-bold text-[12px] text-slate-600 transition-colors"
+                          >
+                            Sau
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
 
               {/* Real-time Indicator Footer */}
               <div className="px-6 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between text-[12.5px] text-slate-400 font-bold">
-                <span>Tổng số: {simulatedLogs.length} hoạt động</span>
+                <span>Tổng số: {logsTotal} hoạt động</span>
                 <div className="flex items-center gap-1.5 text-emerald-600">
                   <span className="relative flex h-2 w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>

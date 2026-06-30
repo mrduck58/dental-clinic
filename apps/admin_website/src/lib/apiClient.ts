@@ -2634,6 +2634,7 @@ export async function deleteNotificationApi(id: string): Promise<void> {
 }
 
 export async function getActivityLogsApi(params?: {
+  userId?: string;
   action?: string;
   module?: string;
   status?: string;
@@ -2644,6 +2645,7 @@ export async function getActivityLogsApi(params?: {
   pageSize?: number;
 }): Promise<ActivityLogPagedDto> {
   const qs = new URLSearchParams();
+  if (params?.userId)    qs.set("userId",    params.userId);
   if (params?.action)    qs.set("action",    params.action);
   if (params?.module)    qs.set("module",    params.module);
   if (params?.status)    qs.set("status",    params.status);

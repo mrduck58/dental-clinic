@@ -13,6 +13,7 @@ public class ActivityLogRepository(AppDbContext db) : IActivityLogRepository
     }
 
     public async Task<(IReadOnlyList<ActivityLog> Items, int TotalCount)> GetPagedAsync(
+        Guid? userId,
         string? action,
         string? module,
         string? status,
@@ -24,6 +25,9 @@ public class ActivityLogRepository(AppDbContext db) : IActivityLogRepository
         CancellationToken ct = default)
     {
         var query = db.ActivityLogs.AsQueryable();
+
+        if (userId.HasValue)
+            query = query.Where(a => a.UserId == userId.Value);
 
         if (!string.IsNullOrWhiteSpace(action))
             query = query.Where(a => a.Action == action);
