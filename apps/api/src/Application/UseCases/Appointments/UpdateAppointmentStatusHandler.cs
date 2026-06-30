@@ -1,7 +1,7 @@
-﻿using DentalClinic.API.Domain.Enums;
+﻿using DentalClinic.API.Domain.Constants;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
-using DentalClinic.API.Domain.Constants;
 using Microsoft.Extensions.Logging;
 
 namespace DentalClinic.API.Application.UseCases.Appointments;
@@ -9,6 +9,7 @@ namespace DentalClinic.API.Application.UseCases.Appointments;
 public class UpdateAppointmentStatusHandler(
     IAppointmentRepository appointmentRepository,
     IActivityLogService activityLogService,
+    INotificationService notificationService,
     ICurrentUserService currentUser,
     ILogger<UpdateAppointmentStatusHandler>? logger = null)
 {
@@ -35,6 +36,19 @@ public class UpdateAppointmentStatusHandler(
             ipAddress: currentUser.IpAddress,
             targetId: appointmentId.ToString(),
             ct: ct);
+
+        var dentistUserId = await appointmentRepository.GetDentistUserIdAsync(appointment.DentistId, ct);
+        if (dentistUserId.HasValue)
+        {
+            await notificationService.CreateAsync(new CreateNotificationRequest(
+                UserId: dentistUserId.Value,
+                Type: NotificationType.Appointment,
+                Priority: NotificationPriority.Medium,
+                Title: "Lịch hẹn đã xác nhận",
+                Body: $"Lịch hẹn vào {appointment.AppointmentDate:dd/MM/yyyy HH:mm} đã được xác nhận.",
+                RelatedEntityType: "Appointment",
+                RelatedEntityId: appointmentId.ToString()), ct);
+        }
     }
 
     public async Task CancelAsync(Guid appointmentId, CancellationToken ct = default)
@@ -60,6 +74,19 @@ public class UpdateAppointmentStatusHandler(
             ipAddress: currentUser.IpAddress,
             targetId: appointmentId.ToString(),
             ct: ct);
+
+        var dentistUserId = await appointmentRepository.GetDentistUserIdAsync(appointment.DentistId, ct);
+        if (dentistUserId.HasValue)
+        {
+            await notificationService.CreateAsync(new CreateNotificationRequest(
+                UserId: dentistUserId.Value,
+                Type: NotificationType.Appointment,
+                Priority: NotificationPriority.High,
+                Title: "Lịch hẹn bị hủy",
+                Body: $"Lịch hẹn vào {appointment.AppointmentDate:dd/MM/yyyy HH:mm} đã bị hủy.",
+                RelatedEntityType: "Appointment",
+                RelatedEntityId: appointmentId.ToString()), ct);
+        }
     }
 
     public async Task CheckInAsync(Guid appointmentId, CancellationToken ct = default)
@@ -94,6 +121,19 @@ public class UpdateAppointmentStatusHandler(
             ipAddress: currentUser.IpAddress,
             targetId: appointmentId.ToString(),
             ct: ct);
+
+        var dentistUserId = await appointmentRepository.GetDentistUserIdAsync(appointment.DentistId, ct);
+        if (dentistUserId.HasValue)
+        {
+            await notificationService.CreateAsync(new CreateNotificationRequest(
+                UserId: dentistUserId.Value,
+                Type: NotificationType.Appointment,
+                Priority: NotificationPriority.High,
+                Title: "Bệnh nhân đã check-in",
+                Body: $"Bệnh nhân đã check-in lịch hẹn vào {appointment.AppointmentDate:dd/MM/yyyy HH:mm}.",
+                RelatedEntityType: "Appointment",
+                RelatedEntityId: appointmentId.ToString()), ct);
+        }
     }
 
     public async Task StartTreatmentAsync(Guid appointmentId, CancellationToken ct = default)

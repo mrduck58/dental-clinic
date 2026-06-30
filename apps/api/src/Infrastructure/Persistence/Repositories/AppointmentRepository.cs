@@ -62,4 +62,12 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
         dbContext.Appointments.Update(appointment);
         await dbContext.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task<Guid?> GetDentistUserIdAsync(Guid dentistId, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Set<Dentist>()
+            .Where(d => d.Id == dentistId)
+            .Select(d => (Guid?)d.UserId)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
 }

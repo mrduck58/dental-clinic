@@ -9,6 +9,7 @@ namespace DentalClinic.API.Application.UseCases.LeaveRequests;
 public class RejectLeaveRequestHandler(
     ILeaveRequestRepository leaveRequestRepository,
     IActivityLogService activityLogService,
+    INotificationService notificationService,
     ICurrentUserService currentUser)
 {
     public async Task<LeaveRequestDto> HandleAsync(
@@ -33,6 +34,16 @@ public class RejectLeaveRequestHandler(
             ipAddress: currentUser.IpAddress,
             targetId: id.ToString(),
             ct: ct);
+
+        await notificationService.CreateAsync(new CreateNotificationRequest(
+            UserId: leaveRequest.UserId,
+            Type: NotificationType.Schedule,
+            Priority: NotificationPriority.High,
+            Title: "Đơn xin nghỉ bị từ chối",
+            Body: $"Đơn xin nghỉ từ {leaveRequest.StartDate:dd/MM/yyyy} đến {leaveRequest.EndDate:dd/MM/yyyy} đã bị từ chối." +
+                  (string.IsNullOrWhiteSpace(leaveRequest.ReviewerNote) ? "" : $" Lý do: {leaveRequest.ReviewerNote}"),
+            RelatedEntityType: "LeaveRequest",
+            RelatedEntityId: leaveRequest.Id.ToString()), ct);
 
         return GetLeaveRequestsHandler.ToDto(leaveRequest);
     }
