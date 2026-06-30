@@ -87,4 +87,12 @@ public class UserRepository(AppDbContext db) : IUserRepository
         var staffs   = await db.Users.CountAsync(u => u.Role == "Staff", ct);
         return new StaffStatsResult(dentists + doctors + staffs, dentists, doctors);
     }
+
+    public async Task<IReadOnlyList<Guid>> GetUserIdsByRoleAsync(string role, CancellationToken ct = default)
+    {
+        return await db.Users
+            .Where(u => u.Role == role && u.IsActive)
+            .Select(u => u.Id)
+            .ToListAsync(ct);
+    }
 }

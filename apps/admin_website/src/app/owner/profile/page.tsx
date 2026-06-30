@@ -16,6 +16,7 @@ export default function OwnerProfilePage() {
     }>
       <ProfilePageContent
         sidebar={<OwnerSidebar activeMenu="profile" />}
+        notificationHref="/owner/notifications"
       />
     </Suspense>
   );

@@ -16,6 +16,7 @@ public class RejectLeaveRequestHandlerTests
 {
     private ILeaveRequestRepository _repo = null!;
     private IActivityLogService _activityLog = null!;
+    private INotificationService _notification = null!;
     private ICurrentUserService _currentUser = null!;
 
     [SetUp]
@@ -23,6 +24,7 @@ public class RejectLeaveRequestHandlerTests
     {
         _repo = Substitute.For<ILeaveRequestRepository>();
         _activityLog = Substitute.For<IActivityLogService>();
+        _notification = Substitute.For<INotificationService>();
         _currentUser = Substitute.For<ICurrentUserService>();
     }
 
@@ -34,7 +36,7 @@ public class RejectLeaveRequestHandlerTests
     {
         var lr = MakeRequest();
         _repo.GetByIdAsync(lr.Id, Arg.Any<CancellationToken>()).Returns(lr);
-        var handler = new RejectLeaveRequestHandler(_repo, _activityLog, _currentUser);
+        var handler = new RejectLeaveRequestHandler(_repo, _activityLog, _notification, _currentUser);
 
         var result = await handler.HandleAsync(lr.Id, new RejectLeaveRequestRequest("Không đủ điều kiện"));
 
@@ -49,7 +51,7 @@ public class RejectLeaveRequestHandlerTests
     public async Task HandleAsync_NotFound_ThrowsNotFoundException()
     {
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((LeaveRequest?)null);
-        var handler = new RejectLeaveRequestHandler(_repo, _activityLog, _currentUser);
+        var handler = new RejectLeaveRequestHandler(_repo, _activityLog, _notification, _currentUser);
 
         Func<Task> act = () => handler.HandleAsync(Guid.NewGuid(), new RejectLeaveRequestRequest(null));
 
@@ -65,7 +67,7 @@ public class RejectLeaveRequestHandlerTests
         var lr = MakeRequest();
         lr.Reject(null);
         _repo.GetByIdAsync(lr.Id, Arg.Any<CancellationToken>()).Returns(lr);
-        var handler = new RejectLeaveRequestHandler(_repo, _activityLog, _currentUser);
+        var handler = new RejectLeaveRequestHandler(_repo, _activityLog, _notification, _currentUser);
 
         Func<Task> act = () => handler.HandleAsync(lr.Id, new RejectLeaveRequestRequest(null));
 

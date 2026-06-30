@@ -1,4 +1,5 @@
 using DentalClinic.API.Application.UseCases.Appointments;
+using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Interfaces.Repositories;
@@ -15,6 +16,7 @@ public class UpdateAppointmentStatusHandlerTests
     private IAppointmentRepository _repo = null!;
     private IActivityLogService _activityLog = null!;
     private ICurrentUserService _currentUser = null!;
+    private INotificationService _notification = null!;
     private UpdateAppointmentStatusHandler _handler = null!;
 
     [SetUp]
@@ -23,7 +25,8 @@ public class UpdateAppointmentStatusHandlerTests
         _repo = Substitute.For<IAppointmentRepository>();
         _activityLog = Substitute.For<IActivityLogService>();
         _currentUser = Substitute.For<ICurrentUserService>();
-        _handler = new UpdateAppointmentStatusHandler(_repo, _activityLog, _currentUser);
+        _notification = Substitute.For<INotificationService>();
+        _handler = new UpdateAppointmentStatusHandler(_repo, _activityLog, _notification, _currentUser);
     }
 
     private static Appointment MakeAppointment() =>
@@ -110,6 +113,26 @@ public class UpdateAppointmentStatusHandlerTests
         await _repo.DidNotReceive().UpdateAsync(Arg.Any<Appointment>(), Arg.Any<CancellationToken>());
     }
 
+    /// <summary>
+    /// Sau khi xác nhận, nha sĩ phụ trách phải nhận thông báo loại Appointment —
+    /// nếu không gửi, nha sĩ sẽ không biết lịch hẹn đã được xác nhận.
+    /// </summary>
+    [Test]
+    public async Task ConfirmAsync_ExistingAppointment_SendsNotificationToDentist()
+    {
+        var id = Guid.NewGuid();
+        var appt = MakeAppointment();
+        var dentistUserId = Guid.NewGuid();
+        _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
+        _repo.GetDentistUserIdAsync(appt.DentistId, Arg.Any<CancellationToken>()).Returns(dentistUserId);
+
+        await _handler.ConfirmAsync(id);
+
+        await _notification.Received(1).CreateAsync(
+            Arg.Is<CreateNotificationRequest>(r => r.Type == NotificationType.Appointment),
+            Arg.Any<CancellationToken>());
+    }
+
     // ── CancelAsync ───────────────────────────────────────────────────────────
 
     /// <summary>
@@ -170,5 +193,49 @@ public class UpdateAppointmentStatusHandlerTests
         Assert.CatchAsync(() => _handler.CancelAsync(id));
 
         await _repo.DidNotReceive().UpdateAsync(Arg.Any<Appointment>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Khi hủy lịch hẹn, nha sĩ phải nhận thông báo ưu tiên High vì đây là thay đổi quan trọng
+    /// ảnh hưởng trực tiếp đến lịch làm việc của nha sĩ.
+    /// </summary>
+    [Test]
+    public async Task CancelAsync_ExistingAppointment_SendsHighPriorityNotificationToDentist()
+    {
+        var id = Guid.NewGuid();
+        var appt = MakeAppointment();
+        var dentistUserId = Guid.NewGuid();
+        _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
+        _repo.GetDentistUserIdAsync(appt.DentistId, Arg.Any<CancellationToken>()).Returns(dentistUserId);
+
+        await _handler.CancelAsync(id);
+
+        await _notification.Received(1).CreateAsync(
+            Arg.Is<CreateNotificationRequest>(r => r.Priority == NotificationPriority.High),
+            Arg.Any<CancellationToken>());
+    }
+
+    // ── CheckInAsync ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Khi bệnh nhân check-in, nha sĩ phải nhận thông báo ưu tiên High để chuẩn bị kịp thời —
+    /// nha sĩ cần biết ngay bệnh nhân đã đến phòng chờ.
+    /// </summary>
+    [Test]
+    public async Task CheckInAsync_ExistingAppointment_SendsHighPriorityNotificationToDentist()
+    {
+        var id = Guid.NewGuid();
+        // CheckIn chỉ hợp lệ khi lịch hẹn đã ở trạng thái Confirmed
+        var appt = MakeAppointment();
+        appt.Confirm();
+        var dentistUserId = Guid.NewGuid();
+        _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
+        _repo.GetDentistUserIdAsync(appt.DentistId, Arg.Any<CancellationToken>()).Returns(dentistUserId);
+
+        await _handler.CheckInAsync(id);
+
+        await _notification.Received(1).CreateAsync(
+            Arg.Is<CreateNotificationRequest>(r => r.Priority == NotificationPriority.High),
+            Arg.Any<CancellationToken>());
     }
 }

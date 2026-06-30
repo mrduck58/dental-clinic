@@ -2436,6 +2436,93 @@ export interface ActivityLogPagedDto {
   totalPages: number;
 }
 
+// ── Notification types & endpoints ──────────────────────────────────────────
+
+export interface NotificationDto {
+  id: string;
+  type: string;
+  priority: string;
+  title: string;
+  body: string;
+  isRead: boolean;
+  readAt: string | null;
+  relatedEntityType: string | null;
+  relatedEntityId: string | null;
+  createdAt: string;
+}
+
+export interface NotificationPagedDto {
+  items: NotificationDto[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  unreadCount: number;
+}
+
+export async function getNotificationsApi(params?: {
+  type?: string;
+  priority?: string;
+  isRead?: boolean;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<NotificationPagedDto> {
+  const qs = new URLSearchParams();
+  if (params?.type)               qs.set("type",     params.type);
+  if (params?.priority)           qs.set("priority", params.priority);
+  if (params?.isRead !== undefined) qs.set("isRead",  String(params.isRead));
+  if (params?.search)             qs.set("search",   params.search);
+  if (params?.page)               qs.set("page",     String(params.page));
+  if (params?.pageSize)           qs.set("pageSize", String(params.pageSize));
+  const query = qs.toString() ? `?${qs.toString()}` : "";
+  const res = await fetch(`${API_URL}/api/notifications${query}`, {
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải thông báo");
+  }
+  return res.json() as Promise<NotificationPagedDto>;
+}
+
+export async function markNotificationReadApi(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/notifications/${id}/read`, {
+    method: "PUT",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Đánh dấu đã đọc thất bại");
+  }
+}
+
+export async function markAllNotificationsReadApi(): Promise<void> {
+  const res = await fetch(`${API_URL}/api/notifications/read-all`, {
+    method: "PUT",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Đánh dấu đọc tất cả thất bại");
+  }
+}
+
+export async function deleteNotificationApi(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/notifications/${id}`, {
+    method: "DELETE",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Xóa thông báo thất bại");
+  }
+}
+
 export async function getActivityLogsApi(params?: {
   action?: string;
   module?: string;

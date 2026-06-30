@@ -16,6 +16,7 @@ export default function DentistProfilePage() {
     }>
       <ProfilePageContent
         sidebar={<DentistSidebar activeMenu="profile" />}
+        notificationHref="/dentist/notifications"
       />
     </Suspense>
   );

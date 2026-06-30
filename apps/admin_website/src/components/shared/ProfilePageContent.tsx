@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import NotificationBell from "./NotificationBell";
 import {
   getMyProfileApi,
   updateMyProfileApi,
@@ -12,6 +13,7 @@ import {
 
 interface ProfilePageContentProps {
   sidebar: React.ReactNode;
+  notificationHref?: string;
 }
 
 type TabType = "personal" | "password" | "activities";
@@ -51,7 +53,7 @@ const formatTimestamp = (tsStr: string | null | undefined) => {
   }
 };
 
-export default function ProfilePageContent({ sidebar }: ProfilePageContentProps) {
+export default function ProfilePageContent({ sidebar, notificationHref = "/admin/notifications" }: ProfilePageContentProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -554,6 +556,7 @@ export default function ProfilePageContent({ sidebar }: ProfilePageContentProps)
             {activeTab === "password" && "Đổi Mật Khẩu"}
             {activeTab === "activities" && "Nhật Ký Hoạt Động"}
           </h1>
+          <NotificationBell href={notificationHref} />
         </header>
 
         {/* Container */}

@@ -16,4 +16,5 @@ public interface IAppointmentRepository
     Task<IReadOnlyList<Appointment>> GetAllAsync(CancellationToken cancellationToken = default);
     Task AddAsync(Appointment appointment, CancellationToken cancellationToken = default);
     Task UpdateAsync(Appointment appointment, CancellationToken cancellationToken = default);
-}   
+    Task<Guid?> GetDentistUserIdAsync(Guid dentistId, CancellationToken cancellationToken = default);
+}

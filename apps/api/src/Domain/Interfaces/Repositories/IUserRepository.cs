@@ -16,6 +16,7 @@ public interface IUserRepository
         string? search, string? role, string? status,
         int page, int pageSize, CancellationToken ct = default);
     Task<StaffStatsResult> GetStaffStatsAsync(CancellationToken ct = default);
+    Task<IReadOnlyList<Guid>> GetUserIdsByRoleAsync(string role, CancellationToken ct = default);
 }
 
 public record StaffStatsResult(int TotalEmployees, int TotalDentists, int TotalDoctors);

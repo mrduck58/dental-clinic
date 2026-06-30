@@ -1,22 +1,18 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import AdminSidebar from "../../../components/shared/AdminSidebar";
 import NotificationBell from "../../../components/shared/NotificationBell";
 import { useRequireAdmin } from "../../../hooks/useRequireAdmin";
+import {
+  getNotificationsApi,
+  markNotificationReadApi,
+  markAllNotificationsReadApi,
+  type NotificationPagedDto,
+} from "../../../lib/apiClient";
 
-type NotifType = "system" | "account" | "schedule" | "service" | "security" | "reminder";
+type NotifType = "system" | "account" | "schedule" | "service" | "security" | "reminder" | "appointment";
 type PriorityType = "high" | "medium" | "low";
-
-interface Notification {
-  id: string;
-  timestamp: string;
-  type: NotifType;
-  priority: PriorityType;
-  title: string;
-  body: string;
-  read: boolean;
-}
 
 const TYPE_CONFIG: Record<NotifType, { label: string; iconPath: string; iconBg: string; iconColor: string; borderColor: string }> = {
   system: {
@@ -61,34 +57,24 @@ const TYPE_CONFIG: Record<NotifType, { label: string; iconPath: string; iconBg: 
     borderColor: "border-violet-400",
     iconPath: "M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0",
   },
+  appointment: {
+    label: "Lịch hẹn",
+    iconBg: "bg-sky-50",
+    iconColor: "text-sky-600",
+    borderColor: "border-sky-400",
+    iconPath: "M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5",
+  },
 };
 
+const FALLBACK_TYPE: typeof TYPE_CONFIG[NotifType] = TYPE_CONFIG.system;
+
 const PRIORITY_CONFIG: Record<PriorityType, { label: string; badgeClass: string; dotClass: string }> = {
-  high:   { label: "Cao",    badgeClass: "bg-red-50 text-red-700 border border-red-100",     dotClass: "bg-red-500"    },
+  high:   { label: "Cao",   badgeClass: "bg-red-50 text-red-700 border border-red-100",      dotClass: "bg-red-500"    },
   medium: { label: "Vừa",   badgeClass: "bg-amber-50 text-amber-700 border border-amber-100", dotClass: "bg-amber-500" },
   low:    { label: "Thấp",  badgeClass: "bg-slate-100 text-slate-500 border border-slate-200", dotClass: "bg-slate-400" },
 };
 
-const MOCK_NOTIFS: Notification[] = [
-  { id: "N001", timestamp: "2026-06-12T08:05:00", type: "security",  priority: "high",   read: false, title: "Đăng nhập từ IP bất thường",             body: "Phát hiện đăng nhập tài khoản Trần Thị Hương từ IP 103.45.67.89 — không thuộc mạng nội bộ. Kiểm tra và xử lý nếu cần." },
-  { id: "N002", timestamp: "2026-06-12T08:32:00", type: "account",   priority: "medium", read: false, title: "Tài khoản mới được tạo",                  body: "Admin đã tạo tài khoản \"Trần Quốc Bảo\" với vai trò Bác sĩ. Email kích hoạt đã được gửi đến tranbao@songiangdental.vn." },
-  { id: "N003", timestamp: "2026-06-12T09:00:00", type: "schedule",  priority: "high",   read: false, title: "Lịch làm việc tuần 25 chưa được duyệt",   body: "Lịch làm việc tuần 25 (16/06–22/06/2026) đã được tạo nhưng chưa có xác nhận từ Trưởng phòng. Thời hạn duyệt: 13/06/2026." },
-  { id: "N004", timestamp: "2026-06-12T09:30:00", type: "service",   priority: "low",    read: false, title: "Dịch vụ \"Cấy ghép Implant\" được cập nhật", body: "Giá dịch vụ đã được điều chỉnh từ 15.000.000đ lên 16.500.000đ. Vui lòng thông báo đến bộ phận lễ tân và tư vấn." },
-  { id: "N005", timestamp: "2026-06-12T10:15:00", type: "reminder",  priority: "medium", read: false, title: "Nhắc nhở: Báo cáo tháng 6 đến hạn nộp",   body: "Báo cáo hoạt động và doanh thu tháng 6/2026 cần nộp trước ngày 30/06/2026. Đề nghị bộ phận kế toán chuẩn bị sớm." },
-  { id: "N006", timestamp: "2026-06-12T11:00:00", type: "system",    priority: "high",   read: false, title: "Sao lưu hệ thống thất bại",                body: "Tiến trình sao lưu tự động lúc 03:00 ngày 12/06 không hoàn thành. Lý do: dung lượng ổ đĩa máy chủ backup còn dưới 5%. Liên hệ IT ngay." },
-  { id: "N008", timestamp: "2026-06-12T13:45:00", type: "schedule",  priority: "low",    read: true,  title: "Đơn xin nghỉ mới từ nhân viên",           body: "Phạm Văn Bình (Kế toán) gửi đơn xin nghỉ phép ngày 18/06/2026. Đề nghị xem xét và phê duyệt trong vòng 2 ngày làm việc." },
-  { id: "N009", timestamp: "2026-06-12T14:20:00", type: "service",   priority: "medium", read: true,  title: "Dịch vụ \"Tẩy trắng răng Zoom\" được tạo",  body: "Dịch vụ mới đã được thêm vào hệ thống bởi Admin Nguyễn Minh Đức. Kiểm tra thông tin và kích hoạt trước khi hiển thị trên website." },
-  { id: "N010", timestamp: "2026-06-12T15:00:00", type: "reminder",  priority: "low",    read: true,  title: "3 phản hồi khách hàng chờ xử lý",         body: "Có 3 phản hồi mới từ khách hàng chưa được phản hồi quá 48 giờ. Đề nghị bộ phận lễ tân xử lý sớm để đảm bảo chất lượng dịch vụ." },
-  { id: "N011", timestamp: "2026-06-11T17:30:00", type: "security",  priority: "medium", read: true,  title: "Cập nhật chứng chỉ SSL thành công",       body: "Chứng chỉ SSL cho tên miền songiangdental.vn đã được gia hạn thành công. Hiệu lực đến 11/06/2027. Không cần thao tác thêm." },
-  { id: "N012", timestamp: "2026-06-11T16:00:00", type: "system",    priority: "low",    read: true,  title: "Cập nhật hệ thống hoàn tất",              body: "Hệ thống đã được nâng cấp lên phiên bản v2.4.1 thành công lúc 15:58. Một số tính năng mới đã được kích hoạt. Xem chi tiết trong Release Notes." },
-  { id: "N014", timestamp: "2026-06-11T11:00:00", type: "reminder",  priority: "medium", read: true,  title: "Nhắc nhở: Kiểm định thiết bị nha khoa",   body: "7 thiết bị nha khoa tại Phòng 2 và Phòng 4 đến kỳ kiểm định định kỳ vào ngày 20/06/2026. Đề nghị sắp xếp lịch với đơn vị kiểm định." },
-  { id: "N015", timestamp: "2026-06-11T09:15:00", type: "service",   priority: "low",    read: true,  title: "5 dịch vụ sắp hết hạn khuyến mãi",       body: "Các chương trình ưu đãi \"Giảm 15% niềng răng\", \"Combo tẩy trắng + lấy cao răng\" và 3 dịch vụ khác sẽ hết hạn vào 15/06/2026." },
-  { id: "N016", timestamp: "2026-06-10T16:45:00", type: "schedule",  priority: "high",   read: true,  title: "Bác sĩ Nguyễn Hòa xin nghỉ đột xuất",    body: "Bs. Nguyễn Hòa thông báo không thể đến làm việc ngày 13/06/2026 do lý do cá nhân. Cần phân công bác sĩ thay thế hoặc đổi lịch hẹn." },
-  { id: "N017", timestamp: "2026-06-10T14:00:00", type: "system",    priority: "medium", read: true,  title: "Dung lượng lưu trữ đạt 78%",              body: "Máy chủ chính hiện đang sử dụng 78% dung lượng lưu trữ (780GB / 1TB). Đề nghị IT kiểm tra và dọn dẹp các file log cũ trước khi đạt 90%." },
-  { id: "N018", timestamp: "2026-06-10T10:30:00", type: "account",   priority: "low",    read: true,  title: "Cập nhật thông tin hồ sơ tài khoản",     body: "Admin đã cập nhật số điện thoại và địa chỉ email liên hệ cho tài khoản \"receptionist_huong\". Thay đổi có hiệu lực ngay lập tức." },
-  { id: "N019", timestamp: "2026-06-09T15:20:00", type: "reminder",  priority: "high",   read: true,  title: "Nhắc nhở: Họp giao ban tháng 6",          body: "Cuộc họp giao ban định kỳ tháng 6/2026 sẽ diễn ra vào 08:00 ngày 15/06/2026 tại Phòng họp A. Đề nghị toàn bộ nhân sự tham dự đúng giờ." },
-  { id: "N020", timestamp: "2026-06-09T09:00:00", type: "security",  priority: "low",    read: true,  title: "Quét bảo mật định kỳ hoàn tất",           body: "Quét bảo mật tự động hoàn tất lúc 02:30 ngày 09/06. Không phát hiện lỗ hổng nghiêm trọng. Báo cáo đầy đủ đã được lưu vào hệ thống." },
-];
+const FALLBACK_PRIORITY: typeof PRIORITY_CONFIG[PriorityType] = PRIORITY_CONFIG.low;
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
 
@@ -100,17 +86,30 @@ function getPageNumbers(current: number, total: number): (number | "...")[] {
 }
 
 function timeAgo(ts: string): string {
-  const diff = Math.floor((new Date("2026-06-12T16:00:00").getTime() - new Date(ts).getTime()) / 1000);
+  const diff = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
   if (diff < 60) return "Vừa xong";
   if (diff < 3600) return `${Math.floor(diff / 60)} phút trước`;
   if (diff < 86400) return `${Math.floor(diff / 3600)} giờ trước`;
   return `${Math.floor(diff / 86400)} ngày trước`;
 }
 
+function capitalize(s: string) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+interface Stats {
+  total: number;
+  unread: number;
+  highPriorityUnread: number;
+  securityCount: number;
+}
+
 export default function NotificationsPage() {
   useRequireAdmin();
 
-  const [notifs, setNotifs] = useState<Notification[]>(MOCK_NOTIFS);
+  const [data, setData] = useState<NotificationPagedDto | null>(null);
+  const [stats, setStats] = useState<Stats>({ total: 0, unread: 0, highPriorityUnread: 0, securityCount: 0 });
+  const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
@@ -120,35 +119,73 @@ export default function NotificationsPage() {
 
   const resetPage = () => setCurrentPage(1);
 
-  const unreadCount = notifs.filter((n) => !n.read).length;
+  const fetchListRef = useRef<() => Promise<void>>(async () => {});
+  const fetchStatsRef = useRef<() => Promise<void>>(async () => {});
 
-  const filteredNotifs = useMemo(() => {
-    return notifs.filter((n) => {
-      const q = searchQuery.toLowerCase();
-      const matchesSearch =
-        q === "" ||
-        n.title.toLowerCase().includes(q) ||
-        n.body.toLowerCase().includes(q);
-      const matchesType = typeFilter === "all" || n.type === typeFilter;
-      const matchesPriority = priorityFilter === "all" || n.priority === priorityFilter;
-      const matchesRead =
-        readFilter === "all" ||
-        (readFilter === "unread" && !n.read) ||
-        (readFilter === "read" && n.read);
-      return matchesSearch && matchesType && matchesPriority && matchesRead;
-    });
-  }, [notifs, searchQuery, typeFilter, priorityFilter, readFilter]);
+  const fetchList = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await getNotificationsApi({
+        type:     typeFilter !== "all" ? capitalize(typeFilter) : undefined,
+        priority: priorityFilter !== "all" ? capitalize(priorityFilter) : undefined,
+        isRead:   readFilter === "all" ? undefined : readFilter === "read",
+        search:   searchQuery || undefined,
+        page:     currentPage,
+        pageSize,
+      });
+      setData(res);
+    } catch { /* silently ignore fetch errors */ }
+    finally { setLoading(false); }
+  }, [typeFilter, priorityFilter, readFilter, searchQuery, currentPage, pageSize]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredNotifs.length / pageSize));
-  const safePage = Math.min(currentPage, totalPages);
+  const fetchStats = useCallback(async () => {
+    try {
+      const [baseRes, highRes, secRes] = await Promise.all([
+        getNotificationsApi({ pageSize: 1 }),
+        getNotificationsApi({ priority: "High", isRead: false, pageSize: 1 }),
+        getNotificationsApi({ type: "Security", pageSize: 1 }),
+      ]);
+      setStats({
+        total: baseRes.totalCount,
+        unread: baseRes.unreadCount,
+        highPriorityUnread: highRes.totalCount,
+        securityCount: secRes.totalCount,
+      });
+    } catch { /* silently ignore */ }
+  }, []);
+
+  useEffect(() => { fetchListRef.current = fetchList; }, [fetchList]);
+  useEffect(() => { fetchStatsRef.current = fetchStats; }, [fetchStats]);
+
+  useEffect(() => { fetchListRef.current(); }, [fetchList]);
+  useEffect(() => { fetchStatsRef.current(); }, []);
+
+  const refresh = useCallback(() => {
+    fetchListRef.current();
+    fetchStatsRef.current();
+  }, []);
+
+  const markRead = async (id: string) => {
+    try {
+      await markNotificationReadApi(id);
+      refresh();
+    } catch { /* ignore */ }
+  };
+
+  const markAllRead = async () => {
+    try {
+      await markAllNotificationsReadApi();
+      refresh();
+    } catch { /* ignore */ }
+  };
+
+  const unreadCount = stats.unread;
+  const totalPages = data?.totalPages ?? 1;
+  const safePage = Math.min(currentPage, Math.max(1, totalPages));
   const startIndex = (safePage - 1) * pageSize;
-  const pagedNotifs = filteredNotifs.slice(startIndex, startIndex + pageSize);
   const pageNumbers = getPageNumbers(safePage, totalPages);
-
-  const markRead = (id: string) =>
-    setNotifs((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
-
-  const markAllRead = () => setNotifs((prev) => prev.map((n) => ({ ...n, read: true })));
+  const pagedNotifs = data?.items ?? [];
+  const totalCount = data?.totalCount ?? 0;
 
   const selectClass =
     "w-full px-4 py-2.5 text-[13px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-bold text-slate-600 appearance-none pr-8 cursor-pointer";
@@ -176,7 +213,7 @@ export default function NotificationsPage() {
             <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm hover-lift flex items-center justify-between hover:border-primary/40 transition-all duration-200">
               <div>
                 <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Tổng thông báo</span>
-                <span className="text-3xl font-black text-slate-900 block mt-1">{notifs.length}</span>
+                <span className="text-3xl font-black text-slate-900 block mt-1">{stats.total}</span>
                 <span className="text-[12px] text-slate-400 font-semibold block mt-0.5">Toàn bộ hệ thống</span>
               </div>
               <div className="w-12 h-12 rounded-xl bg-sky-50 text-secondary flex items-center justify-center shrink-0">
@@ -211,10 +248,8 @@ export default function NotificationsPage() {
               <div>
                 <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Ưu tiên cao</span>
                 <div className="flex items-center gap-2 mt-1">
-                  <span className="text-3xl font-black text-slate-900 leading-none">
-                    {notifs.filter((n) => n.priority === "high" && !n.read).length}
-                  </span>
-                  {notifs.filter((n) => n.priority === "high" && !n.read).length > 0 && (
+                  <span className="text-3xl font-black text-slate-900 leading-none">{stats.highPriorityUnread}</span>
+                  {stats.highPriorityUnread > 0 && (
                     <span className="relative flex h-3 w-3 mb-0.5">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
@@ -233,9 +268,7 @@ export default function NotificationsPage() {
             <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm hover-lift flex items-center justify-between hover:border-primary/40 transition-all duration-200">
               <div>
                 <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Bảo mật</span>
-                <span className="text-3xl font-black text-slate-900 block mt-1">
-                  {notifs.filter((n) => n.type === "security").length}
-                </span>
+                <span className="text-3xl font-black text-slate-900 block mt-1">{stats.securityCount}</span>
                 <span className="text-[12px] text-slate-400 font-semibold block mt-0.5">Cảnh báo bảo mật</span>
               </div>
               <div className="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
@@ -329,7 +362,7 @@ export default function NotificationsPage() {
                 <span className="text-[12.5px] text-slate-400 font-semibold whitespace-nowrap">mục / trang</span>
                 <span className="text-[12.5px] text-slate-300 font-semibold">·</span>
                 <span className="text-[12.5px] text-slate-400 font-semibold whitespace-nowrap">
-                  <span className="font-bold text-slate-600">{filteredNotifs.length}</span> kết quả
+                  <span className="font-bold text-slate-600">{totalCount}</span> kết quả
                 </span>
               </div>
               {unreadCount > 0 && (
@@ -348,22 +381,28 @@ export default function NotificationsPage() {
 
           {/* NOTIFICATION LIST */}
           <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden flex flex-col">
-            {pagedNotifs.length > 0 ? (
+            {loading ? (
+              <div className="flex items-center justify-center py-20">
+                <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : pagedNotifs.length > 0 ? (
               <ul className="divide-y divide-slate-100">
                 {pagedNotifs.map((notif) => {
-                  const typeCfg = TYPE_CONFIG[notif.type];
-                  const priCfg = PRIORITY_CONFIG[notif.priority];
+                  const typeKey = notif.type.toLowerCase() as NotifType;
+                  const typeCfg = TYPE_CONFIG[typeKey] ?? FALLBACK_TYPE;
+                  const prioKey = notif.priority.toLowerCase() as PriorityType;
+                  const priCfg = PRIORITY_CONFIG[prioKey] ?? FALLBACK_PRIORITY;
                   return (
                     <li
                       key={notif.id}
                       className={`flex items-start gap-4 px-6 py-4 transition-colors ${
-                        !notif.read
+                        !notif.isRead
                           ? "bg-red-50/20 hover:bg-red-50/30"
                           : "hover:bg-slate-50/50"
                       }`}
                     >
                       {/* Unread indicator bar */}
-                      <div className={`self-stretch w-0.5 rounded-full shrink-0 mt-1 ${!notif.read ? typeCfg.borderColor.replace("border-", "bg-") : "bg-transparent"}`} />
+                      <div className={`self-stretch w-0.5 rounded-full shrink-0 mt-1 ${!notif.isRead ? typeCfg.borderColor.replace("border-", "bg-") : "bg-transparent"}`} />
 
                       {/* Icon */}
                       <div className={`w-10 h-10 rounded-xl ${typeCfg.iconBg} ${typeCfg.iconColor} flex items-center justify-center shrink-0 mt-0.5`}>
@@ -376,19 +415,19 @@ export default function NotificationsPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-3 flex-wrap">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className={`text-[14px] font-black leading-snug ${!notif.read ? "text-slate-900" : "text-slate-700"}`}>
+                            <span className={`text-[14px] font-black leading-snug ${!notif.isRead ? "text-slate-900" : "text-slate-700"}`}>
                               {notif.title}
                             </span>
-                            {!notif.read && (
+                            {!notif.isRead && (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-black bg-primary text-white">
                                 MỚI
                               </span>
                             )}
                           </div>
-                          <span className="text-[12px] text-slate-400 font-semibold whitespace-nowrap shrink-0">{timeAgo(notif.timestamp)}</span>
+                          <span className="text-[12px] text-slate-400 font-semibold whitespace-nowrap shrink-0">{timeAgo(notif.createdAt)}</span>
                         </div>
 
-                        <p className={`mt-1 text-[13px] leading-relaxed ${!notif.read ? "text-slate-600 font-medium" : "text-slate-500"}`}>
+                        <p className={`mt-1 text-[13px] leading-relaxed ${!notif.isRead ? "text-slate-600 font-medium" : "text-slate-500"}`}>
                           {notif.body}
                         </p>
 
@@ -410,13 +449,13 @@ export default function NotificationsPage() {
                       </div>
 
                       {/* Mark read button */}
-                      {!notif.read && (
+                      {!notif.isRead && (
                         <button
                           onClick={() => markRead(notif.id)}
                           title="Đánh dấu đã đọc"
                           className="shrink-0 mt-1 p-2 rounded-full text-slate-400 hover:text-primary hover:bg-red-50 transition-all cursor-pointer"
                         >
-                          <svg className="w-4.5 h-4.5" style={{width:"1.125rem",height:"1.125rem"}} fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                          <svg style={{width:"1.125rem",height:"1.125rem"}} fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                           </svg>
                         </button>
@@ -438,11 +477,11 @@ export default function NotificationsPage() {
             )}
 
             {/* FOOTER — pagination */}
-            {filteredNotifs.length > 0 && (
+            {totalCount > 0 && !loading && (
               <div className="px-5 py-3.5 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50/30">
                 <span className="text-[12.5px] text-slate-400 font-semibold whitespace-nowrap">
-                  {startIndex + 1}–{Math.min(startIndex + pageSize, filteredNotifs.length)} trong{" "}
-                  <span className="font-bold text-slate-600">{filteredNotifs.length}</span> thông báo
+                  {startIndex + 1}–{Math.min(startIndex + pageSize, totalCount)} trong{" "}
+                  <span className="font-bold text-slate-600">{totalCount}</span> thông báo
                 </span>
 
                 <div className="flex items-center gap-1">

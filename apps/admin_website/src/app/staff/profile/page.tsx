@@ -16,6 +16,7 @@ export default function StaffProfilePage() {
     }>
       <ProfilePageContent
         sidebar={<StaffSidebar activeMenu="profile" />}
+        notificationHref="/staff/notifications"
       />
     </Suspense>
   );

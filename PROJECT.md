@@ -14,7 +14,7 @@
 | Mobile App | `apps/mobile/` | Flutter | Patient app; ~10 features |
 
 **Database**: PostgreSQL via Supabase (connection string in `appsettings.json`)  
-**Realtime**: Supabase Realtime (`postgres_changes`) — enabled on `ActivityLogs` table  
+**Realtime**: Supabase Realtime (`postgres_changes`) — enabled on `ActivityLogs` and `Notifications` tables  
 **Auth**: JWT (access + refresh tokens), roles stored per-user in DB
 
 ---
@@ -24,8 +24,8 @@
 ```
 Domain/          ← Entities, Interfaces (Repos + Services), Constants, Enums — no dependencies
 Application/     ← Use Cases (Handlers), DTOs — depends on Domain only
-Infrastructure/  ← EF Core (AppDbContext), Repository impls, ActivityLogService, JwtService, EmailService
-Presentation/    ← 18 Controllers, JWT Middleware, DI Registration
+Infrastructure/  ← EF Core (AppDbContext), Repository impls, Services
+Presentation/    ← 19 Controllers, JWT Middleware, DI Registration
 tests/           ← Domain.Tests / Application.Tests / Infrastructure.Tests
 ```
 
@@ -41,7 +41,7 @@ tests/           ← Domain.Tests / Application.Tests / Infrastructure.Tests
 
 ---
 
-## Domain Entities (24)
+## Domain Entities (25)
 
 | Entity | PK Type | Notes |
 |--------|---------|-------|
@@ -58,10 +58,11 @@ tests/           ← Domain.Tests / Application.Tests / Infrastructure.Tests
 | Feedback | `Guid` | patient feedback on services |
 | Promotion | `Guid` | discount promotions |
 | **ActivityLog** | **`int`** | audit trail — int PK intentional: sequential, insert-ordered, avoids UUID fragmentation |
+| **Notification** | **`Guid`** | per-user notifications with type, priority, read state, optional relatedEntity |
 
 ---
 
-## API Controllers (18)
+## API Controllers (19)
 
 | Controller | Route | Key Operations |
 |-----------|-------|---------------|
@@ -79,6 +80,7 @@ tests/           ← Domain.Tests / Application.Tests / Infrastructure.Tests
 | Feedback | `/api/feedback` | CRUD |
 | Promotions | `/api/promotions` | CRUD |
 | **ActivityLogs** | `/api/activity-logs` | GET paged+filtered; params: action, module, status, search, startDate, endDate, page, pageSize |
+| **Notifications** | `/api/notifications` | GET paged+filtered, PUT read, PUT read-all, DELETE |
 
 ---
 
@@ -94,11 +96,11 @@ tests/           ← Domain.Tests / Application.Tests / Infrastructure.Tests
 | — | Invoice + Payment | — | ✅ Merged |
 | — | Feedback, Promotions | — | ✅ Merged |
 | 126 | Stock In / Stock Out (Inventory) | `feat/126-Stock-In-Stock-Out` | ✅ Merged |
-| **135** | **Activity Logging System — full stack** | `feature/135-activity-logs-api` | 🔄 In Progress |
+| **135** | **Activity Logging + Notification System — full stack** | `feature/135-activity-logs-api` | 🔄 In Progress |
 
 ---
 
-## Feature #135 — Activity Logging System (current)
+## Feature #135 — Activity Logging System
 
 ### API — New Files
 - `Domain/Entities/ActivityLog.cs` — entity with int PK, factory method `Create(...)`
@@ -122,19 +124,93 @@ Covered: login, account CRUD, appointment transitions, medicine, inventory, leav
   - CSV export with current filter state (pageSize: 10000)
   - Realtime badge: animate-ping green dot + "Realtime" label in header
 
-### Tests Added (24 new)
+### Tests Added (24)
 | File | Tests |
 |------|-------|
 | `Domain.Tests/ActivityLogs/ActivityLogTests.cs` | 9 |
 | `Application.Tests/ActivityLogs/GetActivityLogsHandlerTests.cs` | 9 |
 | `Infrastructure.Tests/Services/ActivityLogServiceTests.cs` | 6 |
 
-### Commits (branch: `feature/135-activity-logs-api`)
-```
-6ec6e1d refactor(api):#135-clean up activity log code structure
-abb880b test(api, admin):#135-fix broken tests and add NUnit tests for activity logging
-b51dae4 feat(api, admin):#135-implement activity logging system end-to-end
-```
+---
+
+## Feature #135 — Notification System (same branch)
+
+### Notification triggers (who gets notified and when)
+
+| Event | Recipient | Type | Priority |
+|-------|-----------|------|----------|
+| Staff/Dentist creates LeaveRequest | **All Owners** | Schedule | Medium |
+| Admin/Owner approves LeaveRequest | Requester (Staff/Dentist) | Schedule | Medium |
+| Admin/Owner rejects LeaveRequest | Requester (Staff/Dentist) | Schedule | High |
+| Patient books Appointment | **Dentist** (assigned) | Appointment | High |
+| Patient books Appointment | **All Staff** | Appointment | High |
+| Staff confirms Appointment | Dentist | Appointment | Medium |
+| Patient/Staff cancels Appointment | Dentist | Appointment | High |
+| Patient checks in (Appointment) | Dentist | Appointment | High |
+
+### API — New Files
+- `Domain/Entities/Notification.cs` — Guid PK, UserId, Type, Priority, Title, Body, IsRead, ReadAt, RelatedEntityType?, RelatedEntityId?
+- `Domain/Interfaces/Services/INotificationService.cs` — `CreateAsync`, `CreateForMultipleUsersAsync`, `MarkAsReadAsync`, `MarkAllAsReadAsync`, `DeleteAsync`
+- `Domain/Constants/NotificationType.cs` — System, Account, Schedule, Service, Security, Reminder, Appointment
+- `Domain/Constants/NotificationPriority.cs` — High, Medium, Low
+- `Infrastructure/Services/NotificationService.cs` — fire-and-forget pattern; all methods wrapped in try/catch
+- `Infrastructure/Repositories/NotificationRepository.cs` — paged query with type/priority/isRead/search filters; `unreadCount` in response
+- `Application/UseCases/Notifications/` — GetNotificationsHandler, MarkNotificationReadHandler, MarkAllNotificationsReadHandler, DeleteNotificationHandler
+- `Presentation/Controllers/NotificationsController.cs` — GET/PUT/DELETE `/api/notifications`
+
+### API — Modified handlers (notification injection)
+- `CreateLeaveRequestHandler` — notifies **Owner** role (was Admin); `IUserRepository.GetUserIdsByRoleAsync("Owner")`
+- `ApproveLeaveRequestHandler` — notifies requester (Schedule/Medium)
+- `RejectLeaveRequestHandler` — notifies requester (Schedule/High)
+- `CreateAppointmentHandler` — notifies dentist (Appointment/High) + **all Staff** (Appointment/High)
+- `UpdateAppointmentStatusHandler.ConfirmAsync` — notifies dentist (Appointment/Medium)
+- `UpdateAppointmentStatusHandler.CancelAsync` — notifies dentist (Appointment/High)
+- `UpdateAppointmentStatusHandler.CheckInAsync` — notifies dentist (Appointment/High)
+- `IAppointmentRepository` — added `GetDentistUserIdAsync(Guid dentistId)` to bridge DentistId → UserId
+
+### Frontend — Notification pages (4 roles)
+| Page | Path | Sidebar entry |
+|------|------|--------------|
+| Admin | `app/admin/notifications/page.tsx` | Added to `AdminSidebar` |
+| Dentist | `app/dentist/notifications/page.tsx` | Added to `DentistSidebar` |
+| Staff | `app/staff/notifications/page.tsx` | Already in `StaffSidebar` |
+| Owner | `app/owner/notifications/page.tsx` | Already in `OwnerSidebar` |
+
+**Common page features** (all 4 roles):
+- Filter tabs: all / unread / type-specific (role-dependent)
+- Group notifications by date
+- Optimistic mark-read + delete (refetch on error)
+- Loading spinner + empty state
+- "· Xem chi tiết →" label + clickable `<Link>` when `relatedEntityType` is set
+
+**Role-specific navigation on click**:
+| Role | relatedEntityType | Navigates to |
+|------|------------------|-------------|
+| Owner | `LeaveRequest` | `/owner/leaves/{id}` |
+| Staff | `Appointment` | `/staff/appointments` |
+
+### Frontend — NotificationBell component
+- `components/shared/NotificationBell.tsx` — dropdown with last 5 notifications
+- Supabase Realtime: subscribes to INSERT on `Notifications` table → auto-refresh
+- `useRef` pattern to avoid stale closure in Realtime callback
+- Props: `href` — "Xem tất cả" link destination (role-specific)
+- Embedded in: `DentistPageHeader`, `StaffPageHeader`, `ProfilePageContent`, all admin/owner inline headers
+- `admin/leaves/page.tsx` and `admin/leaves/[id]/page.tsx` — replaced static bell button
+
+### Frontend — Sidebar updates
+| Sidebar | Change |
+|---------|--------|
+| `AdminSidebar` | Added "Thông báo" link → `/admin/notifications` |
+| `DentistSidebar` | Added "Thông báo" entry to `NAV_ITEMS` → `/dentist/notifications` |
+| `StaffSidebar` | Already had "Thông báo" |
+| `OwnerSidebar` | Already had "Thông báo" |
+
+### Tests Added (notification — current session)
+| File | Tests | Notes |
+|------|-------|-------|
+| `Application.Tests/LeaveRequests/CreateLeaveRequestHandlerTests.cs` | 7 | Fixed constructor (added `INotificationService`, `IUserRepository`); added 2 notification tests |
+| `Application.Tests/Appointments/UpdateAppointmentStatusHandlerTests.cs` | existing+3 | Fixed constructor (added `INotificationService`); added dentist-notify tests for Confirm/Cancel/CheckIn |
+| `Application.Tests/Appointments/CreateAppointmentHandlerTests.cs` | 7 | New file; tests patient creation, slot conflict, dentist notify, staff notify |
 
 ---
 
@@ -143,9 +219,9 @@ b51dae4 feat(api, admin):#135-implement activity logging system end-to-end
 | Project | Files | Tests |
 |---------|-------|-------|
 | Domain.Tests | ~20 | ~80 |
-| Application.Tests | ~45 | ~180 |
+| Application.Tests | ~48 | ~197 |
 | Infrastructure.Tests | ~23 | ~62 |
-| **Total** | **88** | **322** |
+| **Total** | **~91** | **~339** |
 
 **Stack**: NUnit 4 + NSubstitute + FluentAssertions  
 **Run**: `dotnet test` from `apps/api/`  
@@ -161,9 +237,14 @@ b51dae4 feat(api, admin):#135-implement activity logging system end-to-end
 | `EF.Functions.ILike` for search | Native PostgreSQL case-insensitive; faster than `ToLower().Contains()` (which forces full-scan) |
 | `endDate` normalization | If `TimeOfDay == TimeSpan.Zero` (date-only input), extend to `AddDays(1).AddTicks(-1)` — full day included |
 | ActivityLogService swallows exceptions | Log failure must never break the main business flow; logs a Warning so engineers see dropped logs |
+| NotificationService swallows exceptions | Same rationale — notification failure must not break appointment/leave business flows |
+| `CreateNotificationRequest` parameter object | Avoids SonarQube S107 (max 7 constructor params) on handlers that also inject ActivityLog + CurrentUser |
+| `GetDentistUserIdAsync` on IAppointmentRepository | `Appointment.DentistId` is a Dentist profile ID, not a UserId — needs a join to resolve; kept in repo layer |
+| Leave notifications → Owner (not Admin) | Owner is the role responsible for HR decisions; Admin is technical/system role |
+| Appointment notifications → Staff | Staff (receptionists) manage scheduling and need to know about new bookings immediately |
 | Constants in `Domain/Constants/` | String sentinel values for `switch`/comparison — distinct from CLR enums in `Domain/Enums/` |
-| `useRef` for page in realtime callback | Stale closure: callback captures initial `currentPage` state; ref always holds the current value |
-| Supabase Realtime on INSERT only | Sufficient for audit log; UPDATE/DELETE not applicable to append-only log |
+| `useRef` for page in realtime callback | Stale closure: callback captures initial state; ref always holds the current value |
+| Supabase Realtime on INSERT only | Sufficient for audit log and notifications; UPDATE/DELETE not applicable to append-only patterns |
 | Primary constructor DI (C# 12) | Used throughout entire API; cleaner than separate field + constructor body |
 | `ICurrentUserService` | Abstracts `HttpContext` user claims; injected into handlers needing current user (userId, role, email) |
 
@@ -174,22 +255,22 @@ b51dae4 feat(api, admin):#135-implement activity logging system end-to-end
 ```
 apps/api/src/
   Domain/
-    Entities/               ← 24 entities
+    Entities/               ← 25 entities (incl. ActivityLog, Notification)
     Interfaces/
-      Repositories/         ← 16 interfaces (IActivityLogRepository, IAppointmentRepository, ...)
-      Services/             ← IActivityLogService, IJwtService, IEmailService, ICurrentUserService
-    Constants/              ← ActivityAction, ActivityModule, ActivityStatus (string values)
+      Repositories/         ← 17 interfaces (IActivityLogRepository, INotificationRepository, ...)
+      Services/             ← IActivityLogService, INotificationService, IJwtService, IEmailService, ICurrentUserService
+    Constants/              ← ActivityAction/Module/Status, NotificationType, NotificationPriority (string values)
     Enums/                  ← EmploymentType, SalaryUnit, ... (CLR enums)
   Application/
-    UseCases/               ← 83 handlers, one per use case
+    UseCases/               ← 90+ handlers, one per use case
     DTOs/                   ← request/response records
   Infrastructure/
     Persistence/
       AppDbContext.cs
       Repositories/         ← EF Core implementations
-    Services/               ← ActivityLogService, JwtService, EmailService
+    Services/               ← ActivityLogService, NotificationService, JwtService, EmailService
   Presentation/
-    Controllers/            ← 18 thin controllers
+    Controllers/            ← 19 thin controllers
     Middleware/             ← JWT auth
     DependencyInjection/    ← service registration
 tests/
@@ -197,11 +278,23 @@ tests/
   Application.Tests/
   Infrastructure.Tests/
 
-apps/admin_website/src/app/admin/
-  activity-logs/page.tsx    ← Realtime + real API (current work)
-  dashboard/
-  appointments/
-  accounts/
-  inventory/
-  ... (70+ pages total)
+apps/admin_website/src/
+  app/
+    admin/
+      notifications/page.tsx     ← real API, stats cards, pagination, type filters
+      activity-logs/page.tsx     ← Realtime + real API
+      leaves/page.tsx            ← NotificationBell (replaced static button)
+      leaves/[id]/page.tsx       ← NotificationBell (replaced static button)
+    dentist/notifications/page.tsx
+    staff/notifications/page.tsx ← tab "Đặt lịch", links to /staff/appointments
+    owner/notifications/page.tsx ← links LeaveRequest → /owner/leaves/{id}
+  components/shared/
+    NotificationBell.tsx         ← dropdown, Supabase Realtime, role-aware href
+    AdminSidebar.tsx             ← added "Thông báo" nav item
+    DentistSidebar.tsx           ← added "Thông báo" to NAV_ITEMS
+    StaffSidebar.tsx             ← already had "Thông báo"
+    OwnerSidebar.tsx             ← already had "Thông báo"
+    ProfilePageContent.tsx       ← added NotificationBell + notificationHref prop
+    DentistPageHeader.tsx        ← has NotificationBell built in
+    StaffPageHeader.tsx          ← has NotificationBell built in
 ```
