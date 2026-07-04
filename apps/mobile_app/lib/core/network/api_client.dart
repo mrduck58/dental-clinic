@@ -53,6 +53,16 @@ class ApiClient {
     );
   }
 
+  Future<Response<dynamic>> delete(
+    String path, {
+    String? token,
+  }) {
+    return _dio.delete(
+      path,
+      options: _options(token),
+    );
+  }
+
   Options? _options(String? token) => token != null
       ? Options(headers: {'Authorization': 'Bearer $token'})
       : null;

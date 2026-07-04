@@ -15,6 +15,21 @@ class FamilyMembersPage extends StatefulWidget {
 
 class _FamilyMembersPageState extends State<FamilyMembersPage> {
   final _familyService = FamilyService();
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMembers();
+  }
+
+  Future<void> _loadMembers() async {
+    setState(() => _isLoading = true);
+    await _familyService.loadFromServer();
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
+  }
 
   String _getEnglishRelationship(String rel) {
     switch (rel) {
@@ -70,8 +85,10 @@ class _FamilyMembersPageState extends State<FamilyMembersPage> {
         ),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(18.0),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(18.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -175,7 +192,7 @@ class _FamilyMembersPageState extends State<FamilyMembersPage> {
                           extra: member,
                         );
                         if (updated == true && mounted) {
-                          setState(() {});
+                          _loadMembers();
                         }
                       },
                       child: Row(
@@ -266,7 +283,7 @@ class _FamilyMembersPageState extends State<FamilyMembersPage> {
         onPressed: () async {
           final added = await context.push(AppRoutes.addFamilyMember);
           if (added == true && mounted) {
-            setState(() {});
+            _loadMembers();
           }
         },
         backgroundColor: AppColors.primary,

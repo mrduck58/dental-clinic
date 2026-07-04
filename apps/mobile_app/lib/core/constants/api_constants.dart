@@ -19,4 +19,6 @@ abstract class ApiConstants {
   static const String posts = '/posts';
   static const String appointments = '/appointments';
   static const String myAppointments = '/appointments/my';
+  static const String medicalHistory = '/patients/my-medical-history';
+  static const String familyMembers = '/patients/family-members';
 }

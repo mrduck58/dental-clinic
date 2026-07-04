@@ -27,6 +27,7 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
   String _ownerPatientId = '#8821';
   FamilyMember? _selectedMember;
   List<FamilyMember> _familyMembers = [];
+  bool _isDropdownOpen = false;
 
   Map<String, List<String>> _allergiesMap = {};
   Map<String, List<String>> _chronicMap = {};
@@ -51,6 +52,7 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
   Future<void> _loadUserInfo() async {
     try {
       final p = await _auth.getMyProfile();
+      await _familyService.loadFromServer();
       setState(() {
         _ownerName = p.fullName.isNotEmpty ? p.fullName : 'Alex Johnson';
         _ownerPatientId = _getPatientId(p.id);
@@ -62,6 +64,9 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
         _isLoading = false;
       });
     } catch (_) {
+      try {
+        await _familyService.loadFromServer();
+      } catch (_) {}
       setState(() {
         _familyMembers = _familyService.getMembers();
         _isLoading = false;
@@ -70,73 +75,62 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
   }
 
   Future<void> _loadMedicalData() async {
-    final prefs = await SharedPreferences.getInstance();
-    
-    final rawAllergies = prefs.getString('medical_allergies');
-    if (rawAllergies != null) {
-      _allergiesMap = Map<String, List<String>>.from(
-        (jsonDecode(rawAllergies) as Map).map((k, v) => MapEntry(k as String, List<String>.from(v as List))),
-      );
-    } else {
-      _allergiesMap = {
-        'self': ['Penicillin|CAO', 'Nhựa cao su (Latex)|NHẸ'],
-        'member_1': ['Aspirin|CAO', 'Mạt bụi|NHẸ'],
-        'member_2': ['Đậu phộng|CAO'],
-        'member_3': ['Hải sản|CAO', 'Phấn hoa|NHẸ'],
-      };
-      await prefs.setString('medical_allergies', jsonEncode(_allergiesMap));
-    }
+    final memberId = _selectedMember?.id;
+    final key = memberId ?? 'self';
 
-    final rawChronic = prefs.getString('medical_chronic');
-    if (rawChronic != null) {
-      _chronicMap = Map<String, List<String>>.from(
-        (jsonDecode(rawChronic) as Map).map((k, v) => MapEntry(k as String, List<String>.from(v as List))),
-      );
-    } else {
-      _chronicMap = {
-        'self': [
-          'Tiểu đường tuýp 2|Chẩn đoán: 2019  •  BS. Sarah Williams',
-          'Cao huyết áp|Kiểm soát từ 2021  •  Theo dõi hàng ngày'
-        ],
-        'member_1': [
-          'Hen suyễn|Chẩn đoán: 2015  •  BS. Sarah Williams',
-          'Đau nửa đầu (Migraine)|Kiểm soát từ 2020'
-        ],
-        'member_2': ['Không có bệnh lý mãn tính|Sức khỏe tốt'],
-        'member_3': ['Viêm mũi dị ứng|Theo dõi theo mùa'],
-      };
-      await prefs.setString('medical_chronic', jsonEncode(_chronicMap));
-    }
+    try {
+      final jsonStr = memberId == null
+          ? await _auth.getMyMedicalHistory()
+          : await _auth.getFamilyMemberMedicalHistory(memberId);
 
-    final rawMedications = prefs.getString('medical_medications');
-    if (rawMedications != null) {
-      _medicationsMap = Map<String, List<String>>.from(
-        (jsonDecode(rawMedications) as Map).map((k, v) => MapEntry(k as String, List<String>.from(v as List))),
-      );
-    } else {
-      _medicationsMap = {
-        'self': ['Metformin|500mg  •  2 lần / ngày', 'Lisinopril|10mg  •  Mỗi buổi sáng'],
-        'member_1': ['Albuterol Inhaler|Sử dụng khi cần thiết', 'Sumatriptan|50mg  •  Khi bắt đầu đau đầu'],
-        'member_2': ['Multivitamin Gummies|1 viên / ngày'],
-        'member_3': ['Claritin|10mg  •  Mỗi buổi tối'],
-      };
-      await prefs.setString('medical_medications', jsonEncode(_medicationsMap));
+      if (jsonStr != null && jsonStr.isNotEmpty) {
+        final decoded = jsonDecode(jsonStr) as Map<String, dynamic>;
+        
+        _allergiesMap[key] = decoded['allergies'] != null
+            ? List<String>.from(decoded['allergies'] as List)
+            : [];
+        _chronicMap[key] = decoded['chronic'] != null
+            ? List<String>.from(decoded['chronic'] as List)
+            : [];
+        _medicationsMap[key] = decoded['medications'] != null
+            ? List<String>.from(decoded['medications'] as List)
+            : [];
+      } else {
+        // Start empty if database has no record yet
+        _allergiesMap[key] = [];
+        _chronicMap[key] = [];
+        _medicationsMap[key] = [];
+      }
+      setState(() {});
+    } catch (e) {
+      debugPrint("Failed to load medical history: $e");
     }
-    
-    setState(() {});
   }
 
   Future<void> _saveMedicalData(String type, String memberKey, List<String> items) async {
-    final prefs = await SharedPreferences.getInstance();
     if (type == 'allergies') {
       _allergiesMap[memberKey] = items;
-      await prefs.setString('medical_allergies', jsonEncode(_allergiesMap));
     } else if (type == 'chronic') {
       _chronicMap[memberKey] = items;
-      await prefs.setString('medical_chronic', jsonEncode(_chronicMap));
     } else if (type == 'medications') {
       _medicationsMap[memberKey] = items;
-      await prefs.setString('medical_medications', jsonEncode(_medicationsMap));
+    }
+    
+    try {
+      final jsonStr = jsonEncode({
+        'allergies': _allergiesMap[memberKey] ?? [],
+        'chronic': _chronicMap[memberKey] ?? [],
+        'medications': _medicationsMap[memberKey] ?? [],
+      });
+      
+      final memberId = _selectedMember?.id;
+      if (memberId == null) {
+        await _auth.updateMyMedicalHistory(jsonStr);
+      } else {
+        await _auth.updateFamilyMemberMedicalHistory(memberId, jsonStr);
+      }
+    } catch (e) {
+      debugPrint("Failed to save medical history: $e");
     }
     setState(() {});
   }
@@ -276,67 +270,38 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Theme(
-                                data: Theme.of(context).copyWith(
-                                  canvasColor: AppColors.primary,
-                                ),
-                                child: DropdownButtonHideUnderline(
-                                  child: DropdownButton<FamilyMember?>(
-                                    value: _selectedMember,
-                                    isExpanded: true,
-                                    icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white, size: 24),
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w800,
-                                      fontFamily: 'Nunito',
-                                    ),
-                                    dropdownColor: AppColors.primary,
-                                    selectedItemBuilder: (BuildContext context) {
-                                      return [
-                                        Text(
-                                          '$_ownerName (${isVi ? "Bản thân" : "Self"})',
-                                          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800, overflow: TextOverflow.ellipsis),
+                              GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _isDropdownOpen = !_isDropdownOpen;
+                                  });
+                                },
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        _selectedMember == null
+                                            ? '$_ownerName (${isVi ? "Bản thân" : "Self"})'
+                                            : '${_selectedMember!.fullName} (${_selectedMember!.relationship})',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w800,
+                                          fontFamily: 'Nunito',
                                         ),
-                                        ..._familyMembers.map((member) {
-                                          return Text(
-                                            '${member.fullName} (${member.relationship})',
-                                            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800, overflow: TextOverflow.ellipsis),
-                                          );
-                                        }),
-                                      ];
-                                    },
-                                    items: [
-                                      DropdownMenuItem<FamilyMember?>(
-                                        value: null,
-                                        child: Text(
-                                          '$_ownerName (${isVi ? "Bản thân" : "Self"})',
-                                          style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
-                                        ),
+                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                      ..._familyMembers.map((member) {
-                                        return DropdownMenuItem<FamilyMember?>(
-                                          value: member,
-                                          child: Text(
-                                            '${member.fullName} (${member.relationship})',
-                                            style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
-                                          ),
-                                        );
-                                      }),
-                                    ],
-                                    onChanged: (val) {
-                                      setState(() {
-                                        _selectedMember = val;
-                                        if (val == null) {
-                                          _userName = _ownerName;
-                                          _patientId = _ownerPatientId;
-                                        } else {
-                                          _userName = val.fullName;
-                                          _patientId = _getPatientId(val.id);
-                                        }
-                                      });
-                                    },
-                                  ),
+                                    ),
+                                    AnimatedRotation(
+                                      turns: _isDropdownOpen ? 0.5 : 0.0,
+                                      duration: const Duration(milliseconds: 200),
+                                      child: const Icon(
+                                        Icons.keyboard_arrow_down_rounded,
+                                        color: Colors.white,
+                                        size: 24,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                               const SizedBox(height: 2),
@@ -354,6 +319,115 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
                       ],
                     ),
                   ),
+                  if (_isDropdownOpen) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: context.card,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: context.divider),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: context.isDark ? 0.12 : 0.03),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          ListTile(
+                            leading: Container(
+                              width: 34,
+                              height: 34,
+                              decoration: BoxDecoration(
+                                color: _selectedMember == null ? AppColors.primary : context.divider,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.person,
+                                color: _selectedMember == null ? Colors.white : context.textSecondary,
+                                size: 18,
+                              ),
+                            ),
+                            title: Text(
+                              '$_ownerName (${isVi ? "Bản thân" : "Self"})',
+                              style: TextStyle(
+                                  fontSize: 14.5,
+                                  fontWeight: _selectedMember == null ? FontWeight.w800 : FontWeight.w600,
+                                  color: context.textPrimary,
+                              ),
+                            ),
+                            trailing: _selectedMember == null
+                                ? const Icon(Icons.check_circle_rounded, color: AppColors.primary, size: 20)
+                                : null,
+                            onTap: () {
+                              setState(() {
+                                _selectedMember = null;
+                                _userName = _ownerName;
+                                _patientId = _ownerPatientId;
+                                _isDropdownOpen = false;
+                              });
+                              _loadMedicalData();
+                            },
+                          ),
+                          if (_familyMembers.isNotEmpty) Divider(color: context.divider, height: 1),
+                          ..._familyMembers.map((member) {
+                            final isSelected = _selectedMember?.id == member.id;
+                            return Column(
+                              children: [
+                                ListTile(
+                                  leading: Container(
+                                    width: 34,
+                                    height: 34,
+                                    decoration: BoxDecoration(
+                                      color: isSelected ? AppColors.primary : context.divider,
+                                      shape: BoxShape.circle,
+                                      image: member.profilePictureUrl != null
+                                          ? DecorationImage(
+                                              image: AssetImage(member.profilePictureUrl!),
+                                              fit: BoxFit.cover,
+                                            )
+                                          : null,
+                                    ),
+                                    child: member.profilePictureUrl == null
+                                        ? Icon(
+                                            Icons.person,
+                                            color: isSelected ? Colors.white : context.textSecondary,
+                                            size: 18,
+                                          )
+                                        : null,
+                                  ),
+                                  title: Text(
+                                    '${member.fullName} (${member.relationship})',
+                                    style: TextStyle(
+                                      fontSize: 14.5,
+                                      fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                                      color: context.textPrimary,
+                                    ),
+                                  ),
+                                  trailing: isSelected
+                                      ? const Icon(Icons.check_circle_rounded, color: AppColors.primary, size: 20)
+                                      : null,
+                                  onTap: () {
+                                    setState(() {
+                                      _selectedMember = member;
+                                      _userName = member.fullName;
+                                      _patientId = _getPatientId(member.id);
+                                      _isDropdownOpen = false;
+                                    });
+                                    _loadMedicalData();
+                                  },
+                                ),
+                                if (member != _familyMembers.last)
+                                  Divider(color: context.divider, height: 1),
+                              ],
+                            );
+                          }),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 24),
 
                   // Allergies Section

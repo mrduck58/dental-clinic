@@ -220,6 +220,66 @@ class AuthService {
     );
   }
 
+  Future<String?> getMyMedicalHistory() async {
+    final token = await getToken();
+    if (token == null) throw Exception('Chưa đăng nhập.');
+    final res = await _client.get(ApiConstants.medicalHistory, token: token);
+    return res.data['medicalHistory'] as String?;
+  }
+
+  Future<void> updateMyMedicalHistory(String jsonStr) async {
+    final token = await getToken();
+    if (token == null) throw Exception('Chưa đăng nhập.');
+    await _client.put(
+      ApiConstants.medicalHistory,
+      {'medicalHistory': jsonStr},
+      token: token,
+    );
+  }
+
+  Future<String?> getFamilyMemberMedicalHistory(String patientId) async {
+    final token = await getToken();
+    if (token == null) throw Exception('Chưa đăng nhập.');
+    final res = await _client.get('/patients/$patientId/medical-history', token: token);
+    return res.data['medicalHistory'] as String?;
+  }
+
+  Future<void> updateFamilyMemberMedicalHistory(String patientId, String jsonStr) async {
+    final token = await getToken();
+    if (token == null) throw Exception('Chưa đăng nhập.');
+    await _client.put(
+      '/patients/$patientId/medical-history',
+      {'medicalHistory': jsonStr},
+      token: token,
+    );
+  }
+
+  Future<List<dynamic>> getFamilyMembers() async {
+    final token = await getToken();
+    if (token == null) throw Exception('Chưa đăng nhập.');
+    final res = await _client.get(ApiConstants.familyMembers, token: token);
+    return res.data as List<dynamic>;
+  }
+
+  Future<Map<String, dynamic>> createFamilyMember(Map<String, dynamic> data) async {
+    final token = await getToken();
+    if (token == null) throw Exception('Chưa đăng nhập.');
+    final res = await _client.post(ApiConstants.familyMembers, data, token: token);
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<void> updateFamilyMember(String id, Map<String, dynamic> data) async {
+    final token = await getToken();
+    if (token == null) throw Exception('Chưa đăng nhập.');
+    await _client.put('${ApiConstants.familyMembers}/$id', data, token: token);
+  }
+
+  Future<void> deleteFamilyMember(String id) async {
+    final token = await getToken();
+    if (token == null) throw Exception('Chưa đăng nhập.');
+    await _client.delete('${ApiConstants.familyMembers}/$id', token: token);
+  }
+
   // ── Token storage ──────────────────────────────────────────────────────────
 
   Future<void> saveToken(String token) async {

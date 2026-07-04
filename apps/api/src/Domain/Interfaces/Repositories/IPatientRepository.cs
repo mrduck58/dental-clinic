@@ -9,4 +9,6 @@ public interface IPatientRepository
     Task<IReadOnlyList<Patient>> GetAllAsync(CancellationToken cancellationToken = default);
     Task AddAsync(Patient patient, CancellationToken cancellationToken = default);
     Task UpdateAsync(Patient patient, CancellationToken cancellationToken = default);
+    Task DeleteAsync(Patient patient, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Patient>> GetFamilyMembersAsync(Guid primaryPatientId, CancellationToken cancellationToken = default);
 }
