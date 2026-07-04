@@ -35,3 +35,10 @@ public record CreateSupplyItemRequest(
     string Unit,
     int Quantity,
     int MinQuantity);
+
+public record StockImportRequest(
+    string Name,
+    string Unit,
+    string Category,
+    int Quantity,
+    string? Note);

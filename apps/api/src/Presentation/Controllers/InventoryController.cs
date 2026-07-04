@@ -14,7 +14,8 @@ public class InventoryController(
     CreateSupplyItemHandler createItem,
     CreateSupplyTransactionHandler createTransaction,
     GetMaterialRequestsHandler getMaterialRequests,
-    MarkMaterialRequestDoneHandler markMaterialRequestDone) : ControllerBase
+    MarkMaterialRequestDoneHandler markMaterialRequestDone,
+    StockImportHandler stockImport) : ControllerBase
 {
     /// <summary>GET api/inventory/items — Danh sách vật tư</summary>
     [HttpGet("items")]
@@ -64,6 +65,19 @@ public class InventoryController(
     public async Task<IActionResult> GetMaterialRequests([FromQuery] string? status, CancellationToken ct)
     {
         var result = await getMaterialRequests.HandleAsync(status, ct);
+        return Ok(result);
+    }
+
+    /// <summary>POST api/inventory/stock-import — Nhập kho thông minh (tạo mới hoặc cộng vào vật tư đã có)</summary>
+    [HttpPost("stock-import")]
+    public async Task<IActionResult> StockImport(
+        [FromBody] StockImportRequest request,
+        CancellationToken ct)
+    {
+        var createdBy = User.FindFirst("username")?.Value
+            ?? User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value
+            ?? "Nhân viên";
+        var result = await stockImport.HandleAsync(request, createdBy, ct);
         return Ok(result);
     }
 

@@ -1132,6 +1132,28 @@ export async function createSupplyTransactionApi(
   return res.json() as Promise<SupplyTransactionDto>;
 }
 
+export interface StockImportRequest {
+  name: string;
+  unit: string;
+  category: string;
+  quantity: number;
+  note?: string;
+}
+
+export async function stockImportApi(data: StockImportRequest): Promise<SupplyTransactionDto> {
+  const res = await fetch(`${API_URL}/api/inventory/stock-import`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Nhập kho thất bại");
+  }
+  return res.json() as Promise<SupplyTransactionDto>;
+}
+
 // ── Material requests (yêu cầu vật tư từ bác sĩ) ─────────────────────────────
 
 export interface MaterialRequestDto {
