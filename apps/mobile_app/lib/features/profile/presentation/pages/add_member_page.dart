@@ -70,7 +70,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
     return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
   }
 
-  void _save() {
+  Future<void> _save() async {
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) {
       _showSnackbar('Họ và tên không được để trống');
@@ -95,7 +95,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
       profilePictureUrl: 'assets/images/bac_si_4.png', // Default female avatar or placeholder
     );
 
-    _familyService.addMember(newMember);
+    await _familyService.addMember(newMember);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

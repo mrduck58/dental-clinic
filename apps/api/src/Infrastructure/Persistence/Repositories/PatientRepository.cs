@@ -35,4 +35,17 @@ public class PatientRepository(AppDbContext dbContext) : IPatientRepository
         dbContext.Patients.Update(patient);
         await dbContext.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task DeleteAsync(Patient patient, CancellationToken cancellationToken = default)
+    {
+        dbContext.Patients.Remove(patient);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Patient>> GetFamilyMembersAsync(Guid primaryPatientId, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Patients
+            .Where(p => p.PrimaryPatientId == primaryPatientId)
+            .ToListAsync(cancellationToken);
+    }
 }

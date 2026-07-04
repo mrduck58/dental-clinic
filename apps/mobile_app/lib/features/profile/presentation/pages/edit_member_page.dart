@@ -82,7 +82,7 @@ class _EditMemberPageState extends State<EditMemberPage> {
     return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
   }
 
-  void _save() {
+  Future<void> _save() async {
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) {
       _showSnackbar('Họ và tên không được để trống');
@@ -107,7 +107,7 @@ class _EditMemberPageState extends State<EditMemberPage> {
       profilePictureUrl: widget.member.profilePictureUrl,
     );
 
-    _familyService.updateMember(updated);
+    await _familyService.updateMember(updated);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -147,7 +147,7 @@ class _EditMemberPageState extends State<EditMemberPage> {
     );
 
     if (confirm == true) {
-      _familyService.removeMember(widget.member.id);
+      await _familyService.removeMember(widget.member.id);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

@@ -147,7 +147,7 @@ export default function LeaveDetailPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
               </svg>
               <p className="mt-4 text-[16px] font-bold text-slate-500">Không tìm thấy đơn nghỉ phép</p>
-              <Link href="/dashboard/leaves"
+              <Link href="/owner/leaves"
                 className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-primary text-white text-[14px] font-bold rounded-xl transition-all">
                 Quay lại danh sách
               </Link>
@@ -171,7 +171,7 @@ export default function LeaveDetailPage() {
         {/* HEADER */}
         <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 shadow-sm shadow-slate-100/50">
           <div className="flex items-center gap-4">
-            <Link href="/dashboard/leaves"
+            <Link href="/owner/leaves"
               className="p-2 text-slate-400 hover:text-primary hover:bg-slate-100 rounded-xl transition-all cursor-pointer">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
@@ -319,7 +319,7 @@ export default function LeaveDetailPage() {
                     <h3 className="text-[16px] font-extrabold text-slate-900">{leave.userFullName}</h3>
                     <p className="mt-1 text-[13px] text-slate-500 font-semibold">{leave.department ?? "—"}</p>
                   </div>
-                  <Link href="/dashboard/leaves"
+                  <Link href="/owner/leaves"
                     className="mt-1 text-[12.5px] text-primary font-bold hover:underline cursor-pointer">
                     ← Xem tất cả đơn
                   </Link>
@@ -399,7 +399,7 @@ export default function LeaveDetailPage() {
 function PageHeader() {
   return (
     <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center shrink-0 shadow-sm shadow-slate-100/50">
-      <Link href="/dashboard/leaves"
+      <Link href="/owner/leaves"
         className="flex items-center gap-2 text-slate-500 hover:text-primary transition-all cursor-pointer">
         <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
