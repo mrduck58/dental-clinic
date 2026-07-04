@@ -6,12 +6,13 @@ namespace DentalClinic.API.Presentation.Controllers;
 
 [ApiController]
 [Route("api/activity-logs")]
-[Authorize(Roles = "Admin,Owner")]
+[Authorize(Roles = "Admin,Owner,Dentist,Staff")]
 public class ActivityLogsController(GetActivityLogsHandler getActivityLogsHandler) : ControllerBase
 {
     /// <summary>GET api/activity-logs — Lấy danh sách activity log có filter và phân trang</summary>
     [HttpGet]
     public async Task<IActionResult> GetActivityLogs(
+        [FromQuery] Guid? userId,
         [FromQuery] string? action,
         [FromQuery] string? module,
         [FromQuery] string? status,
@@ -23,7 +24,7 @@ public class ActivityLogsController(GetActivityLogsHandler getActivityLogsHandle
         CancellationToken cancellationToken = default)
     {
         var result = await getActivityLogsHandler.HandleAsync(
-            new GetActivityLogsQuery(action, module, status, search, startDate, endDate, page, pageSize),
+            new GetActivityLogsQuery(userId, action, module, status, search, startDate, endDate, page, pageSize),
             cancellationToken);
 
         return Ok(result);
