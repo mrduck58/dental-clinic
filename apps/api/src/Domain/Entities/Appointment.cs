@@ -64,7 +64,14 @@ public class Appointment
     public void StartTreatment() => Status = AppointmentStatus.InProgress;
     public void EndTreatment() => Status = AppointmentStatus.PendingPayment;
     public void Complete() => Status = AppointmentStatus.Completed;
-    public void Cancel() => Status = AppointmentStatus.Cancelled;
+    public void Cancel(string? reason = null)
+    {
+        Status = AppointmentStatus.Cancelled;
+        if (!string.IsNullOrEmpty(reason))
+        {
+            Notes = string.IsNullOrEmpty(Notes) ? $"Lý do hủy: {reason}" : $"{Notes} | Lý do hủy: {reason}";
+        }
+    }
 
     /// <summary>Gắn buổi hẹn vào một liệu trình dài hạn.</summary>
     public void AssignToCourse(Guid courseId) => CourseId = courseId;

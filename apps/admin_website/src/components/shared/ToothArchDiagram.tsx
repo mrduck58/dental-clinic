@@ -8,8 +8,8 @@ export const ARCH_H = AVPAD + ACURVE + ATH + AGAP + ACURVE + ATH + AVPAD; // 160
 const U_BASE = AVPAD;
 const L_BASE = AVPAD + ACURVE + ATH + AGAP + ACURVE;
 
-export const UPPER_TEETH = ["18","17","16","15","14","13","12","11","21","22","23","24","25","26","27","28"];
-export const LOWER_TEETH = ["48","47","46","45","44","43","42","41","31","32","33","34","35","36","37","38"];
+export const UPPER_TEETH = ["17","16","15","14","13","12","11","21","22","23","24","25","26","27"];
+export const LOWER_TEETH = ["47","46","45","44","43","42","41","31","32","33","34","35","36","37"];
 
 export const TOOTH_COLOR: Record<ToothStatus | "selected", string> = {
   normal:   "bg-white border-slate-300 text-slate-600",
@@ -30,8 +30,8 @@ export const TOOTH_LEGEND = [
   { status: "implant", label: "Implant"     },
 ] as const;
 
-function archPos(idx: number, baseY: number, upper: boolean) {
-  const t = idx / 15;
+function archPos(idx: number, baseY: number, upper: boolean, count: number) {
+  const t = idx / (count - 1);
   const dip = 4 * t * (1 - t) * ACURVE;
   return { xPct: 4 + t * 92, y: upper ? baseY + dip : baseY - dip, rot: (0.5 - t) * 26 };
 }
@@ -53,7 +53,8 @@ export default function ToothArchDiagram({
 }: Props) {
 
   const renderTooth = (num: string, idx: number, upper: boolean) => {
-    const { xPct, y, rot } = archPos(idx, upper ? U_BASE : L_BASE, upper);
+    const count = upper ? UPPER_TEETH.length : LOWER_TEETH.length;
+    const { xPct, y, rot } = archPos(idx, upper ? U_BASE : L_BASE, upper, count);
     const isSelected = selected.has(num);
     const status     = isSelected ? "selected" : (teeth[num] ?? "normal");
     const origin     = upper ? "center top" : "center bottom";
@@ -77,8 +78,7 @@ export default function ToothArchDiagram({
           ${TOOTH_COLOR[status]}`}
         title={`Răng ${num}`}
       >
-        <span style={{ fontSize: 8 }} className="opacity-40 leading-none">🦷</span>
-        <span style={{ fontSize: 9 }} className="font-black leading-none">{num}</span>
+        <span className="font-extrabold text-[11px] leading-none">{num}</span>
       </button>
     );
   };

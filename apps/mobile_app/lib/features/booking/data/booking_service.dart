@@ -95,4 +95,18 @@ class BookingService {
     );
     return ApiAppointmentResult.fromJson(res.data as Map<String, dynamic>);
   }
+
+  /// Hủy lịch khám
+  Future<void> cancelAppointment(String appointmentId, String reason) async {
+    final token = await _auth.getToken();
+    if (token == null) throw Exception('Chưa đăng nhập.');
+
+    await _client.put(
+      '${ApiConstants.appointments}/$appointmentId/cancel',
+      {
+        'reason': reason,
+      },
+      token: token,
+    );
+  }
 }

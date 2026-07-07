@@ -5,7 +5,7 @@ import NotificationBell from "./NotificationBell";
 
 interface DentistPageHeaderProps {
   title: string;
-  subtitle?: string;
+  subtitle?: React.ReactNode;
   left?: React.ReactNode;
   right?: React.ReactNode;
 }
@@ -35,7 +35,7 @@ export default function DentistPageHeader({ title, subtitle, left, right }: Dent
         {left}
         <div className="min-w-0">
           <h1 className="text-[18px] font-black text-slate-900 leading-tight truncate">{title}</h1>
-          {subtitle && <p className="text-[12.5px] text-slate-400 font-semibold mt-0.5 truncate">{subtitle}</p>}
+          {subtitle && <div className="text-[12.5px] text-slate-400 font-semibold mt-0.5">{subtitle}</div>}
         </div>
       </div>
       <div className="flex items-center gap-2.5 shrink-0">

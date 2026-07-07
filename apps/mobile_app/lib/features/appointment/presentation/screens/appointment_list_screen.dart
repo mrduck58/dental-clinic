@@ -55,7 +55,11 @@ class _AppointmentListScreenState extends State<AppointmentListScreen> {
           : ListView.builder(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
               itemCount: items.length,
-              itemBuilder: (_, i) => _AppointmentCard(item: items[i], isVi: isVi),
+              itemBuilder: (_, i) => _AppointmentCard(
+                item: items[i],
+                isVi: isVi,
+                onRefresh: _load,
+              ),
             ),
     );
   }
@@ -147,7 +151,12 @@ class _AppointmentListScreenState extends State<AppointmentListScreen> {
 class _AppointmentCard extends StatelessWidget {
   final MyAppointmentItem item;
   final bool isVi;
-  const _AppointmentCard({required this.item, required this.isVi});
+  final VoidCallback onRefresh;
+  const _AppointmentCard({
+    required this.item,
+    required this.isVi,
+    required this.onRefresh,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -259,7 +268,10 @@ class _AppointmentCard extends StatelessWidget {
               width: double.infinity,
               height: 38,
               child: OutlinedButton(
-                onPressed: () => context.push(AppRoutes.appointmentDetails, extra: item),
+                onPressed: () async {
+                  await context.push(AppRoutes.appointmentDetails, extra: item);
+                  onRefresh();
+                },
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.primary,
                   side: const BorderSide(color: AppColors.primary),
@@ -281,10 +293,16 @@ class _AppointmentCard extends StatelessWidget {
     switch (status.toLowerCase()) {
       case 'confirmed':
         return (isVi ? 'Đã xác nhận' : 'Confirmed', const Color(0xFF16A34A), const Color(0xFFDCFCE7));
+      case 'checkedin':
+        return (isVi ? 'Đã check-in' : 'Checked In', const Color(0xFF4F46E5), const Color(0xFFEEF2FF));
+      case 'inprogress':
+        return (isVi ? 'Đang khám' : 'In Progress', const Color(0xFF0284C7), const Color(0xFFE0F2FE));
+      case 'pendingpayment':
+        return (isVi ? 'Chờ thanh toán' : 'Pending Payment', const Color(0xFFEA580C), const Color(0xFFFFEDD5));
       case 'completed':
-        return (isVi ? 'Hoàn thành' : 'Completed', const Color(0xFF0284C7), const Color(0xFFE0F2FE));
+        return (isVi ? 'Hoàn thành' : 'Completed', const Color(0xFF16A34A), const Color(0xFFDCFCE7));
       case 'cancelled':
-        return (isVi ? 'Đã hủy' : 'Cancelled', const Color(0xFF64748B), const Color(0xFFF1F5F9));
+        return (isVi ? 'Đã hủy' : 'Cancelled', const Color(0xFFEF4444), const Color(0xFFFEE2E2));
       default:
         return (isVi ? 'Chờ xác nhận' : 'Pending', const Color(0xFFD97706), const Color(0xFFFEF3C7));
     }
