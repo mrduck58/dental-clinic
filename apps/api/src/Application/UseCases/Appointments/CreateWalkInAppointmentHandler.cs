@@ -26,7 +26,11 @@ public class CreateWalkInAppointmentHandler(AppDbContext dbContext)
 {
     public async Task<CreateWalkInResult> HandleAsync(CreateWalkInCommand cmd, CancellationToken ct = default)
     {
-        // 1. Kiểm tra slot còn trống
+        // 1. Không cho đặt lịch cho khung giờ đã qua (chặn cả trường hợp bypass UI).
+        if (cmd.AppointmentDate < DateTimeOffset.UtcNow)
+            throw new ValidationException("Không thể đặt lịch cho khung giờ đã qua.");
+
+        // 2. Kiểm tra slot còn trống
         var isBooked = await dbContext.Appointments.AnyAsync(a =>
             a.DentistId == cmd.DentistId &&
             a.AppointmentDate == cmd.AppointmentDate &&
@@ -35,7 +39,7 @@ public class CreateWalkInAppointmentHandler(AppDbContext dbContext)
         if (isBooked)
             throw new ConflictException("Khung giờ này đã được đặt. Vui lòng chọn giờ khác.");
 
-        // 2. Tìm bệnh nhân theo số điện thoại (qua tài khoản), hoặc tạo mới
+        // 3. Tìm bệnh nhân theo số điện thoại (qua tài khoản), hoặc tạo mới
         var patient = await dbContext.Patients
             .Include(p => p.User)
             .FirstOrDefaultAsync(p => p.User != null && p.User.PhoneNumber == cmd.PatientPhone, ct);
@@ -53,7 +57,7 @@ public class CreateWalkInAppointmentHandler(AppDbContext dbContext)
             patient.SetGender(cmd.Gender);
         }
 
-        // 3. Tạo lịch hẹn, bỏ qua Pending → Confirmed ngay (đặt tại quầy)
+        // 4. Tạo lịch hẹn, bỏ qua Pending → Confirmed ngay (đặt tại quầy)
         var appointment = Appointment.Create(
             patient.Id, cmd.DentistId, cmd.AppointmentDate,
             symptoms: cmd.Symptoms, serviceId: cmd.ServiceId);

@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.Appointments;
 
-public record StaffScheduleSlot(string Time, bool IsBooked, string? PatientName);
+public record StaffScheduleSlot(string Time, bool IsBooked, string? PatientName, bool IsPast);
 
 public record StaffScheduleDentistDto(
     Guid DentistId,
@@ -39,8 +39,11 @@ public class GetStaffScheduleHandler(AppDbContext dbContext)
         var utcEnd   = utcStart.AddDays(1);
 
         // 1. Lịch làm việc hôm nay (bác sĩ, không phải ngày nghỉ)
+        //    Chỉ chấp nhận Shift hợp lệ ("morning"/"afternoon") — dữ liệu rác/cũ với giá trị Shift
+        //    khác (vd. khoảng giờ tự do) không được coi là bác sĩ có ca làm việc thật.
         var todaySchedules = await dbContext.WorkSchedules
-            .Where(s => s.Type == "dentist" && !s.IsHoliday && s.Date == date)
+            .Where(s => s.Type == "dentist" && !s.IsHoliday && s.Date == date &&
+                        (s.Shift.ToLower() == "morning" || s.Shift.ToLower() == "afternoon"))
             .ToListAsync(ct);
 
         // Tên bác sĩ làm việc hôm nay → set ca làm việc ("morning"/"afternoon")
@@ -122,6 +125,7 @@ public class GetStaffScheduleHandler(AppDbContext dbContext)
         var utcSlot = vnSlot.ToUniversalTime();
 
         var booked = appts.FirstOrDefault(a => a.AppointmentDate == utcSlot);
-        return new StaffScheduleSlot(time, booked != null, booked?.Patient.FullName);
+        var isPast = utcSlot < DateTimeOffset.UtcNow;
+        return new StaffScheduleSlot(time, booked != null, booked?.Patient.FullName, isPast);
     }
 }
