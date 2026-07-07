@@ -2858,3 +2858,69 @@ export async function getDashboardRecentFeedbackApi(limit = 3): Promise<Dashboar
   }
   return res.json() as Promise<DashboardRecentFeedbackDto>;
 }
+
+// ── Dashboard Staff (Tổng quan lễ tân) ───────────────────────────────────────
+
+export interface StaffDashboardStatsDto {
+  appointmentsTodayCount: number;
+  waitingCheckInCount: number;
+  inProgressCount: number;
+  pendingInvoicesCount: number;
+}
+
+export async function getStaffDashboardStatsApi(): Promise<StaffDashboardStatsDto> {
+  const res = await fetch(`${API_URL}/api/staff-dashboard/stats`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải chỉ số tổng quan");
+  }
+  return res.json() as Promise<StaffDashboardStatsDto>;
+}
+
+export interface StaffDashboardTodayAppointmentDto {
+  id: string;
+  patientName: string;
+  serviceName: string | null;
+  dentistName: string;
+  appointmentDate: string;
+  status: string; // "Confirmed" | "CheckedIn" | "InProgress"
+}
+
+export async function getStaffDashboardTodayAppointmentsApi(
+  limit = 5
+): Promise<StaffDashboardTodayAppointmentDto[]> {
+  const res = await fetch(`${API_URL}/api/staff-dashboard/today-appointments?limit=${limit}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải lịch hẹn hôm nay");
+  }
+  return res.json() as Promise<StaffDashboardTodayAppointmentDto[]>;
+}
+
+export interface StaffDashboardPendingInvoiceDto {
+  id: string;
+  invoiceNumber: string;
+  patientName: string;
+  serviceName: string | null;
+  amount: number;
+}
+
+export async function getStaffDashboardPendingInvoicesApi(
+  limit = 3
+): Promise<StaffDashboardPendingInvoiceDto[]> {
+  const res = await fetch(`${API_URL}/api/staff-dashboard/pending-invoices?limit=${limit}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải hóa đơn chờ thanh toán");
+  }
+  return res.json() as Promise<StaffDashboardPendingInvoiceDto[]>;
+}
