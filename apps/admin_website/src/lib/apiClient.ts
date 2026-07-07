@@ -1713,6 +1713,18 @@ export async function getDentistPatientsApi(date?: string): Promise<DentistPatie
   return res.json() as Promise<DentistPatientsResponse>;
 }
 
+export async function getDentistPastPatientsApi(): Promise<DentistPatientDto[]> {
+  const res = await fetch(`${API_URL}/api/appointments/dentist/patients/past`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách bệnh nhân đã từng khám");
+  }
+  return res.json() as Promise<DentistPatientDto[]>;
+}
+
 export async function rejectLeaveRequestApi(id: string, reviewerNote?: string): Promise<LeaveRequestDto> {
   const res = await fetch(`${API_URL}/api/leave-requests/${id}/reject`, {
     method: "PUT",

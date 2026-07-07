@@ -17,6 +17,7 @@ public class UpdateAppointmentStatusHandlerTests
     private IActivityLogService _activityLog = null!;
     private ICurrentUserService _currentUser = null!;
     private INotificationService _notification = null!;
+    private IPatientRepository _patientRepo = null!;
     private UpdateAppointmentStatusHandler _handler = null!;
 
     [SetUp]
@@ -26,7 +27,8 @@ public class UpdateAppointmentStatusHandlerTests
         _activityLog = Substitute.For<IActivityLogService>();
         _currentUser = Substitute.For<ICurrentUserService>();
         _notification = Substitute.For<INotificationService>();
-        _handler = new UpdateAppointmentStatusHandler(_repo, _activityLog, _notification, _currentUser);
+        _patientRepo = Substitute.For<IPatientRepository>();
+        _handler = new UpdateAppointmentStatusHandler(_repo, _activityLog, _notification, _currentUser, _patientRepo);
     }
 
     private static Appointment MakeAppointment() =>
@@ -213,6 +215,84 @@ public class UpdateAppointmentStatusHandlerTests
         await _notification.Received(1).CreateAsync(
             Arg.Is<CreateNotificationRequest>(r => r.Priority == NotificationPriority.High),
             Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Bệnh nhân hủy lịch hẹn của chính mình thành công.
+    /// </summary>
+    [Test]
+    public async Task CancelAsync_PatientCancelsOwnAppointment_Succeeds()
+    {
+        var id = Guid.NewGuid();
+        var patientUserId = Guid.NewGuid();
+        var patient = Patient.Create("Test Patient", new DateOnly(1990, 1, 1), "Nam", patientUserId);
+        var appt = Appointment.Create(patient.Id, Guid.NewGuid(), DateTimeOffset.UtcNow.AddDays(1));
+
+        _currentUser.IsAuthenticated.Returns(true);
+        _currentUser.UserId.Returns(patientUserId);
+        _currentUser.UserRole.Returns("Patient");
+
+        _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
+        _patientRepo.GetByUserIdAsync(patientUserId, Arg.Any<CancellationToken>()).Returns(patient);
+
+        await _handler.CancelAsync(id, "Bận việc đột xuất");
+
+        appt.Status.Should().Be(AppointmentStatus.Cancelled);
+        appt.Notes.Should().Contain("Bận việc đột xuất");
+        await _repo.Received(1).UpdateAsync(appt, Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Bệnh nhân hủy lịch hẹn của người thân (family member) thành công.
+    /// </summary>
+    [Test]
+    public async Task CancelAsync_PatientCancelsFamilyMemberAppointment_Succeeds()
+    {
+        var id = Guid.NewGuid();
+        var patientUserId = Guid.NewGuid();
+        var patient = Patient.Create("Primary Patient", new DateOnly(1990, 1, 1), "Nam", patientUserId);
+        var familyMember = Patient.Create("Family Member", new DateOnly(2015, 5, 5), "Nam", primaryPatientId: patient.Id, relationship: "Con trai");
+        var appt = Appointment.Create(familyMember.Id, Guid.NewGuid(), DateTimeOffset.UtcNow.AddDays(1));
+
+        _currentUser.IsAuthenticated.Returns(true);
+        _currentUser.UserId.Returns(patientUserId);
+        _currentUser.UserRole.Returns("Patient");
+
+        _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
+        _patientRepo.GetByUserIdAsync(patientUserId, Arg.Any<CancellationToken>()).Returns(patient);
+        _patientRepo.GetFamilyMembersAsync(patient.Id, Arg.Any<CancellationToken>()).Returns(new List<Patient> { familyMember });
+
+        await _handler.CancelAsync(id, "Đổi lịch");
+
+        appt.Status.Should().Be(AppointmentStatus.Cancelled);
+        await _repo.Received(1).UpdateAsync(appt, Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Bệnh nhân hủy lịch hẹn của người khác (không phải của mình hay người thân) sẽ bị từ chối.
+    /// </summary>
+    [Test]
+    public async Task CancelAsync_PatientCancelsOtherAppointment_ThrowsUnauthorizedAccessException()
+    {
+        var id = Guid.NewGuid();
+        var patientUserId = Guid.NewGuid();
+        var patient = Patient.Create("Primary Patient", new DateOnly(1990, 1, 1), "Nam", patientUserId);
+        var otherPatient = Patient.Create("Other Patient", new DateOnly(1995, 2, 2), "Nữ");
+        var appt = Appointment.Create(otherPatient.Id, Guid.NewGuid(), DateTimeOffset.UtcNow.AddDays(1));
+
+        _currentUser.IsAuthenticated.Returns(true);
+        _currentUser.UserId.Returns(patientUserId);
+        _currentUser.UserRole.Returns("Patient");
+
+        _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
+        _patientRepo.GetByUserIdAsync(patientUserId, Arg.Any<CancellationToken>()).Returns(patient);
+        _patientRepo.GetFamilyMembersAsync(patient.Id, Arg.Any<CancellationToken>()).Returns(new List<Patient>());
+
+        Func<Task> act = () => _handler.CancelAsync(id, "Hủy lịch người khác");
+
+        await act.Should().ThrowAsync<UnauthorizedAccessException>();
+        appt.Status.Should().NotBe(AppointmentStatus.Cancelled);
+        await _repo.DidNotReceive().UpdateAsync(appt, Arg.Any<CancellationToken>());
     }
 
     // ── CheckInAsync ──────────────────────────────────────────────────────────
