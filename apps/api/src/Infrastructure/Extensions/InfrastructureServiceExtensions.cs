@@ -1,4 +1,5 @@
 using DentalClinic.API.Application.UseCases.ActivityLogs;
+using DentalClinic.API.Application.UseCases.Dashboard;
 using DentalClinic.API.Application.UseCases.Notifications;
 using DentalClinic.API.Application.UseCases.Appointments;
 using DentalClinic.API.Application.UseCases.Inventory;
@@ -171,6 +172,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<GetActivityLogsHandler>();
         services.AddScoped<GetNotificationsHandler>();
         services.AddScoped<InvoiceHandler>();
+        services.AddScoped<DashboardHandler>();
 
         return services;
     }
