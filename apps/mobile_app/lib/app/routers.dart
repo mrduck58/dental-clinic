@@ -88,7 +88,13 @@ final GoRouter appRouter = GoRouter(
         ),
         GoRoute(
           path: AppRoutes.appointments,
-          builder: (context, state) => const AppointmentListScreen(),
+          builder: (context, state) {
+            final args = state.extra as Map<String, dynamic>?;
+            return AppointmentListScreen(
+              filterPatientId: args?['patientId'] as String?,
+              filterPatientName: args?['patientName'] as String?,
+            );
+          },
         ),
         GoRoute(
           path: AppRoutes.medicalRecords,

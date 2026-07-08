@@ -227,96 +227,79 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ── Red Header Card ──
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primary.withValues(alpha: 0.25),
-                          blurRadius: 16,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 56,
-                          height: 56,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            image: _selectedMember != null && _selectedMember!.profilePictureUrl != null
-                                ? DecorationImage(
-                                    image: AssetImage(_selectedMember!.profilePictureUrl!),
-                                    fit: BoxFit.cover,
-                                  )
-                                : null,
+                  // ── Member Dropdown ──
+                  GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _isDropdownOpen = !_isDropdownOpen;
+                      });
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: context.card,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: context.divider),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: context.isDark ? 0.15 : 0.04),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
                           ),
-                          child: _selectedMember == null || _selectedMember!.profilePictureUrl == null
-                              ? const Icon(
-                                  Icons.assignment_ind_outlined,
-                                  color: AppColors.primary,
-                                  size: 28,
-                                )
-                              : null,
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    _isDropdownOpen = !_isDropdownOpen;
-                                  });
-                                },
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        _selectedMember == null
-                                            ? '$_ownerName (${isVi ? "Bản thân" : "Self"})'
-                                            : '${_selectedMember!.fullName} (${_selectedMember!.relationship})',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w800,
-                                          fontFamily: 'Nunito',
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    AnimatedRotation(
-                                      turns: _isDropdownOpen ? 0.5 : 0.0,
-                                      duration: const Duration(milliseconds: 200),
-                                      child: const Icon(
-                                        Icons.keyboard_arrow_down_rounded,
-                                        color: Colors.white,
-                                        size: 24,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                isVi ? 'Mã BN: $_patientId  •  Cập nhật: 2 ngày trước' : 'Patient ID: $_patientId  •  Updated: 2 days ago',
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.9),
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: const BoxDecoration(
+                              color: AppColors.primaryLight,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              _selectedMember == null ? Iconsax.user : Iconsax.profile_circle,
+                              color: AppColors.primary,
+                              size: 22,
+                            ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _selectedMember == null ? _ownerName : _selectedMember!.fullName,
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w800,
+                                    color: context.textPrimary,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  _selectedMember == null
+                                      ? '${isVi ? "Tôi" : "Self"} · $_ownerPatientId'
+                                      : '${_selectedMember!.relationship} · $_patientId',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: context.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          AnimatedRotation(
+                            turns: _isDropdownOpen ? 0.5 : 0.0,
+                            duration: const Duration(milliseconds: 200),
+                            child: Icon(
+                              Icons.keyboard_arrow_down_rounded,
+                              color: context.textMuted,
+                              size: 22,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   if (_isDropdownOpen) ...[
@@ -328,9 +311,9 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
                         border: Border.all(color: context.divider),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: context.isDark ? 0.12 : 0.03),
+                            color: Colors.black.withValues(alpha: context.isDark ? 0.15 : 0.04),
                             blurRadius: 8,
-                            offset: const Offset(0, 4),
+                            offset: const Offset(0, 3),
                           ),
                         ],
                       ),
@@ -338,24 +321,31 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
                         children: [
                           ListTile(
                             leading: Container(
-                              width: 34,
-                              height: 34,
+                              width: 36,
+                              height: 36,
                               decoration: BoxDecoration(
                                 color: _selectedMember == null ? AppColors.primary : context.divider,
                                 shape: BoxShape.circle,
                               ),
                               child: Icon(
-                                Icons.person,
+                                Iconsax.user,
                                 color: _selectedMember == null ? Colors.white : context.textSecondary,
                                 size: 18,
                               ),
                             ),
                             title: Text(
-                              '$_ownerName (${isVi ? "Bản thân" : "Self"})',
+                              _ownerName,
                               style: TextStyle(
-                                  fontSize: 14.5,
-                                  fontWeight: _selectedMember == null ? FontWeight.w800 : FontWeight.w600,
-                                  color: context.textPrimary,
+                                fontSize: 14.5,
+                                fontWeight: _selectedMember == null ? FontWeight.w800 : FontWeight.w600,
+                                color: context.textPrimary,
+                              ),
+                            ),
+                            subtitle: Text(
+                              isVi ? "Tôi · $_ownerPatientId" : "Self · $_ownerPatientId",
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: context.textSecondary,
                               ),
                             ),
                             trailing: _selectedMember == null
@@ -374,36 +364,36 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
                           if (_familyMembers.isNotEmpty) Divider(color: context.divider, height: 1),
                           ..._familyMembers.map((member) {
                             final isSelected = _selectedMember?.id == member.id;
+                            final memberCode = _getPatientId(member.id);
                             return Column(
                               children: [
                                 ListTile(
                                   leading: Container(
-                                    width: 34,
-                                    height: 34,
+                                    width: 36,
+                                    height: 36,
                                     decoration: BoxDecoration(
                                       color: isSelected ? AppColors.primary : context.divider,
                                       shape: BoxShape.circle,
-                                      image: member.profilePictureUrl != null
-                                          ? DecorationImage(
-                                              image: AssetImage(member.profilePictureUrl!),
-                                              fit: BoxFit.cover,
-                                            )
-                                          : null,
                                     ),
-                                    child: member.profilePictureUrl == null
-                                        ? Icon(
-                                            Icons.person,
-                                            color: isSelected ? Colors.white : context.textSecondary,
-                                            size: 18,
-                                          )
-                                        : null,
+                                    child: Icon(
+                                      Iconsax.profile_circle,
+                                      color: isSelected ? Colors.white : context.textSecondary,
+                                      size: 18,
+                                    ),
                                   ),
                                   title: Text(
-                                    '${member.fullName} (${member.relationship})',
+                                    member.fullName,
                                     style: TextStyle(
                                       fontSize: 14.5,
                                       fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
                                       color: context.textPrimary,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    '${member.relationship} · $memberCode',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: context.textSecondary,
                                     ),
                                   ),
                                   trailing: isSelected
@@ -413,7 +403,7 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
                                     setState(() {
                                       _selectedMember = member;
                                       _userName = member.fullName;
-                                      _patientId = _getPatientId(member.id);
+                                      _patientId = memberCode;
                                       _isDropdownOpen = false;
                                     });
                                     _loadMedicalData();

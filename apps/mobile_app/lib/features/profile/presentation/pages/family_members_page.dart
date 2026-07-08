@@ -185,36 +185,88 @@ class _FamilyMembersPageState extends State<FamilyMembersPage> {
                     Divider(color: context.divider, height: 1),
                     const SizedBox(height: 10),
                     // Action Button
-                    GestureDetector(
-                      onTap: () async {
-                        final updated = await context.push(
-                          '${AppRoutes.editFamilyMember}?id=${member.id}',
-                          extra: member,
-                        );
-                        if (updated == true && mounted) {
-                          _loadMembers();
-                        }
-                      },
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            isVi ? 'XEM HỒ SƠ' : 'VIEW PROFILE',
-                            style: const TextStyle(
-                              color: AppColors.primary,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 0.5,
+                    Row(
+                      children: [
+                        // View Profile Button
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () async {
+                              final updated = await context.push(
+                                '${AppRoutes.editFamilyMember}?id=${member.id}',
+                                extra: member,
+                              );
+                              if (updated == true && mounted) {
+                                _loadMembers();
+                              }
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8.0),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    isVi ? 'HỒ SƠ' : 'PROFILE',
+                                    style: const TextStyle(
+                                      color: AppColors.primary,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  const Icon(
+                                    Icons.arrow_forward_ios_rounded,
+                                    color: AppColors.primary,
+                                    size: 11,
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                          const SizedBox(width: 4),
-                          const Icon(
-                            Icons.arrow_forward_ios_rounded,
-                            color: AppColors.primary,
-                            size: 12,
+                        ),
+                        Container(
+                          width: 1,
+                          height: 16,
+                          color: context.divider,
+                        ),
+                        // View Appointments Button
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              context.push(
+                                AppRoutes.appointments,
+                                extra: {
+                                  'patientId': member.id,
+                                  'patientName': member.fullName,
+                                },
+                              );
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8.0),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    isVi ? 'LỊCH HẸN' : 'APPOINTMENTS',
+                                    style: const TextStyle(
+                                      color: AppColors.primary,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  const Icon(
+                                    Icons.calendar_month,
+                                    color: AppColors.primary,
+                                    size: 13,
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

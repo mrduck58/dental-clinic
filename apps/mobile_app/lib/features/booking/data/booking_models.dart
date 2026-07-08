@@ -212,6 +212,9 @@ class MyAppointmentItem {
   final String status;
   final String? symptoms;
   final String? serviceName;
+  final String? patientName;
+  final String? patientRelationship;
+  final String? patientId;
 
   const MyAppointmentItem({
     required this.appointmentId,
@@ -223,6 +226,9 @@ class MyAppointmentItem {
     required this.status,
     this.symptoms,
     this.serviceName,
+    this.patientName,
+    this.patientRelationship,
+    this.patientId,
   });
 
   factory MyAppointmentItem.fromJson(Map<String, dynamic> json) =>
@@ -236,6 +242,9 @@ class MyAppointmentItem {
         status: json['status'] as String,
         symptoms: json['symptoms'] as String?,
         serviceName: json['serviceName'] as String?,
+        patientName: json['patientName'] as String?,
+        patientRelationship: json['patientRelationship'] as String?,
+        patientId: json['patientId']?.toString(),
       );
 
   DateTime get parsedDate => DateTime.parse(appointmentDate).toLocal();

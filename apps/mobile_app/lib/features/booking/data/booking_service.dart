@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:mobile_app/core/constants/api_constants.dart';
 import 'package:mobile_app/core/network/api_client.dart';
 import 'package:mobile_app/features/auth/data/auth_service.dart';
@@ -59,6 +60,7 @@ class BookingService {
     required String timeSlotRange,
     String? symptoms,
     String? serviceId,
+    String? patientId,
   }) async {
     final token = await _auth.getToken();
     if (token == null) throw Exception('Chưa đăng nhập.');
@@ -84,15 +86,22 @@ class BookingService {
     final body = <String, dynamic>{
       'dentistId': dentistId,
       'appointmentDate': isoDate,
-      'symptoms': ?effectiveSymptoms,
-      'serviceId': ?serviceId,
+      'symptoms': effectiveSymptoms,
+      'serviceId': serviceId,
+      'patientId': patientId,
     };
+
+    // Diagnostics print
+    debugPrint('BookingService: Sending POST request to ${ApiConstants.appointments}');
+    debugPrint('BookingService: Request body: $body');
 
     final res = await _client.post(
       ApiConstants.appointments,
       body,
       token: token,
     );
+    debugPrint('BookingService: Response status code: ${res.statusCode}');
+    debugPrint('BookingService: Response data: ${res.data}');
     return ApiAppointmentResult.fromJson(res.data as Map<String, dynamic>);
   }
 

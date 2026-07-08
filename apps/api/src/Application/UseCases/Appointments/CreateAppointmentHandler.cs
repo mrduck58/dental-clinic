@@ -11,7 +11,8 @@ public record CreateAppointmentCommand(
     Guid DentistId,
     DateTimeOffset AppointmentDate,
     string? Symptoms,
-    Guid? ServiceId);
+    Guid? ServiceId,
+    Guid? PatientId);
 
 public record CreateAppointmentResult(
     Guid AppointmentId,
@@ -26,20 +27,31 @@ public class CreateAppointmentHandler(
 {
     public async Task<CreateAppointmentResult> HandleAsync(CreateAppointmentCommand cmd, CancellationToken ct = default)
     {
-        var patient = await patientRepository.GetByUserIdAsync(cmd.UserId, ct);
+        var primaryPatient = await patientRepository.GetByUserIdAsync(cmd.UserId, ct);
 
-        if (patient is null)
+        if (primaryPatient is null)
         {
             var user = await userRepository.GetByIdAsync(cmd.UserId, ct)
                 ?? throw new InvalidOperationException("Không tìm thấy tài khoản.");
 
-            patient = Patient.Create(
+            primaryPatient = Patient.Create(
                 user.FullName ?? user.Email,
                 user.DateOfBirth ?? new DateOnly(1990, 1, 1),
                 user.Gender ?? "Nam",
                 cmd.UserId);
 
-            await patientRepository.AddAsync(patient, ct);
+            await patientRepository.AddAsync(primaryPatient, ct);
+        }
+
+        var targetPatientId = primaryPatient.Id;
+        if (cmd.PatientId.HasValue && cmd.PatientId.Value != primaryPatient.Id)
+        {
+            var member = await patientRepository.GetByIdAsync(cmd.PatientId.Value, ct);
+            if (member == null || member.PrimaryPatientId != primaryPatient.Id)
+            {
+                throw new InvalidOperationException("Hồ sơ bệnh nhân không hợp lệ hoặc không thuộc gia đình bạn.");
+            }
+            targetPatientId = member.Id;
         }
 
         var alreadyBooked = await appointmentRepository.IsSlotBookedAsync(cmd.DentistId, cmd.AppointmentDate, ct);
@@ -47,7 +59,7 @@ public class CreateAppointmentHandler(
             throw new ConflictException("Khung giờ này đã được đặt. Vui lòng chọn giờ khác.");
 
         var appointment = Appointment.Create(
-            patient.Id,
+            targetPatientId,
             cmd.DentistId,
             cmd.AppointmentDate,
             symptoms: cmd.Symptoms,
