@@ -31,14 +31,73 @@ interface PatientPlanData {
   selectedShortTermServiceId?: string;
   phases: Phase[];
   currentStep?: 1 | 2;
+  caoRang?: string;
+  tinhTrangNuu?: string;
+  chayMauNuu?: string;
+  tutLoi?: string;
+  khopCan?: string;
+  niemMacMieu?: string;
+  khopThaiDuongHam?: string;
+  toothDiagnoses?: Record<string, string>;
 }
 
-interface PlanWorkspaceProps {
-  patient: DentistPatientDto;
-  onBack?: () => void;
-}
+const getServiceRules = (serviceName?: string) => {
+  const name = (serviceName || "").toLowerCase();
+  if (name.includes("trám")) {
+    return { odontogram: true, clinical: true, xray: "maybe", xrayLabel: "Có thể cần" };
+  }
+  if (name.includes("sứ") || name.includes("bọc")) {
+    return { odontogram: true, clinical: true, xray: "often", xrayLabel: "Thường cần" };
+  }
+  if (name.includes("trắng") || name.includes("tẩy")) {
+    return { odontogram: false, clinical: true, xray: "none", xrayLabel: "" };
+  }
+  if (name.includes("implant") || name.includes("cấy")) {
+    return { odontogram: true, clinical: true, xray: "required", xrayLabel: "Bắt buộc" };
+  }
+  if (name.includes("niềng") || name.includes("chỉnh nha")) {
+    return { odontogram: true, clinical: true, xray: "required", xrayLabel: "Bắt buộc" };
+  }
+  if (name.includes("tủy")) {
+    return { odontogram: true, clinical: true, xray: "required", xrayLabel: "Bắt buộc" };
+  }
+  if (name.includes("vôi") || name.includes("cạo") || name.includes("đánh bóng")) {
+    return { odontogram: false, clinical: true, xray: "none", xrayLabel: "" };
+  }
+  // Default fallback
+  return { odontogram: true, clinical: true, xray: "maybe", xrayLabel: "Có thể cần" };
+};
+
+const getServiceTypeInfo = (serviceName?: string) => {
+  const name = (serviceName || "").toLowerCase();
+  if (name.includes("trám")) {
+    return { type: "ngan_han", label: "Ngắn hạn", color: "text-emerald-600 bg-emerald-50 border-emerald-200", visits: "1 lần (đôi khi 2)", icon: "🟢" };
+  }
+  if (name.includes("vôi") || name.includes("cạo") || name.includes("đánh bóng")) {
+    return { type: "ngan_han", label: "Ngắn hạn", color: "text-emerald-600 bg-emerald-50 border-emerald-200", visits: "1 lần", icon: "🟢" };
+  }
+  if (name.includes("trắng") || name.includes("tẩy")) {
+    return { type: "ngan_han", label: "Ngắn hạn", color: "text-emerald-600 bg-emerald-50 border-emerald-200", visits: "1–2 lần", icon: "🟢" };
+  }
+  if (name.includes("tủy")) {
+    return { type: "dai_han", label: "Trung hạn", color: "text-amber-600 bg-amber-50 border-amber-200", visits: "2–4 lần (tùy ca)", icon: "🟡" };
+  }
+  if (name.includes("sứ") || name.includes("bọc")) {
+    return { type: "dai_han", label: "Trung hạn", color: "text-amber-600 bg-amber-50 border-amber-200", visits: "2–3 lần", icon: "🟡" };
+  }
+  if (name.includes("implant") || name.includes("cấy")) {
+    return { type: "dai_han", label: "Dài hạn", color: "text-rose-600 bg-rose-50 border-rose-200", visits: "3–6+ lần, kéo dài vài tháng", icon: "🔴" };
+  }
+  if (name.includes("niềng") || name.includes("chỉnh nha")) {
+    return { type: "dai_han", label: "Dài hạn", color: "text-rose-600 bg-rose-50 border-rose-200", visits: "Hàng chục lần, kéo dài 1–3 năm", icon: "🔴" };
+  }
+  // Fallback default
+  return { type: "ngan_han", label: "Ngắn hạn", color: "text-emerald-600 bg-emerald-50 border-emerald-200", visits: "1 lần", icon: "🟢" };
+};
 
 export default function PlanWorkspace({ patient, onBack }: PlanWorkspaceProps) {
+  const rules = getServiceRules(patient.serviceName);
+  const info = getServiceTypeInfo(patient.serviceName);
   const [services, setServices] = useState<ServiceDto[]>([]);
   const [medicines, setMedicines] = useState<MedicineDto[]>([]);
 
@@ -46,6 +105,14 @@ export default function PlanWorkspace({ patient, onBack }: PlanWorkspaceProps) {
   const [diagnosis, setDiagnosis] = useState("");
   const [clinicalNotes, setClinicalNotes] = useState("");
   const [teeth, setTeeth] = useState<TState>({});
+  const [caoRang, setCaoRang] = useState("Không");
+  const [tinhTrangNuu, setTinhTrangNuu] = useState("Bình thường");
+  const [chayMauNuu, setChayMauNuu] = useState("Không");
+  const [tutLoi, setTutLoi] = useState("Không");
+  const [khopCan, setKhopCan] = useState("Bình thường");
+  const [niemMacMieu, setNiemMacMieu] = useState("Bình thường");
+  const [khopThaiDuongHam, setKhopThaiDuongHam] = useState("Bình thường");
+  const [toothDiagnoses, setToothDiagnoses] = useState<Record<string, string>>({});
   const [planType, setPlanType] = useState<"ngan_han" | "dai_han">("ngan_han");
   const [selectedShortTermServiceId, setSelectedShortTermServiceId] = useState("");
   const [phases, setPhases] = useState<Phase[]>([]);
@@ -72,9 +139,23 @@ export default function PlanWorkspace({ patient, onBack }: PlanWorkspaceProps) {
   };
 
   useEffect(() => {
-    getServicesApi().then(setServices).catch(() => {});
+    getServicesApi().then(list => {
+      setServices(list);
+      // Pre-fill booked service for short-term plan if not already set in saved data
+      const allSaved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+      const saved = allSaved[patient.appointmentId];
+      if (!saved || !saved.selectedShortTermServiceId) {
+        const match = list.find(s => 
+          s.name.toLowerCase().includes((patient.serviceName || "").toLowerCase()) ||
+          (patient.serviceName || "").toLowerCase().includes(s.name.toLowerCase())
+        );
+        if (match) {
+          setSelectedShortTermServiceId(match.id);
+        }
+      }
+    }).catch(() => {});
     getMedicinesApi().then(setMedicines).catch(() => {});
-  }, []);
+  }, [patient]);
 
   // Load saved plan from localStorage
   useEffect(() => {
@@ -89,6 +170,16 @@ export default function PlanWorkspace({ patient, onBack }: PlanWorkspaceProps) {
         setSelectedShortTermServiceId(saved.selectedShortTermServiceId || "");
         setPhases(saved.phases || []);
         setCurrentStep(saved.currentStep || (saved.diagnosis ? 2 : 1));
+        
+        setCaoRang(saved.caoRang || "Không");
+        setTinhTrangNuu(saved.tinhTrangNuu || "Bình thường");
+        setChayMauNuu(saved.chayMauNuu || "Không");
+        setTutLoi(saved.tutLoi || "Không");
+        setKhopCan(saved.khopCan || "Bình thường");
+        setNiemMacMieu(saved.niemMacMieu || "Bình thường");
+        setKhopThaiDuongHam(saved.khopThaiDuongHam || "Bình thường");
+        setToothDiagnoses(saved.toothDiagnoses || {});
+
         if (saved.phases && saved.phases.length > 0) {
           setSelectedPhaseId(saved.phases[0].id);
         }
@@ -97,9 +188,20 @@ export default function PlanWorkspace({ patient, onBack }: PlanWorkspaceProps) {
         setDiagnosis("");
         setClinicalNotes("");
         setTeeth({});
-        setPlanType("ngan_han");
+        const info = getServiceTypeInfo(patient.serviceName);
+        setPlanType(info.type as "ngan_han" | "dai_han");
         setSelectedShortTermServiceId("");
         setCurrentStep(1);
+
+        setCaoRang("Không");
+        setTinhTrangNuu("Bình thường");
+        setChayMauNuu("Không");
+        setTutLoi("Không");
+        setKhopCan("Bình thường");
+        setNiemMacMieu("Bình thường");
+        setKhopThaiDuongHam("Bình thường");
+        setToothDiagnoses({});
+
         const initialPhases = [
           {
             id: "p1",
@@ -140,7 +242,15 @@ export default function PlanWorkspace({ patient, onBack }: PlanWorkspaceProps) {
         planType,
         selectedShortTermServiceId,
         phases,
-        currentStep: nextStep
+        currentStep: nextStep,
+        caoRang,
+        tinhTrangNuu,
+        chayMauNuu,
+        tutLoi,
+        khopCan,
+        niemMacMieu,
+        khopThaiDuongHam,
+        toothDiagnoses,
       };
       allSaved[patient.appointmentId] = data;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(allSaved));
@@ -351,41 +461,227 @@ export default function PlanWorkspace({ patient, onBack }: PlanWorkspaceProps) {
             <span className="text-[13.5px] font-black text-slate-800 uppercase tracking-wide">Khám & Chuẩn đoán</span>
           </div>
           
-          <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 min-h-0">
+          <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3.5 min-h-0">
             {/* Tooth diagram AT THE TOP */}
-            <div className="flex flex-col gap-1.5 bg-slate-50 border border-slate-200 rounded-xl p-3.5 shrink-0">
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-[11.5px] font-black text-slate-500 uppercase tracking-wide">Sơ đồ răng (Click trực tiếp răng để chỉ định):</span>
-                <span className="text-[10px] font-extrabold text-red-600 bg-red-50 px-2 py-0.5 rounded-md">Cần điều trị</span>
+            {rules.odontogram && (
+              <div className="flex flex-col gap-1.5 bg-slate-50 border border-slate-200 rounded-xl p-3.5 shrink-0">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-[11.5px] font-black text-slate-500 uppercase tracking-wide">Sơ đồ răng (Click trực tiếp răng để chỉ định):</span>
+                  <span className="text-[10px] font-extrabold text-red-600 bg-red-50 px-2 py-0.5 rounded-md">Cần điều trị</span>
+                </div>
+                <ToothArchDiagram
+                  teeth={teeth}
+                  selected={new Set()}
+                  onToothClick={num => {
+                    setTeeth(prev => {
+                      const isDecay = prev[num] === "decay";
+                      return {
+                        ...prev,
+                        [num]: isDecay ? "normal" : "decay"
+                      };
+                    });
+                  }}
+                  showLegend={false}
+                />
+                
+                {/* Selected teeth list */}
+                {Object.entries(teeth).filter(([_, status]) => status === "decay").length > 0 && (
+                  <div className="flex items-center gap-2 flex-wrap mt-2 pt-2 border-t border-slate-200/50">
+                    <span className="text-[10.5px] font-black text-slate-400">Răng chỉ định điều trị:</span>
+                    <span className="text-[11.5px] font-black text-red-600 bg-red-50 border border-red-200 px-2.5 py-0.5 rounded-md shadow-3xs">
+                      {Object.entries(teeth)
+                        .filter(([_, status]) => status === "decay")
+                        .map(([num]) => num)
+                        .join(", ")}
+                    </span>
+                  </div>
+                )}
               </div>
-              <ToothArchDiagram
-                teeth={teeth}
-                selected={new Set()}
-                onToothClick={num => {
-                  setTeeth(prev => {
-                    const isDecay = prev[num] === "decay";
-                    return {
-                      ...prev,
-                      [num]: isDecay ? "normal" : "decay"
-                    };
-                  });
-                }}
-                showLegend={false}
-              />
-              
-              {/* Selected teeth list */}
-              {Object.entries(teeth).filter(([_, status]) => status === "decay").length > 0 && (
-                <div className="flex items-center gap-2 flex-wrap mt-2 pt-2 border-t border-slate-200/50">
-                  <span className="text-[10.5px] font-black text-slate-400">Răng chỉ định điều trị:</span>
-                  <span className="text-[11.5px] font-black text-red-600 bg-red-50 border border-red-200 px-2.5 py-0.5 rounded-md shadow-3xs">
-                    {Object.entries(teeth)
-                      .filter(([_, status]) => status === "decay")
-                      .map(([num]) => num)
-                      .join(", ")}
+            )}
+
+            {/* X-Ray uploads right after tooth diagram */}
+            {rules.xray !== "none" && (
+              <div className="flex flex-col gap-1.5 bg-slate-50 border border-slate-200 rounded-xl p-3.5 shrink-0">
+                <div className="flex justify-between items-center">
+                  <label className="text-[11.5px] font-black text-slate-500 uppercase tracking-wide">Hình ảnh X-Quang:</label>
+                  <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md border ${
+                    rules.xray === "required"
+                      ? "bg-red-50 text-red-600 border-red-100"
+                      : rules.xray === "often"
+                        ? "bg-amber-50 text-amber-600 border-amber-100"
+                        : "bg-slate-50 text-slate-500 border-slate-200"
+                  }`}>
+                    {rules.xrayLabel}
                   </span>
                 </div>
-              )}
+                <div className="flex gap-2.5 items-center flex-wrap">
+                  <div className="w-14 h-14 rounded-lg border border-dashed border-slate-300 flex flex-col items-center justify-center bg-white hover:bg-slate-50 hover:border-slate-400 transition-all cursor-pointer">
+                    <span className="text-[18px] text-slate-400 font-bold">+</span>
+                  </div>
+                  <div className="w-14 h-14 rounded-lg border border-slate-200 overflow-hidden relative group">
+                    <img
+                      src="https://images.unsplash.com/photo-1598256989800-fe5f95da9787?w=80&auto=format&fit=crop&q=60"
+                      alt="Xray 1"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="w-14 h-14 rounded-lg border border-slate-200 overflow-hidden relative group">
+                    <img
+                      src="https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=80&auto=format&fit=crop&q=60"
+                      alt="Xray 2"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Kết quả khám lâm sàng */}
+            <div className="flex flex-col gap-2.5 bg-slate-50 border border-slate-200 rounded-xl p-3.5 shrink-0">
+              <span className="text-[11.5px] font-black text-slate-500 uppercase tracking-wide">Kết quả khám lâm sàng:</span>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* Cao răng */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10.5px] font-bold text-slate-500">Cao răng</label>
+                  <select
+                    value={caoRang}
+                    onChange={e => setCaoRang(e.target.value)}
+                    className="px-2.5 py-1.5 text-[12.5px] bg-white border border-slate-200 rounded-lg font-semibold text-slate-700 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="Không">Không</option>
+                    <option value="Ít">Ít</option>
+                    <option value="Trung bình">Trung bình</option>
+                    <option value="Nhiều">Nhiều</option>
+                  </select>
+                </div>
+
+                {/* Tình trạng nướu */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10.5px] font-bold text-slate-500">Tình trạng nướu</label>
+                  <select
+                    value={tinhTrangNuu}
+                    onChange={e => setTinhTrangNuu(e.target.value)}
+                    className="px-2.5 py-1.5 text-[12.5px] bg-white border border-slate-200 rounded-lg font-semibold text-slate-700 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="Bình thường">Bình thường</option>
+                    <option value="Viêm nhẹ">Viêm nhẹ</option>
+                    <option value="Viêm vừa">Viêm vừa</option>
+                    <option value="Viêm nặng">Viêm nặng</option>
+                  </select>
+                </div>
+
+                {/* Khớp cắn */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10.5px] font-bold text-slate-500">Khớp cắn</label>
+                  <select
+                    value={khopCan}
+                    onChange={e => setKhopCan(e.target.value)}
+                    className="px-2.5 py-1.5 text-[12.5px] bg-white border border-slate-200 rounded-lg font-semibold text-slate-700 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="Bình thường">Bình thường</option>
+                    <option value="Sai khớp cắn">Sai khớp cắn</option>
+                  </select>
+                </div>
+
+                {/* Niêm mạc miệng */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10.5px] font-bold text-slate-500">Niêm mạc miệng</label>
+                  <select
+                    value={niemMacMieu}
+                    onChange={e => setNiemMacMieu(e.target.value)}
+                    className="px-2.5 py-1.5 text-[12.5px] bg-white border border-slate-200 rounded-lg font-semibold text-slate-700 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="Bình thường">Bình thường</option>
+                    <option value="Có tổn thương">Có tổn thương</option>
+                  </select>
+                </div>
+
+                {/* Khớp thái dương hàm */}
+                <div className="flex flex-col gap-1 md:col-span-2">
+                  <label className="text-[10.5px] font-bold text-slate-500">Khớp thái dương hàm</label>
+                  <select
+                    value={khopThaiDuongHam}
+                    onChange={e => setKhopThaiDuongHam(e.target.value)}
+                    className="px-2.5 py-1.5 text-[12.5px] bg-white border border-slate-200 rounded-lg font-semibold text-slate-700 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="Bình thường">Bình thường</option>
+                    <option value="Đau">Đau</option>
+                    <option value="Hạn chế há miệng">Hạn chế há miệng</option>
+                  </select>
+                </div>
+
+                {/* Chảy máu nướu */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10.5px] font-bold text-slate-500">Chảy máu nướu</label>
+                  <div className="flex gap-2">
+                    {["Có", "Không"].map(val => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setChayMauNuu(val)}
+                        className={`flex-1 py-1.5 px-3 text-[12px] font-bold rounded-lg border transition-all cursor-pointer ${
+                          chayMauNuu === val
+                            ? "bg-primary text-white border-primary shadow-xs"
+                            : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                        }`}
+                      >
+                        {val}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Tụt lợi */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10.5px] font-bold text-slate-500">Tụt lợi</label>
+                  <div className="flex gap-2">
+                    {["Có", "Không"].map(val => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setTutLoi(val)}
+                        className={`flex-1 py-1.5 px-3 text-[12px] font-bold rounded-lg border transition-all cursor-pointer ${
+                          tutLoi === val
+                            ? "bg-primary text-white border-primary shadow-xs"
+                            : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                        }`}
+                      >
+                        {val}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
+
+            {/* Chuẩn đoán từng răng chỉ định */}
+            {Object.entries(teeth).filter(([_, status]) => status === "decay").length > 0 && (
+              <div className="flex flex-col gap-2 bg-slate-50 border border-slate-200 rounded-xl p-3.5 shrink-0">
+                <span className="text-[11.5px] font-black text-slate-500 uppercase tracking-wide">Chuẩn đoán từng răng chỉ định:</span>
+                <div className="flex flex-col gap-2 max-h-56 overflow-y-auto pr-1">
+                  {Object.entries(teeth)
+                    .filter(([_, status]) => status === "decay")
+                    .map(([num]) => (
+                      <div key={num} className="flex gap-2 items-center">
+                        <span className="w-16 shrink-0 text-[11.5px] font-black text-red-700 bg-red-50 border border-red-200 py-2 rounded-lg text-center font-mono">
+                          Răng {num}
+                        </span>
+                        <input
+                          type="text"
+                          value={toothDiagnoses[num] || ""}
+                          onChange={e => {
+                            const val = e.target.value;
+                            setToothDiagnoses(prev => ({ ...prev, [num]: val }));
+                          }}
+                          placeholder="Chỉ định điều trị, chuẩn đoán..."
+                          className="flex-1 px-3 py-1.5 text-[12.5px] bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-semibold text-slate-700"
+                        />
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
 
             {/* Diagnosis */}
             <div className="flex flex-col gap-1 shrink-0">
@@ -407,32 +703,6 @@ export default function PlanWorkspace({ patient, onBack }: PlanWorkspaceProps) {
                 placeholder="VD: Sưng đau vùng răng hàm dưới..."
                 className="px-3 py-2 text-[12.5px] bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-semibold text-slate-700 h-20 resize-none"
               />
-            </div>
-
-            {/* X-Ray uploads */}
-            <div className="flex flex-col gap-1 shrink-0">
-              <div className="flex justify-between items-center">
-                <label className="text-[11px] font-black text-slate-400 uppercase tracking-wide">Hình ảnh X-Quang:</label>
-              </div>
-              <div className="flex gap-2 items-center flex-wrap">
-                <div className="w-14 h-14 rounded-lg border border-dashed border-slate-200 flex flex-col items-center justify-center bg-slate-50/50 hover:bg-slate-100 hover:border-slate-300 transition-all cursor-pointer">
-                  <span className="text-[16px] text-slate-400">+</span>
-                </div>
-                <div className="w-14 h-14 rounded-lg border border-slate-200 overflow-hidden relative group">
-                  <img
-                    src="https://images.unsplash.com/photo-1598256989800-fe5f95da9787?w=80&auto=format&fit=crop&q=60"
-                    alt="Xray 1"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="w-14 h-14 rounded-lg border border-slate-200 overflow-hidden relative group">
-                  <img
-                    src="https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=80&auto=format&fit=crop&q=60"
-                    alt="Xray 2"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              </div>
             </div>
 
             {/* Save Diagnostic and Proceed to Step 2 Button */}
@@ -479,23 +749,32 @@ export default function PlanWorkspace({ patient, onBack }: PlanWorkspaceProps) {
               <svg className="w-5 h-5 text-primary shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25" />
               </svg>
-              <span className="text-[13.5px] font-black text-slate-800 uppercase tracking-wide">Kế hoạch điều trị</span>
+              <div className="flex flex-col">
+                <span className="text-[13px] font-black text-slate-800 uppercase tracking-wide">Kế hoạch điều trị</span>
+                {patient.serviceName && (
+                  <span className="text-[10px] text-slate-400 font-bold whitespace-nowrap">
+                    Đặt khám: <span className="text-teal-600 font-extrabold">{patient.serviceName}</span>
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Ngắn hạn vs Dài hạn toggler */}
             <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
               <button
+                type="button"
                 onClick={() => setPlanType("ngan_han")}
                 className={`px-3 py-1 rounded-md text-[10.5px] font-extrabold transition-all cursor-pointer ${
-                  planType === "ngan_han" ? "bg-primary text-white shadow-sm" : "text-slate-500 hover:text-slate-850"
+                  planType === "ngan_han" ? "bg-primary text-white shadow-sm" : "text-slate-500 hover:text-slate-800"
                 }`}
               >
                 NGẮN HẠN
               </button>
               <button
+                type="button"
                 onClick={() => setPlanType("dai_han")}
                 className={`px-3 py-1 rounded-md text-[10.5px] font-extrabold transition-all cursor-pointer ${
-                  planType === "dai_han" ? "bg-primary text-white shadow-sm" : "text-slate-500 hover:text-slate-850"
+                  planType === "dai_han" ? "bg-primary text-white shadow-sm" : "text-slate-500 hover:text-slate-800"
                 }`}
               >
                 DÀI HẠN

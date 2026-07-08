@@ -7,6 +7,7 @@ import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/auth/data/auth_service.dart';
 import 'package:mobile_app/features/booking/data/booking_models.dart';
 import 'package:mobile_app/features/booking/presentation/widgets/booking_widgets.dart';
+import 'package:mobile_app/features/profile/data/family_member.dart';
 
 class SelectPatientPage extends StatefulWidget {
   const SelectPatientPage({super.key});
@@ -41,7 +42,20 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
         dob: _formatDob(profile.dateOfBirth),
         gender: profile.gender ?? 'Nam',
       );
-      if (mounted) setState(() { _patients = [me]; _loading = false; });
+
+      await FamilyService().loadFromServer();
+      final family = FamilyService().getMembers().map((m) {
+        return PatientInfo(
+          id: m.id,
+          name: m.fullName.toUpperCase(),
+          relationship: m.relationship,
+          phone: m.phoneNumber,
+          dob: '${m.dateOfBirth.day.toString().padLeft(2, '0')}/${m.dateOfBirth.month.toString().padLeft(2, '0')}/${m.dateOfBirth.year}',
+          gender: m.gender,
+        );
+      }).toList();
+
+      if (mounted) setState(() { _patients = [me, ...family]; _loading = false; });
     } catch (_) {
       // fallback: dùng tên đã lưu local nếu API lỗi
       final name = await _auth.getUserName() ?? '';

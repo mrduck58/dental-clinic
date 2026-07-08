@@ -43,12 +43,18 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
     setState(() => _isLoading = true);
     try {
       final d = widget.draft;
+      if (d.patient != null && d.patient!.id.startsWith('member_')) {
+        throw Exception(isVi 
+            ? 'Lỗi đồng bộ: Vui lòng đăng xuất và đăng nhập lại để tải thông tin thành viên gia đình thực tế.'
+            : 'Sync error: Please log out and log in again to load real family member profiles.');
+      }
       final result = await _bookingService.createAppointment(
         dentistId: d.doctor!.id,
         date: d.date!,
         timeSlotRange: d.timeSlot!.range,
         symptoms: _symptomCtrl.text.trim().isEmpty ? null : _symptomCtrl.text.trim(),
         serviceId: d.service?.id,
+        patientId: d.patient?.id == 'self' ? null : d.patient?.id,
       );
       if (!mounted) return;
       final updatedDraft = d.copyWith(

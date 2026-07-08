@@ -15,7 +15,10 @@ public record MyAppointmentDto(
     DateTimeOffset AppointmentDate,
     string Status,
     string? Symptoms,
-    string? ServiceName);
+    string? ServiceName,
+    string PatientName,
+    string? PatientRelationship,
+    Guid PatientId);
 
 public class GetMyAppointmentsHandler(
     IPatientRepository patientRepository,
@@ -28,7 +31,9 @@ public class GetMyAppointmentsHandler(
 
         var appointments = await dbContext.Appointments
             .Include(a => a.Dentist).ThenInclude(d => d.User)
-            .Where(a => a.PatientId == patient.Id)
+            .Include(a => a.Patient)
+            .Include(a => a.Service)
+            .Where(a => a.PatientId == patient.Id || a.Patient.PrimaryPatientId == patient.Id)
             .OrderByDescending(a => a.AppointmentDate)
             .ToListAsync(ct);
 
@@ -41,6 +46,9 @@ public class GetMyAppointmentsHandler(
             a.AppointmentDate,
             a.Status.ToString(),
             a.Symptoms,
-            null));
+            a.Service?.Name,
+            a.Patient.FullName,
+            a.Patient.Id == patient.Id ? "Tôi" : (a.Patient.Relationship ?? string.Empty),
+            a.Patient.Id));
     }
 }

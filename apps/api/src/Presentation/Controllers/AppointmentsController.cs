@@ -37,12 +37,15 @@ public class AppointmentsController(
         CancellationToken cancellationToken)
     {
         var userId = GetCurrentUserId();
+        Console.WriteLine($"[API] CreateAppointment: Received request for DentistId={request.DentistId}, PatientId={request.PatientId ?? Guid.Empty} (Null if self/not set)");
+        
         var cmd = new CreateAppointmentCommand(
             userId,
             request.DentistId,
             request.AppointmentDate,
             request.Symptoms,
-            request.ServiceId);
+            request.ServiceId,
+            request.PatientId);
 
         var result = await createAppointmentHandler.HandleAsync(cmd, cancellationToken);
         return Ok(result);
@@ -558,7 +561,8 @@ public record CreateAppointmentRequest(
     Guid DentistId,
     DateTimeOffset AppointmentDate,
     string? Symptoms,
-    Guid? ServiceId);
+    Guid? ServiceId,
+    Guid? PatientId);
 
 public record CreateWalkInRequest(
     Guid DentistId,
