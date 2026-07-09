@@ -34,19 +34,10 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
         var startUtc = new DateTimeOffset(date.Year, date.Month, date.Day, 0, 0, 0, vnOffset).ToUniversalTime();
         var endUtc   = startUtc.AddDays(1);
         return await dbContext.Appointments
+            .Include(a => a.Service)
             .Where(a => a.AppointmentDate >= startUtc && a.AppointmentDate < endUtc
                      && a.Status != DentalClinic.API.Domain.Enums.AppointmentStatus.Cancelled)
             .ToListAsync(cancellationToken);
-    }
-
-    public async Task<bool> IsSlotBookedAsync(Guid dentistId, DateTimeOffset slotTime, CancellationToken cancellationToken = default)
-    {
-        return await dbContext.Appointments
-            .AnyAsync(a =>
-                a.DentistId == dentistId &&
-                a.AppointmentDate == slotTime &&
-                a.Status != DentalClinic.API.Domain.Enums.AppointmentStatus.Cancelled,
-                cancellationToken);
     }
 
     public async Task<IReadOnlyList<Appointment>> GetAllAsync(CancellationToken cancellationToken = default)

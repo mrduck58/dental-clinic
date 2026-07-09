@@ -16,6 +16,7 @@ public class CreateAppointmentHandlerTests
     private IAppointmentRepository _appointmentRepo = null!;
     private IPatientRepository _patientRepo = null!;
     private IUserRepository _userRepo = null!;
+    private IServiceRepository _serviceRepo = null!;
     private INotificationService _notification = null!;
     private CreateAppointmentHandler _handler = null!;
 
@@ -25,12 +26,13 @@ public class CreateAppointmentHandlerTests
         _appointmentRepo = Substitute.For<IAppointmentRepository>();
         _patientRepo = Substitute.For<IPatientRepository>();
         _userRepo = Substitute.For<IUserRepository>();
+        _serviceRepo = Substitute.For<IServiceRepository>();
         _notification = Substitute.For<INotificationService>();
-        _handler = new CreateAppointmentHandler(_appointmentRepo, _patientRepo, _userRepo, _notification);
+        _handler = new CreateAppointmentHandler(_appointmentRepo, _patientRepo, _userRepo, _serviceRepo, _notification);
 
-        // Mặc định: slot trống, không có dentist user, không có staff
-        _appointmentRepo.IsSlotBookedAsync(Arg.Any<Guid>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
-            .Returns(false);
+        // Mặc định: không có lịch hẹn nào khác trong ngày, không có dentist user, không có staff
+        _appointmentRepo.GetByDateAsync(Arg.Any<DateOnly>(), Arg.Any<CancellationToken>())
+            .Returns(new List<Appointment>());
         _appointmentRepo.GetDentistUserIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns((Guid?)null);
         _userRepo.GetUserIdsByRoleAsync("Staff", Arg.Any<CancellationToken>())
@@ -80,8 +82,10 @@ public class CreateAppointmentHandlerTests
         var cmd = MakeCmd();
         var existingPatient = Patient.Create("Test", DateOnly.FromDateTime(DateTime.Today.AddYears(-20)), "Nam", cmd.UserId);
         _patientRepo.GetByUserIdAsync(cmd.UserId, Arg.Any<CancellationToken>()).Returns(existingPatient);
-        _appointmentRepo.IsSlotBookedAsync(cmd.DentistId, cmd.AppointmentDate, Arg.Any<CancellationToken>())
-            .Returns(true);
+        // Lịch hẹn khác đã chiếm đúng khung giờ này của cùng nha sĩ → chồng lấn.
+        var conflictingAppointment = Appointment.Create(Guid.NewGuid(), cmd.DentistId, cmd.AppointmentDate);
+        _appointmentRepo.GetByDateAsync(Arg.Any<DateOnly>(), Arg.Any<CancellationToken>())
+            .Returns(new List<Appointment> { conflictingAppointment });
 
         Func<Task> act = () => _handler.HandleAsync(cmd);
 

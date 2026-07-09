@@ -70,8 +70,8 @@ public class GetStaffScheduleHandlerTests
 
         var dentist = result.Dentists.Should().ContainSingle().Subject;
         dentist.Name.Should().Be("BS. Nguyễn Văn Hùng");
-        dentist.MorningSlots.Should().NotBeEmpty();
-        dentist.AfternoonSlots.Should().BeEmpty();
+        dentist.Slots.Should().NotBeEmpty();
+        dentist.Slots.Should().OnlyContain(s => int.Parse(s.Time.Substring(0, 2)) < 12);
     }
 
     /// <summary>
@@ -90,8 +90,8 @@ public class GetStaffScheduleHandlerTests
         var result = await _handler.HandleAsync(Today);
 
         var dentist = result.Dentists.Should().ContainSingle().Subject;
-        dentist.MorningSlots.Should().NotBeEmpty();
-        dentist.AfternoonSlots.Should().BeEmpty();
+        dentist.Slots.Should().NotBeEmpty();
+        dentist.Slots.Should().OnlyContain(s => int.Parse(s.Time.Substring(0, 2)) < 12);
     }
 
     [Test]
@@ -115,7 +115,7 @@ public class GetStaffScheduleHandlerTests
         var result = await _handler.HandleAsync(yesterday);
 
         var dentist = result.Dentists.Should().ContainSingle().Subject;
-        dentist.MorningSlots.Should().OnlyContain(s => s.IsPast);
+        dentist.Slots.Should().OnlyContain(s => s.IsPast);
     }
 
     /// <summary>Với một ngày trong tương lai, chưa có slot nào được coi là đã qua giờ.</summary>
@@ -131,6 +131,6 @@ public class GetStaffScheduleHandlerTests
         var result = await _handler.HandleAsync(nextWeek);
 
         var dentist = result.Dentists.Should().ContainSingle().Subject;
-        dentist.MorningSlots.Should().OnlyContain(s => !s.IsPast);
+        dentist.Slots.Should().OnlyContain(s => !s.IsPast);
     }
 }

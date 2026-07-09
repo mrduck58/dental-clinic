@@ -5,7 +5,7 @@ using DentalClinic.API.Infrastructure.Persistence;
 
 namespace DentalClinic.API.Application.UseCases.Appointments;
 
-public record TimeSlotDto(string Range, bool IsBooked);
+public record TimeSlotDto(string Range, bool IsBooked, string Period);
 
 public record DentistWithSlotsDto(
     Guid DentistId,
@@ -18,14 +18,6 @@ public record DentistWithSlotsDto(
 
 public class GetDentistSlotsHandler(AppDbContext dbContext, IAppointmentRepository appointmentRepository)
 {
-    // Khung giờ ứng viên cho cả ngày (sáng, chiều, tối); lọc theo ca thực tế của bác sĩ.
-    private static readonly (int Hour, int Minute)[] AllTimes =
-    [
-        (7, 30), (8, 30), (9, 30), (10, 30),      // sáng
-        (13, 30), (14, 30), (15, 30), (16, 30),   // chiều
-        (17, 30), (18, 30), (19, 30), (20, 30),   // tối
-    ];
-
     public async Task<IEnumerable<DentistWithSlotsDto>> HandleAsync(DateOnly date, CancellationToken ct = default)
     {
         // Kiểm tra WorkSchedule cho ngày này
@@ -76,27 +68,30 @@ public class GetDentistSlotsHandler(AppDbContext dbContext, IAppointmentReposito
 
         return dentists.Select(d =>
         {
-            var bookedTimes = dayAppointments
+            var occupiedRanges = dayAppointments
                 .Where(a => a.DentistId == d.Id)
                 .Select(a =>
                 {
                     var localTime = a.AppointmentDate.UtcDateTime.AddHours(7);
-                    return (localTime.Hour, localTime.Minute);
+                    return SlotCalculator.BuildOccupiedRange(localTime.Hour, localTime.Minute, a.Service?.DurationMinutes);
                 })
-                .ToHashSet();
+                .ToList();
 
             // Khung giờ theo các ca THỰC TẾ được phân trong ngày; dự phòng dùng ca tĩnh của bác sĩ
             var assignedShifts = shiftsByName.TryGetValue(d.FullName, out var s) && s.Count > 0
                 ? (IEnumerable<string>)s
                 : [d.Shift];
 
-            var slots = AllTimes
+            var slots = SlotCalculator.AllTimes
                 .Where(t => WorkShifts.IsWorkingAt(assignedShifts, t.Hour, t.Minute))
                 .Select(t =>
                 {
-                    var range = $"{t.Hour:D2}:{t.Minute:D2} - {t.Hour + 1:D2}:{t.Minute:D2}";
-                    var isBooked = bookedTimes.Contains((t.Hour, t.Minute));
-                    return new TimeSlotDto(range, isBooked);
+                    var slotStart = t.Hour * 60 + t.Minute;
+                    var slotEnd = slotStart + SlotCalculator.SlotMinutes;
+                    var range = $"{t.Hour:D2}:{t.Minute:D2} - {slotEnd / 60:D2}:{slotEnd % 60:D2}";
+                    var isBooked = SlotCalculator.IsOccupied(slotStart, slotEnd, occupiedRanges);
+                    var period = SlotCalculator.PeriodAt(t.Hour, t.Minute);
+                    return new TimeSlotDto(range, isBooked, period);
                 }).ToList();
 
             return new DentistWithSlotsDto(

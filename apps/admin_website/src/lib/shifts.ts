@@ -20,8 +20,8 @@ export const SHIFTS: ShiftDef[] = [
   { id: "10:00-12:00", label: "10:00 – 12:00", period: "Buổi sáng" },
   { id: "13:30-15:30", label: "13:30 – 15:30", period: "Buổi chiều" },
   { id: "15:30-17:30", label: "15:30 – 17:30", period: "Buổi chiều" },
-  { id: "17:30-19:15", label: "17:30 – 19:15", period: "Buổi tối" },
-  { id: "19:15-21:00", label: "19:15 – 21:00", period: "Buổi tối" },
+  { id: "17:30-19:30", label: "17:30 – 19:30", period: "Buổi tối" },
+  { id: "19:30-21:30", label: "19:30 – 21:30", period: "Buổi tối" },
 ];
 
 export const SHIFT_PERIODS: ShiftPeriod[] = ["Buổi sáng", "Buổi chiều", "Buổi tối"];
