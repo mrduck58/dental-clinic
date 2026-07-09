@@ -181,6 +181,9 @@ class _DoctorSlotCard extends StatelessWidget {
         ? (isVi ? 'Buổi sáng' : 'Morning')
         : (isVi ? 'Buổi chiều' : 'Afternoon');
 
+    final now = DateTime.now();
+    final isDateToday = date.year == now.year && date.month == now.month && date.day == now.day;
+
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       decoration: BoxDecoration(
@@ -330,7 +333,14 @@ class _DoctorSlotCard extends StatelessWidget {
               crossAxisSpacing: 8,
               childAspectRatio: 4.2,
               children: doctor.slots.map((slot) {
-                final booked = slot.isBooked;
+                final timePart = slot.range.split(' - ').first.trim();
+                final timeParts = timePart.split(':');
+                final slotHour = int.tryParse(timeParts[0]) ?? 0;
+                final slotMinute = int.tryParse(timeParts[1]) ?? 0;
+
+                final isPastSlot = isDateToday && (slotHour < now.hour || (slotHour == now.hour && slotMinute <= now.minute));
+                final booked = slot.isBooked || isPastSlot;
+
                 final cellBg = booked
                     ? (context.isDark ? const Color(0xFF1E293B) : AppColors.background)
                     : (context.isDark ? const Color(0xFF451A1A) : AppColors.primaryLight.withValues(alpha: 0.55));
@@ -360,7 +370,9 @@ class _DoctorSlotCard extends StatelessWidget {
                         ),
                         if (booked)
                           Text(
-                            isVi ? 'Hết số' : 'Booked',
+                            isPastSlot
+                                ? (isVi ? 'Đã qua' : 'Passed')
+                                : (isVi ? 'Hết số' : 'Booked'),
                             style: TextStyle(fontSize: 9, color: context.textSecondary.withValues(alpha: 0.5)),
                           ),
                       ],

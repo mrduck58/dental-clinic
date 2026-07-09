@@ -28,10 +28,14 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
 
     public async Task<IReadOnlyList<Appointment>> GetByDateAsync(DateOnly date, CancellationToken cancellationToken = default)
     {
-        var start = new DateTimeOffset(date.Year, date.Month, date.Day, 0, 0, 0, TimeSpan.Zero);
-        var end = start.AddDays(1);
+        // Client gửi giờ VN local, .toUtc() → VD: 07:30 VN = 00:30 UTC.
+        // Lọc theo cửa sổ VN midnight, convert sang UTC (offset=0) để Npgsql chấp nhận.
+        var vnOffset = TimeSpan.FromHours(7);
+        var startUtc = new DateTimeOffset(date.Year, date.Month, date.Day, 0, 0, 0, vnOffset).ToUniversalTime();
+        var endUtc   = startUtc.AddDays(1);
         return await dbContext.Appointments
-            .Where(a => a.AppointmentDate >= start && a.AppointmentDate < end)
+            .Where(a => a.AppointmentDate >= startUtc && a.AppointmentDate < endUtc
+                     && a.Status != DentalClinic.API.Domain.Enums.AppointmentStatus.Cancelled)
             .ToListAsync(cancellationToken);
     }
 

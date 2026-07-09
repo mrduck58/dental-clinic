@@ -4,18 +4,35 @@ import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/booking/data/booking_models.dart';
+import 'package:mobile_app/features/booking/data/booking_service.dart';
+import 'package:mobile_app/core/network/api_client.dart';
+import 'package:dio/dio.dart';
 
-class AppointmentDetailsPage extends StatelessWidget {
+class AppointmentDetailsPage extends StatefulWidget {
   final MyAppointmentItem item;
   const AppointmentDetailsPage({super.key, required this.item});
 
   @override
+  State<AppointmentDetailsPage> createState() => _AppointmentDetailsPageState();
+}
+
+class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
+  late String _status;
+
+  @override
+  void initState() {
+    super.initState();
+    _status = widget.item.status;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final item = widget.item;
     final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
 
     final date = item.parsedDate;
-    final isCancelled = item.status.toLowerCase() == 'cancelled';
-    final isCompleted = item.status.toLowerCase() == 'completed';
+    final isCancelled = _status.toLowerCase() == 'cancelled';
+    final isCompleted = _status.toLowerCase() == 'completed';
 
     // Format Date & Time
     final monthsEn = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -36,6 +53,7 @@ class AppointmentDetailsPage extends StatelessWidget {
         ? 'Lịch hẹn của bạn đã được lên lịch và xác nhận.'
         : 'Your visit is scheduled and confirmed.';
 
+    final normStatus = _status.toLowerCase();
     if (isCancelled) {
       statusColor = const Color(0xFFEF4444);
       statusBg = const Color(0xFFFEE2E2);
@@ -44,19 +62,40 @@ class AppointmentDetailsPage extends StatelessWidget {
           ? 'Lịch hẹn này đã bị hủy.'
           : 'This appointment has been cancelled.';
     } else if (isCompleted) {
-      statusColor = const Color(0xFF0284C7);
-      statusBg = const Color(0xFFE0F2FE);
+      statusColor = const Color(0xFF16A34A);
+      statusBg = const Color(0xFFDCFCE7);
       statusLabel = isVi ? 'Hoàn thành' : 'Completed';
       statusDesc = isVi
           ? 'Lịch hẹn đã được thực hiện thành công.'
           : 'This appointment has been completed successfully.';
-    } else if (item.status.toLowerCase() == 'pending') {
+    } else if (normStatus == 'pending') {
       statusColor = const Color(0xFFD97706);
       statusBg = const Color(0xFFFEF3C7);
       statusLabel = isVi ? 'Chờ xác nhận' : 'Pending';
       statusDesc = isVi
           ? 'Lịch hẹn đang được xử lý và chờ xác nhận.'
           : 'Your appointment is pending confirmation.';
+    } else if (normStatus == 'checkedin') {
+      statusColor = const Color(0xFF4F46E5);
+      statusBg = const Color(0xFFEEF2FF);
+      statusLabel = isVi ? 'Đã check-in' : 'Checked In';
+      statusDesc = isVi
+          ? 'Bạn đã check-in thành công. Vui lòng chờ bác sĩ gọi vào phòng khám.'
+          : 'You have checked in successfully. Please wait for the doctor.';
+    } else if (normStatus == 'inprogress') {
+      statusColor = const Color(0xFF0284C7);
+      statusBg = const Color(0xFFE0F2FE);
+      statusLabel = isVi ? 'Đang khám' : 'In Progress';
+      statusDesc = isVi
+          ? 'Lịch hẹn của bạn đang được tiến hành khám và điều trị.'
+          : 'Your visit is currently in progress.';
+    } else if (normStatus == 'pendingpayment') {
+      statusColor = const Color(0xFFEA580C);
+      statusBg = const Color(0xFFFFEDD5);
+      statusLabel = isVi ? 'Chờ thanh toán' : 'Pending Payment';
+      statusDesc = isVi
+          ? 'Bạn đã khám xong. Vui lòng thanh toán phí tại quầy.'
+          : 'Treatment is complete. Please proceed to the counter for payment.';
     }
 
     return Scaffold(
@@ -320,6 +359,59 @@ class AppointmentDetailsPage extends StatelessWidget {
                       ],
                     ),
                   ),
+                  if (item.patientName != null && item.patientName!.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: context.card,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: context.divider),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryLight,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Iconsax.user, color: AppColors.primary, size: 20),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  isVi ? 'BỆNH NHÂN' : 'PATIENT',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    color: context.textMuted,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  item.patientRelationship == null || item.patientRelationship!.isEmpty || item.patientRelationship == 'Tôi' || item.patientRelationship == 'Self'
+                                      ? '${item.patientName} (${isVi ? 'Tôi' : 'Self'})'
+                                      : '${item.patientName} (${item.patientRelationship})',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                    color: context.textPrimary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 28),
 
                   // Clinic location section
@@ -489,8 +581,8 @@ class AppointmentDetailsPage extends StatelessWidget {
             ),
           ),
 
-          // Action Buttons at the bottom (disabled if completed/cancelled)
-          if (!isCompleted && !isCancelled)
+          // Action Buttons at the bottom (only for Pending or Confirmed status)
+          if (normStatus == 'pending' || normStatus == 'confirmed')
             Container(
               padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
               decoration: BoxDecoration(
@@ -531,10 +623,18 @@ class AppointmentDetailsPage extends StatelessWidget {
                       height: 50,
                       child: ElevatedButton.icon(
                         onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(isVi ? 'Đã yêu cầu hủy lịch hẹn.' : 'Cancellation requested.'),
-                              behavior: SnackBarBehavior.floating,
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: Colors.transparent,
+                            builder: (context) => _CancelReasonBottomSheet(
+                              appointmentId: item.appointmentId,
+                              isVi: isVi,
+                              onCancelled: (reason) {
+                                setState(() {
+                                  _status = 'Cancelled';
+                                });
+                              },
                             ),
                           );
                         },
@@ -595,4 +695,265 @@ class _MapGridPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _CancelReasonBottomSheet extends StatefulWidget {
+  final String appointmentId;
+  final bool isVi;
+  final ValueChanged<String> onCancelled;
+
+  const _CancelReasonBottomSheet({
+    required this.appointmentId,
+    required this.isVi,
+    required this.onCancelled,
+  });
+
+  @override
+  State<_CancelReasonBottomSheet> createState() => _CancelReasonBottomSheetState();
+}
+
+class _CancelReasonBottomSheetState extends State<_CancelReasonBottomSheet> {
+  final _bookingService = BookingService();
+  String _selectedReason = 'Change of plans';
+  final _textController = TextEditingController();
+  bool _submitting = false;
+
+  @override
+  void dispose() {
+    _textController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    setState(() => _submitting = true);
+    try {
+      String finalReason = widget.isVi 
+          ? _translateToVi(_selectedReason) 
+          : _selectedReason;
+      
+      if (_selectedReason == 'Other' && _textController.text.trim().isNotEmpty) {
+        finalReason = _textController.text.trim();
+      } else if (_textController.text.trim().isNotEmpty) {
+        finalReason = '$finalReason: ${_textController.text.trim()}';
+      }
+
+      await _bookingService.cancelAppointment(widget.appointmentId, finalReason);
+      
+      if (mounted) {
+        Navigator.pop(context); // close bottom sheet
+        widget.onCancelled(finalReason);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(widget.isVi ? 'Đã hủy lịch khám thành công.' : 'Appointment cancelled successfully.'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: const Color(0xFF16A34A),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        String msg = widget.isVi ? 'Hủy lịch khám thất bại. Vui lòng thử lại.' : 'Failed to cancel appointment. Please try again.';
+        if (e is DioException) {
+          msg = ApiClient.errorMessage(e);
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(msg),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: const Color(0xFFEF4444),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  String _translateToVi(String englishReason) {
+    switch (englishReason) {
+      case 'Change of plans':
+        return 'Thay đổi kế hoạch';
+      case 'Found another clinic':
+        return 'Tìm thấy phòng khám khác';
+      case 'Health issues':
+        return 'Vấn đề sức khỏe';
+      case 'Other':
+        return 'Lý do khác';
+      default:
+        return englishReason;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: context.card,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 20,
+            spreadRadius: 1,
+          )
+        ],
+      ),
+      padding: EdgeInsets.only(
+        left: 24,
+        right: 24,
+        top: 14,
+        bottom: 24 + MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 48,
+              height: 5,
+              decoration: BoxDecoration(
+                color: context.divider,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            widget.isVi ? 'Lý do hủy lịch' : 'Reason for Cancellation',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: context.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            widget.isVi
+                ? 'Chúng tôi rất tiếc khi bạn muốn hủy lịch. Vui lòng cho biết lý do hủy.'
+                : 'We are sorry to see you go. Please let us know why you are canceling.',
+            style: TextStyle(
+              fontSize: 14,
+              color: context.textSecondary,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 20),
+          _buildRadioOption('Change of plans', widget.isVi ? 'Thay đổi kế hoạch' : 'Change of plans'),
+          _buildRadioOption('Found another clinic', widget.isVi ? 'Tìm thấy phòng khám khác' : 'Found another clinic'),
+          _buildRadioOption('Health issues', widget.isVi ? 'Vấn đề sức khỏe' : 'Health issues'),
+          _buildRadioOption('Other', widget.isVi ? 'Lý do khác' : 'Other'),
+          const SizedBox(height: 20),
+          TextField(
+            controller: _textController,
+            maxLines: 4,
+            style: TextStyle(color: context.textPrimary, fontSize: 14),
+            decoration: InputDecoration(
+              hintText: widget.isVi ? 'Mô tả thêm (Không bắt buộc)' : 'Tell us more (Optional)',
+              hintStyle: TextStyle(color: context.textMuted, fontSize: 14),
+              filled: true,
+              fillColor: context.isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: context.divider),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: context.divider),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+              ),
+              contentPadding: const EdgeInsets.all(16),
+            ),
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton(
+              onPressed: _submitting ? null : _submit,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFC2185B),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                elevation: 0,
+              ),
+              child: _submitting
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                    )
+                  : Text(
+                      widget.isVi ? 'Xác nhận hủy' : 'Confirm Cancellation',
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                    ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: TextButton(
+              onPressed: _submitting ? null : () => Navigator.pop(context),
+              style: TextButton.styleFrom(
+                backgroundColor: context.isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+                foregroundColor: context.textPrimary,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+              child: Text(
+                widget.isVi ? 'Giữ lịch hẹn' : 'Keep Appointment',
+                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRadioOption(String value, String label) {
+    final isSelected = _selectedReason == value;
+    return InkWell(
+      onTap: _submitting ? null : () => setState(() => _selectedReason = value),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10.0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: isSelected ? context.textPrimary : context.textSecondary,
+              ),
+            ),
+            Container(
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isSelected ? const Color(0xFFC2185B) : context.textMuted,
+                  width: 2,
+                ),
+              ),
+              padding: const EdgeInsets.all(3),
+              child: isSelected
+                  ? Container(
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Color(0xFFC2185B),
+                      ),
+                    )
+                  : null,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

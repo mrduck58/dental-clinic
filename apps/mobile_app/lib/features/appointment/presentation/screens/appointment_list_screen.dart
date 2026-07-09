@@ -6,9 +6,13 @@ import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/booking/data/booking_models.dart';
 import 'package:mobile_app/features/booking/data/booking_service.dart';
+import 'package:mobile_app/features/auth/data/auth_service.dart';
+import 'package:mobile_app/features/profile/data/family_member.dart';
 
 class AppointmentListScreen extends StatefulWidget {
-  const AppointmentListScreen({super.key});
+  final String? filterPatientId;
+  final String? filterPatientName;
+  const AppointmentListScreen({super.key, this.filterPatientId, this.filterPatientName});
 
   @override
   State<AppointmentListScreen> createState() => _AppointmentListScreenState();
@@ -19,17 +23,79 @@ class _AppointmentListScreenState extends State<AppointmentListScreen> {
   List<MyAppointmentItem> _items = [];
   bool _loading = true;
   String? _error;
+  String? _filterPatientId;
+  String? _filterPatientName;
+  List<PatientInfo> _filterOptions = [];
+  bool _isDropdownOpen = false;
 
   @override
   void initState() {
     super.initState();
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
+    _filterPatientId = widget.filterPatientId ?? 'self';
+    _filterPatientName = widget.filterPatientName ?? (isVi ? 'Tôi' : 'Self');
+
+    // Initialize with default values first so we don't have an empty list
+    _filterOptions = [
+      PatientInfo(id: 'self', name: isVi ? 'Tôi' : 'Self', relationship: isVi ? 'Tôi' : 'Self'),
+    ];
+
     _load();
+    _loadFilterOptions();
+  }
+
+  Future<void> _loadFilterOptions() async {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
+    try {
+      final auth = AuthService();
+      String myName = isVi ? 'Tôi' : 'Self';
+      try {
+        final profile = await auth.getMyProfile();
+        if (profile.fullName.isNotEmpty) myName = profile.fullName;
+      } catch (_) {
+        final localName = await auth.getUserName();
+        if (localName != null && localName.isNotEmpty) myName = localName;
+      }
+
+      await FamilyService().loadFromServer();
+      final family = FamilyService().getMembers();
+
+      final list = [
+        PatientInfo(id: 'self', name: myName, relationship: isVi ? 'Tôi' : 'Self'),
+        ...family.map((m) => PatientInfo(
+              id: m.id,
+              name: m.fullName,
+              relationship: m.relationship,
+            )),
+      ];
+
+      if (mounted) {
+        setState(() {
+          _filterOptions = list;
+          if (_filterPatientId == 'self') {
+            _filterPatientName = myName;
+          }
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
     try {
-      final list = await _service.getMyAppointments();
+      var list = await _service.getMyAppointments();
+      if (_filterPatientId != null) {
+        if (_filterPatientId == 'self') {
+          list = list.where((item) => 
+            item.patientRelationship == null || 
+            item.patientRelationship!.isEmpty || 
+            item.patientRelationship == 'Tôi' || 
+            item.patientRelationship == 'Self'
+          ).toList();
+        } else {
+          list = list.where((item) => item.patientId == _filterPatientId).toList();
+        }
+      }
       if (mounted) setState(() { _items = list; _loading = false; });
     } catch (e) {
       if (mounted) {
@@ -41,6 +107,158 @@ class _AppointmentListScreenState extends State<AppointmentListScreen> {
         });
       }
     }
+  }
+
+  Widget _buildMemberDropdown(bool isVi) {
+    final selectedOption = _filterOptions.firstWhere(
+      (opt) => _filterPatientId == opt.id,
+      orElse: () => PatientInfo(id: 'self', name: isVi ? 'Tôi' : 'Self', relationship: isVi ? 'Tôi' : 'Self'),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Column(
+        children: [
+          GestureDetector(
+            onTap: () {
+              setState(() {
+                _isDropdownOpen = !_isDropdownOpen;
+              });
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: context.card,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: context.divider),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: context.isDark ? 0.15 : 0.04),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: const BoxDecoration(
+                      color: AppColors.primaryLight,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      selectedOption.id == 'self' ? Iconsax.user : Iconsax.profile_circle,
+                      color: AppColors.primary,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          selectedOption.name,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: context.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          selectedOption.relationship,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: context.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  AnimatedRotation(
+                    turns: _isDropdownOpen ? 0.5 : 0.0,
+                    duration: const Duration(milliseconds: 200),
+                    child: Icon(Icons.keyboard_arrow_down_rounded, color: context.textSecondary, size: 24),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_isDropdownOpen) ...[
+            const SizedBox(height: 8),
+            Container(
+              decoration: BoxDecoration(
+                color: context.card,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: context.divider),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: context.isDark ? 0.12 : 0.03),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: _filterOptions.map((opt) {
+                  final isSelected = _filterPatientId == opt.id;
+                  return Column(
+                    children: [
+                      ListTile(
+                        leading: Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: isSelected ? AppColors.primary : context.divider,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            opt.id == 'self' ? Iconsax.user : Iconsax.profile_circle,
+                            color: isSelected ? Colors.white : context.textSecondary,
+                            size: 18,
+                          ),
+                        ),
+                        title: Text(
+                          opt.name,
+                          style: TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                            color: context.textPrimary,
+                          ),
+                        ),
+                        subtitle: Text(
+                          opt.relationship,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: context.textSecondary,
+                          ),
+                        ),
+                        trailing: isSelected
+                            ? const Icon(Icons.check_circle_rounded, color: AppColors.primary, size: 20)
+                            : null,
+                        onTap: () {
+                          setState(() {
+                            _filterPatientId = opt.id;
+                            _filterPatientName = opt.name;
+                            _isDropdownOpen = false;
+                          });
+                          _load();
+                        },
+                      ),
+                      if (opt != _filterOptions.last)
+                        Divider(color: context.divider, height: 1),
+                    ],
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   Widget _buildTabContent(List<MyAppointmentItem> items, bool isVi) {
@@ -55,7 +273,11 @@ class _AppointmentListScreenState extends State<AppointmentListScreen> {
           : ListView.builder(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
               itemCount: items.length,
-              itemBuilder: (_, i) => _AppointmentCard(item: items[i], isVi: isVi),
+              itemBuilder: (_, i) => _AppointmentCard(
+                item: items[i],
+                isVi: isVi,
+                onRefresh: _load,
+              ),
             ),
     );
   }
@@ -70,10 +292,7 @@ class _AppointmentListScreenState extends State<AppointmentListScreen> {
         appBar: AppBar(
           backgroundColor: context.card,
           elevation: 0,
-          leading: IconButton(
-            icon: Icon(Icons.arrow_back_ios_new_rounded, color: context.textPrimary, size: 20),
-            onPressed: () => context.pop(),
-          ),
+          automaticallyImplyLeading: false,
           title: Text(
             context.l10n('my_appointments'),
             style: TextStyle(
@@ -89,40 +308,50 @@ class _AppointmentListScreenState extends State<AppointmentListScreen> {
               onPressed: _load,
             ),
           ],
-          bottom: TabBar(
-            labelColor: AppColors.primary,
-            unselectedLabelColor: context.textSecondary,
-            indicatorColor: AppColors.primary,
-            indicatorSize: TabBarIndicatorSize.tab,
-            indicatorWeight: 3,
-            labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
-            unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-            tabs: [
-              Tab(text: isVi ? 'Sắp tới' : 'Upcoming'),
-              Tab(text: isVi ? 'Hoàn thành' : 'Completed'),
-              Tab(text: isVi ? 'Đã hủy' : 'Cancelled'),
-            ],
-          ),
         ),
         body: _loading
             ? Center(child: CircularProgressIndicator(color: AppColors.primary))
             : _error != null
                  ? _ErrorView(message: _error!, onRetry: _load, isVi: isVi)
-                 : TabBarView(
+                 : Column(
                      children: [
-                       _buildTabContent(
-                         _items.where((item) =>
-                             item.status.toLowerCase() != 'completed' &&
-                             item.status.toLowerCase() != 'cancelled').toList(),
-                         isVi,
+                       _buildMemberDropdown(isVi),
+                       Container(
+                         color: context.card,
+                         child: TabBar(
+                           labelColor: AppColors.primary,
+                           unselectedLabelColor: context.textSecondary,
+                           indicatorColor: AppColors.primary,
+                           indicatorSize: TabBarIndicatorSize.tab,
+                           indicatorWeight: 3,
+                           labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                           unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                           tabs: [
+                             Tab(text: isVi ? 'Sắp tới' : 'Upcoming'),
+                             Tab(text: isVi ? 'Hoàn thành' : 'Completed'),
+                             Tab(text: isVi ? 'Đã hủy' : 'Cancelled'),
+                           ],
+                         ),
                        ),
-                       _buildTabContent(
-                         _items.where((item) => item.status.toLowerCase() == 'completed').toList(),
-                         isVi,
-                       ),
-                       _buildTabContent(
-                         _items.where((item) => item.status.toLowerCase() == 'cancelled').toList(),
-                         isVi,
+                       Expanded(
+                         child: TabBarView(
+                           children: [
+                             _buildTabContent(
+                               _items.where((item) =>
+                                   item.status.toLowerCase() != 'completed' &&
+                                   item.status.toLowerCase() != 'cancelled').toList(),
+                               isVi,
+                             ),
+                             _buildTabContent(
+                               _items.where((item) => item.status.toLowerCase() == 'completed').toList(),
+                               isVi,
+                             ),
+                             _buildTabContent(
+                               _items.where((item) => item.status.toLowerCase() == 'cancelled').toList(),
+                               isVi,
+                             ),
+                           ],
+                         ),
                        ),
                      ],
                    ),
@@ -147,7 +376,12 @@ class _AppointmentListScreenState extends State<AppointmentListScreen> {
 class _AppointmentCard extends StatelessWidget {
   final MyAppointmentItem item;
   final bool isVi;
-  const _AppointmentCard({required this.item, required this.isVi});
+  final VoidCallback onRefresh;
+  const _AppointmentCard({
+    required this.item,
+    required this.isVi,
+    required this.onRefresh,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -245,6 +479,15 @@ class _AppointmentCard extends StatelessWidget {
                   SizedBox(height: 8),
                   _DetailRow(icon: Iconsax.health, text: item.serviceName!),
                 ],
+                if (item.patientName != null && item.patientName!.isNotEmpty) ...[
+                  SizedBox(height: 8),
+                  _DetailRow(
+                    icon: Iconsax.user,
+                    text: item.patientRelationship == null || item.patientRelationship!.isEmpty || item.patientRelationship == 'Tôi' || item.patientRelationship == 'Self'
+                        ? '${isVi ? 'Bệnh nhân' : 'Patient'}: ${item.patientName} (${isVi ? 'Tôi' : 'Self'})'
+                        : '${isVi ? 'Bệnh nhân' : 'Patient'}: ${item.patientName} (${item.patientRelationship})',
+                  ),
+                ],
                 if (item.symptoms != null && item.symptoms!.isNotEmpty) ...[
                   SizedBox(height: 8),
                   _DetailRow(icon: Iconsax.note_text, text: item.symptoms!, muted: true),
@@ -259,7 +502,10 @@ class _AppointmentCard extends StatelessWidget {
               width: double.infinity,
               height: 38,
               child: OutlinedButton(
-                onPressed: () => context.push(AppRoutes.appointmentDetails, extra: item),
+                onPressed: () async {
+                  await context.push(AppRoutes.appointmentDetails, extra: item);
+                  onRefresh();
+                },
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.primary,
                   side: const BorderSide(color: AppColors.primary),
@@ -281,10 +527,16 @@ class _AppointmentCard extends StatelessWidget {
     switch (status.toLowerCase()) {
       case 'confirmed':
         return (isVi ? 'Đã xác nhận' : 'Confirmed', const Color(0xFF16A34A), const Color(0xFFDCFCE7));
+      case 'checkedin':
+        return (isVi ? 'Đã check-in' : 'Checked In', const Color(0xFF4F46E5), const Color(0xFFEEF2FF));
+      case 'inprogress':
+        return (isVi ? 'Đang khám' : 'In Progress', const Color(0xFF0284C7), const Color(0xFFE0F2FE));
+      case 'pendingpayment':
+        return (isVi ? 'Chờ thanh toán' : 'Pending Payment', const Color(0xFFEA580C), const Color(0xFFFFEDD5));
       case 'completed':
-        return (isVi ? 'Hoàn thành' : 'Completed', const Color(0xFF0284C7), const Color(0xFFE0F2FE));
+        return (isVi ? 'Hoàn thành' : 'Completed', const Color(0xFF16A34A), const Color(0xFFDCFCE7));
       case 'cancelled':
-        return (isVi ? 'Đã hủy' : 'Cancelled', const Color(0xFF64748B), const Color(0xFFF1F5F9));
+        return (isVi ? 'Đã hủy' : 'Cancelled', const Color(0xFFEF4444), const Color(0xFFFEE2E2));
       default:
         return (isVi ? 'Chờ xác nhận' : 'Pending', const Color(0xFFD97706), const Color(0xFFFEF3C7));
     }

@@ -164,5 +164,5 @@ public class CreateAppointmentHandlerTests
     }
 
     private static CreateAppointmentCommand MakeCmd() =>
-        new(Guid.NewGuid(), Guid.NewGuid(), DateTimeOffset.UtcNow.AddDays(1), null, null);
+        new(Guid.NewGuid(), Guid.NewGuid(), DateTimeOffset.UtcNow.AddDays(1), null, null, null);
 }

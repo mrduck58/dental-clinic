@@ -1,4 +1,4 @@
-﻿using DentalClinic.API.Domain.Constants;
+using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
@@ -11,6 +11,7 @@ public class UpdateAppointmentStatusHandler(
     IActivityLogService activityLogService,
     INotificationService notificationService,
     ICurrentUserService currentUser,
+    IPatientRepository? patientRepository = null,
     ILogger<UpdateAppointmentStatusHandler>? logger = null)
 {
     public async Task ConfirmAsync(Guid appointmentId, CancellationToken ct = default)
@@ -51,7 +52,7 @@ public class UpdateAppointmentStatusHandler(
         }
     }
 
-    public async Task CancelAsync(Guid appointmentId, CancellationToken ct = default)
+    public async Task CancelAsync(Guid appointmentId, string? reason = null, CancellationToken ct = default)
     {
         var appointment = await appointmentRepository.GetByIdAsync(appointmentId, ct);
         if (appointment == null)
@@ -59,9 +60,40 @@ public class UpdateAppointmentStatusHandler(
             logger?.LogWarning("Appointment {Id} not found for Cancel", appointmentId);
             throw new KeyNotFoundException($"Không tìm thấy lịch hẹn {appointmentId}.");
         }
-        appointment.Cancel();
+
+        // Validate permissions for Patient role
+        if (currentUser.IsAuthenticated && currentUser.UserRole == "Patient")
+        {
+            if (patientRepository == null)
+            {
+                throw new InvalidOperationException("Chưa cấu hình repository của bệnh nhân.");
+            }
+
+            if (currentUser.UserId == null)
+            {
+                throw new UnauthorizedAccessException("Không xác định được ID người dùng.");
+            }
+
+            var patient = await patientRepository.GetByUserIdAsync(currentUser.UserId.Value, ct);
+            if (patient == null)
+            {
+                throw new UnauthorizedAccessException("Không tìm thấy hồ sơ bệnh nhân tương ứng với tài khoản.");
+            }
+
+            if (appointment.PatientId != patient.Id)
+            {
+                // Check if this appointment belongs to a family member
+                var familyMembers = await patientRepository.GetFamilyMembersAsync(patient.Id, ct);
+                if (!familyMembers.Any(f => f.Id == appointment.PatientId))
+                {
+                    throw new UnauthorizedAccessException("Bạn không có quyền hủy lịch hẹn này.");
+                }
+            }
+        }
+
+        appointment.Cancel(reason);
         await appointmentRepository.UpdateAsync(appointment, ct);
-        logger?.LogInformation("Appointment {Id} cancelled", appointmentId);
+        logger?.LogInformation("Appointment {Id} cancelled with reason: {Reason}", appointmentId, reason ?? "N/A");
 
         await activityLogService.LogAsync(
             userId: currentUser.UserId,
@@ -69,7 +101,7 @@ public class UpdateAppointmentStatusHandler(
             userRole: currentUser.UserRole,
             action: ActivityAction.Cancel,
             module: ActivityModule.Appointment,
-            description: $"Hủy lịch hẹn ID: {appointmentId}",
+            description: $"Hủy lịch hẹn ID: {appointmentId}. Lý do: {reason ?? "Không có"}",
             status: ActivityStatus.Success,
             ipAddress: currentUser.IpAddress,
             targetId: appointmentId.ToString(),
@@ -83,7 +115,7 @@ public class UpdateAppointmentStatusHandler(
                 Type: NotificationType.Appointment,
                 Priority: NotificationPriority.High,
                 Title: "Lịch hẹn bị hủy",
-                Body: $"Lịch hẹn vào {appointment.AppointmentDate:dd/MM/yyyy HH:mm} đã bị hủy.",
+                Body: $"Lịch hẹn vào {appointment.AppointmentDate:dd/MM/yyyy HH:mm} đã bị hủy. Lý do: {reason ?? "Không có"}.",
                 RelatedEntityType: "Appointment",
                 RelatedEntityId: appointmentId.ToString()), ct);
         }

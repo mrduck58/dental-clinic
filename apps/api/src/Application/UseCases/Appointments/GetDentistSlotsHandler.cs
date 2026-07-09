@@ -78,7 +78,11 @@ public class GetDentistSlotsHandler(AppDbContext dbContext, IAppointmentReposito
         {
             var bookedTimes = dayAppointments
                 .Where(a => a.DentistId == d.Id)
-                .Select(a => (a.AppointmentDate.Hour, a.AppointmentDate.Minute))
+                .Select(a =>
+                {
+                    var localTime = a.AppointmentDate.UtcDateTime.AddHours(7);
+                    return (localTime.Hour, localTime.Minute);
+                })
                 .ToHashSet();
 
             // Khung giờ theo các ca THỰC TẾ được phân trong ngày; dự phòng dùng ca tĩnh của bác sĩ
