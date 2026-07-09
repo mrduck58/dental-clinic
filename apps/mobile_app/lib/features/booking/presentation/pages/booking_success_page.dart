@@ -280,7 +280,20 @@ class _BookingSuccessPageState extends State<BookingSuccessPage>
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton(
-                      onPressed: () => context.go(AppRoutes.appointments),
+                      onPressed: () {
+                        final d = widget.draft;
+                        if (d.patient != null && d.patient!.id != 'self') {
+                          context.go(
+                            AppRoutes.appointments,
+                            extra: {
+                              'patientId': d.patient!.id,
+                              'patientName': d.patient!.name,
+                            },
+                          );
+                        } else {
+                          context.go(AppRoutes.appointments);
+                        }
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
@@ -290,7 +303,7 @@ class _BookingSuccessPageState extends State<BookingSuccessPage>
                         ),
                       ),
                       child: Text(
-                        isVi ? 'Xem lịch hẹn của tôi' : 'View my appointments',
+                        isVi ? 'Xem lịch hẹn' : 'View appointments',
                         style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                       ),
                     ),

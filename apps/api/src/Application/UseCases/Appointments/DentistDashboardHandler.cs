@@ -1,11 +1,12 @@
 using DentalClinic.API.Domain.Enums;
+using DentalClinic.API.Domain.Schedules;
 using DentalClinic.API.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.Appointments;
 
-public record DentistShiftDto(bool HasShift, string? Time, string? Room);
-public record DentistWeekShiftsDto(int Total, int Morning, int Afternoon);
+public record DentistShiftDto(string Label, string Period, string? Room);
+public record DentistWeekShiftsDto(int Total, int Morning, int Afternoon, int Evening);
 
 public record DentistDashboardPatientDto(
     Guid AppointmentId,
@@ -21,8 +22,7 @@ public record DentistDashboardResponse(
     int TotalInProgress,
     int TotalCompleted,
     DentistWeekShiftsDto WeekShifts,
-    DentistShiftDto MorningShift,
-    DentistShiftDto AfternoonShift,
+    List<DentistShiftDto> TodayShifts,
     List<DentistDashboardPatientDto> UpcomingPatients);
 
 public class DentistDashboardHandler(AppDbContext dbContext)
@@ -50,9 +50,8 @@ public class DentistDashboardHandler(AppDbContext dbContext)
                 TotalWaiting:       0,
                 TotalInProgress:    0,
                 TotalCompleted:     0,
-                WeekShifts:         new DentistWeekShiftsDto(0, 0, 0),
-                MorningShift:       new DentistShiftDto(false, null, null),
-                AfternoonShift:     new DentistShiftDto(false, null, null),
+                WeekShifts:         new DentistWeekShiftsDto(0, 0, 0, 0),
+                TodayShifts:        [],
                 UpcomingPatients:   []);
         }
 
@@ -96,19 +95,18 @@ public class DentistDashboardHandler(AppDbContext dbContext)
 
         var todaySchedules = weekSchedules.Where(s => s.Date == today).ToList();
 
-        var morningEntry   = todaySchedules.FirstOrDefault(s => s.Shift == "morning");
-        var afternoonEntry = todaySchedules.FirstOrDefault(s => s.Shift == "afternoon");
+        // Danh sách các ca NGANG HÀNG bác sĩ được phân hôm nay, xếp theo thời gian
+        var todayShifts = todaySchedules
+            .OrderBy(s => WorkShifts.SortKey(s.Shift))
+            .Select(s => new DentistShiftDto(
+                WorkShifts.LabelOf(s.Shift) ?? s.Shift,
+                WorkShifts.PeriodOf(s.Shift),
+                s.Room))
+            .ToList();
 
-        var morningShift = morningEntry != null
-            ? new DentistShiftDto(true, "07:30 – 12:00", morningEntry.Room)
-            : new DentistShiftDto(false, null, null);
-
-        var afternoonShift = afternoonEntry != null
-            ? new DentistShiftDto(true, "13:00 – 17:30", afternoonEntry.Room)
-            : new DentistShiftDto(false, null, null);
-
-        int weekMorning   = weekSchedules.Count(s => s.Shift == "morning");
-        int weekAfternoon = weekSchedules.Count(s => s.Shift == "afternoon");
+        int weekMorning   = weekSchedules.Count(s => WorkShifts.PeriodOf(s.Shift) == WorkShifts.PeriodMorning);
+        int weekAfternoon = weekSchedules.Count(s => WorkShifts.PeriodOf(s.Shift) == WorkShifts.PeriodAfternoon);
+        int weekEvening   = weekSchedules.Count(s => WorkShifts.PeriodOf(s.Shift) == WorkShifts.PeriodEvening);
 
         // Upcoming patients: InProgress first, then CheckedIn, then Confirmed — top 5
         var upcomingPatients = todayAppointments
@@ -140,9 +138,8 @@ public class DentistDashboardHandler(AppDbContext dbContext)
             totalWaiting,
             totalInProgress,
             totalCompleted,
-            new DentistWeekShiftsDto(weekSchedules.Count, weekMorning, weekAfternoon),
-            morningShift,
-            afternoonShift,
+            new DentistWeekShiftsDto(weekSchedules.Count, weekMorning, weekAfternoon, weekEvening),
+            todayShifts,
             upcomingPatients);
     }
 }

@@ -620,7 +620,7 @@ export async function deletePostApi(id: string): Promise<void> {
 export interface ScheduleEntryDto {
   id: string;
   date: string; // "YYYY-MM-DD"
-  shift: "morning" | "afternoon";
+  shift: string; // mã ca, ví dụ "08:00-10:00" (xem lib/shifts.ts). Dữ liệu cũ: "morning"/"afternoon"
   type: "dentist" | "staff";
   role: "dentist" | "assistant" | "staff";
   name: string;
@@ -631,7 +631,7 @@ export interface ScheduleEntryDto {
 
 export interface SaveScheduleEntryRequest {
   date: string;
-  shift: "morning" | "afternoon";
+  shift: string; // mã ca, ví dụ "08:00-10:00"
   type: "dentist" | "staff";
   role: "dentist" | "assistant" | "staff";
   name: string;
@@ -1585,8 +1585,8 @@ export interface DentistPatientsResponse {
 // ── Dentist Dashboard ──────────────────────────────────────────────────────
 
 export interface DentistShiftInfo {
-  hasShift: boolean;
-  time: string | null;
+  label: string;        // "08:00 – 10:00"
+  period: string;       // "Buổi sáng" | "Buổi chiều" | "Buổi tối"
   room: string | null;
 }
 
@@ -1594,6 +1594,7 @@ export interface DentistWeekShifts {
   total: number;
   morning: number;
   afternoon: number;
+  evening: number;
 }
 
 export interface DentistDashboardPatientDto {
@@ -1611,8 +1612,7 @@ export interface DentistDashboardResponse {
   totalInProgress: number;
   totalCompleted: number;
   weekShifts: DentistWeekShifts;
-  morningShift: DentistShiftInfo;
-  afternoonShift: DentistShiftInfo;
+  todayShifts: DentistShiftInfo[];
   upcomingPatients: DentistDashboardPatientDto[];
 }
 
@@ -1628,8 +1628,7 @@ export interface StaffScheduleDentistDto {
   dentistId: string;
   name: string;
   room: string;
-  morningSlots: StaffScheduleSlot[];
-  afternoonSlots: StaffScheduleSlot[];
+  slots: StaffScheduleSlot[]; // các khung giờ bác sĩ có ca hôm nay (đã lọc theo ca được phân)
 }
 
 export interface StaffScheduleResponse {
@@ -1711,6 +1710,18 @@ export async function getDentistPatientsApi(date?: string): Promise<DentistPatie
     throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách bệnh nhân");
   }
   return res.json() as Promise<DentistPatientsResponse>;
+}
+
+export async function getDentistPastPatientsApi(): Promise<DentistPatientDto[]> {
+  const res = await fetch(`${API_URL}/api/appointments/dentist/patients/past`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách bệnh nhân đã từng khám");
+  }
+  return res.json() as Promise<DentistPatientDto[]>;
 }
 
 export async function rejectLeaveRequestApi(id: string, reviewerNote?: string): Promise<LeaveRequestDto> {
@@ -2734,4 +2745,240 @@ export async function getActivityLogsApi(params?: {
     throw new Error((err as { title?: string }).title ?? "Không thể tải lịch sử hoạt động");
   }
   return res.json() as Promise<ActivityLogPagedDto>;
+}
+
+// ── Dashboard Admin (Tổng quan vận hành) ─────────────────────────────────────
+
+export type DashboardRange = "week" | "month" | "year";
+
+export interface DashboardStatsDto {
+  range: DashboardRange;
+  periodStart: string;
+  periodEnd: string;
+  newPatientsCount: number;
+  newPatientsTrendPercent: number;
+  appointmentsCount: number;
+  appointmentsTrendPercent: number;
+  revenueAmount: number;
+  revenueTrendPercent: number;
+}
+
+export async function getDashboardStatsApi(range: DashboardRange): Promise<DashboardStatsDto> {
+  const res = await fetch(`${API_URL}/api/dashboard/stats?range=${range}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải chỉ số tổng quan");
+  }
+  return res.json() as Promise<DashboardStatsDto>;
+}
+
+export interface AppointmentTrendPointDto {
+  periodStart: string;
+  periodEnd: string;
+  count: number;
+}
+
+export interface AppointmentTrendDto {
+  range: DashboardRange;
+  points: AppointmentTrendPointDto[];
+}
+
+export async function getAppointmentTrendApi(range: DashboardRange): Promise<AppointmentTrendDto> {
+  const res = await fetch(`${API_URL}/api/dashboard/appointment-trend?range=${range}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải biểu đồ lịch hẹn");
+  }
+  return res.json() as Promise<AppointmentTrendDto>;
+}
+
+export interface ServiceDistributionItemDto {
+  serviceId: string | null;
+  serviceName: string | null;
+  count: number;
+  percentage: number;
+}
+
+export interface ServiceDistributionDto {
+  range: DashboardRange;
+  totalAppointments: number;
+  items: ServiceDistributionItemDto[];
+}
+
+export async function getServiceDistributionApi(
+  range: DashboardRange,
+  topN = 5
+): Promise<ServiceDistributionDto> {
+  const res = await fetch(`${API_URL}/api/dashboard/service-distribution?range=${range}&topN=${topN}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải tỷ lệ dịch vụ");
+  }
+  return res.json() as Promise<ServiceDistributionDto>;
+}
+
+export interface DashboardTodayAppointmentDto {
+  id: string;
+  appointmentDate: string;
+  patientName: string;
+  serviceName: string | null;
+  status: string;
+}
+
+export interface DashboardTodayAppointmentsDto {
+  items: DashboardTodayAppointmentDto[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export async function getDashboardTodayAppointmentsApi(
+  page = 1,
+  pageSize = 10
+): Promise<DashboardTodayAppointmentsDto> {
+  const res = await fetch(`${API_URL}/api/dashboard/today-appointments?page=${page}&pageSize=${pageSize}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải lịch hẹn hôm nay");
+  }
+  return res.json() as Promise<DashboardTodayAppointmentsDto>;
+}
+
+export interface DashboardCalendarDayDto {
+  date: string;
+  isToday: boolean;
+}
+
+export interface DashboardShiftEntryDto {
+  staffName: string;
+  specialization: string | null;
+  profilePictureUrl: string | null;
+  room: string;
+  roomColor: string;
+  isBusy: boolean;
+}
+
+export interface DashboardWeeklyScheduleDto {
+  selectedDate: string;
+  week: DashboardCalendarDayDto[];
+  morningShift: DashboardShiftEntryDto[];
+  afternoonShift: DashboardShiftEntryDto[];
+}
+
+export async function getDashboardWeeklyScheduleApi(date?: string): Promise<DashboardWeeklyScheduleDto> {
+  const qs = date ? `?date=${date}` : "";
+  const res = await fetch(`${API_URL}/api/dashboard/weekly-schedule${qs}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải lịch vận hành phòng khám");
+  }
+  return res.json() as Promise<DashboardWeeklyScheduleDto>;
+}
+
+export interface DashboardFeedbackSummaryDto {
+  id: string;
+  customerName: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
+}
+
+export interface DashboardRecentFeedbackDto {
+  items: DashboardFeedbackSummaryDto[];
+  averageRating: number;
+  totalFeaturedCount: number;
+}
+
+export async function getDashboardRecentFeedbackApi(limit = 3): Promise<DashboardRecentFeedbackDto> {
+  const res = await fetch(`${API_URL}/api/dashboard/recent-feedback?limit=${limit}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải đánh giá khách hàng");
+  }
+  return res.json() as Promise<DashboardRecentFeedbackDto>;
+}
+
+// ── Dashboard Staff (Tổng quan lễ tân) ───────────────────────────────────────
+
+export interface StaffDashboardStatsDto {
+  appointmentsTodayCount: number;
+  waitingCheckInCount: number;
+  inProgressCount: number;
+  pendingInvoicesCount: number;
+}
+
+export async function getStaffDashboardStatsApi(): Promise<StaffDashboardStatsDto> {
+  const res = await fetch(`${API_URL}/api/staff-dashboard/stats`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải chỉ số tổng quan");
+  }
+  return res.json() as Promise<StaffDashboardStatsDto>;
+}
+
+export interface StaffDashboardTodayAppointmentDto {
+  id: string;
+  patientName: string;
+  serviceName: string | null;
+  dentistName: string;
+  appointmentDate: string;
+  status: string; // "Confirmed" | "CheckedIn" | "InProgress"
+}
+
+export async function getStaffDashboardTodayAppointmentsApi(
+  limit = 5
+): Promise<StaffDashboardTodayAppointmentDto[]> {
+  const res = await fetch(`${API_URL}/api/staff-dashboard/today-appointments?limit=${limit}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải lịch hẹn hôm nay");
+  }
+  return res.json() as Promise<StaffDashboardTodayAppointmentDto[]>;
+}
+
+export interface StaffDashboardPendingInvoiceDto {
+  id: string;
+  invoiceNumber: string;
+  patientName: string;
+  serviceName: string | null;
+  amount: number;
+}
+
+export async function getStaffDashboardPendingInvoicesApi(
+  limit = 3
+): Promise<StaffDashboardPendingInvoiceDto[]> {
+  const res = await fetch(`${API_URL}/api/staff-dashboard/pending-invoices?limit=${limit}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải hóa đơn chờ thanh toán");
+  }
+  return res.json() as Promise<StaffDashboardPendingInvoiceDto[]>;
 }

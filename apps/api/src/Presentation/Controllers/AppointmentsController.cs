@@ -37,12 +37,15 @@ public class AppointmentsController(
         CancellationToken cancellationToken)
     {
         var userId = GetCurrentUserId();
+        Console.WriteLine($"[API] CreateAppointment: Received request for DentistId={request.DentistId}, PatientId={request.PatientId ?? Guid.Empty} (Null if self/not set)");
+        
         var cmd = new CreateAppointmentCommand(
             userId,
             request.DentistId,
             request.AppointmentDate,
             request.Symptoms,
-            request.ServiceId);
+            request.ServiceId,
+            request.PatientId);
 
         var result = await createAppointmentHandler.HandleAsync(cmd, cancellationToken);
         return Ok(result);
@@ -79,12 +82,16 @@ public class AppointmentsController(
         return NoContent();
     }
 
-    /// <summary>PUT api/appointments/{id}/cancel — Hủy lịch hẹn (Staff/Admin)</summary>
+    /// <summary>PUT api/appointments/{id}/cancel — Hủy lịch hẹn</summary>
     [HttpPut("{id}/cancel")]
-    [Authorize(Roles = "Staff,Admin,Owner")]
-    public async Task<IActionResult> CancelAppointment(Guid id, CancellationToken cancellationToken)
+    [Authorize(Roles = "Patient,Staff,Admin,Owner")]
+    public async Task<IActionResult> CancelAppointment(
+        Guid id,
+        [FromBody(EmptyBodyBehavior = Microsoft.AspNetCore.Mvc.ModelBinding.EmptyBodyBehavior.Allow)] CancelAppointmentRequest? request,
+        CancellationToken cancellationToken)
     {
-        await updateAppointmentStatusHandler.CancelAsync(id, cancellationToken);
+        var reason = request?.Reason;
+        await updateAppointmentStatusHandler.CancelAsync(id, reason, cancellationToken);
         return NoContent();
     }
 
@@ -497,6 +504,50 @@ public class AppointmentsController(
         return Ok(result);
     }
 
+    /// <summary>GET api/appointments/dentist/patients/past — Lấy danh sách bệnh nhân đã từng khám của bác sĩ</summary>
+    [HttpGet("dentist/patients/past")]
+    [Authorize(Roles = "Dentist")]
+    public async Task<IActionResult> GetDentistPastPatients(CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        var dentist = await dbContext.Dentists.FirstOrDefaultAsync(d => d.UserId == userId, cancellationToken);
+        if (dentist == null)
+            return NotFound(new { title = "Không tìm thấy thông tin bác sĩ." });
+
+        var appointments = await dbContext.Appointments
+            .Include(a => a.Patient).ThenInclude(p => p.User)
+            .Include(a => a.Service)
+            .Where(a => a.DentistId == dentist.Id &&
+                        (a.Status == AppointmentStatus.Completed || a.Status == AppointmentStatus.PendingPayment))
+            .OrderByDescending(a => a.AppointmentDate)
+            .ToListAsync(cancellationToken);
+
+        var patients = appointments.Select(a => new DentistPatientDto(
+            a.Id,
+            $"DK{a.AppointmentDate:yyyyMMdd}{a.Id.ToString("N")[..6].ToUpper()}",
+            a.Patient.FullName,
+            CalculateAge(a.Patient.DateOfBirth),
+            a.Patient.Gender ?? "Khác",
+            a.Patient.PhoneNumber ?? a.Patient.User?.PhoneNumber,
+            a.AppointmentDate,
+            a.Status.ToString(),
+            a.Service?.Name,
+            a.Symptoms,
+            false
+        )).ToList();
+
+        return Ok(patients);
+    }
+
+    private static int CalculateAge(DateOnly? dateOfBirth)
+    {
+        if (!dateOfBirth.HasValue) return 0;
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var age = today.Year - dateOfBirth.Value.Year;
+        if (dateOfBirth.Value > today.AddYears(-age)) age--;
+        return age;
+    }
+
     private Guid GetCurrentUserId()
     {
         var sub = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
@@ -510,7 +561,8 @@ public record CreateAppointmentRequest(
     Guid DentistId,
     DateTimeOffset AppointmentDate,
     string? Symptoms,
-    Guid? ServiceId);
+    Guid? ServiceId,
+    Guid? PatientId);
 
 public record CreateWalkInRequest(
     Guid DentistId,
@@ -521,3 +573,5 @@ public record CreateWalkInRequest(
     string Gender,
     Guid? ServiceId,
     string? Symptoms);
+
+public record CancelAppointmentRequest(string? Reason);

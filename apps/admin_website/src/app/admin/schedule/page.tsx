@@ -6,12 +6,13 @@ import AdminSidebar from "../../../components/shared/AdminSidebar";
 import NotificationBell from "../../../components/shared/NotificationBell";
 import { useRequireAdmin } from "../../../hooks/useRequireAdmin";
 import { getWeekScheduleApi } from "../../../lib/apiClient";
+import { SHIFT_PERIODS, shiftsByPeriod, shiftLabel } from "../../../lib/shifts";
 
 // Define TypeScript interfaces for our scheduling data
 interface ScheduleEntry {
   id: string;
   date: string; // format YYYY-MM-DD
-  shift: "morning" | "afternoon";
+  shift: string; // mã ca, ví dụ "08:00-10:00"
   type: "dentist" | "staff";
   role: "dentist" | "assistant" | "staff";
   name: string;
@@ -176,6 +177,13 @@ export default function SchedulePage() {
     return map;
   }, [filteredSchedule]);
 
+  // Ngày đóng cửa (nghỉ cả ngày) — tính từ dữ liệu gốc để áp dụng cho MỌI ca của ngày đó,
+  // không phụ thuộc tab Nha sĩ/Nhân viên.
+  const closedDates = useMemo(
+    () => new Set(scheduleData.filter(i => i.isHoliday).map(i => i.date)),
+    [scheduleData],
+  );
+
   const isHighlightedDay = (date: Date) => {
     const today = new Date();
     return date.getFullYear() === today.getFullYear() &&
@@ -188,7 +196,7 @@ export default function SchedulePage() {
     // Generate simple CSV content
     const headers = "Ngay,Ca,Loai,Nhan Vien,Phong Ban\n";
     const rows = filteredSchedule.map(item => {
-      return `"${item.date}","${item.shift === "morning" ? "Ca Sang" : "Ca Chieu"}","${item.type === "dentist" ? "Nha si" : "Nhan vien"}","${item.name}","${item.room}"`;
+      return `"${item.date}","${shiftLabel(item.shift)}","${item.type === "dentist" ? "Nha si" : "Nhan vien"}","${item.name}","${item.room}"`;
     }).join("\n");
     
     const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + encodeURIComponent(headers + rows);
@@ -420,138 +428,81 @@ export default function SchedulePage() {
                 </thead>
 
                 <tbody className="divide-y divide-slate-200/80">
-                  
-                  {/* MORNING SHIFT ROW */}
-                  <tr className="min-h-[160px]">
-                    {/* Shift Label */}
-                    <td className="px-4 py-6 text-center border-r border-slate-200/80 font-bold bg-slate-50/30">
-                      <div className="text-[12px] font-bold text-slate-400 tracking-wider">(08:00 - 12:00)</div>
-                      <div className="text-[14px] font-black text-slate-700 mt-1 uppercase">Ca Sáng</div>
-                    </td>
 
-                    {/* Days Slots */}
-                    {weekDates.map((date, dayIdx) => {
-                      const dateKey = formatDateKey(date);
-                      const key = `${dateKey}_morning`;
-                      const cellItems = scheduleLookup[key] || [];
-                      const isHighlighted = isHighlightedDay(date);
-
-                      return (
-                        <td 
-                          key={dayIdx} 
-                          className={`px-3.5 py-4.5 align-top border-r border-slate-200/80 last:border-r-0 ${isHighlighted ? "bg-red-50/20" : ""}`}
+                  {SHIFT_PERIODS.map((period) => (
+                    <React.Fragment key={period}>
+                      {/* Period group header (Buổi sáng / chiều / tối) */}
+                      <tr className="bg-slate-50/40">
+                        <td
+                          colSpan={weekDates.length + 1}
+                          className="px-5 py-2.5 font-black text-[12px] tracking-wide text-primary uppercase border-b border-slate-200/60 bg-red-50/10"
                         >
-                          <div className="flex flex-col gap-3.5 min-h-[110px]">
-                            {cellItems.map((item) => {
-                              if (item.isHoliday) {
-                                return (
-                                  <div
-                                    key={item.id}
-                                    className="bg-slate-100 border border-slate-200 p-3 rounded-lg flex items-center justify-center shadow-inner text-center flex-1"
-                                  >
-                                    <span className="text-[13.5px] font-black text-slate-400 uppercase tracking-widest">
-                                      {item.name}
-                                    </span>
-                                  </div>
-                                );
-                              }
-
-                              return (
-                                <div
-                                  key={item.id}
-                                  className={`bg-slate-50 border-l-4 ${item.roomColor} p-2.5 rounded-lg shadow-sm hover-lift flex flex-col gap-1 transition-all border border-slate-200/70`}
-                                >
-                                  <div className="text-[10px] font-black text-slate-450 uppercase tracking-wide flex items-center justify-between">
-                                    <span>{item.room}</span>
-                                    {item.role === "assistant" && (
-                                      <span className="text-teal-600 font-extrabold text-[8px] bg-teal-50 px-1 rounded">PHỤ TÁ</span>
-                                    )}
-                                  </div>
-                                  <div className="text-[13.5px] font-extrabold text-slate-800">
-                                    {item.name}
-                                  </div>
-                                </div>
-                              );
-                            })}
-
-                            {/* Holiday or Off day state */}
-                            {cellItems.length === 0 && (
-                              <div className="flex-1 flex items-center justify-center">
-                                <span className="text-[12.5px] font-semibold text-slate-350 italic">Không có ca</span>
-                              </div>
-                            )}
-
-                          </div>
+                          {period}
                         </td>
-                      );
-                    })}
-                  </tr>
+                      </tr>
 
-                  {/* AFTERNOON SHIFT ROW */}
-                  <tr className="min-h-[160px]">
-                    {/* Shift Label */}
-                    <td className="px-4 py-6 text-center border-r border-slate-200/80 font-bold bg-slate-50/30">
-                      <div className="text-[12px] font-bold text-slate-400 tracking-wider">(13:30 - 17:30)</div>
-                      <div className="text-[14px] font-black text-slate-700 mt-1 uppercase">Ca Chiều</div>
-                    </td>
+                      {shiftsByPeriod(period).map((shift) => (
+                        <tr key={shift.id} className="min-h-[140px]">
+                          {/* Shift Label */}
+                          <td className="px-4 py-6 text-center border-r border-slate-200/80 font-bold bg-slate-50/30">
+                            <div className="text-[13.5px] font-black text-slate-700 uppercase tracking-tight">{shift.label}</div>
+                          </td>
 
-                    {/* Days Slots */}
-                    {weekDates.map((date, dayIdx) => {
-                      const dateKey = formatDateKey(date);
-                      const key = `${dateKey}_afternoon`;
-                      const cellItems = scheduleLookup[key] || [];
-                      const isHighlighted = isHighlightedDay(date);
+                          {/* Days Slots */}
+                          {weekDates.map((date, dayIdx) => {
+                            const dateKey = formatDateKey(date);
+                            const key = `${dateKey}_${shift.id}`;
+                            const isClosed = closedDates.has(dateKey);
+                            const cellItems = (scheduleLookup[key] || []).filter(i => !i.isHoliday);
+                            const isHighlighted = isHighlightedDay(date);
 
-                      return (
-                        <td 
-                          key={dayIdx} 
-                          className={`px-3.5 py-4.5 align-top border-r border-slate-200/80 last:border-r-0 ${isHighlighted ? "bg-red-50/20" : ""}`}
-                        >
-                          <div className="flex flex-col gap-3.5 min-h-[110px]">
-                            {cellItems.map((item) => {
-                              if (item.isHoliday) {
-                                return (
-                                  <div
-                                    key={item.id}
-                                    className="bg-slate-100 border border-slate-200 p-3 rounded-lg flex items-center justify-center shadow-inner text-center flex-1"
-                                  >
-                                    <span className="text-[13.5px] font-black text-slate-400 uppercase tracking-widest">
-                                      {item.name}
-                                    </span>
-                                  </div>
-                                );
-                              }
+                            return (
+                              <td
+                                key={dayIdx}
+                                className={`px-3.5 py-4.5 align-top border-r border-slate-200/80 last:border-r-0 ${isClosed ? "bg-slate-100/40" : isHighlighted ? "bg-red-50/20" : ""}`}
+                              >
+                                <div className="flex flex-col gap-3.5 min-h-[90px]">
+                                  {isClosed ? (
+                                    <div className="bg-slate-100 border border-slate-200 p-3 rounded-lg flex items-center justify-center shadow-inner text-center flex-1 min-h-[70px]">
+                                      <span className="text-[13.5px] font-black text-slate-400 uppercase tracking-widest">
+                                        Đóng cửa
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      {cellItems.map((item) => (
+                                        <div
+                                          key={item.id}
+                                          className={`bg-slate-50 border-l-4 ${item.roomColor} p-2.5 rounded-lg shadow-sm hover-lift flex flex-col gap-1 transition-all border border-slate-200/70`}
+                                        >
+                                          <div className="text-[10px] font-black text-slate-450 uppercase tracking-wide flex items-center justify-between">
+                                            <span>{item.room}</span>
+                                            {item.role === "assistant" && (
+                                              <span className="text-teal-600 font-extrabold text-[8px] bg-teal-50 px-1 rounded">PHỤ TÁ</span>
+                                            )}
+                                          </div>
+                                          <div className="text-[13.5px] font-extrabold text-slate-800">
+                                            {item.name}
+                                          </div>
+                                        </div>
+                                      ))}
 
-                              return (
-                                <div
-                                  key={item.id}
-                                  className={`bg-slate-50 border-l-4 ${item.roomColor} p-2.5 rounded-lg shadow-sm hover-lift flex flex-col gap-1 transition-all border border-slate-200/70`}
-                                >
-                                  <div className="text-[10px] font-black text-slate-450 uppercase tracking-wide flex items-center justify-between">
-                                    <span>{item.room}</span>
-                                    {item.role === "assistant" && (
-                                      <span className="text-teal-600 font-extrabold text-[8px] bg-teal-50 px-1 rounded">PHỤ TÁ</span>
-                                    )}
-                                  </div>
-                                  <div className="text-[13.5px] font-extrabold text-slate-800">
-                                    {item.name}
-                                  </div>
+                                      {/* Empty state */}
+                                      {cellItems.length === 0 && (
+                                        <div className="flex-1 flex items-center justify-center">
+                                          <span className="text-[12.5px] font-semibold text-slate-350 italic">Không có ca</span>
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
                                 </div>
-                              );
-                            })}
-
-                            {/* Holiday or Off day state */}
-                            {cellItems.length === 0 && (
-                              <div className="flex-1 flex items-center justify-center">
-                                <span className="text-[12.5px] font-semibold text-slate-350 italic">Không có ca</span>
-                              </div>
-                            )}
-
-                          </div>
-                        </td>
-                      );
-                    })}
-                  </tr>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </React.Fragment>
+                  ))}
 
                 </tbody>
               </table>

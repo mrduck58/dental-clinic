@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useEffect, useMemo, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -7,13 +7,14 @@ import AdminSidebar from "../../../../components/shared/AdminSidebar";
 import NotificationBell from "../../../../components/shared/NotificationBell";
 import { useRequireAdmin } from "../../../../hooks/useRequireAdmin";
 import { getWeekScheduleApi, saveWeekScheduleApi, getStaffApi, getRoomsApi, type RoomDto } from "../../../../lib/apiClient";
+import { SHIFTS, SHIFT_PERIODS, shiftsByPeriod, shiftLabel, type ShiftDef } from "../../../../lib/shifts";
 import * as XLSX from "xlsx";
 
 // Define TypeScript interfaces for our scheduling data
 interface ScheduleEntry {
   id: string;
   date: string; // format YYYY-MM-DD
-  shift: "morning" | "afternoon";
+  shift: string; // mã ca, ví dụ "08:00-10:00"
   type: "dentist" | "staff";
   role: "dentist" | "assistant" | "staff"; // dentist = Bác sĩ, assistant = Phụ tá, staff = Nhân viên hành chính
   name: string;
@@ -70,6 +71,21 @@ const formatDateKey = (date: Date): string => {
 // Default Monday fallback
 const DEFAULT_MONDAY_STR = "2023-10-16";
 
+// Nhận diện mã ca từ nhãn cột (dùng cho import Excel). Trả về id ca hoặc null.
+const detectShiftFromLabel = (label: string): string | null => {
+  const up = label.toUpperCase();
+  // Ưu tiên khớp giờ bắt đầu của từng ca ("08:00", "10:00", "13:30"…)
+  for (const s of SHIFTS) {
+    const start = s.id.split("-")[0];
+    if (up.includes(start)) return s.id;
+  }
+  // Fallback theo buổi cho file cũ (mất thông tin ca con → lấy ca đầu buổi)
+  if (up.includes("SÁNG") || up.includes("MORNING")) return shiftsByPeriod("Buổi sáng")[0].id;
+  if (up.includes("CHIỀU") || up.includes("AFTERNOON")) return shiftsByPeriod("Buổi chiều")[0].id;
+  if (up.includes("TỐI") || up.includes("EVENING")) return shiftsByPeriod("Buổi tối")[0].id;
+  return null;
+};
+
 function EditScheduleContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -100,7 +116,7 @@ function EditScheduleContent() {
   // Modal selector states
   const [modalCell, setModalCell] = useState<{
     date: string;
-    shift: "morning" | "afternoon";
+    shift: string;
     room: string;
     roomColor: string;
     role: "dentist" | "assistant" | "staff";
@@ -277,7 +293,7 @@ function EditScheduleContent() {
   const handleOpenAssignModal = (
     e: React.MouseEvent,
     dateStr: string,
-    shift: "morning" | "afternoon",
+    shift: string,
     room: string,
     roomColor: string,
     role: "dentist" | "assistant" | "staff"
@@ -301,7 +317,7 @@ function EditScheduleContent() {
       const newHoliday: ScheduleEntry = {
         id: `HOLID-${dateStr}-${Date.now()}`,
         date: dateStr,
-        shift: "morning", // arbitrary shift
+        shift: SHIFTS[0].id, // arbitrary shift (holiday bỏ qua ca)
         type: "dentist", // arbitrary type
         role: "dentist", // arbitrary role
         name: "Nha khoa đóng cửa",
@@ -436,19 +452,18 @@ function EditScheduleContent() {
         const parsedStaffEntries: ScheduleEntry[] = [];
         const holidayDates = new Set<string>();
 
-        let currentShift: "morning" | "afternoon" | null = null;
+        let currentShift: string | null = null;
 
         for (let r = 0; r < rows.length; r++) {
           const rowData = rows[r];
           if (!rowData) continue;
 
-          // Check Column A (index 0) to dynamically update current shift
+          // Check Column A (index 0) to dynamically update current shift.
+          // Ưu tiên nhận diện khung giờ cụ thể của 1 trong 6 ca; nếu file cũ chỉ ghi
+          // "SÁNG"/"CHIỀU"/"TỐI" thì đưa về ca ĐẦU TIÊN của buổi đó (import thô).
           const colAVal = String(rowData[0] || "").trim().toUpperCase();
-          if (colAVal.includes("SÁNG") || colAVal.includes("08:00") || colAVal.includes("MORNING")) {
-            currentShift = "morning";
-          } else if (colAVal.includes("CHIỀU") || colAVal.includes("13:30") || colAVal.includes("AFTERNOON")) {
-            currentShift = "afternoon";
-          }
+          const detected = detectShiftFromLabel(colAVal);
+          if (detected) currentShift = detected;
 
           if (!currentShift) continue;
 
@@ -547,7 +562,7 @@ function EditScheduleContent() {
           importedEntries.push({
             id: `IMPORT-HOLID-${dateStr}-${Date.now()}`,
             date: dateStr,
-            shift: "morning",
+            shift: SHIFTS[0].id,
             type: "dentist",
             role: "dentist",
             name: "Nha khoa đóng cửa",
@@ -704,6 +719,206 @@ function EditScheduleContent() {
       };
     });
   }, [modalCell, activeWeekSchedules, staffType, modalSearchQuery]);
+
+  // ── Render một ô ngày (giao của 1 ca + 1 phòng + 1 ngày) ──────────────────
+  const renderDayCell = (shift: string, room: RoomRow, date: Date, dayIdx: number) => {
+    const dateStr = formatDateKey(date);
+    const isToday = isWednesday(date);
+    const isClosed = isDayClosed(dateStr);
+
+    // Render closed day block
+    if (isClosed) {
+      return (
+        <td
+          key={dayIdx}
+          onClick={() => setDayActionDate(dateStr)}
+          className="px-3.5 py-4 text-center align-middle border-r border-slate-200/80 last:border-r-0 bg-slate-100/50 cursor-pointer transition-all hover:bg-slate-200/35"
+          title="Bấm để mở lại cửa phòng khám"
+        >
+          <div className="flex flex-col items-center justify-center gap-1.5 text-[11.5px] font-black text-slate-400 tracking-wider">
+            <span>ĐÓNG CỬA</span>
+          </div>
+        </td>
+      );
+    }
+
+    // Render maintenance/inactive room block
+    if (room.isDisabled) {
+      return (
+        <td
+          key={dayIdx}
+          className="px-3.5 py-4 text-center align-middle border-r border-slate-200/80 last:border-r-0 bg-amber-50/30"
+          title={`Phòng đang ${room.disabledReason?.toLowerCase()} — không thể phân công`}
+        >
+          <div className="flex flex-col items-center justify-center gap-1.5 text-[11.5px] font-black text-amber-600/70 tracking-wider">
+            <span className="text-base leading-none">⚙</span>
+            <span>{room.disabledReason?.toUpperCase()}</span>
+          </div>
+        </td>
+      );
+    }
+
+    // Look up assignments
+    const docKey = `${dateStr}_${shift}_${room.key}_dentist`;
+    const astKey = `${dateStr}_${shift}_${room.key}_assistant`;
+
+    const doctorEntry = editLookup[docKey];
+    const assistantEntry = editLookup[astKey];
+
+    const hasDoctor = !!doctorEntry;
+
+    // Search queries filter
+    const matchesDocSearch = !searchQuery || (doctorEntry && doctorEntry.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    const matchesAstSearch = !searchQuery || (assistantEntry && assistantEntry.name.toLowerCase().includes(searchQuery.toLowerCase()));
+
+    return (
+      <td
+        key={dayIdx}
+        className={`px-3 py-4.5 align-top border-r border-slate-200/80 last:border-r-0 transition-colors ${isToday ? "bg-red-50/10" : ""}`}
+      >
+        <div className="flex flex-col gap-3 min-h-[120px] justify-start h-full">
+
+          {staffType === "dentist" ? (
+            <>
+              {/* DENTIST SLOT SECTION */}
+              {doctorEntry && matchesDocSearch ? (
+                <div
+                  className={`relative group bg-white border-l-4 border-primary p-2.5 rounded-xl transition-all shadow-sm border border-slate-200/70 hover:border-slate-350 hover:shadow flex flex-col justify-between min-h-[70px] ${doctorEntry.isDraft ? "border-2 border-red-500 shadow-red-50/50" : ""}`}
+                >
+                  <div className="absolute top-1.5 right-1.5 flex gap-1 z-10">
+                    <button
+                      onClick={(e) => handleOpenAssignModal(e, dateStr, shift, room.key, room.color, "dentist")}
+                      className="p-1 bg-slate-50 hover:bg-slate-100 rounded border border-slate-200 text-slate-500 hover:text-primary transition-all cursor-pointer text-[10px] leading-none"
+                      title="Sửa bác sĩ"
+                    >
+                      Sửa
+                    </button>
+                    <button
+                      onClick={(e) => handleRemoveAssignment(e, doctorEntry.id)}
+                      className="p-1 bg-slate-50 hover:bg-red-50 rounded border border-slate-200 hover:border-red-200 text-slate-500 hover:text-primary transition-all cursor-pointer text-[10px] leading-none"
+                      title="Xóa bác sĩ"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div className="pr-10">
+                    <div className={`text-[12.5px] font-black ${doctorEntry.isDraft ? "text-primary" : "text-slate-800"}`}>
+                      {doctorEntry.name}
+                    </div>
+                    <div className="text-[10.5px] font-bold text-slate-400 mt-0.5 truncate">
+                      {staffDatabase.find(s => s.name === doctorEntry.name)?.specialization || "Bác sĩ"}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={(e) => handleOpenAssignModal(e, dateStr, shift, room.key, room.color, "dentist")}
+                  className="py-2.5 px-3 border border-dashed border-slate-250 rounded-xl hover:border-primary text-slate-400 hover:text-primary transition-all hover:bg-slate-50/80 bg-white text-[11.5px] font-extrabold flex items-center justify-center gap-1 cursor-pointer"
+                >
+                  <span>+ Bác sĩ</span>
+                </button>
+              )}
+
+              {/* ASSISTANT SLOT SECTION */}
+              {assistantEntry && matchesAstSearch ? (
+                <div
+                  className={`relative group bg-slate-50 border-l-4 border-teal-500 p-2.5 rounded-xl transition-all shadow-sm border border-slate-200/70 hover:border-slate-350 hover:shadow flex flex-col justify-between min-h-[70px] ${assistantEntry.isDraft ? "border-2 border-red-500 shadow-red-50/50" : ""}`}
+                >
+                  <div className="absolute top-1.5 right-1.5 flex gap-1 z-10">
+                    <button
+                      onClick={(e) => handleOpenAssignModal(e, dateStr, shift, room.key, room.color, "assistant")}
+                      className="p-1 bg-slate-50 hover:bg-slate-100 rounded border border-slate-200 text-slate-500 hover:text-primary transition-all cursor-pointer text-[10px] leading-none"
+                      title="Sửa phụ tá"
+                    >
+                      Sửa
+                    </button>
+                    <button
+                      onClick={(e) => handleRemoveAssignment(e, assistantEntry.id)}
+                      className="p-1 bg-slate-50 hover:bg-red-50 rounded border border-slate-200 hover:border-red-200 text-slate-500 hover:text-primary transition-all cursor-pointer text-[10px] leading-none"
+                      title="Xóa phụ tá"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div className="pr-10">
+                    <div className={`text-[12.5px] font-black ${assistantEntry.isDraft ? "text-primary font-black" : "text-slate-755"}`}>
+                      {assistantEntry.name}
+                    </div>
+                    <div className="text-[10.5px] font-bold text-slate-450 mt-0.5 truncate uppercase tracking-wider">
+                      Phụ Tá
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  disabled={!hasDoctor}
+                  onClick={(e) => handleOpenAssignModal(e, dateStr, shift, room.key, room.color, "assistant")}
+                  className={`py-2.5 px-3 border border-dashed rounded-xl transition-all bg-white text-[11.5px] font-extrabold flex items-center justify-center gap-1 ${hasDoctor
+                      ? "border-slate-250 hover:border-teal-500 text-slate-400 hover:text-teal-650 cursor-pointer hover:bg-slate-50/80"
+                      : "border-slate-200 text-slate-300 opacity-60 cursor-not-allowed bg-slate-50/30"}`}
+                  title={!hasDoctor ? "Vui lòng thêm bác sĩ trước khi phân bổ phụ tá" : "Thêm phụ tá"}
+                >
+                  <span>+ Phụ tá {!hasDoctor && "(Khóa)"}</span>
+                </button>
+              )}
+            </>
+          ) : (
+            /* STAFF SLOT — multiple people allowed */
+            <div className="flex flex-col gap-2">
+              {(staffMultiLookup[`${dateStr}_${shift}_${room.key}`] ?? [])
+                .filter(e => !searchQuery || e.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                .map(entry => (
+                  <div
+                    key={entry.id}
+                    className={`relative bg-white border-l-4 ${room.color} px-2.5 py-2 rounded-xl shadow-sm border border-slate-200/70 flex items-center justify-between gap-2 ${entry.isDraft ? "border-red-400/60" : ""}`}
+                  >
+                    <div className="min-w-0">
+                      <div className={`text-[12.5px] font-black truncate ${entry.isDraft ? "text-primary" : "text-slate-800"}`}>
+                        {entry.name}
+                      </div>
+                      <div className="text-[10.5px] font-bold text-slate-400 truncate">
+                        {staffDatabase.find(s => s.name === entry.name)?.specialization || "Nhân viên"}
+                      </div>
+                    </div>
+                    <button
+                      onClick={(e) => handleRemoveAssignment(e, entry.id)}
+                      className="shrink-0 p-1 bg-slate-50 hover:bg-red-50 rounded border border-slate-200 hover:border-red-200 text-slate-400 hover:text-red-500 transition-all cursor-pointer text-[10px] leading-none"
+                      title="Xóa"
+                    >✕</button>
+                  </div>
+                ))}
+              <button
+                onClick={(e) => handleOpenAssignModal(e, dateStr, shift, room.key, room.color, "staff")}
+                className="py-2 px-3 border border-dashed border-slate-250 rounded-xl hover:border-primary text-slate-400 hover:text-primary transition-all hover:bg-slate-50/80 bg-white text-[11.5px] font-extrabold flex items-center justify-center gap-1 cursor-pointer"
+              >
+                <span>+ Thêm nhân viên</span>
+              </button>
+            </div>
+          )}
+
+        </div>
+      </td>
+    );
+  };
+
+  // ── Render một hàng phòng cho một ca ─────────────────────────────────────
+  const renderRoomRow = (shift: ShiftDef, room: RoomRow) => (
+    <tr key={`${shift.id}_${room.key}`} className="min-h-[160px]">
+      {/* Room code column */}
+      <td className={`px-4 py-6 text-center border-r border-slate-200/80 font-black bg-slate-50/30 text-[12.5px] ${room.isDisabled ? "text-amber-600/70" : "text-slate-655"}`}>
+        <div className="flex flex-col items-center gap-1">
+          <span>{room.label}</span>
+          {room.isDisabled && (
+            <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded uppercase tracking-wide leading-none">
+              {room.disabledReason}
+            </span>
+          )}
+        </div>
+      </td>
+
+      {weekDates.map((date, dayIdx) => renderDayCell(shift.id, room, date, dayIdx))}
+    </tr>
+  );
 
   return (
     <div className="flex min-h-screen bg-slate-50 font-sans text-slate-800">
@@ -885,426 +1100,33 @@ function EditScheduleContent() {
 
                 <tbody className="divide-y divide-slate-250/70">
 
-                  {/* CA SÁNG GROUP */}
-                  <tr className="bg-slate-50/20">
-                    <td
-                      colSpan={8}
-                      className="px-5 py-3 font-black text-[13px] tracking-wide text-primary uppercase border-b border-slate-200/60 bg-red-50/10"
-                    >
-                      Ca Sáng <span className="text-[11.5px] font-bold text-slate-400 lowercase italic ml-1">(08:00 - 12:00)</span>
-                    </td>
-                  </tr>
+                  {SHIFT_PERIODS.map((period) => (
+                    <React.Fragment key={period}>
+                      {/* Nhóm buổi: Sáng / Chiều / Tối */}
+                      <tr>
+                        <td
+                          colSpan={weekDates.length + 1}
+                          className="px-5 py-2.5 font-black text-[13px] tracking-wider text-slate-700 uppercase border-y border-slate-200/70 bg-slate-100/60"
+                        >
+                          {period}
+                        </td>
+                      </tr>
 
-                  {roomRows.map((room) => (
-                    <tr key={`morning_${room.key}`} className="min-h-[160px]">
-                      {/* Room code column */}
-                      <td className={`px-4 py-6 text-center border-r border-slate-200/80 font-black bg-slate-50/30 text-[12.5px] ${room.isDisabled ? "text-amber-600/70" : "text-slate-655"}`}>
-                        <div className="flex flex-col items-center gap-1">
-                          <span>{room.label}</span>
-                          {room.isDisabled && (
-                            <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded uppercase tracking-wide leading-none">
-                              {room.disabledReason}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Weekday Cells */}
-                      {weekDates.map((date, dayIdx) => {
-                        const dateStr = formatDateKey(date);
-                        const isToday = isWednesday(date);
-                        const isClosed = isDayClosed(dateStr);
-
-                        // Render closed day block
-                        if (isClosed) {
-                          return (
+                      {shiftsByPeriod(period).map((shift) => (
+                        <React.Fragment key={shift.id}>
+                          {/* Một ca 2 tiếng độc lập (ngang hàng) */}
+                          <tr className="bg-slate-50/20">
                             <td
-                              key={dayIdx}
-                              onClick={() => setDayActionDate(dateStr)}
-                              className="px-3.5 py-4 text-center align-middle border-r border-slate-200/80 last:border-r-0 bg-slate-100/50 cursor-pointer transition-all hover:bg-slate-200/35"
-                              title="Bấm để mở lại cửa phòng khám"
+                              colSpan={weekDates.length + 1}
+                              className="px-5 py-2 font-black text-[12px] tracking-wide text-primary uppercase border-b border-slate-200/50 bg-red-50/10"
                             >
-                              <div className="flex flex-col items-center justify-center gap-1.5 text-[11.5px] font-black text-slate-400 tracking-wider">
-                                <span>ĐÓNG CỬA</span>
-                              </div>
+                              Ca {shift.label}
                             </td>
-                          );
-                        }
-
-                        // Render maintenance/inactive room block
-                        if (room.isDisabled) {
-                          return (
-                            <td
-                              key={dayIdx}
-                              className="px-3.5 py-4 text-center align-middle border-r border-slate-200/80 last:border-r-0 bg-amber-50/30"
-                              title={`Phòng đang ${room.disabledReason?.toLowerCase()} — không thể phân công`}
-                            >
-                              <div className="flex flex-col items-center justify-center gap-1.5 text-[11.5px] font-black text-amber-600/70 tracking-wider">
-                                <span className="text-base leading-none">⚙</span>
-                                <span>{room.disabledReason?.toUpperCase()}</span>
-                              </div>
-                            </td>
-                          );
-                        }
-
-                        // Look up assignments
-                        const docKey = `${dateStr}_morning_${room.key}_dentist`;
-                        const astKey = `${dateStr}_morning_${room.key}_assistant`;
-
-                        const doctorEntry = editLookup[docKey];
-                        const assistantEntry = editLookup[astKey];
-
-                        const hasDoctor = !!doctorEntry;
-
-                        // Search queries filter
-                        const matchesDocSearch = !searchQuery || (doctorEntry && doctorEntry.name.toLowerCase().includes(searchQuery.toLowerCase()));
-                        const matchesAstSearch = !searchQuery || (assistantEntry && assistantEntry.name.toLowerCase().includes(searchQuery.toLowerCase()));
-
-                        return (
-                          <td
-                            key={dayIdx}
-                            className={`px-3 py-4.5 align-top border-r border-slate-200/80 last:border-r-0 transition-colors ${isToday ? "bg-red-50/10" : ""
-                              }`}
-                          >
-                            <div className="flex flex-col gap-3 min-h-[120px] justify-start h-full">
-
-                              {staffType === "dentist" ? (
-                                <>
-                                  {/* DENTIST SLOT SECTION */}
-                                  {doctorEntry && matchesDocSearch ? (
-                                    <div
-                                      className={`relative group bg-white border-l-4 border-primary p-2.5 rounded-xl transition-all shadow-sm border border-slate-200/70 hover:border-slate-350 hover:shadow flex flex-col justify-between min-h-[70px] ${doctorEntry.isDraft ? "border-2 border-red-500 shadow-red-50/50" : ""
-                                        }`}
-                                    >
-                                      <div className="absolute top-1.5 right-1.5 flex gap-1 z-10">
-                                        <button
-                                          onClick={(e) => handleOpenAssignModal(e, dateStr, "morning", room.key, room.color, "dentist")}
-                                          className="p-1 bg-slate-50 hover:bg-slate-100 rounded border border-slate-200 text-slate-500 hover:text-primary transition-all cursor-pointer text-[10px] leading-none"
-                                          title="Sửa bác sĩ"
-                                        >
-                                          Sửa
-                                        </button>
-                                        <button
-                                          onClick={(e) => handleRemoveAssignment(e, doctorEntry.id)}
-                                          className="p-1 bg-slate-50 hover:bg-red-50 rounded border border-slate-200 hover:border-red-200 text-slate-500 hover:text-primary transition-all cursor-pointer text-[10px] leading-none"
-                                          title="Xóa bác sĩ"
-                                        >
-                                          ✕
-                                        </button>
-                                      </div>
-                                      <div className="pr-10">
-                                        <div className={`text-[12.5px] font-black ${doctorEntry.isDraft ? "text-primary" : "text-slate-800"}`}>
-                                          {doctorEntry.name}
-                                        </div>
-                                        <div className="text-[10.5px] font-bold text-slate-400 mt-0.5 truncate">
-                                          {staffDatabase.find(s => s.name === doctorEntry.name)?.specialization || "Bác sĩ"}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <button
-                                      onClick={(e) => handleOpenAssignModal(e, dateStr, "morning", room.key, room.color, "dentist")}
-                                      className="py-2.5 px-3 border border-dashed border-slate-250 rounded-xl hover:border-primary text-slate-400 hover:text-primary transition-all hover:bg-slate-50/80 bg-white text-[11.5px] font-extrabold flex items-center justify-center gap-1 cursor-pointer"
-                                    >
-                                      <span>+ Bác sĩ</span>
-                                    </button>
-                                  )}
-
-                                  {/* ASSISTANT SLOT SECTION */}
-                                  {assistantEntry && matchesAstSearch ? (
-                                    <div
-                                      className={`relative group bg-slate-50 border-l-4 border-teal-500 p-2.5 rounded-xl transition-all shadow-sm border border-slate-200/70 hover:border-slate-350 hover:shadow flex flex-col justify-between min-h-[70px] ${assistantEntry.isDraft ? "border-2 border-red-500 shadow-red-50/50" : ""
-                                        }`}
-                                    >
-                                      <div className="absolute top-1.5 right-1.5 flex gap-1 z-10">
-                                        <button
-                                          onClick={(e) => handleOpenAssignModal(e, dateStr, "morning", room.key, room.color, "assistant")}
-                                          className="p-1 bg-slate-50 hover:bg-slate-100 rounded border border-slate-200 text-slate-500 hover:text-primary transition-all cursor-pointer text-[10px] leading-none"
-                                          title="Sửa phụ tá"
-                                        >
-                                          Sửa
-                                        </button>
-                                        <button
-                                          onClick={(e) => handleRemoveAssignment(e, assistantEntry.id)}
-                                          className="p-1 bg-slate-50 hover:bg-red-50 rounded border border-slate-200 hover:border-red-200 text-slate-500 hover:text-primary transition-all cursor-pointer text-[10px] leading-none"
-                                          title="Xóa phụ tá"
-                                        >
-                                          ✕
-                                        </button>
-                                      </div>
-                                      <div className="pr-10">
-                                        <div className={`text-[12.5px] font-black ${assistantEntry.isDraft ? "text-primary font-black" : "text-slate-755"}`}>
-                                          {assistantEntry.name}
-                                        </div>
-                                        <div className="text-[10.5px] font-bold text-slate-450 mt-0.5 truncate uppercase tracking-wider">
-                                          Phụ Tá
-                                        </div>
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <button
-                                      disabled={!hasDoctor}
-                                      onClick={(e) => handleOpenAssignModal(e, dateStr, "morning", room.key, room.color, "assistant")}
-                                      className={`py-2.5 px-3 border border-dashed rounded-xl transition-all bg-white text-[11.5px] font-extrabold flex items-center justify-center gap-1 ${hasDoctor
-                                          ? "border-slate-250 hover:border-teal-500 text-slate-400 hover:text-teal-650 cursor-pointer hover:bg-slate-50/80"
-                                          : "border-slate-200 text-slate-300 opacity-60 cursor-not-allowed bg-slate-50/30"
-                                        }`}
-                                      title={!hasDoctor ? "Vui lòng thêm bác sĩ trước khi phân bổ phụ tá" : "Thêm phụ tá"}
-                                    >
-                                      <span>+ Phụ tá {!hasDoctor && "(Khóa)"}</span>
-                                    </button>
-                                  )}
-                                </>
-                              ) : (
-                                /* STAFF SLOT — multiple people allowed */
-                                <div className="flex flex-col gap-2">
-                                  {(staffMultiLookup[`${dateStr}_morning_${room.key}`] ?? [])
-                                    .filter(e => !searchQuery || e.name.toLowerCase().includes(searchQuery.toLowerCase()))
-                                    .map(entry => (
-                                      <div
-                                        key={entry.id}
-                                        className={`relative bg-white border-l-4 ${room.color} px-2.5 py-2 rounded-xl shadow-sm border border-slate-200/70 flex items-center justify-between gap-2 ${entry.isDraft ? "border-red-400/60" : ""}`}
-                                      >
-                                        <div className="min-w-0">
-                                          <div className={`text-[12.5px] font-black truncate ${entry.isDraft ? "text-primary" : "text-slate-800"}`}>
-                                            {entry.name}
-                                          </div>
-                                          <div className="text-[10.5px] font-bold text-slate-400 truncate">
-                                            {staffDatabase.find(s => s.name === entry.name)?.specialization || "Nhân viên"}
-                                          </div>
-                                        </div>
-                                        <button
-                                          onClick={(e) => handleRemoveAssignment(e, entry.id)}
-                                          className="shrink-0 p-1 bg-slate-50 hover:bg-red-50 rounded border border-slate-200 hover:border-red-200 text-slate-400 hover:text-red-500 transition-all cursor-pointer text-[10px] leading-none"
-                                          title="Xóa"
-                                        >✕</button>
-                                      </div>
-                                    ))}
-                                  <button
-                                    onClick={(e) => handleOpenAssignModal(e, dateStr, "morning", room.key, room.color, "staff")}
-                                    className="py-2 px-3 border border-dashed border-slate-250 rounded-xl hover:border-primary text-slate-400 hover:text-primary transition-all hover:bg-slate-50/80 bg-white text-[11.5px] font-extrabold flex items-center justify-center gap-1 cursor-pointer"
-                                  >
-                                    <span>+ Thêm nhân viên</span>
-                                  </button>
-                                </div>
-                              )}
-
-                            </div>
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-
-                  {/* CA CHIỀU GROUP */}
-                  <tr className="bg-slate-50/20">
-                    <td
-                      colSpan={8}
-                      className="px-5 py-3 font-black text-[13px] tracking-wide text-primary uppercase border-b border-slate-200/60 bg-red-50/10"
-                    >
-                      Ca Chiều <span className="text-[11.5px] font-bold text-slate-400 lowercase italic ml-1">(13:30 - 17:30)</span>
-                    </td>
-                  </tr>
-
-                  {/* Render rooms for afternoon */}
-                  {roomRows.map((room) => (
-                    <tr key={`afternoon_${room.key}`} className="min-h-[160px]">
-                      {/* Room code column */}
-                      <td className={`px-4 py-6 text-center border-r border-slate-200/80 font-black bg-slate-50/30 text-[12.5px] ${room.isDisabled ? "text-amber-600/70" : "text-slate-655"}`}>
-                        <div className="flex flex-col items-center gap-1">
-                          <span>{room.label}</span>
-                          {room.isDisabled && (
-                            <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded uppercase tracking-wide leading-none">
-                              {room.disabledReason}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Weekday Cells */}
-                      {weekDates.map((date, dayIdx) => {
-                        const dateStr = formatDateKey(date);
-                        const isToday = isWednesday(date);
-                        const isClosed = isDayClosed(dateStr);
-
-                        // Closed day block
-                        if (isClosed) {
-                          return (
-                            <td
-                              key={dayIdx}
-                              onClick={() => setDayActionDate(dateStr)}
-                              className="px-3.5 py-4 text-center align-middle border-r border-slate-200/80 last:border-r-0 bg-slate-100/50 cursor-pointer transition-all hover:bg-slate-200/35"
-                            >
-                              <div className="flex flex-col items-center justify-center gap-1.5 text-[11.5px] font-black text-slate-400 tracking-wider">
-                                <span>ĐÓNG CỬA</span>
-                              </div>
-                            </td>
-                          );
-                        }
-
-                        // Render maintenance/inactive room block
-                        if (room.isDisabled) {
-                          return (
-                            <td
-                              key={dayIdx}
-                              className="px-3.5 py-4 text-center align-middle border-r border-slate-200/80 last:border-r-0 bg-amber-50/30"
-                              title={`Phòng đang ${room.disabledReason?.toLowerCase()} — không thể phân công`}
-                            >
-                              <div className="flex flex-col items-center justify-center gap-1.5 text-[11.5px] font-black text-amber-600/70 tracking-wider">
-                                <span className="text-base leading-none">⚙</span>
-                                <span>{room.disabledReason?.toUpperCase()}</span>
-                              </div>
-                            </td>
-                          );
-                        }
-
-                        // Look up assignments for Doctor and Assistant inside room cell
-                        const docKey = `${dateStr}_afternoon_${room.key}_dentist`;
-                        const astKey = `${dateStr}_afternoon_${room.key}_assistant`;
-
-                        const doctorEntry = editLookup[docKey];
-                        const assistantEntry = editLookup[astKey];
-
-                        const hasDoctor = !!doctorEntry;
-
-                        // Search queries filter
-                        const matchesDocSearch = !searchQuery || (doctorEntry && doctorEntry.name.toLowerCase().includes(searchQuery.toLowerCase()));
-                        const matchesAstSearch = !searchQuery || (assistantEntry && assistantEntry.name.toLowerCase().includes(searchQuery.toLowerCase()));
-
-                        return (
-                          <td
-                            key={dayIdx}
-                            className={`px-3 py-4.5 align-top border-r border-slate-200/80 last:border-r-0 transition-colors ${isToday ? "bg-red-50/10" : ""
-                              }`}
-                          >
-                            <div className="flex flex-col gap-3 min-h-[120px] justify-start h-full">
-
-                              {staffType === "dentist" ? (
-                                <>
-                                  {/* DENTIST SLOT SECTION */}
-                                  {doctorEntry && matchesDocSearch ? (
-                                    <div
-                                      className={`relative group bg-white border-l-4 border-primary p-2.5 rounded-xl transition-all shadow-sm border border-slate-200/70 hover:border-slate-350 hover:shadow flex flex-col justify-between min-h-[70px] ${doctorEntry.isDraft ? "border-2 border-red-500 shadow-red-50/50" : ""
-                                        }`}
-                                    >
-                                      <div className="absolute top-1.5 right-1.5 flex gap-1 z-10">
-                                        <button
-                                          onClick={(e) => handleOpenAssignModal(e, dateStr, "afternoon", room.key, room.color, "dentist")}
-                                          className="p-1 bg-slate-50 hover:bg-slate-100 rounded border border-slate-200 text-slate-500 hover:text-primary transition-all cursor-pointer text-[10px] leading-none"
-                                          title="Sửa bác sĩ"
-                                        >
-                                          Sửa
-                                        </button>
-                                        <button
-                                          onClick={(e) => handleRemoveAssignment(e, doctorEntry.id)}
-                                          className="p-1 bg-slate-50 hover:bg-red-50 rounded border border-slate-200 hover:border-red-200 text-slate-500 hover:text-primary transition-all cursor-pointer text-[10px] leading-none"
-                                          title="Xóa bác sĩ"
-                                        >
-                                          ✕
-                                        </button>
-                                      </div>
-                                      <div className="pr-10">
-                                        <div className={`text-[12.5px] font-black ${doctorEntry.isDraft ? "text-primary" : "text-slate-800"}`}>
-                                          {doctorEntry.name}
-                                        </div>
-                                        <div className="text-[10.5px] font-bold text-slate-400 mt-0.5 truncate">
-                                          {staffDatabase.find(s => s.name === doctorEntry.name)?.specialization || "Bác sĩ"}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <button
-                                      onClick={(e) => handleOpenAssignModal(e, dateStr, "afternoon", room.key, room.color, "dentist")}
-                                      className="py-2.5 px-3 border border-dashed border-slate-250 rounded-xl hover:border-primary text-slate-400 hover:text-primary transition-all hover:bg-slate-50/80 bg-white text-[11.5px] font-extrabold flex items-center justify-center gap-1 cursor-pointer"
-                                    >
-                                      <span>+ Bác sĩ</span>
-                                    </button>
-                                  )}
-
-                                  {/* ASSISTANT SLOT SECTION */}
-                                  {assistantEntry && matchesAstSearch ? (
-                                    <div
-                                      className={`relative group bg-slate-50 border-l-4 border-teal-500 p-2.5 rounded-xl transition-all shadow-sm border border-slate-200/70 hover:border-slate-350 hover:shadow flex flex-col justify-between min-h-[70px] ${assistantEntry.isDraft ? "border-2 border-red-500 shadow-red-50/50" : ""
-                                        }`}
-                                    >
-                                      <div className="absolute top-1.5 right-1.5 flex gap-1 z-10">
-                                        <button
-                                          onClick={(e) => handleOpenAssignModal(e, dateStr, "afternoon", room.key, room.color, "assistant")}
-                                          className="p-1 bg-slate-50 hover:bg-slate-100 rounded border border-slate-200 text-slate-500 hover:text-primary transition-all cursor-pointer text-[10px] leading-none"
-                                          title="Sửa phụ tá"
-                                        >
-                                          Sửa
-                                        </button>
-                                        <button
-                                          onClick={(e) => handleRemoveAssignment(e, assistantEntry.id)}
-                                          className="p-1 bg-slate-50 hover:bg-red-50 rounded border border-slate-200 hover:border-red-200 text-slate-500 hover:text-primary transition-all cursor-pointer text-[10px] leading-none"
-                                          title="Xóa phụ tá"
-                                        >
-                                          ✕
-                                        </button>
-                                      </div>
-                                      <div className="pr-10">
-                                        <div className={`text-[12.5px] font-black ${assistantEntry.isDraft ? "text-primary font-black" : "text-slate-755"}`}>
-                                          {assistantEntry.name}
-                                        </div>
-                                        <div className="text-[10.5px] font-bold text-slate-450 mt-0.5 truncate uppercase tracking-wider">
-                                          Phụ Tá
-                                        </div>
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <button
-                                      disabled={!hasDoctor}
-                                      onClick={(e) => handleOpenAssignModal(e, dateStr, "afternoon", room.key, room.color, "assistant")}
-                                      className={`py-2.5 px-3 border border-dashed rounded-xl transition-all bg-white text-[11.5px] font-extrabold flex items-center justify-center gap-1 ${hasDoctor
-                                          ? "border-slate-250 hover:border-teal-500 text-slate-400 hover:text-teal-650 cursor-pointer hover:bg-slate-50/80"
-                                          : "border-slate-200 text-slate-300 opacity-60 cursor-not-allowed bg-slate-50/30"
-                                        }`}
-                                      title={!hasDoctor ? "Vui lòng thêm bác sĩ trước khi phân bổ phụ tá" : "Thêm phụ tá"}
-                                    >
-                                      <span>+ Phụ tá {!hasDoctor && "(Khóa)"}</span>
-                                    </button>
-                                  )}
-                                </>
-                              ) : (
-                                /* STAFF SLOT — multiple people allowed */
-                                <div className="flex flex-col gap-2">
-                                  {(staffMultiLookup[`${dateStr}_afternoon_${room.key}`] ?? [])
-                                    .filter(e => !searchQuery || e.name.toLowerCase().includes(searchQuery.toLowerCase()))
-                                    .map(entry => (
-                                      <div
-                                        key={entry.id}
-                                        className={`relative bg-white border-l-4 ${room.color} px-2.5 py-2 rounded-xl shadow-sm border border-slate-200/70 flex items-center justify-between gap-2 ${entry.isDraft ? "border-red-400/60" : ""}`}
-                                      >
-                                        <div className="min-w-0">
-                                          <div className={`text-[12.5px] font-black truncate ${entry.isDraft ? "text-primary" : "text-slate-800"}`}>
-                                            {entry.name}
-                                          </div>
-                                          <div className="text-[10.5px] font-bold text-slate-400 truncate">
-                                            {staffDatabase.find(s => s.name === entry.name)?.specialization || "Nhân viên"}
-                                          </div>
-                                        </div>
-                                        <button
-                                          onClick={(e) => handleRemoveAssignment(e, entry.id)}
-                                          className="shrink-0 p-1 bg-slate-50 hover:bg-red-50 rounded border border-slate-200 hover:border-red-200 text-slate-400 hover:text-red-500 transition-all cursor-pointer text-[10px] leading-none"
-                                          title="Xóa"
-                                        >✕</button>
-                                      </div>
-                                    ))}
-                                  <button
-                                    onClick={(e) => handleOpenAssignModal(e, dateStr, "afternoon", room.key, room.color, "staff")}
-                                    className="py-2 px-3 border border-dashed border-slate-250 rounded-xl hover:border-primary text-slate-400 hover:text-primary transition-all hover:bg-slate-50/80 bg-white text-[11.5px] font-extrabold flex items-center justify-center gap-1 cursor-pointer"
-                                  >
-                                    <span>+ Thêm nhân viên</span>
-                                  </button>
-                                </div>
-                              )}
-
-                            </div>
-                          </td>
-                        );
-                      })}
-                    </tr>
+                          </tr>
+                          {roomRows.map((room) => renderRoomRow(shift, room))}
+                        </React.Fragment>
+                      ))}
+                    </React.Fragment>
                   ))}
 
                 </tbody>
@@ -1347,7 +1169,7 @@ function EditScheduleContent() {
                   Phân bổ {modalCell.role === "dentist" ? "Bác sĩ" : modalCell.role === "assistant" ? "Phụ tá" : "Nhân sự"}
                 </h3>
                 <p className="text-[12px] text-slate-455 font-bold mt-0.5">
-                  {modalCell.room} | Ca {modalCell.shift === "morning" ? "Sáng" : "Chiều"} (Ngày {modalCell.date})
+                  {modalCell.room} | Ca {shiftLabel(modalCell.shift)} (Ngày {modalCell.date})
                 </p>
               </div>
               <button

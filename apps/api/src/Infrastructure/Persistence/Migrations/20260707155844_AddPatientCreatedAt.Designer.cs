@@ -3,6 +3,7 @@ using System;
 using DentalClinic.API.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260707155844_AddPatientCreatedAt")]
+    partial class AddPatientCreatedAt
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -850,71 +853,6 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.ToTable("Patients");
                 });
 
-            modelBuilder.Entity("DentalClinic.API.Domain.Entities.PaymentTransaction", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("Amount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<string>("CheckoutUrl")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<DateTimeOffset?>("CompletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset?>("ExpiresAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("FailureReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<int>("Gateway")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("GatewayOrderCode")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("GatewayTransactionId")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<Guid>("InvoiceId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("QrCode")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<string>("RawCreateResponsePayload")
-                        .HasColumnType("jsonb");
-
-                    b.Property<string>("RawWebhookPayload")
-                        .HasColumnType("jsonb");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("InvoiceId");
-
-                    b.HasIndex("Gateway", "GatewayOrderCode")
-                        .IsUnique();
-
-                    b.ToTable("PaymentTransactions", (string)null);
-                });
-
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Post", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1295,9 +1233,6 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid>("PatientId")
                         .HasColumnType("uuid");
-
-                    b.Property<string>("PhasesJson")
-                        .HasColumnType("text");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -1686,17 +1621,6 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("DentalClinic.API.Domain.Entities.PaymentTransaction", b =>
-                {
-                    b.HasOne("DentalClinic.API.Domain.Entities.Invoice", "Invoice")
-                        .WithMany("PaymentTransactions")
-                        .HasForeignKey("InvoiceId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Invoice");
-                });
-
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Post", b =>
                 {
                     b.HasOne("DentalClinic.API.Domain.Entities.Service", "Service")
@@ -1793,8 +1717,6 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Invoice", b =>
                 {
                     b.Navigation("Items");
-
-                    b.Navigation("PaymentTransactions");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Patient", b =>

@@ -19,6 +19,7 @@ public class Patient
     public Guid? PrimaryPatientId { get; private set; }
     public string? Relationship { get; private set; }
     public string? ProfilePictureUrl { get; private set; }
+    public DateTimeOffset CreatedAt { get; private set; }
 
     // Navigation properties
     public User? User { get; private set; }
@@ -44,7 +45,8 @@ public class Patient
             PhoneNumber = phoneNumber,
             PrimaryPatientId = primaryPatientId,
             Relationship = relationship,
-            ProfilePictureUrl = profilePictureUrl
+            ProfilePictureUrl = profilePictureUrl,
+            CreatedAt = DateTimeOffset.UtcNow
         };
     }
 

@@ -1,4 +1,5 @@
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Domain.Schedules;
 using Microsoft.EntityFrameworkCore;
 using DentalClinic.API.Infrastructure.Persistence;
 
@@ -17,8 +18,13 @@ public record DentistWithSlotsDto(
 
 public class GetDentistSlotsHandler(AppDbContext dbContext, IAppointmentRepository appointmentRepository)
 {
-    private static readonly (int Hour, int Minute)[] MorningTimes = [(7, 30), (8, 30), (9, 30), (10, 30)];
-    private static readonly (int Hour, int Minute)[] AfternoonTimes = [(13, 30), (14, 30), (15, 30), (16, 30)];
+    // Khung giờ ứng viên cho cả ngày (sáng, chiều, tối); lọc theo ca thực tế của bác sĩ.
+    private static readonly (int Hour, int Minute)[] AllTimes =
+    [
+        (7, 30), (8, 30), (9, 30), (10, 30),      // sáng
+        (13, 30), (14, 30), (15, 30), (16, 30),   // chiều
+        (17, 30), (18, 30), (19, 30), (20, 30),   // tối
+    ];
 
     public async Task<IEnumerable<DentistWithSlotsDto>> HandleAsync(DateOnly date, CancellationToken ct = default)
     {
@@ -52,6 +58,11 @@ public class GetDentistSlotsHandler(AppDbContext dbContext, IAppointmentReposito
             .Where(ws => ws.Type == "dentist")
             .ToList();
 
+        // Gom các ca được phân trong ngày theo tên bác sĩ (một bác sĩ có thể có nhiều ca)
+        var shiftsByName = dentistSchedules
+            .GroupBy(ws => ws.StaffName)
+            .ToDictionary(g => g.Key, g => g.Select(ws => ws.Shift).ToHashSet());
+
         // Chỉ lấy bác sĩ có trong WorkSchedule của ngày đó
         var dentistNames = dentistSchedules
             .Select(ws => ws.StaffName)
@@ -67,16 +78,26 @@ public class GetDentistSlotsHandler(AppDbContext dbContext, IAppointmentReposito
         {
             var bookedTimes = dayAppointments
                 .Where(a => a.DentistId == d.Id)
-                .Select(a => (a.AppointmentDate.Hour, a.AppointmentDate.Minute))
+                .Select(a =>
+                {
+                    var localTime = a.AppointmentDate.UtcDateTime.AddHours(7);
+                    return (localTime.Hour, localTime.Minute);
+                })
                 .ToHashSet();
 
-            var times = d.Shift == "afternoon" ? AfternoonTimes : MorningTimes;
-            var slots = times.Select(t =>
-            {
-                var range = $"{t.Hour:D2}:{t.Minute:D2} - {t.Hour + 1:D2}:{t.Minute:D2}";
-                var isBooked = bookedTimes.Contains((t.Hour, t.Minute));
-                return new TimeSlotDto(range, isBooked);
-            }).ToList();
+            // Khung giờ theo các ca THỰC TẾ được phân trong ngày; dự phòng dùng ca tĩnh của bác sĩ
+            var assignedShifts = shiftsByName.TryGetValue(d.FullName, out var s) && s.Count > 0
+                ? (IEnumerable<string>)s
+                : [d.Shift];
+
+            var slots = AllTimes
+                .Where(t => WorkShifts.IsWorkingAt(assignedShifts, t.Hour, t.Minute))
+                .Select(t =>
+                {
+                    var range = $"{t.Hour:D2}:{t.Minute:D2} - {t.Hour + 1:D2}:{t.Minute:D2}";
+                    var isBooked = bookedTimes.Contains((t.Hour, t.Minute));
+                    return new TimeSlotDto(range, isBooked);
+                }).ToList();
 
             return new DentistWithSlotsDto(
                 d.Id,

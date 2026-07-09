@@ -14,6 +14,7 @@ import {
   type RoomDto,
   type ScheduleEntryDto,
 } from "../../../lib/apiClient";
+import { SHIFTS } from "../../../lib/shifts";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -701,13 +702,13 @@ export default function RoomsPage() {
                   </div>
                 ) : (
                   <div className="flex flex-col gap-2.5">
-                    {(["morning", "afternoon"] as const).map(shift => {
-                      const entries = todaySchedule.filter(e => e.shift === shift);
+                    {SHIFTS.map(shift => {
+                      const entries = todaySchedule.filter(e => e.shift === shift.id);
                       if (entries.length === 0) return null;
                       return (
-                        <div key={shift} className="bg-slate-50 border border-slate-150 rounded-xl p-3.5">
+                        <div key={shift.id} className="bg-slate-50 border border-slate-150 rounded-xl p-3.5">
                           <p className="text-[11px] font-extrabold text-primary uppercase tracking-wider mb-2">
-                            {shift === "morning" ? "Ca Sáng (08:00 – 12:00)" : "Ca Chiều (13:30 – 17:30)"}
+                            Ca {shift.label} · {shift.period}
                           </p>
                           <div className="flex flex-col gap-1.5">
                             {entries.map(e => (
