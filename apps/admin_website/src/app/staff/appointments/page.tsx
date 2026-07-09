@@ -23,7 +23,7 @@ import { supabase } from "../../../lib/supabaseClient";
 // bác sĩ có ca bao trùm khung giờ đó (tra theo `slot.time`).
 const TIMES_MORNING   = ["08:00","08:30","09:00","09:30","10:00","10:30","11:00","11:30"];
 const TIMES_AFTERNOON = ["13:30","14:00","14:30","15:00","15:30","16:00","16:30","17:00"];
-const TIMES_EVENING   = ["17:30","18:00","18:30","19:00","19:30","20:00","20:30"];
+const TIMES_EVENING   = ["17:30","18:00","18:30","19:00","19:30","20:00","20:30","21:00"];
 const ALL_TIMES = [...TIMES_MORNING, ...TIMES_AFTERNOON];
 
 /* ─── style helpers ──────────────────────────────────────── */
