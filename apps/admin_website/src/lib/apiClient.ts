@@ -1622,6 +1622,7 @@ export interface StaffScheduleSlot {
   time: string;
   isBooked: boolean;
   patientName: string | null;
+  isPast: boolean;
 }
 
 export interface StaffScheduleDentistDto {

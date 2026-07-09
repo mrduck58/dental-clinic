@@ -45,13 +45,21 @@ public static class WorkShifts
     private static readonly Dictionary<string, ShiftDef> ByCode =
         All.ToDictionary(s => s.Code, StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>Toàn bộ mã ca hợp lệ — 6 mã ca mới + "morning"/"afternoon" (dữ liệu cũ).</summary>
+    public static readonly IReadOnlyList<string> AllValidCodes =
+        [.. All.Select(s => s.Code), "morning", "afternoon"];
+
     private const int NoonMinutes = 12 * 60;
 
-    /// <summary>Một mã ca cụ thể có bao trùm thời điểm (phút trong ngày) không?</summary>
+    /// <summary>
+    /// Một mã ca cụ thể có bao trùm thời điểm (phút trong ngày) không?
+    /// Mốc giờ kết thúc ca (vd. 21:00 của "19:15-21:00") vẫn được tính là thuộc ca —
+    /// dùng "&lt;=" chứ không phải "&lt;" — để khung giờ cuối cùng của ca vẫn hiện trên lưới đặt lịch.
+    /// </summary>
     private static bool ShiftCovers(string shift, int minutesOfDay)
     {
         if (ByCode.TryGetValue(shift, out var def))
-            return minutesOfDay >= def.StartMinutes && minutesOfDay < def.EndMinutes;
+            return minutesOfDay >= def.StartMinutes && minutesOfDay <= def.EndMinutes;
 
         // Tương thích dữ liệu cũ
         if (shift.Equals("morning", StringComparison.OrdinalIgnoreCase))
