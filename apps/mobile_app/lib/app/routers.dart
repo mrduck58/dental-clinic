@@ -23,6 +23,9 @@ import 'package:mobile_app/features/home/presentation/pages/reminders_page.dart'
 import 'package:mobile_app/features/profile/presentation/pages/profile_page.dart';
 import 'package:mobile_app/features/profile/presentation/pages/family_members_page.dart';
 import 'package:mobile_app/features/profile/presentation/pages/payment_history_page.dart';
+import 'package:mobile_app/features/payment/data/payment_service.dart';
+import 'package:mobile_app/features/payment/presentation/pages/payment_checkout_page.dart';
+import 'package:mobile_app/features/payment/presentation/pages/payment_gateway_select_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/dentist_profile_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/dentist_reviews_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/write_review_page.dart';
@@ -201,8 +204,23 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: AppRoutes.payment,
-      builder: (context, state) =>
-          const _PlaceholderPage(title: 'Thanh toán'),
+      builder: (context, state) {
+        final args = state.extra as PaymentCheckoutArgs?;
+        if (args != null) {
+          return PaymentCheckoutPage(invoice: args.invoice, gateway: args.gateway);
+        }
+        return const _PlaceholderPage(title: 'Thanh toán');
+      },
+    ),
+    GoRoute(
+      path: AppRoutes.paymentGatewaySelect,
+      builder: (context, state) {
+        final invoice = state.extra as MyInvoiceDto?;
+        if (invoice != null) {
+          return PaymentGatewaySelectPage(invoice: invoice);
+        }
+        return const _PlaceholderPage(title: 'Chọn cổng thanh toán');
+      },
     ),
     GoRoute(
       path: AppRoutes.chat,
@@ -319,6 +337,7 @@ abstract class AppRoutes {
   static const security = '/profile/security';
   static const changePassword = '/profile/security/change-password';
   static const payment = '/payment';
+  static const paymentGatewaySelect = '/payment/select-gateway';
   static const chat = '/chat';
   static const paymentHistory = '/profile/payment-history';
   static const notifications = '/notifications';

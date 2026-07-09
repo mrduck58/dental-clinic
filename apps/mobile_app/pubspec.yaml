@@ -51,6 +51,9 @@ dependencies:
   shared_preferences: ^2.3.4
   image_picker: ^1.2.2
 
+  # Mở link thanh toán (checkout URL của PayOS) trong browser/app ví hệ thống
+  url_launcher: ^6.3.1
+
 
 dev_dependencies:
   flutter_test:

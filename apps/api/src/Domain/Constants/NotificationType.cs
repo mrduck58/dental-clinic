@@ -9,6 +9,7 @@ public static class NotificationType
     public const string Security    = "security";
     public const string Reminder    = "reminder";
     public const string Appointment = "appointment";
+    public const string Invoice     = "invoice";
 }
 
 public static class NotificationPriority

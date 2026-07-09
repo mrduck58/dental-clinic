@@ -7,6 +7,7 @@ using DentalClinic.API.Application.UseCases.Inventory;
 using DentalClinic.API.Application.UseCases.Auth;
 using DentalClinic.API.Application.UseCases.ClinicInfo;
 using DentalClinic.API.Application.UseCases.Invoices;
+using DentalClinic.API.Application.UseCases.Payments;
 using DentalClinic.API.Application.UseCases.Medicines;
 using DentalClinic.API.Application.UseCases.Feedbacks;
 using DentalClinic.API.Application.UseCases.LeaveRequests;
@@ -24,6 +25,7 @@ using DentalClinic.API.Infrastructure.Services;
 using DentalClinic.API.Infrastructure.Settings;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Options;
 
 namespace DentalClinic.API.Infrastructure.Extensions;
 
@@ -41,6 +43,7 @@ public static class InfrastructureServiceExtensions
         // ── Settings ────────────────────────────────────────────────────────
         services.Configure<JwtSettings>(configuration.GetSection("JwtSettings"));
         services.Configure<EmailSettings>(configuration.GetSection("EmailSettings"));
+        services.Configure<PayOSSettings>(configuration.GetSection("PayOSSettings"));
 
         // ── Repositories ────────────────────────────────────────────────────
         services.AddScoped<IAppointmentRepository, AppointmentRepository>();
@@ -69,6 +72,14 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IEmailService, EmailService>();
         services.AddScoped<IFileStorageService, LocalFileStorageService>();
         services.AddHttpContextAccessor();
+
+        // ── Payment gateways ────────────────────────────────────────────────
+        services.AddHttpClient<IPaymentGatewayService, PayOSGatewayService>((sp, client) =>
+        {
+            var payOsSettings = sp.GetRequiredService<IOptions<PayOSSettings>>().Value;
+            client.BaseAddress = new Uri(payOsSettings.BaseUrl);
+        });
+        services.AddScoped<IPaymentGatewayResolver, PaymentGatewayResolver>();
 
         // ── Use Case Handlers ────────────────────────────────────────────────
         services.AddScoped<LoginHandler>();
@@ -173,6 +184,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<GetActivityLogsHandler>();
         services.AddScoped<GetNotificationsHandler>();
         services.AddScoped<InvoiceHandler>();
+        services.AddScoped<PaymentHandler>();
         services.AddScoped<DashboardHandler>();
         services.AddScoped<StaffDashboardHandler>();
 

@@ -34,6 +34,7 @@ public class Invoice
     // Navigation properties
     public Appointment Appointment { get; private set; } = null!;
     public ICollection<InvoiceItem> Items { get; private set; } = new List<InvoiceItem>();
+    public ICollection<PaymentTransaction> PaymentTransactions { get; private set; } = new List<PaymentTransaction>();
 
     private Invoice() { }
 

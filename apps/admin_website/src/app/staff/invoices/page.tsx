@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import StaffSidebar from "../../../components/shared/StaffSidebar";
 import StaffPageHeader from "../../../components/shared/StaffPageHeader";
 import { useRequireStaff } from "../../../hooks/useRequireStaff";
@@ -13,9 +14,12 @@ import {
   issueInvoiceApi,
   confirmInvoicePaymentApi,
   collectRemainingInvoiceApi,
+  createPaymentRequestApi,
+  getPaymentStatusApi,
   type BillablePlanDto,
   type InvoiceDto,
   type OutstandingCourseDto,
+  type PaymentTransactionDto,
 } from "../../../lib/apiClient";
 
 /* ─── types ─────────────────────────────────────────────── */
@@ -39,7 +43,7 @@ interface TreatmentPlan {
 
 type PayMethod = "cash" | "transfer" | "app";
 type PayType = "full" | "deposit";
-type InvStatus = "pending" | "app_waiting" | "paid";
+type InvStatus = "pending" | "awaiting_payment" | "paid";
 
 interface Invoice {
   id: string; planId?: string;
@@ -90,7 +94,7 @@ function mapPlan(b: BillablePlanDto): TreatmentPlan {
 function mapInvoice(inv: InvoiceDto): Invoice {
   const method = apiToPayMethod(inv.paymentMethod);
   const status: InvStatus =
-    inv.status === "Paid" ? "paid" : method === "app" ? "app_waiting" : "pending";
+    inv.status === "Paid" ? "paid" : (method === "app" || method === "transfer") ? "awaiting_payment" : "pending";
   return {
     id: inv.id,
     planId: inv.invoiceNumber,
@@ -529,7 +533,13 @@ function PlansTab({ plans, onIssued }: {
                 {method === "app" && (
                   <div className="flex items-center gap-2 px-4 py-2.5 bg-indigo-50 border border-indigo-100 rounded-xl text-[12.5px] font-semibold text-indigo-700">
                     <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg>
-                    Hóa đơn sẽ được gửi đến app của bệnh nhân. Staff xác nhận sau khi nhận được thông báo thanh toán thành công.
+                    Bệnh nhân thanh toán qua ứng dụng. Trạng thái sẽ tự động cập nhật khi cổng thanh toán xác nhận.
+                  </div>
+                )}
+                {method === "transfer" && (
+                  <div className="flex items-center gap-2 px-4 py-2.5 bg-sky-50 border border-sky-100 rounded-xl text-[12.5px] font-semibold text-sky-700">
+                    <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg>
+                    Hệ thống sẽ tự tạo mã QR chuyển khoản (VietQR). Hóa đơn tự chuyển sang &quot;Đã thanh toán&quot; khi nhận được tiền.
                   </div>
                 )}
               </div>
@@ -559,11 +569,104 @@ function PlansTab({ plans, onIssued }: {
   );
 }
 
+/* ─── Payment status panel (chuyển khoản QR / chờ thanh toán App) ───────── */
+
+function PaymentStatusPanel({ invoice, onManualConfirm, onAutoConfirmed }: {
+  invoice: Invoice;
+  onManualConfirm: () => void;
+  onAutoConfirmed: () => void;
+}) {
+  const [txn, setTxn] = useState<PaymentTransactionDto | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const isTransfer = invoice.paymentMethod === "transfer";
+
+  // Tạo yêu cầu thanh toán (link/QR) qua PayOS khi mở hóa đơn này lần đầu.
+  useEffect(() => {
+    if (!isTransfer) return;
+    let cancelled = false;
+    setCreating(true);
+    createPaymentRequestApi(invoice.id)
+      .then(t => { if (!cancelled) setTxn(t); })
+      .catch(e => { if (!cancelled) setErr(e instanceof Error ? e.message : "Không thể tạo yêu cầu thanh toán"); })
+      .finally(() => { if (!cancelled) setCreating(false); });
+    return () => { cancelled = true; };
+  }, [invoice.id, isTransfer]);
+
+  // Poll trạng thái — tự động chuyển sang "Đã thanh toán" khi cổng thanh toán xác nhận qua webhook.
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const status = await getPaymentStatusApi(invoice.id);
+        if (status.invoiceStatus === "Paid") onAutoConfirmed();
+      } catch {
+        // Bỏ qua lỗi polling — không làm gián đoạn UI, sẽ thử lại ở lượt kế tiếp.
+      }
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [invoice.id, onAutoConfirmed]);
+
+  return (
+    <div className="flex flex-col gap-4 px-5 py-4 bg-indigo-50 border border-indigo-200 rounded-xl">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="relative flex h-3 w-3 shrink-0">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500" />
+          </div>
+          <div>
+            <p className="text-[13.5px] font-black text-indigo-800">
+              {isTransfer ? "Đang chờ chuyển khoản" : "Đang chờ thanh toán qua App"}
+            </p>
+            <p className="text-[12px] font-semibold text-indigo-600 mt-0.5">
+              Trạng thái tự động cập nhật khi nhận được thanh toán
+            </p>
+          </div>
+        </div>
+        <button onClick={onManualConfirm}
+          className="flex items-center gap-2 px-4 py-2 bg-white border border-indigo-300 hover:border-indigo-400 text-indigo-700 rounded-xl text-[12.5px] font-black cursor-pointer transition-all whitespace-nowrap">
+          Xác nhận thủ công
+        </button>
+      </div>
+
+      {isTransfer && (
+        <div className="flex flex-col items-center gap-3 rounded-xl border border-indigo-100 bg-white px-6 py-6">
+          {creating ? (
+            <div className="flex items-center justify-center py-10">
+              <div className="w-6 h-6 border-2 border-indigo-200 border-t-indigo-500 rounded-full animate-spin" />
+            </div>
+          ) : txn?.qrCode ? (
+            <>
+              <QRCodeSVG value={txn.qrCode} size={200} marginSize={2} />
+              <p className="text-[13px] font-black text-slate-800">{fmt(invoice.depositAmount)}</p>
+              <p className="text-[11.5px] font-semibold text-slate-400 text-center">
+                Quét mã bằng app ngân hàng bất kỳ để chuyển khoản
+              </p>
+              {txn.checkoutUrl && (
+                <a href={txn.checkoutUrl} target="_blank" rel="noreferrer"
+                  className="text-[11.5px] font-bold text-indigo-600 hover:text-indigo-700">
+                  Không quét được? Mở trang thanh toán →
+                </a>
+              )}
+            </>
+          ) : (
+            <p className="px-4 py-6 text-[12.5px] font-semibold text-slate-400 text-center">
+              {err ?? "Không thể tạo mã QR chuyển khoản."}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ─── Tab 2: Pending payment ─────────────────────────────── */
 
-function PendingTab({ invoices, onPaid }: {
+function PendingTab({ invoices, onPaid, onAutoConfirmed }: {
   invoices: Invoice[];
   onPaid: (id: string, method: PayMethod | null) => void;
+  onAutoConfirmed: () => void;
 }) {
   const [methodEdit, setMethodEdit] = useState<Record<string, PayMethod>>({});
 
@@ -585,11 +688,11 @@ function PendingTab({ invoices, onPaid }: {
     <div className="flex flex-col gap-4">
       {invoices.map(inv => {
         const m   = getMethod(inv);
-        const isAppWaiting = inv.status === "app_waiting";
+        const isAwaitingPayment = inv.status === "awaiting_payment";
 
         return (
           <div key={inv.id} className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${
-            isAppWaiting ? "border-indigo-200 shadow-indigo-50" : "border-slate-200/70"
+            isAwaitingPayment ? "border-indigo-200 shadow-indigo-50" : "border-slate-200/70"
           }`}>
             <div className="flex items-center gap-5 px-7 py-5">
               {/* Avatar */}
@@ -646,24 +749,12 @@ function PendingTab({ invoices, onPaid }: {
 
             {/* Payment section */}
             <div className="px-7 pb-5">
-              {isAppWaiting ? (
-                <div className="flex items-center justify-between gap-4 px-5 py-4 bg-indigo-50 border border-indigo-200 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <div className="relative flex h-3 w-3 shrink-0">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75" />
-                      <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500" />
-                    </div>
-                    <div>
-                      <p className="text-[13.5px] font-black text-indigo-800">Bệnh nhân đã thanh toán qua App</p>
-                      <p className="text-[12px] font-semibold text-indigo-600 mt-0.5">Xác nhận để hoàn tất hóa đơn</p>
-                    </div>
-                  </div>
-                  <button onClick={() => onPaid(inv.id, null)}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[13px] font-black cursor-pointer transition-all shadow-sm shadow-indigo-200 whitespace-nowrap">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
-                    Xác nhận đã nhận
-                  </button>
-                </div>
+              {isAwaitingPayment ? (
+                <PaymentStatusPanel
+                  invoice={inv}
+                  onManualConfirm={() => onPaid(inv.id, null)}
+                  onAutoConfirmed={onAutoConfirmed}
+                />
               ) : (
                 <div className="flex items-center gap-3 flex-wrap">
                   <span className={`${labelCls} shrink-0`}>Thanh toán qua:</span>
@@ -1035,7 +1126,7 @@ export default function InvoicesPage() {
               )}
               {fPending.length > 0 && (
                 <span className="flex items-center gap-1.5 px-2.5 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl">
-                  {fPending.some(i => i.status === "app_waiting") && (
+                  {fPending.some(i => i.status === "awaiting_payment") && (
                     <span className="relative flex h-2 w-2">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75" />
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500" />
@@ -1081,7 +1172,7 @@ export default function InvoicesPage() {
           <div className="flex gap-2">
             {([
               { key: "plans",       label: "Liệu trình → Hóa đơn", count: fPlans.length,      dot: fPlans.length > 0 },
-              { key: "pending",     label: "Chờ thanh toán",         count: fPending.length,    dot: fPending.some(i => i.status === "app_waiting") },
+              { key: "pending",     label: "Chờ thanh toán",         count: fPending.length,    dot: fPending.some(i => i.status === "awaiting_payment") },
               { key: "outstanding", label: "Công nợ",                count: outstanding.length + outstandingCourses.length, dot: (outstanding.length + outstandingCourses.length) > 0 },
               { key: "history",     label: "Lịch sử hóa đơn",        count: fPaid.length,       dot: false },
             ] as const).map(t => (
@@ -1117,7 +1208,7 @@ export default function InvoicesPage() {
           ) : (
             <>
               {tab === "plans"       && <PlansTab       plans={fPlans}        onIssued={handleIssued} />}
-              {tab === "pending"     && <PendingTab     invoices={fPending}    onPaid={handlePaid}    />}
+              {tab === "pending"     && <PendingTab     invoices={fPending}    onPaid={handlePaid}    onAutoConfirmed={reload} />}
               {tab === "outstanding" && <OutstandingTab invoices={outstanding} courses={outstandingCourses} onCollect={handleCollectRemaining} />}
               {tab === "history"     && <HistoryTab     paid={fPaid}                                  />}
             </>
