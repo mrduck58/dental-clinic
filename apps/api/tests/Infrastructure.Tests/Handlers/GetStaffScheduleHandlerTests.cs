@@ -37,8 +37,8 @@ public class GetStaffScheduleHandlerTests
     }
 
     /// <summary>
-    /// Bác sĩ chỉ có dòng WorkSchedule với Shift không hợp lệ (không phải morning/afternoon —
-    /// dữ liệu rác/cũ) không được coi là đang làm việc hôm nay, nên không được xuất hiện trong
+    /// Bác sĩ chỉ có dòng WorkSchedule với Shift không hợp lệ (không khớp bất kỳ mã ca nào —
+    /// dữ liệu rác) không được coi là đang làm việc hôm nay, nên không được xuất hiện trong
     /// danh sách đặt lịch tại quầy.
     /// </summary>
     [Test]
@@ -46,7 +46,7 @@ public class GetStaffScheduleHandlerTests
     {
         var user = await SeedActiveDentistUserAsync("Dentist Test");
         _db.WorkSchedules.Add(WorkSchedule.Create(
-            Today, "08:00-10:00", "dentist", "dentist", user.FullName!, "Phòng 2", "border-primary", false));
+            Today, "ca-khong-ton-tai", "dentist", "dentist", user.FullName!, "Phòng 2", "border-primary", false));
         await _db.SaveChangesAsync();
 
         var result = await _handler.HandleAsync(Today);
@@ -55,11 +55,49 @@ public class GetStaffScheduleHandlerTests
     }
 
     /// <summary>
-    /// Bác sĩ có ca làm việc hợp lệ ("morning") phải xuất hiện trong danh sách,
-    /// với morningSlots đầy đủ và afternoonSlots rỗng (không làm ca chiều).
+    /// Bác sĩ có ca làm việc hợp lệ theo mã ca 2 tiếng mới ("08:00-10:00") phải xuất hiện
+    /// trong danh sách, với các slot nằm trong khung 2 tiếng đó — bao gồm cả mốc giờ kết thúc
+    /// ca (10:00) vì mốc kết thúc vẫn được tính là thuộc ca.
     /// </summary>
     [Test]
-    public async Task HandleAsync_DentistWithValidMorningShift_IncludedWithMorningSlotsOnly()
+    public async Task HandleAsync_DentistWithNewTwoHourShiftCode_IncludedWithSlotsInThatWindowOnly()
+    {
+        var user = await SeedActiveDentistUserAsync("BS. Nguyễn Văn Hùng");
+        _db.WorkSchedules.Add(WorkSchedule.Create(
+            Today, "08:00-10:00", "dentist", "dentist", user.FullName!, "Phòng 1", "border-primary", false));
+        await _db.SaveChangesAsync();
+
+        var result = await _handler.HandleAsync(Today);
+
+        var dentist = result.Dentists.Should().ContainSingle().Subject;
+        dentist.Name.Should().Be("BS. Nguyễn Văn Hùng");
+        dentist.Slots.Select(s => s.Time).Should().BeEquivalentTo(["08:00", "08:30", "09:00", "09:30", "10:00"]);
+    }
+
+    /// <summary>
+    /// Ca tối thứ 2 ("19:15-21:00") kết thúc lúc 21:00 — mốc giờ 21:00 vẫn phải xuất hiện
+    /// như một slot đặt lịch hợp lệ, không bị cắt ở 20:30.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_LastEveningShift_IncludesClosingTimeSlot()
+    {
+        var user = await SeedActiveDentistUserAsync("BS. Nguyễn Văn Hùng");
+        _db.WorkSchedules.Add(WorkSchedule.Create(
+            Today, "19:15-21:00", "dentist", "dentist", user.FullName!, "Phòng 1", "border-primary", false));
+        await _db.SaveChangesAsync();
+
+        var result = await _handler.HandleAsync(Today);
+
+        var dentist = result.Dentists.Should().ContainSingle().Subject;
+        dentist.Slots.Select(s => s.Time).Should().Contain("21:00");
+    }
+
+    /// <summary>
+    /// Bác sĩ có ca làm việc hợp lệ theo dữ liệu cũ ("morning") phải xuất hiện trong danh sách,
+    /// với các slot buổi sáng đầy đủ và không có slot buổi chiều/tối.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_DentistWithLegacyMorningShift_IncludedWithMorningSlotsOnly()
     {
         var user = await SeedActiveDentistUserAsync("BS. Nguyễn Văn Hùng");
         _db.WorkSchedules.Add(WorkSchedule.Create(
@@ -69,14 +107,13 @@ public class GetStaffScheduleHandlerTests
         var result = await _handler.HandleAsync(Today);
 
         var dentist = result.Dentists.Should().ContainSingle().Subject;
-        dentist.Name.Should().Be("BS. Nguyễn Văn Hùng");
-        dentist.MorningSlots.Should().NotBeEmpty();
-        dentist.AfternoonSlots.Should().BeEmpty();
+        dentist.Slots.Should().NotBeEmpty();
+        dentist.Slots.Should().OnlyContain(s => string.CompareOrdinal(s.Time, "12:00") < 0);
     }
 
     /// <summary>
-    /// Khi một bác sĩ có cả dòng hợp lệ ("morning") lẫn dòng rác ("10:00-12:00") trong cùng ngày,
-    /// dòng rác phải bị bỏ qua — bác sĩ vẫn chỉ hiện đúng ca morning.
+    /// Khi một bác sĩ có cả dòng hợp lệ ("morning") lẫn dòng rác (không khớp mã ca nào) trong
+    /// cùng ngày, dòng rác phải bị bỏ qua — bác sĩ vẫn chỉ hiện đúng slot buổi sáng.
     /// </summary>
     [Test]
     public async Task HandleAsync_DentistWithMixOfValidAndInvalidShift_IgnoresInvalidEntry()
@@ -84,14 +121,14 @@ public class GetStaffScheduleHandlerTests
         var user = await SeedActiveDentistUserAsync("BSCKII. Trần Thị Lan Anh");
         _db.WorkSchedules.AddRange(
             WorkSchedule.Create(Today, "morning", "dentist", "dentist", user.FullName!, "Phòng 2", "border-secondary", false),
-            WorkSchedule.Create(Today, "10:00-12:00", "dentist", "dentist", user.FullName!, "Phòng 2", "border-secondary", false));
+            WorkSchedule.Create(Today, "ca-khong-ton-tai", "dentist", "dentist", user.FullName!, "Phòng 2", "border-secondary", false));
         await _db.SaveChangesAsync();
 
         var result = await _handler.HandleAsync(Today);
 
         var dentist = result.Dentists.Should().ContainSingle().Subject;
-        dentist.MorningSlots.Should().NotBeEmpty();
-        dentist.AfternoonSlots.Should().BeEmpty();
+        dentist.Slots.Should().NotBeEmpty();
+        dentist.Slots.Should().OnlyContain(s => string.CompareOrdinal(s.Time, "12:00") < 0);
     }
 
     [Test]
@@ -115,7 +152,7 @@ public class GetStaffScheduleHandlerTests
         var result = await _handler.HandleAsync(yesterday);
 
         var dentist = result.Dentists.Should().ContainSingle().Subject;
-        dentist.MorningSlots.Should().OnlyContain(s => s.IsPast);
+        dentist.Slots.Should().OnlyContain(s => s.IsPast);
     }
 
     /// <summary>Với một ngày trong tương lai, chưa có slot nào được coi là đã qua giờ.</summary>
@@ -131,6 +168,6 @@ public class GetStaffScheduleHandlerTests
         var result = await _handler.HandleAsync(nextWeek);
 
         var dentist = result.Dentists.Should().ContainSingle().Subject;
-        dentist.MorningSlots.Should().OnlyContain(s => !s.IsPast);
+        dentist.Slots.Should().OnlyContain(s => !s.IsPast);
     }
 }

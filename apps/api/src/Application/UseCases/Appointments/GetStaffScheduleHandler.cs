@@ -28,7 +28,7 @@ public class GetStaffScheduleHandler(AppDbContext dbContext)
     [
         (8,0),(8,30),(9,0),(9,30),(10,0),(10,30),(11,0),(11,30),                 // sáng
         (13,30),(14,0),(14,30),(15,0),(15,30),(16,0),(16,30),(17,0),             // chiều
-        (17,30),(18,0),(18,30),(19,0),(19,30),(20,0),(20,30),                    // tối
+        (17,30),(18,0),(18,30),(19,0),(19,30),(20,0),(20,30),(21,0),             // tối
     ];
 
     public async Task<StaffScheduleResponse> HandleAsync(DateOnly? queryDate, CancellationToken ct = default)
@@ -41,14 +41,15 @@ public class GetStaffScheduleHandler(AppDbContext dbContext)
         var utcEnd   = utcStart.AddDays(1);
 
         // 1. Lịch làm việc hôm nay (bác sĩ, không phải ngày nghỉ)
-        //    Chỉ chấp nhận Shift hợp lệ ("morning"/"afternoon") — dữ liệu rác/cũ với giá trị Shift
-        //    khác (vd. khoảng giờ tự do) không được coi là bác sĩ có ca làm việc thật.
+        //    Chỉ chấp nhận mã ca hợp lệ (6 ca 2 tiếng hiện tại + "morning"/"afternoon" cũ) —
+        //    dữ liệu rác với giá trị Shift khác không được coi là bác sĩ có ca làm việc thật.
+        var validShiftCodes = WorkShifts.AllValidCodes;
         var todaySchedules = await dbContext.WorkSchedules
             .Where(s => s.Type == "dentist" && !s.IsHoliday && s.Date == date &&
-                        (s.Shift.ToLower() == "morning" || s.Shift.ToLower() == "afternoon"))
+                        validShiftCodes.Contains(s.Shift))
             .ToListAsync(ct);
 
-        // Tên bác sĩ làm việc hôm nay → set ca làm việc ("morning"/"afternoon")
+        // Tên bác sĩ làm việc hôm nay → set ca làm việc (mã ca 2 tiếng hoặc "morning"/"afternoon" cũ)
         var workingToday = todaySchedules
             .GroupBy(s => s.StaffName)
             .ToDictionary(g => g.Key, g => g.Select(s => s.Shift).ToHashSet(StringComparer.OrdinalIgnoreCase));
