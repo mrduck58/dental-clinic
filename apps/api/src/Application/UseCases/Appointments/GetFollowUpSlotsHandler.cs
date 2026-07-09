@@ -8,7 +8,8 @@ namespace DentalClinic.API.Application.UseCases.Appointments;
 public record FollowUpSlotDto(
     string Time,
     bool IsBooked,
-    bool IsAvailable);
+    bool IsAvailable,
+    string Period);
 
 public record FollowUpSlotsResultDto(
     bool HasSchedule,
@@ -29,15 +30,6 @@ public record DentistsFollowUpSlotsResultDto(
 
 public class GetFollowUpSlotsHandler(AppDbContext dbContext, IAppointmentRepository appointmentRepository)
 {
-    // Khung giờ ứng viên cho cả ngày (sáng, chiều, tối). Mỗi khung sẽ được lọc
-    // theo các ca THỰC TẾ mà bác sĩ được phân trong ngày (WorkShifts.IsWorkingAt).
-    private static readonly (int Hour, int Minute)[] AllTimes =
-    [
-        (7, 30), (8, 30), (9, 30), (10, 30),      // sáng
-        (13, 30), (14, 30), (15, 30), (16, 30),   // chiều
-        (17, 30), (18, 30), (19, 30), (20, 30),   // tối
-    ];
-
     /// <summary>Slots cho một bác sĩ cụ thể trong ngày.</summary>
     public async Task<FollowUpSlotsResultDto> HandleAsync(
         Guid dentistId,
@@ -73,9 +65,9 @@ public class GetFollowUpSlotsHandler(AppDbContext dbContext, IAppointmentReposit
             return new FollowUpSlotsResultDto(false, "Bác sĩ không có lịch làm việc ngày này.", []);
         }
 
-        var bookedTimes = await GetBookedTimesAsync(dentistId, date, ct);
+        var occupiedRanges = await GetOccupiedRangesAsync(dentistId, date, ct);
         var workShifts = daySchedules.Select(ws => ws.Shift).ToHashSet();
-        var slots = BuildSlots(workShifts, dentist.Shift, bookedTimes);
+        var slots = BuildSlots(workShifts, dentist.Shift, occupiedRanges);
 
         return new FollowUpSlotsResultDto(true, null, slots);
     }
@@ -119,17 +111,17 @@ public class GetFollowUpSlotsHandler(AppDbContext dbContext, IAppointmentReposit
         var result = dentists
             .Select(d =>
             {
-                var bookedTimes = dayAppointments
+                var occupiedRanges = dayAppointments
                     .Where(a => a.DentistId == d.Id)
                     .Select(a =>
                     {
                         var localTime = a.AppointmentDate.UtcDateTime.AddHours(7);
-                        return (localTime.Hour, localTime.Minute);
+                        return SlotCalculator.BuildOccupiedRange(localTime.Hour, localTime.Minute, a.Service?.DurationMinutes);
                     })
-                    .ToHashSet();
+                    .ToList();
 
                 var workShifts = shiftsByName[d.FullName];
-                var slots = BuildSlots(workShifts, d.Shift, bookedTimes);
+                var slots = BuildSlots(workShifts, d.Shift, occupiedRanges);
 
                 return new DentistFollowUpSlotsDto(
                     d.Id, d.FullName, d.Specialization, string.Join(",", workShifts.OrderBy(s => s)), slots);
@@ -141,7 +133,7 @@ public class GetFollowUpSlotsHandler(AppDbContext dbContext, IAppointmentReposit
         return new DentistsFollowUpSlotsResultDto(true, null, result);
     }
 
-    private async Task<HashSet<(int Hour, int Minute)>> GetBookedTimesAsync(
+    private async Task<List<SlotCalculator.OccupiedRange>> GetOccupiedRangesAsync(
         Guid dentistId, DateOnly date, CancellationToken ct)
     {
         var dayAppointments = await appointmentRepository.GetByDateAsync(date, ct);
@@ -152,27 +144,30 @@ public class GetFollowUpSlotsHandler(AppDbContext dbContext, IAppointmentReposit
             .Select(a =>
             {
                 var localTime = a.AppointmentDate.UtcDateTime.AddHours(7);
-                return (localTime.Hour, localTime.Minute);
+                return SlotCalculator.BuildOccupiedRange(localTime.Hour, localTime.Minute, a.Service?.DurationMinutes);
             })
-            .ToHashSet();
+            .ToList();
     }
 
     private static List<FollowUpSlotDto> BuildSlots(
         HashSet<string> workShifts,
         string fallbackShift,
-        HashSet<(int Hour, int Minute)> bookedTimes)
+        List<SlotCalculator.OccupiedRange> occupiedRanges)
     {
         // Khung giờ dựa trên ca làm việc THỰC TẾ trong ngày (không dùng Dentist.Shift tĩnh).
         // Dự phòng: nếu lịch trống/không xác định, dùng ca mặc định của bác sĩ.
         var shifts = workShifts.Count > 0 ? (IEnumerable<string>)workShifts : [fallbackShift];
 
-        return AllTimes
+        return SlotCalculator.AllTimes
             .Where(t => WorkShifts.IsWorkingAt(shifts, t.Hour, t.Minute))
             .Select(t =>
             {
                 var timeStr = $"{t.Hour:D2}:{t.Minute:D2}";
-                var isBooked = bookedTimes.Contains((t.Hour, t.Minute));
-                return new FollowUpSlotDto(timeStr, isBooked, !isBooked);
+                var slotStart = t.Hour * 60 + t.Minute;
+                var slotEnd = slotStart + SlotCalculator.SlotMinutes;
+                var isBooked = SlotCalculator.IsOccupied(slotStart, slotEnd, occupiedRanges);
+                var period = SlotCalculator.PeriodAt(t.Hour, t.Minute);
+                return new FollowUpSlotDto(timeStr, isBooked, !isBooked, period);
             }).ToList();
     }
 }

@@ -3,6 +3,7 @@ using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
+using DentalClinic.API.Domain.Schedules;
 
 namespace DentalClinic.API.Application.UseCases.Appointments;
 
@@ -23,6 +24,7 @@ public class CreateAppointmentHandler(
     IAppointmentRepository appointmentRepository,
     IPatientRepository patientRepository,
     IUserRepository userRepository,
+    IServiceRepository serviceRepository,
     INotificationService notificationService)
 {
     public async Task<CreateAppointmentResult> HandleAsync(CreateAppointmentCommand cmd, CancellationToken ct = default)
@@ -54,7 +56,23 @@ public class CreateAppointmentHandler(
             targetPatientId = member.Id;
         }
 
-        var alreadyBooked = await appointmentRepository.IsSlotBookedAsync(cmd.DentistId, cmd.AppointmentDate, ct);
+        // Chặn trùng giờ có tính đến thời lượng dịch vụ (không chỉ khớp đúng phút bắt đầu) —
+        // để một submit không thể lách qua trạng thái disabled của UI khi khung giờ thực chất
+        // đã bị một lịch hẹn dài hơn trước đó chiếm dụng.
+        var localAppointmentTime = cmd.AppointmentDate.UtcDateTime.AddHours(7);
+        var service = cmd.ServiceId.HasValue ? await serviceRepository.GetByIdAsync(cmd.ServiceId.Value, ct) : null;
+        var newRange = SlotCalculator.BuildOccupiedRange(localAppointmentTime.Hour, localAppointmentTime.Minute, service?.DurationMinutes);
+
+        var dayAppointments = await appointmentRepository.GetByDateAsync(DateOnly.FromDateTime(localAppointmentTime), ct);
+        var existingRanges = dayAppointments
+            .Where(a => a.DentistId == cmd.DentistId)
+            .Select(a =>
+            {
+                var localTime = a.AppointmentDate.UtcDateTime.AddHours(7);
+                return SlotCalculator.BuildOccupiedRange(localTime.Hour, localTime.Minute, a.Service?.DurationMinutes);
+            });
+
+        var alreadyBooked = SlotCalculator.IsOccupied(newRange.StartMinutes, newRange.EndMinutes, existingRanges);
         if (alreadyBooked)
             throw new ConflictException("Khung giờ này đã được đặt. Vui lòng chọn giờ khác.");
 

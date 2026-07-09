@@ -173,13 +173,21 @@ class _DoctorSlotCard extends StatelessWidget {
     required this.onSlotSelected,
   });
 
+  static const _periodOrder = ['Buổi sáng', 'Buổi chiều', 'Buổi tối'];
+
+  static String _periodLabel(String period, bool isVi) {
+    if (isVi) return period.isEmpty ? 'Khác' : period;
+    return switch (period) {
+      'Buổi sáng' => 'Morning',
+      'Buổi chiều' => 'Afternoon',
+      'Buổi tối' => 'Evening',
+      _ => 'Other',
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
-    final isMorning = doctor.shift == 'morning';
-    final sessionLabel = isMorning 
-        ? (isVi ? 'Buổi sáng' : 'Morning')
-        : (isVi ? 'Buổi chiều' : 'Afternoon');
 
     final now = DateTime.now();
     final isDateToday = date.year == now.year && date.month == now.month && date.day == now.day;
@@ -309,79 +317,101 @@ class _DoctorSlotCard extends StatelessWidget {
             ),
           ),
 
-          // ── Session label ─────────────────────────────────────────────
+          // ── Date label ───────────────────────────────────────────────
           Padding(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 4),
             child: Text(
-              '${_fmtDateInline(date)} - $sessionLabel (${_weekdayShort(date, isVi)})',
+              '${_fmtDateInline(date)} (${_weekdayShort(date, isVi)})',
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w800,
-                color: isMorning ? const Color(0xFF16A34A) : const Color(0xFFEA580C),
+                color: context.isDark ? Colors.white : AppColors.primary,
               ),
             ),
           ),
 
-          // ── Time slot grid ────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.all(14),
-            child: GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: 8,
-              crossAxisSpacing: 8,
-              childAspectRatio: 4.2,
-              children: doctor.slots.map((slot) {
-                final timePart = slot.range.split(' - ').first.trim();
-                final timeParts = timePart.split(':');
-                final slotHour = int.tryParse(timeParts[0]) ?? 0;
-                final slotMinute = int.tryParse(timeParts[1]) ?? 0;
+          // ── Time slot grid — nhóm theo buổi (sáng/chiều/tối) ──────────
+          // Phòng khi có period lạ/không xác định (dữ liệu cũ) — vẫn hiện ra thay vì ẩn mất.
+          ...[
+            ..._periodOrder,
+            ...doctor.slots.map((s) => s.period).toSet().where((p) => !_periodOrder.contains(p)),
+          ].expand((period) {
+            final periodSlots = doctor.slots.where((s) => s.period == period).toList();
+            if (periodSlots.isEmpty) return const <Widget>[];
 
-                final isPastSlot = isDateToday && (slotHour < now.hour || (slotHour == now.hour && slotMinute <= now.minute));
-                final booked = slot.isBooked || isPastSlot;
-
-                final cellBg = booked
-                    ? (context.isDark ? const Color(0xFF1E293B) : AppColors.background)
-                    : (context.isDark ? const Color(0xFF451A1A) : AppColors.primaryLight.withValues(alpha: 0.55));
-                final cellText = booked
-                    ? context.textSecondary.withValues(alpha: 0.4)
-                    : (context.isDark ? Colors.white : AppColors.primary);
-
-                return GestureDetector(
-                  onTap: booked ? null : () => onSlotSelected(slot),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    decoration: BoxDecoration(
-                      color: cellBg,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: context.divider),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          slot.range,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: cellText,
-                          ),
-                        ),
-                        if (booked)
-                          Text(
-                            isPastSlot
-                                ? (isVi ? 'Đã qua' : 'Passed')
-                                : (isVi ? 'Hết số' : 'Booked'),
-                            style: TextStyle(fontSize: 9, color: context.textSecondary.withValues(alpha: 0.5)),
-                          ),
-                      ],
-                    ),
+            return [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
+                child: Text(
+                  _periodLabel(period, isVi),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: context.textSecondary,
                   ),
-                );
-              }).toList(),
-            ),
-          ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+                child: GridView.count(
+                  crossAxisCount: 2,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  mainAxisSpacing: 8,
+                  crossAxisSpacing: 8,
+                  childAspectRatio: 4.2,
+                  children: periodSlots.map((slot) {
+                    final timePart = slot.range.split(' - ').first.trim();
+                    final timeParts = timePart.split(':');
+                    final slotHour = int.tryParse(timeParts[0]) ?? 0;
+                    final slotMinute = int.tryParse(timeParts[1]) ?? 0;
+
+                    final isPastSlot = isDateToday && (slotHour < now.hour || (slotHour == now.hour && slotMinute <= now.minute));
+                    final booked = slot.isBooked || isPastSlot;
+
+                    final cellBg = booked
+                        ? (context.isDark ? const Color(0xFF1E293B) : AppColors.background)
+                        : (context.isDark ? const Color(0xFF451A1A) : AppColors.primaryLight.withValues(alpha: 0.55));
+                    final cellText = booked
+                        ? context.textSecondary.withValues(alpha: 0.4)
+                        : (context.isDark ? Colors.white : AppColors.primary);
+
+                    return GestureDetector(
+                      onTap: booked ? null : () => onSlotSelected(slot),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        decoration: BoxDecoration(
+                          color: cellBg,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: context.divider),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              slot.range,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: cellText,
+                              ),
+                            ),
+                            if (booked)
+                              Text(
+                                isPastSlot
+                                    ? (isVi ? 'Đã qua' : 'Passed')
+                                    : (isVi ? 'Hết số' : 'Booked'),
+                                style: TextStyle(fontSize: 9, color: context.textSecondary.withValues(alpha: 0.5)),
+                              ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ];
+          }),
         ],
       ),
     );

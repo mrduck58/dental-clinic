@@ -140,12 +140,14 @@ class BookingDraft {
 class ApiTimeSlot {
   final String range;
   final bool isBooked;
+  final String period;
 
-  const ApiTimeSlot({required this.range, required this.isBooked});
+  const ApiTimeSlot({required this.range, required this.isBooked, required this.period});
 
   factory ApiTimeSlot.fromJson(Map<String, dynamic> json) => ApiTimeSlot(
         range: json['range'] as String,
         isBooked: json['isBooked'] as bool,
+        period: json['period'] as String? ?? '',
       );
 
   TimeSlot toTimeSlot() => TimeSlot(range: range, isBooked: isBooked);

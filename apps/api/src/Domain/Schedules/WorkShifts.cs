@@ -38,8 +38,8 @@ public static class WorkShifts
         new("10:00-12:00", "10:00 – 12:00", PeriodMorning,   Min(10, 0),  Min(12, 0)),
         new("13:30-15:30", "13:30 – 15:30", PeriodAfternoon, Min(13, 30), Min(15, 30)),
         new("15:30-17:30", "15:30 – 17:30", PeriodAfternoon, Min(15, 30), Min(17, 30)),
-        new("17:30-19:15", "17:30 – 19:15", PeriodEvening,   Min(17, 30), Min(19, 15)),
-        new("19:15-21:00", "19:15 – 21:00", PeriodEvening,   Min(19, 15), Min(21, 0)),
+        new("17:30-19:30", "17:30 – 19:30", PeriodEvening,   Min(17, 30), Min(19, 30)),
+        new("19:30-21:30", "19:30 – 21:30", PeriodEvening,   Min(19, 30), Min(21, 30)),
     ];
 
     private static readonly Dictionary<string, ShiftDef> ByCode =

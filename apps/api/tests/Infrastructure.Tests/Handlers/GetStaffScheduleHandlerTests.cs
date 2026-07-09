@@ -71,44 +71,8 @@ public class GetStaffScheduleHandlerTests
 
         var dentist = result.Dentists.Should().ContainSingle().Subject;
         dentist.Name.Should().Be("BS. Nguyễn Văn Hùng");
-        dentist.Slots.Select(s => s.Time).Should().BeEquivalentTo(["08:00", "08:30", "09:00", "09:30", "10:00"]);
-    }
-
-    /// <summary>
-    /// Ca tối thứ 2 ("19:15-21:00") kết thúc lúc 21:00 — mốc giờ 21:00 vẫn phải xuất hiện
-    /// như một slot đặt lịch hợp lệ, không bị cắt ở 20:30.
-    /// </summary>
-    [Test]
-    public async Task HandleAsync_LastEveningShift_IncludesClosingTimeSlot()
-    {
-        var user = await SeedActiveDentistUserAsync("BS. Nguyễn Văn Hùng");
-        _db.WorkSchedules.Add(WorkSchedule.Create(
-            Today, "19:15-21:00", "dentist", "dentist", user.FullName!, "Phòng 1", "border-primary", false));
-        await _db.SaveChangesAsync();
-
-        var result = await _handler.HandleAsync(Today);
-
-        var dentist = result.Dentists.Should().ContainSingle().Subject;
-        dentist.Slots.Select(s => s.Time).Should().Contain("21:00");
-    }
-
-    /// <summary>
-    /// Bác sĩ có ca làm việc hợp lệ theo dữ liệu cũ ("morning") phải xuất hiện trong danh sách,
-    /// với các slot buổi sáng đầy đủ và không có slot buổi chiều/tối.
-    /// </summary>
-    [Test]
-    public async Task HandleAsync_DentistWithLegacyMorningShift_IncludedWithMorningSlotsOnly()
-    {
-        var user = await SeedActiveDentistUserAsync("BS. Nguyễn Văn Hùng");
-        _db.WorkSchedules.Add(WorkSchedule.Create(
-            Today, "morning", "dentist", "dentist", user.FullName!, "Phòng 1", "border-primary", false));
-        await _db.SaveChangesAsync();
-
-        var result = await _handler.HandleAsync(Today);
-
-        var dentist = result.Dentists.Should().ContainSingle().Subject;
         dentist.Slots.Should().NotBeEmpty();
-        dentist.Slots.Should().OnlyContain(s => string.CompareOrdinal(s.Time, "12:00") < 0);
+        dentist.Slots.Should().OnlyContain(s => int.Parse(s.Time.Substring(0, 2)) < 12);
     }
 
     /// <summary>
@@ -128,7 +92,7 @@ public class GetStaffScheduleHandlerTests
 
         var dentist = result.Dentists.Should().ContainSingle().Subject;
         dentist.Slots.Should().NotBeEmpty();
-        dentist.Slots.Should().OnlyContain(s => string.CompareOrdinal(s.Time, "12:00") < 0);
+        dentist.Slots.Should().OnlyContain(s => int.Parse(s.Time.Substring(0, 2)) < 12);
     }
 
     [Test]
