@@ -19,8 +19,11 @@ import { supabase } from "../../../lib/supabaseClient";
 
 /* ─── constants ─────────────────────────────────────────── */
 
+// Lưới giờ khớp với GetStaffScheduleHandler (backend). Mỗi ô chỉ khả dụng nếu
+// bác sĩ có ca bao trùm khung giờ đó (tra theo `slot.time`).
 const TIMES_MORNING   = ["08:00","08:30","09:00","09:30","10:00","10:30","11:00","11:30"];
-const TIMES_AFTERNOON = ["13:00","13:30","14:00","14:30","15:00","15:30","16:00","16:30"];
+const TIMES_AFTERNOON = ["13:30","14:00","14:30","15:00","15:30","16:00","16:30","17:00"];
+const TIMES_EVENING   = ["17:30","18:00","18:30","19:00","19:30","20:00","20:30"];
 const ALL_TIMES = [...TIMES_MORNING, ...TIMES_AFTERNOON];
 
 /* ─── style helpers ──────────────────────────────────────── */
@@ -530,9 +533,9 @@ function WalkinTab() {
           ...prev,
           dentists: prev.dentists.map(d => {
             if (d.dentistId !== bookedDentistId) return d;
-            const markBooked = (slots: typeof d.morningSlots) =>
-              slots.map(s => s.time === bookedTime ? { ...s, isBooked: true, patientName: bookedName } : s);
-            return { ...d, morningSlots: markBooked(d.morningSlots), afternoonSlots: markBooked(d.afternoonSlots) };
+            const slots = d.slots.map(s =>
+              s.time === bookedTime ? { ...s, isBooked: true, patientName: bookedName } : s);
+            return { ...d, slots };
           }),
         };
       });
@@ -554,15 +557,16 @@ function WalkinTab() {
 
   const colCount = (schedule?.dentists.length ?? 0) + 1;
 
-  const renderSlotRow = (time: string, slotIdx: number) =>
-    schedule?.dentists.map((dentist, di) => {
-      const slots    = slotIdx < 8 ? dentist.morningSlots : dentist.afternoonSlots;
-      const slotPos  = slotIdx < 8 ? slotIdx : slotIdx - 8;
-      const slot     = slots[slotPos];
+  const renderSlotRow = (time: string) =>
+    schedule?.dentists.map((dentist) => {
+      const slot     = dentist.slots.find(s => s.time === time);
       const isSel    = selected?.dentistId === dentist.dentistId && selected?.time === time;
       return (
         <td key={dentist.dentistId} className="px-2 py-1.5 text-center">
-          {slot?.isBooked ? (
+          {!slot ? (
+            // Bác sĩ không có ca bao trùm khung giờ này
+            <span className="inline-block px-2.5 py-1.5 text-slate-300 text-[11px] font-bold w-full">—</span>
+          ) : slot.isBooked ? (
             <span className="inline-block px-2.5 py-1.5 bg-slate-100 text-slate-500 border border-slate-200 rounded-lg text-[11px] font-bold max-w-[90px] truncate w-full">
               {(slot.patientName ?? "").split(" ").slice(-1)[0]}
             </span>
@@ -624,10 +628,10 @@ function WalkinTab() {
                       Ca sáng
                     </span>
                   </td></tr>
-                  {TIMES_MORNING.map((time, idx) => (
+                  {TIMES_MORNING.map((time) => (
                     <tr key={time} className="border-b border-slate-50 hover:bg-slate-50/30 transition-colors">
                       <td className="px-4 py-2 font-mono font-black text-slate-600 text-[12.5px] shrink-0">{time}</td>
-                      {renderSlotRow(time, idx)}
+                      {renderSlotRow(time)}
                     </tr>
                   ))}
                   <tr><td colSpan={colCount} className="px-4 py-1.5 bg-indigo-50/40 border-y border-indigo-100/60">
@@ -636,10 +640,22 @@ function WalkinTab() {
                       Ca chiều
                     </span>
                   </td></tr>
-                  {TIMES_AFTERNOON.map((time, idx) => (
+                  {TIMES_AFTERNOON.map((time) => (
                     <tr key={time} className="border-b border-slate-50 hover:bg-slate-50/30 transition-colors">
                       <td className="px-4 py-2 font-mono font-black text-slate-600 text-[12.5px]">{time}</td>
-                      {renderSlotRow(time, idx + 8)}
+                      {renderSlotRow(time)}
+                    </tr>
+                  ))}
+                  <tr><td colSpan={colCount} className="px-4 py-1.5 bg-violet-50/40 border-y border-violet-100/60">
+                    <span className="text-[11px] font-extrabold text-violet-600 uppercase tracking-wider flex items-center gap-1.5">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" /></svg>
+                      Ca tối
+                    </span>
+                  </td></tr>
+                  {TIMES_EVENING.map((time) => (
+                    <tr key={time} className="border-b border-slate-50 hover:bg-slate-50/30 transition-colors">
+                      <td className="px-4 py-2 font-mono font-black text-slate-600 text-[12.5px]">{time}</td>
+                      {renderSlotRow(time)}
                     </tr>
                   ))}
                 </tbody>

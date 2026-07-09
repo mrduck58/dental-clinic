@@ -620,7 +620,7 @@ export async function deletePostApi(id: string): Promise<void> {
 export interface ScheduleEntryDto {
   id: string;
   date: string; // "YYYY-MM-DD"
-  shift: "morning" | "afternoon";
+  shift: string; // mã ca, ví dụ "08:00-10:00" (xem lib/shifts.ts). Dữ liệu cũ: "morning"/"afternoon"
   type: "dentist" | "staff";
   role: "dentist" | "assistant" | "staff";
   name: string;
@@ -631,7 +631,7 @@ export interface ScheduleEntryDto {
 
 export interface SaveScheduleEntryRequest {
   date: string;
-  shift: "morning" | "afternoon";
+  shift: string; // mã ca, ví dụ "08:00-10:00"
   type: "dentist" | "staff";
   role: "dentist" | "assistant" | "staff";
   name: string;
@@ -1585,8 +1585,8 @@ export interface DentistPatientsResponse {
 // ── Dentist Dashboard ──────────────────────────────────────────────────────
 
 export interface DentistShiftInfo {
-  hasShift: boolean;
-  time: string | null;
+  label: string;        // "08:00 – 10:00"
+  period: string;       // "Buổi sáng" | "Buổi chiều" | "Buổi tối"
   room: string | null;
 }
 
@@ -1594,6 +1594,7 @@ export interface DentistWeekShifts {
   total: number;
   morning: number;
   afternoon: number;
+  evening: number;
 }
 
 export interface DentistDashboardPatientDto {
@@ -1611,8 +1612,7 @@ export interface DentistDashboardResponse {
   totalInProgress: number;
   totalCompleted: number;
   weekShifts: DentistWeekShifts;
-  morningShift: DentistShiftInfo;
-  afternoonShift: DentistShiftInfo;
+  todayShifts: DentistShiftInfo[];
   upcomingPatients: DentistDashboardPatientDto[];
 }
 
@@ -1628,8 +1628,7 @@ export interface StaffScheduleDentistDto {
   dentistId: string;
   name: string;
   room: string;
-  morningSlots: StaffScheduleSlot[];
-  afternoonSlots: StaffScheduleSlot[];
+  slots: StaffScheduleSlot[]; // các khung giờ bác sĩ có ca hôm nay (đã lọc theo ca được phân)
 }
 
 export interface StaffScheduleResponse {

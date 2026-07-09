@@ -6,6 +6,7 @@ import OwnerSidebar from "../../../../../components/shared/OwnerSidebar";
 import NotificationBell from "../../../../../components/shared/NotificationBell";
 import { useRequireOwner } from "../../../../../hooks/useRequireOwner";
 import { getWeekScheduleApi, getStaffByIdApi, type StaffDto, type ScheduleEntryDto } from "../../../../../lib/apiClient";
+import { periodOfShift } from "../../../../../lib/shifts";
 
 // ── Mock review data — TODO: replace with real reviews API ────────────────
 const MOCK_RATING = 4.8;
@@ -235,8 +236,9 @@ export default function StaffDetailPage() {
   const staffSchedule  = monthSchedule.filter(e =>
     e.name === staff.fullName && !e.isHoliday && e.date.startsWith(monthPrefix)
   );
-  const morningCount   = staffSchedule.filter(e => e.shift === "morning").length;
-  const afternoonCount = staffSchedule.filter(e => e.shift === "afternoon").length;
+  const morningCount   = staffSchedule.filter(e => periodOfShift(e.shift) === "Buổi sáng").length;
+  const afternoonCount = staffSchedule.filter(e => periodOfShift(e.shift) === "Buổi chiều").length;
+  const eveningCount   = staffSchedule.filter(e => periodOfShift(e.shift) === "Buổi tối").length;
   const totalShifts    = staffSchedule.length;
   const calDays        = buildCalendarDays(viewYear, viewMonth);
 
@@ -403,6 +405,11 @@ export default function StaffDetailPage() {
               <div className="bg-white rounded-2xl border border-amber-100 shadow-sm p-4 flex flex-col gap-1">
                 <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Ca chiều</span>
                 <span className="text-xl font-black text-amber-500">{isLoadingSchedule ? "..." : afternoonCount}</span>
+                <span className="text-[11.5px] text-slate-400 font-semibold">Tháng hiện tại</span>
+              </div>
+              <div className="bg-white rounded-2xl border border-violet-100 shadow-sm p-4 flex flex-col gap-1">
+                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Ca tối</span>
+                <span className="text-xl font-black text-violet-500">{isLoadingSchedule ? "..." : eveningCount}</span>
                 <span className="text-[11.5px] text-slate-400 font-semibold">Tháng hiện tại</span>
               </div>
             </div>
@@ -594,8 +601,9 @@ export default function StaffDetailPage() {
                       <div className="grid grid-cols-7 gap-1 text-[12px] font-bold text-slate-800">
                       {calDays.map(({ date, inMonth }) => {
                         const entries      = staffSchedule.filter(e => e.date === date);
-                        const hasMorning   = entries.some(e => e.shift === "morning");
-                        const hasAfternoon = entries.some(e => e.shift === "afternoon");
+                        const hasMorning   = entries.some(e => periodOfShift(e.shift) === "Buổi sáng");
+                        const hasAfternoon = entries.some(e => periodOfShift(e.shift) === "Buổi chiều");
+                        const hasEvening   = entries.some(e => periodOfShift(e.shift) === "Buổi tối");
                         const isToday      = date === todayStr;
                         const dayNum       = parseInt(date.split("-")[2]);
                         return (
@@ -614,7 +622,8 @@ export default function StaffDetailPage() {
                               <div className="absolute bottom-1 flex gap-0.5 justify-center">
                                 {hasMorning && <span className="w-1.5 h-1.5 rounded-full bg-green-500" />}
                                 {hasAfternoon && <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />}
-                                {!hasMorning && !hasAfternoon && <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />}
+                                {hasEvening && <span className="w-1.5 h-1.5 rounded-full bg-violet-500" />}
+                                {!hasMorning && !hasAfternoon && !hasEvening && <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />}
                               </div>
                             )}
                           </div>
