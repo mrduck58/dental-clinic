@@ -1,5 +1,6 @@
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
+using DentalClinic.API.Domain.Schedules;
 using DentalClinic.API.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,8 +12,7 @@ public record StaffScheduleDentistDto(
     Guid DentistId,
     string Name,
     string Room,
-    List<StaffScheduleSlot> MorningSlots,
-    List<StaffScheduleSlot> AfternoonSlots);
+    List<StaffScheduleSlot> Slots);
 
 public record StaffScheduleResponse(
     DateOnly Date,
@@ -23,11 +23,13 @@ public class GetStaffScheduleHandler(AppDbContext dbContext)
     private static readonly TimeZoneInfo VietnamTz =
         TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
 
-    private static readonly string[] MorningTimes =
-        ["08:00","08:30","09:00","09:30","10:00","10:30","11:00","11:30"];
-
-    private static readonly string[] AfternoonTimes =
-        ["13:00","13:30","14:00","14:30","15:00","15:30","16:00","16:30"];
+    // Lưới 30 phút cho cả ngày; mỗi khung chỉ hiện nếu nằm trong một ca bác sĩ được phân.
+    private static readonly (int Hour, int Minute)[] AllTimes =
+    [
+        (8,0),(8,30),(9,0),(9,30),(10,0),(10,30),(11,0),(11,30),                 // sáng
+        (13,30),(14,0),(14,30),(15,0),(15,30),(16,0),(16,30),(17,0),             // chiều
+        (17,30),(18,0),(18,30),(19,0),(19,30),(20,0),(20,30),                    // tối
+    ];
 
     public async Task<StaffScheduleResponse> HandleAsync(DateOnly? queryDate, CancellationToken ct = default)
     {
@@ -98,32 +100,27 @@ public class GetStaffScheduleHandler(AppDbContext dbContext)
             var dentistAppts = appointments.Where(a => a.DentistId == dentist.Id).ToList();
             var room = todaySchedules.FirstOrDefault(s => s.StaffName == name)?.Room ?? "—";
 
-            // Nếu không có thông tin ca cụ thể thì hiện cả hai ca
-            var showMorning   = shifts.Count == 0 || shifts.Contains("morning");
-            var showAfternoon = shifts.Count == 0 || shifts.Contains("afternoon");
+            // Chỉ hiện khung giờ nằm trong các ca bác sĩ được phân hôm nay.
+            var slots = AllTimes
+                .Where(t => WorkShifts.IsWorkingAt(shifts, t.Hour, t.Minute))
+                .Select(t => BuildSlot(t.Hour, t.Minute, dentistAppts, date))
+                .ToList();
 
-            var morningSlots   = showMorning
-                ? MorningTimes.Select(t   => BuildSlot(t, dentistAppts, date)).ToList()
-                : [];
-            var afternoonSlots = showAfternoon
-                ? AfternoonTimes.Select(t => BuildSlot(t, dentistAppts, date)).ToList()
-                : [];
-
-            return new StaffScheduleDentistDto(dentist.Id, name, room, morningSlots, afternoonSlots);
+            return new StaffScheduleDentistDto(dentist.Id, name, room, slots);
         }).ToList();
 
         return new StaffScheduleResponse(date, result);
     }
 
-    private static StaffScheduleSlot BuildSlot(string time, List<Appointment> appts, DateOnly date)
+    private static StaffScheduleSlot BuildSlot(int hour, int minute, List<Appointment> appts, DateOnly date)
     {
-        var parts  = time.Split(':');
         var vnSlot = new DateTimeOffset(
             date.Year, date.Month, date.Day,
-            int.Parse(parts[0]), int.Parse(parts[1]), 0,
+            hour, minute, 0,
             VietnamTz.BaseUtcOffset);
         var utcSlot = vnSlot.ToUniversalTime();
 
+        var time   = $"{hour:D2}:{minute:D2}";
         var booked = appts.FirstOrDefault(a => a.AppointmentDate == utcSlot);
         var isPast = utcSlot < DateTimeOffset.UtcNow;
         return new StaffScheduleSlot(time, booked != null, booked?.Patient.FullName, isPast);

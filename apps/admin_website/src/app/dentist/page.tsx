@@ -48,11 +48,10 @@ export default function DentistOverviewPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const morning   = data?.morningShift;
-  const afternoon = data?.afternoonShift;
+  const todayShifts = data?.todayShifts ?? [];
 
   const weekSub = data
-    ? `Sáng: ${data.weekShifts.morning} · Chiều: ${data.weekShifts.afternoon}`
+    ? `Sáng ${data.weekShifts.morning} · Chiều ${data.weekShifts.afternoon} · Tối ${data.weekShifts.evening}`
     : "—";
 
   const stats = [
@@ -142,62 +141,37 @@ export default function DentistOverviewPage() {
                 </Link>
               </div>
 
-              {/* Morning shift */}
+              {/* Danh sách ca hôm nay (các ca ngang hàng) */}
               {loading ? (
                 <div className="bg-slate-50 rounded-xl p-4 h-24 animate-pulse" />
-              ) : morning?.hasShift ? (
-                <div className="bg-gradient-to-br from-red-50 to-rose-50 border border-red-100 rounded-xl p-4 flex flex-col gap-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[13px] font-black text-slate-800">Ca sáng</span>
-                    <span className="px-2.5 py-1 bg-green-100 text-green-700 text-[11.5px] font-black rounded-full">
-                      Đang hoạt động
-                    </span>
+              ) : todayShifts.length > 0 ? (
+                todayShifts.map((shift, i) => (
+                  <div key={i} className="bg-gradient-to-br from-red-50 to-rose-50 border border-red-100 rounded-xl p-4 flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[13px] font-black text-slate-800 flex items-center gap-2">
+                        <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Ca {shift.label}
+                      </span>
+                      <span className="px-2.5 py-1 bg-green-100 text-green-700 text-[11.5px] font-black rounded-full">
+                        {shift.period}
+                      </span>
+                    </div>
+                    {shift.room && (
+                      <div className="flex items-center gap-2 text-[13px] text-slate-600 font-semibold">
+                        <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75" />
+                        </svg>
+                        {shift.room}
+                      </div>
+                    )}
                   </div>
-                  <div className="flex items-center gap-2 text-[13px] text-slate-600 font-semibold">
-                    <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    {morning.time}
-                  </div>
-                  <div className="flex items-center gap-2 text-[13px] text-slate-600 font-semibold">
-                    <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75" />
-                    </svg>
-                    {morning.room}
-                  </div>
-                </div>
+                ))
               ) : (
                 <div className="bg-slate-50 rounded-xl p-4 flex flex-col gap-2">
-                  <span className="text-[12px] font-extrabold text-slate-400 uppercase tracking-wider">Ca sáng</span>
-                  <span className="text-[13px] font-semibold text-slate-500">Không có lịch</span>
-                </div>
-              )}
-
-              {/* Afternoon shift */}
-              {loading ? (
-                <div className="bg-slate-50 rounded-xl p-4 h-20 animate-pulse" />
-              ) : afternoon?.hasShift ? (
-                <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100 rounded-xl p-4 flex flex-col gap-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[13px] font-black text-slate-800">Ca chiều</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-[13px] text-slate-600 font-semibold">
-                    <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    {afternoon.time}
-                  </div>
-                  <div className="flex items-center gap-2 text-[13px] text-slate-600 font-semibold">
-                    <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75" />
-                    </svg>
-                    {afternoon.room}
-                  </div>
-                </div>
-              ) : (
-                <div className="bg-slate-50 rounded-xl p-4 flex flex-col gap-2">
-                  <span className="text-[12px] font-extrabold text-slate-400 uppercase tracking-wider">Ca chiều</span>
-                  <span className="text-[13px] font-semibold text-slate-500">Không có lịch</span>
+                  <span className="text-[12px] font-extrabold text-slate-400 uppercase tracking-wider">Hôm nay</span>
+                  <span className="text-[13px] font-semibold text-slate-500">Không có ca làm việc</span>
                 </div>
               )}
             </div>

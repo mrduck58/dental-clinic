@@ -1,4 +1,5 @@
 using DentalClinic.API.Domain.Enums;
+using DentalClinic.API.Domain.Schedules;
 using DentalClinic.API.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -82,9 +83,12 @@ public class GetWaitingQueueHandler(AppDbContext dbContext)
                         : 0
                 )).ToList();
 
-                var shift = firstAppointment.AppointmentDate.Hour < 12 ? "morning" : "afternoon";
-                var roomName = workSchedules
-                    .FirstOrDefault(ws => ws.StaffName == dentist.FullName && ws.Shift == shift)?.Room;
+                // Phòng theo ca bao trùm giờ hẹn (giờ VN); dự phòng lấy phòng bất kỳ của bác sĩ trong ngày
+                var apptVn = TimeZoneInfo.ConvertTime(firstAppointment.AppointmentDate, vietnamTz);
+                var dentistSchedules = workSchedules.Where(ws => ws.StaffName == dentist.FullName).ToList();
+                var roomName = (dentistSchedules
+                        .FirstOrDefault(ws => WorkShifts.IsWorkingAt([ws.Shift], apptVn.Hour, apptVn.Minute))
+                        ?? dentistSchedules.FirstOrDefault())?.Room;
 
                 return new DentistQueueDto(
                     dentist.Id,

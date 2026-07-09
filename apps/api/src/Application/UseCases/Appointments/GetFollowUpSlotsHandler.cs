@@ -1,4 +1,5 @@
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Domain.Schedules;
 using Microsoft.EntityFrameworkCore;
 using DentalClinic.API.Infrastructure.Persistence;
 
@@ -28,8 +29,14 @@ public record DentistsFollowUpSlotsResultDto(
 
 public class GetFollowUpSlotsHandler(AppDbContext dbContext, IAppointmentRepository appointmentRepository)
 {
-    private static readonly (int Hour, int Minute)[] MorningTimes = [(7, 30), (8, 30), (9, 30), (10, 30)];
-    private static readonly (int Hour, int Minute)[] AfternoonTimes = [(13, 30), (14, 30), (15, 30), (16, 30)];
+    // Khung giờ ứng viên cho cả ngày (sáng, chiều, tối). Mỗi khung sẽ được lọc
+    // theo các ca THỰC TẾ mà bác sĩ được phân trong ngày (WorkShifts.IsWorkingAt).
+    private static readonly (int Hour, int Minute)[] AllTimes =
+    [
+        (7, 30), (8, 30), (9, 30), (10, 30),      // sáng
+        (13, 30), (14, 30), (15, 30), (16, 30),   // chiều
+        (17, 30), (18, 30), (19, 30), (20, 30),   // tối
+    ];
 
     /// <summary>Slots cho một bác sĩ cụ thể trong ngày.</summary>
     public async Task<FollowUpSlotsResultDto> HandleAsync(
@@ -155,22 +162,17 @@ public class GetFollowUpSlotsHandler(AppDbContext dbContext, IAppointmentReposit
         string fallbackShift,
         HashSet<(int Hour, int Minute)> bookedTimes)
     {
-        // Khung giờ dựa trên ca làm việc THỰC TẾ trong ngày (không dùng Dentist.Shift tĩnh)
-        var times = new List<(int Hour, int Minute)>();
-        if (workShifts.Contains("morning")) times.AddRange(MorningTimes);
-        if (workShifts.Contains("afternoon")) times.AddRange(AfternoonTimes);
+        // Khung giờ dựa trên ca làm việc THỰC TẾ trong ngày (không dùng Dentist.Shift tĩnh).
+        // Dự phòng: nếu lịch trống/không xác định, dùng ca mặc định của bác sĩ.
+        var shifts = workShifts.Count > 0 ? (IEnumerable<string>)workShifts : [fallbackShift];
 
-        // Dự phòng: nếu Shift trong lịch trống/không xác định, dùng ca mặc định của bác sĩ
-        if (times.Count == 0)
-        {
-            times.AddRange(fallbackShift == "afternoon" ? AfternoonTimes : MorningTimes);
-        }
-
-        return times.Select(t =>
-        {
-            var timeStr = $"{t.Hour:D2}:{t.Minute:D2}";
-            var isBooked = bookedTimes.Contains((t.Hour, t.Minute));
-            return new FollowUpSlotDto(timeStr, isBooked, !isBooked);
-        }).ToList();
+        return AllTimes
+            .Where(t => WorkShifts.IsWorkingAt(shifts, t.Hour, t.Minute))
+            .Select(t =>
+            {
+                var timeStr = $"{t.Hour:D2}:{t.Minute:D2}";
+                var isBooked = bookedTimes.Contains((t.Hour, t.Minute));
+                return new FollowUpSlotDto(timeStr, isBooked, !isBooked);
+            }).ToList();
     }
 }
