@@ -1,6 +1,9 @@
+using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
+using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -106,7 +109,10 @@ public record ConfirmPaymentRequest(string? PaymentMethod);
 
 #endregion
 
-public class InvoiceHandler(AppDbContext dbContext)
+public class InvoiceHandler(
+    AppDbContext dbContext,
+    INotificationService notificationService,
+    IUserRepository userRepository)
 {
     /// <summary>
     /// Tab "Liệu trình → Hóa đơn": lịch hẹn đã kết thúc điều trị, chưa xuất hóa đơn.
@@ -264,6 +270,7 @@ public class InvoiceHandler(AppDbContext dbContext)
 
         dbContext.Invoices.Add(invoice);
         await dbContext.SaveChangesAsync(ct);
+        await NotifyInvoiceIssuedAsync(invoice, ct);
 
         return await GetByIdAsync(invoice.Id, ct);
     }
@@ -296,6 +303,7 @@ public class InvoiceHandler(AppDbContext dbContext)
 
         dbContext.Invoices.Add(invoice);
         await dbContext.SaveChangesAsync(ct);
+        await NotifyInvoiceIssuedAsync(invoice, ct);
 
         return await GetByIdAsync(invoice.Id, ct);
     }
@@ -347,6 +355,7 @@ public class InvoiceHandler(AppDbContext dbContext)
 
         dbContext.Invoices.Add(invoice);
         await dbContext.SaveChangesAsync(ct);
+        await NotifyInvoiceIssuedAsync(invoice, ct);
 
         return await GetByIdAsync(invoice.Id, ct);
     }
@@ -356,6 +365,17 @@ public class InvoiceHandler(AppDbContext dbContext)
     {
         var invoices = await QueryWithDetails()
             .Where(i => i.Status == PaymentStatus.Unpaid)
+            .OrderBy(i => i.CreatedAt)
+            .ToListAsync(ct);
+
+        return invoices.Select(ToDto).ToList();
+    }
+
+    /// <summary>Hóa đơn chưa thanh toán của một bệnh nhân cụ thể (mobile app — bệnh nhân xem hóa đơn của mình).</summary>
+    public async Task<List<InvoiceDto>> GetPendingByPatientAsync(Guid patientId, CancellationToken ct = default)
+    {
+        var invoices = await QueryWithDetails()
+            .Where(i => i.Status == PaymentStatus.Unpaid && i.Appointment.PatientId == patientId)
             .OrderBy(i => i.CreatedAt)
             .ToListAsync(ct);
 
@@ -442,6 +462,24 @@ public class InvoiceHandler(AppDbContext dbContext)
             ? invoice.PaymentMethod
             : ParsePaymentMethod(request.PaymentMethod);
 
+        await ApplyPaymentConfirmedAsync(invoice, paymentMethod, ct);
+        await dbContext.SaveChangesAsync(ct);
+
+        return await GetByIdAsync(invoice.Id, ct);
+    }
+
+    /// <summary>
+    /// Áp dụng việc xác nhận thanh toán: đánh dấu Paid, tất toán hóa đơn gốc (nếu là hóa đơn thu phần còn lại),
+    /// kiểm tra hoàn tất liệu trình dài hạn, hoàn tất lịch hẹn, và bắn notification cho bệnh nhân + staff.
+    /// Dùng chung cho cả xác nhận thủ công (<see cref="ConfirmPaymentAsync"/>) và xác nhận qua webhook cổng
+    /// thanh toán (PaymentHandler), để không lặp lại các quy tắc nghiệp vụ ở hai nơi.
+    /// Idempotent — không làm gì nếu hóa đơn đã Paid (tránh xử lý trùng khi có race giữa xác nhận tay và webhook).
+    /// Không tự gọi SaveChangesAsync — caller quyết định thời điểm commit.
+    /// </summary>
+    internal async Task ApplyPaymentConfirmedAsync(Invoice invoice, PaymentMethod paymentMethod, CancellationToken ct)
+    {
+        if (invoice.Status == PaymentStatus.Paid) return;
+
         invoice.MarkAsPaid(paymentMethod);
 
         // Nếu đây là hóa đơn thu phần còn lại → tất toán hóa đơn gốc.
@@ -468,9 +506,7 @@ public class InvoiceHandler(AppDbContext dbContext)
         if (invoice.Appointment.Status == AppointmentStatus.PendingPayment)
             invoice.Appointment.Complete();
 
-        await dbContext.SaveChangesAsync(ct);
-
-        return await GetByIdAsync(invoice.Id, ct);
+        await NotifyPaymentConfirmedAsync(invoice, paymentMethod, ct);
     }
 
     /// <summary>
@@ -495,9 +531,71 @@ public class InvoiceHandler(AppDbContext dbContext)
         return await GetByIdAsync(invoice.Id, ct);
     }
 
+    // ── Notifications ────────────────────────────────────────────────────────
+
+    /// <summary>Báo cho bệnh nhân (nếu có tài khoản liên kết) khi có hóa đơn mới cần thanh toán.</summary>
+    private async Task NotifyInvoiceIssuedAsync(Invoice invoice, CancellationToken ct)
+    {
+        var patient = await dbContext.Appointments
+            .Where(a => a.Id == invoice.AppointmentId)
+            .Select(a => a.Patient)
+            .FirstOrDefaultAsync(ct);
+
+        if (patient?.UserId is not Guid patientUserId) return;
+
+        await notificationService.CreateAsync(new CreateNotificationRequest(
+            UserId: patientUserId,
+            Type: NotificationType.Invoice,
+            Priority: NotificationPriority.Medium,
+            Title: "Hóa đơn mới",
+            Body: $"Bạn có hóa đơn {invoice.InvoiceNumber} cần thanh toán ({invoice.DepositAmount:#,##0}đ).",
+            RelatedEntityType: "Invoice",
+            RelatedEntityId: invoice.Id.ToString()), ct);
+    }
+
+    /// <summary>Báo cho bệnh nhân (nếu có tài khoản) và toàn bộ Staff khi một hóa đơn được xác nhận đã thanh toán.</summary>
+    private async Task NotifyPaymentConfirmedAsync(Invoice invoice, PaymentMethod paymentMethod, CancellationToken ct)
+    {
+        var patient = await dbContext.Appointments
+            .Where(a => a.Id == invoice.AppointmentId)
+            .Select(a => a.Patient)
+            .FirstOrDefaultAsync(ct);
+
+        if (patient?.UserId is Guid patientUserId)
+        {
+            await notificationService.CreateAsync(new CreateNotificationRequest(
+                UserId: patientUserId,
+                Type: NotificationType.Invoice,
+                Priority: NotificationPriority.Medium,
+                Title: "Thanh toán thành công",
+                Body: $"Hóa đơn {invoice.InvoiceNumber} đã được thanh toán ({invoice.DepositAmount:#,##0}đ) qua {DescribePaymentMethod(paymentMethod)}.",
+                RelatedEntityType: "Invoice",
+                RelatedEntityId: invoice.Id.ToString()), ct);
+        }
+
+        var staffIds = await userRepository.GetUserIdsByRoleAsync("Staff", ct);
+        var staffTemplate = new CreateNotificationRequest(
+            UserId: Guid.Empty,
+            Type: NotificationType.Invoice,
+            Priority: NotificationPriority.Low,
+            Title: "Đã nhận thanh toán",
+            Body: $"Hóa đơn {invoice.InvoiceNumber} đã được thanh toán qua {DescribePaymentMethod(paymentMethod)}.",
+            RelatedEntityType: "Invoice",
+            RelatedEntityId: invoice.Id.ToString());
+        await notificationService.CreateForMultipleUsersAsync(staffIds, staffTemplate, ct);
+    }
+
+    private static string DescribePaymentMethod(PaymentMethod method) => method switch
+    {
+        PaymentMethod.Cash => "tiền mặt",
+        PaymentMethod.BankTransfer => "chuyển khoản",
+        PaymentMethod.OnlinePayment => "thanh toán online",
+        _ => method.ToString()
+    };
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
-    private async Task<InvoiceDto> GetByIdAsync(Guid invoiceId, CancellationToken ct)
+    internal async Task<InvoiceDto> GetByIdAsync(Guid invoiceId, CancellationToken ct)
     {
         var invoice = await QueryWithDetails().FirstAsync(i => i.Id == invoiceId, ct);
         return ToDto(invoice);

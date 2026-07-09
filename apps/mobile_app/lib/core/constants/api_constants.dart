@@ -21,4 +21,10 @@ abstract class ApiConstants {
   static const String myAppointments = '/appointments/my';
   static const String medicalHistory = '/patients/my-medical-history';
   static const String familyMembers = '/patients/family-members';
+
+  static const String myInvoices = '/payments/invoices/my';
+  static String paymentRequest(String invoiceId) =>
+      '/payments/invoices/$invoiceId/request';
+  static String paymentStatus(String invoiceId) =>
+      '/payments/invoices/$invoiceId/status';
 }

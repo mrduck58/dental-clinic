@@ -2544,6 +2544,53 @@ export async function confirmInvoicePaymentApi(invoiceId: string, paymentMethod?
   return res.json() as Promise<InvoiceDto>;
 }
 
+// ── Payment gateway (PayOS) — VietQR chuyển khoản & thanh toán online ───────
+
+export interface PaymentTransactionDto {
+  id: string;
+  invoiceId: string;
+  gateway: string;          // "PayOS"
+  status: string;           // "Pending" | "Success" | "Failed" | "Cancelled" | "Expired"
+  gatewayOrderCode: string;
+  amount: number;
+  checkoutUrl: string | null;
+  qrCode: string | null;
+  createdAt: string;
+  expiresAt: string | null;
+}
+
+export interface PaymentStatusDto {
+  invoiceId: string;
+  invoiceStatus: string;             // "Unpaid" | "Paid" | "Refunded"
+  latestTransaction: PaymentTransactionDto | null;
+}
+
+export async function createPaymentRequestApi(invoiceId: string, gateway?: string): Promise<PaymentTransactionDto> {
+  const res = await fetch(`${API_URL}/api/payments/invoices/${invoiceId}/request`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ gateway: gateway ?? "PayOS" }),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tạo yêu cầu thanh toán");
+  }
+  return res.json() as Promise<PaymentTransactionDto>;
+}
+
+export async function getPaymentStatusApi(invoiceId: string): Promise<PaymentStatusDto> {
+  const res = await fetch(`${API_URL}/api/payments/invoices/${invoiceId}/status`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể kiểm tra trạng thái thanh toán");
+  }
+  return res.json() as Promise<PaymentStatusDto>;
+}
+
 // ── Activity Logs ───────────────────────────────────────────────────────────
 
 export interface ActivityLogItemDto {
