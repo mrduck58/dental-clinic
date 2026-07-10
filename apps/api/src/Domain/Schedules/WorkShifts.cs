@@ -53,13 +53,15 @@ public static class WorkShifts
 
     /// <summary>
     /// Một mã ca cụ thể có bao trùm thời điểm (phút trong ngày) không?
-    /// Mốc giờ kết thúc ca (vd. 21:00 của "19:15-21:00") vẫn được tính là thuộc ca —
-    /// dùng "&lt;=" chứ không phải "&lt;" — để khung giờ cuối cùng của ca vẫn hiện trên lưới đặt lịch.
+    /// Ca là nửa khoảng [start, end): mốc giờ kết thúc KHÔNG thuộc ca, vì một lịch hẹn
+    /// bắt đầu tại đó sẽ tràn sang ca kế tiếp. Nhờ vậy mỗi ca 2 tiếng sinh đúng 4 khung
+    /// giờ 30 phút (vd. "08:00-10:00" → 08:00, 08:30, 09:00, 09:30), và mốc giao giữa
+    /// hai ca liền kề (10:00, 15:30, 17:30, 19:30) chỉ thuộc về ca đứng sau.
     /// </summary>
     private static bool ShiftCovers(string shift, int minutesOfDay)
     {
         if (ByCode.TryGetValue(shift, out var def))
-            return minutesOfDay >= def.StartMinutes && minutesOfDay <= def.EndMinutes;
+            return minutesOfDay >= def.StartMinutes && minutesOfDay < def.EndMinutes;
 
         // Tương thích dữ liệu cũ
         if (shift.Equals("morning", StringComparison.OrdinalIgnoreCase))

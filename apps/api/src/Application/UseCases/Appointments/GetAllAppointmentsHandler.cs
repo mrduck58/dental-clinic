@@ -14,7 +14,8 @@ public record StaffAppointmentDto(
     DateTimeOffset AppointmentDate,
     DateTimeOffset CreatedAt,
     string Status,
-    string? Symptoms);
+    string? Symptoms,
+    DateTimeOffset? CheckedInAt);
 
 public class GetAllAppointmentsHandler(AppDbContext dbContext)
 {
@@ -54,6 +55,7 @@ public class GetAllAppointmentsHandler(AppDbContext dbContext)
             a.AppointmentDate,
             a.CreatedAt,
             a.Status.ToString(),
-            a.Symptoms));
+            a.Symptoms,
+            a.CheckedInAt));
     }
 }

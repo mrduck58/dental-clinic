@@ -48,4 +48,22 @@ public class PatientRepository(AppDbContext dbContext) : IPatientRepository
             .Where(p => p.PrimaryPatientId == primaryPatientId)
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<IReadOnlyList<Patient>> SearchAsync(string term, int limit, CancellationToken cancellationToken = default)
+    {
+        // ToLower().Contains() thay vì EF.Functions.ILike để query chạy được trên cả Npgsql
+        // lẫn provider InMemory dùng trong test.
+        var needle = term.Trim().ToLower();
+        if (needle.Length == 0) return [];
+
+        return await dbContext.Patients
+            .Include(p => p.User)
+            .Where(p =>
+                p.FullName.ToLower().Contains(needle) ||
+                (p.PhoneNumber != null && p.PhoneNumber.Contains(needle)) ||
+                (p.User != null && p.User.PhoneNumber != null && p.User.PhoneNumber.Contains(needle)))
+            .OrderBy(p => p.FullName)
+            .Take(limit)
+            .ToListAsync(cancellationToken);
+    }
 }
