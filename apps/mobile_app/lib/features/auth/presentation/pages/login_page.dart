@@ -1,12 +1,17 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/core/network/api_client.dart';
 import 'package:mobile_app/features/auth/data/auth_service.dart';
 import 'package:mobile_app/features/auth/presentation/widgets/auth_widgets.dart';
+import 'package:mobile_app/features/auth/presentation/widgets/google_signin_web_button.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -22,17 +27,32 @@ class _LoginPageState extends State<LoginPage> {
   bool _rememberMe = false;
   bool _obscurePassword = true;
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
 
   String? _emailError;
   String? _passwordError;
   String? _generalError;
 
   final _auth = AuthService();
+  StreamSubscription<GoogleSignInAccount?>? _googleAccountSub;
+
+  @override
+  void initState() {
+    super.initState();
+    if (kIsWeb) {
+      // Trên Web, nút Google (renderButton) tự xử lý popup/consent và phát
+      // tài khoản qua stream này — không gọi signIn() trực tiếp được.
+      _googleAccountSub = GoogleSignIn().onCurrentUserChanged.listen((account) {
+        if (account != null) _handleGoogleAccount(account);
+      });
+    }
+  }
 
   @override
   void dispose() {
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
+    _googleAccountSub?.cancel();
     super.dispose();
   }
 
@@ -64,7 +84,7 @@ class _LoginPageState extends State<LoginPage> {
         _emailCtrl.text.trim(),
         _passwordCtrl.text,
       );
-      await _auth.saveToken(result.accessToken);
+      await _auth.saveToken(result.accessToken, remember: _rememberMe);
       await _auth.saveUserEmail(result.email);
       if (result.fullName != null && result.fullName!.isNotEmpty) {
         await _auth.saveUserName(result.fullName!);
@@ -74,6 +94,58 @@ class _LoginPageState extends State<LoginPage> {
       setState(() => _generalError = ApiClient.errorMessage(e));
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  /// Luồng native (Android/iOS/desktop) — gọi signIn() trực tiếp.
+  Future<void> _handleGoogleSignIn() async {
+    final googleUser = await GoogleSignIn().signIn();
+    if (googleUser == null) return; // Người dùng huỷ đăng nhập
+    await _handleGoogleAccount(googleUser);
+  }
+
+  /// Xử lý chung sau khi có tài khoản Google (từ signIn() native hoặc nút render trên Web).
+  Future<void> _handleGoogleAccount(GoogleSignInAccount googleUser) async {
+    setState(() => _isGoogleLoading = true);
+    try {
+      final googleAuth = await googleUser.authentication;
+      final idToken = googleAuth.idToken;
+      if (idToken == null) {
+        throw Exception('Không lấy được token từ Google.');
+      }
+
+      final result = await _auth.googleLogin(idToken);
+      await _auth.saveToken(result.accessToken);
+      await _auth.saveUserEmail(result.email);
+      if (result.fullName != null && result.fullName!.isNotEmpty) {
+        await _auth.saveUserName(result.fullName!);
+      }
+      if (result.avatarUrl != null && result.avatarUrl!.isNotEmpty) {
+        await _auth.saveUserAvatar(result.avatarUrl!);
+      }
+
+      if (!mounted) return;
+      if (!result.isNewUser) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Chào mừng quay trở lại.')),
+        );
+      }
+      context.go(AppRoutes.home);
+    } on DioException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(ApiClient.errorMessage(e))),
+        );
+      }
+    } catch (e) {
+      debugPrint('Google sign-in error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Đăng nhập Google thất bại. Vui lòng thử lại.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isGoogleLoading = false);
     }
   }
 
@@ -146,7 +218,7 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   const Spacer(),
                   TextButton(
-                    onPressed: () {},
+                    onPressed: () => context.push(AppRoutes.forgotPassword),
                     style: TextButton.styleFrom(
                       padding: EdgeInsets.zero,
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -175,7 +247,32 @@ class _LoginPageState extends State<LoginPage> {
               const SizedBox(height: 24),
               const OrDivider(),
               const SizedBox(height: 24),
-              GoogleSignInButton(onTap: () {}),
+              if (kIsWeb)
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      renderGoogleWebButton(),
+                      if (_isGoogleLoading)
+                        Container(
+                          color: Colors.white.withValues(alpha: 0.7),
+                          child: const Center(
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                )
+              else
+                GoogleSignInButton(
+                  onTap: _handleGoogleSignIn,
+                  isLoading: _isGoogleLoading,
+                ),
               const SizedBox(height: 32),
               Center(
                 child: Row(

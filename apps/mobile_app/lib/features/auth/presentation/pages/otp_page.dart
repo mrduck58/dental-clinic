@@ -10,9 +10,13 @@ import 'package:mobile_app/core/network/api_client.dart';
 import 'package:mobile_app/features/auth/data/auth_service.dart';
 import 'package:mobile_app/features/auth/presentation/widgets/auth_widgets.dart';
 
+/// Mục đích của mã OTP đang được xác thực trên màn hình này.
+enum OtpPurpose { register, passwordReset }
+
 class OtpPage extends StatefulWidget {
   final String email;
-  const OtpPage({super.key, required this.email});
+  final OtpPurpose purpose;
+  const OtpPage({super.key, required this.email, this.purpose = OtpPurpose.register});
 
   @override
   State<OtpPage> createState() => _OtpPageState();
@@ -42,8 +46,14 @@ class _OtpPageState extends State<OtpPage> {
         if (event is KeyDownEvent &&
             event.logicalKey == LogicalKeyboardKey.backspace &&
             _controllers[idx].text.isEmpty) {
-          _controllers[idx - 1].clear();
-          _focusNodes[idx - 1].requestFocus();
+          // Trì hoãn sang microtask tiếp theo — như với auto-advance ở
+          // _onDigitChanged, đổi focus ngay trong lúc xử lý sự kiện phím
+          // trên Flutter Web có thể khiến thao tác bị chặn/không nhất quán.
+          Future.microtask(() {
+            if (!mounted) return;
+            _controllers[idx - 1].clear();
+            _focusNodes[idx - 1].requestFocus();
+          });
           return KeyEventResult.handled;
         }
         return KeyEventResult.ignored;
@@ -82,13 +92,21 @@ class _OtpPageState extends State<OtpPage> {
         _controllers[index + i].text = digits[i];
       }
       final nextEmpty = index + digits.length;
-      if (nextEmpty < 6) {
-        _focusNodes[nextEmpty].requestFocus();
-      } else {
-        _focusNodes[5].unfocus();
-      }
+      // Trì hoãn việc chuyển focus sang khung hình kế tiếp — nếu requestFocus()
+      // ngay trong lúc đang xử lý sự kiện gõ phím (đặc biệt trên Flutter Web),
+      // trình duyệt có thể "phát lại" ký tự vừa gõ vào ô mới, gây trùng số.
+      Future.delayed(const Duration(milliseconds: 50), () {
+        if (!mounted) return;
+        if (nextEmpty < 6) {
+          _focusNodes[nextEmpty].requestFocus();
+        } else {
+          _focusNodes[5].unfocus();
+        }
+      });
     } else if (value.isNotEmpty && index < 5) {
-      _focusNodes[index + 1].requestFocus();
+      Future.delayed(const Duration(milliseconds: 50), () {
+        if (mounted) _focusNodes[index + 1].requestFocus();
+      });
     }
 
     setState(() => _generalError = null);
@@ -104,10 +122,20 @@ class _OtpPageState extends State<OtpPage> {
     }
     setState(() { _isLoading = true; _generalError = null; });
     try {
-      final result = await _auth.verifyOtp(widget.email, code);
-      await _auth.saveToken(result.accessToken);
-      await _auth.saveUserEmail(widget.email);
-      if (mounted) context.pushReplacement(AppRoutes.fillProfile);
+      if (widget.purpose == OtpPurpose.passwordReset) {
+        final resetToken = await _auth.verifyPasswordResetOtp(widget.email, code);
+        if (mounted) {
+          context.pushReplacement(
+            AppRoutes.resetNewPassword,
+            extra: {'email': widget.email, 'resetToken': resetToken},
+          );
+        }
+      } else {
+        final result = await _auth.verifyOtp(widget.email, code);
+        await _auth.saveToken(result.accessToken);
+        await _auth.saveUserEmail(widget.email);
+        if (mounted) context.pushReplacement(AppRoutes.fillProfile);
+      }
     } on DioException catch (e) {
       setState(() => _generalError = ApiClient.errorMessage(e));
       // Xóa các ô khi sai mã
@@ -122,7 +150,11 @@ class _OtpPageState extends State<OtpPage> {
     if (_secondsLeft > 0 || _isResending) return;
     setState(() { _isResending = true; _generalError = null; });
     try {
-      await _auth.resendOtp(widget.email);
+      if (widget.purpose == OtpPurpose.passwordReset) {
+        await _auth.requestPasswordResetOtp(widget.email);
+      } else {
+        await _auth.resendOtp(widget.email);
+      }
       _startCountdown();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -172,12 +204,12 @@ class _OtpPageState extends State<OtpPage> {
               ),
               const SizedBox(height: 24),
 
-              const SizedBox(
+              SizedBox(
                 width: double.infinity,
                 child: Text(
-                  'Xác thực email',
+                  widget.purpose == OtpPurpose.passwordReset ? 'Xác thực OTP' : 'Xác thực email',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.w800,
                     color: AppColors.textPrimary,

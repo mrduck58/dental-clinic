@@ -44,6 +44,7 @@ public static class InfrastructureServiceExtensions
         services.Configure<JwtSettings>(configuration.GetSection("JwtSettings"));
         services.Configure<EmailSettings>(configuration.GetSection("EmailSettings"));
         services.Configure<PayOSSettings>(configuration.GetSection("PayOSSettings"));
+        services.Configure<GoogleAuthSettings>(configuration.GetSection("GoogleAuthSettings"));
 
         // ── Repositories ────────────────────────────────────────────────────
         services.AddScoped<IAppointmentRepository, AppointmentRepository>();
@@ -71,6 +72,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddScoped<IEmailService, EmailService>();
         services.AddScoped<IFileStorageService, LocalFileStorageService>();
+        services.AddScoped<IGoogleAuthService, GoogleAuthService>();
         services.AddHttpContextAccessor();
 
         // ── Payment gateways ────────────────────────────────────────────────
@@ -93,6 +95,9 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<GetAccountsHandler>();
         services.AddScoped<ForgotPasswordHandler>();
         services.AddScoped<ResetPasswordHandler>();
+        services.AddScoped<GoogleLoginHandler>();
+        services.AddScoped<ForgotPasswordOtpHandler>();
+        services.AddScoped<VerifyPasswordResetOtpHandler>();
 
         services.AddScoped<GetStaffHandler>();
         services.AddScoped<GetDentistsHandler>();

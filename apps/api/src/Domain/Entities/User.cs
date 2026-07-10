@@ -49,6 +49,9 @@ public class User
     public string? PasswordResetToken { get; private set; }
     public DateTimeOffset? PasswordResetTokenExpiry { get; private set; }
 
+    // Nhà cung cấp đăng nhập bên ngoài (null = tài khoản local, "Google" = đăng nhập qua Google)
+    public string? Provider { get; private set; }
+
     public bool HasAccount => PasswordHash != null;
 
     // Navigation properties
@@ -88,6 +91,25 @@ public class User
             Role = role,
             PhoneNumber = phoneNumber,
             FullName = fullName,
+            EmploymentStatus = DefaultEmploymentStatus,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+    }
+
+    /// <summary>Tạo tài khoản bệnh nhân từ đăng nhập Google — không có mật khẩu, email đã được Google xác thực.</summary>
+    public static User CreateGoogleUser(string email, string? fullName, string? profilePictureUrl)
+    {
+        return new User
+        {
+            Id = Guid.NewGuid(),
+            Username = null,
+            Email = email,
+            PasswordHash = null,
+            Role = "Patient",
+            FullName = fullName,
+            ProfilePictureUrl = profilePictureUrl,
+            Provider = "Google",
+            IsActive = true,
             EmploymentStatus = DefaultEmploymentStatus,
             CreatedAt = DateTimeOffset.UtcNow
         };
