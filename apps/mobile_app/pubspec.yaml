@@ -54,6 +54,12 @@ dependencies:
   # Mở link thanh toán (checkout URL của PayOS) trong browser/app ví hệ thống
   url_launcher: ^6.3.1
 
+  # Đăng nhập Google (trực tiếp, không qua Firebase)
+  google_sign_in: ^6.2.2
+  # Render nút Google chính thức trên Web — bắt buộc để lấy idToken (Google chỉ cấp
+  # idToken qua nút render sẵn, không qua signIn() gọi trực tiếp, trên nền tảng Web)
+  google_sign_in_web: ^0.12.4
+
 
 dev_dependencies:
   flutter_test:

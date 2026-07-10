@@ -13,10 +13,11 @@ public class OtpCodeConfiguration : IEntityTypeConfiguration<OtpCode>
 
         builder.Property(o => o.Email).IsRequired().HasMaxLength(256);
         builder.Property(o => o.Code).IsRequired().HasMaxLength(6);
+        builder.Property(o => o.Purpose).IsRequired().HasConversion<string>().HasMaxLength(32);
         builder.Property(o => o.ExpiresAt).IsRequired();
         builder.Property(o => o.IsUsed).IsRequired();
         builder.Property(o => o.CreatedAt).IsRequired();
 
-        builder.HasIndex(o => new { o.Email, o.IsUsed, o.ExpiresAt });
+        builder.HasIndex(o => new { o.Email, o.Purpose, o.IsUsed, o.ExpiresAt });
     }
 }

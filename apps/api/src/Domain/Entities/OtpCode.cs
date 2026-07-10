@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using DentalClinic.API.Domain.Enums;
 
 namespace DentalClinic.API.Domain.Entities;
 
@@ -7,19 +8,21 @@ public class OtpCode
     public Guid Id { get; private set; }
     public string Email { get; private set; } = string.Empty;
     public string Code { get; private set; } = string.Empty;
+    public OtpPurpose Purpose { get; private set; } = OtpPurpose.Registration;
     public DateTime ExpiresAt { get; private set; }
     public bool IsUsed { get; private set; }
     public DateTime CreatedAt { get; private set; }
 
     private OtpCode() { }
 
-    public static OtpCode Create(string email, int expiryMinutes = 5)
+    public static OtpCode Create(string email, OtpPurpose purpose = OtpPurpose.Registration, int expiryMinutes = 5)
     {
         return new OtpCode
         {
             Id = Guid.NewGuid(),
             Email = email,
             Code = GenerateCode(),
+            Purpose = purpose,
             ExpiresAt = DateTime.UtcNow.AddMinutes(expiryMinutes),
             IsUsed = false,
             CreatedAt = DateTime.UtcNow,

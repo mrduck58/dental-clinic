@@ -1,4 +1,5 @@
 using DentalClinic.API.Application.DTOs.Auth;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
@@ -14,7 +15,7 @@ public class VerifyOtpHandler(
 {
     public async Task<VerifyOtpResponseDto> HandleAsync(VerifyOtpCommand command, CancellationToken ct = default)
     {
-        var otp = await otpRepository.GetLatestValidAsync(command.Email, ct)
+        var otp = await otpRepository.GetLatestValidAsync(command.Email, OtpPurpose.Registration, ct)
             ?? throw new UnauthorizedAccessException("Mã OTP không hợp lệ hoặc đã hết hạn.");
 
         if (otp.Code != command.Code)

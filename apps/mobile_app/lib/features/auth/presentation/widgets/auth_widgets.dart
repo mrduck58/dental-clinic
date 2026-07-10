@@ -207,7 +207,8 @@ class PrimaryButton extends StatelessWidget {
 /// Nút đăng nhập bằng Google — trắng, viền mỏng, pill-shape.
 class GoogleSignInButton extends StatelessWidget {
   final VoidCallback onTap;
-  const GoogleSignInButton({super.key, required this.onTap});
+  final bool isLoading;
+  const GoogleSignInButton({super.key, required this.onTap, this.isLoading = false});
 
   @override
   Widget build(BuildContext context) {
@@ -215,7 +216,7 @@ class GoogleSignInButton extends StatelessWidget {
       width: double.infinity,
       height: 56,
       child: OutlinedButton(
-        onPressed: onTap,
+        onPressed: isLoading ? null : onTap,
         style: OutlinedButton.styleFrom(
           backgroundColor: AppColors.surface,
           side: const BorderSide(color: AppColors.divider, width: 1.5),
@@ -224,21 +225,30 @@ class GoogleSignInButton extends StatelessWidget {
           ),
           elevation: 0,
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Image.asset('assets/images/google.png', width: 24, height: 24),
-            const SizedBox(width: 12),
-            const Text(
-              'Tiếp tục với Google',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
+        child: isLoading
+            ? const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  color: AppColors.primary,
+                  strokeWidth: 2.5,
+                ),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Image.asset('assets/images/google.png', width: 24, height: 24),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Tiếp tục với Google',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
       ),
     );
   }

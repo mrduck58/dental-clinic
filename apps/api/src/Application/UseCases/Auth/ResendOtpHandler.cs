@@ -1,4 +1,5 @@
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
@@ -23,9 +24,9 @@ public class ResendOtpHandler(
         if (user.Role != "Patient")
             throw new UnauthorizedAccessException("Không thể gửi OTP cho tài khoản này.");
 
-        await otpRepository.InvalidateAllAsync(command.Email, ct);
+        await otpRepository.InvalidateAllAsync(command.Email, OtpPurpose.Registration, ct);
 
-        var otp = OtpCode.Create(command.Email);
+        var otp = OtpCode.Create(command.Email, OtpPurpose.Registration);
         await otpRepository.AddAsync(otp, ct);
         await emailService.SendOtpAsync(command.Email, otp.Code, ct);
     }
