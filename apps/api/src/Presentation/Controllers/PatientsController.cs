@@ -34,6 +34,33 @@ public class PatientsController(
         return patient;
     }
 
+    /// <summary>
+    /// GET api/patients/search?q= — Tra cứu bệnh nhân đã có hồ sơ, dùng cho staff điền nhanh
+    /// form đặt lịch tại quầy. Cần tối thiểu 2 ký tự để tránh quét toàn bảng.
+    /// </summary>
+    [HttpGet("search")]
+    [Authorize(Roles = "Staff,Admin")]
+    public async Task<IActionResult> SearchPatients(
+        [FromQuery] string? q,
+        [FromQuery] int limit,
+        CancellationToken ct)
+    {
+        var term = (q ?? string.Empty).Trim();
+        if (term.Length < 2) return Ok(Array.Empty<PatientSearchResultDto>());
+
+        var take = limit is > 0 and <= 20 ? limit : 8;
+        var patients = await patientRepository.SearchAsync(term, take, ct);
+
+        return Ok(patients.Select(p => new PatientSearchResultDto(
+            p.Id,
+            p.FullName,
+            p.PhoneNumber ?? p.User?.PhoneNumber,
+            p.DateOfBirth,
+            p.Gender,
+            p.UserId != null
+        )));
+    }
+
     [HttpGet("my-medical-history")]
     [Authorize(Roles = "Patient")]
     public async Task<IActionResult> GetMyMedicalHistory(CancellationToken ct)
@@ -209,6 +236,16 @@ public class PatientsController(
 }
 
 public record UpdateMedicalHistoryRequest(string? MedicalHistory);
+
+/// <summary><c>HasAccount</c> phân biệt bệnh nhân có tài khoản với bệnh nhân chỉ được tạo tại quầy.</summary>
+public record PatientSearchResultDto(
+    Guid Id,
+    string FullName,
+    string? PhoneNumber,
+    DateOnly DateOfBirth,
+    string Gender,
+    bool HasAccount
+);
 
 public record FamilyMemberDto(
     Guid Id,

@@ -6,10 +6,9 @@ import StaffPageHeader from "../../../components/shared/StaffPageHeader";
 import { useRequireStaff } from "../../../hooks/useRequireStaff";
 import {
   getWaitingQueueApi,
-  completeTreatmentApi,
+  transferQueuePatientApi,
   type WaitingQueueResponse,
-  type DentistQueueDto,
-  type QueuePatientDto,
+  type RoomQueueDto,
 } from "../../../lib/apiClient";
 import { supabase } from "../../../lib/supabaseClient";
 
@@ -21,85 +20,175 @@ const DENTIST_COLOR: Record<string, { bg: string; border: string; text: string }
   slate:   { bg: "bg-slate-50",   border: "border-slate-100",   text: "text-slate-700" },
 };
 
-const DENTIST_ROOM: Record<string, string> = {
-  "BS. Thảo": "Phòng 1",
-  "BS. Minh": "Phòng 2",
-  "BS. Linh": "Phòng 3",
-  "BS. Hùng": "Phòng 4",
-  "BS. Lê Minh Tuấn": "Phòng 1",
-  "BS. Nguyễn Văn Hùng": "Phòng 2",
+const initialsOf = (name: string) =>
+  name.trim().split(/\s+/).slice(-2).map(w => w[0]).join("").toUpperCase();
+
+const fmtTime = (iso: string) => {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
 };
 
-function DentistQueueCard({ dentist, onComplete, loadingId }: {
-  dentist: DentistQueueDto;
-  onComplete: (id: string) => void;
-  loadingId: string | null;
-}) {
-  const color = DENTIST_COLOR[dentist.dentistColor] ?? DENTIST_COLOR.slate;
-  const waitingPatients = dentist.patients.filter(p => p.status === "CheckedIn");
+type DragState = { appointmentId: string; fromRoom: string | null } | null;
 
-  const fmtTime = (iso: string) => {
-    const d = new Date(iso);
-    return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+function RoomQueueCard({ room, canDrag, drag, onDragStart, onDragEnd, onDrop, transferringId }: {
+  room: RoomQueueDto;
+  canDrag: boolean;
+  drag: DragState;
+  onDragStart: (appointmentId: string, fromRoom: string | null) => void;
+  onDragEnd: () => void;
+  onDrop: (appointmentId: string, roomName: string) => void;
+  transferringId: string | null;
+}) {
+  const [isOver, setIsOver] = useState(false);
+
+  const waitingCount = room.patients.filter(p => p.status === "CheckedIn").length;
+  const inProgressCount = room.patients.length - waitingCount;
+  // Chỉ ghi tên bác sĩ trên từng bệnh nhân khi phòng có nhiều hơn một bác sĩ trong ngày.
+  const showDentistPerPatient = room.dentists.length > 1;
+
+  // Chỉ nhận bệnh nhân khi phòng có bác sĩ đang trong ca — API chuyển lịch hẹn cho
+  // chính bác sĩ đó, không có ai trực thì không xác định được người phụ trách.
+  const hasDentistOnShift = room.dentists.some(d => d.isOnShiftNow);
+  const canAcceptDrop = drag !== null && room.roomName !== null &&
+    room.roomName !== drag.fromRoom && hasDentistOnShift;
+
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!canAcceptDrop) return;
+    e.preventDefault();               // báo cho trình duyệt biết đây là vùng thả hợp lệ
+    e.dataTransfer.dropEffect = "move";
+    setIsOver(true);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    if (!canAcceptDrop || room.roomName === null) return;
+    e.preventDefault();
+    setIsOver(false);
+    onDrop(e.dataTransfer.getData("text/plain"), room.roomName);
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm overflow-hidden">
-      {/* Header */}
-      <div className={`px-5 py-4 ${color.bg} border-b ${color.border}`}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-xl ${color.bg} border ${color.border} flex items-center justify-center font-black text-[13px] ${color.text}`}>
-              {dentist.dentistName.trim().split(/\s+/).slice(-2).map(w => w[0]).join("").toUpperCase()}
-            </div>
-            <div>
-              {(dentist.roomName ?? DENTIST_ROOM[dentist.dentistName]) && (
-                <div className="text-[11px] font-bold text-slate-500 mb-0.5">{dentist.roomName ?? DENTIST_ROOM[dentist.dentistName]}</div>
-              )}
-              <div className={`text-[14px] font-black ${color.text}`}>{dentist.dentistName}</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
+    <div
+      onDragOver={handleDragOver}
+      onDragLeave={() => setIsOver(false)}
+      onDrop={handleDrop}
+      className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-all ${
+        isOver && canAcceptDrop ? "border-primary ring-2 ring-primary/40"
+        : canAcceptDrop ? "border-primary/40 border-dashed"
+        : drag !== null ? "border-slate-200/70 opacity-60"
+        : "border-slate-200/70"
+      }`}
+    >
+      {/* Header: phòng + bác sĩ trực kèm giờ ca làm */}
+      <div className="px-5 py-4 bg-slate-50 border-b border-slate-100">
+        <div className="flex items-start justify-between gap-3">
+          <div className="text-[15px] font-black text-slate-900">{room.roomName ?? "Chưa xếp phòng"}</div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {inProgressCount > 0 && (
+              <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-[11.5px] font-black">
+                {inProgressCount} đang khám
+              </span>
+            )}
             <span className="px-2.5 py-1 bg-amber-100 text-amber-700 rounded-lg text-[11.5px] font-black">
-              {waitingPatients.length} chờ
+              {waitingCount} chờ
             </span>
           </div>
         </div>
+
+        <div className="mt-3 flex flex-col gap-1.5">
+          {room.dentists.length === 0 ? (
+            <div className="text-[12px] text-slate-400 font-semibold">Không có bác sĩ trực</div>
+          ) : (
+            room.dentists.map(dentist => {
+              const color = DENTIST_COLOR[dentist.dentistColor] ?? DENTIST_COLOR.slate;
+              return (
+                <div key={dentist.dentistId} className="flex items-center gap-2.5">
+                  <div className={`w-8 h-8 rounded-lg ${color.bg} border ${color.border} flex items-center justify-center font-black text-[11px] ${color.text} shrink-0`}>
+                    {initialsOf(dentist.dentistName)}
+                  </div>
+                  <div className="min-w-0">
+                    <div className={`text-[13px] font-black ${color.text} truncate`}>{dentist.dentistName}</div>
+                    <div className="flex flex-wrap gap-1 mt-0.5">
+                      {dentist.shifts.length === 0 ? (
+                        <span className="text-[11px] font-semibold text-slate-400">Chưa phân ca</span>
+                      ) : (
+                        dentist.shifts.map(shift => (
+                          <span key={shift} className="px-1.5 py-0.5 bg-white border border-slate-200 rounded-md text-[11px] font-bold text-slate-600">
+                            {shift}
+                          </span>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
 
-      {/* Patient list */}
+      {/* Hàng đợi: người đang khám đứng đầu, rồi tới người chờ theo thứ tự check-in */}
       <div className="divide-y divide-slate-100">
-        {waitingPatients.length === 0 ? (
+        {room.patients.length === 0 ? (
           <div className="py-10 text-center text-[13px] text-slate-400 font-semibold">
             Chưa có bệnh nhân chờ
           </div>
         ) : (
-          waitingPatients.map(patient => {
-            const initials = patient.patientName.trim().split(/\s+/).slice(-2).map(w => w[0]).join("").toUpperCase();
-            const isLoading = loadingId === patient.appointmentId;
+          room.patients.map(patient => {
+            const isInProgress = patient.status === "InProgress";
+            // Chỉ người đang chờ mới kéo được — người đang khám đã ngồi trên ghế của phòng này.
+            const isDraggable = canDrag && !isInProgress;
+            const isTransferring = transferringId === patient.appointmentId;
+            const isDragged = drag?.appointmentId === patient.appointmentId;
 
             return (
-              <div key={patient.appointmentId} className="px-5 py-4">
+              <div
+                key={patient.appointmentId}
+                draggable={isDraggable}
+                onDragStart={e => {
+                  e.dataTransfer.setData("text/plain", patient.appointmentId);
+                  e.dataTransfer.effectAllowed = "move";
+                  onDragStart(patient.appointmentId, room.roomName);
+                }}
+                onDragEnd={onDragEnd}
+                className={`px-5 py-4 transition-opacity ${isInProgress ? "bg-emerald-50/50" : ""} ${
+                  isDraggable ? "cursor-grab active:cursor-grabbing" : ""
+                } ${isDragged ? "opacity-40" : ""} ${isTransferring ? "opacity-50 pointer-events-none" : ""}`}
+              >
                 <div className="flex items-center gap-4">
-                  {/* Status bar */}
-                  <div className="w-1.5 h-12 rounded-full bg-amber-400 shrink-0" />
+                  {/* Số thứ tự — theo thứ tự check-in */}
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-[13px] shrink-0 ${
+                    isInProgress ? "bg-emerald-500 text-white" : "bg-amber-400 text-white"
+                  }`}>
+                    {isInProgress ? (
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M6.3 2.8A1 1 0 004.8 3.7v12.6a1 1 0 001.5.9l10.2-6.3a1 1 0 000-1.8L6.3 2.8z" />
+                      </svg>
+                    ) : patient.queueNumber}
+                  </div>
 
                   {/* Avatar */}
                   <div className="w-10 h-10 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center font-black text-[11px] text-sky-700 shrink-0">
-                    {initials}
+                    {initialsOf(patient.patientName)}
                   </div>
 
                   {/* Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-[14px] font-black text-slate-900">{patient.patientName}</span>
-                      <span className="text-[12px] font-mono font-bold text-slate-400">{fmtTime(patient.appointmentDate)}</span>
+                      <span className="text-[12px] font-bold text-slate-400">
+                        {patient.checkedInAt
+                          ? `Check-in ${fmtTime(patient.checkedInAt)}`
+                          : `Hẹn ${fmtTime(patient.appointmentDate)}`}
+                      </span>
                     </div>
-                    <div className="flex items-center gap-2 mt-0.5">
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       <span className="text-[12px] text-slate-500 font-semibold">{patient.serviceName ?? "Khám tổng quát"}</span>
+                      {showDentistPerPatient && (
+                        <span className="text-[11.5px] text-slate-400 font-semibold">· {patient.dentistName}</span>
+                      )}
                       {patient.waitMinutes > 0 && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-600 border border-amber-100 rounded-lg text-[11px] font-black">
-                          ~{patient.waitMinutes}p
+                          đã chờ {patient.waitMinutes}p
                         </span>
                       )}
                     </div>
@@ -112,8 +201,12 @@ function DentistQueueCard({ dentist, onComplete, loadingId }: {
 
                   {/* Status badge */}
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className="px-2.5 py-1 rounded-lg text-[11.5px] font-black border bg-amber-50 text-amber-700 border-amber-200">
-                      Đang chờ
+                    <span className={`px-2.5 py-1 rounded-lg text-[11.5px] font-black border ${
+                      isInProgress
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        : "bg-amber-50 text-amber-700 border-amber-200"
+                    }`}>
+                      {isInProgress ? "Đang khám" : "Đang chờ"}
                     </span>
                   </div>
                 </div>
@@ -137,8 +230,13 @@ export default function QueuePage() {
   const [queueData, setQueueData] = useState<WaitingQueueResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [loadingId, setLoadingId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(queueTodayIso());
+  const [drag, setDrag] = useState<DragState>(null);
+  const [transferringId, setTransferringId] = useState<string | null>(null);
+
+  // Chuyển phòng = giao bệnh nhân cho bác sĩ đang trong ca trực ở đó, nên chỉ làm được
+  // với hàng đợi của hôm nay; ngày quá khứ không có khái niệm "đang trong ca".
+  const isToday = selectedDate === queueTodayIso();
 
   const loadQueue = useCallback(async () => {
     try {
@@ -164,15 +262,16 @@ export default function QueuePage() {
     return () => { void supabase.removeChannel(channel); };
   }, [loadQueue]);
 
-  const handleComplete = async (id: string) => {
-    setLoadingId(id);
+  const handleDropPatient = async (appointmentId: string, roomName: string) => {
+    setDrag(null);
+    setTransferringId(appointmentId);
     try {
-      await completeTreatmentApi(id);
+      await transferQueuePatientApi(appointmentId, roomName);
       await loadQueue();
-    } catch {
-      alert("Hoàn thành khám thất bại. Vui lòng thử lại.");
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Không thể chuyển bệnh nhân sang phòng khác");
     } finally {
-      setLoadingId(null);
+      setTransferringId(null);
     }
   };
 
@@ -186,13 +285,22 @@ export default function QueuePage() {
       <main className="flex-1 flex flex-col min-w-0">
         <StaffPageHeader
           title="Hàng Đợi"
-          subtitle={`Danh sách bệnh nhân theo phòng khám · ${today}`}
+          subtitle={
+            isToday
+              ? `Danh sách bệnh nhân theo phòng khám · ${today} · Kéo bệnh nhân đang chờ sang phòng khác để đổi bác sĩ`
+              : `Danh sách bệnh nhân theo phòng khám · ${today}`
+          }
           right={
             <div className="flex items-center gap-2 text-[12.5px] font-bold">
               {queueData && (
-                <span className="px-2.5 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl">
-                  {queueData.totalWaiting} chờ
-                </span>
+                <>
+                  <span className="px-2.5 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl">
+                    {queueData.totalInProgress} đang khám
+                  </span>
+                  <span className="px-2.5 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl">
+                    {queueData.totalWaiting} chờ
+                  </span>
+                </>
               )}
               <div className="flex items-center gap-1.5 pl-1">
                 <input
@@ -224,14 +332,18 @@ export default function QueuePage() {
                 Thử lại
               </button>
             </div>
-          ) : queueData && queueData.dentists.length > 0 ? (
+          ) : queueData && queueData.rooms.length > 0 ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5">
-              {queueData.dentists.map(dentist => (
-                <DentistQueueCard
-                  key={dentist.dentistId}
-                  dentist={dentist}
-                  onComplete={handleComplete}
-                  loadingId={loadingId}
+              {queueData.rooms.map(room => (
+                <RoomQueueCard
+                  key={room.roomName ?? "no-room"}
+                  room={room}
+                  canDrag={isToday}
+                  drag={drag}
+                  onDragStart={(appointmentId, fromRoom) => setDrag({ appointmentId, fromRoom })}
+                  onDragEnd={() => setDrag(null)}
+                  onDrop={handleDropPatient}
+                  transferringId={transferringId}
                 />
               ))}
             </div>
@@ -242,8 +354,8 @@ export default function QueuePage() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
                 </svg>
               </div>
-              <p className="text-[14px] font-bold text-slate-500">Chưa có bệnh nhân nào trong hàng đợi</p>
-              <p className="text-[12.5px] text-slate-400 font-semibold">Bệnh nhân sẽ xuất hiện sau khi check-in</p>
+              <p className="text-[14px] font-bold text-slate-500">Không có bác sĩ nào làm việc trong ngày này</p>
+              <p className="text-[12.5px] text-slate-400 font-semibold">Hàng đợi hiển thị theo phòng của bác sĩ có ca làm việc</p>
             </div>
           )}
         </div>

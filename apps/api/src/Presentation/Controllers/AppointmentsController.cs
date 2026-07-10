@@ -17,6 +17,7 @@ public class AppointmentsController(
     GetMyAppointmentsHandler getMyAppointmentsHandler,
     GetAllAppointmentsHandler getAllAppointmentsHandler,
     GetWaitingQueueHandler getWaitingQueueHandler,
+    TransferQueuePatientHandler transferQueuePatientHandler,
     GetDentistPatientsHandler getDentistPatientsHandler,
     DentistDashboardHandler dentistDashboardHandler,
     UpdateAppointmentStatusHandler updateAppointmentStatusHandler,
@@ -102,6 +103,15 @@ public class AppointmentsController(
     public async Task<IActionResult> CheckInAppointment(Guid id, CancellationToken cancellationToken)
     {
         await updateAppointmentStatusHandler.CheckInAsync(id, cancellationToken);
+        return NoContent();
+    }
+
+    /// <summary>PUT api/appointments/{id}/no-show — Ghi nhận bệnh nhân vắng mặt (Staff/Admin)</summary>
+    [HttpPut("{id}/no-show")]
+    [Authorize(Roles = "Staff,Admin,Owner")]
+    public async Task<IActionResult> MarkNoShow(Guid id, CancellationToken cancellationToken)
+    {
+        await updateAppointmentStatusHandler.MarkNoShowAsync(id, cancellationToken);
         return NoContent();
     }
 
@@ -383,6 +393,18 @@ public class AppointmentsController(
         return Ok(result);
     }
 
+    /// <summary>PUT api/appointments/{id}/queue-room — Chuyển bệnh nhân đang chờ sang hàng đợi phòng khác (Staff/Admin)</summary>
+    [HttpPut("{id}/queue-room")]
+    [Authorize(Roles = "Staff,Admin,Owner")]
+    public async Task<IActionResult> TransferQueuePatient(
+        Guid id,
+        [FromBody] TransferQueuePatientRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await transferQueuePatientHandler.HandleAsync(id, request.RoomName, cancellationToken);
+        return Ok(result);
+    }
+
     /// <summary>GET api/appointments/dentist/dashboard — Dữ liệu tổng quan cho bác sĩ (Dentist/Admin)</summary>
     [HttpGet("dentist/dashboard")]
     [Authorize(Roles = "Dentist,Admin")]
@@ -509,7 +531,8 @@ public class AppointmentsController(
             request.DateOfBirth,
             request.Gender,
             request.ServiceId,
-            request.Symptoms);
+            request.Symptoms,
+            request.PatientId);
         var result = await createWalkInHandler.HandleAsync(cmd, cancellationToken);
         return Ok(result);
     }
@@ -574,6 +597,8 @@ public record CreateAppointmentRequest(
     Guid? ServiceId,
     Guid? PatientId);
 
+public record TransferQueuePatientRequest(string RoomName);
+
 public record CreateWalkInRequest(
     Guid DentistId,
     DateTimeOffset AppointmentDate,
@@ -582,6 +607,7 @@ public record CreateWalkInRequest(
     DateOnly DateOfBirth,
     string Gender,
     Guid? ServiceId,
-    string? Symptoms);
+    string? Symptoms,
+    Guid? PatientId = null);
 
 public record CancelAppointmentRequest(string? Reason);

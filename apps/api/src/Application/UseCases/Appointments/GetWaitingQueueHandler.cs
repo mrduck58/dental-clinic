@@ -1,3 +1,4 @@
+using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Schedules;
 using DentalClinic.API.Infrastructure.Persistence;
@@ -11,16 +12,24 @@ public record QueuePatientDto(
     string PatientName,
     string? PatientPhone,
     string? ServiceName,
+    string DentistName,
     DateTimeOffset AppointmentDate,
+    DateTimeOffset? CheckedInAt,
+    int QueueNumber,
     string Status,
     string? Symptoms,
     int WaitMinutes);
 
-public record DentistQueueDto(
+public record QueueDentistDto(
     Guid DentistId,
     string DentistName,
-    string? RoomName,
     string DentistColor,
+    List<string> Shifts,
+    bool IsOnShiftNow);
+
+public record RoomQueueDto(
+    string? RoomName,
+    List<QueueDentistDto> Dentists,
     List<QueuePatientDto> Patients);
 
 public record WaitingQueueResponse(
@@ -28,22 +37,26 @@ public record WaitingQueueResponse(
     int TotalWaiting,
     int TotalInProgress,
     int TotalCompleted,
-    List<DentistQueueDto> Dentists);
+    List<RoomQueueDto> Rooms);
 
 public class GetWaitingQueueHandler(AppDbContext dbContext)
 {
     private static readonly TimeZoneInfo VietnamTimeZone = TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
 
+    /// <summary>Khóa gộp cho bác sĩ/lịch hẹn không xác định được phòng.</summary>
+    private const string NoRoomKey = "";
+
     public async Task<WaitingQueueResponse> HandleAsync(DateOnly date, CancellationToken ct = default)
     {
         // Convert Vietnam local date to UTC range for database query
         // Vietnam is UTC+7, so Vietnam 00:00 = UTC 17:00 previous day
-        var vietnamTz = TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
-        var vietnamDateStart = new DateTimeOffset(date.Year, date.Month, date.Day, 0, 0, 0, vietnamTz.BaseUtcOffset);
+        var vietnamDateStart = new DateTimeOffset(date.Year, date.Month, date.Day, 0, 0, 0, VietnamTimeZone.BaseUtcOffset);
         var utcStart = vietnamDateStart.ToUniversalTime(); // Start of Vietnam date in UTC
         var utcEnd = utcStart.AddDays(1); // Start of next Vietnam date in UTC
 
-        var nowVietnam = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, vietnamTz);
+        var nowUtc = DateTimeOffset.UtcNow;
+        var nowVietnam = TimeZoneInfo.ConvertTime(nowUtc, VietnamTimeZone);
+        var isToday = date == DateOnly.FromDateTime(nowVietnam.DateTime);
 
         var appointments = await dbContext.Appointments
             .Include(a => a.Patient).ThenInclude(p => p.User)
@@ -53,50 +66,85 @@ public class GetWaitingQueueHandler(AppDbContext dbContext)
                         (a.Status == AppointmentStatus.CheckedIn ||
                          a.Status == AppointmentStatus.InProgress ||
                          a.Status == AppointmentStatus.Completed))
-            .OrderBy(a => a.AppointmentDate)
             .ToListAsync(ct);
 
-        var dateOnly = date; // Use the Vietnam date parameter directly
-        var workSchedules = await dbContext.WorkSchedules
-            .Where(ws => ws.Date == dateOnly)
+        // Ca làm việc của bác sĩ trong ngày. Chỉ chấp nhận mã ca hợp lệ — dữ liệu rác
+        // với giá trị Shift khác không được coi là bác sĩ có ca làm việc thật.
+        var validShiftCodes = WorkShifts.AllValidCodes;
+        var daySchedules = await dbContext.WorkSchedules
+            .Where(ws => ws.Date == date && ws.Type == "dentist" && !ws.IsHoliday &&
+                         validShiftCodes.Contains(ws.Shift))
             .ToListAsync(ct);
 
-        var dentistGroups = appointments
+        var schedulesByName = daySchedules
+            .GroupBy(ws => ws.StaffName)
+            .ToDictionary(
+                g => g.Key,
+                g => g.OrderBy(ws => WorkShifts.SortKey(ws.Shift)).ToList());
+
+        // Hàng đợi hiện MỌI phòng có bác sĩ đang hoạt động — kể cả phòng chưa có ai check-in,
+        // để lễ tân thấy được phòng nào đang trống. "Đang hoạt động" = có ca làm việc trong
+        // ngày và tài khoản còn Active.
+        var activeDentists = await dbContext.Dentists
+            .Include(d => d.User)
+            .ToListAsync(ct);
+
+        var dentistsToShow = activeDentists
+            .Where(d => schedulesByName.ContainsKey(d.FullName) &&
+                        string.Equals(d.User?.EmploymentStatus, User.DefaultEmploymentStatus,
+                                      StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        // Dự phòng: bác sĩ có bệnh nhân đã check-in nhưng không có ca trong bảng lịch làm việc
+        // (lịch bị xóa, xếp lịch thiếu…). Vẫn phải hiện, nếu không hàng đợi của họ biến mất.
+        var shownIds = dentistsToShow.Select(d => d.Id).ToHashSet();
+        dentistsToShow.AddRange(appointments
+            .Where(a => !shownIds.Contains(a.DentistId))
             .GroupBy(a => a.DentistId)
-            .Select(g =>
+            .Select(g => g.First().Dentist));
+
+        // Mỗi phòng một hàng đợi. Một bác sĩ có thể trực ở hai phòng khác nhau trong cùng ngày,
+        // nên bác sĩ được xếp vào từng phòng theo đúng ca của mình, chứ không phải chỉ một phòng.
+        var dentistsByRoom = new Dictionary<string, List<QueueDentistDto>>();
+        foreach (var dentist in dentistsToShow)
+        {
+            var schedules = schedulesByName.GetValueOrDefault(dentist.FullName, []);
+            var color = GetDentistColor(dentist.FullName);
+
+            if (schedules.Count == 0)
             {
-                var dentist = g.First().Dentist;
-                var dentistColor = GetDentistColor(dentist.FullName);
-                var firstAppointment = g.First();
+                AddDentist(dentistsByRoom, NoRoomKey, new QueueDentistDto(dentist.Id, dentist.FullName, color, [], false));
+                continue;
+            }
 
-                var patients = g.Select(a => new QueuePatientDto(
-                    a.Id,
-                    $"DK{a.AppointmentDate:yyyyMMdd}{a.Id.ToString("N")[..6].ToUpper()}",
-                    a.Patient.FullName,
-                    a.Patient.User?.PhoneNumber,
-                    a.Service?.Name,
-                    a.AppointmentDate,
-                    a.Status.ToString(),
-                    a.Symptoms,
-                    a.Status == AppointmentStatus.CheckedIn
-                        ? (int)(nowVietnam - a.AppointmentDate.LocalDateTime).TotalMinutes
-                        : 0
-                )).ToList();
+            foreach (var byRoom in schedules.GroupBy(ws => RoomKey(ws.Room)))
+            {
+                var shifts = byRoom
+                    .OrderBy(ws => WorkShifts.SortKey(ws.Shift))
+                    .Select(ws => WorkShifts.LabelOf(ws.Shift) ?? WorkShifts.PeriodOf(ws.Shift))
+                    .ToList();
 
-                // Phòng theo ca bao trùm giờ hẹn (giờ VN); dự phòng lấy phòng bất kỳ của bác sĩ trong ngày
-                var apptVn = TimeZoneInfo.ConvertTime(firstAppointment.AppointmentDate, vietnamTz);
-                var dentistSchedules = workSchedules.Where(ws => ws.StaffName == dentist.FullName).ToList();
-                var roomName = (dentistSchedules
-                        .FirstOrDefault(ws => WorkShifts.IsWorkingAt([ws.Shift], apptVn.Hour, apptVn.Minute))
-                        ?? dentistSchedules.FirstOrDefault())?.Room;
+                var onShiftNow = isToday && byRoom.Any(ws => CoversNow(ws, nowVietnam));
 
-                return new DentistQueueDto(
-                    dentist.Id,
-                    dentist.FullName,
-                    roomName ?? $"Phòng {(dentist.FullName.Contains("Hùng") ? "2" : "1")}",
-                    dentistColor,
-                    patients);
-            })
+                AddDentist(dentistsByRoom, byRoom.Key, new QueueDentistDto(dentist.Id, dentist.FullName, color, shifts, onShiftNow));
+            }
+        }
+
+        var patientsByRoom = appointments
+            .GroupBy(a => RoomForAppointment(a, schedulesByName, isToday, nowVietnam))
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var rooms = dentistsByRoom.Keys
+            .Union(patientsByRoom.Keys)
+            .Select(room => new RoomQueueDto(
+                room == NoRoomKey ? null : room,
+                dentistsByRoom.GetValueOrDefault(room, [])
+                    .OrderBy(d => d.Shifts.Count > 0 ? d.Shifts[0] : string.Empty, StringComparer.Ordinal)
+                    .ThenBy(d => d.DentistName, StringComparer.CurrentCulture)
+                    .ToList(),
+                BuildPatients(patientsByRoom.GetValueOrDefault(room, []), nowUtc)))
+            .OrderBy(r => RoomSortKey(r.RoomName))
+            .ThenBy(r => r.RoomName, StringComparer.CurrentCulture)
             .ToList();
 
         return new WaitingQueueResponse(
@@ -104,7 +152,106 @@ public class GetWaitingQueueHandler(AppDbContext dbContext)
             appointments.Count(a => a.Status == AppointmentStatus.CheckedIn),
             appointments.Count(a => a.Status == AppointmentStatus.InProgress),
             appointments.Count(a => a.Status == AppointmentStatus.Completed),
-            dentistGroups);
+            rooms);
+    }
+
+    private static void AddDentist(Dictionary<string, List<QueueDentistDto>> byRoom, string room, QueueDentistDto dentist)
+    {
+        if (!byRoom.TryGetValue(room, out var list))
+            byRoom[room] = list = [];
+        list.Add(dentist);
+    }
+
+    private static string RoomKey(string? room) => string.IsNullOrWhiteSpace(room) ? NoRoomKey : room;
+
+    private static bool CoversNow(WorkSchedule schedule, DateTimeOffset nowVietnam)
+        => WorkShifts.IsWorkingAt([schedule.Shift], nowVietnam.Hour, nowVietnam.Minute);
+
+    /// <summary>
+    /// Phòng của một lịch hẹn trong hàng đợi.
+    /// <para>
+    /// Hàng đợi hôm nay là ảnh chụp của HIỆN TẠI: bệnh nhân chờ ở phòng mà bác sĩ của họ
+    /// đang ngồi lúc này, chứ không phải phòng ứng với giờ hẹn (bác sĩ có thể đã đổi phòng
+    /// giữa hai ca). Nhờ vậy khi lễ tân kéo bệnh nhân sang phòng khác — thao tác đổi bác sĩ
+    /// phụ trách sang người đang trực phòng đó — bệnh nhân ở lại đúng phòng vừa thả.
+    /// </para>
+    /// <para>Xem ngày trong quá khứ thì không có "hiện tại", lùi về ca bao trùm giờ hẹn.</para>
+    /// <para>Không tìm được ca nào bao trùm thì lùi tiếp về phòng của ca đầu ngày.</para>
+    /// </summary>
+    private static string RoomForAppointment(
+        Appointment appointment,
+        Dictionary<string, List<WorkSchedule>> schedulesByName,
+        bool isToday,
+        DateTimeOffset nowVietnam)
+    {
+        var schedules = schedulesByName.GetValueOrDefault(appointment.Dentist.FullName, []);
+        if (schedules.Count == 0) return NoRoomKey;
+
+        var current = isToday
+            ? schedules.FirstOrDefault(ws => CoversNow(ws, nowVietnam))
+            : null;
+
+        if (current == null)
+        {
+            var vn = TimeZoneInfo.ConvertTime(appointment.AppointmentDate, VietnamTimeZone);
+            current = schedules.FirstOrDefault(ws => WorkShifts.IsWorkingAt([ws.Shift], vn.Hour, vn.Minute));
+        }
+
+        return RoomKey((current ?? schedules[0]).Room);
+    }
+
+    /// <summary>
+    /// Hàng đợi của một phòng: người ĐANG KHÁM đứng đầu, rồi tới những người đang chờ.
+    /// Thứ tự chờ là thứ tự CHECK-IN, không phải giờ đặt lịch: ai đến trước khám trước.
+    /// Lịch hẹn cũ (trước khi có cột CheckedInAt) lùi về giờ hẹn để vẫn xếp được thứ tự.
+    /// Người đã khám xong rời khỏi hàng đợi.
+    /// </summary>
+    private static List<QueuePatientDto> BuildPatients(List<Appointment> appointments, DateTimeOffset nowUtc)
+    {
+        var ordered = appointments
+            .Where(a => a.Status is AppointmentStatus.InProgress or AppointmentStatus.CheckedIn)
+            .OrderBy(a => a.Status == AppointmentStatus.InProgress ? 0 : 1)
+            .ThenBy(a => a.CheckedInAt ?? a.AppointmentDate)
+            .ThenBy(a => a.AppointmentDate)
+            .ToList();
+
+        // Số thứ tự chỉ đánh trên hàng người đang chờ — ai đã vào khám thì rời hàng đợi.
+        var queueNumbers = ordered
+            .Where(a => a.Status == AppointmentStatus.CheckedIn)
+            .Select((a, i) => (a.Id, Number: i + 1))
+            .ToDictionary(x => x.Id, x => x.Number);
+
+        return ordered.Select(a => new QueuePatientDto(
+            a.Id,
+            $"DK{a.AppointmentDate:yyyyMMdd}{a.Id.ToString("N")[..6].ToUpper()}",
+            a.Patient.FullName,
+            a.Patient.User?.PhoneNumber,
+            a.Service?.Name,
+            a.Dentist.FullName,
+            a.AppointmentDate,
+            a.CheckedInAt,
+            queueNumbers.GetValueOrDefault(a.Id),
+            a.Status.ToString(),
+            a.Symptoms,
+            // Thời gian chờ tính từ lúc CHECK-IN, không phải từ giờ hẹn.
+            a.Status == AppointmentStatus.CheckedIn
+                ? Math.Max(0, (int)(nowUtc - (a.CheckedInAt ?? a.AppointmentDate)).TotalMinutes)
+                : 0
+        )).ToList();
+    }
+
+    /// <summary>Số phòng lấy từ cụm chữ số đầu tiên trong tên phòng; không có thì xếp cuối.</summary>
+    private static int RoomSortKey(string? room)
+    {
+        if (room == null) return int.MaxValue;
+
+        var digits = string.Empty;
+        foreach (var c in room)
+        {
+            if (char.IsDigit(c)) digits += c;
+            else if (digits.Length > 0) break;
+        }
+        return digits.Length > 0 && int.TryParse(digits, out var n) ? n : int.MaxValue;
     }
 
     private static string GetDentistColor(string dentistName)

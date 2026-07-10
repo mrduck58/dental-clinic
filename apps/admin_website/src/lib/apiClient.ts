@@ -1430,8 +1430,9 @@ export interface StaffAppointmentDto {
   serviceName: string | null;
   appointmentDate: string; // ISO8601
   createdAt: string;       // ISO8601
-  status: string;          // "Pending" | "Confirmed" | "Completed" | "Cancelled"
+  status: string;          // "Pending" | "Confirmed" | "CheckedIn" | "InProgress" | "PendingPayment" | "Completed" | "Cancelled" | "NoShow"
   symptoms: string | null;
+  checkedInAt: string | null; // ISO8601 — thời điểm check-in (null nếu chưa check-in)
 }
 
 // ── Appointment endpoints ──────────────────────────────────────────────────────
@@ -1491,6 +1492,18 @@ export async function checkInAppointmentApi(id: string): Promise<void> {
   }
 }
 
+export async function markNoShowAppointmentApi(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/appointments/${id}/no-show`, {
+    method: "PUT",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Ghi nhận vắng thất bại");
+  }
+}
+
 export async function startTreatmentApi(id: string): Promise<void> {
   const res = await fetch(`${API_URL}/api/appointments/${id}/start`, {
     method: "PUT",
@@ -1523,17 +1536,26 @@ export interface QueuePatientDto {
   patientName: string;
   patientPhone: string | null;
   serviceName: string | null;
+  dentistName: string;
   appointmentDate: string;
+  checkedInAt: string | null;
+  queueNumber: number;
   status: string;
   symptoms: string | null;
   waitMinutes: number;
 }
 
-export interface DentistQueueDto {
+export interface QueueDentistDto {
   dentistId: string;
   dentistName: string;
-  roomName: string | null;
   dentistColor: string;
+  shifts: string[];
+  isOnShiftNow: boolean;
+}
+
+export interface RoomQueueDto {
+  roomName: string | null;
+  dentists: QueueDentistDto[];
   patients: QueuePatientDto[];
 }
 
@@ -1542,7 +1564,7 @@ export interface WaitingQueueResponse {
   totalWaiting: number;
   totalInProgress: number;
   totalCompleted: number;
-  dentists: DentistQueueDto[];
+  rooms: RoomQueueDto[];
 }
 
 export async function getWaitingQueueApi(date?: string): Promise<WaitingQueueResponse> {
@@ -1558,6 +1580,23 @@ export async function getWaitingQueueApi(date?: string): Promise<WaitingQueueRes
     throw new Error((err as { title?: string }).title ?? "Không thể tải hàng đợi");
   }
   return res.json() as Promise<WaitingQueueResponse>;
+}
+
+/**
+ * Chuyển bệnh nhân đang chờ sang hàng đợi của phòng khác. Phòng được suy ra từ bác sĩ
+ * phụ trách, nên API sẽ giao lịch hẹn cho bác sĩ đang trong ca trực tại phòng đích.
+ */
+export async function transferQueuePatientApi(appointmentId: string, roomName: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/appointments/${appointmentId}/queue-room`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ roomName }),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể chuyển bệnh nhân sang phòng khác");
+  }
 }
 
 export interface DentistPatientDto {
@@ -1661,6 +1700,30 @@ export interface CreateWalkInRequest {
   gender: string;        // "Nam" | "Nữ" | "Khác"
   serviceId?: string;
   symptoms?: string;
+  patientId?: string;    // hồ sơ đã chọn từ ô tra cứu — tránh tạo bệnh nhân trùng
+}
+
+export interface PatientSearchResultDto {
+  id: string;
+  fullName: string;
+  phoneNumber: string | null;
+  dateOfBirth: string;   // "YYYY-MM-DD"
+  gender: string;
+  hasAccount: boolean;
+}
+
+/** Tra cứu bệnh nhân đã có hồ sơ (staff/admin). Dưới 2 ký tự backend trả về mảng rỗng. */
+export async function searchPatientsApi(query: string, limit = 8): Promise<PatientSearchResultDto[]> {
+  const params = new URLSearchParams({ q: query, limit: String(limit) });
+  const res = await fetch(`${API_URL}/api/patients/search?${params}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tìm bệnh nhân");
+  }
+  return res.json() as Promise<PatientSearchResultDto[]>;
 }
 
 export interface CreateWalkInResult {

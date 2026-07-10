@@ -6,6 +6,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.Appointments;
 
+/// <param name="PatientId">
+/// Hồ sơ bệnh nhân staff đã chọn từ ô tra cứu. Khi có giá trị, dùng thẳng hồ sơ này thay vì
+/// dò theo số điện thoại — tránh tạo trùng khi bệnh nhân đổi số hoặc có nhiều người trùng số.
+/// </param>
 public record CreateWalkInCommand(
     Guid DentistId,
     DateTimeOffset AppointmentDate,
@@ -14,7 +18,8 @@ public record CreateWalkInCommand(
     DateOnly DateOfBirth,
     string Gender,
     Guid? ServiceId,
-    string? Symptoms);
+    string? Symptoms,
+    Guid? PatientId = null);
 
 public record CreateWalkInResult(
     Guid AppointmentId,
@@ -39,10 +44,28 @@ public class CreateWalkInAppointmentHandler(AppDbContext dbContext)
         if (isBooked)
             throw new ConflictException("Khung giờ này đã được đặt. Vui lòng chọn giờ khác.");
 
-        // 3. Tìm bệnh nhân theo số điện thoại (qua tài khoản), hoặc tạo mới
-        var patient = await dbContext.Patients
-            .Include(p => p.User)
-            .FirstOrDefaultAsync(p => p.User != null && p.User.PhoneNumber == cmd.PatientPhone, ct);
+        // 3. Xác định hồ sơ bệnh nhân, theo thứ tự ưu tiên:
+        //    a) hồ sơ staff đã chọn từ ô tra cứu;
+        //    b) hồ sơ khớp số điện thoại — dò cả cột PhoneNumber của Patient (bệnh nhân tạo tại quầy,
+        //       không có tài khoản) lẫn số của tài khoản liên kết;
+        //    c) chưa có thì tạo mới.
+        Patient? patient = null;
+
+        if (cmd.PatientId is { } patientId)
+        {
+            patient = await dbContext.Patients
+                .Include(p => p.User)
+                .FirstOrDefaultAsync(p => p.Id == patientId, ct)
+                ?? throw new ValidationException("Không tìm thấy hồ sơ bệnh nhân đã chọn.");
+        }
+        else
+        {
+            patient = await dbContext.Patients
+                .Include(p => p.User)
+                .FirstOrDefaultAsync(p =>
+                    p.PhoneNumber == cmd.PatientPhone ||
+                    (p.User != null && p.User.PhoneNumber == cmd.PatientPhone), ct);
+        }
 
         if (patient == null)
         {
@@ -57,11 +80,12 @@ public class CreateWalkInAppointmentHandler(AppDbContext dbContext)
             patient.SetGender(cmd.Gender);
         }
 
-        // 4. Tạo lịch hẹn, bỏ qua Pending → Confirmed ngay (đặt tại quầy)
+        // 4. Bệnh nhân đã có mặt tại quầy nên bỏ qua cả Pending lẫn Confirmed:
+        //    lịch hẹn vào thẳng CheckedIn để xuất hiện ngay ở hàng đợi, không phải check-in lại.
         var appointment = Appointment.Create(
             patient.Id, cmd.DentistId, cmd.AppointmentDate,
             symptoms: cmd.Symptoms, serviceId: cmd.ServiceId);
-        appointment.Confirm();
+        appointment.CheckIn();
 
         dbContext.Appointments.Add(appointment);
         await dbContext.SaveChangesAsync(ct);

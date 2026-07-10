@@ -14,6 +14,9 @@ public class Appointment
     public string? Symptoms { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
 
+    /// <summary>Thời điểm bệnh nhân check-in — quyết định thứ tự trong hàng đợi (null nếu chưa check-in).</summary>
+    public DateTimeOffset? CheckedInAt { get; private set; }
+
     // Liệu trình dài hạn (nếu buổi hẹn này thuộc một liệu trình nhiều buổi)
     public Guid? CourseId { get; private set; }
     public TreatmentCourse? Course { get; private set; }
@@ -60,7 +63,13 @@ public class Appointment
     }
 
     public void Confirm() => Status = AppointmentStatus.Confirmed;
-    public void CheckIn() => Status = AppointmentStatus.CheckedIn;
+    public void CheckIn()
+    {
+        Status = AppointmentStatus.CheckedIn;
+        CheckedInAt = DateTimeOffset.UtcNow;
+    }
+    /// <summary>Ghi nhận bệnh nhân vắng mặt — đã xác nhận nhưng không đến khám.</summary>
+    public void MarkNoShow() => Status = AppointmentStatus.NoShow;
     public void StartTreatment() => Status = AppointmentStatus.InProgress;
     public void EndTreatment() => Status = AppointmentStatus.PendingPayment;
     public void Complete() => Status = AppointmentStatus.Completed;
@@ -75,6 +84,13 @@ public class Appointment
 
     /// <summary>Gắn buổi hẹn vào một liệu trình dài hạn.</summary>
     public void AssignToCourse(Guid courseId) => CourseId = courseId;
+
+    /// <summary>
+    /// Chuyển buổi hẹn sang bác sĩ khác. Dùng khi lễ tân kéo bệnh nhân đang chờ
+    /// sang hàng đợi của phòng khác — phòng được quyết định bởi bác sĩ phụ trách.
+    /// Giữ nguyên <see cref="CheckedInAt"/> để bệnh nhân không mất lượt ở hàng đợi mới.
+    /// </summary>
+    public void ReassignDentist(Guid dentistId) => DentistId = dentistId;
 
     public static Appointment CreateFollowUp(
         Guid originalAppointmentId,

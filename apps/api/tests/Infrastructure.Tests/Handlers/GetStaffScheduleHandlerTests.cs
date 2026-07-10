@@ -55,9 +55,8 @@ public class GetStaffScheduleHandlerTests
     }
 
     /// <summary>
-    /// Bác sĩ có ca làm việc hợp lệ theo mã ca 2 tiếng mới ("08:00-10:00") phải xuất hiện
-    /// trong danh sách, với các slot nằm trong khung 2 tiếng đó — bao gồm cả mốc giờ kết thúc
-    /// ca (10:00) vì mốc kết thúc vẫn được tính là thuộc ca.
+    /// Ca 2 tiếng là nửa khoảng [start, end) nên sinh đúng 4 khung giờ 30 phút; mốc kết thúc
+    /// ca (10:00) KHÔNG thuộc ca vì lịch hẹn đặt tại đó sẽ tràn sang ca kế tiếp.
     /// </summary>
     [Test]
     public async Task HandleAsync_DentistWithNewTwoHourShiftCode_IncludedWithSlotsInThatWindowOnly()
@@ -71,8 +70,82 @@ public class GetStaffScheduleHandlerTests
 
         var dentist = result.Dentists.Should().ContainSingle().Subject;
         dentist.Name.Should().Be("BS. Nguyễn Văn Hùng");
-        dentist.Slots.Should().NotBeEmpty();
-        dentist.Slots.Should().OnlyContain(s => int.Parse(s.Time.Substring(0, 2)) < 12);
+        dentist.Slots.Select(s => s.Time).Should().Equal("08:00", "08:30", "09:00", "09:30");
+    }
+
+    /// <summary>
+    /// Mốc giao giữa hai ca liền kề chỉ thuộc ca đứng sau: bác sĩ được phân "10:00-12:00"
+    /// bắt đầu từ 10:00, còn bác sĩ được phân "08:00-10:00" thì dừng trước 10:00.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_ShiftBoundaryTime_BelongsOnlyToTheLaterShift()
+    {
+        var user = await SeedActiveDentistUserAsync("BS. Lê Minh Quân");
+        _db.WorkSchedules.Add(WorkSchedule.Create(
+            Today, "10:00-12:00", "dentist", "dentist", user.FullName!, "Phòng 3", "border-primary", false));
+        await _db.SaveChangesAsync();
+
+        var result = await _handler.HandleAsync(Today);
+
+        var dentist = result.Dentists.Should().ContainSingle().Subject;
+        dentist.Slots.Select(s => s.Time).Should().Equal("10:00", "10:30", "11:00", "11:30");
+    }
+
+    /// <summary>
+    /// Hai ca liền nhau ghép lại phải cho đúng 8 khung giờ liên tục, không trùng lặp mốc giao.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_TwoAdjacentShifts_ProduceEightContiguousSlots()
+    {
+        var user = await SeedActiveDentistUserAsync("BS. Phạm Thu Hà");
+        _db.WorkSchedules.AddRange(
+            WorkSchedule.Create(Today, "08:00-10:00", "dentist", "dentist", user.FullName!, "Phòng 4", "border-primary", false),
+            WorkSchedule.Create(Today, "10:00-12:00", "dentist", "dentist", user.FullName!, "Phòng 4", "border-primary", false));
+        await _db.SaveChangesAsync();
+
+        var result = await _handler.HandleAsync(Today);
+
+        var dentist = result.Dentists.Should().ContainSingle().Subject;
+        dentist.Slots.Select(s => s.Time).Should()
+            .Equal("08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30");
+    }
+
+    /// <summary>
+    /// Cột bác sĩ trên lưới xếp theo số phòng (1 → 2 → 3), không theo tên. Phòng không có số
+    /// bị dồn xuống cuối để không chen ngang dãy phòng đánh số.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_DentistsOrderedByRoomNumber_NotByName()
+    {
+        var a = await SeedActiveDentistUserAsync("BS. An");      // Phòng 3
+        var b = await SeedActiveDentistUserAsync("BS. Bình");    // Phòng 1
+        var c = await SeedActiveDentistUserAsync("BS. Cường");   // Phòng Test (không số)
+        var d = await SeedActiveDentistUserAsync("BS. Dũng");    // Phòng 10
+        _db.WorkSchedules.AddRange(
+            WorkSchedule.Create(Today, "08:00-10:00", "dentist", "dentist", a.FullName!, "Phòng 3", "border-primary", false),
+            WorkSchedule.Create(Today, "08:00-10:00", "dentist", "dentist", b.FullName!, "Phòng 1", "border-primary", false),
+            WorkSchedule.Create(Today, "08:00-10:00", "dentist", "dentist", c.FullName!, "Phòng Test", "border-primary", false),
+            WorkSchedule.Create(Today, "08:00-10:00", "dentist", "dentist", d.FullName!, "Phòng 10", "border-primary", false));
+        await _db.SaveChangesAsync();
+
+        var result = await _handler.HandleAsync(Today);
+
+        result.Dentists.Select(x => x.Room).Should().Equal("Phòng 1", "Phòng 3", "Phòng 10", "Phòng Test");
+    }
+
+    /// <summary>Ca tối muộn nhất kết thúc 21:30 nên khung giờ cuối cùng đặt được là 21:00.</summary>
+    [Test]
+    public async Task HandleAsync_LastEveningShift_EndsAtNineOClockSlot()
+    {
+        var user = await SeedActiveDentistUserAsync("BS. Đỗ Văn Nam");
+        _db.WorkSchedules.Add(WorkSchedule.Create(
+            Today, "19:30-21:30", "dentist", "dentist", user.FullName!, "Phòng 5", "border-primary", false));
+        await _db.SaveChangesAsync();
+
+        var result = await _handler.HandleAsync(Today);
+
+        var dentist = result.Dentists.Should().ContainSingle().Subject;
+        dentist.Slots.Select(s => s.Time).Should().Equal("19:30", "20:00", "20:30", "21:00");
     }
 
     /// <summary>

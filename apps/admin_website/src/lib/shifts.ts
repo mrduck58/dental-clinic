@@ -44,3 +44,12 @@ export const periodOfShift = (id: string): ShiftPeriod => {
   if (id === "afternoon") return "Buổi chiều";
   return "Buổi sáng";
 };
+
+// Suy ra buổi từ một thời điểm cụ thể (ví dụ giờ hẹn của lịch khám) dựa trên ranh
+// giới các ca: trước 12:00 là sáng, trước 17:30 là chiều, còn lại là tối.
+export const periodOfTime = (date: Date): ShiftPeriod => {
+  const minutes = date.getHours() * 60 + date.getMinutes();
+  if (minutes < 12 * 60) return "Buổi sáng";
+  if (minutes < 17 * 60 + 30) return "Buổi chiều";
+  return "Buổi tối";
+};

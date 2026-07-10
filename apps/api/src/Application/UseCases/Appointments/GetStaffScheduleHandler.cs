@@ -108,9 +108,26 @@ public class GetStaffScheduleHandler(AppDbContext dbContext)
                 .ToList();
 
             return new StaffScheduleDentistDto(dentist.Id, name, room, slots);
-        }).ToList();
+        })
+        // Cột lưới xếp theo số phòng (Phòng 1 → 2 → 3...) để khớp thứ tự phòng ngoài đời.
+        // Phòng không có số ("Phòng Test", "—") dồn xuống cuối, rồi sắp theo tên bác sĩ.
+        .OrderBy(d => RoomSortKey(d.Room))
+        .ThenBy(d => d.Name, StringComparer.CurrentCulture)
+        .ToList();
 
         return new StaffScheduleResponse(date, result);
+    }
+
+    /// <summary>Số phòng lấy từ cụm chữ số đầu tiên trong tên phòng; không có thì xếp cuối.</summary>
+    private static int RoomSortKey(string room)
+    {
+        var digits = string.Empty;
+        foreach (var c in room)
+        {
+            if (char.IsDigit(c)) digits += c;
+            else if (digits.Length > 0) break;
+        }
+        return digits.Length > 0 && int.TryParse(digits, out var n) ? n : int.MaxValue;
     }
 
     private static StaffScheduleSlot BuildSlot(int hour, int minute, List<Appointment> appts, DateOnly date)
