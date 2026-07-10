@@ -302,6 +302,14 @@ class _EmptySection extends StatelessWidget {
 class _QuickAccessPanel extends StatelessWidget {
   const _QuickAccessPanel();
 
+  /// Chatbot AI yêu cầu đăng nhập — kiểm tra token trước khi vào, vì router
+  /// hiện không có redirect guard chung cho các route cần xác thực.
+  Future<void> _openChatbot(BuildContext context) async {
+    final token = await AuthService().getToken();
+    if (!context.mounted) return;
+    context.push(token == null ? AppRoutes.login : AppRoutes.chat);
+  }
+
   @override
   Widget build(BuildContext context) {
     final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
@@ -383,7 +391,7 @@ class _QuickAccessPanel extends StatelessWidget {
                             context,
                             icon: Icons.smart_toy_rounded,
                             label: 'DENTAL AI',
-                            onTap: () => context.push(AppRoutes.chat),
+                            onTap: () => _openChatbot(context),
                           ),
                           const SizedBox(width: 12),
                           _buildSmallCard(

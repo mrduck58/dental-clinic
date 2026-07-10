@@ -24,6 +24,8 @@ public class ClinicInfo
     public string Phone { get; private set; } = string.Empty;
     public string Email { get; private set; } = string.Empty;
     public string Address { get; private set; } = string.Empty;
+    /// <summary>Giờ làm việc hiển thị công khai, ví dụ: "T2–T6: 8:00 – 20:00 • T7–CN: 8:00 – 17:00".</summary>
+    public string WorkingHours { get; private set; } = string.Empty;
 
     // ── Danh sách lưu dạng JSON ──────────────────────────────────────────────
     /// <summary>JSON: [{ "year": 2009, "description": "..." }]</summary>
@@ -49,7 +51,8 @@ public class ClinicInfo
         string phone,
         string email,
         string address,
-        string? aboutImageUrl = null)
+        string? aboutImageUrl = null,
+        string workingHours = "")
         => new()
         {
             Id = Guid.NewGuid(),
@@ -60,6 +63,7 @@ public class ClinicInfo
             Email = email,
             Address = address,
             AboutImageUrl = aboutImageUrl,
+            WorkingHours = workingHours,
             MilestonesJson = "[]",
             CertificationsJson = "[]",
             FeaturesJson = "[]",
@@ -81,7 +85,8 @@ public class ClinicInfo
         string phone,
         string email,
         string address,
-        string? aboutImageUrl)
+        string? aboutImageUrl,
+        string? workingHours = null)
     {
         AboutTitle = aboutTitle;
         AboutDescription = aboutDescription;
@@ -90,6 +95,7 @@ public class ClinicInfo
         Email = email;
         Address = address;
         if (aboutImageUrl is not null) AboutImageUrl = aboutImageUrl;
+        if (workingHours is not null) WorkingHours = workingHours;
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 

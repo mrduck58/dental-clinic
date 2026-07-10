@@ -10,7 +10,11 @@ import 'package:mobile_app/features/booking/presentation/widgets/booking_widgets
 import 'package:mobile_app/features/profile/data/family_member.dart';
 
 class SelectPatientPage extends StatefulWidget {
-  const SelectPatientPage({super.key});
+  /// Draft điền sẵn từ chatbot AI (dịch vụ/ngày/triệu chứng đã trích xuất được từ hội thoại,
+  /// nếu có) — null khi vào từ luồng đặt lịch bình thường ở trang chủ.
+  final BookingDraft? initialDraft;
+
+  const SelectPatientPage({super.key, this.initialDraft});
 
   @override
   State<SelectPatientPage> createState() => _SelectPatientPageState();
@@ -78,10 +82,29 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
 
   void _select(int index) {
     setState(() => _selectedId = _patients[index].id);
-    context.push(
-      AppRoutes.bookingSelectService,
-      extra: BookingDraft(patient: _patients[index]),
-    );
+
+    var draft = BookingDraft(patient: _patients[index]);
+    final initial = widget.initialDraft;
+    if (initial != null) {
+      draft = draft.copyWith(
+        service: initial.service,
+        date: initial.date,
+        symptoms: initial.symptoms,
+        preferredDentistId: initial.preferredDentistId,
+      );
+    }
+
+    // Đã biết đủ bác sĩ + ngày + khung giờ còn trống (từ chatbot) → vào thẳng màn tổng hợp/xác nhận.
+    if (draft.doctor != null && draft.date != null && draft.timeSlot != null) {
+      context.push(AppRoutes.bookingReview, extra: draft);
+    } else if (draft.service != null && draft.date != null) {
+      // Đã biết dịch vụ + ngày → bỏ qua các bước đã rõ, vào thẳng chọn bác sĩ/khung giờ.
+      context.push(AppRoutes.bookingSelectDoctor, extra: draft);
+    } else if (draft.service != null) {
+      context.push(AppRoutes.bookingSelectDatetime, extra: draft);
+    } else {
+      context.push(AppRoutes.bookingSelectService, extra: draft);
+    }
   }
 
   @override

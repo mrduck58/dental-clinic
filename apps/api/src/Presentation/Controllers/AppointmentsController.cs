@@ -27,7 +27,8 @@ public class AppointmentsController(
     PrescriptionHandler prescriptionHandler,
     FollowUpAppointmentHandler followUpAppointmentHandler,
     GetStaffScheduleHandler staffScheduleHandler,
-    CreateWalkInAppointmentHandler createWalkInHandler) : ControllerBase
+    CreateWalkInAppointmentHandler createWalkInHandler,
+    SummarizePatientHistoryHandler summarizePatientHistoryHandler) : ControllerBase
 {
     /// <summary>POST api/appointments — Đặt lịch khám mới</summary>
     [HttpPost]
@@ -139,6 +140,15 @@ public class AppointmentsController(
         var result = await getExaminationHandler.HandleAsync(id, cancellationToken);
         if (result == null)
             return NotFound(new { title = "Không tìm thấy lịch hẹn." });
+        return Ok(result);
+    }
+
+    /// <summary>GET api/appointments/{id}/ai-summary — Tóm tắt lịch sử khám của bệnh nhân bằng AI (Staff/Admin/Dentist)</summary>
+    [HttpGet("{id}/ai-summary")]
+    [Authorize(Roles = "Staff,Admin,Dentist")]
+    public async Task<IActionResult> GetPatientAiSummary(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await summarizePatientHistoryHandler.HandleAsync(id, cancellationToken);
         return Ok(result);
     }
 

@@ -31,4 +31,10 @@ abstract class ApiConstants {
       '/payments/invoices/$invoiceId/request';
   static String paymentStatus(String invoiceId) =>
       '/payments/invoices/$invoiceId/status';
+
+  static const String chatConversations = '/chat/conversations';
+  static String chatConversation(String conversationId) =>
+      '/chat/conversations/$conversationId';
+  static String chatMessages(String conversationId) =>
+      '/chat/conversations/$conversationId/messages';
 }

@@ -36,8 +36,14 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
   @override
   void initState() {
     super.initState();
+    // Nếu chatbot AI đã trích xuất được ngày mong muốn, hiển thị sẵn tháng/ngày đó
+    // thay vì luôn mở ở tháng hiện tại.
+    final initialDate = widget.draft.date;
     final now = DateTime.now();
-    _month = DateTime(now.year, now.month);
+    _month = initialDate != null
+        ? DateTime(initialDate.year, initialDate.month)
+        : DateTime(now.year, now.month);
+    _selected = initialDate;
   }
 
   bool _isPast(DateTime d) {

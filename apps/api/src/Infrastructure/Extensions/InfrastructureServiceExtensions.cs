@@ -1,4 +1,5 @@
 using DentalClinic.API.Application.UseCases.ActivityLogs;
+using DentalClinic.API.Application.UseCases.Chat;
 using DentalClinic.API.Application.UseCases.Dashboard;
 using DentalClinic.API.Application.UseCases.StaffDashboard;
 using DentalClinic.API.Application.UseCases.Notifications;
@@ -44,6 +45,7 @@ public static class InfrastructureServiceExtensions
         services.Configure<JwtSettings>(configuration.GetSection("JwtSettings"));
         services.Configure<EmailSettings>(configuration.GetSection("EmailSettings"));
         services.Configure<PayOSSettings>(configuration.GetSection("PayOSSettings"));
+        services.Configure<GeminiSettings>(configuration.GetSection("GeminiSettings"));
         services.Configure<GoogleAuthSettings>(configuration.GetSection("GoogleAuthSettings"));
 
         // ── Repositories ────────────────────────────────────────────────────
@@ -82,6 +84,9 @@ public static class InfrastructureServiceExtensions
             client.BaseAddress = new Uri(payOsSettings.BaseUrl);
         });
         services.AddScoped<IPaymentGatewayResolver, PaymentGatewayResolver>();
+
+        // ── AI chatbot ──────────────────────────────────────────────────────
+        services.AddScoped<IAiChatService, GeminiChatService>();
 
         // ── Use Case Handlers ────────────────────────────────────────────────
         services.AddScoped<LoginHandler>();
@@ -175,6 +180,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<FollowUpAppointmentHandler>();
         services.AddScoped<GetStaffScheduleHandler>();
         services.AddScoped<CreateWalkInAppointmentHandler>();
+        services.AddScoped<SummarizePatientHistoryHandler>();
 
         services.AddScoped<GetRoomsHandler>();
         services.AddScoped<GetRoomByIdHandler>();
@@ -185,6 +191,11 @@ public static class InfrastructureServiceExtensions
 
         services.AddScoped<GetClinicInfoHandler>();
         services.AddScoped<UpdateClinicInfoHandler>();
+
+        services.AddScoped<StartConversationHandler>();
+        services.AddScoped<SendChatMessageHandler>();
+        services.AddScoped<GetMyConversationsHandler>();
+        services.AddScoped<GetConversationMessagesHandler>();
 
         services.AddScoped<GetActivityLogsHandler>();
         services.AddScoped<GetNotificationsHandler>();

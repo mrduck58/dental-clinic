@@ -41,6 +41,7 @@ internal static class ClinicInfoMapper
         e.Phone,
         e.Email,
         e.Address,
+        e.WorkingHours,
         Deserialize<MilestoneDto>(e.MilestonesJson),
         Deserialize<string>(e.CertificationsJson),
         Deserialize<FeatureDto>(e.FeaturesJson),

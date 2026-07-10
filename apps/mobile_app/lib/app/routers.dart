@@ -301,7 +301,8 @@ final GoRouter appRouter = GoRouter(
     // ── Booking flow (standalone, không có Bottom Nav) ────────────────────
     GoRoute(
       path: AppRoutes.bookingSelectPatient,
-      builder: (context, state) => const SelectPatientPage(),
+      builder: (context, state) =>
+          SelectPatientPage(initialDraft: state.extra as BookingDraft?),
     ),
     GoRoute(
       path: AppRoutes.bookingSelectService,
