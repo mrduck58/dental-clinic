@@ -139,6 +139,8 @@ class _SelectDoctorPageState extends State<SelectDoctorPage> {
                           doctor: _doctors[i],
                           date: date,
                           dayLabel: _dayLabel(date, isVi),
+                          isPreferred: widget.draft.preferredDentistId != null &&
+                              _doctors[i].dentistId == widget.draft.preferredDentistId,
                           onSlotSelected: (slot) {
                             final doctorInfo = _doctors[i].toDoctorInfo();
                             final draft2 = widget.draft.copyWith(
@@ -164,12 +166,14 @@ class _DoctorSlotCard extends StatelessWidget {
   final ApiDoctorWithSlots doctor;
   final DateTime date;
   final String dayLabel;
+  final bool isPreferred;
   final void Function(ApiTimeSlot) onSlotSelected;
 
   const _DoctorSlotCard({
     required this.doctor,
     required this.date,
     required this.dayLabel,
+    this.isPreferred = false,
     required this.onSlotSelected,
   });
 
@@ -197,7 +201,10 @@ class _DoctorSlotCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: context.card,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: context.divider),
+        border: Border.all(
+          color: isPreferred ? AppColors.primary : context.divider,
+          width: isPreferred ? 1.6 : 1,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
@@ -220,13 +227,37 @@ class _DoctorSlotCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        doctor.fullName,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          color: context.isDark ? Colors.white : AppColors.primary,
-                        ),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              doctor.fullName,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: context.isDark ? Colors.white : AppColors.primary,
+                              ),
+                            ),
+                          ),
+                          if (isPreferred) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                isVi ? 'Gợi ý AI' : 'AI pick',
+                                style: const TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       const SizedBox(height: 2),
                       Text(

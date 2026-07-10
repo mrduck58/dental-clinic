@@ -22,7 +22,9 @@ import {
   getMedicinesApi,
   deleteTreatmentPlanApi,
   getTreatmentCourseApi,
+  getPatientAiSummaryApi,
   type ExaminationDto,
+  type PatientHistorySummaryDto,
   type DiagnosisDto,
   type TreatmentPlanDto,
   type PrescriptionDto,
@@ -103,6 +105,24 @@ export default function PatientDetailPage() {
   // Follow-ups from API
   const [followUps, setFollowUps] = useState<FollowUpAppointmentDto[]>([]);
   
+  // Tóm tắt hồ sơ bằng AI — tạo theo yêu cầu (không tự động gọi khi vào trang)
+  const [aiSummary, setAiSummary] = useState<PatientHistorySummaryDto | null>(null);
+  const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
+  const [aiSummaryError, setAiSummaryError] = useState<string | null>(null);
+
+  const loadAiSummary = useCallback(async () => {
+    setAiSummaryLoading(true);
+    setAiSummaryError(null);
+    try {
+      const data = await getPatientAiSummaryApi(id);
+      setAiSummary(data);
+    } catch (err) {
+      setAiSummaryError(err instanceof Error ? err.message : "Không thể tạo tóm tắt AI");
+    } finally {
+      setAiSummaryLoading(false);
+    }
+  }, [id]);
+
   // Toast notification
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
 
@@ -707,6 +727,60 @@ return (
                       <span className="text-[12.5px] font-semibold text-slate-700 leading-snug">{examination.symptoms ?? "Không có"}</span>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              {/* Tóm tắt AI cho bác sĩ */}
+              <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
+                <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                    </svg>
+                    <span className="text-[13px] font-black text-slate-900">Tóm tắt AI cho bác sĩ</span>
+                  </div>
+                  {!aiSummary && (
+                    <button
+                      onClick={() => void loadAiSummary()}
+                      disabled={aiSummaryLoading}
+                      className="px-3 py-1.5 rounded-lg bg-primary text-white text-[11.5px] font-bold hover:opacity-90 disabled:opacity-50 transition-all cursor-pointer"
+                    >
+                      {aiSummaryLoading ? "Đang tạo..." : "Tạo tóm tắt"}
+                    </button>
+                  )}
+                </div>
+                <div className="px-5 py-4">
+                  {aiSummaryLoading && (
+                    <div className="flex items-center justify-center py-6">
+                      <div className="w-5 h-5 border-2 border-slate-200 border-t-primary rounded-full animate-spin" />
+                    </div>
+                  )}
+                  {!aiSummaryLoading && aiSummaryError && (
+                    <div className="flex flex-col gap-2">
+                      <span className="text-[12.5px] font-semibold text-red-600">{aiSummaryError}</span>
+                      <button
+                        onClick={() => void loadAiSummary()}
+                        className="self-start text-[12px] font-bold text-primary hover:underline cursor-pointer"
+                      >
+                        Thử lại
+                      </button>
+                    </div>
+                  )}
+                  {!aiSummaryLoading && !aiSummaryError && !aiSummary && (
+                    <span className="text-[12.5px] text-slate-400">
+                      Tổng hợp nhanh lịch sử khám trước đây của bệnh nhân để hỗ trợ bác sĩ.
+                    </span>
+                  )}
+                  {!aiSummaryLoading && aiSummary && (
+                    <div className="flex flex-col gap-3">
+                      <p className="text-[12.5px] font-semibold text-slate-700 leading-relaxed whitespace-pre-wrap">
+                        {aiSummary.summary}
+                      </p>
+                      <div className="px-3 py-2 rounded-lg bg-amber-50 border border-amber-200">
+                        <span className="text-[11px] font-semibold text-amber-700 leading-snug">{aiSummary.disclaimer}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </aside>

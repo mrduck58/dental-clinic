@@ -1,9 +1,18 @@
+import 'dart:async';
+
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
+import 'package:mobile_app/core/network/api_client.dart';
+import 'package:mobile_app/features/booking/data/booking_models.dart';
+import 'package:mobile_app/features/booking/data/booking_service.dart';
+import 'package:mobile_app/features/home/data/chat_service.dart';
+import 'package:mobile_app/features/home/data/models/chat_models.dart';
+import 'package:mobile_app/features/home/data/models/service_model.dart';
 
 class ChatMessage {
   final String text;
@@ -22,9 +31,8 @@ class ChatMessage {
 class ChatSession {
   final String id;
   final String title;
-  final List<ChatMessage> messages;
 
-  ChatSession({required this.id, required this.title, required this.messages});
+  ChatSession({required this.id, required this.title});
 }
 
 class ChatbotPage extends StatefulWidget {
@@ -37,41 +45,49 @@ class ChatbotPage extends StatefulWidget {
 class _ChatbotPageState extends State<ChatbotPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final TextEditingController _messageCtrl = TextEditingController();
+  final ChatService _chatService = ChatService();
   final List<ChatMessage> _messages = [];
   bool _isTyping = false;
+  bool _isLoadingHistory = false;
+  String? _conversationId;
 
-  late List<ChatSession> _historySessions;
+  List<ChatSession> _historySessions = [];
 
   @override
   void initState() {
     super.initState();
-    _historySessions = [
-      ChatSession(
-        id: 's1',
-        title: 'Tư vấn sâu răng (24/06/2026)',
-        messages: [
-          ChatMessage(text: 'Chào bạn, tôi bị đau nhức răng hàm dưới.', isUser: true, timestamp: DateTime.now().subtract(const Duration(days: 3))),
-          ChatMessage(text: 'Chào bạn! Đau nhức răng hàm dưới có thể do sâu răng tiến triển hoặc viêm nướu quanh răng khôn. Bạn nên chườm lạnh giảm sưng và súc miệng nước muối ấm. Hãy đặt lịch hẹn để bác sĩ chụp X-quang khám chi tiết nhé.', isUser: false, timestamp: DateTime.now().subtract(const Duration(days: 3))),
-        ],
-      ),
-      ChatSession(
-        id: 's2',
-        title: 'Chăm sóc răng sứ (18/06/2026)',
-        messages: [
-          ChatMessage(text: 'Răng sứ sau khi bọc cần kiêng ăn đồ quá cứng đúng không?', isUser: true, timestamp: DateTime.now().subtract(const Duration(days: 9))),
-          ChatMessage(text: 'Hoàn toàn chính xác! Tránh cắn đồ ăn quá dai cứng như xương, sụn, đá lạnh để bảo vệ lớp sứ không sứt mẻ. Chải răng nhẹ nhàng bằng bàn chải lông mềm ít nhất 2 lần/ngày nhé.', isUser: false, timestamp: DateTime.now().subtract(const Duration(days: 9))),
-        ],
-      ),
-    ];
+    _addWelcomeMessage();
+    _loadHistorySessions();
+  }
 
-    // Welcome Message
+  void _addWelcomeMessage() {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     _messages.add(
       ChatMessage(
-        text: 'Hello! I am your Dental AI Assistant. How can I help you today?',
+        text: isVi
+            ? 'Xin chào! Tôi là trợ lý AI của phòng khám. Tôi có thể giúp gì cho bạn?'
+            : 'Hello! I am your Dental AI Assistant. How can I help you today?',
         isUser: false,
         timestamp: DateTime.now(),
       ),
     );
+  }
+
+  Future<void> _loadHistorySessions() async {
+    setState(() => _isLoadingHistory = true);
+    try {
+      final conversations = await _chatService.listConversations();
+      if (!mounted) return;
+      setState(() {
+        _historySessions = conversations
+            .map((c) => ChatSession(id: c.id, title: c.preview))
+            .toList();
+      });
+    } catch (_) {
+      // Không tải được lịch sử — bỏ qua lặng lẽ, không chặn việc dùng chatbot.
+    } finally {
+      if (mounted) setState(() => _isLoadingHistory = false);
+    }
   }
 
   @override
@@ -80,8 +96,9 @@ class _ChatbotPageState extends State<ChatbotPage> {
     super.dispose();
   }
 
-  void _sendMessage(String text) {
-    if (text.trim().isEmpty) return;
+  Future<void> _sendMessage(String text) async {
+    if (text.trim().isEmpty || _isTyping) return;
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
 
     setState(() {
       _messages.add(ChatMessage(text: text, isUser: true, timestamp: DateTime.now()));
@@ -89,56 +106,119 @@ class _ChatbotPageState extends State<ChatbotPage> {
     });
     _messageCtrl.clear();
 
-    // Trigger AI response simulation
-    Future.delayed(const Duration(seconds: 1, milliseconds: 200), () {
+    try {
+      _conversationId ??= await _chatService.startConversation();
+      final result = await _chatService.sendMessage(_conversationId!, text);
+
       if (!mounted) return;
       setState(() {
-        _isTyping = false;
-        _messages.add(_getAIResponse(text));
+        _messages.add(ChatMessage(
+          text: result.reply,
+          isUser: false,
+          timestamp: DateTime.now(),
+          customWidget: result.suggestBooking
+              ? _buildUrgentBookingCard(isVi, result.bookingHint)
+              : null,
+        ));
       });
-    });
-  }
-
-  ChatMessage _getAIResponse(String userInput) {
-    final lowerInput = userInput.toLowerCase();
-    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
-
-    if (lowerInput.contains('đau nhói') || lowerInput.contains('severe pain') || lowerInput.contains('đau nhức')) {
-      return ChatMessage(
-        text: isVi 
-            ? 'Cảnh báo: Cơn đau nhói dữ dội có thể là dấu hiệu viêm tủy cấp tính. Vui lòng đặt khám khẩn cấp để điều trị tủy kịp thời.'
-            : 'Warning: Severe throbbing pain may indicate acute pulpitis. Please book an urgent checkup for root canal therapy.',
-        isUser: false,
-        timestamp: DateTime.now(),
-        customWidget: _buildUrgentBookingCard(isVi),
-      );
-    } else if (lowerInput.contains('ê buốt') || lowerInput.contains('sensitivity') || lowerInput.contains('sensitive')) {
-      return ChatMessage(
-        text: isVi
-            ? 'Ê buốt răng thường do mòn men răng hoặc tụt nướu. Bạn nên sử dụng kem đánh răng cho răng nhạy cảm và tránh thức uống lạnh.'
-            : 'Tooth sensitivity is often caused by enamel wear or receding gums. Consider using desensitizing toothpaste and avoid cold drinks.',
-        isUser: false,
-        timestamp: DateTime.now(),
-      );
-    } else if (lowerInput.contains('đặt lịch') || lowerInput.contains('booking') || lowerInput.contains('appointment')) {
-      return ChatMessage(
-        text: isVi ? 'Bạn có muốn đặt lịch hẹn ngay bây giờ?' : 'Would you like to book an appointment now?',
-        isUser: false,
-        timestamp: DateTime.now(),
-        customWidget: _buildUrgentBookingCard(isVi),
-      );
-    } else {
-      return ChatMessage(
-        text: isVi
-            ? 'Cảm ơn thông tin từ bạn. Để được chẩn đoán chính xác nhất, bạn nên sắp xếp một buổi khám lâm sàng với bác sĩ tại phòng khám.'
-            : 'Thank you for the info. For a precise diagnosis, it is highly recommended to schedule a clinical exam with our dentists.',
-        isUser: false,
-        timestamp: DateTime.now(),
-      );
+      unawaited(_loadHistorySessions());
+    } catch (e) {
+      if (!mounted) return;
+      final errorText = e is DioException
+          ? ApiClient.errorMessage(e)
+          : (isVi ? 'Đã xảy ra lỗi. Vui lòng thử lại.' : 'Something went wrong. Please try again.');
+      setState(() {
+        _messages.add(ChatMessage(text: errorText, isUser: false, timestamp: DateTime.now()));
+      });
+    } finally {
+      if (mounted) setState(() => _isTyping = false);
     }
   }
 
-  Widget _buildUrgentBookingCard(bool isVi) {
+  /// Điền sẵn màn hình đặt lịch từ những gì AI đã trích xuất được trong hội thoại
+  /// (dịch vụ, ngày mong muốn, triệu chứng) thay vì mở một form trống — bệnh nhân vẫn
+  /// tự chọn hồ sơ và xác nhận khung giờ với bác sĩ như bình thường.
+  Future<void> _startBookingFromHint(ChatBookingHint hint) async {
+    ServiceInfo? service;
+    if (hint.serviceId != null) {
+      try {
+        final services = await BookingService().getActiveServices();
+        ServiceModel? match;
+        for (final s in services) {
+          if (s.id == hint.serviceId) {
+            match = s;
+            break;
+          }
+        }
+        if (match != null) {
+          service = ServiceInfo(
+            id: match.id,
+            name: match.name,
+            description: match.description,
+            price: match.formattedPrice,
+          );
+        }
+      } catch (_) {
+        // Không lấy được thông tin dịch vụ — vẫn tiếp tục, người dùng tự chọn ở bước sau.
+      }
+    }
+
+    DoctorInfo? doctor;
+    TimeSlot? timeSlot;
+    if (hint.dentistId != null && hint.preferredDate != null) {
+      try {
+        final doctors = await BookingService().getDoctorsWithSlots(hint.preferredDate!);
+        ApiDoctorWithSlots? matchedDoctor;
+        for (final d in doctors) {
+          if (d.dentistId == hint.dentistId) {
+            matchedDoctor = d;
+            break;
+          }
+        }
+        if (matchedDoctor != null) {
+          final now = DateTime.now();
+          final isToday = hint.preferredDate!.year == now.year &&
+              hint.preferredDate!.month == now.month &&
+              hint.preferredDate!.day == now.day;
+          for (final slot in matchedDoctor.slots) {
+            if (slot.isBooked) continue;
+            if (isToday && _isSlotInPast(slot.range, now)) continue;
+            doctor = matchedDoctor.toDoctorInfo();
+            timeSlot = slot.toTimeSlot();
+            break;
+          }
+        }
+      } catch (_) {
+        // Không lấy được lịch trống — vẫn tiếp tục, chỉ highlight bác sĩ gợi ý ở bước sau.
+      }
+    }
+
+    final draft = BookingDraft(
+      service: service,
+      doctor: doctor,
+      date: hint.preferredDate,
+      timeSlot: timeSlot,
+      symptoms: hint.notes,
+      preferredDentistId: hint.dentistId,
+    );
+
+    if (!mounted) return;
+    context.push(AppRoutes.bookingSelectPatient, extra: draft);
+  }
+
+  /// Slot có dạng "08:00 - 08:30" — coi là đã qua giờ nếu giờ bắt đầu sớm hơn hiện tại.
+  bool _isSlotInPast(String range, DateTime now) {
+    final startPart = range.split('-').first.trim();
+    final parts = startPart.split(':');
+    if (parts.length != 2) return false;
+    final hour = int.tryParse(parts[0]);
+    final minute = int.tryParse(parts[1]);
+    if (hour == null || minute == null) return false;
+    final slotTime = DateTime(now.year, now.month, now.day, hour, minute);
+    return slotTime.isBefore(now);
+  }
+
+  Widget _buildUrgentBookingCard(bool isVi, ChatBookingHint hint) {
     return Container(
       margin: const EdgeInsets.only(top: 10),
       padding: const EdgeInsets.all(14),
@@ -179,7 +259,7 @@ class _ChatbotPageState extends State<ChatbotPage> {
             width: double.infinity,
             height: 36,
             child: ElevatedButton(
-              onPressed: () => context.push(AppRoutes.bookingSelectPatient),
+              onPressed: () => _startBookingFromHint(hint),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
@@ -196,19 +276,37 @@ class _ChatbotPageState extends State<ChatbotPage> {
     );
   }
 
-  void _loadSession(ChatSession session) {
-    setState(() {
-      _messages.clear();
-      _messages.add(
-        ChatMessage(
-          text: 'Hello! I am your Dental AI Assistant. How can I help you today?',
-          isUser: false,
-          timestamp: DateTime.now(),
-        ),
-      );
-      _messages.addAll(session.messages);
-    });
+  Future<void> _loadSession(ChatSession session) async {
     Navigator.pop(context); // Close Drawer
+    try {
+      final messages = await _chatService.getConversation(session.id);
+      if (!mounted) return;
+      setState(() {
+        _conversationId = session.id;
+        _messages.clear();
+        _addWelcomeMessage();
+        _messages.addAll(messages.map((m) => ChatMessage(
+              text: m.content,
+              isUser: m.isUser,
+              timestamp: m.createdAt,
+            )));
+      });
+    } catch (_) {
+      if (!mounted) return;
+      final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(isVi ? 'Không tải được cuộc trò chuyện này.' : 'Could not load this conversation.'),
+      ));
+    }
+  }
+
+  void _startNewConversation() {
+    Navigator.pop(context); // Close Drawer
+    setState(() {
+      _conversationId = null;
+      _messages.clear();
+      _addWelcomeMessage();
+    });
   }
 
   @override
@@ -319,26 +417,48 @@ class _ChatbotPageState extends State<ChatbotPage> {
               ),
             ),
             const Divider(height: 1),
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                itemCount: _historySessions.length,
-                itemBuilder: (context, i) {
-                  final session = _historySessions[i];
-                  return ListTile(
-                    leading: const Icon(Iconsax.message, size: 20),
-                    title: Text(
-                      session.title,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: context.textPrimary,
-                      ),
-                    ),
-                    onTap: () => _loadSession(session),
-                  );
-                },
+            ListTile(
+              leading: const Icon(Icons.add_circle_outline_rounded, color: AppColors.primary, size: 22),
+              title: Text(
+                isVi ? 'Cuộc trò chuyện mới' : 'New conversation',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primary,
+                ),
               ),
+              onTap: _startNewConversation,
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: _isLoadingHistory
+                  ? const Center(child: CircularProgressIndicator())
+                  : _historySessions.isEmpty
+                      ? Center(
+                          child: Text(
+                            isVi ? 'Chưa có cuộc trò chuyện nào.' : 'No conversations yet.',
+                            style: TextStyle(color: context.textSecondary, fontSize: 13),
+                          ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          itemCount: _historySessions.length,
+                          itemBuilder: (context, i) {
+                            final session = _historySessions[i];
+                            return ListTile(
+                              leading: const Icon(Iconsax.message, size: 20),
+                              title: Text(
+                                session.title,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: context.textPrimary,
+                                ),
+                              ),
+                              onTap: () => _loadSession(session),
+                            );
+                          },
+                        ),
             ),
           ],
         ),

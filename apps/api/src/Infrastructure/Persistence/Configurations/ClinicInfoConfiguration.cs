@@ -16,6 +16,7 @@ public class ClinicInfoConfiguration : IEntityTypeConfiguration<ClinicInfo>
         builder.Property(c => c.Phone).IsRequired().HasMaxLength(100);
         builder.Property(c => c.Email).IsRequired().HasMaxLength(255);
         builder.Property(c => c.Address).IsRequired().HasMaxLength(500);
+        builder.Property(c => c.WorkingHours).IsRequired().HasMaxLength(300).HasDefaultValue("");
 
         // Các danh sách lưu nguyên văn dưới dạng JSON (cột text). Mặc định "[]".
         builder.Property(c => c.MilestonesJson).IsRequired().HasDefaultValue("[]");
@@ -37,6 +38,7 @@ public class ClinicInfoConfiguration : IEntityTypeConfiguration<ClinicInfo>
             Phone = "1900 6789 — 028 7300 1234",
             Email = "contact@songiangdental.vn",
             Address = "123 Đường Ba Tháng Hai, Quận 10, TP.HCM",
+            WorkingHours = "T2–T6: 8:00 – 20:00 • T7–CN: 8:00 – 17:00",
             MilestonesJson =
                 """[{"year":2009,"description":"Thành lập phòng khám đầu tiên tại TP.HCM"},{"year":2015,"description":"Mở rộng lên 3 cơ sở, đạt chứng nhận ISO 9001"},{"year":2019,"description":"Đối tác chính thức của Invisalign tại Việt Nam"},{"year":2023,"description":"Ra mắt ứng dụng đặt lịch trên di động"}]""",
             CertificationsJson =

@@ -1816,6 +1816,23 @@ export async function getExaminationApi(appointmentId: string): Promise<Examinat
   return res.json() as Promise<ExaminationDto>;
 }
 
+export interface PatientHistorySummaryDto {
+  summary: string;
+  disclaimer: string;
+}
+
+export async function getPatientAiSummaryApi(appointmentId: string): Promise<PatientHistorySummaryDto> {
+  const res = await fetch(`${API_URL}/api/appointments/${appointmentId}/ai-summary`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tạo tóm tắt AI");
+  }
+  return res.json() as Promise<PatientHistorySummaryDto>;
+}
+
 // Diagnosis APIs
 export interface CreateDiagnosisRequest {
   diagnosisCode: string;
