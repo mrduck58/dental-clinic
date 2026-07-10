@@ -20,7 +20,10 @@ public class AuthController(
     CreateAccountHandler createAccountHandler,
     GetAccountsHandler getAccountsHandler,
     ForgotPasswordHandler forgotPasswordHandler,
-    ResetPasswordHandler resetPasswordHandler) : ControllerBase
+    ResetPasswordHandler resetPasswordHandler,
+    GoogleLoginHandler googleLoginHandler,
+    ForgotPasswordOtpHandler forgotPasswordOtpHandler,
+    VerifyPasswordResetOtpHandler verifyPasswordResetOtpHandler) : ControllerBase
 {
     /// <summary>POST api/auth/login — Bệnh nhân đăng nhập từ app di động (role: Patient)</summary>
     [HttpPost("login")]
@@ -218,6 +221,48 @@ public class AuthController(
             cancellationToken);
 
         return Ok(new { message = "Mật khẩu đã được đặt lại thành công." });
+    }
+
+    /// <summary>POST api/auth/google-login — Đăng nhập/đăng ký bằng Google (bệnh nhân, mobile app)</summary>
+    [HttpPost("google-login")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GoogleLogin(
+        [FromBody] GoogleLoginRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await googleLoginHandler.HandleAsync(
+            new GoogleLoginCommand(request.IdToken),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    /// <summary>POST api/auth/patient/forgot-password — Gửi mã OTP quên mật khẩu về email (bệnh nhân)</summary>
+    [HttpPost("patient/forgot-password")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ForgotPasswordOtp(
+        [FromBody] ForgotPasswordOtpRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        await forgotPasswordOtpHandler.HandleAsync(
+            new ForgotPasswordOtpCommand(request.Email),
+            cancellationToken);
+
+        return Ok(new { message = "Mã OTP đã được gửi đến email của bạn." });
+    }
+
+    /// <summary>POST api/auth/patient/verify-reset-otp — Xác thực OTP quên mật khẩu, cấp reset token</summary>
+    [HttpPost("patient/verify-reset-otp")]
+    [AllowAnonymous]
+    public async Task<IActionResult> VerifyResetOtp(
+        [FromBody] VerifyResetOtpRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await verifyPasswordResetOtpHandler.HandleAsync(
+            new VerifyPasswordResetOtpCommand(request.Email, request.Code),
+            cancellationToken);
+
+        return Ok(result);
     }
 
     private string? GetClientIp()

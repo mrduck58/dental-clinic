@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.DTOs.Auth;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
@@ -25,8 +26,8 @@ public class RegisterHandler(
         await userRepository.AddAsync(user, ct);
 
         // Tạo và gửi OTP
-        await otpRepository.InvalidateAllAsync(command.Email, ct);
-        var otp = OtpCode.Create(command.Email);
+        await otpRepository.InvalidateAllAsync(command.Email, OtpPurpose.Registration, ct);
+        var otp = OtpCode.Create(command.Email, OtpPurpose.Registration);
         await otpRepository.AddAsync(otp, ct);
         await emailService.SendOtpAsync(command.Email, otp.Code, ct);
 

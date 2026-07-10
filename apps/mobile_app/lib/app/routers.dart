@@ -3,9 +3,11 @@ import 'package:go_router/go_router.dart';
 import 'package:mobile_app/app/main_shell.dart';
 import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/features/auth/presentation/pages/fill_profile_page.dart';
+import 'package:mobile_app/features/auth/presentation/pages/forgot_password_page.dart';
 import 'package:mobile_app/features/auth/presentation/pages/login_page.dart';
 import 'package:mobile_app/features/auth/presentation/pages/otp_page.dart';
 import 'package:mobile_app/features/auth/presentation/pages/register_page.dart';
+import 'package:mobile_app/features/auth/presentation/pages/reset_new_password_page.dart';
 import 'package:mobile_app/features/auth/presentation/pages/splash_page.dart';
 import 'package:mobile_app/features/appointment/presentation/screens/appointment_list_screen.dart';
 import 'package:mobile_app/features/booking/data/booking_models.dart';
@@ -77,6 +79,27 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: AppRoutes.fillProfile,
       builder: (context, state) => const FillProfilePage(),
+    ),
+    GoRoute(
+      path: AppRoutes.forgotPassword,
+      builder: (context, state) => const ForgotPasswordPage(),
+    ),
+    GoRoute(
+      path: AppRoutes.resetOtp,
+      builder: (context, state) => OtpPage(
+        email: state.extra as String,
+        purpose: OtpPurpose.passwordReset,
+      ),
+    ),
+    GoRoute(
+      path: AppRoutes.resetNewPassword,
+      builder: (context, state) {
+        final args = state.extra as Map<String, dynamic>;
+        return ResetNewPasswordPage(
+          email: args['email'] as String,
+          resetToken: args['resetToken'] as String,
+        );
+      },
     ),
     // ── Shell chứa Bottom Navigation Bar cho các tab chính ────────────────
     ShellRoute(
@@ -320,6 +343,9 @@ abstract class AppRoutes {
   static const register = '/register';
   static const otp = '/otp';
   static const fillProfile = '/fill-profile';
+  static const forgotPassword = '/forgot-password';
+  static const resetOtp = '/reset-otp';
+  static const resetNewPassword = '/reset-new-password';
   static const home = '/';
   static const appointments = '/appointments';
   static const medicalRecords = '/medical-records';

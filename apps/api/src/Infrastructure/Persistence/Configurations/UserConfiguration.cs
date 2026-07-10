@@ -43,6 +43,9 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         // Password reset fields
         builder.Property(u => u.PasswordResetToken).HasMaxLength(100);
 
+        // External auth provider (null = local account)
+        builder.Property(u => u.Provider).HasMaxLength(50);
+
         builder.HasIndex(u => u.Email).IsUnique();
         builder.HasIndex(u => u.Username).IsUnique().HasFilter("\"Username\" IS NOT NULL");
     }

@@ -12,6 +12,10 @@ abstract class ApiConstants {
   static const String fillProfile = '/auth/me/profile';
   static const String changePassword = '/auth/me/change-password';
   static const String logout = '/auth/logout';
+  static const String googleLogin = '/auth/google-login';
+  static const String forgotPasswordOtp = '/auth/patient/forgot-password';
+  static const String verifyResetOtp = '/auth/patient/verify-reset-otp';
+  static const String resetPassword = '/auth/reset-password';
 
   static const String dentists = '/dentists';
   static const String dentistSlots = '/dentists/slots';
