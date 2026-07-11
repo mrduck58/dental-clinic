@@ -24,9 +24,8 @@ public class AppointmentsController(
     GetExaminationHandler getExaminationHandler,
     DiagnosisHandler diagnosisHandler,
     TreatmentPlanHandler treatmentPlanHandler,
-    TreatmentCourseHandler treatmentCourseHandler,
     PrescriptionHandler prescriptionHandler,
-    FollowUpAppointmentHandler followUpAppointmentHandler,
+    FollowUpReminderHandler followUpReminderHandler,
     GetStaffScheduleHandler staffScheduleHandler,
     CreateWalkInAppointmentHandler createWalkInHandler,
     SummarizePatientHistoryHandler summarizePatientHistoryHandler) : ControllerBase
@@ -238,42 +237,24 @@ public class AppointmentsController(
         return NoContent();
     }
 
-    #endregion
-
-    #region Treatment Course (liệu trình dài hạn)
-
-    /// <summary>GET api/appointments/{id}/treatment-course — Lấy liệu trình dài hạn gắn với buổi hẹn (nếu có).</summary>
-    [HttpGet("{id}/treatment-course")]
-    [Authorize(Roles = "Staff,Admin,Dentist")]
-    public async Task<IActionResult> GetTreatmentCourse(Guid id, CancellationToken cancellationToken)
+    /// <summary>GET api/appointments/patients/{patientId}/treatment-plans — Tất cả liệu trình của một bệnh nhân.</summary>
+    [HttpGet("patients/{patientId}/treatment-plans")]
+    [Authorize(Roles = "Staff,Admin,Dentist,Owner")]
+    public async Task<IActionResult> GetPatientTreatmentPlans(Guid patientId, CancellationToken cancellationToken)
     {
-        var result = await treatmentCourseHandler.GetByAppointmentAsync(id, cancellationToken);
-        return Ok(result); // null nếu buổi hẹn không thuộc liệu trình nào
+        var result = await treatmentPlanHandler.GetByPatientAsync(patientId, cancellationToken);
+        return Ok(result);
     }
 
-    /// <summary>POST api/appointments/{id}/treatment-course — Tạo liệu trình dài hạn (Dentist/Staff/Admin).</summary>
-    [HttpPost("{id}/treatment-course")]
+    /// <summary>POST api/appointments/treatment-plan/{treatmentPlanId}/progress — Ghi nhận bước điều trị đã thực hiện.</summary>
+    [HttpPost("treatment-plan/{treatmentPlanId}/progress")]
     [Authorize(Roles = "Staff,Admin,Dentist")]
-    public async Task<IActionResult> CreateTreatmentCourse(
-        Guid id,
-        [FromBody] CreateTreatmentCourseRequest request,
+    public async Task<IActionResult> AddTreatmentPlanProgress(
+        Guid treatmentPlanId,
+        [FromBody] AddStepProgressRequest request,
         CancellationToken cancellationToken)
     {
-        var courseRequest = request with { AppointmentId = id };
-        var result = await treatmentCourseHandler.CreateAsync(courseRequest, cancellationToken);
-        return CreatedAtAction(nameof(GetTreatmentCourse), new { id }, result);
-    }
-
-    /// <summary>PUT api/appointments/treatment-course/{courseId} — Cập nhật liệu trình (Dentist/Staff/Admin).</summary>
-    [HttpPut("treatment-course/{courseId}")]
-    [Authorize(Roles = "Staff,Admin,Dentist")]
-    public async Task<IActionResult> UpdateTreatmentCourse(
-        Guid courseId,
-        [FromBody] UpdateTreatmentCourseRequest request,
-        CancellationToken cancellationToken)
-    {
-        var updateRequest = request with { CourseId = courseId };
-        var result = await treatmentCourseHandler.UpdateAsync(updateRequest, cancellationToken);
+        var result = await treatmentPlanHandler.AddStepProgressAsync(treatmentPlanId, request, cancellationToken);
         return Ok(result);
     }
 
@@ -344,37 +325,27 @@ public class AppointmentsController(
 
     #endregion
 
-    #region Follow-up Appointment
+    #region Follow-up Reminder (nhắc tái khám)
 
-    /// <summary>POST api/appointments/{id}/follow-up — Tạo lịch tái khám (Staff/Admin/Dentist)</summary>
-    [HttpPost("{id}/follow-up")]
+    /// <summary>PUT api/appointments/{id}/follow-up-reminder — Hẹn ngày tái khám (Staff/Admin/Dentist)</summary>
+    [HttpPut("{id}/follow-up-reminder")]
     [Authorize(Roles = "Staff,Admin,Dentist")]
-    public async Task<IActionResult> CreateFollowUpAppointment(
+    public async Task<IActionResult> SetFollowUpReminder(
         Guid id,
-        [FromBody] CreateFollowUpRequest request,
+        [FromBody] SetFollowUpReminderRequest request,
         CancellationToken cancellationToken)
     {
-        var followUpRequest = request with { OriginalAppointmentId = id };
-        var result = await followUpAppointmentHandler.CreateAsync(followUpRequest, cancellationToken);
-        return CreatedAtAction(nameof(GetExamination), new { id }, result);
-    }
-
-    /// <summary>GET api/appointments/{id}/follow-ups — Lấy danh sách lịch tái khám (Staff/Admin/Dentist)</summary>
-    [HttpGet("{id}/follow-ups")]
-    [Authorize(Roles = "Staff,Admin,Dentist")]
-    public async Task<IActionResult> GetFollowUpAppointments(Guid id, CancellationToken cancellationToken)
-    {
-        var result = await followUpAppointmentHandler.GetByOriginalAppointmentAsync(id, cancellationToken);
+        var result = await followUpReminderHandler.SetAsync(id, request, cancellationToken);
         return Ok(result);
     }
 
-    /// <summary>DELETE api/appointments/follow-up/{followUpId} — Xóa lịch tái khám (Staff/Admin/Dentist)</summary>
-    [HttpDelete("follow-up/{followUpId}")]
+    /// <summary>DELETE api/appointments/{id}/follow-up-reminder — Hủy hẹn tái khám (Staff/Admin/Dentist)</summary>
+    [HttpDelete("{id}/follow-up-reminder")]
     [Authorize(Roles = "Staff,Admin,Dentist")]
-    public async Task<IActionResult> DeleteFollowUpAppointment(Guid followUpId, CancellationToken cancellationToken)
+    public async Task<IActionResult> ClearFollowUpReminder(Guid id, CancellationToken cancellationToken)
     {
-        await followUpAppointmentHandler.DeleteAsync(followUpId, cancellationToken);
-        return NoContent();
+        var result = await followUpReminderHandler.ClearAsync(id, cancellationToken);
+        return Ok(result);
     }
 
     #endregion
@@ -555,6 +526,9 @@ public class AppointmentsController(
             .OrderByDescending(a => a.AppointmentDate)
             .ToListAsync(cancellationToken);
 
+        var activeTreatmentPatientIds = await GetDentistPatientsHandler.GetActiveTreatmentPatientIdsAsync(
+            appointments.Select(a => a.PatientId).Distinct().ToList(), dbContext, cancellationToken);
+
         var patients = appointments.Select(a => new DentistPatientDto(
             a.Id,
             $"DK{a.AppointmentDate:yyyyMMdd}{a.Id.ToString("N")[..6].ToUpper()}",
@@ -566,10 +540,59 @@ public class AppointmentsController(
             a.Status.ToString(),
             a.Service?.Name,
             a.Symptoms,
-            false
+            false,
+            activeTreatmentPatientIds.Contains(a.PatientId)
         )).ToList();
 
         return Ok(patients);
+    }
+
+    /// <summary>GET api/patients/{patientId}/medical-history — Lấy lịch sử khám của bệnh nhân (Dentist/Staff/Admin)</summary>
+    [HttpGet("patients/{patientId}/medical-history")]
+    [Authorize(Roles = "Dentist,Staff,Admin,Owner")]
+    public async Task<IActionResult> GetPatientMedicalHistory(Guid patientId, CancellationToken cancellationToken)
+    {
+        var appointments = await dbContext.Appointments
+            .Include(a => a.Dentist)
+            .Include(a => a.Service)
+            .Include(a => a.Diagnoses)
+            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Service)
+            .Include(a => a.Prescriptions).ThenInclude(p => p.Items)
+            .Where(a => a.PatientId == patientId &&
+                        a.Status == AppointmentStatus.Completed)
+            .OrderByDescending(a => a.AppointmentDate)
+            .Take(50)
+            .ToListAsync(cancellationToken);
+
+        var history = appointments.Select(a => new PatientMedicalHistoryDto(
+            a.Id,
+            $"DK{a.AppointmentDate:yyyyMMdd}{a.Id.ToString("N")[..6].ToUpper()}",
+            a.AppointmentDate,
+            a.Dentist.FullName,
+            a.Service?.Name ?? "Khám tổng quát",
+            a.Symptoms,
+            a.Diagnoses.Select(d => new MedicalHistoryDiagnosisDto(
+                d.DiagnosisCode,
+                d.Description,
+                d.Conclusion,
+                d.CreatedAt
+            )).ToList(),
+            a.TreatmentPlans.Select(tp => new MedicalHistoryTreatmentPlanDto(
+                string.IsNullOrWhiteSpace(tp.Teeth) ? tp.Service.Name : $"{tp.Service.Name} - Răng {tp.Teeth}",
+                tp.Status.ToString(),
+                tp.TotalCost
+            )).ToList(),
+            a.Prescriptions.FirstOrDefault() != null
+                ? a.Prescriptions.First().Items.Select(i => new MedicalHistoryPrescriptionItemDto(
+                    i.MedicineName,
+                    i.Dosage,
+                    i.Quantity,
+                    i.Unit
+                )).ToList()
+                : new List<MedicalHistoryPrescriptionItemDto>()
+        )).ToList();
+
+        return Ok(history);
     }
 
     private static int CalculateAge(DateOnly? dateOfBirth)
@@ -611,3 +634,32 @@ public record CreateWalkInRequest(
     Guid? PatientId = null);
 
 public record CancelAppointmentRequest(string? Reason);
+
+// DTOs for patient medical history
+public record PatientMedicalHistoryDto(
+    Guid AppointmentId,
+    string AppointmentCode,
+    DateTimeOffset AppointmentDate,
+    string DentistName,
+    string ServiceName,
+    string? Symptoms,
+    List<MedicalHistoryDiagnosisDto> Diagnoses,
+    List<MedicalHistoryTreatmentPlanDto> TreatmentPlans,
+    List<MedicalHistoryPrescriptionItemDto> PrescriptionItems);
+
+public record MedicalHistoryDiagnosisDto(
+    string DiagnosisCode,
+    string Description,
+    string? Conclusion,
+    DateTimeOffset CreatedAt);
+
+public record MedicalHistoryTreatmentPlanDto(
+    string Description,
+    string Status,
+    decimal? EstimatedCost);
+
+public record MedicalHistoryPrescriptionItemDto(
+    string MedicineName,
+    string Dosage,
+    int Quantity,
+    string Unit);

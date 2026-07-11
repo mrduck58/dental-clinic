@@ -10,7 +10,7 @@ import {
   getPendingInvoicesApi,
   getInvoiceHistoryApi,
   getOutstandingInvoicesApi,
-  getOutstandingCoursesApi,
+  getOutstandingPlansApi,
   issueInvoiceApi,
   confirmInvoicePaymentApi,
   collectRemainingInvoiceApi,
@@ -18,7 +18,7 @@ import {
   getPaymentStatusApi,
   type BillablePlanDto,
   type InvoiceDto,
-  type OutstandingCourseDto,
+  type OutstandingPlanDto,
   type PaymentTransactionDto,
 } from "../../../lib/apiClient";
 
@@ -33,12 +33,12 @@ interface TreatmentPlan {
   // Khi mục này là "thu phần còn lại" của một hóa đơn đặt cọc
   outstandingInvoiceId?: string | null;
   sourceInvoiceNumber?: string | null;
-  // Khi mục này là một đợt thu của liệu trình dài hạn
-  courseId?: string | null;
-  courseName?: string | null;
-  courseTotal?: number;
-  courseAmountPaid?: number;
-  courseRemaining?: number;
+  // Khi mục này là một đợt thu của liệu trình điều trị
+  treatmentPlanId?: string | null;
+  planName?: string | null;
+  planTotal?: number;
+  planAmountPaid?: number;
+  planRemaining?: number;
 }
 
 type PayMethod = "cash" | "transfer" | "app";
@@ -58,7 +58,7 @@ interface Invoice {
   parentInvoiceId?: string | null;
   isSettled?: boolean;
   collectingRemaining?: boolean;
-  courseId?: string | null;
+  treatmentPlanId?: string | null;
 }
 
 /* ─── API ↔ UI mappers ──────────────────────────────────── */
@@ -83,11 +83,11 @@ function mapPlan(b: BillablePlanDto): TreatmentPlan {
     procedures: b.items.map(i => ({ name: i.name, qty: i.quantity, price: i.unitPrice })),
     outstandingInvoiceId: b.outstandingInvoiceId,
     sourceInvoiceNumber: b.sourceInvoiceNumber,
-    courseId: b.courseId,
-    courseName: b.courseName,
-    courseTotal: b.courseTotal,
-    courseAmountPaid: b.courseAmountPaid,
-    courseRemaining: b.courseRemaining,
+    treatmentPlanId: b.treatmentPlanId,
+    planName: b.planName,
+    planTotal: b.planTotal,
+    planAmountPaid: b.planAmountPaid,
+    planRemaining: b.planRemaining,
   };
 }
 
@@ -169,7 +169,7 @@ function PlansTab({ plans, onIssued }: {
   const [note,     setNote]     = useState("");
   const [payType,  setPayType]  = useState<PayType>("full");
   const [deposit,  setDeposit]  = useState(0);
-  const [courseAmount, setCourseAmount] = useState(0);
+  const [installAmount, setInstallAmount] = useState(0);
   const [method,   setMethod]   = useState<PayMethod | null>(null);
   const [saved,    setSaved]    = useState(false);
 
@@ -177,7 +177,7 @@ function PlansTab({ plans, onIssued }: {
     setSelected(p);
     setItems(p.procedures.map(pr => ({ ...pr })));
     setDiscount(0); setNote(""); setPayType("full"); setDeposit(0);
-    setCourseAmount(p.courseRemaining ?? 0); setMethod(null); setSaved(false);
+    setInstallAmount(p.planRemaining ?? 0); setMethod(null); setSaved(false);
   };
 
   const updateQty = (i: number, qty: number) =>
@@ -188,9 +188,9 @@ function PlansTab({ plans, onIssued }: {
 
   // Mục "thu phần còn lại" của hóa đơn đặt cọc → chỉ thanh toán toàn bộ phần còn lại.
   const isRemaining = !!selected?.outstandingInvoiceId;
-  // Mục "đợt thu" của liệu trình dài hạn → nhập số tiền đợt này.
-  const isCourse = !!selected?.courseId;
-  const courseRemaining = selected?.courseRemaining ?? 0;
+  // Mục "đợt thu" của liệu trình điều trị → nhập số tiền đợt này.
+  const isInstallment = !!selected?.treatmentPlanId;
+  const planRemaining = selected?.planRemaining ?? 0;
 
   const subtotal   = sum(items);
   const finalTotal = Math.max(0, subtotal - discount);
@@ -199,13 +199,13 @@ function PlansTab({ plans, onIssued }: {
   const effType    = isRemaining ? "full" : payType;
   const payAmount  = effType === "deposit" ? deposit : finalTotal;
   const depositOk  = effType === "full" || (deposit > 0 && deposit <= finalTotal);
-  const courseOk   = !isCourse || (courseAmount > 0 && courseAmount <= courseRemaining);
+  const installOk  = !isInstallment || (installAmount > 0 && installAmount <= planRemaining);
 
   const [issuing, setIssuing] = useState(false);
 
   const handleIssue = async () => {
-    if (!selected || !method || !depositOk || !courseOk) return;
-    const inv: Invoice = isCourse
+    if (!selected || !method || !depositOk || !installOk) return;
+    const inv: Invoice = isInstallment
       ? {
           id: selected.id,
           planId: selected.id,
@@ -214,15 +214,15 @@ function PlansTab({ plans, onIssued }: {
           gender: selected.gender,
           dentist: selected.dentist,
           date: selected.date,
-          items: [{ name: `Đợt thu - ${selected.courseName}`, qty: 1, price: courseAmount }],
-          subtotal: courseAmount, discount: 0, finalTotal: courseAmount,
+          items: [{ name: `Đợt thu - ${selected.planName}`, qty: 1, price: installAmount }],
+          subtotal: installAmount, discount: 0, finalTotal: installAmount,
           paymentType: "full",
-          depositAmount: courseAmount,
-          remaining: Math.max(0, courseRemaining - courseAmount),
+          depositAmount: installAmount,
+          remaining: Math.max(0, planRemaining - installAmount),
           paymentMethod: method,
           status: "pending",
           note,
-          courseId: selected.courseId,
+          treatmentPlanId: selected.treatmentPlanId,
         }
       : {
           id: selected.id,        // transient; planId carries the appointmentId
@@ -291,14 +291,14 @@ function PlansTab({ plans, onIssued }: {
                       Thu phần còn lại · {p.sourceInvoiceNumber}
                     </span>
                   )}
-                  {p.courseId && (
+                  {p.treatmentPlanId && (
                     <span className="self-start text-[10.5px] font-black px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-700 uppercase tracking-wide">
                       Đợt thu liệu trình
                     </span>
                   )}
                   <div className="flex items-center justify-between">
-                    <span className="text-[11.5px] font-semibold text-slate-400">{p.courseId ? "Liệu trình dài hạn" : p.outstandingInvoiceId ? "Phần còn lại" : `${p.procedures.length} dịch vụ`}</span>
-                    <span className="text-[13px] font-black text-slate-700">{fmt(p.courseId ? (p.courseRemaining ?? 0) : sum(p.procedures))}</span>
+                    <span className="text-[11.5px] font-semibold text-slate-400">{p.treatmentPlanId ? "Liệu trình điều trị" : p.outstandingInvoiceId ? "Phần còn lại" : `${p.procedures.length} dịch vụ`}</span>
+                    <span className="text-[13px] font-black text-slate-700">{fmt(p.treatmentPlanId ? (p.planRemaining ?? 0) : sum(p.procedures))}</span>
                   </div>
                 </div>
               </button>
@@ -358,14 +358,14 @@ function PlansTab({ plans, onIssued }: {
                 </div>
               </div>
 
-              {/* Course installment — đợt thu liệu trình dài hạn */}
-              {isCourse && (
+              {/* Plan installment — đợt thu liệu trình điều trị */}
+              {isInstallment && (
                 <div className="flex flex-col gap-4">
                   <div className="grid grid-cols-3 gap-3">
                     {[
-                      { label: "Tổng chi phí", value: selected.courseTotal ?? 0, cls: "text-slate-900" },
-                      { label: "Đã thu", value: selected.courseAmountPaid ?? 0, cls: "text-emerald-600" },
-                      { label: "Còn lại", value: courseRemaining, cls: "text-orange-600" },
+                      { label: "Tổng chi phí", value: selected.planTotal ?? 0, cls: "text-slate-900" },
+                      { label: "Đã thu", value: selected.planAmountPaid ?? 0, cls: "text-emerald-600" },
+                      { label: "Còn lại", value: planRemaining, cls: "text-orange-600" },
                     ].map(s => (
                       <div key={s.label} className="bg-slate-50 border border-slate-100 rounded-xl px-4 py-3">
                         <div className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">{s.label}</div>
@@ -375,17 +375,17 @@ function PlansTab({ plans, onIssued }: {
                   </div>
                   <div className="flex flex-col gap-1.5 w-64">
                     <label className={labelCls}>Số tiền thu đợt này (₫)</label>
-                    <input type="text" inputMode="numeric" value={fmtMoneyInput(courseAmount)}
-                      onChange={e => setCourseAmount(parseMoneyInput(e.target.value))}
+                    <input type="text" inputMode="numeric" value={fmtMoneyInput(installAmount)}
+                      onChange={e => setInstallAmount(parseMoneyInput(e.target.value))}
                       placeholder="0" className={inputCls} />
-                    {courseAmount > courseRemaining && (
+                    {installAmount > planRemaining && (
                       <p className="text-[12px] font-bold text-red-600">Số tiền vượt quá công nợ còn lại.</p>
                     )}
                   </div>
                 </div>
               )}
 
-              {!isCourse && (<>
+              {!isInstallment && (<>
               {/* Items table */}
               <div className="flex flex-col gap-2">
                 <span className={labelCls}>Dịch vụ & thủ thuật</span>
@@ -454,7 +454,7 @@ function PlansTab({ plans, onIssued }: {
               </>)}
 
               {/* Payment type (ẩn khi thu phần còn lại / đợt thu liệu trình) */}
-              {!isRemaining && !isCourse && (
+              {!isRemaining && !isInstallment && (
               <div className="flex flex-col gap-3">
                 <span className={labelCls}>Loại thanh toán</span>
                 <div className="grid grid-cols-2 gap-3">
@@ -554,7 +554,7 @@ function PlansTab({ plans, onIssued }: {
 
               {/* Submit */}
               <div className="flex items-center gap-4 pt-1 border-t border-slate-100">
-                <button onClick={handleIssue} disabled={!method || (!isCourse && items.length === 0) || !depositOk || !courseOk || issuing}
+                <button onClick={handleIssue} disabled={!method || (!isInstallment && items.length === 0) || !depositOk || !installOk || issuing}
                   className="flex items-center gap-2 px-7 py-3 bg-primary hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-[14px] font-black cursor-pointer transition-all shadow-sm shadow-primary/20">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m.75 12l3 3m0 0l3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
                   {issuing ? "Đang xuất..." : "Xuất hóa đơn"}
@@ -881,10 +881,10 @@ function HistoryTab({ paid }: { paid: Invoice[] }) {
 
 /* ─── Tab 4: Outstanding (công nợ) ───────────────────────── */
 
-function OutstandingTab({ invoices, courses, onCollect }: { invoices: Invoice[]; courses: OutstandingCourseDto[]; onCollect: (id: string) => void }) {
-  const totalRemaining = invoices.reduce((s, i) => s + i.remaining, 0) + courses.reduce((s, c) => s + c.remainingAmount, 0);
-  const totalCollected = invoices.reduce((s, i) => s + i.depositAmount, 0) + courses.reduce((s, c) => s + c.amountPaid, 0);
-  const totalCount = invoices.length + courses.length;
+function OutstandingTab({ invoices, plans, onCollect }: { invoices: Invoice[]; plans: OutstandingPlanDto[]; onCollect: (id: string) => void }) {
+  const totalRemaining = invoices.reduce((s, i) => s + i.remaining, 0) + plans.reduce((s, p) => s + p.remainingAmount, 0);
+  const totalCollected = invoices.reduce((s, i) => s + i.depositAmount, 0) + plans.reduce((s, p) => s + p.amountPaid, 0);
+  const totalCount = invoices.length + plans.length;
 
   if (totalCount === 0) {
     return (
@@ -976,9 +976,9 @@ function OutstandingTab({ invoices, courses, onCollect }: { invoices: Invoice[];
       </div>
       </>)}
 
-      {/* Long-term course debts */}
-      {courses.length > 0 && (<>
-      <span className={labelCls}>Liệu trình dài hạn còn nợ</span>
+      {/* Treatment plan debts */}
+      {plans.length > 0 && (<>
+      <span className={labelCls}>Liệu trình điều trị còn nợ</span>
       <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm overflow-hidden">
         <table className="w-full text-[13px]">
           <thead>
@@ -989,19 +989,19 @@ function OutstandingTab({ invoices, courses, onCollect }: { invoices: Invoice[];
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {courses.map(c => (
-              <tr key={c.courseId} className="hover:bg-slate-50/50 transition-colors">
-                <td className="px-5 py-3.5 font-black text-slate-900">{c.courseName}</td>
+            {plans.map(p => (
+              <tr key={p.treatmentPlanId} className="hover:bg-slate-50/50 transition-colors">
+                <td className="px-5 py-3.5 font-black text-slate-900">{p.planName}</td>
                 <td className="px-5 py-3.5">
-                  <div className="font-black text-slate-900">{c.patientName}</div>
-                  <div className="font-mono text-slate-400 text-[11.5px]">{c.patientPhone ?? "—"}</div>
+                  <div className="font-black text-slate-900">{p.patientName}</div>
+                  <div className="font-mono text-slate-400 text-[11.5px]">{p.patientPhone ?? "—"}</div>
                 </td>
                 <td className="px-5 py-3.5">
-                  <span className={`text-[11.5px] font-black px-2 py-0.5 rounded-lg border ${DENTIST_COLOR[c.dentistName] ?? "bg-slate-50 text-slate-600 border-slate-200"}`}>{c.dentistName}</span>
+                  <span className={`text-[11.5px] font-black px-2 py-0.5 rounded-lg border ${DENTIST_COLOR[p.dentistName] ?? "bg-slate-50 text-slate-600 border-slate-200"}`}>{p.dentistName}</span>
                 </td>
-                <td className="px-5 py-3.5 font-mono font-semibold text-slate-600">{fmt(c.totalCost)}</td>
-                <td className="px-5 py-3.5 font-mono font-semibold text-emerald-600">{fmt(c.amountPaid)}</td>
-                <td className="px-5 py-3.5 font-mono font-black text-orange-600">{fmt(c.remainingAmount)}</td>
+                <td className="px-5 py-3.5 font-mono font-semibold text-slate-600">{fmt(p.totalCost)}</td>
+                <td className="px-5 py-3.5 font-mono font-semibold text-emerald-600">{fmt(p.amountPaid)}</td>
+                <td className="px-5 py-3.5 font-mono font-black text-orange-600">{fmt(p.remainingAmount)}</td>
                 <td className="px-5 py-3.5">
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11.5px] font-black border bg-indigo-50 border-indigo-200 text-indigo-700">Đang điều trị</span>
                 </td>
@@ -1028,7 +1028,7 @@ export default function InvoicesPage() {
   const [pending, setPending] = useState<Invoice[]>([]);
   const [paid,    setPaid]    = useState<Invoice[]>([]);
   const [outstanding, setOutstanding] = useState<Invoice[]>([]);
-  const [outstandingCourses, setOutstandingCourses] = useState<OutstandingCourseDto[]>([]);
+  const [outstandingPlans, setOutstandingPlans] = useState<OutstandingPlanDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState<string | null>(null);
 
@@ -1043,18 +1043,18 @@ export default function InvoicesPage() {
   const fPaid    = byDate(paid);
 
   const reload = useCallback(async () => {
-    const [billable, pendingInv, history, outstandingInv, outstandingCrs] = await Promise.all([
+    const [billable, pendingInv, history, outstandingInv, outstandingPls] = await Promise.all([
       getBillablePlansApi(),
       getPendingInvoicesApi(),
       getInvoiceHistoryApi(),
       getOutstandingInvoicesApi(),
-      getOutstandingCoursesApi(),
+      getOutstandingPlansApi(),
     ]);
     setPlans(billable.map(mapPlan));
     setPending(pendingInv.map(mapInvoice));
     setPaid(history.map(mapInvoice));
     setOutstanding(outstandingInv.map(mapInvoice));
-    setOutstandingCourses(outstandingCrs);
+    setOutstandingPlans(outstandingPls);
   }, []);
 
   useEffect(() => {
@@ -1075,7 +1075,7 @@ export default function InvoicesPage() {
         depositAmount: inv.depositAmount,
         notes: inv.note || undefined,
         parentInvoiceId: inv.parentInvoiceId ?? undefined,
-        courseId: inv.courseId ?? undefined,
+        treatmentPlanId: inv.treatmentPlanId ?? undefined,
       });
       await reload();
       setTimeout(() => setTab("pending"), 2200);
@@ -1173,7 +1173,7 @@ export default function InvoicesPage() {
             {([
               { key: "plans",       label: "Liệu trình → Hóa đơn", count: fPlans.length,      dot: fPlans.length > 0 },
               { key: "pending",     label: "Chờ thanh toán",         count: fPending.length,    dot: fPending.some(i => i.status === "awaiting_payment") },
-              { key: "outstanding", label: "Công nợ",                count: outstanding.length + outstandingCourses.length, dot: (outstanding.length + outstandingCourses.length) > 0 },
+              { key: "outstanding", label: "Công nợ",                count: outstanding.length + outstandingPlans.length, dot: (outstanding.length + outstandingPlans.length) > 0 },
               { key: "history",     label: "Lịch sử hóa đơn",        count: fPaid.length,       dot: false },
             ] as const).map(t => (
               <button key={t.key} onClick={() => setTab(t.key)}
@@ -1209,7 +1209,7 @@ export default function InvoicesPage() {
             <>
               {tab === "plans"       && <PlansTab       plans={fPlans}        onIssued={handleIssued} />}
               {tab === "pending"     && <PendingTab     invoices={fPending}    onPaid={handlePaid}    onAutoConfirmed={reload} />}
-              {tab === "outstanding" && <OutstandingTab invoices={outstanding} courses={outstandingCourses} onCollect={handleCollectRemaining} />}
+              {tab === "outstanding" && <OutstandingTab invoices={outstanding} plans={outstandingPlans} onCollect={handleCollectRemaining} />}
               {tab === "history"     && <HistoryTab     paid={fPaid}                                  />}
             </>
           )}

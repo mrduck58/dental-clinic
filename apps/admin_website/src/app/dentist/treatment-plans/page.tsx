@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import DentistSidebar from "../../../components/shared/DentistSidebar";
 import DentistPageHeader from "../../../components/shared/DentistPageHeader";
-import PlanWorkspace from "../patients/[id]/PlanWorkspace";
+import TreatmentWorkspace from "./TreatmentWorkspace";
 import { useRequireDentist } from "../../../hooks/useRequireDentist";
 import { supabase } from "../../../lib/supabaseClient";
 import {
@@ -76,6 +76,9 @@ function PatientRow({ p, onSelect }: PatientRowProps) {
             <span className="text-[15px] font-black leading-tight text-slate-700">{p.patientName}</span>
             {p.isNew && (
               <span className="px-1.5 py-0.5 bg-violet-100 text-violet-700 text-[10px] font-black rounded-md tracking-wide">MỚI</span>
+            )}
+            {p.hasActiveTreatment && (
+              <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-black rounded-md tracking-wide">TÁI KHÁM</span>
             )}
             <span className="text-[12px] text-slate-400 font-semibold">{p.age} tuổi · {p.gender}</span>
           </div>
@@ -275,8 +278,8 @@ export default function TreatmentPlansPage() {
             )}
           </div>
         ) : (
-          /* ──────── 3-COLUMN WORKSPACE VIEW ──────── */
-          <PlanWorkspace patient={selectedPatient} onBack={() => setSelectedPatient(null)} />
+          /* ──────── WORKSPACE VIEW (1/3 thông tin + 2/3 liệu trình) ──────── */
+          <TreatmentWorkspace appointmentId={selectedPatient.appointmentId} onBack={() => setSelectedPatient(null)} />
         )}
       </main>
     </div>

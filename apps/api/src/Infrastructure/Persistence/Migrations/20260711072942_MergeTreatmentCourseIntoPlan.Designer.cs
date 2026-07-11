@@ -3,6 +3,7 @@ using System;
 using DentalClinic.API.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260711072942_MergeTreatmentCourseIntoPlan")]
+    partial class MergeTreatmentCourseIntoPlan
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -94,23 +97,14 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("AppointmentDate")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<DateTimeOffset?>("CheckedInAt")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid>("DentistId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateOnly?>("FollowUpDate")
-                        .HasColumnType("date");
-
                     b.Property<Guid?>("FollowUpFromAppointmentId")
                         .HasColumnType("uuid");
-
-                    b.Property<string>("FollowUpNote")
-                        .HasColumnType("text");
 
                     b.Property<string>("Notes")
                         .HasColumnType("text");
@@ -138,58 +132,6 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.HasIndex("ServiceId");
 
                     b.ToTable("Appointments");
-                });
-
-            modelBuilder.Entity("DentalClinic.API.Domain.Entities.ChatConversation", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("PatientId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PatientId");
-
-                    b.HasIndex("UpdatedAt");
-
-                    b.ToTable("ChatConversations");
-                });
-
-            modelBuilder.Entity("DentalClinic.API.Domain.Entities.ChatMessage", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Content")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("ConversationId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Role")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ConversationId");
-
-                    b.ToTable("ChatMessages");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.ClinicInfo", b =>
@@ -266,13 +208,6 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("WorkingHours")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)")
-                        .HasDefaultValue("");
-
                     b.HasKey("Id");
 
                     b.ToTable("ClinicInfos");
@@ -292,8 +227,7 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                             MilestonesJson = "[{\"year\":2009,\"description\":\"Thành lập phòng khám đầu tiên tại TP.HCM\"},{\"year\":2015,\"description\":\"Mở rộng lên 3 cơ sở, đạt chứng nhận ISO 9001\"},{\"year\":2019,\"description\":\"Đối tác chính thức của Invisalign tại Việt Nam\"},{\"year\":2023,\"description\":\"Ra mắt ứng dụng đặt lịch trên di động\"}]",
                             Phone = "1900 6789 — 028 7300 1234",
                             StatisticsJson = "[{\"value\":\"10.000+\",\"label\":\"Khách hàng hài lòng\"},{\"value\":\"20+\",\"label\":\"Bác sĩ chuyên khoa\"},{\"value\":\"15+\",\"label\":\"Năm kinh nghiệm\"},{\"value\":\"99%\",\"label\":\"Đánh giá 5 sao\"}]",
-                            TreatmentStepsJson = "[{\"title\":\"Tải App & Đặt Lịch\",\"description\":\"Tải app Sơn Giang Dental, chọn dịch vụ và đặt lịch trong 30 giây. Xác nhận ngay lập tức.\"},{\"title\":\"Khám & Tư Vấn\",\"description\":\"Bác sĩ chuyên khoa thăm khám toàn diện, chụp X-quang và tư vấn phác đồ phù hợp.\"},{\"title\":\"Điều Trị\",\"description\":\"Thực hiện điều trị theo phác đồ đã tư vấn với công nghệ hiện đại, không đau, an toàn.\"},{\"title\":\"Theo Dõi Sau Điều Trị\",\"description\":\"Tái khám định kỳ miễn phí, bảo hành dài hạn và hỗ trợ 24/7 khi có vấn đề phát sinh.\"}]",
-                            WorkingHours = "T2–T6: 8:00 – 20:00 • T7–CN: 8:00 – 17:00"
+                            TreatmentStepsJson = "[{\"title\":\"Tải App & Đặt Lịch\",\"description\":\"Tải app Sơn Giang Dental, chọn dịch vụ và đặt lịch trong 30 giây. Xác nhận ngay lập tức.\"},{\"title\":\"Khám & Tư Vấn\",\"description\":\"Bác sĩ chuyên khoa thăm khám toàn diện, chụp X-quang và tư vấn phác đồ phù hợp.\"},{\"title\":\"Điều Trị\",\"description\":\"Thực hiện điều trị theo phác đồ đã tư vấn với công nghệ hiện đại, không đau, an toàn.\"},{\"title\":\"Theo Dõi Sau Điều Trị\",\"description\":\"Tái khám định kỳ miễn phí, bảo hành dài hạn và hỗ trợ 24/7 khi có vấn đề phát sinh.\"}]"
                         });
                 });
 
@@ -883,14 +817,9 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsUsed")
                         .HasColumnType("boolean");
 
-                    b.Property<string>("Purpose")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
                     b.HasKey("Id");
 
-                    b.HasIndex("Email", "Purpose", "IsUsed", "ExpiresAt");
+                    b.HasIndex("Email", "IsUsed", "ExpiresAt");
 
                     b.ToTable("OtpCodes", (string)null);
                 });
@@ -1562,10 +1491,6 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.Property<string>("ProfilePictureUrl")
                         .HasColumnType("text");
 
-                    b.Property<string>("Provider")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
                     b.Property<string>("Role")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -1685,17 +1610,6 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.Navigation("Patient");
 
                     b.Navigation("Service");
-                });
-
-            modelBuilder.Entity("DentalClinic.API.Domain.Entities.ChatMessage", b =>
-                {
-                    b.HasOne("DentalClinic.API.Domain.Entities.ChatConversation", "Conversation")
-                        .WithMany("Messages")
-                        .HasForeignKey("ConversationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Conversation");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Dentist", b =>
@@ -1916,11 +1830,6 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.Navigation("Prescriptions");
 
                     b.Navigation("TreatmentPlans");
-                });
-
-            modelBuilder.Entity("DentalClinic.API.Domain.Entities.ChatConversation", b =>
-                {
-                    b.Navigation("Messages");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Dentist", b =>

@@ -9,8 +9,7 @@ namespace DentalClinic.API.Presentation.Controllers;
 [Route("api/dentists")]
 public class DentistsController(
     GetDentistsHandler getDentistsHandler,
-    GetDentistSlotsHandler getDentistSlotsHandler,
-    GetFollowUpSlotsHandler getFollowUpSlotsHandler) : ControllerBase
+    GetDentistSlotsHandler getDentistSlotsHandler) : ControllerBase
 {
     /// <summary>GET api/dentists — Danh sách nha sĩ cho trang chủ mobile</summary>
     [HttpGet]
@@ -29,29 +28,6 @@ public class DentistsController(
         CancellationToken cancellationToken)
     {
         var result = await getDentistSlotsHandler.HandleAsync(date, cancellationToken);
-        return Ok(result);
-    }
-
-    /// <summary>GET api/dentists/{dentistId}/slots?date=2026-06-20 — Lấy slots cho bác sĩ cụ thể (tái khám)</summary>
-    [HttpGet("{dentistId}/slots")]
-    [Authorize(Roles = "Dentist,Admin,Staff")]
-    public async Task<IActionResult> GetFollowUpSlots(
-        Guid dentistId,
-        [FromQuery] DateOnly date,
-        CancellationToken cancellationToken)
-    {
-        var result = await getFollowUpSlotsHandler.HandleAsync(dentistId, date, cancellationToken);
-        return Ok(result);
-    }
-
-    /// <summary>GET api/dentists/followup-slots?date=2026-06-20 — Tất cả bác sĩ làm việc trong ngày kèm slots (tái khám)</summary>
-    [HttpGet("followup-slots")]
-    [Authorize(Roles = "Dentist,Admin,Staff")]
-    public async Task<IActionResult> GetDentistsWithFollowUpSlots(
-        [FromQuery] DateOnly date,
-        CancellationToken cancellationToken)
-    {
-        var result = await getFollowUpSlotsHandler.HandleAllAsync(date, cancellationToken);
         return Ok(result);
     }
 }

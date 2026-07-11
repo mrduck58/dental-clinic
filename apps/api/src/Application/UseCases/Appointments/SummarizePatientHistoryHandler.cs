@@ -30,7 +30,7 @@ public class SummarizePatientHistoryHandler(IAiChatService aiChatService, AppDbC
             .Where(a => a.PatientId == currentAppointment.PatientId && a.Id != appointmentId)
             .Include(a => a.Service)
             .Include(a => a.Diagnoses)
-            .Include(a => a.TreatmentPlans)
+            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Service)
             .Include(a => a.Prescriptions).ThenInclude(p => p.Items)
             .OrderByDescending(a => a.AppointmentDate)
             .ToListAsync(ct);
@@ -81,8 +81,9 @@ public class SummarizePatientHistoryHandler(IAiChatService aiChatService, AppDbC
 
             foreach (var t in a.TreatmentPlans)
             {
-                var cost = t.EstimatedCost is > 0 ? $", chi phí dự kiến: {t.EstimatedCost:N0}đ" : "";
-                sb.AppendLine($"Liệu trình điều trị: {t.Description} — trạng thái: {t.Status}{cost}");
+                var name = string.IsNullOrWhiteSpace(t.Teeth) ? t.Service.Name : $"{t.Service.Name} - Răng {t.Teeth}";
+                var cost = t.TotalCost > 0 ? $", chi phí: {t.TotalCost:N0}đ" : "";
+                sb.AppendLine($"Liệu trình điều trị: {name} — trạng thái: {t.Status}{cost}");
             }
 
             foreach (var p in a.Prescriptions)

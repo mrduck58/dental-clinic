@@ -17,10 +17,6 @@ public class Appointment
     /// <summary>Thời điểm bệnh nhân check-in — quyết định thứ tự trong hàng đợi (null nếu chưa check-in).</summary>
     public DateTimeOffset? CheckedInAt { get; private set; }
 
-    // Liệu trình dài hạn (nếu buổi hẹn này thuộc một liệu trình nhiều buổi)
-    public Guid? CourseId { get; private set; }
-    public TreatmentCourse? Course { get; private set; }
-
     // Navigation properties
     public Patient Patient { get; private set; } = null!;
     public Dentist Dentist { get; private set; } = null!;
@@ -33,10 +29,15 @@ public class Appointment
     public ICollection<TreatmentPlan> TreatmentPlans { get; private set; } = new List<TreatmentPlan>();
     public ICollection<Prescription> Prescriptions { get; private set; } = new List<Prescription>();
 
-    // Follow-up appointments
+    // Follow-up appointments (dữ liệu lịch sử — luồng tạo lịch tái khám cũ đã bỏ)
     public Guid? FollowUpFromAppointmentId { get; private set; }
     public Appointment? FollowUpFromAppointment { get; private set; }
     public ICollection<Appointment> FollowUpAppointments { get; private set; } = new List<Appointment>();
+
+    // Nhắc tái khám: chỉ hẹn ngày khám lại, không đặt lịch mới.
+    // Khi bác sĩ kết thúc điều trị, hệ thống gửi thông báo cho bệnh nhân.
+    public DateOnly? FollowUpDate { get; private set; }
+    public string? FollowUpNote { get; private set; }
 
     private Appointment() { }
 
@@ -82,9 +83,6 @@ public class Appointment
         }
     }
 
-    /// <summary>Gắn buổi hẹn vào một liệu trình dài hạn.</summary>
-    public void AssignToCourse(Guid courseId) => CourseId = courseId;
-
     /// <summary>
     /// Chuyển buổi hẹn sang bác sĩ khác. Dùng khi lễ tân kéo bệnh nhân đang chờ
     /// sang hàng đợi của phòng khác — phòng được quyết định bởi bác sĩ phụ trách.
@@ -92,29 +90,10 @@ public class Appointment
     /// </summary>
     public void ReassignDentist(Guid dentistId) => DentistId = dentistId;
 
-    public static Appointment CreateFollowUp(
-        Guid originalAppointmentId,
-        Guid patientId,
-        Guid dentistId,
-        DateTimeOffset appointmentDate,
-        string? symptoms = null,
-        Guid? serviceId = null,
-        string? notes = null,
-        Guid? courseId = null)
+    /// <summary>Đặt hoặc xóa lịch hẹn tái khám (chỉ nhắc ngày, không tạo lịch hẹn mới).</summary>
+    public void SetFollowUpReminder(DateOnly? date, string? note)
     {
-        return new Appointment
-        {
-            Id = Guid.NewGuid(),
-            PatientId = patientId,
-            DentistId = dentistId,
-            ServiceId = serviceId,
-            AppointmentDate = appointmentDate,
-            Status = AppointmentStatus.Pending,
-            Symptoms = symptoms,
-            Notes = notes,
-            FollowUpFromAppointmentId = originalAppointmentId,
-            CourseId = courseId,
-            CreatedAt = DateTimeOffset.UtcNow
-        };
+        FollowUpDate = date;
+        FollowUpNote = date == null ? null : note;
     }
 }

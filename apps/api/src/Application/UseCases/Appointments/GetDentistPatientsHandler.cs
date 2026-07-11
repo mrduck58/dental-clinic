@@ -15,7 +15,8 @@ public record DentistPatientDto(
     string Status,
     string? ServiceName,
     string? Symptoms,
-    bool IsNew);
+    bool IsNew,
+    bool HasActiveTreatment); // Bệnh nhân đang giữa liệu trình (có plan "Đang thực hiện") → buổi này là tái khám
 
 public record DentistPatientsResponse(
     DateOnly Date,
@@ -49,6 +50,9 @@ public class GetDentistPatientsHandler(AppDbContext dbContext)
             .OrderBy(a => a.AppointmentDate)
             .ToListAsync(ct);
 
+        var activeTreatmentPatientIds = await GetActiveTreatmentPatientIdsAsync(
+            appointments.Select(a => a.PatientId).Distinct().ToList(), dbContext, ct);
+
         var patients = appointments.Select(a => new DentistPatientDto(
             a.Id,
             $"DK{a.AppointmentDate:yyyyMMdd}{a.Id.ToString("N")[..6].ToUpper()}",
@@ -60,7 +64,8 @@ public class GetDentistPatientsHandler(AppDbContext dbContext)
             a.Status.ToString(),
             a.Service?.Name,
             a.Symptoms,
-            IsNewPatient(a.PatientId)
+            IsNewPatient(a.PatientId),
+            activeTreatmentPatientIds.Contains(a.PatientId)
         )).ToList();
 
         return new DentistPatientsResponse(
@@ -84,5 +89,18 @@ public class GetDentistPatientsHandler(AppDbContext dbContext)
     private bool IsNewPatient(Guid patientId)
     {
         return !dbContext.Appointments.Any(a => a.PatientId == patientId && a.Status == AppointmentStatus.Completed);
+    }
+
+    /// <summary>Các bệnh nhân đang giữa liệu trình điều trị (có plan "Đang thực hiện") — dùng đánh dấu buổi tái khám.</summary>
+    public static async Task<HashSet<Guid>> GetActiveTreatmentPatientIdsAsync(
+        List<Guid> patientIds, AppDbContext dbContext, CancellationToken ct)
+    {
+        if (patientIds.Count == 0) return new HashSet<Guid>();
+        var ids = await dbContext.TreatmentPlans
+            .Where(tp => patientIds.Contains(tp.PatientId) && tp.Status == TreatmentPlanStatus.InProgress)
+            .Select(tp => tp.PatientId)
+            .Distinct()
+            .ToListAsync(ct);
+        return ids.ToHashSet();
     }
 }

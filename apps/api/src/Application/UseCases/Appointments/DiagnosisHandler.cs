@@ -9,13 +9,29 @@ public record CreateDiagnosisRequest(
     Guid AppointmentId,
     string DiagnosisCode,
     string Description,
-    string? Notes);
+    string? Notes,
+    decimal? HeartRate,
+    decimal? Temperature,
+    decimal? BloodPressureSystolic,
+    decimal? BloodPressureDiastolic,
+    string? MedicalHistory,
+    string? AllergyHistory,
+    string? DentalCondition,
+    string? Conclusion);
 
 public record UpdateDiagnosisRequest(
     Guid DiagnosisId,
     string DiagnosisCode,
     string Description,
-    string? Notes);
+    string? Notes,
+    decimal? HeartRate,
+    decimal? Temperature,
+    decimal? BloodPressureSystolic,
+    decimal? BloodPressureDiastolic,
+    string? MedicalHistory,
+    string? AllergyHistory,
+    string? DentalCondition,
+    string? Conclusion);
 
 public class DiagnosisHandler(AppDbContext dbContext)
 {
@@ -35,19 +51,20 @@ public class DiagnosisHandler(AppDbContext dbContext)
             request.AppointmentId,
             request.DiagnosisCode,
             request.Description,
-            request.Notes);
+            request.Notes,
+            request.HeartRate,
+            request.Temperature,
+            request.BloodPressureSystolic,
+            request.BloodPressureDiastolic,
+            request.MedicalHistory,
+            request.AllergyHistory,
+            request.DentalCondition,
+            request.Conclusion);
 
         dbContext.Diagnoses.Add(diagnosis);
         await dbContext.SaveChangesAsync(ct);
 
-        return new DiagnosisDto
-        {
-            Id = diagnosis.Id,
-            DiagnosisCode = diagnosis.DiagnosisCode,
-            Description = diagnosis.Description,
-            Notes = diagnosis.Notes,
-            CreatedAt = diagnosis.CreatedAt
-        };
+        return ToDto(diagnosis);
     }
 
     public async Task<DiagnosisDto> UpdateAsync(UpdateDiagnosisRequest request, CancellationToken ct = default)
@@ -57,17 +74,21 @@ public class DiagnosisHandler(AppDbContext dbContext)
         if (diagnosis == null)
             throw new KeyNotFoundException("Không tìm thấy chuẩn đoán.");
 
-        diagnosis.Update(request.DiagnosisCode, request.Description, request.Notes);
+        diagnosis.Update(
+            request.DiagnosisCode,
+            request.Description,
+            request.Notes,
+            request.HeartRate,
+            request.Temperature,
+            request.BloodPressureSystolic,
+            request.BloodPressureDiastolic,
+            request.MedicalHistory,
+            request.AllergyHistory,
+            request.DentalCondition,
+            request.Conclusion);
         await dbContext.SaveChangesAsync(ct);
 
-        return new DiagnosisDto
-        {
-            Id = diagnosis.Id,
-            DiagnosisCode = diagnosis.DiagnosisCode,
-            Description = diagnosis.Description,
-            Notes = diagnosis.Notes,
-            CreatedAt = diagnosis.CreatedAt
-        };
+        return ToDto(diagnosis);
     }
 
     public async Task DeleteAsync(Guid diagnosisId, CancellationToken ct = default)
@@ -79,5 +100,26 @@ public class DiagnosisHandler(AppDbContext dbContext)
 
         dbContext.Diagnoses.Remove(diagnosis);
         await dbContext.SaveChangesAsync(ct);
+    }
+
+    public static DiagnosisDto ToDto(Diagnosis diagnosis)
+    {
+        return new DiagnosisDto
+        {
+            Id = diagnosis.Id,
+            DiagnosisCode = diagnosis.DiagnosisCode,
+            Description = diagnosis.Description,
+            Notes = diagnosis.Notes,
+            HeartRate = diagnosis.HeartRate,
+            Temperature = diagnosis.Temperature,
+            BloodPressureSystolic = diagnosis.BloodPressureSystolic,
+            BloodPressureDiastolic = diagnosis.BloodPressureDiastolic,
+            MedicalHistory = diagnosis.MedicalHistory,
+            AllergyHistory = diagnosis.AllergyHistory,
+            DentalCondition = diagnosis.DentalCondition,
+            Conclusion = diagnosis.Conclusion,
+            CreatedAt = diagnosis.CreatedAt,
+            UpdatedAt = diagnosis.UpdatedAt
+        };
     }
 }

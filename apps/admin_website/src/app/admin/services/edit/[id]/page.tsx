@@ -6,7 +6,17 @@ import { useRouter } from "next/navigation";
 import AdminSidebar from "../../../../../components/shared/AdminSidebar";
 import NotificationBell from "../../../../../components/shared/NotificationBell";
 import { useRequireAdmin } from "../../../../../hooks/useRequireAdmin";
-import { getServiceByIdApi, updateServiceApi } from "../../../../../lib/apiClient";
+import {
+  getServiceByIdApi,
+  updateServiceApi,
+  getServiceProceduresApi,
+  updateServiceProceduresApi,
+} from "../../../../../lib/apiClient";
+
+interface ProcedureStepForm {
+  name: string;
+  percentOfTotal: string; // giữ dạng chuỗi cho input, parse khi lưu
+}
 
 interface EditServicePageProps {
   params: Promise<{ id: string }>;
@@ -28,6 +38,11 @@ export default function EditServicePage({ params }: EditServicePageProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  // Quy trình điều trị của dịch vụ
+  const [steps, setSteps] = useState<ProcedureStepForm[]>([]);
+  const [savingSteps, setSavingSteps] = useState(false);
+  const [stepsMessage, setStepsMessage] = useState<{ text: string; ok: boolean } | null>(null);
+
   useEffect(() => {
     getServiceByIdApi(id)
       .then((dto) => {
@@ -41,7 +56,37 @@ export default function EditServicePage({ params }: EditServicePageProps) {
         setSaveError("Không thể tải thông tin dịch vụ.");
       })
       .finally(() => setIsLoading(false));
+
+    getServiceProceduresApi(id)
+      .then((list) => setSteps(list.map(p => ({ name: p.name, percentOfTotal: String(p.percentOfTotal) }))))
+      .catch(() => { /* dịch vụ chưa có quy trình */ });
   }, [id]);
+
+  const handleSaveSteps = async () => {
+    setStepsMessage(null);
+    const cleaned = steps.filter(s => s.name.trim());
+    if (cleaned.length !== steps.length) {
+      setStepsMessage({ text: "Tên bước không được để trống.", ok: false });
+      return;
+    }
+    setSavingSteps(true);
+    try {
+      const saved = await updateServiceProceduresApi(
+        id,
+        cleaned.map((s, i) => ({
+          stepNumber: i + 1,
+          name: s.name.trim(),
+          percentOfTotal: Math.min(100, Math.max(0, parseInt(s.percentOfTotal) || 0)),
+        }))
+      );
+      setSteps(saved.map(p => ({ name: p.name, percentOfTotal: String(p.percentOfTotal) })));
+      setStepsMessage({ text: "Đã lưu quy trình điều trị.", ok: true });
+    } catch (err) {
+      setStepsMessage({ text: err instanceof Error ? err.message : "Lưu quy trình thất bại.", ok: false });
+    } finally {
+      setSavingSteps(false);
+    }
+  };
 
   const handleImageUpload = (file: File) => {
     if (file && file.type.startsWith("image/")) {
@@ -327,6 +372,94 @@ export default function EditServicePage({ params }: EditServicePageProps) {
               </div>
             </div>
           </form>
+
+          {/* Quy trình điều trị */}
+          {!isLoading && (
+            <div className="max-w-3xl mx-auto mt-6 bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
+              <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/30 flex items-center justify-between">
+                <div>
+                  <h3 className="text-[15px] font-extrabold text-slate-700">Quy trình điều trị</h3>
+                  <p className="text-[12px] font-semibold text-slate-400 mt-0.5">
+                    Các bước chuẩn khi thực hiện dịch vụ này — bác sĩ dùng để ghi nhận tiến độ liệu trình (VD: 1. Gắn mắc cài 30% → 2. Thay dây 40% → 3. Tháo mắc cài 30%).
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-6 flex flex-col gap-3">
+                {steps.length === 0 && (
+                  <p className="text-[13px] font-semibold text-slate-400 text-center py-3">
+                    Dịch vụ chưa có quy trình. Thêm bước đầu tiên bên dưới.
+                  </p>
+                )}
+                {steps.map((step, i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <span className="w-9 h-9 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center text-[13px] font-black shrink-0">
+                      {i + 1}
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="Tên bước (VD: Gắn mắc cài)"
+                      value={step.name}
+                      onChange={(e) => setSteps(prev => prev.map((s, idx) => idx === i ? { ...s, name: e.target.value } : s))}
+                      className="flex-1 px-4 py-2.5 text-[13.5px] bg-white border border-slate-200 rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all font-semibold text-slate-800 placeholder:text-slate-300"
+                    />
+                    <div className="relative w-28 shrink-0">
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        placeholder="0"
+                        value={step.percentOfTotal}
+                        onChange={(e) => setSteps(prev => prev.map((s, idx) => idx === i ? { ...s, percentOfTotal: e.target.value } : s))}
+                        className="w-full px-4 py-2.5 pr-9 text-[13.5px] bg-white border border-slate-200 rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all font-semibold text-slate-800"
+                      />
+                      <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[13px] text-slate-400 font-bold">%</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSteps(prev => prev.filter((_, idx) => idx !== i))}
+                      className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all cursor-pointer shrink-0"
+                      title="Xóa bước"
+                    >
+                      <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={() => setSteps(prev => [...prev, { name: "", percentOfTotal: "" }])}
+                  className="self-start flex items-center gap-2 px-4 py-2 text-[13px] font-bold text-primary border border-primary/30 rounded-xl hover:bg-primary/5 transition-all cursor-pointer"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                  Thêm bước
+                </button>
+              </div>
+
+              <div className="px-6 py-5 border-t border-slate-100 bg-slate-50/30 flex items-center justify-end gap-3">
+                {stepsMessage && (
+                  <p className={`text-[13px] font-semibold flex-1 ${stepsMessage.ok ? "text-emerald-600" : "text-red-500"}`}>
+                    {stepsMessage.text}
+                  </p>
+                )}
+                <span className="text-[12px] font-bold text-slate-400">
+                  Tổng: {steps.reduce((s, st) => s + (parseInt(st.percentOfTotal) || 0), 0)}%
+                </span>
+                <button
+                  type="button"
+                  onClick={handleSaveSteps}
+                  disabled={savingSteps}
+                  className="px-6 py-3 bg-slate-800 hover:bg-slate-900 text-white text-[14px] font-extrabold rounded-xl transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {savingSteps ? "Đang lưu..." : "Lưu quy trình"}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </main>
     </div>
