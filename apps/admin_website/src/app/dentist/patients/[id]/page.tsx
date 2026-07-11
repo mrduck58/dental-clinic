@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import DentistSidebar from "../../../../components/shared/DentistSidebar";
 import DentistPageHeader from "../../../../components/shared/DentistPageHeader";
+import TreatmentWorkspace from "../../treatment-plans/TreatmentWorkspace";
 import ToothArchDiagram, { TOOTH_COLOR, TOOTH_LEGEND, UPPER_TEETH, LOWER_TEETH, ARCH_H, type ToothStatus as TS, type ToothState as TState } from "../../../../components/shared/ToothArchDiagram";
 import { useRequireDentist } from "../../../../hooks/useRequireDentist";
 import {
@@ -20,16 +21,12 @@ import {
   getFollowUpsApi,
   deleteFollowUpApi,
   getMedicinesApi,
-  deleteTreatmentPlanApi,
-  getTreatmentCourseApi,
   getPatientMedicalHistoryApi,
   type ExaminationDto,
   type DiagnosisDto,
-  type TreatmentPlanDto,
   type PrescriptionDto,
   type FollowUpAppointmentDto,
   type MedicineDto,
-  type TreatmentCourseDto,
   type PatientMedicalHistoryDto,
 } from "../../../../lib/apiClient";
 
@@ -110,12 +107,6 @@ export default function PatientDetailPage() {
   const [dentalCondition, setDentalCondition] = useState<string>("");
   const [conclusion, setConclusion] = useState<string>("");
   
-  // Treatment steps from API
-  const [treatmentPlans, setTreatmentPlans] = useState<TreatmentPlanDto[]>([]);
-
-  // Liệu trình dài hạn (course) — chỉ hiển thị; việc tạo nằm ở trang chọn dịch vụ.
-  const [course, setCourse] = useState<TreatmentCourseDto | null>(null);
-
   // Prescription from API
   const [prescription, setPrescription] = useState<PrescriptionDto | null>(null);
   
@@ -143,9 +134,7 @@ export default function PatientDetailPage() {
       const data = await getExaminationApi(id);
       setExamination(data);
       setComplaint(data.symptoms ?? "");
-      setTreatmentPlans(data.treatmentPlans ?? []);
       setPrescription(data.prescription ?? null);
-      try { setCourse(await getTreatmentCourseApi(id)); } catch { /* ignore */ }
       setError(null);
 
       // Load diagnosis data into form fields
@@ -316,18 +305,6 @@ export default function PatientDetailPage() {
     }
   };
 
-  // Delete treatment plan
-  const handleDeleteTreatmentPlan = async (planId: string) => {
-    try {
-      await deleteTreatmentPlanApi(planId);
-      showToast("Đã xóa liệu trình!", "success");
-      // Update state directly instead of reloading the whole page
-      setTreatmentPlans(prev => prev.filter(tp => tp.id !== planId));
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : "Xóa liệu trình thất bại", "error");
-    }
-  };
-
   // Create follow-up
   const handleCreateFollowUp = async () => {
     try {
@@ -359,8 +336,6 @@ export default function PatientDetailPage() {
     setTeeth((p) => ({ ...p, [tooth]: status }));
     setSel(null);
   };
-
-  const totalCost = treatmentPlans.reduce((sum, tp) => sum + (tp.estimatedCost ?? 0), 0);
 
   if (loading) {
     return (
@@ -827,102 +802,7 @@ return (
 
               {/* ─── TAB: LIỆU TRÌNH ─── */}
               {activeTab === "treatment" && (
-                <>
-                  {/* Liệu trình dài hạn */}
-                  <section className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
-                    <SectionHeading color="bg-indigo-50 text-indigo-700" title="Liệu trình dài hạn"
-                      icon="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-                    <div className="p-6">
-                      {course ? (
-                        <div className="flex flex-col gap-3">
-                          <div className="flex items-center justify-between flex-wrap gap-2">
-                            <div className="flex items-center gap-2">
-                              <span className="text-[15px] font-black text-slate-900">{course.name}</span>
-                              <span className={`text-[11px] font-black px-2 py-0.5 rounded-lg border ${course.status === "Completed" ? "bg-green-50 text-green-700 border-green-200" : "bg-indigo-50 text-indigo-700 border-indigo-200"}`}>
-                                {course.status === "Completed" ? "Đã tất toán" : "Đang điều trị"}
-                              </span>
-                            </div>
-                            <span className="text-[12px] font-semibold text-slate-400">Thanh toán theo nhiều đợt qua các buổi tái khám</span>
-                          </div>
-                          <div className="grid grid-cols-3 gap-3">
-                            {[
-                              { label: "Tổng chi phí", value: course.totalCost, cls: "text-slate-900" },
-                              { label: "Đã thu", value: course.amountPaid, cls: "text-emerald-600" },
-                              { label: "Còn lại", value: course.remainingAmount, cls: "text-orange-600" },
-                            ].map(s => (
-                              <div key={s.label} className="bg-slate-50 border border-slate-100 rounded-xl px-4 py-3">
-                                <div className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">{s.label}</div>
-                                <div className={`text-[15px] font-black mt-0.5 ${s.cls}`}>{s.value.toLocaleString("vi-VN")}đ</div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ) : isInProgress ? (
-                        <div className="flex flex-col gap-3">
-                          <p className="text-[13px] text-slate-500 font-semibold">
-                            Dùng cho điều trị lâu dài (niềng răng, implant…): chọn dịch vụ để chốt tổng chi phí, bệnh nhân trả thành nhiều đợt qua các lần tái khám.
-                          </p>
-                          <Link
-                            href={`/dentist/patients/${id}/treatment/new?mode=course`}
-                            className="self-start flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-[13px] font-black rounded-xl transition-all shadow-sm cursor-pointer"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                            Tạo liệu trình dài hạn
-                          </Link>
-                        </div>
-                      ) : (
-                        <p className="text-[13px] text-slate-400 font-semibold">Không có liệu trình dài hạn.</p>
-                      )}
-                    </div>
-                  </section>
-
-                  {/* Liệu trình điều trị (ngắn hạn) */}
-                  <section className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
-                    <SectionHeading color="bg-red-50 text-primary" title="Liệu trình điều trị"
-                      icon="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z"
-                      action={
-                        isInProgress && (
-                          <Link
-                            href={`/dentist/patients/${id}/treatment/new`}
-                            className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-[13px] font-bold rounded-xl hover:bg-red-600 transition-all shadow-sm cursor-pointer"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                            Tạo liệu trình
-                          </Link>
-                        )
-                      } />
-                    <div className="p-6 flex flex-col gap-4">
-                      <div className="text-[13px] font-bold text-slate-600">
-                        Tổng chi phí dự kiến: <span className="text-primary font-black text-[15px]">{totalCost.toLocaleString("vi-VN")}đ</span>
-                      </div>
-                      <div className="flex flex-col divide-y divide-slate-100">
-                        {treatmentPlans.length === 0 ? (
-                          <p className="text-[13px] text-slate-400 font-semibold text-center py-4">Chưa có dịch vụ nào.</p>
-                        ) : (
-                          treatmentPlans.map((tp) => {
-                            const serviceName = tp.description.split(" - Răng")[0] || tp.description;
-                            return (
-                              <div key={tp.id} className="flex items-center justify-between py-3">
-                                <span className="text-[13px] font-semibold text-slate-700">{serviceName}</span>
-                                <div className="flex items-center gap-3">
-                                  <span className="text-[13px] font-bold text-primary">{tp.estimatedCost ? tp.estimatedCost.toLocaleString("vi-VN") + "đ" : "Liên hệ"}</span>
-                                  {isInProgress && (
-                                    <button
-                                      onClick={() => handleDeleteTreatmentPlan(tp.id)}
-                                      className="p-1 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-all cursor-pointer"
-                                    >
-                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-                    </div>
-                  </section>
-                </>
+                <TreatmentWorkspace appointmentId={id} />
               )}
 
               {/* ─── TAB: ĐƠN THUỐC ─── */}

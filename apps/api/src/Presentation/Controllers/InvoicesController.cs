@@ -51,11 +51,11 @@ public class InvoicesController(InvoiceHandler invoiceHandler) : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>GET api/invoices/outstanding-courses — Liệu trình dài hạn còn công nợ.</summary>
-    [HttpGet("outstanding-courses")]
-    public async Task<IActionResult> GetOutstandingCourses(CancellationToken cancellationToken)
+    /// <summary>GET api/invoices/outstanding-plans — Liệu trình điều trị còn công nợ.</summary>
+    [HttpGet("outstanding-plans")]
+    public async Task<IActionResult> GetOutstandingPlans(CancellationToken cancellationToken)
     {
-        var result = await invoiceHandler.GetOutstandingCoursesAsync(cancellationToken);
+        var result = await invoiceHandler.GetOutstandingPlansAsync(cancellationToken);
         return Ok(result);
     }
 

@@ -36,8 +36,7 @@ public class FollowUpAppointmentHandler(AppDbContext dbContext)
             request.AppointmentDate,
             request.Symptoms,
             request.ServiceId,
-            request.Notes,
-            originalAppointment.CourseId); // kế thừa liệu trình dài hạn (nếu có)
+            request.Notes);
 
         dbContext.Appointments.Add(followUpAppointment);
         await dbContext.SaveChangesAsync(ct);

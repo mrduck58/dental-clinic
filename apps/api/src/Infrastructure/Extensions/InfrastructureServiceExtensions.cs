@@ -163,9 +163,9 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<DentistDashboardHandler>();
         services.AddScoped<UpdateAppointmentStatusHandler>();
         services.AddScoped<GetExaminationHandler>();
-        services.AddScoped<TreatmentCourseHandler>();
         services.AddScoped<DiagnosisHandler>();
         services.AddScoped<TreatmentPlanHandler>();
+        services.AddScoped<TreatmentProcedureHandler>();
         services.AddScoped<PrescriptionHandler>();
         services.AddScoped<FollowUpAppointmentHandler>();
         services.AddScoped<GetStaffScheduleHandler>();

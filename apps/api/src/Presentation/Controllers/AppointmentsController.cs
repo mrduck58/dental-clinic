@@ -23,7 +23,6 @@ public class AppointmentsController(
     GetExaminationHandler getExaminationHandler,
     DiagnosisHandler diagnosisHandler,
     TreatmentPlanHandler treatmentPlanHandler,
-    TreatmentCourseHandler treatmentCourseHandler,
     PrescriptionHandler prescriptionHandler,
     FollowUpAppointmentHandler followUpAppointmentHandler,
     GetStaffScheduleHandler staffScheduleHandler,
@@ -218,42 +217,24 @@ public class AppointmentsController(
         return NoContent();
     }
 
-    #endregion
-
-    #region Treatment Course (liệu trình dài hạn)
-
-    /// <summary>GET api/appointments/{id}/treatment-course — Lấy liệu trình dài hạn gắn với buổi hẹn (nếu có).</summary>
-    [HttpGet("{id}/treatment-course")]
-    [Authorize(Roles = "Staff,Admin,Dentist")]
-    public async Task<IActionResult> GetTreatmentCourse(Guid id, CancellationToken cancellationToken)
+    /// <summary>GET api/appointments/patients/{patientId}/treatment-plans — Tất cả liệu trình của một bệnh nhân.</summary>
+    [HttpGet("patients/{patientId}/treatment-plans")]
+    [Authorize(Roles = "Staff,Admin,Dentist,Owner")]
+    public async Task<IActionResult> GetPatientTreatmentPlans(Guid patientId, CancellationToken cancellationToken)
     {
-        var result = await treatmentCourseHandler.GetByAppointmentAsync(id, cancellationToken);
-        return Ok(result); // null nếu buổi hẹn không thuộc liệu trình nào
+        var result = await treatmentPlanHandler.GetByPatientAsync(patientId, cancellationToken);
+        return Ok(result);
     }
 
-    /// <summary>POST api/appointments/{id}/treatment-course — Tạo liệu trình dài hạn (Dentist/Staff/Admin).</summary>
-    [HttpPost("{id}/treatment-course")]
+    /// <summary>POST api/appointments/treatment-plan/{treatmentPlanId}/progress — Ghi nhận bước điều trị đã thực hiện.</summary>
+    [HttpPost("treatment-plan/{treatmentPlanId}/progress")]
     [Authorize(Roles = "Staff,Admin,Dentist")]
-    public async Task<IActionResult> CreateTreatmentCourse(
-        Guid id,
-        [FromBody] CreateTreatmentCourseRequest request,
+    public async Task<IActionResult> AddTreatmentPlanProgress(
+        Guid treatmentPlanId,
+        [FromBody] AddStepProgressRequest request,
         CancellationToken cancellationToken)
     {
-        var courseRequest = request with { AppointmentId = id };
-        var result = await treatmentCourseHandler.CreateAsync(courseRequest, cancellationToken);
-        return CreatedAtAction(nameof(GetTreatmentCourse), new { id }, result);
-    }
-
-    /// <summary>PUT api/appointments/treatment-course/{courseId} — Cập nhật liệu trình (Dentist/Staff/Admin).</summary>
-    [HttpPut("treatment-course/{courseId}")]
-    [Authorize(Roles = "Staff,Admin,Dentist")]
-    public async Task<IActionResult> UpdateTreatmentCourse(
-        Guid courseId,
-        [FromBody] UpdateTreatmentCourseRequest request,
-        CancellationToken cancellationToken)
-    {
-        var updateRequest = request with { CourseId = courseId };
-        var result = await treatmentCourseHandler.UpdateAsync(updateRequest, cancellationToken);
+        var result = await treatmentPlanHandler.AddStepProgressAsync(treatmentPlanId, request, cancellationToken);
         return Ok(result);
     }
 
@@ -548,7 +529,7 @@ public class AppointmentsController(
             .Include(a => a.Dentist)
             .Include(a => a.Service)
             .Include(a => a.Diagnoses)
-            .Include(a => a.TreatmentPlans)
+            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Service)
             .Include(a => a.Prescriptions).ThenInclude(p => p.Items)
             .Where(a => a.PatientId == patientId &&
                         a.Status == AppointmentStatus.Completed)
@@ -570,9 +551,9 @@ public class AppointmentsController(
                 d.CreatedAt
             )).ToList(),
             a.TreatmentPlans.Select(tp => new MedicalHistoryTreatmentPlanDto(
-                tp.Description,
+                string.IsNullOrWhiteSpace(tp.Teeth) ? tp.Service.Name : $"{tp.Service.Name} - Răng {tp.Teeth}",
                 tp.Status.ToString(),
-                tp.EstimatedCost
+                tp.TotalCost
             )).ToList(),
             a.Prescriptions.FirstOrDefault() != null
                 ? a.Prescriptions.First().Items.Select(i => new MedicalHistoryPrescriptionItemDto(

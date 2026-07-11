@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import DentistSidebar from "../../../components/shared/DentistSidebar";
 import DentistPageHeader from "../../../components/shared/DentistPageHeader";
-import PlanWorkspace from "../patients/[id]/PlanWorkspace";
+import TreatmentWorkspace from "./TreatmentWorkspace";
 import { useRequireDentist } from "../../../hooks/useRequireDentist";
 import { supabase } from "../../../lib/supabaseClient";
 import {
@@ -275,8 +275,8 @@ export default function TreatmentPlansPage() {
             )}
           </div>
         ) : (
-          /* ──────── 3-COLUMN WORKSPACE VIEW ──────── */
-          <PlanWorkspace patient={selectedPatient} onBack={() => setSelectedPatient(null)} />
+          /* ──────── WORKSPACE VIEW (1/3 thông tin + 2/3 liệu trình) ──────── */
+          <TreatmentWorkspace appointmentId={selectedPatient.appointmentId} onBack={() => setSelectedPatient(null)} />
         )}
       </main>
     </div>

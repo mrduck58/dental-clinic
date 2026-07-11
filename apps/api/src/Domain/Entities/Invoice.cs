@@ -28,8 +28,8 @@ public class Invoice
     public bool IsSettled { get; private set; }          // hóa đơn đặt cọc đã được thu nốt phần còn lại
     public bool CollectingRemaining { get; private set; } // đang trong quy trình thu phần còn lại
 
-    // Liệu trình dài hạn — nếu hóa đơn này là một đợt thu của liệu trình
-    public Guid? CourseId { get; private set; }
+    // Liệu trình điều trị — nếu hóa đơn này là một đợt thu của liệu trình
+    public Guid? TreatmentPlanId { get; private set; }
 
     // Navigation properties
     public Appointment Appointment { get; private set; } = null!;
@@ -113,12 +113,12 @@ public class Invoice
     }
 
     /// <summary>
-    /// Tạo một đợt thu của liệu trình dài hạn (cọc / đợt giữa / tất toán).
+    /// Tạo một đợt thu của liệu trình điều trị (cọc / đợt giữa / tất toán).
     /// Hóa đơn loại này chỉ là phiếu thu cho số tiền của đợt đó; công nợ được theo dõi ở cấp liệu trình.
     /// </summary>
-    public static Invoice IssueCourseInstallment(
+    public static Invoice IssuePlanInstallment(
         Guid appointmentId,
-        Guid courseId,
+        Guid treatmentPlanId,
         string invoiceNumber,
         string lineName,
         decimal amount,
@@ -130,7 +130,7 @@ public class Invoice
             Id = Guid.NewGuid(),
             InvoiceNumber = invoiceNumber,
             AppointmentId = appointmentId,
-            CourseId = courseId,
+            TreatmentPlanId = treatmentPlanId,
             Status = PaymentStatus.Unpaid,
             PaymentMethod = paymentMethod,
             PaymentType = PaymentType.Full,

@@ -14,10 +14,6 @@ public class Appointment
     public string? Symptoms { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
 
-    // Liệu trình dài hạn (nếu buổi hẹn này thuộc một liệu trình nhiều buổi)
-    public Guid? CourseId { get; private set; }
-    public TreatmentCourse? Course { get; private set; }
-
     // Navigation properties
     public Patient Patient { get; private set; } = null!;
     public Dentist Dentist { get; private set; } = null!;
@@ -73,9 +69,6 @@ public class Appointment
         }
     }
 
-    /// <summary>Gắn buổi hẹn vào một liệu trình dài hạn.</summary>
-    public void AssignToCourse(Guid courseId) => CourseId = courseId;
-
     public static Appointment CreateFollowUp(
         Guid originalAppointmentId,
         Guid patientId,
@@ -83,8 +76,7 @@ public class Appointment
         DateTimeOffset appointmentDate,
         string? symptoms = null,
         Guid? serviceId = null,
-        string? notes = null,
-        Guid? courseId = null)
+        string? notes = null)
     {
         return new Appointment
         {
@@ -97,7 +89,6 @@ public class Appointment
             Symptoms = symptoms,
             Notes = notes,
             FollowUpFromAppointmentId = originalAppointmentId,
-            CourseId = courseId,
             CreatedAt = DateTimeOffset.UtcNow
         };
     }

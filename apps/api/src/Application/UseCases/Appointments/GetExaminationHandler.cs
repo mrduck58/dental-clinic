@@ -60,15 +60,6 @@ public class DiagnosisDto
     public DateTimeOffset? UpdatedAt { get; set; }
 }
 
-public class TreatmentPlanDto
-{
-    public Guid Id { get; set; }
-    public string Description { get; set; } = string.Empty;
-    public string Status { get; set; } = string.Empty;
-    public decimal? EstimatedCost { get; set; }
-    public DateTimeOffset CreatedAt { get; set; }
-}
-
 public class PrescriptionDto
 {
     public Guid Id { get; set; }
@@ -97,7 +88,8 @@ public class GetExaminationHandler(AppDbContext dbContext)
             .Include(a => a.Dentist)
             .Include(a => a.Service)
             .Include(a => a.Diagnoses)
-            .Include(a => a.TreatmentPlans)
+            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Service)
+            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Dentist)
             .Include(a => a.Prescriptions).ThenInclude(p => p.Items)
             .FirstOrDefaultAsync(a => a.Id == appointmentId, ct);
 
@@ -152,14 +144,9 @@ public class GetExaminationHandler(AppDbContext dbContext)
                 CreatedAt = d.CreatedAt,
                 UpdatedAt = d.UpdatedAt
             }).ToList(),
-            TreatmentPlans = appointment.TreatmentPlans.Select(tp => new TreatmentPlanDto
-            {
-                Id = tp.Id,
-                Description = tp.Description,
-                Status = tp.Status.ToString(),
-                EstimatedCost = tp.EstimatedCost,
-                CreatedAt = tp.CreatedAt
-            }).ToList(),
+            TreatmentPlans = appointment.TreatmentPlans
+                .Select(tp => TreatmentPlanHandler.ToDto(tp))
+                .ToList(),
             Prescription = appointment.Prescriptions.FirstOrDefault() != null
                 ? new PrescriptionDto
                 {
