@@ -1611,7 +1611,7 @@ export interface DentistPatientDto {
   serviceName: string | null;
   symptoms: string | null;
   isNew: boolean;
-  hasActiveTreatment: boolean; // Đang giữa liệu trình điều trị → buổi này là tái khám
+  isFollowUpVisit: boolean; // Buổi hẹn do staff check-in từ tab Tái khám
 }
 
 export interface DentistPatientsResponse {
@@ -1898,6 +1898,7 @@ export interface ExaminationDto {
   startTime: string | null;
   followUpDate: string | null;
   followUpNote: string | null;
+  isFollowUpVisit: boolean;
   diagnoses: DiagnosisDto[];
   treatmentPlans: TreatmentPlanDto[];
   prescription: PrescriptionDto | null;
@@ -2324,6 +2325,46 @@ export async function clearFollowUpReminderApi(appointmentId: string): Promise<F
     throw new Error((err as { title?: string }).title ?? "Không thể hủy lịch hẹn tái khám");
   }
   return res.json() as Promise<FollowUpReminderDto>;
+}
+
+// Bệnh nhân đang trong diện chờ tái khám (còn liệu trình đang thực hiện sau khi kết thúc điều trị)
+export interface FollowUpDueDto {
+  originalAppointmentId: string;
+  patientId: string;
+  patientName: string;
+  patientPhone: string | null;
+  gender: string | null;
+  dentistName: string;
+  serviceName: string | null;
+  originalAppointmentDate: string;
+  followUpDate: string | null;
+  followUpNote: string | null;
+  activePlans: string[]; // Các liệu trình đang thực hiện
+}
+
+export async function getFollowUpDueApi(): Promise<FollowUpDueDto[]> {
+  const res = await fetch(`${API_URL}/api/appointments/follow-up-due`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách chờ tái khám");
+  }
+  return res.json() as Promise<FollowUpDueDto[]>;
+}
+
+export async function checkInFollowUpApi(originalAppointmentId: string): Promise<{ appointmentId: string }> {
+  const res = await fetch(`${API_URL}/api/appointments/${originalAppointmentId}/follow-up-check-in`, {
+    method: "POST",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Check-in tái khám thất bại");
+  }
+  return res.json() as Promise<{ appointmentId: string }>;
 }
 
 // End Treatment API

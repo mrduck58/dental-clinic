@@ -96,4 +96,32 @@ public class Appointment
         FollowUpDate = date;
         FollowUpNote = date == null ? null : note;
     }
+
+    /// <summary>
+    /// Staff check-in bệnh nhân đến tái khám (từ tab Tái khám ở quầy): tạo buổi hẹn mới
+    /// đã check-in ngay, gắn về buổi gốc qua <see cref="FollowUpFromAppointmentId"/> —
+    /// đây là căn cứ để phía bác sĩ đánh dấu buổi này là tái khám.
+    /// </summary>
+    public static Appointment CheckInFollowUp(
+        Guid originalAppointmentId,
+        Guid patientId,
+        Guid dentistId,
+        Guid? serviceId = null,
+        string? symptoms = null)
+    {
+        var now = DateTimeOffset.UtcNow;
+        return new Appointment
+        {
+            Id = Guid.NewGuid(),
+            PatientId = patientId,
+            DentistId = dentistId,
+            ServiceId = serviceId,
+            AppointmentDate = now,
+            Status = AppointmentStatus.CheckedIn,
+            CheckedInAt = now,
+            Symptoms = symptoms,
+            FollowUpFromAppointmentId = originalAppointmentId,
+            CreatedAt = now
+        };
+    }
 }
