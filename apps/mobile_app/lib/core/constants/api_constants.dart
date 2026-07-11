@@ -12,6 +12,10 @@ abstract class ApiConstants {
   static const String fillProfile = '/auth/me/profile';
   static const String changePassword = '/auth/me/change-password';
   static const String logout = '/auth/logout';
+  static const String googleLogin = '/auth/google-login';
+  static const String forgotPasswordOtp = '/auth/patient/forgot-password';
+  static const String verifyResetOtp = '/auth/patient/verify-reset-otp';
+  static const String resetPassword = '/auth/reset-password';
 
   static const String dentists = '/dentists';
   static const String dentistSlots = '/dentists/slots';
@@ -27,4 +31,10 @@ abstract class ApiConstants {
       '/payments/invoices/$invoiceId/request';
   static String paymentStatus(String invoiceId) =>
       '/payments/invoices/$invoiceId/status';
+
+  static const String chatConversations = '/chat/conversations';
+  static String chatConversation(String conversationId) =>
+      '/chat/conversations/$conversationId';
+  static String chatMessages(String conversationId) =>
+      '/chat/conversations/$conversationId/messages';
 }

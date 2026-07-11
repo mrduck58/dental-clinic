@@ -95,6 +95,10 @@ class BookingDraft {
   final String? appointmentId;
   final String? appointmentCode;
 
+  /// Gợi ý bác sĩ từ chatbot AI — chỉ dùng để làm nổi bật lựa chọn ở màn chọn bác sĩ,
+  /// không tự động chọn thay người dùng (vẫn cần xác nhận khung giờ thủ công).
+  final String? preferredDentistId;
+
   const BookingDraft({
     this.patient,
     this.service,
@@ -106,6 +110,7 @@ class BookingDraft {
     this.symptoms,
     this.appointmentId,
     this.appointmentCode,
+    this.preferredDentistId,
   });
 
   BookingDraft copyWith({
@@ -119,6 +124,7 @@ class BookingDraft {
     String? symptoms,
     String? appointmentId,
     String? appointmentCode,
+    String? preferredDentistId,
   }) {
     return BookingDraft(
       patient: patient ?? this.patient,
@@ -131,6 +137,7 @@ class BookingDraft {
       symptoms: symptoms ?? this.symptoms,
       appointmentId: appointmentId ?? this.appointmentId,
       appointmentCode: appointmentCode ?? this.appointmentCode,
+      preferredDentistId: preferredDentistId ?? this.preferredDentistId,
     );
   }
 }

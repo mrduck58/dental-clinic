@@ -18,4 +18,9 @@ public interface IEmailService
         string recipientName,
         string resetLink,
         CancellationToken ct = default);
+
+    Task SendPasswordResetOtpAsync(
+        string recipientEmail,
+        string code,
+        CancellationToken ct = default);
 }

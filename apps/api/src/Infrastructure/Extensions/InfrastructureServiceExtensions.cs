@@ -1,4 +1,5 @@
 using DentalClinic.API.Application.UseCases.ActivityLogs;
+using DentalClinic.API.Application.UseCases.Chat;
 using DentalClinic.API.Application.UseCases.Dashboard;
 using DentalClinic.API.Application.UseCases.StaffDashboard;
 using DentalClinic.API.Application.UseCases.Notifications;
@@ -44,6 +45,8 @@ public static class InfrastructureServiceExtensions
         services.Configure<JwtSettings>(configuration.GetSection("JwtSettings"));
         services.Configure<EmailSettings>(configuration.GetSection("EmailSettings"));
         services.Configure<PayOSSettings>(configuration.GetSection("PayOSSettings"));
+        services.Configure<GeminiSettings>(configuration.GetSection("GeminiSettings"));
+        services.Configure<GoogleAuthSettings>(configuration.GetSection("GoogleAuthSettings"));
 
         // ── Repositories ────────────────────────────────────────────────────
         services.AddScoped<IAppointmentRepository, AppointmentRepository>();
@@ -71,6 +74,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddScoped<IEmailService, EmailService>();
         services.AddScoped<IFileStorageService, LocalFileStorageService>();
+        services.AddScoped<IGoogleAuthService, GoogleAuthService>();
         services.AddHttpContextAccessor();
 
         // ── Payment gateways ────────────────────────────────────────────────
@@ -80,6 +84,9 @@ public static class InfrastructureServiceExtensions
             client.BaseAddress = new Uri(payOsSettings.BaseUrl);
         });
         services.AddScoped<IPaymentGatewayResolver, PaymentGatewayResolver>();
+
+        // ── AI chatbot ──────────────────────────────────────────────────────
+        services.AddScoped<IAiChatService, GeminiChatService>();
 
         // ── Use Case Handlers ────────────────────────────────────────────────
         services.AddScoped<LoginHandler>();
@@ -93,6 +100,9 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<GetAccountsHandler>();
         services.AddScoped<ForgotPasswordHandler>();
         services.AddScoped<ResetPasswordHandler>();
+        services.AddScoped<GoogleLoginHandler>();
+        services.AddScoped<ForgotPasswordOtpHandler>();
+        services.AddScoped<VerifyPasswordResetOtpHandler>();
 
         services.AddScoped<GetStaffHandler>();
         services.AddScoped<GetDentistsHandler>();
@@ -158,6 +168,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<GetMyAppointmentsHandler>();
         services.AddScoped<GetAllAppointmentsHandler>();
         services.AddScoped<GetWaitingQueueHandler>();
+        services.AddScoped<TransferQueuePatientHandler>();
         services.AddScoped<GetDentistPatientsHandler>();
         services.AddScoped<DentistDashboardHandler>();
         services.AddScoped<UpdateAppointmentStatusHandler>();
@@ -169,6 +180,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<FollowUpReminderHandler>();
         services.AddScoped<GetStaffScheduleHandler>();
         services.AddScoped<CreateWalkInAppointmentHandler>();
+        services.AddScoped<SummarizePatientHistoryHandler>();
 
         services.AddScoped<GetRoomsHandler>();
         services.AddScoped<GetRoomByIdHandler>();
@@ -179,6 +191,11 @@ public static class InfrastructureServiceExtensions
 
         services.AddScoped<GetClinicInfoHandler>();
         services.AddScoped<UpdateClinicInfoHandler>();
+
+        services.AddScoped<StartConversationHandler>();
+        services.AddScoped<SendChatMessageHandler>();
+        services.AddScoped<GetMyConversationsHandler>();
+        services.AddScoped<GetConversationMessagesHandler>();
 
         services.AddScoped<GetActivityLogsHandler>();
         services.AddScoped<GetNotificationsHandler>();

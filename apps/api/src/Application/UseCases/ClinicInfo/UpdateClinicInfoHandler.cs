@@ -23,7 +23,8 @@ public class UpdateClinicInfoHandler(IClinicInfoRepository repository)
                 request.Phone,
                 request.Email,
                 request.Address,
-                request.AboutImageUrl);
+                request.AboutImageUrl,
+                request.WorkingHours ?? "");
             ApplyCollections(info, request);
             await repository.AddAsync(info, ct);
         }
@@ -36,7 +37,8 @@ public class UpdateClinicInfoHandler(IClinicInfoRepository repository)
                 request.Phone,
                 request.Email,
                 request.Address,
-                request.AboutImageUrl);
+                request.AboutImageUrl,
+                request.WorkingHours);
             ApplyCollections(info, request);
             await repository.UpdateAsync(info, ct);
         }

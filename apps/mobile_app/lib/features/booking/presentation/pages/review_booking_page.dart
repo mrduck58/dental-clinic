@@ -34,6 +34,13 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
   @override
+  void initState() {
+    super.initState();
+    // Điền sẵn triệu chứng/ghi chú nếu đã có từ trước (ví dụ do chatbot AI trích xuất).
+    _symptomCtrl.text = widget.draft.symptoms ?? '';
+  }
+
+  @override
   void dispose() {
     _symptomCtrl.dispose();
     super.dispose();
@@ -118,18 +125,21 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
                             icon: Iconsax.health,
                             label: isVi ? 'Chuyên khoa' : 'Service',
                             value: d.service!.name,
+                            onEdit: () => context.push(AppRoutes.bookingSelectService, extra: d),
                           ),
                         if (d.date != null)
                           _InfoRow(
                             icon: Iconsax.calendar,
                             label: isVi ? 'Ngày khám' : 'Date',
                             value: '${_fmtDate(d.date!)} - ${weekdays[d.date!.weekday]}',
+                            onEdit: () => context.push(AppRoutes.bookingSelectDatetime, extra: d),
                           ),
                         if (d.timeSlot != null)
                           _InfoRow(
                             icon: Iconsax.clock,
                             label: isVi ? 'Giờ khám' : 'Time Slot',
                             value: '${d.timeSlot!.range}, ${d.doctor?.room ?? ''}',
+                            onEdit: () => context.push(AppRoutes.bookingSelectDoctor, extra: d),
                           ),
                         if (d.doctor != null)
                           _InfoRow(
@@ -137,6 +147,7 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
                             label: isVi ? 'Bác sĩ' : 'Dentist',
                             value: d.doctor!.fullName,
                             isLast: true,
+                            onEdit: () => context.push(AppRoutes.bookingSelectDoctor, extra: d),
                           ),
                       ],
                     ),
@@ -275,16 +286,20 @@ class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
   final bool isLast;
+  final VoidCallback? onEdit;
 
   const _InfoRow({
     required this.icon,
     required this.label,
     required this.value,
     this.isLast = false,
+    this.onEdit,
   });
 
   @override
   Widget build(BuildContext context) {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
+
     return Column(
       children: [
         Padding(
@@ -324,7 +339,30 @@ class _InfoRow extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(Iconsax.tick_circle, color: AppColors.success, size: 20),
+              if (onEdit != null)
+                GestureDetector(
+                  onTap: onEdit,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Iconsax.edit_2, size: 15, color: context.textSecondary),
+                        const SizedBox(width: 4),
+                        Text(
+                          isVi ? 'Sửa' : 'Edit',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: context.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                const Icon(Iconsax.tick_circle, color: AppColors.success, size: 20),
             ],
           ),
         ),

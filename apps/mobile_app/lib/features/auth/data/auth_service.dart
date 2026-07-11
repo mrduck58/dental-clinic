@@ -46,6 +46,37 @@ class RegisterResult {
   }
 }
 
+/// Trả về sau khi đăng nhập bằng Google.
+class GoogleLoginResult {
+  final String accessToken;
+  final bool isNewUser;
+  final String id;
+  final String email;
+  final String? fullName;
+  final String? avatarUrl;
+
+  const GoogleLoginResult({
+    required this.accessToken,
+    required this.isNewUser,
+    required this.id,
+    required this.email,
+    this.fullName,
+    this.avatarUrl,
+  });
+
+  factory GoogleLoginResult.fromJson(Map<String, dynamic> json) {
+    final user = json['user'] as Map<String, dynamic>;
+    return GoogleLoginResult(
+      accessToken: json['accessToken'] as String,
+      isNewUser: json['isNewUser'] as bool,
+      id: user['id'].toString(),
+      email: user['email'] as String,
+      fullName: user['fullName'] as String?,
+      avatarUrl: user['profilePictureUrl'] as String?,
+    );
+  }
+}
+
 /// Trả về sau khi xác thực OTP thành công — tài khoản đã kích hoạt.
 class VerifyOtpResult {
   final String accessToken;
@@ -142,6 +173,38 @@ class AuthService {
 
   Future<void> resendOtp(String email) async {
     await _client.post(ApiConstants.resendOtp, {'email': email});
+  }
+
+  Future<GoogleLoginResult> googleLogin(String idToken) async {
+    final res = await _client.post(ApiConstants.googleLogin, {
+      'idToken': idToken,
+    });
+    return GoogleLoginResult.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  Future<void> requestPasswordResetOtp(String email) async {
+    await _client.post(ApiConstants.forgotPasswordOtp, {'email': email});
+  }
+
+  /// Trả về resetToken dùng cho bước đặt mật khẩu mới.
+  Future<String> verifyPasswordResetOtp(String email, String code) async {
+    final res = await _client.post(ApiConstants.verifyResetOtp, {
+      'email': email,
+      'code': code,
+    });
+    return (res.data as Map<String, dynamic>)['resetToken'] as String;
+  }
+
+  Future<void> resetPasswordWithToken({
+    required String email,
+    required String resetToken,
+    required String newPassword,
+  }) async {
+    await _client.post(ApiConstants.resetPassword, {
+      'email': email,
+      'token': resetToken,
+      'newPassword': newPassword,
+    });
   }
 
   Future<UserProfile> getMyProfile() async {
@@ -281,18 +344,29 @@ class AuthService {
   }
 
   // ── Token storage ──────────────────────────────────────────────────────────
+  // "Ghi nhớ đăng nhập" = lưu vào SharedPreferences (giữ qua các lần mở app).
+  // Bỏ chọn = chỉ giữ trong bộ nhớ của phiên hiện tại (mất khi tắt hẳn app).
+  static String? _memoryToken;
 
-  Future<void> saveToken(String token) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_tokenKey, token);
+  Future<void> saveToken(String token, {bool remember = true}) async {
+    if (remember) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_tokenKey, token);
+    } else {
+      _memoryToken = token;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_tokenKey);
+    }
   }
 
   Future<String?> getToken() async {
+    if (_memoryToken != null) return _memoryToken;
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_tokenKey);
   }
 
   Future<void> clearToken() async {
+    _memoryToken = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
   }
@@ -334,6 +408,7 @@ class AuthService {
   }
 
   Future<void> clearAll() async {
+    _memoryToken = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
     await prefs.remove(_nameKey);

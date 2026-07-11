@@ -17,6 +17,7 @@ public class AppointmentsController(
     GetMyAppointmentsHandler getMyAppointmentsHandler,
     GetAllAppointmentsHandler getAllAppointmentsHandler,
     GetWaitingQueueHandler getWaitingQueueHandler,
+    TransferQueuePatientHandler transferQueuePatientHandler,
     GetDentistPatientsHandler getDentistPatientsHandler,
     DentistDashboardHandler dentistDashboardHandler,
     UpdateAppointmentStatusHandler updateAppointmentStatusHandler,
@@ -26,7 +27,8 @@ public class AppointmentsController(
     PrescriptionHandler prescriptionHandler,
     FollowUpReminderHandler followUpReminderHandler,
     GetStaffScheduleHandler staffScheduleHandler,
-    CreateWalkInAppointmentHandler createWalkInHandler) : ControllerBase
+    CreateWalkInAppointmentHandler createWalkInHandler,
+    SummarizePatientHistoryHandler summarizePatientHistoryHandler) : ControllerBase
 {
     /// <summary>POST api/appointments — Đặt lịch khám mới</summary>
     [HttpPost]
@@ -103,6 +105,15 @@ public class AppointmentsController(
         return NoContent();
     }
 
+    /// <summary>PUT api/appointments/{id}/no-show — Ghi nhận bệnh nhân vắng mặt (Staff/Admin)</summary>
+    [HttpPut("{id}/no-show")]
+    [Authorize(Roles = "Staff,Admin,Owner")]
+    public async Task<IActionResult> MarkNoShow(Guid id, CancellationToken cancellationToken)
+    {
+        await updateAppointmentStatusHandler.MarkNoShowAsync(id, cancellationToken);
+        return NoContent();
+    }
+
     /// <summary>PUT api/appointments/{id}/start — Bắt đầu khám (Dentist/Staff/Admin)</summary>
     [HttpPut("{id}/start")]
     [Authorize(Roles = "Dentist")]
@@ -138,6 +149,15 @@ public class AppointmentsController(
         var result = await getExaminationHandler.HandleAsync(id, cancellationToken);
         if (result == null)
             return NotFound(new { title = "Không tìm thấy lịch hẹn." });
+        return Ok(result);
+    }
+
+    /// <summary>GET api/appointments/{id}/ai-summary — Tóm tắt lịch sử khám của bệnh nhân bằng AI (Staff/Admin/Dentist)</summary>
+    [HttpGet("{id}/ai-summary")]
+    [Authorize(Roles = "Staff,Admin,Dentist")]
+    public async Task<IActionResult> GetPatientAiSummary(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await summarizePatientHistoryHandler.HandleAsync(id, cancellationToken);
         return Ok(result);
     }
 
@@ -344,6 +364,18 @@ public class AppointmentsController(
         return Ok(result);
     }
 
+    /// <summary>PUT api/appointments/{id}/queue-room — Chuyển bệnh nhân đang chờ sang hàng đợi phòng khác (Staff/Admin)</summary>
+    [HttpPut("{id}/queue-room")]
+    [Authorize(Roles = "Staff,Admin,Owner")]
+    public async Task<IActionResult> TransferQueuePatient(
+        Guid id,
+        [FromBody] TransferQueuePatientRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await transferQueuePatientHandler.HandleAsync(id, request.RoomName, cancellationToken);
+        return Ok(result);
+    }
+
     /// <summary>GET api/appointments/dentist/dashboard — Dữ liệu tổng quan cho bác sĩ (Dentist/Admin)</summary>
     [HttpGet("dentist/dashboard")]
     [Authorize(Roles = "Dentist,Admin")]
@@ -470,7 +502,8 @@ public class AppointmentsController(
             request.DateOfBirth,
             request.Gender,
             request.ServiceId,
-            request.Symptoms);
+            request.Symptoms,
+            request.PatientId);
         var result = await createWalkInHandler.HandleAsync(cmd, cancellationToken);
         return Ok(result);
     }
@@ -587,6 +620,8 @@ public record CreateAppointmentRequest(
     Guid? ServiceId,
     Guid? PatientId);
 
+public record TransferQueuePatientRequest(string RoomName);
+
 public record CreateWalkInRequest(
     Guid DentistId,
     DateTimeOffset AppointmentDate,
@@ -595,7 +630,8 @@ public record CreateWalkInRequest(
     DateOnly DateOfBirth,
     string Gender,
     Guid? ServiceId,
-    string? Symptoms);
+    string? Symptoms,
+    Guid? PatientId = null);
 
 public record CancelAppointmentRequest(string? Reason);
 
