@@ -1748,6 +1748,7 @@ export interface PatientBriefDto {
   email: string | null;
   dateOfBirth: string | null;
   gender: string | null;
+  address: string | null;
 }
 
 export interface DentistBriefDto {
@@ -1760,7 +1761,17 @@ export interface DiagnosisDto {
   diagnosisCode: string;
   description: string;
   notes: string | null;
+  // Các trường khám lâm sàng
+  heartRate: number | null;
+  temperature: number | null;
+  bloodPressureSystolic: number | null;
+  bloodPressureDiastolic: number | null;
+  medicalHistory: string | null;
+  allergyHistory: string | null;
+  dentalCondition: string | null;
+  conclusion: string | null;
   createdAt: string;
+  updatedAt: string | null;
 }
 
 export interface TreatmentPlanDto {
@@ -1816,11 +1827,64 @@ export async function getExaminationApi(appointmentId: string): Promise<Examinat
   return res.json() as Promise<ExaminationDto>;
 }
 
+// Patient Medical History APIs
+export interface PatientMedicalHistoryDto {
+  appointmentId: string;
+  appointmentCode: string;
+  appointmentDate: string;
+  dentistName: string;
+  serviceName: string;
+  symptoms: string | null;
+  diagnoses: MedicalHistoryDiagnosisDto[];
+  treatmentPlans: MedicalHistoryTreatmentPlanDto[];
+  prescriptionItems: MedicalHistoryPrescriptionItemDto[];
+}
+
+export interface MedicalHistoryDiagnosisDto {
+  diagnosisCode: string;
+  description: string;
+  conclusion: string | null;
+  createdAt: string;
+}
+
+export interface MedicalHistoryTreatmentPlanDto {
+  description: string;
+  status: string;
+  estimatedCost: number | null;
+}
+
+export interface MedicalHistoryPrescriptionItemDto {
+  medicineName: string;
+  dosage: string;
+  quantity: number;
+  unit: string;
+}
+
+export async function getPatientMedicalHistoryApi(patientId: string): Promise<PatientMedicalHistoryDto[]> {
+  const res = await fetch(`${API_URL}/api/appointments/patients/${patientId}/medical-history`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải lịch sử khám");
+  }
+  return res.json() as Promise<PatientMedicalHistoryDto[]>;
+}
+
 // Diagnosis APIs
 export interface CreateDiagnosisRequest {
   diagnosisCode: string;
   description: string;
   notes?: string;
+  heartRate?: number;
+  temperature?: number;
+  bloodPressureSystolic?: number;
+  bloodPressureDiastolic?: number;
+  medicalHistory?: string;
+  allergyHistory?: string;
+  dentalCondition?: string;
+  conclusion?: string;
 }
 
 export interface UpdateDiagnosisRequest {
@@ -1828,6 +1892,14 @@ export interface UpdateDiagnosisRequest {
   diagnosisCode: string;
   description: string;
   notes?: string;
+  heartRate?: number;
+  temperature?: number;
+  bloodPressureSystolic?: number;
+  bloodPressureDiastolic?: number;
+  medicalHistory?: string;
+  allergyHistory?: string;
+  dentalCondition?: string;
+  conclusion?: string;
 }
 
 export async function createDiagnosisApi(appointmentId: string, request: CreateDiagnosisRequest): Promise<DiagnosisDto> {
@@ -1848,7 +1920,7 @@ export async function updateDiagnosisApi(request: UpdateDiagnosisRequest): Promi
   const res = await fetch(`${API_URL}/api/appointments/diagnosis/${request.diagnosisId}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify({ diagnosisCode: request.diagnosisCode, description: request.description, notes: request.notes }),
+    body: JSON.stringify(request),
   });
   await checkAuth(res);
   if (!res.ok) {

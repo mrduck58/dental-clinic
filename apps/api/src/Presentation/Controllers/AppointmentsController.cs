@@ -539,6 +539,54 @@ public class AppointmentsController(
         return Ok(patients);
     }
 
+    /// <summary>GET api/patients/{patientId}/medical-history — Lấy lịch sử khám của bệnh nhân (Dentist/Staff/Admin)</summary>
+    [HttpGet("patients/{patientId}/medical-history")]
+    [Authorize(Roles = "Dentist,Staff,Admin,Owner")]
+    public async Task<IActionResult> GetPatientMedicalHistory(Guid patientId, CancellationToken cancellationToken)
+    {
+        var appointments = await dbContext.Appointments
+            .Include(a => a.Dentist)
+            .Include(a => a.Service)
+            .Include(a => a.Diagnoses)
+            .Include(a => a.TreatmentPlans)
+            .Include(a => a.Prescriptions).ThenInclude(p => p.Items)
+            .Where(a => a.PatientId == patientId &&
+                        a.Status == AppointmentStatus.Completed)
+            .OrderByDescending(a => a.AppointmentDate)
+            .Take(50)
+            .ToListAsync(cancellationToken);
+
+        var history = appointments.Select(a => new PatientMedicalHistoryDto(
+            a.Id,
+            $"DK{a.AppointmentDate:yyyyMMdd}{a.Id.ToString("N")[..6].ToUpper()}",
+            a.AppointmentDate,
+            a.Dentist.FullName,
+            a.Service?.Name ?? "Khám tổng quát",
+            a.Symptoms,
+            a.Diagnoses.Select(d => new MedicalHistoryDiagnosisDto(
+                d.DiagnosisCode,
+                d.Description,
+                d.Conclusion,
+                d.CreatedAt
+            )).ToList(),
+            a.TreatmentPlans.Select(tp => new MedicalHistoryTreatmentPlanDto(
+                tp.Description,
+                tp.Status.ToString(),
+                tp.EstimatedCost
+            )).ToList(),
+            a.Prescriptions.FirstOrDefault() != null
+                ? a.Prescriptions.First().Items.Select(i => new MedicalHistoryPrescriptionItemDto(
+                    i.MedicineName,
+                    i.Dosage,
+                    i.Quantity,
+                    i.Unit
+                )).ToList()
+                : new List<MedicalHistoryPrescriptionItemDto>()
+        )).ToList();
+
+        return Ok(history);
+    }
+
     private static int CalculateAge(DateOnly? dateOfBirth)
     {
         if (!dateOfBirth.HasValue) return 0;
@@ -575,3 +623,32 @@ public record CreateWalkInRequest(
     string? Symptoms);
 
 public record CancelAppointmentRequest(string? Reason);
+
+// DTOs for patient medical history
+public record PatientMedicalHistoryDto(
+    Guid AppointmentId,
+    string AppointmentCode,
+    DateTimeOffset AppointmentDate,
+    string DentistName,
+    string ServiceName,
+    string? Symptoms,
+    List<MedicalHistoryDiagnosisDto> Diagnoses,
+    List<MedicalHistoryTreatmentPlanDto> TreatmentPlans,
+    List<MedicalHistoryPrescriptionItemDto> PrescriptionItems);
+
+public record MedicalHistoryDiagnosisDto(
+    string DiagnosisCode,
+    string Description,
+    string? Conclusion,
+    DateTimeOffset CreatedAt);
+
+public record MedicalHistoryTreatmentPlanDto(
+    string Description,
+    string Status,
+    decimal? EstimatedCost);
+
+public record MedicalHistoryPrescriptionItemDto(
+    string MedicineName,
+    string Dosage,
+    int Quantity,
+    string Unit);

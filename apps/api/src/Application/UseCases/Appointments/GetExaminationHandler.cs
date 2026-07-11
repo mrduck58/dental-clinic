@@ -32,6 +32,7 @@ public class PatientBriefDto
     public string? Email { get; set; }
     public DateOnly? DateOfBirth { get; set; }
     public string? Gender { get; set; }
+    public string? Address { get; set; }
 }
 
 public class DentistBriefDto
@@ -46,7 +47,17 @@ public class DiagnosisDto
     public string DiagnosisCode { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public string? Notes { get; set; }
+    // Các trường khám lâm sàng
+    public decimal? HeartRate { get; set; }
+    public decimal? Temperature { get; set; }
+    public decimal? BloodPressureSystolic { get; set; }
+    public decimal? BloodPressureDiastolic { get; set; }
+    public string? MedicalHistory { get; set; }
+    public string? AllergyHistory { get; set; }
+    public string? DentalCondition { get; set; }
+    public string? Conclusion { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? UpdatedAt { get; set; }
 }
 
 public class TreatmentPlanDto
@@ -110,7 +121,8 @@ public class GetExaminationHandler(AppDbContext dbContext)
                 // Walk-in patients (có PhoneNumber trực tiếp trên Patient) không hiện email vì staff không thu thập
                 Email = appointment.Patient.PhoneNumber == null ? appointment.Patient.User?.Email : null,
                 DateOfBirth = appointment.Patient.DateOfBirth,
-                Gender = appointment.Patient.Gender
+                Gender = appointment.Patient.Gender,
+                Address = appointment.Patient.Address
             },
             Dentist = new DentistBriefDto
             {
@@ -129,7 +141,16 @@ public class GetExaminationHandler(AppDbContext dbContext)
                 DiagnosisCode = d.DiagnosisCode,
                 Description = d.Description,
                 Notes = d.Notes,
-                CreatedAt = d.CreatedAt
+                HeartRate = d.HeartRate,
+                Temperature = d.Temperature,
+                BloodPressureSystolic = d.BloodPressureSystolic,
+                BloodPressureDiastolic = d.BloodPressureDiastolic,
+                MedicalHistory = d.MedicalHistory,
+                AllergyHistory = d.AllergyHistory,
+                DentalCondition = d.DentalCondition,
+                Conclusion = d.Conclusion,
+                CreatedAt = d.CreatedAt,
+                UpdatedAt = d.UpdatedAt
             }).ToList(),
             TreatmentPlans = appointment.TreatmentPlans.Select(tp => new TreatmentPlanDto
             {
