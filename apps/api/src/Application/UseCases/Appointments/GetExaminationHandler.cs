@@ -22,6 +22,9 @@ public class ExaminationDto
     public DateOnly? FollowUpDate { get; set; }
     public string? FollowUpNote { get; set; }
     public bool IsFollowUpVisit { get; set; }
+    // Chuỗi buổi hẹn gốc của lượt tái khám (đi ngược FollowUpFromAppointmentId) —
+    // frontend dùng để chỉ hiển thị liệu trình thuộc đúng chuỗi đơn được tái khám.
+    public List<Guid> RelatedAppointmentIds { get; set; } = new();
     public List<DiagnosisDto> Diagnoses { get; set; } = new();
     public List<TreatmentPlanDto> TreatmentPlans { get; set; } = new();
     public PrescriptionDto? Prescription { get; set; }
@@ -99,7 +102,25 @@ public class GetExaminationHandler(AppDbContext dbContext)
         if (appointment == null)
             return null;
 
-        return ToDto(appointment);
+        var dto = ToDto(appointment);
+        dto.RelatedAppointmentIds = await GetFollowUpChainAsync(appointment.FollowUpFromAppointmentId, ct);
+        return dto;
+    }
+
+    /// <summary>Đi ngược chuỗi tái khám: buổi gốc trực tiếp → buổi gốc của buổi gốc... (chặn vòng lặp).</summary>
+    private async Task<List<Guid>> GetFollowUpChainAsync(Guid? fromId, CancellationToken ct)
+    {
+        var chain = new List<Guid>();
+        var cursor = fromId;
+        while (cursor is Guid id && !chain.Contains(id))
+        {
+            chain.Add(id);
+            cursor = await dbContext.Appointments
+                .Where(a => a.Id == id)
+                .Select(a => a.FollowUpFromAppointmentId)
+                .FirstOrDefaultAsync(ct);
+        }
+        return chain;
     }
 
     public static ExaminationDto ToDto(Appointment appointment)

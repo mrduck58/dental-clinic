@@ -76,20 +76,17 @@ public class FollowUpReminderHandler(AppDbContext dbContext)
     /// </summary>
     public async Task<List<FollowUpDueDto>> GetDueAsync(CancellationToken ct = default)
     {
-        // Bệnh nhân còn liệu trình đang thực hiện + tên các dịch vụ đó
+        // Liệu trình đang thực hiện + buổi hẹn nơi liệu trình được lập (gốc chuỗi điều trị)
         var activePlans = await dbContext.TreatmentPlans
             .AsNoTracking()
             .Include(tp => tp.Service)
-            .Where(tp => tp.Status == TreatmentPlanStatus.InProgress)
-            .Select(tp => new { tp.PatientId, ServiceName = tp.Service.Name })
+            .Where(tp => tp.Status == TreatmentPlanStatus.InProgress && tp.AppointmentId != null)
+            .Select(tp => new { tp.PatientId, AppointmentId = tp.AppointmentId!.Value, ServiceName = tp.Service.Name })
             .ToListAsync(ct);
 
         if (activePlans.Count == 0) return new List<FollowUpDueDto>();
 
         var patientIds = activePlans.Select(p => p.PatientId).Distinct().ToList();
-        var planNamesByPatient = activePlans
-            .GroupBy(p => p.PatientId)
-            .ToDictionary(g => g.Key, g => g.Select(x => x.ServiceName).Distinct().ToList());
 
         var appointments = await dbContext.Appointments
             .AsNoTracking()
@@ -99,33 +96,76 @@ public class FollowUpReminderHandler(AppDbContext dbContext)
             .Where(a => patientIds.Contains(a.PatientId))
             .ToListAsync(ct);
 
-        return appointments
-            .GroupBy(a => a.PatientId)
-            // Đang trong phòng khám (đã check-in / đang khám) → không hiện để tránh check-in trùng
-            .Where(g => !g.Any(a => a.Status == AppointmentStatus.CheckedIn || a.Status == AppointmentStatus.InProgress))
-            // Buổi gốc = buổi điều trị gần nhất đã kết thúc
-            .Select(g => g
-                .Where(a => a.Status == AppointmentStatus.Completed || a.Status == AppointmentStatus.PendingPayment)
-                .OrderByDescending(a => a.AppointmentDate)
-                .FirstOrDefault())
-            .Where(a => a != null)
-            .Select(a => a!)
-            .OrderBy(a => a.FollowUpDate ?? DateOnly.MaxValue)
-            .Select(a => new FollowUpDueDto
+        var parentById = appointments.ToDictionary(a => a.Id, a => a.FollowUpFromAppointmentId);
+        var rootsByPatient = activePlans
+            .GroupBy(p => p.PatientId)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.AppointmentId).ToHashSet());
+
+        // Chuỗi tái khám của một buổi hẹn: chính nó + các buổi gốc phía trên (chặn vòng lặp)
+        List<Guid> WalkUp(Guid id)
+        {
+            var chain = new List<Guid>();
+            Guid? cursor = id;
+            while (cursor is Guid c && !chain.Contains(c))
             {
-                OriginalAppointmentId = a.Id,
-                PatientId = a.PatientId,
-                PatientName = a.Patient.FullName,
-                PatientPhone = a.Patient.PhoneNumber ?? a.Patient.User?.PhoneNumber,
-                Gender = a.Patient.Gender,
-                DentistName = a.Dentist.FullName,
-                ServiceName = a.Service?.Name,
-                OriginalAppointmentDate = a.AppointmentDate,
-                FollowUpDate = a.FollowUpDate,
-                FollowUpNote = a.FollowUpNote,
-                ActivePlans = planNamesByPatient.GetValueOrDefault(a.PatientId) ?? new List<string>()
-            })
-            .ToList();
+                chain.Add(c);
+                cursor = parentById.TryGetValue(c, out var next) ? next : null;
+            }
+            return chain;
+        }
+
+        var result = new List<FollowUpDueDto>();
+        foreach (var g in appointments.GroupBy(a => a.PatientId))
+        {
+            if (!rootsByPatient.TryGetValue(g.Key, out var roots)) continue;
+
+            // Ứng viên: các buổi đã kết thúc THUỘC CHUỖI điều trị của một liệu trình đang thực hiện.
+            var candidates = g
+                .Where(a => a.Status == AppointmentStatus.Completed || a.Status == AppointmentStatus.PendingPayment)
+                .Select(a => new { Appointment = a, Chain = WalkUp(a.Id) })
+                .Where(x => x.Chain.Any(roots.Contains))
+                .ToList();
+
+            // Mỗi chuỗi điều trị (nhóm theo buổi gốc trên cùng) một dòng riêng —
+            // bệnh nhân có 2 chuỗi dở dang song song sẽ hiện cả 2.
+            foreach (var chainGroup in candidates.GroupBy(x => x.Chain[^1]))
+            {
+                // Buổi gốc = buổi CUỐI chuỗi (sâu nhất) — không dựa vào ngày giờ, vì buổi tái khám
+                // check-in tại quầy có thể mang giờ thực sớm hơn giờ hẹn của buổi trước.
+                var original = chainGroup
+                    .OrderByDescending(x => x.Chain.Count)
+                    .ThenByDescending(x => x.Appointment.AppointmentDate)
+                    .First().Appointment;
+
+                // Đã check-in tái khám cho buổi gốc này (buổi con chưa kết thúc) → ẩn để tránh trùng
+                if (g.Any(f => f.FollowUpFromAppointmentId == original.Id && f.Status != AppointmentStatus.Cancelled)) continue;
+
+                // Chỉ liệt kê các dịch vụ đang thực hiện thuộc đúng chuỗi này
+                var chainSet = WalkUp(original.Id).ToHashSet();
+                var planNames = activePlans
+                    .Where(p => p.PatientId == g.Key && chainSet.Contains(p.AppointmentId))
+                    .Select(p => p.ServiceName)
+                    .Distinct()
+                    .ToList();
+
+                result.Add(new FollowUpDueDto
+                {
+                    OriginalAppointmentId = original.Id,
+                    PatientId = original.PatientId,
+                    PatientName = original.Patient.FullName,
+                    PatientPhone = original.Patient.PhoneNumber ?? original.Patient.User?.PhoneNumber,
+                    Gender = original.Patient.Gender,
+                    DentistName = original.Dentist.FullName,
+                    ServiceName = original.Service?.Name,
+                    OriginalAppointmentDate = original.AppointmentDate,
+                    FollowUpDate = original.FollowUpDate,
+                    FollowUpNote = original.FollowUpNote,
+                    ActivePlans = planNames
+                });
+            }
+        }
+
+        return result.OrderBy(x => x.FollowUpDate ?? DateOnly.MaxValue).ToList();
     }
 
     /// <summary>
@@ -138,18 +178,31 @@ public class FollowUpReminderHandler(AppDbContext dbContext)
             .FirstOrDefaultAsync(a => a.Id == originalAppointmentId, ct)
             ?? throw new NotFoundException("Không tìm thấy buổi hẹn gốc.");
 
-        var hasActivePlan = await dbContext.TreatmentPlans.AnyAsync(tp =>
-            tp.PatientId == original.PatientId && tp.Status == TreatmentPlanStatus.InProgress, ct);
-        if (!hasActivePlan)
-            throw new ValidationException("Bệnh nhân không còn liệu trình đang thực hiện.");
+        // Chuỗi tái khám của buổi gốc (đi ngược FollowUpFromAppointmentId)
+        var chain = new List<Guid>();
+        Guid? cursor = original.Id;
+        while (cursor is Guid c && !chain.Contains(c))
+        {
+            chain.Add(c);
+            cursor = await dbContext.Appointments
+                .Where(a => a.Id == c)
+                .Select(a => a.FollowUpFromAppointmentId)
+                .FirstOrDefaultAsync(ct);
+        }
 
-        // Chỉ chặn khi bệnh nhân đang có mặt trong phòng khám (đã check-in / đang khám) — tránh trùng lượt.
-        // Lịch đặt mới (Pending/Confirmed) là lần khám riêng, không ảnh hưởng việc check-in tái khám.
-        var inClinic = await dbContext.Appointments.AnyAsync(o =>
-            o.PatientId == original.PatientId &&
-            (o.Status == AppointmentStatus.CheckedIn || o.Status == AppointmentStatus.InProgress), ct);
-        if (inClinic)
-            throw new ConflictException("Bệnh nhân đang có lượt khám trong phòng khám (đã check-in hoặc đang khám).");
+        // Chuỗi này phải còn liệu trình đang thực hiện
+        var hasActivePlan = await dbContext.TreatmentPlans.AnyAsync(tp =>
+            tp.AppointmentId != null && chain.Contains(tp.AppointmentId.Value) &&
+            tp.Status == TreatmentPlanStatus.InProgress, ct);
+        if (!hasActivePlan)
+            throw new ValidationException("Chuỗi điều trị này không còn liệu trình đang thực hiện.");
+
+        // Chặn check-in tái khám lặp cho cùng một buổi gốc (buổi hủy không tính).
+        // Các lịch hẹn/lượt khám khác của bệnh nhân là lần khám riêng — không ảnh hưởng.
+        var alreadyCheckedIn = await dbContext.Appointments.AnyAsync(f =>
+            f.FollowUpFromAppointmentId == originalAppointmentId && f.Status != AppointmentStatus.Cancelled, ct);
+        if (alreadyCheckedIn)
+            throw new ConflictException("Buổi hẹn này đã được check-in tái khám.");
 
         var followUpVisit = Appointment.CheckInFollowUp(
             original.Id,
