@@ -7,6 +7,7 @@ import DentistSidebar from "../../../../components/shared/DentistSidebar";
 import DentistPageHeader from "../../../../components/shared/DentistPageHeader";
 import TreatmentWorkspace from "../../treatment-plans/TreatmentWorkspace";
 import PrescriptionWorkspace from "./PrescriptionWorkspace";
+import FollowUpWorkspace from "./FollowUpWorkspace";
 import ToothArchDiagram, { TOOTH_COLOR, TOOTH_LEGEND, UPPER_TEETH, LOWER_TEETH, ARCH_H, type ToothStatus as TS, type ToothState as TState } from "../../../../components/shared/ToothArchDiagram";
 import { useRequireDentist } from "../../../../hooks/useRequireDentist";
 import {
@@ -16,13 +17,9 @@ import {
   createDiagnosisApi,
   updateDiagnosisApi,
   deleteDiagnosisApi,
-  createFollowUpApi,
-  getFollowUpsApi,
-  deleteFollowUpApi,
   getPatientMedicalHistoryApi,
   type ExaminationDto,
   type DiagnosisDto,
-  type FollowUpAppointmentDto,
   type PatientMedicalHistoryDto,
 } from "../../../../lib/apiClient";
 
@@ -55,24 +52,6 @@ const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
   Cancelled:    { label: "Đã hủy",     cls: "bg-red-50 text-red-700 border border-red-200" },
 };
 
-function SectionHeading({ color, title, icon, action }: {
-  color: string; title: string; icon: string; action?: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-      <div className="flex items-center gap-3">
-        <div className={`w-8 h-8 rounded-xl ${color} flex items-center justify-center shrink-0`}>
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d={icon} />
-          </svg>
-        </div>
-        <span className="text-[15px] font-black text-slate-900">{title}</span>
-      </div>
-      {action}
-    </div>
-  );
-}
-
 export default function PatientDetailPage() {
   useRequireDentist();
   const { id } = useParams<{ id: string }>();
@@ -104,7 +83,6 @@ export default function PatientDetailPage() {
   const [conclusion, setConclusion] = useState<string>("");
   
   // Follow-ups from API
-  const [followUps, setFollowUps] = useState<FollowUpAppointmentDto[]>([]);
 
   // Patient medical history
   const [medicalHistory, setMedicalHistory] = useState<PatientMedicalHistoryDto[]>([]);
@@ -158,20 +136,9 @@ export default function PatientDetailPage() {
     }
   }, [examination?.patient?.id]);
 
-  // Load follow-ups
-  const loadFollowUps = useCallback(async () => {
-    try {
-      const data = await getFollowUpsApi(id);
-      setFollowUps(data);
-    } catch {
-      // Silently fail for follow-ups
-    }
-  }, [id]);
-
   useEffect(() => {
     void loadExamination();
-    void loadFollowUps();
-  }, [loadExamination, loadFollowUps]);
+  }, [loadExamination]);
 
   // Load medical history when examination data is available
   useEffect(() => {
@@ -256,33 +223,6 @@ export default function PatientDetailPage() {
       await loadExamination();
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Lưu thất bại", "error");
-    }
-  };
-
-  // Create follow-up
-  const handleCreateFollowUp = async () => {
-    try {
-      const nextWeek = new Date();
-      nextWeek.setDate(nextWeek.getDate() + 7);
-      await createFollowUpApi(id, {
-        appointmentDate: nextWeek.toISOString(),
-        symptoms: "Tái khám theo dõi",
-      });
-      showToast("Đã tạo lịch tái khám!", "success");
-      await loadFollowUps();
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : "Tạo lịch tái khám thất bại", "error");
-    }
-  };
-
-  // Delete follow-up
-  const handleDeleteFollowUp = async (followUpId: string) => {
-    try {
-      await deleteFollowUpApi(followUpId);
-      showToast("Đã xóa lịch tái khám!", "success");
-      await loadFollowUps();
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : "Xóa lịch tái khám thất bại", "error");
     }
   };
 
@@ -766,51 +706,7 @@ return (
 
               {/* ─── TAB: TÁI KHÁM ─── */}
               {activeTab === "followup" && (
-                <section className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
-                  <SectionHeading color="bg-green-50 text-green-700" title="Lịch tái khám"
-                    icon="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008zM9.75 15h.008v.008H9.75V15zm0 2.25h.008v.008H9.75v-.008zM7.5 15h.008v.008H7.5V15zm0 2.25h.008v.008H7.5v-.008zm6.75-4.5h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008V15zm0 2.25h.008v.008h-.008v-.008zm2.25-4.5h.008v.008H16.5v-.008zm0 2.25h.008v.008H16.5V15z"
-                    action={
-                      isInProgress && (
-                        <Link
-                          href={`/dentist/patients/${id}/followup/new`}
-                          className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-[13px] font-bold rounded-xl hover:bg-red-600 transition-all shadow-sm"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                          Đặt lịch mới
-                        </Link>
-                      )
-                    } />
-                  <div className="p-6 flex flex-col gap-3">
-                    {followUps.length === 0 && <p className="text-[13px] text-slate-400 font-semibold">Chưa có lịch tái khám.</p>}
-                    {followUps.map((h) => (
-                      <div key={h.id} className="bg-slate-50 border border-slate-100 rounded-xl px-5 py-4 flex items-start gap-4">
-                        <div className="w-10 h-10 rounded-xl bg-green-50 text-green-700 flex items-center justify-center shrink-0">
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" /></svg>
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="text-[14px] font-black text-slate-900">
-                              {new Date(h.appointmentDate).toLocaleDateString("vi-VN")}
-                            </span>
-                            <span className="text-[12px] font-semibold text-slate-400">{h.dentistName}</span>
-                          </div>
-                          <p className="text-[13px] text-slate-600 font-medium mt-1">{h.symptoms ?? h.notes ?? "Tái khám theo dõi"}</p>
-                          <span className={`inline-block mt-2 px-2.5 py-0.5 text-[10px] font-black rounded-full ${h.status === "Confirmed" ? "bg-blue-50 text-blue-700" : h.status === "Completed" ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"}`}>
-                            {h.status}
-                          </span>
-                        </div>
-                        {isInProgress && (
-                          <button
-                            onClick={() => handleDeleteFollowUp(h.id)}
-                            className="p-1 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-all cursor-pointer"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </section>
+                <FollowUpWorkspace appointmentId={id} />
               )}
 
             </div>{/* end left col */}

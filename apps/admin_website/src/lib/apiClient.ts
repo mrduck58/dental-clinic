@@ -1572,6 +1572,7 @@ export interface DentistPatientDto {
   serviceName: string | null;
   symptoms: string | null;
   isNew: boolean;
+  hasActiveTreatment: boolean; // Đang giữa liệu trình điều trị → buổi này là tái khám
 }
 
 export interface DentistPatientsResponse {
@@ -1832,6 +1833,8 @@ export interface ExaminationDto {
   symptoms: string | null;
   notes: string | null;
   startTime: string | null;
+  followUpDate: string | null;
+  followUpNote: string | null;
   diagnoses: DiagnosisDto[];
   treatmentPlans: TreatmentPlanDto[];
   prescription: PrescriptionDto | null;
@@ -2206,114 +2209,41 @@ export async function deletePrescriptionItemApi(itemId: string): Promise<void> {
   }
 }
 
-// Follow-up Appointment APIs
-export interface FollowUpAppointmentDto {
-  id: string;
-  appointmentCode: string;
-  appointmentDate: string;
-  status: string;
-  symptoms: string | null;
-  notes: string | null;
-  serviceName: string | null;
-  dentistName: string;
-  isFollowUp: boolean;
-  followUpFromAppointmentId: string | null;
+// Follow-up Reminder APIs (nhắc tái khám — chỉ hẹn ngày, không đặt lịch mới)
+export interface FollowUpReminderDto {
+  appointmentId: string;
+  followUpDate: string | null;
+  followUpNote: string | null;
 }
 
-export interface CreateFollowUpRequest {
-  appointmentDate: string;
-  symptoms?: string;
-  serviceId?: string;
-  notes?: string;
-  dentistId?: string;
-}
-
-export async function createFollowUpApi(appointmentId: string, request: CreateFollowUpRequest): Promise<FollowUpAppointmentDto> {
-  const res = await fetch(`${API_URL}/api/appointments/${appointmentId}/follow-up`, {
-    method: "POST",
+export async function setFollowUpReminderApi(
+  appointmentId: string,
+  request: { followUpDate: string; note?: string }
+): Promise<FollowUpReminderDto> {
+  const res = await fetch(`${API_URL}/api/appointments/${appointmentId}/follow-up-reminder`, {
+    method: "PUT",
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(request),
   });
   await checkAuth(res);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error((err as { title?: string }).title ?? "Không thể tạo lịch tái khám");
+    throw new Error((err as { title?: string }).title ?? "Không thể lưu lịch hẹn tái khám");
   }
-  return res.json() as Promise<FollowUpAppointmentDto>;
+  return res.json() as Promise<FollowUpReminderDto>;
 }
 
-export async function getFollowUpsApi(appointmentId: string): Promise<FollowUpAppointmentDto[]> {
-  const res = await fetch(`${API_URL}/api/appointments/${appointmentId}/follow-ups`, {
-    headers: { ...authHeaders() },
-  });
-  await checkAuth(res);
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách lịch tái khám");
-  }
-  return res.json() as Promise<FollowUpAppointmentDto[]>;
-}
-
-export async function deleteFollowUpApi(followUpId: string): Promise<void> {
-  const res = await fetch(`${API_URL}/api/appointments/follow-up/${followUpId}`, {
+export async function clearFollowUpReminderApi(appointmentId: string): Promise<FollowUpReminderDto> {
+  const res = await fetch(`${API_URL}/api/appointments/${appointmentId}/follow-up-reminder`, {
     method: "DELETE",
     headers: { ...authHeaders() },
   });
   await checkAuth(res);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error((err as { title?: string }).title ?? "Xóa lịch tái khám thất bại");
+    throw new Error((err as { title?: string }).title ?? "Không thể hủy lịch hẹn tái khám");
   }
-}
-
-export interface FollowUpSlotDto {
-  time: string;
-  isBooked: boolean;
-  isAvailable: boolean;
-}
-
-export interface FollowUpSlotsResultDto {
-  hasSchedule: boolean;
-  message: string | null;
-  slots: FollowUpSlotDto[];
-}
-
-export async function getFollowUpSlotsApi(dentistId: string, date: string): Promise<FollowUpSlotsResultDto> {
-  const res = await fetch(`${API_URL}/api/dentists/${dentistId}/slots?date=${date}`, {
-    headers: { ...authHeaders() },
-  });
-  await checkAuth(res);
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { title?: string }).title ?? "Không thể tải lịch khám");
-  }
-  return res.json() as Promise<FollowUpSlotsResultDto>;
-}
-
-export interface DentistFollowUpSlotsDto {
-  dentistId: string;
-  fullName: string;
-  specialization: string;
-  shift: string;
-  slots: FollowUpSlotDto[];
-}
-
-export interface DentistsFollowUpSlotsResultDto {
-  hasSchedule: boolean;
-  message: string | null;
-  dentists: DentistFollowUpSlotsDto[];
-}
-
-export async function getDentistsWithSlotsApi(date: string): Promise<DentistsFollowUpSlotsResultDto> {
-  const res = await fetch(`${API_URL}/api/dentists/followup-slots?date=${date}`, {
-    headers: { ...authHeaders() },
-  });
-  await checkAuth(res);
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { title?: string }).title ?? "Không thể tải lịch khám");
-  }
-  return res.json() as Promise<DentistsFollowUpSlotsResultDto>;
+  return res.json() as Promise<FollowUpReminderDto>;
 }
 
 // End Treatment API

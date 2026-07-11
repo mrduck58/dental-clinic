@@ -151,6 +151,12 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
   const activePlans = useMemo(() => plans.filter(p => p.status !== "Cancelled"), [plans]);
   const totalCost = useMemo(() => activePlans.reduce((sum, p) => sum + p.totalCost, 0), [activePlans]);
 
+  // Bệnh nhân tái khám: có liệu trình "Đang thực hiện" được lập từ buổi hẹn trước
+  const continuingPlans = useMemo(
+    () => plans.filter(p => p.status === "InProgress" && p.appointmentId !== appointmentId),
+    [plans, appointmentId]
+  );
+
   const filteredServices = useMemo(() => {
     const q = serviceSearch.toLowerCase();
     return services.filter(s => s.name.toLowerCase().includes(q));
@@ -450,6 +456,23 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
 
         {/* ══════════ RIGHT 2/3: TREATMENT ══════════ */}
         <div className="flex flex-col gap-6">
+          {/* Banner tái khám: bệnh nhân đang giữa liệu trình từ buổi trước */}
+          {continuingPlans.length > 0 && (
+            <div className="bg-indigo-50 border border-indigo-200 rounded-2xl px-5 py-4 flex items-start gap-3">
+              <svg className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+              </svg>
+              <div>
+                <div className="text-[13.5px] font-black text-indigo-800">
+                  Bệnh nhân tái khám — đang giữa liệu trình điều trị
+                </div>
+                <div className="text-[12.5px] font-semibold text-indigo-600 mt-0.5">
+                  {continuingPlans.map(p => p.serviceName).join(", ")} đang thực hiện. Ghi nhận bước tiếp theo ở mục &quot;Quá trình điều trị&quot; bên dưới.
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Quá trình điều trị */}
           <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
             <CardHeader

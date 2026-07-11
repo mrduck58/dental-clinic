@@ -24,7 +24,7 @@ public class AppointmentsController(
     DiagnosisHandler diagnosisHandler,
     TreatmentPlanHandler treatmentPlanHandler,
     PrescriptionHandler prescriptionHandler,
-    FollowUpAppointmentHandler followUpAppointmentHandler,
+    FollowUpReminderHandler followUpReminderHandler,
     GetStaffScheduleHandler staffScheduleHandler,
     CreateWalkInAppointmentHandler createWalkInHandler) : ControllerBase
 {
@@ -305,37 +305,27 @@ public class AppointmentsController(
 
     #endregion
 
-    #region Follow-up Appointment
+    #region Follow-up Reminder (nhắc tái khám)
 
-    /// <summary>POST api/appointments/{id}/follow-up — Tạo lịch tái khám (Staff/Admin/Dentist)</summary>
-    [HttpPost("{id}/follow-up")]
+    /// <summary>PUT api/appointments/{id}/follow-up-reminder — Hẹn ngày tái khám (Staff/Admin/Dentist)</summary>
+    [HttpPut("{id}/follow-up-reminder")]
     [Authorize(Roles = "Staff,Admin,Dentist")]
-    public async Task<IActionResult> CreateFollowUpAppointment(
+    public async Task<IActionResult> SetFollowUpReminder(
         Guid id,
-        [FromBody] CreateFollowUpRequest request,
+        [FromBody] SetFollowUpReminderRequest request,
         CancellationToken cancellationToken)
     {
-        var followUpRequest = request with { OriginalAppointmentId = id };
-        var result = await followUpAppointmentHandler.CreateAsync(followUpRequest, cancellationToken);
-        return CreatedAtAction(nameof(GetExamination), new { id }, result);
-    }
-
-    /// <summary>GET api/appointments/{id}/follow-ups — Lấy danh sách lịch tái khám (Staff/Admin/Dentist)</summary>
-    [HttpGet("{id}/follow-ups")]
-    [Authorize(Roles = "Staff,Admin,Dentist")]
-    public async Task<IActionResult> GetFollowUpAppointments(Guid id, CancellationToken cancellationToken)
-    {
-        var result = await followUpAppointmentHandler.GetByOriginalAppointmentAsync(id, cancellationToken);
+        var result = await followUpReminderHandler.SetAsync(id, request, cancellationToken);
         return Ok(result);
     }
 
-    /// <summary>DELETE api/appointments/follow-up/{followUpId} — Xóa lịch tái khám (Staff/Admin/Dentist)</summary>
-    [HttpDelete("follow-up/{followUpId}")]
+    /// <summary>DELETE api/appointments/{id}/follow-up-reminder — Hủy hẹn tái khám (Staff/Admin/Dentist)</summary>
+    [HttpDelete("{id}/follow-up-reminder")]
     [Authorize(Roles = "Staff,Admin,Dentist")]
-    public async Task<IActionResult> DeleteFollowUpAppointment(Guid followUpId, CancellationToken cancellationToken)
+    public async Task<IActionResult> ClearFollowUpReminder(Guid id, CancellationToken cancellationToken)
     {
-        await followUpAppointmentHandler.DeleteAsync(followUpId, cancellationToken);
-        return NoContent();
+        var result = await followUpReminderHandler.ClearAsync(id, cancellationToken);
+        return Ok(result);
     }
 
     #endregion
@@ -503,6 +493,9 @@ public class AppointmentsController(
             .OrderByDescending(a => a.AppointmentDate)
             .ToListAsync(cancellationToken);
 
+        var activeTreatmentPatientIds = await GetDentistPatientsHandler.GetActiveTreatmentPatientIdsAsync(
+            appointments.Select(a => a.PatientId).Distinct().ToList(), dbContext, cancellationToken);
+
         var patients = appointments.Select(a => new DentistPatientDto(
             a.Id,
             $"DK{a.AppointmentDate:yyyyMMdd}{a.Id.ToString("N")[..6].ToUpper()}",
@@ -514,7 +507,8 @@ public class AppointmentsController(
             a.Status.ToString(),
             a.Service?.Name,
             a.Symptoms,
-            false
+            false,
+            activeTreatmentPatientIds.Contains(a.PatientId)
         )).ToList();
 
         return Ok(patients);

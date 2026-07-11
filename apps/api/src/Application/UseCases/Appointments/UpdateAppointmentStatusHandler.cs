@@ -224,5 +224,23 @@ public class UpdateAppointmentStatusHandler(
         appointment.EndTreatment();
         await appointmentRepository.UpdateAsync(appointment, ct);
         logger?.LogInformation("Appointment {Id} ended treatment, moved to pending payment", appointmentId);
+
+        // Bác sĩ có hẹn tái khám → báo cho bệnh nhân (nếu có tài khoản liên kết).
+        if (appointment.FollowUpDate is DateOnly followUpDate && patientRepository != null)
+        {
+            var patient = await patientRepository.GetByIdAsync(appointment.PatientId, ct);
+            if (patient?.UserId is Guid patientUserId)
+            {
+                var noteSuffix = string.IsNullOrWhiteSpace(appointment.FollowUpNote) ? "" : $" Ghi chú: {appointment.FollowUpNote}";
+                await notificationService.CreateAsync(new CreateNotificationRequest(
+                    UserId: patientUserId,
+                    Type: NotificationType.Reminder,
+                    Priority: NotificationPriority.Medium,
+                    Title: "Lịch tái khám",
+                    Body: $"Bác sĩ hẹn bạn tái khám vào ngày {followUpDate:dd/MM/yyyy}. Vui lòng đặt lịch trước ngày hẹn.{noteSuffix}",
+                    RelatedEntityType: "Appointment",
+                    RelatedEntityId: appointmentId.ToString()), ct);
+            }
+        }
     }
 }

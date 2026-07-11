@@ -67,6 +67,9 @@ function PatientRow({ p, idx }: { p: DentistPatientDto; idx: number }) {
             {p.isNew && (
               <span className="px-1.5 py-0.5 bg-violet-100 text-violet-700 text-[10px] font-black rounded-md tracking-wide">MỚI</span>
             )}
+            {p.hasActiveTreatment && (
+              <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-black rounded-md tracking-wide">TÁI KHÁM</span>
+            )}
             <span className="text-[12px] text-slate-400 font-semibold">{p.age} tuổi · {p.gender}</span>
           </div>
           <div className="flex items-center gap-1.5 mt-1">

@@ -26,10 +26,15 @@ public class Appointment
     public ICollection<TreatmentPlan> TreatmentPlans { get; private set; } = new List<TreatmentPlan>();
     public ICollection<Prescription> Prescriptions { get; private set; } = new List<Prescription>();
 
-    // Follow-up appointments
+    // Follow-up appointments (dữ liệu lịch sử — luồng tạo lịch tái khám cũ đã bỏ)
     public Guid? FollowUpFromAppointmentId { get; private set; }
     public Appointment? FollowUpFromAppointment { get; private set; }
     public ICollection<Appointment> FollowUpAppointments { get; private set; } = new List<Appointment>();
+
+    // Nhắc tái khám: chỉ hẹn ngày khám lại, không đặt lịch mới.
+    // Khi bác sĩ kết thúc điều trị, hệ thống gửi thông báo cho bệnh nhân.
+    public DateOnly? FollowUpDate { get; private set; }
+    public string? FollowUpNote { get; private set; }
 
     private Appointment() { }
 
@@ -69,27 +74,10 @@ public class Appointment
         }
     }
 
-    public static Appointment CreateFollowUp(
-        Guid originalAppointmentId,
-        Guid patientId,
-        Guid dentistId,
-        DateTimeOffset appointmentDate,
-        string? symptoms = null,
-        Guid? serviceId = null,
-        string? notes = null)
+    /// <summary>Đặt hoặc xóa lịch hẹn tái khám (chỉ nhắc ngày, không tạo lịch hẹn mới).</summary>
+    public void SetFollowUpReminder(DateOnly? date, string? note)
     {
-        return new Appointment
-        {
-            Id = Guid.NewGuid(),
-            PatientId = patientId,
-            DentistId = dentistId,
-            ServiceId = serviceId,
-            AppointmentDate = appointmentDate,
-            Status = AppointmentStatus.Pending,
-            Symptoms = symptoms,
-            Notes = notes,
-            FollowUpFromAppointmentId = originalAppointmentId,
-            CreatedAt = DateTimeOffset.UtcNow
-        };
+        FollowUpDate = date;
+        FollowUpNote = date == null ? null : note;
     }
 }
