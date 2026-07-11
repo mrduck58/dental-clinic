@@ -348,6 +348,24 @@ public class AppointmentsController(
         return Ok(result);
     }
 
+    /// <summary>GET api/appointments/follow-up-due — Bệnh nhân đang chờ tái khám (Staff/Admin)</summary>
+    [HttpGet("follow-up-due")]
+    [Authorize(Roles = "Staff,Admin")]
+    public async Task<IActionResult> GetFollowUpDue(CancellationToken cancellationToken)
+    {
+        var result = await followUpReminderHandler.GetDueAsync(cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>POST api/appointments/{id}/follow-up-check-in — Check-in bệnh nhân đến tái khám (Staff/Admin)</summary>
+    [HttpPost("{id}/follow-up-check-in")]
+    [Authorize(Roles = "Staff,Admin")]
+    public async Task<IActionResult> CheckInFollowUp(Guid id, CancellationToken cancellationToken)
+    {
+        var newAppointmentId = await followUpReminderHandler.CheckInAsync(id, cancellationToken);
+        return Ok(new { appointmentId = newAppointmentId });
+    }
+
     #endregion
 
     /// <summary>GET api/appointments/queue — Lấy hàng đợi theo bác sĩ (Staff/Admin)</summary>
@@ -526,9 +544,6 @@ public class AppointmentsController(
             .OrderByDescending(a => a.AppointmentDate)
             .ToListAsync(cancellationToken);
 
-        var activeTreatmentPatientIds = await GetDentistPatientsHandler.GetActiveTreatmentPatientIdsAsync(
-            appointments.Select(a => a.PatientId).Distinct().ToList(), dbContext, cancellationToken);
-
         var patients = appointments.Select(a => new DentistPatientDto(
             a.Id,
             $"DK{a.AppointmentDate:yyyyMMdd}{a.Id.ToString("N")[..6].ToUpper()}",
@@ -541,7 +556,7 @@ public class AppointmentsController(
             a.Service?.Name,
             a.Symptoms,
             false,
-            activeTreatmentPatientIds.Contains(a.PatientId)
+            a.FollowUpFromAppointmentId != null
         )).ToList();
 
         return Ok(patients);

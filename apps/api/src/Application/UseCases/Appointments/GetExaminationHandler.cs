@@ -21,6 +21,7 @@ public class ExaminationDto
     public DateTimeOffset? StartTime { get; set; }
     public DateOnly? FollowUpDate { get; set; }
     public string? FollowUpNote { get; set; }
+    public bool IsFollowUpVisit { get; set; }
     public List<DiagnosisDto> Diagnoses { get; set; } = new();
     public List<TreatmentPlanDto> TreatmentPlans { get; set; } = new();
     public PrescriptionDto? Prescription { get; set; }
@@ -131,6 +132,7 @@ public class GetExaminationHandler(AppDbContext dbContext)
             StartTime = appointment.Status == AppointmentStatus.InProgress ? DateTimeOffset.UtcNow : null,
             FollowUpDate = appointment.FollowUpDate,
             FollowUpNote = appointment.FollowUpNote,
+            IsFollowUpVisit = appointment.FollowUpFromAppointmentId != null,
             Diagnoses = appointment.Diagnoses.Select(d => new DiagnosisDto
             {
                 Id = d.Id,

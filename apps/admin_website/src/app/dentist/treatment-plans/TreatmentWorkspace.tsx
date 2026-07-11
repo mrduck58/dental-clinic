@@ -140,18 +140,26 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
     return steps;
   }, [proceduresCache]);
 
-  // Nhật ký điều trị: gộp stepProgress của mọi liệu trình, mới nhất trước
-  const progressRows = useMemo(() =>
-    plans
-      .flatMap(p => p.stepProgress.map(sp => ({ ...sp, planId: p.id, serviceName: p.serviceName })))
-      .sort((a, b) => b.date.localeCompare(a.date)),
-    [plans]
+  // Buổi tái khám (staff check-in từ tab Tái khám) → hiển thị lại toàn bộ liệu trình cũ của bệnh nhân.
+  // Buổi khám thường → chỉ hiển thị liệu trình lập trong chính buổi này (lần khám riêng, không liên quan tái khám).
+  const isFollowUpVisit = examination?.isFollowUpVisit ?? false;
+  const visiblePlans = useMemo(
+    () => (isFollowUpVisit ? plans : plans.filter(p => p.appointmentId === appointmentId)),
+    [plans, isFollowUpVisit, appointmentId]
   );
 
-  const activePlans = useMemo(() => plans.filter(p => p.status !== "Cancelled"), [plans]);
+  // Nhật ký điều trị: gộp stepProgress của các liệu trình đang hiển thị, mới nhất trước
+  const progressRows = useMemo(() =>
+    visiblePlans
+      .flatMap(p => p.stepProgress.map(sp => ({ ...sp, planId: p.id, serviceName: p.serviceName })))
+      .sort((a, b) => b.date.localeCompare(a.date)),
+    [visiblePlans]
+  );
+
+  const activePlans = useMemo(() => visiblePlans.filter(p => p.status !== "Cancelled"), [visiblePlans]);
   const totalCost = useMemo(() => activePlans.reduce((sum, p) => sum + p.totalCost, 0), [activePlans]);
 
-  // Bệnh nhân tái khám: có liệu trình "Đang thực hiện" được lập từ buổi hẹn trước
+  // Các liệu trình đang thực hiện từ buổi trước (hiện trong banner tái khám)
   const continuingPlans = useMemo(
     () => plans.filter(p => p.status === "InProgress" && p.appointmentId !== appointmentId),
     [plans, appointmentId]
@@ -456,18 +464,20 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
 
         {/* ══════════ RIGHT 2/3: TREATMENT ══════════ */}
         <div className="flex flex-col gap-6">
-          {/* Banner tái khám: bệnh nhân đang giữa liệu trình từ buổi trước */}
-          {continuingPlans.length > 0 && (
+          {/* Banner tái khám: buổi hẹn do staff check-in từ tab Tái khám */}
+          {isFollowUpVisit && (
             <div className="bg-indigo-50 border border-indigo-200 rounded-2xl px-5 py-4 flex items-start gap-3">
               <svg className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
               </svg>
               <div>
                 <div className="text-[13.5px] font-black text-indigo-800">
-                  Bệnh nhân tái khám — đang giữa liệu trình điều trị
+                  Bệnh nhân đến tái khám
                 </div>
                 <div className="text-[12.5px] font-semibold text-indigo-600 mt-0.5">
-                  {continuingPlans.map(p => p.serviceName).join(", ")} đang thực hiện. Ghi nhận bước tiếp theo ở mục &quot;Quá trình điều trị&quot; bên dưới.
+                  {continuingPlans.length > 0
+                    ? `${continuingPlans.map(p => p.serviceName).join(", ")} đang thực hiện. Ghi nhận bước tiếp theo ở mục "Quá trình điều trị" bên dưới.`
+                    : "Xem lại liệu trình và quá trình điều trị trước đó ở các mục bên dưới."}
                 </div>
               </div>
             </div>
@@ -543,7 +553,7 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
               }
             />
             <div className="px-5 py-2">
-              {plans.length === 0 ? (
+              {visiblePlans.length === 0 ? (
                 <p className="text-[13px] font-semibold text-slate-400 text-center py-6">Chưa có dịch vụ nào trong liệu trình.</p>
               ) : (
                 <div className="divide-y divide-slate-100">
@@ -556,7 +566,7 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
                     <span className="text-right">Thành tiền</span>
                     <span />
                   </div>
-                  {plans.map((plan, idx) => {
+                  {visiblePlans.map((plan, idx) => {
                     const st = PLAN_STATUS[plan.status] ?? PLAN_STATUS.Planned;
                     return (
                       <div key={plan.id} className="py-3">

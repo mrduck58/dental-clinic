@@ -12,10 +12,13 @@ import {
   createWalkInAppointmentApi,
   getServicesApi,
   searchPatientsApi,
+  getFollowUpDueApi,
+  checkInFollowUpApi,
   type StaffAppointmentDto,
   type StaffScheduleResponse,
   type ServiceDto,
   type PatientSearchResultDto,
+  type FollowUpDueDto,
 } from "../../../lib/apiClient";
 import { supabase } from "../../../lib/supabaseClient";
 
@@ -638,12 +641,161 @@ function WalkinTab() {
   );
 }
 
+/* ─── Follow-up due tab (bệnh nhân chờ tái khám) ──────────── */
+
+function FollowUpDueTab({ dueList, onCheckedIn }: {
+  dueList: FollowUpDueDto[];
+  onCheckedIn: () => Promise<void>;
+}) {
+  const [search, setSearch] = useState("");
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
+
+  const todayKey = (() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  })();
+
+  const dueBadge = (followUpDate: string | null) => {
+    if (!followUpDate) return { label: "Đang giữa liệu trình", cls: "bg-indigo-50 text-indigo-700 border-indigo-200" };
+    const key = followUpDate.split("T")[0];
+    if (key < todayKey) return { label: "Quá hẹn", cls: "bg-red-50 text-red-600 border-red-200" };
+    if (key === todayKey) return { label: "Đến hẹn hôm nay", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" };
+    return { label: "Sắp tới", cls: "bg-slate-50 text-slate-500 border-slate-200" };
+  };
+
+  const filtered = dueList.filter(p =>
+    !search.trim() ||
+    p.patientName.toLowerCase().includes(search.toLowerCase()) ||
+    (p.patientPhone ?? "").includes(search)
+  );
+
+  const doCheckIn = async (p: FollowUpDueDto) => {
+    setBusyId(p.originalAppointmentId);
+    setMessage(null);
+    try {
+      await checkInFollowUpApi(p.originalAppointmentId);
+      setMessage({ text: `Đã check-in tái khám cho ${p.patientName} — bệnh nhân đã vào hàng đợi của ${p.dentistName}.`, ok: true });
+      await onCheckedIn();
+    } catch (err) {
+      setMessage({ text: err instanceof Error ? err.message : "Check-in tái khám thất bại.", ok: false });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <div className="flex-1 min-h-0 flex flex-col gap-4">
+      {/* Search + note */}
+      <div className="bg-white px-5 py-4 rounded-2xl border border-slate-200/70 shadow-sm shrink-0 flex flex-col gap-3">
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1">
+            <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-slate-400">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </span>
+            <input
+              type="text"
+              placeholder="Tìm tên bệnh nhân, số điện thoại..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className={inputCls + " pl-10"}
+            />
+          </div>
+          <span className="text-[12.5px] font-bold text-slate-400 shrink-0">{filtered.length} bệnh nhân chờ tái khám</span>
+        </div>
+        <p className="text-[12px] font-semibold text-slate-400">
+          Bệnh nhân còn liệu trình <strong>đang thực hiện</strong> sau buổi khám trước — không cần đặt lịch lại.
+          Khi bệnh nhân đến, bấm <strong>Check-in tái khám</strong>: bệnh nhân vào thẳng hàng đợi của bác sĩ cũ
+          và bác sĩ sẽ thấy lại toàn bộ liệu trình đang điều trị. Nếu bệnh nhân tự đặt lịch mới thì check-in
+          ở tab thường như một lần khám riêng.
+        </p>
+        {message && (
+          <div className={`px-4 py-2.5 rounded-xl text-[13px] font-bold border ${message.ok ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-red-50 text-red-600 border-red-200"}`}>
+            {message.text}
+          </div>
+        )}
+      </div>
+
+      {/* List */}
+      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-2.5 pr-1">
+        {filtered.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm flex flex-col items-center gap-2 py-16">
+            <svg className="w-9 h-9 text-slate-300" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+            </svg>
+            <span className="text-[13px] font-bold text-slate-400">Không có bệnh nhân nào đang chờ tái khám.</span>
+          </div>
+        ) : (
+          filtered.map(p => {
+            const badge = dueBadge(p.followUpDate);
+            const initials = p.patientName.trim().split(/\s+/).slice(-2).map(w => w[0]).join("").toUpperCase();
+            return (
+              <div key={p.originalAppointmentId} className="flex rounded-2xl border border-slate-200/70 bg-white shadow-sm overflow-hidden hover:shadow-md transition-all">
+                <div className={`w-1.5 shrink-0 ${badge.label === "Quá hẹn" ? "bg-red-400" : badge.label === "Đến hẹn hôm nay" ? "bg-emerald-400" : "bg-slate-200"}`} />
+                <div className="flex items-center gap-4 px-5 py-4 flex-1 min-w-0">
+                  <div className={`w-11 h-11 rounded-lg flex items-center justify-center font-black text-[13px] border shrink-0 ${
+                    p.gender === "Nữ" ? "bg-rose-50 text-rose-600 border-rose-100" : "bg-sky-50 text-sky-700 border-sky-100"
+                  }`}>
+                    {initials}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[14.5px] font-black text-slate-900">{p.patientName}</span>
+                      <span className={`px-2 py-0.5 rounded-lg text-[10.5px] font-black border ${badge.cls}`}>{badge.label}</span>
+                    </div>
+                    <div className="text-[12.5px] font-semibold text-slate-500 mt-0.5">
+                      {p.followUpDate && (
+                        <>Hẹn tái khám: <span className="font-black text-slate-700">{fmtDate(p.followUpDate)}</span>{" · "}</>
+                      )}
+                      Buổi gần nhất: {fmtDate(p.originalAppointmentDate)}{p.serviceName ? ` (${p.serviceName})` : ""}
+                    </div>
+                    {p.activePlans.length > 0 && (
+                      <div className="text-[12px] font-semibold text-indigo-600 mt-0.5">
+                        Đang điều trị: {p.activePlans.join(", ")}
+                      </div>
+                    )}
+                    <div className="text-[12px] text-slate-400 font-medium mt-0.5">
+                      <span className="font-mono">{p.patientPhone ?? "—"}</span>
+                      {" · "}{p.dentistName}
+                      {p.followUpNote && <span className="italic"> · {p.followUpNote}</span>}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => void doCheckIn(p)}
+                    disabled={busyId !== null}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-bold bg-primary text-white hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shrink-0 cursor-pointer shadow-sm shadow-primary/20"
+                  >
+                    {busyId === p.originalAppointmentId ? (
+                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                      </svg>
+                    )}
+                    Check-in tái khám
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ─── Main page ──────────────────────────────────────────── */
 
 export default function CheckinPage() {
   useRequireStaff();
 
-  const [tab,       setTab]       = useState<"checkin"|"walkin">("checkin");
+  const [tab,       setTab]       = useState<"checkin"|"walkin"|"followup">("checkin");
+  const [followUpDue, setFollowUpDue] = useState<FollowUpDueDto[]>([]);
   const [search,    setSearch]    = useState("");
   const [selected,  setSelected]  = useState<string | null>(null);
   const [appointments, setAppointments] = useState<StaffAppointmentDto[]>([]);
@@ -663,8 +815,12 @@ export default function CheckinPage() {
   // lịch "Confirmed", còn nhóm đã xử lý (đã check-in / vắng mặt) lấy thẳng từ backend nên
   // không mất khi chuyển trang hay tải lại.
   const loadAppointments = useCallback(async () => {
-    const data = await getStaffAppointmentsApi({ date: dateFilter });
+    const [data, due] = await Promise.all([
+      getStaffAppointmentsApi({ date: dateFilter }),
+      getFollowUpDueApi().catch(() => []),
+    ]);
     setAppointments(data);
+    setFollowUpDue(due);
   }, [dateFilter]);
 
   useEffect(() => {
@@ -792,8 +948,9 @@ export default function CheckinPage() {
           {/* Tabs */}
           <div className="flex gap-2 shrink-0">
             {([
-              { key: "checkin", label: "Check-in bệnh nhân" },
-              { key: "walkin",  label: "Đặt lịch tại quầy"  },
+              { key: "checkin",  label: "Check-in bệnh nhân" },
+              { key: "walkin",   label: "Đặt lịch tại quầy"  },
+              { key: "followup", label: "Tái khám"           },
             ] as const).map(t => (
               <button key={t.key} onClick={() => setTab(t.key)}
                 className={`flex items-center gap-2 px-5 py-2 rounded-xl text-[13.5px] font-bold transition-all cursor-pointer border ${
@@ -805,11 +962,18 @@ export default function CheckinPage() {
                     {totalWaiting}
                   </span>
                 )}
+                {t.key === "followup" && followUpDue.length > 0 && (
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10.5px] font-black leading-none ${tab === t.key ? "bg-white/25 text-white" : "bg-indigo-100 text-indigo-700"}`}>
+                    {followUpDue.length}
+                  </span>
+                )}
               </button>
             ))}
           </div>
 
           {tab === "walkin" && <WalkinTab />}
+
+          {tab === "followup" && <FollowUpDueTab dueList={followUpDue} onCheckedIn={loadAppointments} />}
 
           {tab === "checkin" && (
           <div className="flex gap-6 flex-1 min-h-0">
