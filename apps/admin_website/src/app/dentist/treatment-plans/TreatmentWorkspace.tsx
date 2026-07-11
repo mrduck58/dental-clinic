@@ -140,12 +140,18 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
     return steps;
   }, [proceduresCache]);
 
-  // Buổi tái khám (staff check-in từ tab Tái khám) → hiển thị lại toàn bộ liệu trình cũ của bệnh nhân.
-  // Buổi khám thường → chỉ hiển thị liệu trình lập trong chính buổi này (lần khám riêng, không liên quan tái khám).
+  // Buổi tái khám (staff check-in từ tab Tái khám) → hiển thị liệu trình của CHUỖI đơn được tái khám
+  // (buổi gốc + các buổi tái khám trước trong chuỗi + buổi này) — không hiển thị dịch vụ của các lần khám khác.
+  // Buổi khám thường → chỉ hiển thị liệu trình lập trong chính buổi này.
   const isFollowUpVisit = examination?.isFollowUpVisit ?? false;
+  const chainIds = useMemo(() => {
+    const ids = new Set(examination?.relatedAppointmentIds ?? []);
+    ids.add(appointmentId);
+    return ids;
+  }, [examination?.relatedAppointmentIds, appointmentId]);
   const visiblePlans = useMemo(
-    () => (isFollowUpVisit ? plans : plans.filter(p => p.appointmentId === appointmentId)),
-    [plans, isFollowUpVisit, appointmentId]
+    () => plans.filter(p => p.appointmentId != null && chainIds.has(p.appointmentId)),
+    [plans, chainIds]
   );
 
   // Nhật ký điều trị: gộp stepProgress của các liệu trình đang hiển thị, mới nhất trước
@@ -159,10 +165,10 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
   const activePlans = useMemo(() => visiblePlans.filter(p => p.status !== "Cancelled"), [visiblePlans]);
   const totalCost = useMemo(() => activePlans.reduce((sum, p) => sum + p.totalCost, 0), [activePlans]);
 
-  // Các liệu trình đang thực hiện từ buổi trước (hiện trong banner tái khám)
+  // Các liệu trình đang thực hiện từ chuỗi đơn trước (hiện trong banner tái khám)
   const continuingPlans = useMemo(
-    () => plans.filter(p => p.status === "InProgress" && p.appointmentId !== appointmentId),
-    [plans, appointmentId]
+    () => visiblePlans.filter(p => p.status === "InProgress" && p.appointmentId !== appointmentId),
+    [visiblePlans, appointmentId]
   );
 
   const filteredServices = useMemo(() => {
@@ -520,7 +526,8 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
               <div className="py-3 border-t border-slate-100 flex justify-center">
                 <button
                   onClick={() => void handleOpenProgress()}
-                  disabled={activePlans.length === 0}
+                  disabled={activePlans.length === 0 || !isInProgress}
+                  title={isInProgress ? undefined : "Bấm \"Bắt đầu khám\" để ghi nhận quá trình điều trị"}
                   className="flex items-center gap-1.5 text-[13px] font-bold text-primary hover:text-red-700 disabled:text-slate-300 disabled:cursor-not-allowed cursor-pointer"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">

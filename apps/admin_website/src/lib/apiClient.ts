@@ -1899,6 +1899,7 @@ export interface ExaminationDto {
   followUpDate: string | null;
   followUpNote: string | null;
   isFollowUpVisit: boolean;
+  relatedAppointmentIds: string[]; // Chuỗi buổi gốc của lượt tái khám
   diagnoses: DiagnosisDto[];
   treatmentPlans: TreatmentPlanDto[];
   prescription: PrescriptionDto | null;

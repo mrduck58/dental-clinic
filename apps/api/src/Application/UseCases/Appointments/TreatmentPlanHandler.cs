@@ -173,6 +173,12 @@ public class TreatmentPlanHandler(AppDbContext dbContext)
         if (string.IsNullOrWhiteSpace(request.StepName))
             throw new ValidationException("Tên bước điều trị không được để trống.");
 
+        // Chỉ ghi nhận quá trình khi bệnh nhân đang trong buổi khám (bác sĩ đã bấm "Bắt đầu khám")
+        var hasActiveVisit = await dbContext.Appointments.AnyAsync(a =>
+            a.PatientId == treatmentPlan.PatientId && a.Status == AppointmentStatus.InProgress, ct);
+        if (!hasActiveVisit)
+            throw new ValidationException("Chỉ có thể ghi nhận quá trình điều trị khi buổi khám đang diễn ra (đã bấm Bắt đầu khám).");
+
         var entries = ParseStepProgress(treatmentPlan.StepProgressJson);
         entries.Add(new StepProgressEntryDto
         {
