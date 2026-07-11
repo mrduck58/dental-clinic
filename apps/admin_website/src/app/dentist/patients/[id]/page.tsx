@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import DentistSidebar from "../../../../components/shared/DentistSidebar";
 import DentistPageHeader from "../../../../components/shared/DentistPageHeader";
 import TreatmentWorkspace from "../../treatment-plans/TreatmentWorkspace";
+import PrescriptionWorkspace from "./PrescriptionWorkspace";
 import ToothArchDiagram, { TOOTH_COLOR, TOOTH_LEGEND, UPPER_TEETH, LOWER_TEETH, ARCH_H, type ToothStatus as TS, type ToothState as TState } from "../../../../components/shared/ToothArchDiagram";
 import { useRequireDentist } from "../../../../hooks/useRequireDentist";
 import {
@@ -15,18 +16,13 @@ import {
   createDiagnosisApi,
   updateDiagnosisApi,
   deleteDiagnosisApi,
-  addPrescriptionItemApi,
-  deletePrescriptionItemApi,
   createFollowUpApi,
   getFollowUpsApi,
   deleteFollowUpApi,
-  getMedicinesApi,
   getPatientMedicalHistoryApi,
   type ExaminationDto,
   type DiagnosisDto,
-  type PrescriptionDto,
   type FollowUpAppointmentDto,
-  type MedicineDto,
   type PatientMedicalHistoryDto,
 } from "../../../../lib/apiClient";
 
@@ -107,12 +103,6 @@ export default function PatientDetailPage() {
   const [dentalCondition, setDentalCondition] = useState<string>("");
   const [conclusion, setConclusion] = useState<string>("");
   
-  // Prescription from API
-  const [prescription, setPrescription] = useState<PrescriptionDto | null>(null);
-  
-  // Medicines list from API
-  const [medicines, setMedicines] = useState<MedicineDto[]>([]);
-  
   // Follow-ups from API
   const [followUps, setFollowUps] = useState<FollowUpAppointmentDto[]>([]);
 
@@ -134,7 +124,6 @@ export default function PatientDetailPage() {
       const data = await getExaminationApi(id);
       setExamination(data);
       setComplaint(data.symptoms ?? "");
-      setPrescription(data.prescription ?? null);
       setError(null);
 
       // Load diagnosis data into form fields
@@ -182,7 +171,6 @@ export default function PatientDetailPage() {
   useEffect(() => {
     void loadExamination();
     void loadFollowUps();
-    void getMedicinesApi().then(setMedicines).catch(() => {});
   }, [loadExamination, loadFollowUps]);
 
   // Load medical history when examination data is available
@@ -268,40 +256,6 @@ export default function PatientDetailPage() {
       await loadExamination();
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Lưu thất bại", "error");
-    }
-  };
-
-  // Add prescription item
-  const handleAddPrescriptionItem = async () => {
-    if (!prescription) return;
-    try {
-      await addPrescriptionItemApi({
-        prescriptionId: prescription.id,
-        medicineName: "Thuốc mới",
-        dosage: "500mg",
-        quantity: 1,
-        unit: "viên",
-        usage: "Theo chỉ định",
-      });
-      showToast("Đã thêm thuốc!", "success");
-      await loadExamination();
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : "Thêm thuốc thất bại", "error");
-    }
-  };
-
-  // Delete prescription item
-  const handleDeletePrescriptionItem = async (itemId: string) => {
-    try {
-      await deletePrescriptionItemApi(itemId);
-      showToast("Đã xóa thuốc!", "success");
-      // Update state directly instead of reloading the whole page
-      setPrescription(prev => prev ? {
-        ...prev,
-        items: prev.items.filter(i => i.id !== itemId)
-      } : null);
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : "Xóa thuốc thất bại", "error");
     }
   };
 
@@ -807,49 +761,7 @@ return (
 
               {/* ─── TAB: ĐƠN THUỐC ─── */}
               {activeTab === "prescription" && (
-                <section className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
-                  <SectionHeading color="bg-violet-50 text-violet-700" title="Đơn thuốc"
-                    icon="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23-.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5"
-                    action={
-                      isInProgress && (
-                        <Link
-                          href={`/dentist/patients/${id}/prescription/new`}
-                          className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-[13px] font-bold rounded-xl hover:bg-red-600 transition-all shadow-sm cursor-pointer"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                          Tạo đơn thuốc
-                        </Link>
-                      )
-                    } />
-                  {prescription ? (
-                    <div className="p-6 flex flex-col gap-4">
-                      <div className="flex flex-col divide-y divide-slate-100">
-                        {prescription.items.length === 0 ? (
-                          <p className="text-[13px] text-slate-400 font-semibold text-center py-4">Chưa có thuốc nào.</p>
-                        ) : (
-                          prescription.items.map((item, idx) => (
-                            <div key={idx} className="flex items-center justify-between py-3">
-                              <div className="flex flex-col">
-                                <span className="text-[13px] font-semibold text-slate-700">{item.medicineName}</span>
-                                <span className="text-[11px] text-slate-400">{item.dosage} × {item.quantity} {item.unit}</span>
-                              </div>
-                              {isInProgress && (
-                                <button
-                                  onClick={() => handleDeletePrescriptionItem(item.id)}
-                                  className="p-1 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-all cursor-pointer"
-                                >
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                                </button>
-                              )}
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="p-6 text-center text-slate-400 text-[13px]">Chưa có đơn thuốc.</div>
-                  )}
-                </section>
+                <PrescriptionWorkspace appointmentId={id} />
               )}
 
               {/* ─── TAB: TÁI KHÁM ─── */}
