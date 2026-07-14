@@ -150,6 +150,7 @@ public static class InfrastructureServiceExtensions
 
         services.AddScoped<GetWeekScheduleHandler>();
         services.AddScoped<SaveWeekScheduleHandler>();
+        services.AddScoped<GetMyScheduleHandler>();
 
         services.AddScoped<GetPromotionsHandler>();
         services.AddScoped<GetPromotionByIdHandler>();

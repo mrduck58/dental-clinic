@@ -654,6 +654,19 @@ export async function getWeekScheduleApi(weekStart: string): Promise<ScheduleEnt
   return res.json() as Promise<ScheduleEntryDto[]>;
 }
 
+// Lịch làm việc của chính nha sĩ đang đăng nhập (chỉ xem)
+export async function getMyScheduleApi(weekStart: string): Promise<ScheduleEntryDto[]> {
+  const res = await fetch(`${API_URL}/api/schedules/my?weekStart=${weekStart}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải lịch làm việc");
+  }
+  return res.json() as Promise<ScheduleEntryDto[]>;
+}
+
 export async function saveWeekScheduleApi(
   weekStart: string,
   entries: SaveScheduleEntryRequest[]
