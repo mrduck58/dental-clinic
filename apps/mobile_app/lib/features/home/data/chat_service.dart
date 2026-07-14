@@ -11,27 +11,33 @@ class ChatService {
   final _client = ApiClient();
   final _auth = AuthService();
 
-  /// Bắt đầu một cuộc trò chuyện mới với chatbot AI — trả về conversationId.
-  Future<String> startConversation() async {
+  /// Bắt đầu một cuộc trò chuyện mới với chatbot AI. [language] quyết định bot chủ động nhắc lịch
+  /// hẹn sắp tới (nếu có) bằng ngôn ngữ nào.
+  Future<StartConversationResult> startConversation({String language = 'vi'}) async {
     final token = await _auth.getToken();
     if (token == null) throw Exception('Chưa đăng nhập.');
 
     final res = await _client.post(
-      ApiConstants.chatConversations,
+      '${ApiConstants.chatConversations}?language=$language',
       <String, dynamic>{},
       token: token,
     );
-    return (res.data as Map<String, dynamic>)['conversationId'] as String;
+    return StartConversationResult.fromJson(res.data as Map<String, dynamic>);
   }
 
   /// Gửi tin nhắn cho chatbot AI, trả về phản hồi kèm cờ gợi ý đặt lịch.
-  Future<ChatSendResult> sendMessage(String conversationId, String message) async {
+  /// [language] là mã ngôn ngữ app đang dùng ('vi'/'en') để bot trả lời đúng ngôn ngữ.
+  Future<ChatSendResult> sendMessage(
+    String conversationId,
+    String message, {
+    String language = 'vi',
+  }) async {
     final token = await _auth.getToken();
     if (token == null) throw Exception('Chưa đăng nhập.');
 
     final res = await _client.post(
       ApiConstants.chatMessages(conversationId),
-      {'message': message},
+      {'message': message, 'language': language},
       token: token,
     );
     return ChatSendResult.fromJson(res.data as Map<String, dynamic>);

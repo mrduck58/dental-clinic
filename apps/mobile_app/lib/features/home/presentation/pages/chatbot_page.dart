@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
@@ -20,12 +21,66 @@ class ChatMessage {
   final DateTime timestamp;
   final Widget? customWidget;
 
+  /// true cho tin nhắn bot vừa nhận trong phiên này — hiển thị hiệu ứng gõ chữ dần để có
+  /// cảm giác "đang trả lời" tự nhiên hơn thay vì hiện cả cục văn bản ngay lập tức.
+  /// Gemini trả JSON có cấu trúc nên không stream token thật được (JSON dở dang không parse
+  /// được) — đây là hiệu ứng phía client mô phỏng cảm giác đó, không đổi độ trễ thực tế.
+  final bool animate;
+
   ChatMessage({
     required this.text,
     required this.isUser,
     required this.timestamp,
     this.customWidget,
+    this.animate = false,
   });
+}
+
+/// Hiệu ứng gõ chữ dần cho tin nhắn bot — xem ghi chú ở [ChatMessage.animate].
+class _TypewriterText extends StatefulWidget {
+  final String text;
+  final TextStyle style;
+  final VoidCallback? onTick;
+
+  const _TypewriterText({required this.text, required this.style, this.onTick});
+
+  @override
+  State<_TypewriterText> createState() => _TypewriterTextState();
+}
+
+class _TypewriterTextState extends State<_TypewriterText> {
+  static const _tickInterval = Duration(milliseconds: 12);
+
+  int _charCount = 0;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(_tickInterval, (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() => _charCount += 2);
+      widget.onTick?.call();
+      if (_charCount >= widget.text.length) {
+        timer.cancel();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final shown = widget.text.substring(0, _charCount.clamp(0, widget.text.length));
+    return Text(shown, style: widget.style);
+  }
 }
 
 class ChatSession {
@@ -43,8 +98,12 @@ class ChatbotPage extends StatefulWidget {
 }
 
 class _ChatbotPageState extends State<ChatbotPage> {
+  /// Phải khớp giới hạn server (SendChatMessageHandler.MaxMessageLength).
+  static const int _maxMessageLength = 2000;
+
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final TextEditingController _messageCtrl = TextEditingController();
+  final ScrollController _scrollCtrl = ScrollController();
   final ChatService _chatService = ChatService();
   final List<ChatMessage> _messages = [];
   bool _isTyping = false;
@@ -65,8 +124,8 @@ class _ChatbotPageState extends State<ChatbotPage> {
     _messages.add(
       ChatMessage(
         text: isVi
-            ? 'Xin chào! Tôi là trợ lý AI của phòng khám. Tôi có thể giúp gì cho bạn?'
-            : 'Hello! I am your Dental AI Assistant. How can I help you today?',
+            ? 'Xin chào! Tôi là trợ lý AI của phòng khám. Tôi có thể tư vấn dịch vụ, bảng giá, bác sĩ, xem lịch trống và đặt lịch hẹn giúp bạn.'
+            : 'Hello! I am your Dental AI Assistant. I can help with services, pricing, our dentists, free slots and even book an appointment for you.',
         isUser: false,
         timestamp: DateTime.now(),
       ),
@@ -93,7 +152,20 @@ class _ChatbotPageState extends State<ChatbotPage> {
   @override
   void dispose() {
     _messageCtrl.dispose();
+    _scrollCtrl.dispose();
     super.dispose();
+  }
+
+  /// Cuộn xuống tin nhắn mới nhất sau khi frame render xong (lúc đó maxScrollExtent mới đúng).
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollCtrl.hasClients) return;
+      _scrollCtrl.animateTo(
+        _scrollCtrl.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    });
   }
 
   Future<void> _sendMessage(String text) async {
@@ -105,20 +177,72 @@ class _ChatbotPageState extends State<ChatbotPage> {
       _isTyping = true;
     });
     _messageCtrl.clear();
+    _scrollToBottom();
 
     try {
-      _conversationId ??= await _chatService.startConversation();
-      final result = await _chatService.sendMessage(_conversationId!, text);
+      if (_conversationId == null) {
+        final started = await _chatService.startConversation(language: isVi ? 'vi' : 'en');
+        _conversationId = started.conversationId;
+        // Bot chủ động nhắc lịch hẹn sắp tới (nếu có) ngay khi bắt đầu hội thoại mới —
+        // hiện tin nhắn này TRƯỚC tin nhắn của bệnh nhân vừa gõ.
+        if (started.initialMessage != null && mounted) {
+          setState(() {
+            _messages.insert(
+              _messages.length - 1,
+              ChatMessage(
+                text: started.initialMessage!,
+                isUser: false,
+                timestamp: DateTime.now(),
+                animate: true,
+              ),
+            );
+          });
+        }
+      }
+      final result = await _chatService.sendMessage(
+        _conversationId!,
+        text,
+        language: isVi ? 'vi' : 'en',
+      );
 
       if (!mounted) return;
       setState(() {
+        // Bot vừa đặt/hủy lịch thành công → nút "Xem lịch hẹn"; chỉ khi bot gợi ý
+        // mà chưa đặt được → nút mở luồng đặt lịch thủ công.
+        Widget? card;
+        if (result.bookingCreated) {
+          card = _buildActionResultCard(
+            isVi,
+            title: isVi ? 'Đặt lịch thành công' : 'Appointment Booked',
+            subtitle: isVi
+                ? 'Phòng khám sẽ sớm xác nhận lịch hẹn của bạn.'
+                : 'The clinic will confirm your appointment shortly.',
+          );
+        } else if (result.bookingCancelled) {
+          card = _buildActionResultCard(
+            isVi,
+            title: isVi ? 'Đã hủy lịch hẹn' : 'Appointment Cancelled',
+            subtitle: isVi
+                ? 'Bạn có thể đặt lại bất cứ lúc nào.'
+                : 'You can book a new appointment anytime.',
+          );
+        } else if (result.bookingRescheduled) {
+          card = _buildActionResultCard(
+            isVi,
+            title: isVi ? 'Đã dời lịch hẹn' : 'Appointment Rescheduled',
+            subtitle: isVi
+                ? 'Phòng khám sẽ sớm xác nhận lịch hẹn mới của bạn.'
+                : 'The clinic will confirm your new appointment shortly.',
+          );
+        } else if (result.suggestBooking) {
+          card = _buildUrgentBookingCard(isVi, result.bookingHint);
+        }
         _messages.add(ChatMessage(
           text: result.reply,
           isUser: false,
           timestamp: DateTime.now(),
-          customWidget: result.suggestBooking
-              ? _buildUrgentBookingCard(isVi, result.bookingHint)
-              : null,
+          customWidget: card,
+          animate: true,
         ));
       });
       unawaited(_loadHistorySessions());
@@ -132,6 +256,7 @@ class _ChatbotPageState extends State<ChatbotPage> {
       });
     } finally {
       if (mounted) setState(() => _isTyping = false);
+      _scrollToBottom();
     }
   }
 
@@ -276,6 +401,68 @@ class _ChatbotPageState extends State<ChatbotPage> {
     );
   }
 
+  /// Card hiển thị sau khi bot ĐÃ đặt/hủy lịch thành công trong hội thoại —
+  /// dẫn sang danh sách lịch hẹn để xem chi tiết, không mở lại luồng đặt lịch.
+  Widget _buildActionResultCard(
+    bool isVi, {
+    required String title,
+    required String subtitle,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: context.isDark ? const Color(0xFF14532D) : const Color(0xFFF0FDF4),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: context.isDark ? Colors.transparent : const Color(0xFFBBF7D0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Iconsax.tick_circle5, color: Color(0xFF16A34A), size: 20),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: context.isDark ? Colors.white : const Color(0xFF14532D),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            subtitle,
+            style: TextStyle(
+              fontSize: 12,
+              color: context.isDark ? const Color(0xFF94A3B8) : const Color(0xFF166534),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 36,
+            child: ElevatedButton(
+              onPressed: () => context.go(AppRoutes.appointments),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF16A34A),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: Text(
+                isVi ? 'XEM LỊCH HẸN' : 'VIEW APPOINTMENT',
+                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _loadSession(ChatSession session) async {
     Navigator.pop(context); // Close Drawer
     try {
@@ -291,6 +478,7 @@ class _ChatbotPageState extends State<ChatbotPage> {
               timestamp: m.createdAt,
             )));
       });
+      _scrollToBottom();
     } catch (_) {
       if (!mounted) return;
       final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
@@ -370,6 +558,7 @@ class _ChatbotPageState extends State<ChatbotPage> {
           // Message list
           Expanded(
             child: ListView.builder(
+              controller: _scrollCtrl,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
               itemCount: _messages.length + (_isTyping ? 1 : 0),
               itemBuilder: (context, i) {
@@ -489,15 +678,17 @@ class _ChatbotPageState extends State<ChatbotPage> {
                 ),
                 border: msg.isUser ? null : Border(left: BorderSide(color: AppColors.primary, width: 3)),
               ),
-              child: Text(
-                msg.text,
-                style: TextStyle(
+              child: Builder(builder: (_) {
+                final style = TextStyle(
                   color: msg.isUser ? Colors.white : context.textPrimary,
                   fontSize: 14.5,
                   fontWeight: FontWeight.w600,
                   height: 1.45,
-                ),
-              ),
+                );
+                return msg.animate
+                    ? _TypewriterText(text: msg.text, style: style, onTick: _scrollToBottom)
+                    : Text(msg.text, style: style);
+              }),
             ),
             if (msg.customWidget != null) msg.customWidget!,
           ],
@@ -547,9 +738,10 @@ class _ChatbotPageState extends State<ChatbotPage> {
 
   Widget _buildQuickReplies(bool isVi) {
     final replies = [
-      isVi ? 'Đau nhói dữ dội' : 'Severe Throbbing Pain',
-      isVi ? 'Ê buốt răng lạnh' : 'Cold Sensitive Teeth',
-      isVi ? 'Đặt lịch khám' : 'Book Appointment',
+      isVi ? 'Thông tin phòng khám' : 'Clinic information',
+      isVi ? 'Đội ngũ bác sĩ' : 'Our dentists',
+      isVi ? 'Dịch vụ & bảng giá' : 'Services & pricing',
+      isVi ? 'Tôi muốn đặt lịch khám' : 'I want to book an appointment',
     ];
 
     return Container(
@@ -603,6 +795,7 @@ class _ChatbotPageState extends State<ChatbotPage> {
               padding: const EdgeInsets.symmetric(horizontal: 14),
               child: TextField(
                 controller: _messageCtrl,
+                inputFormatters: [LengthLimitingTextInputFormatter(_maxMessageLength)],
                 style: TextStyle(color: context.textPrimary, fontSize: 14),
                 decoration: InputDecoration(
                   border: InputBorder.none,

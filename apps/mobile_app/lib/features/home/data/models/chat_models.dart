@@ -48,6 +48,8 @@ class ChatBookingHint {
   final String? dentistName;
   final DateTime? preferredDate;
   final String? notes;
+  final String? patientId;
+  final String? patientName;
 
   ChatBookingHint({
     this.serviceId,
@@ -56,6 +58,8 @@ class ChatBookingHint {
     this.dentistName,
     this.preferredDate,
     this.notes,
+    this.patientId,
+    this.patientName,
   });
 
   factory ChatBookingHint.fromJson(Map<String, dynamic> json) => ChatBookingHint(
@@ -67,18 +71,30 @@ class ChatBookingHint {
             ? DateTime.parse(json['preferredDate'] as String)
             : null,
         notes: json['notes'] as String?,
+        patientId: json['patientId'] as String?,
+        patientName: json['patientName'] as String?,
       );
 }
 
+/// bookingCreated/bookingCancelled/bookingRescheduled = true khi bot đã thực sự đặt/hủy/dời lịch hẹn
+/// ngay trong hội thoại (kèm appointmentCode) — UI hiển thị nút "Xem lịch hẹn" thay vì nút "Đặt lịch".
 class ChatSendResult {
   final String reply;
   final bool suggestBooking;
   final ChatBookingHint bookingHint;
+  final bool bookingCreated;
+  final String? appointmentCode;
+  final bool bookingCancelled;
+  final bool bookingRescheduled;
 
   ChatSendResult({
     required this.reply,
     required this.suggestBooking,
     required this.bookingHint,
+    this.bookingCreated = false,
+    this.appointmentCode,
+    this.bookingCancelled = false,
+    this.bookingRescheduled = false,
   });
 
   factory ChatSendResult.fromJson(Map<String, dynamic> json) =>
@@ -88,5 +104,24 @@ class ChatSendResult {
         bookingHint: ChatBookingHint.fromJson(
           (json['bookingHint'] as Map<String, dynamic>?) ?? const {},
         ),
+        bookingCreated: json['bookingCreated'] as bool? ?? false,
+        appointmentCode: json['appointmentCode'] as String?,
+        bookingCancelled: json['bookingCancelled'] as bool? ?? false,
+        bookingRescheduled: json['bookingRescheduled'] as bool? ?? false,
+      );
+}
+
+/// InitialMessage khác null khi bệnh nhân có lịch hẹn sắp tới — bot chủ động nhắc ngay
+/// khi bắt đầu một cuộc trò chuyện MỚI.
+class StartConversationResult {
+  final String conversationId;
+  final String? initialMessage;
+
+  StartConversationResult({required this.conversationId, this.initialMessage});
+
+  factory StartConversationResult.fromJson(Map<String, dynamic> json) =>
+      StartConversationResult(
+        conversationId: json['conversationId'] as String,
+        initialMessage: json['initialMessage'] as String?,
       );
 }
