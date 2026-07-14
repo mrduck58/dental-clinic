@@ -576,7 +576,7 @@ public class AppointmentsController(
             .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Service)
             .Include(a => a.Prescriptions).ThenInclude(p => p.Items)
             .Where(a => a.PatientId == patientId &&
-                        a.Status == AppointmentStatus.Completed)
+                        (a.Status == AppointmentStatus.Completed || a.Status == AppointmentStatus.PendingPayment))
             .OrderByDescending(a => a.AppointmentDate)
             .Take(50)
             .ToListAsync(cancellationToken);

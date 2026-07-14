@@ -32,7 +32,6 @@ public class Appointment
     public Dentist Dentist { get; private set; } = null!;
     public Service? Service { get; private set; }
     public ICollection<Invoice> Invoices { get; private set; } = new List<Invoice>();
-    public MedicalRecord? MedicalRecord { get; private set; }
 
     // Examination related
     public ICollection<Diagnosis> Diagnoses { get; private set; } = new List<Diagnosis>();
