@@ -17,6 +17,16 @@ public class Appointment
     /// <summary>Thời điểm bệnh nhân check-in — quyết định thứ tự trong hàng đợi (null nếu chưa check-in).</summary>
     public DateTimeOffset? CheckedInAt { get; private set; }
 
+    /// <summary>Tóm tắt lịch sử khám do AI tạo, gắn với LẦN KHÁM NÀY (dựa trên các lịch hẹn trước đó
+    /// của cùng bệnh nhân). Cache lại để không gọi Gemini lại mỗi lần bác sĩ mở trang nếu dữ liệu
+    /// chưa đổi — xem <see cref="AiSummaryBasedOnCount"/> để biết cache còn hợp lệ hay không.</summary>
+    public string? AiSummary { get; private set; }
+    public DateTimeOffset? AiSummaryGeneratedAt { get; private set; }
+
+    /// <summary>Số lịch hẹn trước đó đã dùng để tạo <see cref="AiSummary"/> — nếu số này khác với số
+    /// lịch hẹn trước đó hiện tại (có thêm lịch mới), cache coi như cũ và phải tạo lại.</summary>
+    public int? AiSummaryBasedOnCount { get; private set; }
+
     // Navigation properties
     public Patient Patient { get; private set; } = null!;
     public Dentist Dentist { get; private set; } = null!;
@@ -95,6 +105,15 @@ public class Appointment
     {
         FollowUpDate = date;
         FollowUpNote = date == null ? null : note;
+    }
+
+    /// <summary>Lưu kết quả tóm tắt AI mới tạo cùng thời điểm và số lịch hẹn đã dùng làm căn cứ,
+    /// để lần sau xác định được cache còn hợp lệ hay không (xem <see cref="AiSummaryBasedOnCount"/>).</summary>
+    public void SetAiSummary(string summary, int basedOnPastAppointmentCount)
+    {
+        AiSummary = summary;
+        AiSummaryGeneratedAt = DateTimeOffset.UtcNow;
+        AiSummaryBasedOnCount = basedOnPastAppointmentCount;
     }
 
     /// <summary>
