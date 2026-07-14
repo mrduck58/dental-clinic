@@ -471,5 +471,8 @@ apps/mobile_app/ios/Runner/GeneratedPluginRegistrant.m
 apps/mobile_app/macos/Flutter/ephemeral/
 apps/api/appsettings.Development.json
 
-# Claude Code internal files
-.claude/
+# Claude Code internal files — ignore everything (settings.local.json, worktrees/, session
+# state) except skills/, which holds team-shared slash-commands (e.g. spec-kit) meant to be
+# committed and available to anyone who clones the repo.
+.claude/*
+!.claude/skills/
