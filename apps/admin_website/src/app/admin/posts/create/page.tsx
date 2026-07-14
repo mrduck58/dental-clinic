@@ -1,9 +1,14 @@
 ﻿"use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { createPostApi } from "../../../../lib/apiClient";
+import {
+  createPostApi,
+  getServicesApi,
+  generateMarketingContentApi,
+  type ServiceDto,
+} from "../../../../lib/apiClient";
 import AdminSidebar from "../../../../components/shared/AdminSidebar";
 import { useRequireAdmin } from "../../../../hooks/useRequireAdmin";
 import NotificationBell from "../../../../components/shared/NotificationBell";
@@ -30,6 +35,45 @@ export default function CreatePostPage() {
   const [isSaving, setIsSaving] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // AI draft assistant state
+  const [services, setServices] = useState<ServiceDto[]>([]);
+  const [aiServiceId, setAiServiceId] = useState("");
+  const [aiTopic, setAiTopic] = useState("");
+  const [aiTone, setAiTone] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState("");
+  const [aiApplied, setAiApplied] = useState(false);
+
+  useEffect(() => {
+    getServicesApi({ status: "Active" }).then(setServices).catch(() => {
+      // Không tải được danh sách dịch vụ — vẫn cho soạn theo chủ đề tự do.
+    });
+  }, []);
+
+  const handleGenerateWithAi = useCallback(async () => {
+    if (!aiServiceId && !aiTopic.trim()) {
+      setAiError("Chọn một dịch vụ hoặc nhập chủ đề để AI soạn nội dung.");
+      return;
+    }
+    setAiLoading(true);
+    setAiError("");
+    try {
+      const draft = await generateMarketingContentApi({
+        serviceId: aiServiceId || undefined,
+        topic: aiTopic.trim() || undefined,
+        tone: aiTone.trim() || undefined,
+      });
+      setTitle(draft.title);
+      setContent(draft.content);
+      setCategory(draft.suggestedCategory);
+      setAiApplied(true);
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : "Không thể soạn nội dung bằng AI.");
+    } finally {
+      setAiLoading(false);
+    }
+  }, [aiServiceId, aiTopic, aiTone]);
 
   // Parse file to Base64 URL
   const handleFile = (file: File) => {
@@ -158,6 +202,62 @@ export default function CreatePostPage() {
                 {errorMessage}
               </div>
             )}
+
+            {/* Trợ lý AI soạn nháp bài viết */}
+            <div className="bg-white p-6 rounded-2xl border border-violet-200/60 shadow-sm flex flex-col gap-4">
+              <div className="flex items-center gap-2">
+                <svg className="w-5 h-5 text-violet-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                </svg>
+                <span className="text-[14px] font-black text-slate-900">Soạn nháp bằng AI</span>
+              </div>
+              <p className="text-[12.5px] text-slate-400 -mt-2">
+                Chọn một dịch vụ có sẵn hoặc nhập chủ đề — AI sẽ soạn tiêu đề, nội dung và gợi ý danh mục để bạn xem lại trước khi lưu.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <select
+                  value={aiServiceId}
+                  onChange={(e) => setAiServiceId(e.target.value)}
+                  className="px-3.5 py-2.5 border border-slate-200 rounded-xl text-[13.5px] font-semibold text-slate-700 focus:border-violet-400 focus:outline-none"
+                >
+                  <option value="">-- Không chọn dịch vụ --</option>
+                  {services.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+                <select
+                  value={aiTone}
+                  onChange={(e) => setAiTone(e.target.value)}
+                  className="px-3.5 py-2.5 border border-slate-200 rounded-xl text-[13.5px] font-semibold text-slate-700 focus:border-violet-400 focus:outline-none"
+                >
+                  <option value="">Giọng văn: mặc định (chuyên nghiệp, thân thiện)</option>
+                  <option value="hào hứng, thu hút">Hào hứng, thu hút</option>
+                  <option value="nghiêm túc, đáng tin cậy">Nghiêm túc, đáng tin cậy</option>
+                  <option value="gần gũi, dễ hiểu">Gần gũi, dễ hiểu</option>
+                </select>
+              </div>
+              <input
+                type="text"
+                value={aiTopic}
+                onChange={(e) => setAiTopic(e.target.value)}
+                placeholder="Hoặc nhập chủ đề tự do (vd. Ưu đãi tẩy trắng răng mùa hè)..."
+                className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-[13.5px] font-semibold text-slate-700 focus:border-violet-400 focus:outline-none"
+              />
+              {aiError && <span className="text-[12.5px] font-bold text-red-600">{aiError}</span>}
+              {aiApplied && !aiError && (
+                <span className="text-[12.5px] font-bold text-emerald-600">
+                  Đã tạo nháp — vui lòng xem lại nội dung trước khi lưu.
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => void handleGenerateWithAi()}
+                disabled={aiLoading}
+                className="self-start px-4 py-2 rounded-xl bg-violet-600 text-white text-[12.5px] font-bold hover:bg-violet-700 disabled:opacity-50 transition-all cursor-pointer"
+              >
+                {aiLoading ? "Đang soạn..." : "Soạn nháp bằng AI"}
+              </button>
+            </div>
 
             {/* Main Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">

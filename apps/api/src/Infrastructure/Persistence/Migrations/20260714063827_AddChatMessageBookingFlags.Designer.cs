@@ -3,6 +3,7 @@ using System;
 using DentalClinic.API.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260714063827_AddChatMessageBookingFlags")]
+    partial class AddChatMessageBookingFlags
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -755,6 +758,47 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.HasIndex("Status");
 
                     b.ToTable("MaterialRequests", (string)null);
+                });
+
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.MedicalRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AppointmentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("DentistId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Diagnosis")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("PatientId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TreatmentPlan")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateOnly>("VisitDate")
+                        .HasColumnType("date");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppointmentId")
+                        .IsUnique();
+
+                    b.HasIndex("DentistId");
+
+                    b.HasIndex("PatientId");
+
+                    b.ToTable("MedicalRecords");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Medicine", b =>
@@ -1764,6 +1808,31 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.MedicalRecord", b =>
+                {
+                    b.HasOne("DentalClinic.API.Domain.Entities.Appointment", "Appointment")
+                        .WithOne("MedicalRecord")
+                        .HasForeignKey("DentalClinic.API.Domain.Entities.MedicalRecord", "AppointmentId");
+
+                    b.HasOne("DentalClinic.API.Domain.Entities.Dentist", "Dentist")
+                        .WithMany()
+                        .HasForeignKey("DentistId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("DentalClinic.API.Domain.Entities.Patient", "Patient")
+                        .WithMany("MedicalRecords")
+                        .HasForeignKey("PatientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Appointment");
+
+                    b.Navigation("Dentist");
+
+                    b.Navigation("Patient");
+                });
+
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Patient", b =>
                 {
                     b.HasOne("DentalClinic.API.Domain.Entities.Patient", "PrimaryPatient")
@@ -1887,6 +1956,8 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 
                     b.Navigation("Invoices");
 
+                    b.Navigation("MedicalRecord");
+
                     b.Navigation("Prescriptions");
 
                     b.Navigation("TreatmentPlans");
@@ -1914,6 +1985,8 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.Navigation("Appointments");
 
                     b.Navigation("FamilyMembers");
+
+                    b.Navigation("MedicalRecords");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Prescription", b =>

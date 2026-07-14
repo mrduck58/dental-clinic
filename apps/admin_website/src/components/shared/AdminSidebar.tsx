@@ -119,6 +119,20 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
             Tài khoản
           </Link>
 
+          {/* Thống kê AI */}
+          <Link
+            href="/admin/ai-analytics"
+            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "ai-analytics"
+                ? "bg-primary text-white shadow-md shadow-primary/25"
+                : "text-slate-500 hover:bg-red-50 hover:text-primary"
+              }`}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+            </svg>
+            Thống kê AI
+          </Link>
+
           {/* Lịch sử hoạt động */}
           <Link
             href="/admin/activity-logs"

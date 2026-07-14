@@ -1,4 +1,5 @@
 using DentalClinic.API.Application.UseCases.ActivityLogs;
+using DentalClinic.API.Application.UseCases.AiAnalytics;
 using DentalClinic.API.Application.UseCases.Chat;
 using DentalClinic.API.Application.UseCases.Dashboard;
 using DentalClinic.API.Application.UseCases.StaffDashboard;
@@ -117,12 +118,14 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<ApproveFeedbackHandler>();
         services.AddScoped<HideFeedbackHandler>();
         services.AddScoped<ReplyFeedbackHandler>();
+        services.AddScoped<GenerateFeedbackReplyHandler>();
 
         services.AddScoped<GetPostsHandler>();
         services.AddScoped<GetPostByIdHandler>();
         services.AddScoped<CreatePostHandler>();
         services.AddScoped<UpdatePostHandler>();
         services.AddScoped<DeletePostHandler>();
+        services.AddScoped<GenerateMarketingContentHandler>();
 
         services.AddScoped<GetServicesHandler>();
         services.AddScoped<GetServiceByIdHandler>();
@@ -196,6 +199,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<SendChatMessageHandler>();
         services.AddScoped<GetMyConversationsHandler>();
         services.AddScoped<GetConversationMessagesHandler>();
+        services.AddScoped<GetAiAnalyticsHandler>();
 
         services.AddScoped<GetActivityLogsHandler>();
         services.AddScoped<GetNotificationsHandler>();

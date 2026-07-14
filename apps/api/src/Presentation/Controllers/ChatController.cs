@@ -15,12 +15,13 @@ public class ChatController(
     GetMyConversationsHandler getMyConversationsHandler,
     GetConversationMessagesHandler getConversationMessagesHandler) : ControllerBase
 {
-    /// <summary>POST api/chat/conversations — Bắt đầu một cuộc trò chuyện mới với chatbot AI</summary>
+    /// <summary>POST api/chat/conversations?language=vi — Bắt đầu một cuộc trò chuyện mới với chatbot AI</summary>
     [HttpPost("conversations")]
-    public async Task<IActionResult> StartConversation(CancellationToken cancellationToken)
+    public async Task<IActionResult> StartConversation(
+        [FromQuery] string? language, CancellationToken cancellationToken)
     {
         var userId = GetCurrentUserId();
-        var result = await startConversationHandler.HandleAsync(userId, cancellationToken);
+        var result = await startConversationHandler.HandleAsync(userId, language, cancellationToken);
         return Ok(result);
     }
 
@@ -48,7 +49,8 @@ public class ChatController(
         Guid id, [FromBody] SendChatMessageRequest request, CancellationToken cancellationToken)
     {
         var userId = GetCurrentUserId();
-        var result = await sendChatMessageHandler.HandleAsync(userId, id, request.Message, cancellationToken);
+        var result = await sendChatMessageHandler.HandleAsync(
+            userId, id, request.Message, request.Language, cancellationToken);
         return Ok(result);
     }
 
@@ -61,4 +63,5 @@ public class ChatController(
     }
 }
 
-public record SendChatMessageRequest(string Message);
+/// <summary>Language: mã ngôn ngữ app đang dùng ("vi"/"en") — bot trả lời theo ngôn ngữ này, mặc định tiếng Việt.</summary>
+public record SendChatMessageRequest(string Message, string? Language = null);
