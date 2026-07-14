@@ -8,6 +8,7 @@ import {
   getFeedbacksApi,
   featureFeedbackApi,
   replyFeedbackApi,
+  generateFeedbackReplyApi,
   type FeedbackDto,
 } from "../../../lib/apiClient";
 
@@ -24,6 +25,7 @@ export default function FeedbackDashboardPage() {
 
   const [replyTarget, setReplyTarget] = useState<FeedbackDto | null>(null);
   const [replyContent, setReplyContent] = useState("");
+  const [aiSuggestLoading, setAiSuggestLoading] = useState(false);
 
   const [toast, setToast] = useState<{ show: boolean; message: string; isError?: boolean } | null>(null);
 
@@ -80,6 +82,19 @@ export default function FeedbackDashboardPage() {
       showToast("Đã gửi câu trả lời phản hồi thành công!");
     } catch {
       showToast("Có lỗi xảy ra. Vui lòng thử lại.", true);
+    }
+  };
+
+  const handleSuggestAiReply = async () => {
+    if (!replyTarget) return;
+    setAiSuggestLoading(true);
+    try {
+      const draft = await generateFeedbackReplyApi(replyTarget.id);
+      setReplyContent(draft.replyText);
+    } catch {
+      showToast("Không thể soạn nháp bằng AI. Vui lòng thử lại.", true);
+    } finally {
+      setAiSuggestLoading(false);
     }
   };
 
@@ -533,9 +548,22 @@ export default function FeedbackDashboardPage() {
             </div>
 
             <div className="flex flex-col gap-2">
-              <label className="text-[12px] font-extrabold text-slate-400 uppercase tracking-wider block">
-                Nội dung phản hồi từ quản trị viên
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-[12px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                  Nội dung phản hồi từ quản trị viên
+                </label>
+                <button
+                  type="button"
+                  onClick={() => void handleSuggestAiReply()}
+                  disabled={aiSuggestLoading}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-violet-50 text-violet-600 text-[11.5px] font-bold hover:bg-violet-100 disabled:opacity-50 transition-all cursor-pointer"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                  </svg>
+                  {aiSuggestLoading ? "Đang soạn..." : "Gợi ý AI"}
+                </button>
+              </div>
               <textarea
                 value={replyContent}
                 onChange={(e) => setReplyContent(e.target.value)}

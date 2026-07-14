@@ -13,7 +13,8 @@ public class FeedbacksController(
     CreateFeedbackHandler create,
     ApproveFeedbackHandler approve,
     HideFeedbackHandler hide,
-    ReplyFeedbackHandler reply) : ControllerBase
+    ReplyFeedbackHandler reply,
+    GenerateFeedbackReplyHandler generateAiReply) : ControllerBase
 {
     /// <summary>GET api/feedbacks — Danh sách phản hồi (Admin)</summary>
     [HttpGet]
@@ -78,6 +79,16 @@ public class FeedbacksController(
     public async Task<IActionResult> Reply(Guid id, [FromBody] ReplyFeedbackRequest request, CancellationToken ct)
     {
         var result = await reply.HandleAsync(id, request, ct);
+        return Ok(result);
+    }
+
+    /// <summary>POST api/feedbacks/{id}/ai-draft-reply — Soạn nháp câu trả lời bằng AI (Staff/Owner).
+    /// Chỉ trả về nội dung nháp để nhân viên xem lại — không tự gửi phản hồi.</summary>
+    [HttpPost("{id:guid}/ai-draft-reply")]
+    [Authorize(Roles = "Staff,Owner")]
+    public async Task<IActionResult> GenerateAiReply(Guid id, CancellationToken ct)
+    {
+        var result = await generateAiReply.HandleAsync(id, ct);
         return Ok(result);
     }
 }

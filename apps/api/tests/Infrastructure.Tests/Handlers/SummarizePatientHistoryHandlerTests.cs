@@ -25,7 +25,7 @@ public class SummarizePatientHistoryHandlerTests
         _db = new AppDbContext(options);
 
         _aiChatService = Substitute.For<IAiChatService>();
-        _aiChatService.SummarizeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+        _aiChatService.SummarizeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns("Tóm tắt test");
 
         _handler = new SummarizePatientHistoryHandler(_aiChatService, _db);
@@ -78,7 +78,91 @@ public class SummarizePatientHistoryHandlerTests
                 content.Contains("Sâu răng tiến triển") &&
                 content.Contains("Amoxicillin") &&
                 content.Contains("Đau răng hàm dưới")),
-            Arg.Any<CancellationToken>());
+            Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Gọi HandleAsync lần 2 cho cùng lịch hẹn (không có lịch sử mới, không force) phải trả về
+    /// đúng bản tóm tắt đã cache — KHÔNG gọi lại Gemini lần nữa, tránh tốn chi phí AI vô ích.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_CalledTwiceWithoutNewHistory_ReturnsCachedSummaryWithoutCallingAiAgain()
+    {
+        var (patient, dentist) = await SeedPatientAndDentistAsync("p3", "d3");
+        var pastAppointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddMonths(-1));
+        _db.Appointments.Add(pastAppointment);
+        var currentAppointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
+        _db.Appointments.Add(currentAppointment);
+        await _db.SaveChangesAsync();
+
+        var first = await _handler.HandleAsync(currentAppointment.Id);
+        var second = await _handler.HandleAsync(currentAppointment.Id);
+
+        first.FromCache.Should().BeFalse();
+        second.FromCache.Should().BeTrue();
+        second.Summary.Should().Be(first.Summary);
+
+        await _aiChatService.Received(1).SummarizeAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>forceRegenerate = true phải bỏ qua cache và gọi lại Gemini dù chưa có lịch sử mới.</summary>
+    [Test]
+    public async Task HandleAsync_ForceRegenerate_CallsAiAgainEvenWithoutNewHistory()
+    {
+        var (patient, dentist) = await SeedPatientAndDentistAsync("p4", "d4");
+        var pastAppointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddMonths(-1));
+        _db.Appointments.Add(pastAppointment);
+        var currentAppointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
+        _db.Appointments.Add(currentAppointment);
+        await _db.SaveChangesAsync();
+
+        await _handler.HandleAsync(currentAppointment.Id);
+        var forced = await _handler.HandleAsync(currentAppointment.Id, forceRegenerate: true);
+
+        forced.FromCache.Should().BeFalse();
+        await _aiChatService.Received(2).SummarizeAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Có thêm lịch khám mới kể từ lần tóm tắt trước → cache phải bị coi là cũ và tạo lại.</summary>
+    [Test]
+    public async Task HandleAsync_NewPastAppointmentAddedSinceLastSummary_RegeneratesInsteadOfUsingCache()
+    {
+        var (patient, dentist) = await SeedPatientAndDentistAsync("p5", "d5");
+        var pastAppointment1 = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddMonths(-2));
+        _db.Appointments.Add(pastAppointment1);
+        var currentAppointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
+        _db.Appointments.Add(currentAppointment);
+        await _db.SaveChangesAsync();
+
+        await _handler.HandleAsync(currentAppointment.Id);
+
+        var pastAppointment2 = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddMonths(-1));
+        _db.Appointments.Add(pastAppointment2);
+        await _db.SaveChangesAsync();
+
+        var result = await _handler.HandleAsync(currentAppointment.Id);
+
+        result.FromCache.Should().BeFalse();
+        await _aiChatService.Received(2).SummarizeAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    private async Task<(Patient patient, Dentist dentist)> SeedPatientAndDentistAsync(
+        string patientUsername, string dentistUsername)
+    {
+        var patientUser = User.Create(patientUsername, $"{patientUsername}@test.com", "hash", "Patient");
+        var dentistUser = User.Create(dentistUsername, $"{dentistUsername}@test.com", "hash", "Dentist");
+        _db.Users.AddRange(patientUser, dentistUser);
+
+        var patient = Patient.Create("Bệnh nhân Test", new DateOnly(1990, 1, 1), "Nam", patientUser.Id);
+        var dentist = Dentist.Create(dentistUser.Id, "BS. Test", "Nha khoa tổng quát", 5);
+        _db.Patients.Add(patient);
+        _db.Dentists.Add(dentist);
+        await _db.SaveChangesAsync();
+
+        return (patient, dentist);
     }
 
     [Test]
@@ -101,6 +185,6 @@ public class SummarizePatientHistoryHandlerTests
 
         result.Summary.Should().Contain("chưa có lịch sử khám");
         await _aiChatService.DidNotReceive().SummarizeAsync(
-            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 }

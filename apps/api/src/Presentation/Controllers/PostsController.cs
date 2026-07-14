@@ -12,7 +12,8 @@ public class PostsController(
     GetPostByIdHandler getById,
     CreatePostHandler create,
     UpdatePostHandler update,
-    DeletePostHandler delete) : ControllerBase
+    DeletePostHandler delete,
+    GenerateMarketingContentHandler generateAiDraft) : ControllerBase
 {
     /// <summary>GET api/posts — Danh sách bài viết (có filter)</summary>
     [HttpGet]
@@ -62,5 +63,16 @@ public class PostsController(
     {
         await delete.HandleAsync(id, ct);
         return NoContent();
+    }
+
+    /// <summary>POST api/posts/generate-ai-draft — Soạn nháp bài viết bằng AI từ dịch vụ/ưu đãi có sẵn
+    /// (Staff). Chỉ trả về nội dung nháp để nhân viên xem lại — không tự tạo/xuất bản bài viết.</summary>
+    [HttpPost("generate-ai-draft")]
+    [Authorize(Roles = "Staff")]
+    public async Task<IActionResult> GenerateAiDraft(
+        [FromBody] GenerateMarketingContentRequest request, CancellationToken ct)
+    {
+        var result = await generateAiDraft.HandleAsync(request, ct);
+        return Ok(result);
     }
 }
