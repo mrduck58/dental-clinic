@@ -227,6 +227,10 @@ public class UpdateAppointmentStatusHandler(
         if (appointment.Status != AppointmentStatus.CheckedIn)
             throw new InvalidOperationException("Chỉ có thể bắt đầu khám lịch hẹn đã check-in.");
 
+        // Mỗi bác sĩ chỉ khám một bệnh nhân tại một thời điểm.
+        if (await appointmentRepository.HasInProgressAppointmentAsync(appointment.DentistId, appointmentId, ct))
+            throw new InvalidOperationException("Bạn đang khám một bệnh nhân khác. Vui lòng kết thúc điều trị bệnh nhân đó trước khi bắt đầu khám bệnh nhân mới.");
+
         appointment.StartTreatment();
         await appointmentRepository.UpdateAsync(appointment, ct);
     }
