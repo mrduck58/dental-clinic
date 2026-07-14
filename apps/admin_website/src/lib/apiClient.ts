@@ -904,6 +904,24 @@ export async function replyFeedbackApi(id: string, data: ReplyFeedbackRequest): 
   return res.json() as Promise<FeedbackDto>;
 }
 
+export interface FeedbackReplyDraftDto {
+  replyText: string;
+}
+
+/** Soạn NHÁP câu trả lời bằng AI cho một đánh giá — chỉ điền sẵn vào ô trả lời, không tự gửi. */
+export async function generateFeedbackReplyApi(id: string): Promise<FeedbackReplyDraftDto> {
+  const res = await fetch(`${API_URL}/api/feedbacks/${id}/ai-draft-reply`, {
+    method: "POST",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể soạn nháp bằng AI");
+  }
+  return res.json() as Promise<FeedbackReplyDraftDto>;
+}
+
 export async function createFeedbackApi(data: CreateFeedbackRequest): Promise<FeedbackDto> {
   const res = await fetch(`${API_URL}/api/feedbacks`, {
     method: "POST",
@@ -1965,10 +1983,15 @@ export async function getPatientMedicalHistoryApi(patientId: string): Promise<Pa
 export interface PatientHistorySummaryDto {
   summary: string;
   disclaimer: string;
+  fromCache: boolean;
 }
 
-export async function getPatientAiSummaryApi(appointmentId: string): Promise<PatientHistorySummaryDto> {
-  const res = await fetch(`${API_URL}/api/appointments/${appointmentId}/ai-summary`, {
+export async function getPatientAiSummaryApi(
+  appointmentId: string,
+  force = false,
+): Promise<PatientHistorySummaryDto> {
+  const qs = force ? "?force=true" : "";
+  const res = await fetch(`${API_URL}/api/appointments/${appointmentId}/ai-summary${qs}`, {
     headers: { ...authHeaders() },
   });
   await checkAuth(res);
@@ -3181,4 +3204,76 @@ export async function getStaffDashboardPendingInvoicesApi(
     throw new Error((err as { title?: string }).title ?? "Không thể tải hóa đơn chờ thanh toán");
   }
   return res.json() as Promise<StaffDashboardPendingInvoiceDto[]>;
+}
+
+// ── AI Analytics (thống kê vận hành các tính năng AI) ────────────────────────
+
+export interface AiFeatureUsageDto {
+  feature: string;
+  totalCalls: number;
+  successCount: number;
+  failureCount: number;
+  avgDurationMs: number;
+}
+
+export interface AiDailyUsageDto {
+  date: string;
+  calls: number;
+  failures: number;
+}
+
+export interface AiAnalyticsDto {
+  rangeDays: number | null;
+  totalConversations: number;
+  totalMessages: number;
+  totalUserMessages: number;
+  suggestBookingCount: number;
+  bookingActionCount: number;
+  usageByFeature: AiFeatureUsageDto[];
+  dailyUsage: AiDailyUsageDto[];
+}
+
+/** rangeDays = undefined/null → lấy TẤT CẢ dữ liệu từ trước tới nay (tùy chọn "Tất cả" trên UI). */
+export async function getAiAnalyticsApi(rangeDays?: number): Promise<AiAnalyticsDto> {
+  const qs = rangeDays != null ? `?rangeDays=${rangeDays}` : "";
+  const res = await fetch(`${API_URL}/api/ai-analytics${qs}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải thống kê AI");
+  }
+  return res.json() as Promise<AiAnalyticsDto>;
+}
+
+// ── AI Marketing Content Assistant (soạn nội dung bài viết/ưu đãi bằng AI) ───
+
+export interface MarketingContentDraftDto {
+  title: string;
+  content: string;
+  suggestedCategory: string;
+}
+
+export interface GenerateMarketingContentRequest {
+  serviceId?: string;
+  promotionId?: string;
+  topic?: string;
+  tone?: string;
+}
+
+export async function generateMarketingContentApi(
+  body: GenerateMarketingContentRequest
+): Promise<MarketingContentDraftDto> {
+  const res = await fetch(`${API_URL}/api/posts/generate-ai-draft`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(body),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể soạn nội dung bằng AI");
+  }
+  return res.json() as Promise<MarketingContentDraftDto>;
 }

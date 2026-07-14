@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.UseCases.Auth;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
@@ -81,7 +82,8 @@ public class RegisterHandlerTests
     {
         await _handler.HandleAsync(ValidCommand);
 
-        await _otpRepo.Received(1).InvalidateAllAsync(TestEmail, Arg.Any<CancellationToken>());
+        await _otpRepo.Received(1).InvalidateAllAsync(
+            TestEmail, OtpPurpose.Registration, Arg.Any<CancellationToken>());
     }
 
     /// <summary>
