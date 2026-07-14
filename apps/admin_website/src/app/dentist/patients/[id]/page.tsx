@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import DentistSidebar from "../../../../components/shared/DentistSidebar";
 import DentistPageHeader from "../../../../components/shared/DentistPageHeader";
 import AiSummaryText from "../../../../components/shared/AiSummaryText";
-import TreatmentWorkspace from "../../treatment-plans/TreatmentWorkspace";
+import TreatmentWorkspace from "./TreatmentWorkspace";
 import PrescriptionWorkspace from "./PrescriptionWorkspace";
 import FollowUpWorkspace from "./FollowUpWorkspace";
 import { useRequireDentist } from "../../../../hooks/useRequireDentist";
