@@ -26,7 +26,6 @@ public class Patient
     public Patient? PrimaryPatient { get; private set; }
     public ICollection<Patient> FamilyMembers { get; private set; } = [];
     public ICollection<Appointment> Appointments { get; private set; } = [];
-    public ICollection<MedicalRecord> MedicalRecords { get; private set; } = [];
 
     private Patient() { }
 

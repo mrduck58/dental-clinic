@@ -14,7 +14,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Patient> Patients => Set<Patient>();
     public DbSet<Dentist> Dentists => Set<Dentist>();
     public DbSet<Appointment> Appointments => Set<Appointment>();
-    public DbSet<MedicalRecord> MedicalRecords => Set<MedicalRecord>();
     public DbSet<Invoice> Invoices => Set<Invoice>();
     public DbSet<InvoiceItem> InvoiceItems => Set<InvoiceItem>();
     public DbSet<PaymentTransaction> PaymentTransactions => Set<PaymentTransaction>();
@@ -39,6 +38,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<ChatConversation> ChatConversations => Set<ChatConversation>();
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
+    public DbSet<AiUsageLog> AiUsageLogs => Set<AiUsageLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

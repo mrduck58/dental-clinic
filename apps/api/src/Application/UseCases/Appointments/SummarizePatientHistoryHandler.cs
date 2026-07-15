@@ -7,20 +7,26 @@ using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.Appointments;
 
-public record PatientHistorySummaryResult(string Summary, string Disclaimer);
+/// <summary>FromCache = true khi trả lại tóm tắt đã tạo trước đó (không gọi lại Gemini) vì chưa có
+/// lịch khám mới nào kể từ lần tóm tắt trước — giúp UI có thể hiện chú thích và nút "Làm mới".</summary>
+public record PatientHistorySummaryResult(string Summary, string Disclaimer, bool FromCache = false);
 
 /// <summary>
 /// Tóm tắt lịch sử khám trước đây của một bệnh nhân bằng AI, hỗ trợ bác sĩ nắm nhanh trước khi khám.
 /// Chỉ tổng hợp lại dữ liệu đã có trong hồ sơ (chẩn đoán/liệu trình/đơn thuốc các lần khám cũ) —
 /// không tự chẩn đoán mới, không đề xuất phác đồ điều trị. <see cref="PatientHistorySummaryResult.Disclaimer"/>
 /// luôn là một hằng số cố định do backend gán, không phụ thuộc vào việc AI có tự nhắc hay không.
+/// Kết quả được cache trực tiếp trên <see cref="Appointment"/> (AiSummary/AiSummaryGeneratedAt/
+/// AiSummaryBasedOnCount) — chỉ gọi lại Gemini khi có thêm lịch hẹn mới trong lịch sử hoặc khi
+/// <paramref name="forceRegenerate"/> = true, tránh tốn chi phí AI cho mỗi lần bác sĩ mở lại trang.
 /// </summary>
 public class SummarizePatientHistoryHandler(IAiChatService aiChatService, AppDbContext dbContext)
 {
     private const string DisclaimerText =
         "⚠️ Đây là tóm tắt do AI tạo tự động — vui lòng đối chiếu hồ sơ gốc trước khi đưa ra quyết định điều trị.";
 
-    public async Task<PatientHistorySummaryResult> HandleAsync(Guid appointmentId, CancellationToken ct = default)
+    public async Task<PatientHistorySummaryResult> HandleAsync(
+        Guid appointmentId, bool forceRegenerate = false, CancellationToken ct = default)
     {
         var currentAppointment = await dbContext.Appointments
             .FirstOrDefaultAsync(a => a.Id == appointmentId, ct)
@@ -41,8 +47,19 @@ public class SummarizePatientHistoryHandler(IAiChatService aiChatService, AppDbC
                 "Bệnh nhân chưa có lịch sử khám nào trước đây để tóm tắt.", DisclaimerText);
         }
 
+        if (!forceRegenerate &&
+            currentAppointment.AiSummary is not null &&
+            currentAppointment.AiSummaryBasedOnCount == pastAppointments.Count)
+        {
+            return new PatientHistorySummaryResult(currentAppointment.AiSummary, DisclaimerText, FromCache: true);
+        }
+
         var historyText = BuildHistoryText(pastAppointments);
-        var summary = await aiChatService.SummarizeAsync(BuildSystemInstruction(), historyText, ct);
+        var summary = await aiChatService.SummarizeAsync(
+            BuildSystemInstruction(), historyText, feature: "PatientSummary", ct: ct);
+
+        currentAppointment.SetAiSummary(summary, pastAppointments.Count);
+        await dbContext.SaveChangesAsync(ct);
 
         return new PatientHistorySummaryResult(summary, DisclaimerText);
     }

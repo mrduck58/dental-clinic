@@ -3,6 +3,7 @@ using System;
 using DentalClinic.API.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260714063827_AddChatMessageBookingFlags")]
+    partial class AddChatMessageBookingFlags
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -82,7 +85,7 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Module", "Action");
 
-                    b.ToTable("ActivityLogs", (string)null);
+                    b.ToTable("ActivityLogs");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.AiUsageLog", b =>
@@ -154,12 +157,6 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("PatientId")
                         .HasColumnType("uuid");
 
-                    b.Property<long?>("QueueEntryOrder")
-                        .HasColumnType("bigint");
-
-                    b.Property<long?>("QueueOrder")
-                        .HasColumnType("bigint");
-
                     b.Property<Guid?>("ServiceId")
                         .HasColumnType("uuid");
 
@@ -179,7 +176,6 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ServiceId");
 
-                    b.ToTable("Appointments", (string)null);
                     b.ToTable("Appointments");
                 });
 
@@ -315,9 +311,16 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("WorkingHours")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasDefaultValue("");
+
                     b.HasKey("Id");
 
-                    b.ToTable("ClinicInfos", (string)null);
+                    b.ToTable("ClinicInfos");
 
                     b.HasData(
                         new
@@ -334,7 +337,8 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                             MilestonesJson = "[{\"year\":2009,\"description\":\"Thành lập phòng khám đầu tiên tại TP.HCM\"},{\"year\":2015,\"description\":\"Mở rộng lên 3 cơ sở, đạt chứng nhận ISO 9001\"},{\"year\":2019,\"description\":\"Đối tác chính thức của Invisalign tại Việt Nam\"},{\"year\":2023,\"description\":\"Ra mắt ứng dụng đặt lịch trên di động\"}]",
                             Phone = "1900 6789 — 028 7300 1234",
                             StatisticsJson = "[{\"value\":\"10.000+\",\"label\":\"Khách hàng hài lòng\"},{\"value\":\"20+\",\"label\":\"Bác sĩ chuyên khoa\"},{\"value\":\"15+\",\"label\":\"Năm kinh nghiệm\"},{\"value\":\"99%\",\"label\":\"Đánh giá 5 sao\"}]",
-                            TreatmentStepsJson = "[{\"title\":\"Tải App & Đặt Lịch\",\"description\":\"Tải app Sơn Giang Dental, chọn dịch vụ và đặt lịch trong 30 giây. Xác nhận ngay lập tức.\"},{\"title\":\"Khám & Tư Vấn\",\"description\":\"Bác sĩ chuyên khoa thăm khám toàn diện, chụp X-quang và tư vấn phác đồ phù hợp.\"},{\"title\":\"Điều Trị\",\"description\":\"Thực hiện điều trị theo phác đồ đã tư vấn với công nghệ hiện đại, không đau, an toàn.\"},{\"title\":\"Theo Dõi Sau Điều Trị\",\"description\":\"Tái khám định kỳ miễn phí, bảo hành dài hạn và hỗ trợ 24/7 khi có vấn đề phát sinh.\"}]"
+                            TreatmentStepsJson = "[{\"title\":\"Tải App & Đặt Lịch\",\"description\":\"Tải app Sơn Giang Dental, chọn dịch vụ và đặt lịch trong 30 giây. Xác nhận ngay lập tức.\"},{\"title\":\"Khám & Tư Vấn\",\"description\":\"Bác sĩ chuyên khoa thăm khám toàn diện, chụp X-quang và tư vấn phác đồ phù hợp.\"},{\"title\":\"Điều Trị\",\"description\":\"Thực hiện điều trị theo phác đồ đã tư vấn với công nghệ hiện đại, không đau, an toàn.\"},{\"title\":\"Theo Dõi Sau Điều Trị\",\"description\":\"Tái khám định kỳ miễn phí, bảo hành dài hạn và hỗ trợ 24/7 khi có vấn đề phát sinh.\"}]",
+                            WorkingHours = "T2–T6: 8:00 – 20:00 • T7–CN: 8:00 – 17:00"
                         });
                 });
 
@@ -370,7 +374,7 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.HasIndex("UserId")
                         .IsUnique();
 
-                    b.ToTable("Dentists", (string)null);
+                    b.ToTable("Dentists");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Diagnosis", b =>
@@ -469,7 +473,7 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Feedbacks", (string)null);
+                    b.ToTable("Feedbacks");
 
                     b.HasData(
                         new
@@ -702,7 +706,7 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("LeaveRequests", (string)null);
+                    b.ToTable("LeaveRequests");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.MaterialRequest", b =>
@@ -794,7 +798,7 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("PatientId");
 
-                    b.ToTable("MedicalRecords", (string)null);
+                    b.ToTable("MedicalRecords");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Medicine", b =>
@@ -839,7 +843,7 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Medicines", (string)null);
+                    b.ToTable("Medicines");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Notification", b =>
@@ -924,9 +928,14 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsUsed")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("Purpose")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("Email", "IsUsed", "ExpiresAt");
+                    b.HasIndex("Email", "Purpose", "IsUsed", "ExpiresAt");
 
                     b.ToTable("OtpCodes", (string)null);
                 });
@@ -979,7 +988,7 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.HasIndex("UserId")
                         .IsUnique();
 
-                    b.ToTable("Patients", (string)null);
+                    b.ToTable("Patients");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.PaymentTransaction", b =>
@@ -1094,7 +1103,7 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ServiceId");
 
-                    b.ToTable("Posts", (string)null);
+                    b.ToTable("Posts");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Prescription", b =>
@@ -1220,7 +1229,7 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("Promotions", (string)null);
+                    b.ToTable("Promotions");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Room", b =>
@@ -1272,7 +1281,7 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("Rooms", (string)null);
+                    b.ToTable("Rooms");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Service", b =>
@@ -1315,7 +1324,7 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Services", (string)null);
+                    b.ToTable("Services");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.SupplyItem", b =>
@@ -1366,7 +1375,7 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("SupplyItems", (string)null);
+                    b.ToTable("SupplyItems");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.SupplyTransaction", b =>
@@ -1402,7 +1411,7 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("SupplyItemId");
 
-                    b.ToTable("SupplyTransactions", (string)null);
+                    b.ToTable("SupplyTransactions");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.TreatmentPlan", b =>
@@ -1598,6 +1607,10 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.Property<string>("ProfilePictureUrl")
                         .HasColumnType("text");
 
+                    b.Property<string>("Provider")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
                     b.Property<string>("Role")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -1634,7 +1647,7 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("\"Username\" IS NOT NULL");
 
-                    b.ToTable("Users", (string)null);
+                    b.ToTable("Users");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.WorkSchedule", b =>
@@ -1683,7 +1696,7 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Date");
 
-                    b.ToTable("WorkSchedules", (string)null);
+                    b.ToTable("WorkSchedules");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Appointment", b =>
@@ -1717,6 +1730,17 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.Navigation("Patient");
 
                     b.Navigation("Service");
+                });
+
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.ChatMessage", b =>
+                {
+                    b.HasOne("DentalClinic.API.Domain.Entities.ChatConversation", "Conversation")
+                        .WithMany("Messages")
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Conversation");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Dentist", b =>
@@ -1782,6 +1806,31 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.MedicalRecord", b =>
+                {
+                    b.HasOne("DentalClinic.API.Domain.Entities.Appointment", "Appointment")
+                        .WithOne("MedicalRecord")
+                        .HasForeignKey("DentalClinic.API.Domain.Entities.MedicalRecord", "AppointmentId");
+
+                    b.HasOne("DentalClinic.API.Domain.Entities.Dentist", "Dentist")
+                        .WithMany()
+                        .HasForeignKey("DentistId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("DentalClinic.API.Domain.Entities.Patient", "Patient")
+                        .WithMany("MedicalRecords")
+                        .HasForeignKey("PatientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Appointment");
+
+                    b.Navigation("Dentist");
+
+                    b.Navigation("Patient");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Patient", b =>
@@ -1907,9 +1956,16 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 
                     b.Navigation("Invoices");
 
+                    b.Navigation("MedicalRecord");
+
                     b.Navigation("Prescriptions");
 
                     b.Navigation("TreatmentPlans");
+                });
+
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.ChatConversation", b =>
+                {
+                    b.Navigation("Messages");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Dentist", b =>
@@ -1929,6 +1985,8 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.Navigation("Appointments");
 
                     b.Navigation("FamilyMembers");
+
+                    b.Navigation("MedicalRecords");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Prescription", b =>

@@ -16,4 +16,7 @@ public interface IAppointmentRepository
     Task AddAsync(Appointment appointment, CancellationToken cancellationToken = default);
     Task UpdateAsync(Appointment appointment, CancellationToken cancellationToken = default);
     Task<Guid?> GetDentistUserIdAsync(Guid dentistId, CancellationToken cancellationToken = default);
+
+    /// <summary>Bác sĩ có đang khám một lịch hẹn khác không (trạng thái InProgress, khác lịch hẹn đang xét).</summary>
+    Task<bool> HasInProgressAppointmentAsync(Guid dentistId, Guid excludeAppointmentId, CancellationToken cancellationToken = default);
 }

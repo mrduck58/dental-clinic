@@ -153,12 +153,14 @@ public class AppointmentsController(
         return Ok(result);
     }
 
-    /// <summary>GET api/appointments/{id}/ai-summary — Tóm tắt lịch sử khám của bệnh nhân bằng AI (Staff/Admin/Dentist)</summary>
+    /// <summary>GET api/appointments/{id}/ai-summary?force=true — Tóm tắt lịch sử khám của bệnh nhân bằng
+    /// AI (Staff/Admin/Dentist). Mặc định trả cache nếu chưa có lịch khám mới; force=true bắt tạo lại.</summary>
     [HttpGet("{id}/ai-summary")]
     [Authorize(Roles = "Staff,Admin,Dentist")]
-    public async Task<IActionResult> GetPatientAiSummary(Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetPatientAiSummary(
+        Guid id, [FromQuery] bool force, CancellationToken cancellationToken)
     {
-        var result = await summarizePatientHistoryHandler.HandleAsync(id, cancellationToken);
+        var result = await summarizePatientHistoryHandler.HandleAsync(id, force, cancellationToken);
         return Ok(result);
     }
 
@@ -587,7 +589,7 @@ public class AppointmentsController(
             .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Service)
             .Include(a => a.Prescriptions).ThenInclude(p => p.Items)
             .Where(a => a.PatientId == patientId &&
-                        a.Status == AppointmentStatus.Completed)
+                        (a.Status == AppointmentStatus.Completed || a.Status == AppointmentStatus.PendingPayment))
             .OrderByDescending(a => a.AppointmentDate)
             .Take(50)
             .ToListAsync(cancellationToken);

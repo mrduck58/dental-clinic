@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import {
   getExaminationApi,
   getPatientMedicalHistoryApi,
@@ -16,7 +17,7 @@ import {
   type TreatmentPlanDto,
   type ServiceDto,
   type TreatmentProcedureDto,
-} from "../../../lib/apiClient";
+} from "../../../../lib/apiClient";
 
 interface TreatmentWorkspaceProps {
   appointmentId: string;
@@ -632,7 +633,7 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
       </div>
 
       {/* ══════════ MODAL: THÊM DỊCH VỤ ══════════ */}
-      {showAddService && (
+      {showAddService && createPortal(
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-6" onClick={() => setShowAddService(false)}>
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
@@ -720,11 +721,12 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ══════════ MODAL: THÊM QUÁ TRÌNH ══════════ */}
-      {showAddProgress && (
+      {showAddProgress && createPortal(
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-6" onClick={() => setShowAddProgress(false)}>
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
@@ -824,7 +826,8 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Toast */}

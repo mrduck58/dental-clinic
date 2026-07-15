@@ -1,3 +1,5 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using DentalClinic.API.Application.DTOs.Schedules;
 using DentalClinic.API.Application.UseCases.Schedules;
 using Microsoft.AspNetCore.Authorization;
@@ -7,13 +9,14 @@ namespace DentalClinic.API.Presentation.Controllers;
 
 [ApiController]
 [Route("api/schedules")]
-[Authorize(Roles = "Owner")]
 public class SchedulesController(
     GetWeekScheduleHandler getWeekSchedule,
-    SaveWeekScheduleHandler saveWeekSchedule) : ControllerBase
+    SaveWeekScheduleHandler saveWeekSchedule,
+    GetMyScheduleHandler getMySchedule) : ControllerBase
 {
-    /// <summary>GET api/schedules?weekStart=YYYY-MM-DD — Lấy lịch làm việc theo tuần</summary>
+    /// <summary>GET api/schedules?weekStart=YYYY-MM-DD — Lấy lịch làm việc toàn phòng khám theo tuần (Owner)</summary>
     [HttpGet]
+    [Authorize(Roles = "Owner")]
     public async Task<IActionResult> GetByWeek([FromQuery] string weekStart, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(weekStart))
@@ -23,11 +26,32 @@ public class SchedulesController(
         return Ok(result);
     }
 
-    /// <summary>PUT api/schedules/week/{weekStart} — Lưu toàn bộ lịch làm việc cho một tuần (thay thế)</summary>
+    /// <summary>GET api/schedules/my?weekStart=YYYY-MM-DD — Lịch làm việc của nha sĩ đang đăng nhập (chỉ xem)</summary>
+    [HttpGet("my")]
+    [Authorize(Roles = "Dentist")]
+    public async Task<IActionResult> GetMySchedule([FromQuery] string weekStart, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(weekStart))
+            return BadRequest("weekStart is required (format: YYYY-MM-DD)");
+
+        var result = await getMySchedule.HandleAsync(GetCurrentUserId(), weekStart, ct);
+        return Ok(result);
+    }
+
+    /// <summary>PUT api/schedules/week/{weekStart} — Lưu toàn bộ lịch làm việc cho một tuần (Owner, thay thế)</summary>
     [HttpPut("week/{weekStart}")]
+    [Authorize(Roles = "Owner")]
     public async Task<IActionResult> SaveWeek(string weekStart, [FromBody] SaveWeekScheduleRequest request, CancellationToken ct)
     {
         var result = await saveWeekSchedule.HandleAsync(weekStart, request, ct);
         return Ok(result);
+    }
+
+    private Guid GetCurrentUserId()
+    {
+        var sub = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+            ?? User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? throw new UnauthorizedAccessException("Không xác định được người dùng từ token.");
+        return Guid.Parse(sub);
     }
 }

@@ -17,27 +17,21 @@ public class Appointment
     /// <summary>Thời điểm bệnh nhân check-in — mốc tính THỜI GIAN CHỜ (null nếu chưa check-in).</summary>
     public DateTimeOffset? CheckedInAt { get; private set; }
 
-    /// <summary>
-    /// VỊ TRÍ HIỂN THỊ trong hàng đợi (tick UTC). Tách khỏi <see cref="CheckedInAt"/> để lễ tân đẩy
-    /// bệnh nhân lên/xuống hoặc chuyển phòng (xuống cuối) mà KHÔNG làm đổi thời gian chờ. Null =
-    /// chưa can thiệp thủ công, xếp theo giờ check-in như mặc định.
-    /// </summary>
-    public long? QueueOrder { get; private set; }
+    /// <summary>Tóm tắt lịch sử khám do AI tạo, gắn với LẦN KHÁM NÀY (dựa trên các lịch hẹn trước đó
+    /// của cùng bệnh nhân). Cache lại để không gọi Gemini lại mỗi lần bác sĩ mở trang nếu dữ liệu
+    /// chưa đổi — xem <see cref="AiSummaryBasedOnCount"/> để biết cache còn hợp lệ hay không.</summary>
+    public string? AiSummary { get; private set; }
+    public DateTimeOffset? AiSummaryGeneratedAt { get; private set; }
 
-    /// <summary>
-    /// Mốc "vào hàng đợi phòng" (tick UTC) — dùng để ĐÁNH SỐ thứ tự. Khác <see cref="QueueOrder"/> ở
-    /// chỗ KHÔNG bị thao tác đẩy lên/xuống làm đổi, nên số của mỗi người giữ nguyên khi lễ tân sắp lại
-    /// chỗ. Khi CHUYỂN PHÒNG thì đặt = hiện tại để bệnh nhân nhận số MỚI ở cuối hàng đợi phòng mới.
-    /// Null = lùi về giờ check-in.
-    /// </summary>
-    public long? QueueEntryOrder { get; private set; }
+    /// <summary>Số lịch hẹn trước đó đã dùng để tạo <see cref="AiSummary"/> — nếu số này khác với số
+    /// lịch hẹn trước đó hiện tại (có thêm lịch mới), cache coi như cũ và phải tạo lại.</summary>
+    public int? AiSummaryBasedOnCount { get; private set; }
 
     // Navigation properties
     public Patient Patient { get; private set; } = null!;
     public Dentist Dentist { get; private set; } = null!;
     public Service? Service { get; private set; }
     public ICollection<Invoice> Invoices { get; private set; } = new List<Invoice>();
-    public MedicalRecord? MedicalRecord { get; private set; }
 
     // Examination related
     public ICollection<Diagnosis> Diagnoses { get; private set; } = new List<Diagnosis>();
@@ -122,6 +116,15 @@ public class Appointment
         FollowUpNote = date == null ? null : note;
     }
 
+    /// <summary>Lưu kết quả tóm tắt AI mới tạo cùng thời điểm và số lịch hẹn đã dùng làm căn cứ,
+    /// để lần sau xác định được cache còn hợp lệ hay không (xem <see cref="AiSummaryBasedOnCount"/>).</summary>
+    public void SetAiSummary(string summary, int basedOnPastAppointmentCount)
+    {
+        AiSummary = summary;
+        AiSummaryGeneratedAt = DateTimeOffset.UtcNow;
+        AiSummaryBasedOnCount = basedOnPastAppointmentCount;
+    }
+
     /// <summary>
     /// Staff check-in bệnh nhân đến tái khám (từ tab Tái khám ở quầy): tạo buổi hẹn mới
     /// đã check-in ngay, gắn về buổi gốc qua <see cref="FollowUpFromAppointmentId"/> —
@@ -149,4 +152,18 @@ public class Appointment
             CreatedAt = now
         };
     }
+    /// <summary>
+    /// VỊ TRÍ HIỂN THỊ trong hàng đợi (tick UTC). Tách khỏi <see cref="CheckedInAt"/> để lễ tân đẩy
+    /// bệnh nhân lên/xuống hoặc chuyển phòng (xuống cuối) mà KHÔNG làm đổi thời gian chờ. Null =
+    /// chưa can thiệp thủ công, xếp theo giờ check-in như mặc định.
+    /// </summary>
+    public long? QueueOrder { get; private set; }
+
+    /// <summary>
+    /// Mốc "vào hàng đợi phòng" (tick UTC) — dùng để ĐÁNH SỐ thứ tự. Khác <see cref="QueueOrder"/> ở
+    /// chỗ KHÔNG bị thao tác đẩy lên/xuống làm đổi, nên số của mỗi người giữ nguyên khi lễ tân sắp lại
+    /// chỗ. Khi CHUYỂN PHÒNG thì đặt = hiện tại để bệnh nhân nhận số MỚI ở cuối hàng đợi phòng mới.
+    /// Null = lùi về giờ check-in.
+    /// </summary>
+    public long? QueueEntryOrder { get; private set; }
 }
