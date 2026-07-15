@@ -7,8 +7,10 @@ import { useRequireStaff } from "../../../hooks/useRequireStaff";
 import {
   getWaitingQueueApi,
   transferQueuePatientApi,
+  reorderQueuePatientApi,
   type WaitingQueueResponse,
   type RoomQueueDto,
+  type QueueDentistDto,
 } from "../../../lib/apiClient";
 import { supabase } from "../../../lib/supabaseClient";
 
@@ -28,17 +30,28 @@ const fmtTime = (iso: string) => {
   return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
 };
 
+// Thời gian chờ hiển thị dạng giờ + phút: 80 → "1h20p", 60 → "1h", 45 → "45p".
+const fmtWait = (mins: number) => {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return h > 0 ? `${h}h${m > 0 ? `${String(m).padStart(2, "0")}p` : ""}` : `${m}p`;
+};
+
 type DragState = { appointmentId: string; fromRoom: string | null } | null;
 
-function RoomQueueCard({ room, canDrag, drag, onDragStart, onDragEnd, onDrop, transferringId }: {
+function RoomQueueCard({ room, canDrag, drag, onDragStart, onDragEnd, onDrop, onReorder, transferringId, reorderingId }: {
   room: RoomQueueDto;
   canDrag: boolean;
   drag: DragState;
   onDragStart: (appointmentId: string, fromRoom: string | null) => void;
   onDragEnd: () => void;
   onDrop: (appointmentId: string, roomName: string) => void;
+  onReorder: (appointmentId: string, swapWithAppointmentId: string) => void;
   transferringId: string | null;
+  reorderingId: string | null;
 }) {
+  // Danh sách người ĐANG CHỜ theo đúng thứ tự hiển thị — dùng để tìm người liền kề khi đẩy lên/xuống.
+  const waiting = room.patients.filter(p => p.status === "CheckedIn");
   const [isOver, setIsOver] = useState(false);
 
   const waitingCount = room.patients.filter(p => p.status === "CheckedIn").length;
@@ -46,11 +59,11 @@ function RoomQueueCard({ room, canDrag, drag, onDragStart, onDragEnd, onDrop, tr
   // Chỉ ghi tên bác sĩ trên từng bệnh nhân khi phòng có nhiều hơn một bác sĩ trong ngày.
   const showDentistPerPatient = room.dentists.length > 1;
 
-  // Chỉ nhận bệnh nhân khi phòng có bác sĩ đang trong ca — API chuyển lịch hẹn cho
-  // chính bác sĩ đó, không có ai trực thì không xác định được người phụ trách.
-  const hasDentistOnShift = room.dentists.some(d => d.isOnShiftNow);
+  // Nhận bệnh nhân khi phòng có bác sĩ đang trực HOẶC sắp vào ca (giao trước gần giờ giao ca).
+  // Không có ai thì không xác định được người phụ trách nên không cho thả.
+  const hasAssignableDentist = room.dentists.some(d => d.isOnShiftNow || d.isOnShiftSoon);
   const canAcceptDrop = drag !== null && room.roomName !== null &&
-    room.roomName !== drag.fromRoom && hasDentistOnShift;
+    room.roomName !== drag.fromRoom && hasAssignableDentist;
 
   const handleDragOver = (e: React.DragEvent) => {
     if (!canAcceptDrop) return;
@@ -106,7 +119,14 @@ function RoomQueueCard({ room, canDrag, drag, onDragStart, onDragEnd, onDrop, tr
                     {initialsOf(dentist.dentistName)}
                   </div>
                   <div className="min-w-0">
-                    <div className={`text-[13px] font-black ${color.text} truncate`}>{dentist.dentistName}</div>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`text-[13px] font-black ${color.text} truncate`}>{dentist.dentistName}</span>
+                      {dentist.isOnShiftNow ? (
+                        <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded-md text-[10px] font-black shrink-0">Đang trực</span>
+                      ) : dentist.isOnShiftSoon ? (
+                        <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-md text-[10px] font-black shrink-0">Sắp vào ca</span>
+                      ) : null}
+                    </div>
                     <div className="flex flex-wrap gap-1 mt-0.5">
                       {dentist.shifts.length === 0 ? (
                         <span className="text-[11px] font-semibold text-slate-400">Chưa phân ca</span>
@@ -139,6 +159,13 @@ function RoomQueueCard({ room, canDrag, drag, onDragStart, onDragEnd, onDrop, tr
             const isDraggable = canDrag && !isInProgress;
             const isTransferring = transferringId === patient.appointmentId;
             const isDragged = drag?.appointmentId === patient.appointmentId;
+            const isReordering = reorderingId === patient.appointmentId;
+
+            // Người liền kề trong hàng chờ để đẩy lên/xuống một bậc (chỉ trong nhóm đang chờ).
+            const wIdx = isInProgress ? -1 : waiting.findIndex(w => w.appointmentId === patient.appointmentId);
+            const upId = wIdx > 0 ? waiting[wIdx - 1].appointmentId : null;
+            const downId = wIdx >= 0 && wIdx < waiting.length - 1 ? waiting[wIdx + 1].appointmentId : null;
+            const canReorder = canDrag && !isInProgress;
 
             return (
               <div
@@ -152,7 +179,7 @@ function RoomQueueCard({ room, canDrag, drag, onDragStart, onDragEnd, onDrop, tr
                 onDragEnd={onDragEnd}
                 className={`px-5 py-4 transition-opacity ${isInProgress ? "bg-emerald-50/50" : ""} ${
                   isDraggable ? "cursor-grab active:cursor-grabbing" : ""
-                } ${isDragged ? "opacity-40" : ""} ${isTransferring ? "opacity-50 pointer-events-none" : ""}`}
+                } ${isDragged ? "opacity-40" : ""} ${isTransferring || isReordering ? "opacity-50 pointer-events-none" : ""}`}
               >
                 <div className="flex items-center gap-4">
                   {/* Số thứ tự — theo thứ tự check-in */}
@@ -188,7 +215,7 @@ function RoomQueueCard({ room, canDrag, drag, onDragStart, onDragEnd, onDrop, tr
                       )}
                       {patient.waitMinutes > 0 && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-600 border border-amber-100 rounded-lg text-[11px] font-black">
-                          đã chờ {patient.waitMinutes}p
+                          đã chờ {fmtWait(patient.waitMinutes)}
                         </span>
                       )}
                     </div>
@@ -198,6 +225,28 @@ function RoomQueueCard({ room, canDrag, drag, onDragStart, onDragEnd, onDrop, tr
                       </div>
                     )}
                   </div>
+
+                  {/* Nút đẩy lên / xuống một bậc — chỉ cho người đang chờ, xem hàng đợi hôm nay */}
+                  {canReorder && (
+                    <div className="flex flex-col gap-0.5 shrink-0">
+                      <button
+                        onClick={e => { e.stopPropagation(); if (upId) onReorder(patient.appointmentId, upId); }}
+                        disabled={!upId || isReordering}
+                        title="Đẩy lên trước một người"
+                        className="w-6 h-5 flex items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:text-primary hover:border-primary disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" /></svg>
+                      </button>
+                      <button
+                        onClick={e => { e.stopPropagation(); if (downId) onReorder(patient.appointmentId, downId); }}
+                        disabled={!downId || isReordering}
+                        title="Đẩy xuống sau một người"
+                        className="w-6 h-5 flex items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:text-primary hover:border-primary disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
+                      </button>
+                    </div>
+                  )}
 
                   {/* Status badge */}
                   <div className="flex items-center gap-2 shrink-0">
@@ -233,6 +282,14 @@ export default function QueuePage() {
   const [selectedDate, setSelectedDate] = useState(queueTodayIso());
   const [drag, setDrag] = useState<DragState>(null);
   const [transferringId, setTransferringId] = useState<string | null>(null);
+  const [reorderingId, setReorderingId] = useState<string | null>(null);
+  // Khi phòng đích có ≥2 bác sĩ chọn được (đang trực + sắp vào ca), hỏi lễ tân giao cho ai.
+  const [pendingPick, setPendingPick] = useState<{
+    appointmentId: string;
+    patientName: string;
+    roomName: string;
+    candidates: QueueDentistDto[];
+  } | null>(null);
 
   // Chuyển phòng = giao bệnh nhân cho bác sĩ đang trong ca trực ở đó, nên chỉ làm được
   // với hàng đợi của hôm nay; ngày quá khứ không có khái niệm "đang trong ca".
@@ -262,16 +319,54 @@ export default function QueuePage() {
     return () => { void supabase.removeChannel(channel); };
   }, [loadQueue]);
 
-  const handleDropPatient = async (appointmentId: string, roomName: string) => {
-    setDrag(null);
+  const doTransfer = async (appointmentId: string, roomName: string, dentistId?: string) => {
     setTransferringId(appointmentId);
     try {
-      await transferQueuePatientApi(appointmentId, roomName);
+      await transferQueuePatientApi(appointmentId, roomName, dentistId);
       await loadQueue();
     } catch (e) {
       alert(e instanceof Error ? e.message : "Không thể chuyển bệnh nhân sang phòng khác");
     } finally {
       setTransferringId(null);
+    }
+  };
+
+  const handleDropPatient = (appointmentId: string, roomName: string) => {
+    setDrag(null);
+    const room = queueData?.rooms.find(r => r.roomName === roomName);
+    // Bác sĩ có thể nhận bệnh nhân lúc này = đang trực hoặc sắp vào ca.
+    const candidates = room?.dentists.filter(d => d.isOnShiftNow || d.isOnShiftSoon) ?? [];
+
+    // Nhiều người (gần giờ giao ca) → hỏi lễ tân giao cho ai; một người → giao thẳng.
+    if (candidates.length >= 2) {
+      const patient = room?.patients.find(p => p.appointmentId === appointmentId);
+      setPendingPick({
+        appointmentId,
+        patientName: patient?.patientName ?? "bệnh nhân",
+        roomName,
+        candidates,
+      });
+      return;
+    }
+    void doTransfer(appointmentId, roomName, candidates[0]?.dentistId);
+  };
+
+  const handlePickDentist = (dentistId: string) => {
+    if (!pendingPick) return;
+    const { appointmentId, roomName } = pendingPick;
+    setPendingPick(null);
+    void doTransfer(appointmentId, roomName, dentistId);
+  };
+
+  const handleReorder = async (appointmentId: string, swapWithAppointmentId: string) => {
+    setReorderingId(appointmentId);
+    try {
+      await reorderQueuePatientApi(appointmentId, swapWithAppointmentId);
+      await loadQueue();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Không thể đổi thứ tự hàng đợi");
+    } finally {
+      setReorderingId(null);
     }
   };
 
@@ -343,7 +438,9 @@ export default function QueuePage() {
                   onDragStart={(appointmentId, fromRoom) => setDrag({ appointmentId, fromRoom })}
                   onDragEnd={() => setDrag(null)}
                   onDrop={handleDropPatient}
+                  onReorder={handleReorder}
                   transferringId={transferringId}
+                  reorderingId={reorderingId}
                 />
               ))}
             </div>
@@ -360,6 +457,82 @@ export default function QueuePage() {
           )}
         </div>
       </main>
+
+      {pendingPick && (
+        <DentistPickerModal
+          patientName={pendingPick.patientName}
+          roomName={pendingPick.roomName}
+          candidates={pendingPick.candidates}
+          onPick={handlePickDentist}
+          onClose={() => setPendingPick(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Hỏi lễ tân giao bệnh nhân cho ai khi phòng đích có cả bác sĩ đang trực lẫn bác sĩ sắp vào ca. */
+function DentistPickerModal({ patientName, roomName, candidates, onPick, onClose }: {
+  patientName: string;
+  roomName: string;
+  candidates: QueueDentistDto[];
+  onPick: (dentistId: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-xl border border-slate-200/70 w-full max-w-md overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="px-6 py-5 border-b border-slate-100">
+          <div className="text-[15px] font-black text-slate-900">Chọn bác sĩ khám</div>
+          <div className="mt-1 text-[12.5px] text-slate-500 font-semibold">
+            Giao <span className="font-black text-slate-700">{patientName}</span> tại {roomName} cho:
+          </div>
+        </div>
+
+        <div className="p-3 flex flex-col gap-2">
+          {candidates.map(dentist => {
+            const color = DENTIST_COLOR[dentist.dentistColor] ?? DENTIST_COLOR.slate;
+            return (
+              <button
+                key={dentist.dentistId}
+                onClick={() => onPick(dentist.dentistId)}
+                className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:border-primary hover:bg-primary/5 transition-all cursor-pointer text-left"
+              >
+                <div className={`w-10 h-10 rounded-xl ${color.bg} border ${color.border} flex items-center justify-center font-black text-[12px] ${color.text} shrink-0`}>
+                  {initialsOf(dentist.dentistName)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13.5px] font-black text-slate-900 truncate">{dentist.dentistName}</div>
+                  <div className="text-[11.5px] text-slate-400 font-semibold truncate">
+                    {dentist.shifts.join(" · ") || "Chưa phân ca"}
+                  </div>
+                </div>
+                {dentist.isOnShiftNow ? (
+                  <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-[11px] font-black shrink-0">
+                    Đang trực
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-1 bg-amber-100 text-amber-700 rounded-lg text-[11px] font-black shrink-0">
+                    Sắp vào ca
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="px-6 py-4 border-t border-slate-100 flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-[13px] font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
+          >
+            Hủy
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

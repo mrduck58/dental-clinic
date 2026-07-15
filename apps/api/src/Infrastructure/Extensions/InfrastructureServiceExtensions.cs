@@ -169,6 +169,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<GetAllAppointmentsHandler>();
         services.AddScoped<GetWaitingQueueHandler>();
         services.AddScoped<TransferQueuePatientHandler>();
+        services.AddScoped<ReorderQueuePatientHandler>();
         services.AddScoped<GetDentistPatientsHandler>();
         services.AddScoped<DentistDashboardHandler>();
         services.AddScoped<UpdateAppointmentStatusHandler>();

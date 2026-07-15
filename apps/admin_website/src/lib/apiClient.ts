@@ -1551,6 +1551,7 @@ export interface QueueDentistDto {
   dentistColor: string;
   shifts: string[];
   isOnShiftNow: boolean;
+  isOnShiftSoon: boolean;
 }
 
 export interface RoomQueueDto {
@@ -1585,17 +1586,38 @@ export async function getWaitingQueueApi(date?: string): Promise<WaitingQueueRes
 /**
  * Chuyển bệnh nhân đang chờ sang hàng đợi của phòng khác. Phòng được suy ra từ bác sĩ
  * phụ trách, nên API sẽ giao lịch hẹn cho bác sĩ đang trong ca trực tại phòng đích.
+ * Truyền `dentistId` khi lễ tân chọn rõ người khám (gần giờ giao ca giữa bác sĩ đang trực
+ * và bác sĩ sắp vào ca); bỏ trống thì API tự giao cho bác sĩ đang trực.
  */
-export async function transferQueuePatientApi(appointmentId: string, roomName: string): Promise<void> {
+export async function transferQueuePatientApi(
+  appointmentId: string, roomName: string, dentistId?: string): Promise<void> {
   const res = await fetch(`${API_URL}/api/appointments/${appointmentId}/queue-room`, {
     method: "PUT",
     headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify({ roomName }),
+    body: JSON.stringify({ roomName, dentistId }),
   });
   await checkAuth(res);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { title?: string }).title ?? "Không thể chuyển bệnh nhân sang phòng khác");
+  }
+}
+
+/**
+ * Đổi chỗ thứ tự của một bệnh nhân đang chờ với người liền kề trong cùng hàng đợi phòng
+ * (nút đẩy lên / đẩy xuống một bậc). Chỉ hoán vị trí, không đổi thời gian chờ.
+ */
+export async function reorderQueuePatientApi(
+  appointmentId: string, swapWithAppointmentId: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/appointments/${appointmentId}/queue-order`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ swapWithAppointmentId }),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể đổi thứ tự hàng đợi");
   }
 }
 

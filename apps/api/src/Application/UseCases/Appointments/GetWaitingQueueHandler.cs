@@ -25,7 +25,8 @@ public record QueueDentistDto(
     string DentistName,
     string DentistColor,
     List<string> Shifts,
-    bool IsOnShiftNow);
+    bool IsOnShiftNow,
+    bool IsOnShiftSoon);
 
 public record RoomQueueDto(
     string? RoomName,
@@ -57,6 +58,7 @@ public class GetWaitingQueueHandler(AppDbContext dbContext)
         var nowUtc = DateTimeOffset.UtcNow;
         var nowVietnam = TimeZoneInfo.ConvertTime(nowUtc, VietnamTimeZone);
         var isToday = date == DateOnly.FromDateTime(nowVietnam.DateTime);
+        var nowMinutes = nowVietnam.Hour * 60 + nowVietnam.Minute;
 
         var appointments = await dbContext.Appointments
             .Include(a => a.Patient).ThenInclude(p => p.User)
@@ -113,7 +115,7 @@ public class GetWaitingQueueHandler(AppDbContext dbContext)
 
             if (schedules.Count == 0)
             {
-                AddDentist(dentistsByRoom, NoRoomKey, new QueueDentistDto(dentist.Id, dentist.FullName, color, [], false));
+                AddDentist(dentistsByRoom, NoRoomKey, new QueueDentistDto(dentist.Id, dentist.FullName, color, [], false, false));
                 continue;
             }
 
@@ -125,8 +127,12 @@ public class GetWaitingQueueHandler(AppDbContext dbContext)
                     .ToList();
 
                 var onShiftNow = isToday && byRoom.Any(ws => CoversNow(ws, nowVietnam));
+                // "Sắp vào ca": chỉ tính khi bác sĩ CHƯA trực ngay bây giờ nhưng có ca bắt đầu trong
+                // cửa sổ giao ca — để lễ tân giao trước bệnh nhân cho người sắp tới.
+                var onShiftSoon = isToday && !onShiftNow && byRoom.Any(ws =>
+                    WorkShifts.StartsWithinMinutes(ws.Shift, nowMinutes, WorkShifts.ShiftHandoverWindowMinutes));
 
-                AddDentist(dentistsByRoom, byRoom.Key, new QueueDentistDto(dentist.Id, dentist.FullName, color, shifts, onShiftNow));
+                AddDentist(dentistsByRoom, byRoom.Key, new QueueDentistDto(dentist.Id, dentist.FullName, color, shifts, onShiftNow, onShiftSoon));
             }
         }
 
@@ -205,21 +211,48 @@ public class GetWaitingQueueHandler(AppDbContext dbContext)
     /// Thứ tự chờ là thứ tự CHECK-IN, không phải giờ đặt lịch: ai đến trước khám trước.
     /// Lịch hẹn cũ (trước khi có cột CheckedInAt) lùi về giờ hẹn để vẫn xếp được thứ tự.
     /// Người đã khám xong rời khỏi hàng đợi.
+    /// <para>
+    /// Số thứ tự là số CỐ ĐỊNH theo thứ tự check-in trong ngày của phòng — gán một lần và KHÔNG
+    /// dồn lên khi người phía trước được gọi vào khám hay khám xong. Vì vậy số được đánh trên MỌI
+    /// lịch hẹn đã check-in (kể cả đang khám và đã xong), giống hệ thống bốc số: số ai người nấy giữ,
+    /// danh sách chờ còn lại có thể khuyết số ở đầu.
+    /// </para>
     /// </summary>
+    /// <summary>
+    /// VỊ TRÍ HIỂN THỊ: ưu tiên <see cref="Appointment.QueueOrder"/> do lễ tân đặt (đẩy lên/xuống,
+    /// chuyển phòng); chưa đặt thì lùi về giờ check-in. Cùng đơn vị tick UTC nên so sánh nhất quán.
+    /// </summary>
+    private static long EffectiveOrder(Appointment a)
+        => a.QueueOrder ?? (a.CheckedInAt ?? a.AppointmentDate).UtcTicks;
+
+    /// <summary>
+    /// MỐC ĐÁNH SỐ: <see cref="Appointment.QueueEntryOrder"/> — thời điểm vào hàng đợi của phòng.
+    /// Không đổi khi đẩy lên/xuống nên số của mỗi người giữ nguyên; đặt lại khi chuyển phòng nên bệnh
+    /// nhân nhận số mới ở cuối phòng mới. Chưa đặt thì lùi về giờ check-in.
+    /// </summary>
+    private static long EntryOrder(Appointment a)
+        => a.QueueEntryOrder ?? (a.CheckedInAt ?? a.AppointmentDate).UtcTicks;
+
     private static List<QueuePatientDto> BuildPatients(List<Appointment> appointments, DateTimeOffset nowUtc)
     {
+        // Số thứ tự đánh theo MỐC VÀO HÀNG ĐỢI PHÒNG (tăng dần theo thứ tự vào phòng): giữ nguyên khi
+        // lễ tân đẩy lên/xuống, và đánh mới ở cuối khi chuyển phòng. Chỉ VỊ TRÍ hiển thị đổi theo
+        // QueueOrder (bên dưới). Id làm mốc phá hòa cho ổn định qua mỗi lần tải lại.
+        var stableNumbers = appointments
+            .Where(a => a.Status is AppointmentStatus.CheckedIn
+                                 or AppointmentStatus.InProgress
+                                 or AppointmentStatus.Completed)
+            .OrderBy(EntryOrder)
+            .ThenBy(a => a.Id)
+            .Select((a, i) => (a.Id, Number: i + 1))
+            .ToDictionary(x => x.Id, x => x.Number);
+
         var ordered = appointments
             .Where(a => a.Status is AppointmentStatus.InProgress or AppointmentStatus.CheckedIn)
             .OrderBy(a => a.Status == AppointmentStatus.InProgress ? 0 : 1)
-            .ThenBy(a => a.CheckedInAt ?? a.AppointmentDate)
-            .ThenBy(a => a.AppointmentDate)
+            .ThenBy(EffectiveOrder)
+            .ThenBy(a => a.Id)
             .ToList();
-
-        // Số thứ tự chỉ đánh trên hàng người đang chờ — ai đã vào khám thì rời hàng đợi.
-        var queueNumbers = ordered
-            .Where(a => a.Status == AppointmentStatus.CheckedIn)
-            .Select((a, i) => (a.Id, Number: i + 1))
-            .ToDictionary(x => x.Id, x => x.Number);
 
         return ordered.Select(a => new QueuePatientDto(
             a.Id,
@@ -230,7 +263,7 @@ public class GetWaitingQueueHandler(AppDbContext dbContext)
             a.Dentist.FullName,
             a.AppointmentDate,
             a.CheckedInAt,
-            queueNumbers.GetValueOrDefault(a.Id),
+            stableNumbers.GetValueOrDefault(a.Id),
             a.Status.ToString(),
             a.Symptoms,
             // Thời gian chờ tính từ lúc CHECK-IN, không phải từ giờ hẹn.
