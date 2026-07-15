@@ -18,6 +18,7 @@ public class AppointmentsController(
     GetAllAppointmentsHandler getAllAppointmentsHandler,
     GetWaitingQueueHandler getWaitingQueueHandler,
     TransferQueuePatientHandler transferQueuePatientHandler,
+    ReorderQueuePatientHandler reorderQueuePatientHandler,
     GetDentistPatientsHandler getDentistPatientsHandler,
     DentistDashboardHandler dentistDashboardHandler,
     UpdateAppointmentStatusHandler updateAppointmentStatusHandler,
@@ -392,8 +393,20 @@ public class AppointmentsController(
         [FromBody] TransferQueuePatientRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await transferQueuePatientHandler.HandleAsync(id, request.RoomName, cancellationToken);
+        var result = await transferQueuePatientHandler.HandleAsync(id, request.RoomName, request.DentistId, cancellationToken);
         return Ok(result);
+    }
+
+    /// <summary>PUT api/appointments/{id}/queue-order — Đổi chỗ thứ tự với bệnh nhân liền kề trong hàng đợi (Staff/Admin)</summary>
+    [HttpPut("{id}/queue-order")]
+    [Authorize(Roles = "Staff,Admin,Owner")]
+    public async Task<IActionResult> ReorderQueuePatient(
+        Guid id,
+        [FromBody] ReorderQueuePatientRequest request,
+        CancellationToken cancellationToken)
+    {
+        await reorderQueuePatientHandler.HandleAsync(id, request.SwapWithAppointmentId, cancellationToken);
+        return NoContent();
     }
 
     /// <summary>GET api/appointments/dentist/dashboard — Dữ liệu tổng quan cho bác sĩ (Dentist/Admin)</summary>
@@ -637,7 +650,9 @@ public record CreateAppointmentRequest(
     Guid? ServiceId,
     Guid? PatientId);
 
-public record TransferQueuePatientRequest(string RoomName);
+public record TransferQueuePatientRequest(string RoomName, Guid? DentistId = null);
+
+public record ReorderQueuePatientRequest(Guid SwapWithAppointmentId);
 
 public record CreateWalkInRequest(
     Guid DentistId,

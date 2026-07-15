@@ -49,6 +49,12 @@ public static class WorkShifts
     public static readonly IReadOnlyList<string> AllValidCodes =
         [.. All.Select(s => s.Code), "morning", "afternoon"];
 
+    /// <summary>
+    /// Khoảng thời gian trước khi một ca bắt đầu mà bác sĩ của ca đó được coi là "sắp vào ca":
+    /// gần giờ giao ca, hàng đợi cho lễ tân chọn giao bệnh nhân cho bác sĩ hiện tại hay người sắp tới.
+    /// </summary>
+    public const int ShiftHandoverWindowMinutes = 60;
+
     private const int NoonMinutes = 12 * 60;
 
     /// <summary>
@@ -101,4 +107,17 @@ public static class WorkShifts
     /// <summary>Thứ tự sắp xếp trong ngày của một mã ca (mã cũ/không xác định xếp cuối).</summary>
     public static int SortKey(string shift)
         => ByCode.TryGetValue(shift, out var def) ? def.StartMinutes : int.MaxValue;
+
+    /// <summary>
+    /// Ca có bắt đầu trong khoảng (<paramref name="nowMinutesOfDay"/>, +<paramref name="windowMinutes"/>]
+    /// không? Dùng để nhận diện bác sĩ "sắp vào ca" gần thời điểm giao ca. Mốc bắt đầu đúng hiện tại
+    /// đã thuộc "đang trong ca" nên KHÔNG tính là sắp tới. Mã cũ/không xác định (không biết giờ bắt
+    /// đầu) → false.
+    /// </summary>
+    public static bool StartsWithinMinutes(string shift, int nowMinutesOfDay, int windowMinutes)
+    {
+        if (!ByCode.TryGetValue(shift, out var def)) return false;
+        var delta = def.StartMinutes - nowMinutesOfDay;
+        return delta > 0 && delta <= windowMinutes;
+    }
 }

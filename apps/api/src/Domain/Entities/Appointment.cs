@@ -14,7 +14,7 @@ public class Appointment
     public string? Symptoms { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
 
-    /// <summary>Thời điểm bệnh nhân check-in — quyết định thứ tự trong hàng đợi (null nếu chưa check-in).</summary>
+    /// <summary>Thời điểm bệnh nhân check-in — mốc tính THỜI GIAN CHỜ (null nếu chưa check-in).</summary>
     public DateTimeOffset? CheckedInAt { get; private set; }
 
     /// <summary>Tóm tắt lịch sử khám do AI tạo, gắn với LẦN KHÁM NÀY (dựa trên các lịch hẹn trước đó
@@ -99,6 +99,16 @@ public class Appointment
     /// </summary>
     public void ReassignDentist(Guid dentistId) => DentistId = dentistId;
 
+    /// <summary>
+    /// Đặt vị trí hàng đợi thủ công (tick UTC): đẩy lên/xuống khi lễ tân đổi thứ tự, hoặc đưa xuống
+    /// cuối hàng đợi phòng mới khi chuyển phòng. Không đụng tới <see cref="CheckedInAt"/> nên thời
+    /// gian chờ được giữ nguyên.
+    /// </summary>
+    public void SetQueueOrder(long order) => QueueOrder = order;
+
+    /// <summary>Đặt mốc vào hàng đợi phòng (dùng đánh số). Đặt lại khi chuyển phòng để đánh số mới ở cuối.</summary>
+    public void SetQueueEntryOrder(long order) => QueueEntryOrder = order;
+
     /// <summary>Đặt hoặc xóa lịch hẹn tái khám (chỉ nhắc ngày, không tạo lịch hẹn mới).</summary>
     public void SetFollowUpReminder(DateOnly? date, string? note)
     {
@@ -142,4 +152,18 @@ public class Appointment
             CreatedAt = now
         };
     }
+    /// <summary>
+    /// VỊ TRÍ HIỂN THỊ trong hàng đợi (tick UTC). Tách khỏi <see cref="CheckedInAt"/> để lễ tân đẩy
+    /// bệnh nhân lên/xuống hoặc chuyển phòng (xuống cuối) mà KHÔNG làm đổi thời gian chờ. Null =
+    /// chưa can thiệp thủ công, xếp theo giờ check-in như mặc định.
+    /// </summary>
+    public long? QueueOrder { get; private set; }
+
+    /// <summary>
+    /// Mốc "vào hàng đợi phòng" (tick UTC) — dùng để ĐÁNH SỐ thứ tự. Khác <see cref="QueueOrder"/> ở
+    /// chỗ KHÔNG bị thao tác đẩy lên/xuống làm đổi, nên số của mỗi người giữ nguyên khi lễ tân sắp lại
+    /// chỗ. Khi CHUYỂN PHÒNG thì đặt = hiện tại để bệnh nhân nhận số MỚI ở cuối hàng đợi phòng mới.
+    /// Null = lùi về giờ check-in.
+    /// </summary>
+    public long? QueueEntryOrder { get; private set; }
 }

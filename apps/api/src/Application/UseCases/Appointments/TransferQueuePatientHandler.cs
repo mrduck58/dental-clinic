@@ -24,7 +24,8 @@ public class TransferQueuePatientHandler(
 {
     private static readonly TimeZoneInfo VietnamTimeZone = TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
 
-    public async Task<TransferQueuePatientResponse> HandleAsync(Guid appointmentId, string roomName, CancellationToken ct = default)
+    public async Task<TransferQueuePatientResponse> HandleAsync(
+        Guid appointmentId, string roomName, Guid? dentistId = null, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(roomName))
             throw new ValidationException("Thiếu tên phòng đích.");
@@ -40,13 +41,24 @@ public class TransferQueuePatientHandler(
         var nowVietnam = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, VietnamTimeZone);
         var today = DateOnly.FromDateTime(nowVietnam.DateTime);
 
-        var target = await FindDentistOnShiftAsync(roomName, today, nowVietnam, ct)
-            ?? throw new ConflictException($"Không có bác sĩ nào đang trong ca trực tại {roomName}.");
+        // Lễ tân chỉ định rõ bác sĩ (giao ca): giao đúng người đó nếu họ đang trực HOẶC sắp vào ca
+        // tại phòng đích. Không chỉ định: tự giao cho bác sĩ đang trực (giữ hành vi cũ).
+        var target = dentistId.HasValue
+            ? await FindAssignableDentistAsync(roomName, dentistId.Value, today, nowVietnam, ct)
+                ?? throw new ConflictException($"Bác sĩ được chọn không có ca hiện tại hoặc sắp tới tại {roomName}.")
+            : await FindDentistOnShiftAsync(roomName, today, nowVietnam, ct)
+                ?? throw new ConflictException($"Không có bác sĩ nào đang trong ca trực tại {roomName}.");
 
         if (appointment.DentistId == target.Id)
             return new TransferQueuePatientResponse(appointment.Id, target.Id, target.FullName, roomName);
 
         appointment.ReassignDentist(target.Id);
+        // Chuyển phòng thì bệnh nhân xuống CUỐI hàng đợi phòng mới VÀ nhận số thứ tự mới ở cuối:
+        // đặt cả vị trí hiển thị lẫn mốc đánh số = hiện tại (lớn hơn mọi mốc trước đó trong phòng).
+        // CheckedInAt giữ nguyên nên thời gian chờ không reset.
+        var nowTicks = DateTimeOffset.UtcNow.UtcTicks;
+        appointment.SetQueueOrder(nowTicks);
+        appointment.SetQueueEntryOrder(nowTicks);
         await dbContext.SaveChangesAsync(ct);
 
         await activityLogService.LogAsync(
@@ -101,5 +113,39 @@ public class TransferQueuePatientHandler(
                                       StringComparison.OrdinalIgnoreCase))
             .OrderBy(d => d.FullName, StringComparer.CurrentCulture)
             .FirstOrDefault();
+    }
+
+    /// <summary>
+    /// Bác sĩ <paramref name="dentistId"/> do lễ tân chọn có được phép nhận bệnh nhân tại phòng
+    /// <paramref name="roomName"/> lúc này không: phải có ca trong ngày tại phòng đó, ca đang bao
+    /// trùm hiện tại HOẶC sắp bắt đầu trong cửa sổ giao ca, và tài khoản còn Active. Chặn việc giao
+    /// cho bác sĩ ca đã tan hoặc còn quá xa để khớp đúng những gì hàng đợi hiển thị cho lễ tân.
+    /// </summary>
+    private async Task<Dentist?> FindAssignableDentistAsync(
+        string roomName, Guid dentistId, DateOnly today, DateTimeOffset nowVietnam, CancellationToken ct)
+    {
+        var validShiftCodes = WorkShifts.AllValidCodes;
+        var nowMinutes = nowVietnam.Hour * 60 + nowVietnam.Minute;
+
+        var roomSchedules = await dbContext.WorkSchedules
+            .Where(ws => ws.Date == today && ws.Type == "dentist" && !ws.IsHoliday &&
+                         ws.Room == roomName && validShiftCodes.Contains(ws.Shift))
+            .ToListAsync(ct);
+
+        var assignableNames = roomSchedules
+            .Where(ws => WorkShifts.IsWorkingAt([ws.Shift], nowVietnam.Hour, nowVietnam.Minute) ||
+                         WorkShifts.StartsWithinMinutes(ws.Shift, nowMinutes, WorkShifts.ShiftHandoverWindowMinutes))
+            .Select(ws => ws.StaffName)
+            .ToHashSet();
+
+        if (assignableNames.Count == 0) return null;
+
+        var dentists = await dbContext.Dentists.Include(d => d.User).ToListAsync(ct);
+
+        return dentists.FirstOrDefault(d =>
+            d.Id == dentistId &&
+            assignableNames.Contains(d.FullName) &&
+            string.Equals(d.User?.EmploymentStatus, User.DefaultEmploymentStatus,
+                          StringComparison.OrdinalIgnoreCase));
     }
 }
