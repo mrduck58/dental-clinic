@@ -118,6 +118,41 @@ public class UpdatePostHandlerTests
         result.PublishedAt.Should().Be(originalPublishedAt);
     }
 
+    /// <summary>
+    /// Bài đã published, update lại với isPublished=false (chuyển về draft) không được xóa
+    /// PublishedAt gốc — handler chỉ set PublishedAt mới khi published lần đầu, không có logic
+    /// xóa khi unpublish, nên giá trị cũ phải được giữ nguyên.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_PublishedToDraft_DoesNotClearPublishedAt()
+    {
+        var post = MakePost(isPublished: true);
+        var originalPublishedAt = post.PublishedAt;
+        _repo.GetByIdAsync(post.Id, Arg.Any<CancellationToken>()).Returns(post);
+        var handler = new UpdatePostHandler(_repo, _activityLog, _currentUser);
+
+        var result = await handler.HandleAsync(post.Id, BuildRequest(isPublished: false));
+
+        result.IsPublished.Should().BeFalse();
+        result.PublishedAt.Should().Be(originalPublishedAt);
+    }
+
+    /// <summary>
+    /// Update luôn ghi đè ServiceId theo request (không giữ giá trị cũ khi null như ThumbnailUrl) —
+    /// bài viết đang gắn dịch vụ, update với ServiceId = null phải gỡ liên kết dịch vụ đó.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_NullServiceId_OverwritesExistingServiceId()
+    {
+        var post = Post.Create("Tiêu đề", "Tư vấn", "BS. Test", "Nội dung", null, false, Guid.NewGuid());
+        _repo.GetByIdAsync(post.Id, Arg.Any<CancellationToken>()).Returns(post);
+        var handler = new UpdatePostHandler(_repo, _activityLog, _currentUser);
+
+        var result = await handler.HandleAsync(post.Id, BuildRequest());
+
+        result.ServiceId.Should().BeNull();
+    }
+
     private static Post MakePost(
         string title = "Tiêu đề mặc định",
         string? thumbnailUrl = "https://cdn/thumb.jpg",

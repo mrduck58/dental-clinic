@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.UseCases.Chat;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Infrastructure.Persistence;
 using FluentAssertions;
@@ -114,5 +115,42 @@ public class StartConversationHandlerTests
         _db.Dentists.Add(dentist);
         await _db.SaveChangesAsync();
         return (dentist, dentistUser);
+    }
+
+    /// <summary>Bệnh nhân mới đăng ký, chưa từng đặt lịch nên chưa có hồ sơ Patient — hồ sơ phải được
+    /// tạo lười biếng (dựa vào thông tin User) trước khi tạo hội thoại, để chatbot dùng được ngay.</summary>
+    [Test]
+    public async Task HandleAsync_NoPatientProfileYet_LazilyCreatesPatientFromUser()
+    {
+        var newUser = User.Create(
+            $"newpatient-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", "Patient",
+            fullName: "Người Dùng Mới");
+        newUser.UpdatePatientProfile("Người Dùng Mới", "0900000000", new DateOnly(2000, 6, 15), "Nam");
+        _db.Users.Add(newUser);
+        await _db.SaveChangesAsync();
+
+        _patientRepo.GetByUserIdAsync(newUser.Id, Arg.Any<CancellationToken>()).Returns((Patient?)null);
+        _userRepo.GetByIdAsync(newUser.Id, Arg.Any<CancellationToken>()).Returns(newUser);
+        _patientRepo.GetFamilyMembersAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(new List<Patient>());
+
+        var result = await _handler.HandleAsync(newUser.Id);
+
+        result.ConversationId.Should().NotBeEmpty();
+        await _patientRepo.Received(1).AddAsync(
+            Arg.Is<Patient>(p => p.FullName == "Người Dùng Mới"), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Không tìm thấy cả hồ sơ Patient lẫn tài khoản User tương ứng → ném NotFoundException.</summary>
+    [Test]
+    public async Task HandleAsync_NoPatientAndNoUser_ThrowsNotFoundException()
+    {
+        var unknownUserId = Guid.NewGuid();
+        _patientRepo.GetByUserIdAsync(unknownUserId, Arg.Any<CancellationToken>()).Returns((Patient?)null);
+        _userRepo.GetByIdAsync(unknownUserId, Arg.Any<CancellationToken>()).Returns((User?)null);
+
+        var act = () => _handler.HandleAsync(unknownUserId);
+
+        await act.Should().ThrowAsync<NotFoundException>();
     }
 }

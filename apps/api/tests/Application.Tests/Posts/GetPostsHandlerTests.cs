@@ -141,6 +141,26 @@ public class GetPostsHandlerTests
     }
 
     /// <summary>
+    /// Filter theo serviceId chỉ trả về bài viết gắn đúng dịch vụ đó,
+    /// loại bỏ bài viết gắn dịch vụ khác hoặc không gắn dịch vụ nào (ServiceId = null).
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_FilterByServiceId_ReturnsOnlyMatchingServicePosts()
+    {
+        var serviceId = Guid.NewGuid();
+        var post1 = Post.Create("Bài A", "Tư vấn", "BS. Test", "Nội dung", null, false, serviceId);
+        var post2 = Post.Create("Bài B", "Tư vấn", "BS. Test", "Nội dung", null, false, Guid.NewGuid());
+        var post3 = Post.Create("Bài C", "Tư vấn", "BS. Test", "Nội dung", null, false, null);
+        _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<Post> { post1, post2, post3 });
+        var handler = new GetPostsHandler(_repo);
+
+        var result = await handler.HandleAsync(null, null, null, serviceId: serviceId);
+
+        result.Should().HaveCount(1);
+        result.Single().ServiceId.Should().Be(serviceId);
+    }
+
+    /// <summary>
     /// Kết hợp nhiều filter cùng lúc phải áp dụng tất cả (AND logic).
     /// </summary>
     [Test]

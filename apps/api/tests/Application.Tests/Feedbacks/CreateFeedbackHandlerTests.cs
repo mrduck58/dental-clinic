@@ -72,4 +72,32 @@ public class CreateFeedbackHandlerTests
         await act.Should().ThrowAsync<ValidationException>();
         await _repo.DidNotReceive().AddAsync(Arg.Any<Feedback>(), Arg.Any<CancellationToken>());
     }
+
+    /// <summary>
+    /// Rating ở biên dưới (=1) là hợp lệ, không được ném ValidationException.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_RatingBoundaryOne_IsValid()
+    {
+        var handler = new CreateFeedbackHandler(_repo);
+
+        var result = await handler.HandleAsync(new CreateFeedbackRequest("A", 1, "Tệ"));
+
+        result.Rating.Should().Be(1);
+        await _repo.Received(1).AddAsync(Arg.Any<Feedback>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Rating ở biên trên (=5) là hợp lệ, không được ném ValidationException.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_RatingBoundaryFive_IsValid()
+    {
+        var handler = new CreateFeedbackHandler(_repo);
+
+        var result = await handler.HandleAsync(new CreateFeedbackRequest("A", 5, "Xuất sắc"));
+
+        result.Rating.Should().Be(5);
+        await _repo.Received(1).AddAsync(Arg.Any<Feedback>(), Arg.Any<CancellationToken>());
+    }
 }

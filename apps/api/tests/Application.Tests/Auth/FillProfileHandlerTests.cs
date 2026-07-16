@@ -92,6 +92,122 @@ public class FillProfileHandlerTests
         user.Gender.Should().Be(ValidCommand.Gender);
     }
 
+    // ── Non-Patient (staff/dentist) branch ─────────────────────────────────────
+
+    /// <summary>
+    /// Với role khác "Patient" (vd: Dentist), handler phải cập nhật đầy đủ các field
+    /// hồ sơ cá nhân bao gồm Address, Bio, Education, Specialty, YearsOfExperience —
+    /// những field này bị bỏ qua ở nhánh Patient nhưng bắt buộc phải có ở nhánh nhân viên.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_DentistRole_UpdatesPersonalProfileWithAllFields()
+    {
+        var user = User.Create("dr1", "dr1@test.com", "hash", "Dentist");
+        _userRepo.GetByIdAsync(TestUserId, Arg.Any<CancellationToken>()).Returns(user);
+
+        var command = new FillProfileCommand(
+            UserId: TestUserId,
+            FirstName: "An",
+            LastName: "Trần",
+            FullName: null,
+            PhoneNumber: "0909876543",
+            DateOfBirth: new DateOnly(1990, 5, 20),
+            Gender: "Female",
+            Address: "123 Lê Lợi",
+            ProfilePictureUrl: "http://img.test/pic.png",
+            Bio: "Bác sĩ giỏi",
+            Education: "Đại học Y Dược",
+            Specialty: "Nha chu",
+            YearsOfExperience: 8);
+
+        await _handler.HandleAsync(command);
+
+        user.FullName.Should().Be("Trần An");
+        user.PhoneNumber.Should().Be("0909876543");
+        user.Address.Should().Be("123 Lê Lợi");
+        user.Bio.Should().Be("Bác sĩ giỏi");
+        user.Education.Should().Be("Đại học Y Dược");
+        user.Specialty.Should().Be("Nha chu");
+        user.YearsOfExperience.Should().Be(8);
+    }
+
+    /// <summary>
+    /// Với role khác "Patient", nếu không có FullName/FirstName/LastName nào được cung cấp,
+    /// handler phải giữ nguyên FullName cũ của user thay vì ghi đè thành rỗng.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_StaffRole_NoNameProvided_FallsBackToExistingFullName()
+    {
+        var user = User.Create("staff1", "staff1@test.com", "hash", "Staff", fullName: "Tên Cũ");
+        _userRepo.GetByIdAsync(TestUserId, Arg.Any<CancellationToken>()).Returns(user);
+
+        var command = new FillProfileCommand(
+            UserId: TestUserId,
+            FirstName: null,
+            LastName: null,
+            FullName: null,
+            PhoneNumber: "0911111111",
+            DateOfBirth: null,
+            Gender: null);
+
+        await _handler.HandleAsync(command);
+
+        user.FullName.Should().Be("Tên Cũ");
+    }
+
+    // ── FullName precedence & blank-name edge cases ─────────────────────────────
+
+    /// <summary>
+    /// Khi command.FullName đã được cung cấp trực tiếp (không rỗng), handler phải dùng
+    /// đúng giá trị đó, không được ghép lại từ LastName/FirstName.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_PatientRole_FullNameProvidedDirectly_UsesFullNameAsIs()
+    {
+        var user = CreatePatientUser();
+        _userRepo.GetByIdAsync(TestUserId, Arg.Any<CancellationToken>()).Returns(user);
+
+        var command = ValidCommand with { FullName = "Tên Trực Tiếp" };
+
+        await _handler.HandleAsync(command);
+
+        user.FullName.Should().Be("Tên Trực Tiếp");
+    }
+
+    /// <summary>
+    /// Với role "Patient", nếu FullName, FirstName và LastName đều rỗng/null,
+    /// FullName của user phải được set thành chuỗi rỗng (không fallback về giá trị cũ).
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_PatientRole_AllNameFieldsBlank_SetsFullNameToEmptyString()
+    {
+        var user = CreatePatientUser();
+        _userRepo.GetByIdAsync(TestUserId, Arg.Any<CancellationToken>()).Returns(user);
+
+        var command = ValidCommand with { FullName = null, FirstName = null, LastName = null };
+
+        await _handler.HandleAsync(command);
+
+        user.FullName.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Với role "Patient", nếu PhoneNumber trong command là null, handler phải set
+    /// PhoneNumber của user thành chuỗi rỗng thay vì giữ null.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_PatientRole_NullPhoneNumber_DefaultsToEmptyString()
+    {
+        var user = CreatePatientUser();
+        _userRepo.GetByIdAsync(TestUserId, Arg.Any<CancellationToken>()).Returns(user);
+
+        var command = ValidCommand with { PhoneNumber = null };
+
+        await _handler.HandleAsync(command);
+
+        user.PhoneNumber.Should().BeEmpty();
+    }
+
     // ── Error paths ───────────────────────────────────────────────────────────
 
     /// <summary>

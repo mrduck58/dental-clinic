@@ -91,4 +91,45 @@ public class GetStaffHandlerTests
         result.Statistics.TotalDentists.Should().Be(3);
         result.Statistics.TotalDoctors.Should().Be(2);
     }
+
+    /// <summary>
+    /// PageSize = 0 (dưới ngưỡng tối thiểu) phải được clamp về 1, không cho phép query 0 dòng.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_PageSizeZero_ClampsToOne()
+    {
+        var handler = new GetStaffHandler(_userRepo);
+
+        var result = await handler.HandleAsync(new GetStaffQuery(null, null, null, Page: 1, PageSize: 0));
+
+        result.PageSize.Should().Be(1);
+    }
+
+    /// <summary>
+    /// Page rất âm cũng phải được clamp về 1 giống như Page = 0, không chỉ đúng với -1.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_VeryNegativePage_ClampsToOne()
+    {
+        var handler = new GetStaffHandler(_userRepo);
+
+        var result = await handler.HandleAsync(new GetStaffQuery(null, null, null, Page: -999, PageSize: 10));
+
+        result.Page.Should().Be(1);
+    }
+
+    /// <summary>
+    /// Các tham số Search/Role/Status phải được truyền nguyên vẹn xuống repository,
+    /// không bị handler biến đổi hay lọc bớt.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_WithSearchRoleStatus_PassesThroughToRepo()
+    {
+        var handler = new GetStaffHandler(_userRepo);
+
+        await handler.HandleAsync(new GetStaffQuery(Search: "nguyen", Role: "Dentist", Status: "Active", Page: 2, PageSize: 5));
+
+        await _userRepo.Received(1).GetStaffPagedAsync(
+            "nguyen", "Dentist", "Active", 2, 5, Arg.Any<CancellationToken>());
+    }
 }

@@ -269,4 +269,39 @@ public class GetAllAppointmentsHandlerTests
 
         result.Should().BeInDescendingOrder(r => r.CreatedAt);
     }
+
+    /// <summary>
+    /// Lịch hẹn không gắn dịch vụ (ServiceId null) phải ánh xạ ServiceName thành null thay vì
+    /// ném NullReferenceException khi truy cập a.Service.Name.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_AppointmentWithoutService_MapsServiceNameAsNull()
+    {
+        var (patient, dentist) = await SeedBasicDataAsync();
+        _db.Appointments.Add(Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddDays(1)));
+        await _db.SaveChangesAsync();
+
+        var dto = (await _handler.HandleAsync(null, null)).Single();
+
+        dto.ServiceName.Should().BeNull();
+    }
+
+    /// <summary>
+    /// Lịch hẹn đã check-in phải ánh xạ đúng CheckedInAt vào DTO, để staff biết thời điểm bệnh
+    /// nhân đến quầy khi xem danh sách.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_CheckedInAppointment_MapsCheckedInAtToDto()
+    {
+        var (patient, dentist) = await SeedBasicDataAsync();
+        var appt = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddDays(1));
+        appt.CheckIn();
+        _db.Appointments.Add(appt);
+        await _db.SaveChangesAsync();
+
+        var dto = (await _handler.HandleAsync(null, null)).Single();
+
+        dto.CheckedInAt.Should().NotBeNull();
+        dto.Status.Should().Be("CheckedIn");
+    }
 }

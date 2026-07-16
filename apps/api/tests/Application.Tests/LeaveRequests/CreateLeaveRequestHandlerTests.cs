@@ -146,6 +146,76 @@ public class CreateLeaveRequestHandlerTests
             Arg.Any<CancellationToken>());
     }
 
+    /// <summary>
+    /// Lý do đúng 1000 ký tự (giới hạn tối đa) phải được chấp nhận, không ném exception —
+    /// kiểm tra boundary của điều kiện "vượt quá 1000 ký tự".
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_ReasonExactly1000Chars_Succeeds()
+    {
+        var user = User.Create("emp", "emp@test.com", "hash", "Staff", null, "Nhân Viên Test");
+        _repo.When(r => r.AddAsync(Arg.Any<LeaveRequest>(), Arg.Any<CancellationToken>()))
+            .Do(call => typeof(LeaveRequest).GetProperty("User")!.SetValue(call.Arg<LeaveRequest>(), user));
+        _userRepo.GetUserIdsByRoleAsync("Owner", Arg.Any<CancellationToken>()).Returns([]);
+        var handler = new CreateLeaveRequestHandler(_repo, _activityLog, _notification, _userRepo, _currentUser);
+
+        var result = await handler.HandleAsync(Guid.NewGuid(), BuildRequest("Annual", new string('a', 1000)));
+
+        result.Status.Should().Be("Pending");
+    }
+
+    /// <summary>
+    /// Lý do chỉ toàn khoảng trắng phải ném ValidationException giống như chuỗi rỗng,
+    /// vì kiểm tra dùng IsNullOrWhiteSpace chứ không chỉ IsNullOrEmpty.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_WhitespaceReason_ThrowsValidationException()
+    {
+        var handler = new CreateLeaveRequestHandler(_repo, _activityLog, _notification, _userRepo, _currentUser);
+
+        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid(), BuildRequest("Annual", "   "));
+
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    /// <summary>
+    /// Loại nghỉ phép viết thường (không đúng case) vẫn phải parse thành công
+    /// vì Enum.TryParse được gọi với ignoreCase: true.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_LeaveTypeLowercase_ParsesSuccessfully()
+    {
+        var user = User.Create("emp", "emp@test.com", "hash", "Staff", null, "Nhân Viên Test");
+        _repo.When(r => r.AddAsync(Arg.Any<LeaveRequest>(), Arg.Any<CancellationToken>()))
+            .Do(call => typeof(LeaveRequest).GetProperty("User")!.SetValue(call.Arg<LeaveRequest>(), user));
+        _userRepo.GetUserIdsByRoleAsync("Owner", Arg.Any<CancellationToken>()).Returns([]);
+        var handler = new CreateLeaveRequestHandler(_repo, _activityLog, _notification, _userRepo, _currentUser);
+
+        var result = await handler.HandleAsync(Guid.NewGuid(), BuildRequest("annual", "Lý do hợp lệ"));
+
+        result.LeaveType.Should().Be("Annual");
+    }
+
+    /// <summary>
+    /// StartDate và EndDate trùng nhau (nghỉ nửa ngày/1 ngày) là boundary hợp lệ,
+    /// phải tạo được đơn với DaysCount = 1, không ném ValidationException.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_StartDateEqualsEndDate_CreatesSingleDayRequest()
+    {
+        var user = User.Create("emp", "emp@test.com", "hash", "Staff", null, "Nhân Viên Test");
+        _repo.When(r => r.AddAsync(Arg.Any<LeaveRequest>(), Arg.Any<CancellationToken>()))
+            .Do(call => typeof(LeaveRequest).GetProperty("User")!.SetValue(call.Arg<LeaveRequest>(), user));
+        _userRepo.GetUserIdsByRoleAsync("Owner", Arg.Any<CancellationToken>()).Returns([]);
+        var handler = new CreateLeaveRequestHandler(_repo, _activityLog, _notification, _userRepo, _currentUser);
+        var sameDay = DateOnly.FromDateTime(DateTime.Today);
+        var req = new CreateLeaveRequestRequest("Annual", sameDay, sameDay, "Lý do hợp lệ");
+
+        var result = await handler.HandleAsync(Guid.NewGuid(), req);
+
+        result.DaysCount.Should().Be(1);
+    }
+
     private static CreateLeaveRequestRequest BuildRequest(string leaveType, string reason)
         => new(leaveType,
             DateOnly.FromDateTime(DateTime.Today),

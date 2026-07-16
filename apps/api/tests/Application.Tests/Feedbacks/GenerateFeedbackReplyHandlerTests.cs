@@ -5,6 +5,7 @@ using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using FluentAssertions;
 using NSubstitute;
+using NSubstitute.ExceptionExtensions;
 using NUnit.Framework;
 
 namespace DentalClinic.API.Application.Tests.Feedbacks;
@@ -61,5 +62,52 @@ public class GenerateFeedbackReplyHandlerTests
                 p.Contains("Chờ đợi quá lâu")),
             "FeedbackReply",
             Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Kết quả AI có khoảng trắng/xuống dòng thừa ở đầu-cuối phải được Trim() trước khi trả về.</summary>
+    [Test]
+    public async Task HandleAsync_AiResponseWithSurroundingWhitespace_TrimsResult()
+    {
+        var feedback = Feedback.Create("Khách A", 5, "Tốt");
+        _feedbackRepo.GetByIdAsync(feedback.Id, Arg.Any<CancellationToken>()).Returns(feedback);
+        _aiChatService.SummarizeAsync(
+                Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns("\n  Cảm ơn bạn.  \n");
+
+        var result = await _handler.HandleAsync(feedback.Id);
+
+        result.ReplyText.Should().Be("Cảm ơn bạn.");
+    }
+
+    /// <summary>AI trả về chuỗi rỗng vẫn phải trả kết quả bình thường (không ném lỗi), ReplyText rỗng
+    /// để nhân viên tự nhập lại nội dung.</summary>
+    [Test]
+    public async Task HandleAsync_AiResponseEmpty_ReturnsEmptyReplyTextWithoutThrowing()
+    {
+        var feedback = Feedback.Create("Khách A", 5, "Tốt");
+        _feedbackRepo.GetByIdAsync(feedback.Id, Arg.Any<CancellationToken>()).Returns(feedback);
+        _aiChatService.SummarizeAsync(
+                Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(string.Empty);
+
+        var result = await _handler.HandleAsync(feedback.Id);
+
+        result.ReplyText.Should().BeEmpty();
+    }
+
+    /// <summary>Khi AI service ném lỗi (vd. timeout/API lỗi), handler không được nuốt lỗi — phải để
+    /// exception lan lên trên cho caller xử lý.</summary>
+    [Test]
+    public async Task HandleAsync_AiServiceThrows_PropagatesException()
+    {
+        var feedback = Feedback.Create("Khách A", 5, "Tốt");
+        _feedbackRepo.GetByIdAsync(feedback.Id, Arg.Any<CancellationToken>()).Returns(feedback);
+        _aiChatService.SummarizeAsync(
+                Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new InvalidOperationException("AI service unavailable"));
+
+        var act = () => _handler.HandleAsync(feedback.Id);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
     }
 }

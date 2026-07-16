@@ -84,6 +84,76 @@ public class ForgotPasswordHandlerTests
         user.PasswordResetTokenExpiry.Should().BeAfter(DateTimeOffset.UtcNow);
     }
 
+    /// <summary>
+    /// Khi cấu hình không có "FrontendBaseUrl", handler phải dùng URL mặc định
+    /// "http://localhost:3000" để tạo reset link thay vì throw hoặc để trống.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_NoFrontendBaseUrlConfigured_UsesDefaultLocalhostInLink()
+    {
+        _configuration["FrontendBaseUrl"].Returns((string?)null);
+        var user = CreateActiveStaff("staff@test.com", "Admin");
+        _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(user);
+
+        await _handler.HandleAsync(new ForgotPasswordCommand("staff@test.com"));
+
+        await _emailService.Received(1).SendPasswordResetAsync(
+            Arg.Any<string>(),
+            Arg.Any<string>(),
+            Arg.Is<string>(link => link.StartsWith("http://localhost:3000/auth/reset-password")),
+            Arg.Any<CancellationToken>());
+    }
+
+    // ── Display-name fallback chain (FullName ?? Username ?? Email) ─────────
+
+    /// <summary>
+    /// Khi user có FullName, email phải được gửi kèm FullName làm tên hiển thị.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_UserHasFullName_SendsEmailWithFullNameAsDisplayName()
+    {
+        var hash = BCrypt.Net.BCrypt.HashPassword("anypass");
+        var user = User.Create("user1", "staff@test.com", hash, "Admin", fullName: "Nguyễn Văn A");
+        _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(user);
+
+        await _handler.HandleAsync(new ForgotPasswordCommand("staff@test.com"));
+
+        await _emailService.Received(1).SendPasswordResetAsync(
+            Arg.Any<string>(), "Nguyễn Văn A", Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Khi user không có FullName nhưng có Username, email phải được gửi kèm Username
+    /// làm tên hiển thị (fallback thứ hai trong chuỗi FullName ?? Username ?? Email).
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_UserHasNoFullNameButHasUsername_SendsEmailWithUsernameAsDisplayName()
+    {
+        var user = CreateActiveStaff("staff@test.com", "Staff"); // FullName null, Username = "user1"
+        _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(user);
+
+        await _handler.HandleAsync(new ForgotPasswordCommand("staff@test.com"));
+
+        await _emailService.Received(1).SendPasswordResetAsync(
+            Arg.Any<string>(), "user1", Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Khi user không có cả FullName lẫn Username, email phải được gửi kèm Email
+    /// làm tên hiển thị (fallback cuối cùng trong chuỗi FullName ?? Username ?? Email).
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_UserHasNoFullNameAndNoUsername_SendsEmailWithEmailAsDisplayName()
+    {
+        var user = User.CreateEmployee("staff@test.com", "Staff"); // Username null, FullName null
+        _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(user);
+
+        await _handler.HandleAsync(new ForgotPasswordCommand("staff@test.com"));
+
+        await _emailService.Received(1).SendPasswordResetAsync(
+            Arg.Any<string>(), "staff@test.com", Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
     // ── Silent-fail cases (không tiết lộ email tồn tại hay không) ────────────
 
     /// <summary>

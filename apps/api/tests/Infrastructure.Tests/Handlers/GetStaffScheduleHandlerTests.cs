@@ -207,4 +207,124 @@ public class GetStaffScheduleHandlerTests
         var dentist = result.Dentists.Should().ContainSingle().Subject;
         dentist.Slots.Should().OnlyContain(s => !s.IsPast);
     }
+
+    /// <summary>
+    /// Khung giờ trùng đúng thời điểm một lịch hẹn đang tồn tại phải được đánh dấu IsBooked = true
+    /// và trả về đúng tên bệnh nhân — đây là mục đích chính của lưới lịch cho lễ tân.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_SlotMatchingExistingAppointment_MarksBookedWithPatientName()
+    {
+        var user = await SeedActiveDentistUserAsync("BS. Có lịch hẹn");
+        _db.WorkSchedules.Add(WorkSchedule.Create(
+            Today, "08:00-10:00", "dentist", "dentist", user.FullName!, "Phòng 1", "border-primary", false));
+
+        var patientUser = User.Create("bn1", $"{Guid.NewGuid()}@test.com", "hash", "Patient");
+        _db.Users.Add(patientUser);
+        var patient = Patient.Create("Nguyễn Văn Bệnh Nhân", new DateOnly(1990, 1, 1), "Nam", patientUser.Id);
+        _db.Patients.Add(patient);
+        var dentist = Dentist.Create(user.Id, user.FullName!, "Nha khoa tổng quát", 5);
+        _db.Dentists.Add(dentist);
+        await _db.SaveChangesAsync();
+
+        var appointmentDate = new DateTimeOffset(Today.Year, Today.Month, Today.Day, 8, 0, 0, TimeSpan.FromHours(7));
+        _db.Appointments.Add(Appointment.Create(patient.Id, dentist.Id, appointmentDate));
+        await _db.SaveChangesAsync();
+
+        var result = await _handler.HandleAsync(Today);
+
+        var dto = result.Dentists.Should().ContainSingle().Subject;
+        var slot = dto.Slots.Single(s => s.Time == "08:00");
+        slot.IsBooked.Should().BeTrue();
+        slot.PatientName.Should().Be("Nguyễn Văn Bệnh Nhân");
+        dto.Slots.Single(s => s.Time == "08:30").IsBooked.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Lịch hẹn đã bị hủy (Cancelled) không được tính là chiếm slot — bệnh nhân khác vẫn phải thấy
+    /// khung giờ đó còn trống để đặt lại.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_CancelledAppointmentAtSlot_DoesNotMarkSlotAsBooked()
+    {
+        var user = await SeedActiveDentistUserAsync("BS. Có lịch hủy");
+        _db.WorkSchedules.Add(WorkSchedule.Create(
+            Today, "08:00-10:00", "dentist", "dentist", user.FullName!, "Phòng 1", "border-primary", false));
+        var patientUser = User.Create("bn2", $"{Guid.NewGuid()}@test.com", "hash", "Patient");
+        _db.Users.Add(patientUser);
+        var patient = Patient.Create("Bệnh Nhân Hủy", new DateOnly(1990, 1, 1), "Nam", patientUser.Id);
+        _db.Patients.Add(patient);
+        var dentist = Dentist.Create(user.Id, user.FullName!, "Nha khoa tổng quát", 5);
+        _db.Dentists.Add(dentist);
+        await _db.SaveChangesAsync();
+
+        var appointmentDate = new DateTimeOffset(Today.Year, Today.Month, Today.Day, 8, 0, 0, TimeSpan.FromHours(7));
+        var appt = Appointment.Create(patient.Id, dentist.Id, appointmentDate);
+        appt.Cancel("Bận việc");
+        _db.Appointments.Add(appt);
+        await _db.SaveChangesAsync();
+
+        var result = await _handler.HandleAsync(Today);
+
+        var dto = result.Dentists.Should().ContainSingle().Subject;
+        dto.Slots.Single(s => s.Time == "08:00").IsBooked.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Bác sĩ có EmploymentStatus khác "Active" (đã nghỉ việc/tạm ngưng) không được xuất hiện trên
+    /// lưới lịch dù vẫn còn WorkSchedule của ngày hôm đó (dữ liệu phân ca có thể chưa dọn kịp).
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_InactiveDentist_ExcludedFromResult()
+    {
+        var user = await SeedActiveDentistUserAsync("BS. Đã nghỉ việc");
+        user.SetStaffProfile(new StaffProfileData(
+            EmployeeId: null, Department: null, EmploymentStatus: "Inactive", ProfilePictureUrl: null,
+            ProfessionalNotes: null, Specialty: null, LicenseNumber: null, YearsOfExperience: null,
+            Gender: null, DateOfBirth: null, Address: null, StartDate: null, ServicesHandled: null,
+            CertificateIssuedDate: null, CertificateIssuedBy: null, Education: null, Bio: null,
+            Position: null, EmploymentType: null, BaseSalary: null, SalaryUnit: null,
+            LeaveAccrued: null, Allowance: null));
+        _db.WorkSchedules.Add(WorkSchedule.Create(
+            Today, "08:00-10:00", "dentist", "dentist", user.FullName!, "Phòng 1", "border-primary", false));
+        await _db.SaveChangesAsync();
+
+        var result = await _handler.HandleAsync(Today);
+
+        result.Dentists.Should().BeEmpty();
+    }
+
+    /// <summary>Vai trò "Doctor" (tên gọi khác của bác sĩ trong dữ liệu cũ) phải được chấp nhận
+    /// tương đương "Dentist".</summary>
+    [Test]
+    public async Task HandleAsync_UserWithDoctorRole_IncludedInResult()
+    {
+        var user = User.Create($"u-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", "Doctor", fullName: "BS. Vai trò Doctor");
+        _db.Users.Add(user);
+        await _db.SaveChangesAsync();
+        _db.WorkSchedules.Add(WorkSchedule.Create(
+            Today, "08:00-10:00", "dentist", "dentist", user.FullName!, "Phòng 1", "border-primary", false));
+        await _db.SaveChangesAsync();
+
+        var result = await _handler.HandleAsync(Today);
+
+        result.Dentists.Should().ContainSingle(d => d.Name == "BS. Vai trò Doctor");
+    }
+
+    /// <summary>Không truyền queryDate phải mặc định dùng ngày hôm nay theo giờ Việt Nam.</summary>
+    [Test]
+    public async Task HandleAsync_NullQueryDate_DefaultsToTodayInVietnamTimeZone()
+    {
+        var vietnamTz = TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
+        var vietnamToday = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, vietnamTz));
+        var user = await SeedActiveDentistUserAsync("BS. Hôm nay");
+        _db.WorkSchedules.Add(WorkSchedule.Create(
+            vietnamToday, "08:00-10:00", "dentist", "dentist", user.FullName!, "Phòng 1", "border-primary", false));
+        await _db.SaveChangesAsync();
+
+        var result = await _handler.HandleAsync(null);
+
+        result.Date.Should().Be(vietnamToday);
+        result.Dentists.Should().ContainSingle(d => d.Name == "BS. Hôm nay");
+    }
 }

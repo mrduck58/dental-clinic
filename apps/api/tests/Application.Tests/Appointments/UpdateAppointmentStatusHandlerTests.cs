@@ -318,4 +318,327 @@ public class UpdateAppointmentStatusHandlerTests
             Arg.Is<CreateNotificationRequest>(r => r.Priority == NotificationPriority.High),
             Arg.Any<CancellationToken>());
     }
+
+    /// <summary>
+    /// appointmentId không tồn tại khi check-in phải ném KeyNotFoundException, không được để lộ
+    /// NullReferenceException ra ngoài.
+    /// </summary>
+    [Test]
+    public async Task CheckInAsync_NonExistentAppointment_ThrowsKeyNotFoundException()
+    {
+        var id = Guid.NewGuid();
+        _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns((Appointment?)null);
+
+        Func<Task> act = () => _handler.CheckInAsync(id);
+
+        await act.Should().ThrowAsync<KeyNotFoundException>();
+    }
+
+    /// <summary>
+    /// Check-in chỉ hợp lệ khi lịch hẹn đã ở trạng thái Confirmed; lịch hẹn còn Pending phải bị từ
+    /// chối bằng InvalidOperationException — tránh cho khách chưa xác nhận vào thẳng hàng đợi khám.
+    /// </summary>
+    [Test]
+    public async Task CheckInAsync_AppointmentNotConfirmed_ThrowsInvalidOperationException()
+    {
+        var id = Guid.NewGuid();
+        var appt = MakeAppointment(); // Pending
+        _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
+
+        Func<Task> act = () => _handler.CheckInAsync(id);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        await _repo.DidNotReceive().UpdateAsync(Arg.Any<Appointment>(), Arg.Any<CancellationToken>());
+    }
+
+    // ── MarkNoShowAsync ───────────────────────────────────────────────────────
+
+    /// <summary>appointmentId không tồn tại phải ném KeyNotFoundException.</summary>
+    [Test]
+    public async Task MarkNoShowAsync_NonExistentAppointment_ThrowsKeyNotFoundException()
+    {
+        var id = Guid.NewGuid();
+        _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns((Appointment?)null);
+
+        Func<Task> act = () => _handler.MarkNoShowAsync(id);
+
+        await act.Should().ThrowAsync<KeyNotFoundException>();
+    }
+
+    /// <summary>
+    /// Chỉ được ghi nhận vắng mặt với lịch đã Confirmed; lịch còn Pending phải bị từ chối bằng
+    /// InvalidOperationException — đúng bối cảnh lễ tân dùng ở quầy check-in.
+    /// </summary>
+    [Test]
+    public async Task MarkNoShowAsync_AppointmentNotConfirmed_ThrowsInvalidOperationException()
+    {
+        var id = Guid.NewGuid();
+        var appt = MakeAppointment(); // Pending
+        _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
+
+        Func<Task> act = () => _handler.MarkNoShowAsync(id);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        await _repo.DidNotReceive().UpdateAsync(Arg.Any<Appointment>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Với lịch hẹn đã Confirmed, MarkNoShowAsync phải chuyển trạng thái sang NoShow và persist.</summary>
+    [Test]
+    public async Task MarkNoShowAsync_ConfirmedAppointment_SetsStatusToNoShowAndUpdates()
+    {
+        var id = Guid.NewGuid();
+        var appt = MakeAppointment();
+        appt.Confirm();
+        _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
+
+        await _handler.MarkNoShowAsync(id);
+
+        appt.Status.Should().Be(AppointmentStatus.NoShow);
+        await _repo.Received(1).UpdateAsync(appt, Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Ghi nhận vắng mặt phải báo cho nha sĩ phụ trách để nha sĩ biết bệnh nhân không đến.</summary>
+    [Test]
+    public async Task MarkNoShowAsync_ConfirmedAppointment_NotifiesDentist()
+    {
+        var id = Guid.NewGuid();
+        var appt = MakeAppointment();
+        appt.Confirm();
+        var dentistUserId = Guid.NewGuid();
+        _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
+        _repo.GetDentistUserIdAsync(appt.DentistId, Arg.Any<CancellationToken>()).Returns(dentistUserId);
+
+        await _handler.MarkNoShowAsync(id);
+
+        await _notification.Received(1).CreateAsync(
+            Arg.Is<CreateNotificationRequest>(r => r.UserId == dentistUserId),
+            Arg.Any<CancellationToken>());
+    }
+
+    // ── StartTreatmentAsync ───────────────────────────────────────────────────
+
+    /// <summary>appointmentId không tồn tại phải ném KeyNotFoundException.</summary>
+    [Test]
+    public async Task StartTreatmentAsync_NonExistentAppointment_ThrowsKeyNotFoundException()
+    {
+        var id = Guid.NewGuid();
+        _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns((Appointment?)null);
+
+        Func<Task> act = () => _handler.StartTreatmentAsync(id);
+
+        await act.Should().ThrowAsync<KeyNotFoundException>();
+    }
+
+    /// <summary>Chỉ được bắt đầu khám khi lịch hẹn đã CheckedIn; lịch Pending phải bị từ chối.</summary>
+    [Test]
+    public async Task StartTreatmentAsync_AppointmentNotCheckedIn_ThrowsInvalidOperationException()
+    {
+        var id = Guid.NewGuid();
+        var appt = MakeAppointment(); // Pending
+        _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
+
+        Func<Task> act = () => _handler.StartTreatmentAsync(id);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        await _repo.DidNotReceive().UpdateAsync(Arg.Any<Appointment>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Với lịch hẹn đã CheckedIn, StartTreatmentAsync phải chuyển sang InProgress và persist.</summary>
+    [Test]
+    public async Task StartTreatmentAsync_CheckedInAppointment_SetsStatusToInProgress()
+    {
+        var id = Guid.NewGuid();
+        var appt = MakeAppointment();
+        appt.Confirm();
+        appt.CheckIn();
+        _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
+
+        await _handler.StartTreatmentAsync(id);
+
+        appt.Status.Should().Be(AppointmentStatus.InProgress);
+        await _repo.Received(1).UpdateAsync(appt, Arg.Any<CancellationToken>());
+    }
+
+    // ── CompleteAsync ─────────────────────────────────────────────────────────
+
+    /// <summary>appointmentId không tồn tại phải ném KeyNotFoundException.</summary>
+    [Test]
+    public async Task CompleteAsync_NonExistentAppointment_ThrowsKeyNotFoundException()
+    {
+        var id = Guid.NewGuid();
+        _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns((Appointment?)null);
+
+        Func<Task> act = () => _handler.CompleteAsync(id);
+
+        await act.Should().ThrowAsync<KeyNotFoundException>();
+    }
+
+    /// <summary>Hoàn thành lịch hẹn phải chuyển trạng thái sang Completed, persist và ghi activity log.</summary>
+    [Test]
+    public async Task CompleteAsync_ExistingAppointment_SetsStatusToCompletedAndLogsActivity()
+    {
+        var id = Guid.NewGuid();
+        var appt = MakeAppointment();
+        _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
+
+        await _handler.CompleteAsync(id);
+
+        appt.Status.Should().Be(AppointmentStatus.Completed);
+        await _repo.Received(1).UpdateAsync(appt, Arg.Any<CancellationToken>());
+        await _activityLog.Received(1).LogAsync(
+            userId: Arg.Any<Guid?>(), userName: Arg.Any<string>(), userRole: Arg.Any<string>(),
+            action: Arg.Any<string>(), module: Arg.Any<string>(), description: Arg.Any<string>(),
+            status: Arg.Any<string>(), ipAddress: Arg.Any<string?>(), targetId: Arg.Any<string?>(),
+            ct: Arg.Any<CancellationToken>());
+    }
+
+    // ── EndTreatmentAsync ─────────────────────────────────────────────────────
+
+    /// <summary>appointmentId không tồn tại phải ném KeyNotFoundException.</summary>
+    [Test]
+    public async Task EndTreatmentAsync_NonExistentAppointment_ThrowsKeyNotFoundException()
+    {
+        var id = Guid.NewGuid();
+        _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns((Appointment?)null);
+
+        Func<Task> act = () => _handler.EndTreatmentAsync(id);
+
+        await act.Should().ThrowAsync<KeyNotFoundException>();
+    }
+
+    /// <summary>Chỉ được kết thúc điều trị khi đang InProgress; lịch Pending phải bị từ chối.</summary>
+    [Test]
+    public async Task EndTreatmentAsync_AppointmentNotInProgress_ThrowsInvalidOperationException()
+    {
+        var id = Guid.NewGuid();
+        var appt = MakeAppointment(); // Pending
+        _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
+
+        Func<Task> act = () => _handler.EndTreatmentAsync(id);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+        await _repo.DidNotReceive().UpdateAsync(Arg.Any<Appointment>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Kết thúc điều trị hợp lệ phải chuyển trạng thái sang PendingPayment (chờ thanh toán) và persist.</summary>
+    [Test]
+    public async Task EndTreatmentAsync_InProgressAppointment_SetsStatusToPendingPayment()
+    {
+        var id = Guid.NewGuid();
+        var appt = MakeAppointment();
+        appt.Confirm();
+        appt.CheckIn();
+        appt.StartTreatment();
+        _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
+
+        await _handler.EndTreatmentAsync(id);
+
+        appt.Status.Should().Be(AppointmentStatus.PendingPayment);
+        await _repo.Received(1).UpdateAsync(appt, Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Khi bác sĩ đặt lịch tái khám (FollowUpDate) và bệnh nhân có tài khoản liên kết, phải gửi
+    /// thông báo nhắc tái khám cho bệnh nhân — nếu không, bệnh nhân sẽ không biết để quay lại khám.
+    /// </summary>
+    [Test]
+    public async Task EndTreatmentAsync_WithFollowUpDateAndLinkedPatient_SendsReminderNotification()
+    {
+        var id = Guid.NewGuid();
+        var patientUserId = Guid.NewGuid();
+        var patient = Patient.Create("Bệnh nhân", new DateOnly(1990, 1, 1), "Nam", patientUserId);
+        var appt = Appointment.Create(patient.Id, Guid.NewGuid(), DateTimeOffset.UtcNow.AddDays(-1));
+        appt.Confirm();
+        appt.CheckIn();
+        appt.StartTreatment();
+        appt.SetFollowUpReminder(DateOnly.FromDateTime(DateTime.Today.AddMonths(1)), "Tái khám định kỳ");
+        _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
+        _patientRepo.GetByIdAsync(patient.Id, Arg.Any<CancellationToken>()).Returns(patient);
+
+        await _handler.EndTreatmentAsync(id);
+
+        await _notification.Received(1).CreateAsync(
+            Arg.Is<CreateNotificationRequest>(r => r.UserId == patientUserId && r.Type == NotificationType.Reminder),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Không đặt lịch tái khám (FollowUpDate null) thì không được gửi thông báo nhắc tái khám.</summary>
+    [Test]
+    public async Task EndTreatmentAsync_WithoutFollowUpDate_DoesNotSendReminderNotification()
+    {
+        var id = Guid.NewGuid();
+        var appt = MakeAppointment();
+        appt.Confirm();
+        appt.CheckIn();
+        appt.StartTreatment();
+        _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
+
+        await _handler.EndTreatmentAsync(id);
+
+        await _notification.DidNotReceive().CreateAsync(
+            Arg.Is<CreateNotificationRequest>(r => r.Type == NotificationType.Reminder),
+            Arg.Any<CancellationToken>());
+    }
+
+    // ── CancelAsync: các nhánh quyền hạn khác ─────────────────────────────────
+
+    /// <summary>
+    /// Vai trò Patient nhưng handler không được cấu hình IPatientRepository (null) phải ném
+    /// InvalidOperationException — tránh NullReferenceException khi thiếu cấu hình DI.
+    /// </summary>
+    [Test]
+    public async Task CancelAsync_PatientRoleWithoutPatientRepositoryConfigured_ThrowsInvalidOperationException()
+    {
+        var handlerWithoutPatientRepo = new UpdateAppointmentStatusHandler(
+            _repo, _activityLog, _notification, _currentUser, patientRepository: null);
+        var id = Guid.NewGuid();
+        var appt = MakeAppointment();
+        _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
+        _currentUser.IsAuthenticated.Returns(true);
+        _currentUser.UserRole.Returns("Patient");
+
+        Func<Task> act = () => handlerWithoutPatientRepo.CancelAsync(id);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+    }
+
+    /// <summary>
+    /// Vai trò Patient nhưng currentUser.UserId là null (token thiếu claim) phải ném
+    /// UnauthorizedAccessException thay vì NullReferenceException.
+    /// </summary>
+    [Test]
+    public async Task CancelAsync_PatientRoleWithNullUserId_ThrowsUnauthorizedAccessException()
+    {
+        var id = Guid.NewGuid();
+        var appt = MakeAppointment();
+        _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
+        _currentUser.IsAuthenticated.Returns(true);
+        _currentUser.UserRole.Returns("Patient");
+        _currentUser.UserId.Returns((Guid?)null);
+
+        Func<Task> act = () => _handler.CancelAsync(id);
+
+        await act.Should().ThrowAsync<UnauthorizedAccessException>();
+    }
+
+    /// <summary>
+    /// Vai trò Patient nhưng không tìm thấy hồ sơ Patient tương ứng với tài khoản phải ném
+    /// UnauthorizedAccessException — tránh cho phép hủy khi không xác định được chủ sở hữu.
+    /// </summary>
+    [Test]
+    public async Task CancelAsync_PatientRoleWithNoMatchingPatientRecord_ThrowsUnauthorizedAccessException()
+    {
+        var id = Guid.NewGuid();
+        var patientUserId = Guid.NewGuid();
+        var appt = MakeAppointment();
+        _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
+        _currentUser.IsAuthenticated.Returns(true);
+        _currentUser.UserRole.Returns("Patient");
+        _currentUser.UserId.Returns(patientUserId);
+        _patientRepo.GetByUserIdAsync(patientUserId, Arg.Any<CancellationToken>()).Returns((Patient?)null);
+
+        Func<Task> act = () => _handler.CancelAsync(id);
+
+        await act.Should().ThrowAsync<UnauthorizedAccessException>();
+    }
 }

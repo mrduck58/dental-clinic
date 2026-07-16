@@ -77,4 +77,81 @@ public class GenerateMarketingContentHandlerTests
             "MarketingContent",
             Arg.Any<CancellationToken>());
     }
+
+    /// <summary>Ưu đãi giảm theo phần trăm (Percentage) phải hiển thị dạng "x%" trong prompt,
+    /// kèm mã ưu đãi và ngày hết hạn, để AI không bịa thêm thông tin ưu đãi.</summary>
+    [Test]
+    public async Task HandleAsync_WithPercentagePromotion_IncludesPromotionDataInPrompt()
+    {
+        var promotion = Promotion.Create(
+            "SALE20", "Ưu đãi hè", "Giảm giá dịp hè", "Percentage", 20m,
+            new List<Guid>(),
+            DateOnly.FromDateTime(DateTime.Today),
+            DateOnly.FromDateTime(DateTime.Today.AddDays(10)),
+            true);
+        _promotionRepo.GetByIdAsync(promotion.Id, Arg.Any<CancellationToken>()).Returns(promotion);
+
+        await _handler.HandleAsync(new GenerateMarketingContentRequest(null, promotion.Id, null, null));
+
+        await _aiChatService.Received(1).SummarizeAsync(
+            Arg.Any<string>(),
+            Arg.Is<string>(p =>
+                p.Contains("Ưu đãi hè") &&
+                p.Contains("SALE20") &&
+                p.Contains("20%") &&
+                p.Contains("Giảm giá dịp hè")),
+            "MarketingContent",
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Ưu đãi giảm theo số tiền cố định (khác "Percentage") phải hiển thị dạng "xđ",
+    /// không được nhầm sang định dạng phần trăm.</summary>
+    [Test]
+    public async Task HandleAsync_WithFixedAmountPromotion_FormatsDiscountAsCurrency()
+    {
+        var promotion = Promotion.Create(
+            "SALE50K", "Ưu đãi giảm tiền mặt", null, "FixedAmount", 50_000m,
+            new List<Guid>(),
+            DateOnly.FromDateTime(DateTime.Today),
+            DateOnly.FromDateTime(DateTime.Today.AddDays(10)),
+            true);
+        _promotionRepo.GetByIdAsync(promotion.Id, Arg.Any<CancellationToken>()).Returns(promotion);
+
+        await _handler.HandleAsync(new GenerateMarketingContentRequest(null, promotion.Id, null, null));
+
+        await _aiChatService.Received(1).SummarizeAsync(
+            Arg.Any<string>(),
+            Arg.Is<string>(p => p.Contains("50.000đ") || p.Contains("50,000đ")),
+            "MarketingContent",
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Chủ đề chỉ gồm khoảng trắng (không phải null) và không chọn dịch vụ/ưu đãi vẫn phải
+    /// bị coi là "không có gì để viết" và từ chối, không tốn lệnh gọi AI.</summary>
+    [Test]
+    public async Task HandleAsync_WhitespaceOnlyTopic_ThrowsValidationWithoutCallingAi()
+    {
+        var act = () => _handler.HandleAsync(new GenerateMarketingContentRequest(null, null, "   ", null));
+
+        await act.Should().ThrowAsync<ValidationException>();
+        await _aiChatService.DidNotReceive().SummarizeAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>AI trả về chuỗi rỗng/toàn khoảng trắng (lỗi hoặc không sinh được nội dung) không được
+    /// làm handler crash — phải rơi về nội dung nháp rỗng với tiêu đề/danh mục mặc định để nhân viên
+    /// tự bổ sung, thay vì để lỗi lan ra ngoài.</summary>
+    [Test]
+    public async Task HandleAsync_AiReturnsEmptyResponse_ReturnsDraftWithDefaultTitle()
+    {
+        _aiChatService.SummarizeAsync(
+                Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(string.Empty);
+
+        var result = await _handler.HandleAsync(
+            new GenerateMarketingContentRequest(null, null, "Chủ đề bất kỳ", null));
+
+        result.Title.Should().Be("Bài viết mới");
+        result.Content.Should().BeEmpty();
+    }
 }

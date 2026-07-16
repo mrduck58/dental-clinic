@@ -52,6 +52,27 @@ public class GetPromotionByIdHandlerTests
         result.Should().BeNull();
     }
 
+    /// <summary>
+    /// ServiceId trong khuyến mãi không còn khớp với dịch vụ nào trong hệ thống (đã bị xóa)
+    /// phải hiển thị dạng chuỗi Guid thay vì ném lỗi hay bỏ sót dịch vụ đó khỏi ServiceNames.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_ServiceIdNotFoundInServiceRepo_FallsBackToGuidString()
+    {
+        var missingServiceId = Guid.NewGuid();
+        var promo = Promotion.Create("SALE10", "Khuyến mãi test", "Mô tả", "Percentage", 10m,
+            new List<Guid> { missingServiceId },
+            DateOnly.FromDateTime(DateTime.Today),
+            DateOnly.FromDateTime(DateTime.Today.AddDays(30)),
+            true);
+        _repo.GetByIdAsync(promo.Id, Arg.Any<CancellationToken>()).Returns(promo);
+        var handler = new GetPromotionByIdHandler(_repo, _serviceRepo);
+
+        var result = await handler.HandleAsync(promo.Id);
+
+        result!.ServiceNames.Should().Contain(missingServiceId.ToString());
+    }
+
     private static Promotion MakePromotion(string code = "SALE10")
         => Promotion.Create(code, "Khuyến mãi test", "Mô tả", "Percentage", 10m,
             new List<Guid>(),

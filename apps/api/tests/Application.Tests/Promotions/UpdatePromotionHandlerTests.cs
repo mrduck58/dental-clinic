@@ -56,6 +56,22 @@ public class UpdatePromotionHandlerTests
         await _repo.DidNotReceive().UpdateAsync(Arg.Any<Promotion>(), Arg.Any<CancellationToken>());
     }
 
+    /// <summary>
+    /// Code khuyến mãi mới nhập vào khi update phải được tự động chuyển thành chữ hoa,
+    /// nhất quán với hành vi của CreatePromotionHandler khi so sánh code lúc áp dụng.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_LowercaseCode_CodeStoredUpperCase()
+    {
+        var promo = MakePromotion("SALE10");
+        _repo.GetByIdAsync(promo.Id, Arg.Any<CancellationToken>()).Returns(promo);
+        var handler = new UpdatePromotionHandler(_repo, _activityLog, _currentUser);
+
+        await handler.HandleAsync(promo.Id, BuildUpdateRequest("sale20"));
+
+        promo.Code.Should().Be("SALE20");
+    }
+
     private static Promotion MakePromotion(string code = "SALE10")
         => Promotion.Create(code, "Khuyến mãi test", "Mô tả", "Percentage", 10m,
             new List<Guid>(),

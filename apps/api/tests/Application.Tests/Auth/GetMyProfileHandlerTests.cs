@@ -89,6 +89,119 @@ public class GetMyProfileHandlerTests
         result.ProfilePictureUrl.Should().BeNull();
     }
 
+    // ── Role-based salary computation ────────────────────────────────────────
+
+    /// <summary>
+    /// Bác sĩ (Dentist) phải nhận lương cơ bản 40 triệu và phụ cấp tính theo
+    /// số năm kinh nghiệm (2 triệu/năm), đúng theo quy tắc tính lương của phòng khám.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_DentistRole_ReturnsCorrectBaseSalaryAndAllowance()
+    {
+        var userId = Guid.NewGuid();
+        var user = User.Create("dentist1", "dentist1@test.com", "hash", "Dentist");
+        user.SetStaffProfile(new StaffProfileData(
+            EmployeeId: null, Department: null, EmploymentStatus: null, ProfilePictureUrl: null,
+            ProfessionalNotes: null, Specialty: null, LicenseNumber: null, YearsOfExperience: 5,
+            Gender: null, DateOfBirth: null, Address: null, StartDate: null, ServicesHandled: null,
+            CertificateIssuedDate: null, CertificateIssuedBy: null, Education: null, Bio: null,
+            Position: null, EmploymentType: null, BaseSalary: null, SalaryUnit: null,
+            LeaveAccrued: null, Allowance: null));
+        _userRepo.GetByIdAsync(userId, Arg.Any<CancellationToken>()).Returns(user);
+
+        var result = await _handler.HandleAsync(userId);
+
+        result.BaseSalary.Should().Be(40000000);
+        result.Allowance.Should().Be(10000000); // 5 năm * 2,000,000
+        result.SalaryNote.Should().Contain("bác sĩ");
+    }
+
+    /// <summary>
+    /// Bác sĩ chưa khai số năm kinh nghiệm (YearsOfExperience = null) phải nhận
+    /// phụ cấp bằng 0, không được để phép tính gây lỗi NullReferenceException.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_DentistWithNoYearsOfExperience_AllowanceIsZero()
+    {
+        var userId = Guid.NewGuid();
+        var user = User.Create("dentist2", "dentist2@test.com", "hash", "Dentist");
+        _userRepo.GetByIdAsync(userId, Arg.Any<CancellationToken>()).Returns(user);
+
+        var result = await _handler.HandleAsync(userId);
+
+        result.Allowance.Should().Be(0);
+    }
+
+    /// <summary>
+    /// Quản trị viên (Admin) phải nhận lương cơ bản 25 triệu và phụ cấp cố định 5 triệu,
+    /// khác với công thức tính theo kinh nghiệm của bác sĩ.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_AdminRole_ReturnsCorrectBaseSalaryAndAllowance()
+    {
+        var userId = Guid.NewGuid();
+        var user = User.Create("admin1", "admin1@test.com", "hash", "Admin");
+        _userRepo.GetByIdAsync(userId, Arg.Any<CancellationToken>()).Returns(user);
+
+        var result = await _handler.HandleAsync(userId);
+
+        result.BaseSalary.Should().Be(25000000);
+        result.Allowance.Should().Be(5000000);
+        result.SalaryNote.Should().Contain("quản lý");
+    }
+
+    /// <summary>
+    /// Nhân viên hành chính (Staff) phải nhận lương cơ bản 12 triệu và phụ cấp 2 triệu,
+    /// đúng theo mức lương riêng dành cho nhóm vai trò này.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_StaffRole_ReturnsCorrectBaseSalaryAndAllowance()
+    {
+        var userId = Guid.NewGuid();
+        var user = User.Create("staff1", "staff1@test.com", "hash", "Staff");
+        _userRepo.GetByIdAsync(userId, Arg.Any<CancellationToken>()).Returns(user);
+
+        var result = await _handler.HandleAsync(userId);
+
+        result.BaseSalary.Should().Be(12000000);
+        result.Allowance.Should().Be(2000000);
+        result.SalaryNote.Should().Contain("hành chính");
+    }
+
+    /// <summary>
+    /// Bệnh nhân (Patient) không thuộc nhóm role có lương, phải trả về BaseSalary = 0,
+    /// Allowance = 0 và SalaryNote rỗng — không rơi vào bất kỳ nhánh tính lương nào.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_PatientRole_ReturnsZeroSalaryAndEmptyNote()
+    {
+        var userId = Guid.NewGuid();
+        var user = User.Create("patient5", "patient5@test.com", "hash", "Patient");
+        _userRepo.GetByIdAsync(userId, Arg.Any<CancellationToken>()).Returns(user);
+
+        var result = await _handler.HandleAsync(userId);
+
+        result.BaseSalary.Should().Be(0);
+        result.Allowance.Should().Be(0);
+        result.SalaryNote.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Tài khoản chưa có FullName (null) phải trả về FullName = chuỗi rỗng thay vì null,
+    /// tránh lỗi hiển thị hoặc NullReferenceException phía client khi bind dữ liệu.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_UserWithNoFullName_ReturnsEmptyStringFullName()
+    {
+        var userId = Guid.NewGuid();
+        var user = User.Create("patient6", "patient6@test.com", "hash", "Patient");
+        _userRepo.GetByIdAsync(userId, Arg.Any<CancellationToken>()).Returns(user);
+
+        var result = await _handler.HandleAsync(userId);
+
+        result.FullName.Should().BeEmpty();
+    }
+
     // ── Error path ────────────────────────────────────────────────────────────
 
     /// <summary>

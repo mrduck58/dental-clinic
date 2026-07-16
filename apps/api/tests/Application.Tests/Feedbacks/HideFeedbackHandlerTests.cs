@@ -1,4 +1,5 @@
 using DentalClinic.API.Application.UseCases.Feedbacks;
+using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
@@ -52,5 +53,46 @@ public class HideFeedbackHandlerTests
         Func<Task> act = () => handler.HandleAsync(Guid.NewGuid());
 
         await act.Should().ThrowAsync<NotFoundException>();
+    }
+
+    /// <summary>
+    /// Ẩn feedback đang Featured phải chuyển sang Hidden (không giữ nguyên trạng thái nổi bật).
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_FeaturedFeedback_BecomesHidden()
+    {
+        var feedback = Feedback.Create("Khách A", 5, "Tốt");
+        feedback.Feature();
+        _repo.GetByIdAsync(feedback.Id, Arg.Any<CancellationToken>()).Returns(feedback);
+        var handler = new HideFeedbackHandler(_repo, _activityLog, _currentUser);
+
+        var result = await handler.HandleAsync(feedback.Id);
+
+        result.Status.Should().Be("Hidden");
+    }
+
+    /// <summary>
+    /// Ẩn phải ghi activity log với đúng action Reject và module Feedback.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_ValidFeedback_LogsActivityWithRejectAction()
+    {
+        var feedback = Feedback.Create("Khách A", 5, "Tốt");
+        _repo.GetByIdAsync(feedback.Id, Arg.Any<CancellationToken>()).Returns(feedback);
+        var handler = new HideFeedbackHandler(_repo, _activityLog, _currentUser);
+
+        await handler.HandleAsync(feedback.Id);
+
+        await _activityLog.Received(1).LogAsync(
+            userId: Arg.Any<Guid?>(),
+            userName: Arg.Any<string>(),
+            userRole: Arg.Any<string>(),
+            action: ActivityAction.Reject,
+            module: ActivityModule.Feedback,
+            description: Arg.Any<string>(),
+            status: Arg.Any<string>(),
+            ipAddress: Arg.Any<string?>(),
+            targetId: feedback.Id.ToString(),
+            ct: Arg.Any<CancellationToken>());
     }
 }

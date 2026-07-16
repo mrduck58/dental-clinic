@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.DTOs.Services;
 using DentalClinic.API.Application.UseCases.Services;
+using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
@@ -70,5 +71,46 @@ public class UpdateServiceHandlerTests
         Func<Task> act = () => handler.HandleAsync(Guid.NewGuid(), new UpdateServiceRequest("Tên", 100m, 30, "Mô tả", null));
 
         await act.Should().ThrowAsync<NotFoundException>();
+    }
+
+    /// <summary>
+    /// Cập nhật dịch vụ tồn tại phải ghi log hoạt động với action Edit, module Service.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_ExistingService_LogsActivityWithEditAction()
+    {
+        var service = Service.Create("Nhổ răng", 200000m, 30, "Mô tả", null);
+        _repo.GetByIdAsync(service.Id, Arg.Any<CancellationToken>()).Returns(service);
+        var handler = new UpdateServiceHandler(_repo, _activityLog, _currentUser);
+
+        await handler.HandleAsync(service.Id, new UpdateServiceRequest("Nhổ răng khôn", 300000m, 45, "Mô tả mới", null));
+
+        await _activityLog.Received(1).LogAsync(
+            userId: Arg.Any<Guid?>(),
+            userName: Arg.Any<string>(),
+            userRole: Arg.Any<string>(),
+            action: ActivityAction.Edit,
+            module: ActivityModule.Service,
+            description: Arg.Is<string>(d => d.Contains("Nhổ răng khôn")),
+            status: ActivityStatus.Success,
+            ipAddress: Arg.Any<string?>(),
+            targetId: service.Id.ToString(),
+            ct: Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Cập nhật dịch vụ thành công phải thiết lập UpdatedAt (khác null), đánh dấu bản ghi đã được sửa đổi.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_ExistingService_SetsUpdatedAtTimestamp()
+    {
+        var service = Service.Create("Nhổ răng", 200000m, 30, "Mô tả", null);
+        service.UpdatedAt.Should().BeNull();
+        _repo.GetByIdAsync(service.Id, Arg.Any<CancellationToken>()).Returns(service);
+        var handler = new UpdateServiceHandler(_repo, _activityLog, _currentUser);
+
+        var result = await handler.HandleAsync(service.Id, new UpdateServiceRequest("Tên mới", 100000m, 30, "Mô tả", null));
+
+        result.UpdatedAt.Should().NotBeNull();
     }
 }

@@ -78,4 +78,49 @@ public class MarketingContentParserTests
         result.Title.Should().Be("Bài viết mới");
         result.SuggestedCategory.Should().Be("Chăm sóc răng miệng");
     }
+
+    /// <summary>Chuỗi rỗng hoàn toàn (AI không trả về gì) không được ném exception — phải rơi về
+    /// nội dung rỗng với tiêu đề/danh mục mặc định.</summary>
+    [Test]
+    public void Parse_EmptyRawResponse_ReturnsDefaultsWithEmptyContent()
+    {
+        var result = MarketingContentParser.Parse(string.Empty, Categories);
+
+        result.Content.Should().BeEmpty();
+        result.Title.Should().Be("Bài viết mới");
+        result.SuggestedCategory.Should().Be("Chăm sóc răng miệng");
+    }
+
+    /// <summary>Khi danh sách danh mục cho phép rỗng (chưa cấu hình), phải trả về nguyên văn danh mục
+    /// AI đề xuất thay vì rơi về danh mục đầu tiên (không có phần tử nào để rơi về) hay ném lỗi.</summary>
+    [Test]
+    public void Parse_EmptyAllowedCategories_ReturnsRawCategoryAsIs()
+    {
+        const string raw = """
+            TIEU_DE: Bài viết test
+            DANH_MUC: Danh mục tự do
+            ---
+            Nội dung.
+            """;
+
+        var result = MarketingContentParser.Parse(raw, Array.Empty<string>());
+
+        result.SuggestedCategory.Should().Be("Danh mục tự do");
+    }
+
+    /// <summary>Danh sách danh mục cho phép rỗng và AI không trả DANH_MUC nào phải trả về chuỗi rỗng,
+    /// không ném lỗi khi không có danh mục nào để rơi về.</summary>
+    [Test]
+    public void Parse_EmptyAllowedCategoriesAndNoCategoryLine_ReturnsEmptyCategory()
+    {
+        const string raw = """
+            TIEU_DE: Bài viết test
+            ---
+            Nội dung.
+            """;
+
+        var result = MarketingContentParser.Parse(raw, Array.Empty<string>());
+
+        result.SuggestedCategory.Should().BeEmpty();
+    }
 }
