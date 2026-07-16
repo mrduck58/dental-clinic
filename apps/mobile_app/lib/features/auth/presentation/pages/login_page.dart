@@ -39,12 +39,34 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void initState() {
     super.initState();
+    _loadSavedCredentials();
     if (kIsWeb) {
       // Trên Web, nút Google (renderButton) tự xử lý popup/consent và phát
       // tài khoản qua stream này — không gọi signIn() trực tiếp được.
       _googleAccountSub = GoogleSignIn().onCurrentUserChanged.listen((account) {
         if (account != null) _handleGoogleAccount(account);
       });
+    }
+  }
+
+  Future<void> _loadSavedCredentials() async {
+    try {
+      final remember = await _auth.getRememberMe();
+      if (remember) {
+        final email = await _auth.getSavedEmail();
+        final password = await _auth.getSavedPassword();
+        if (email != null && email.isNotEmpty) {
+          setState(() {
+            _rememberMe = remember;
+            _emailCtrl.text = email;
+            if (password != null) {
+              _passwordCtrl.text = password;
+            }
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("LoginPage: Failed to load saved credentials: $e");
     }
   }
 
@@ -86,6 +108,13 @@ class _LoginPageState extends State<LoginPage> {
       );
       await _auth.saveToken(result.accessToken, remember: _rememberMe);
       await _auth.saveUserEmail(result.email);
+      await _auth.saveRememberMe(_rememberMe);
+      if (_rememberMe) {
+        await _auth.saveSavedEmail(_emailCtrl.text.trim());
+        await _auth.saveSavedPassword(_passwordCtrl.text);
+      } else {
+        await _auth.clearSavedEmail();
+      }
       if (result.fullName != null && result.fullName!.isNotEmpty) {
         await _auth.saveUserName(result.fullName!);
       }

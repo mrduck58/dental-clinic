@@ -371,6 +371,47 @@ class AuthService {
     await prefs.remove(_tokenKey);
   }
 
+  static const _rememberMeKey = 'remember_me';
+  static const _savedEmailKey = 'saved_email';
+  static const _savedPasswordKey = 'saved_password';
+
+  Future<void> saveRememberMe(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_rememberMeKey, value);
+  }
+
+  Future<bool> getRememberMe() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_rememberMeKey) ?? false;
+  }
+
+  Future<void> saveSavedEmail(String email) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_savedEmailKey, email);
+  }
+
+  Future<String?> getSavedEmail() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_savedEmailKey);
+  }
+
+  Future<void> saveSavedPassword(String password) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_savedPasswordKey, password);
+  }
+
+  Future<String?> getSavedPassword() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_savedPasswordKey);
+  }
+
+  Future<void> clearSavedEmail() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_savedEmailKey);
+    await prefs.remove(_savedPasswordKey);
+    await prefs.remove(_rememberMeKey);
+  }
+
   Future<void> logout({required String token}) async {
     await _client.post(ApiConstants.logout, {}, token: token);
   }
