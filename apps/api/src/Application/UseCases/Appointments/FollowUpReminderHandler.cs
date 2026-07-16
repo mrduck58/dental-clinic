@@ -91,7 +91,7 @@ public class FollowUpReminderHandler(AppDbContext dbContext)
         var appointments = await dbContext.Appointments
             .AsNoTracking()
             .Include(a => a.Patient).ThenInclude(p => p.User)
-            .Include(a => a.Dentist)
+            .Include(a => a.Dentist).ThenInclude(d => d.User)
             .Include(a => a.Service)
             .Where(a => patientIds.Contains(a.PatientId))
             .ToListAsync(ct);

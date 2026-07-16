@@ -37,12 +37,12 @@ public class GetDentistSlotsHandlerTests
     {
         var date = DateOnly.FromDateTime(DateTime.Today.AddDays(1));
 
-        var dentistUser = User.Create("d1", "d1@test.com", "hash", "Dentist");
-        var patientUser = User.Create("p1", "p1@test.com", "hash", "Patient");
+        var dentistUser = User.Create("d1", "d1@test.com", "hash", "Dentist", fullName: "BS. Test");
+        var patientUser = User.Create("p1", "p1@test.com", "hash", "Patient", fullName: "Bệnh nhân Test");
         _db.Users.AddRange(dentistUser, patientUser);
 
-        var dentist = Dentist.Create(dentistUser.Id, "BS. Test", "Nha khoa tổng quát", 5);
-        var patient = Patient.Create("Bệnh nhân Test", new DateOnly(1990, 1, 1), "Nam", patientUser.Id);
+        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
         _db.Dentists.Add(dentist);
         _db.Patients.Add(patient);
 

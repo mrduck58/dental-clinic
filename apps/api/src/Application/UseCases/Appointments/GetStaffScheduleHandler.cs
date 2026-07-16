@@ -75,7 +75,7 @@ public class GetStaffScheduleHandler(AppDbContext dbContext)
         var createdDentists = new Dictionary<Guid, Dentist>();
         foreach (var user in dentistUsers.Where(u => u.Dentist == null))
         {
-            var d = Dentist.Create(user.Id, user.FullName ?? user.Email,
+            var d = Dentist.Create(user.Id,
                         user.Specialty ?? "Nha khoa tổng quát",
                         user.YearsOfExperience ?? 0);
             dbContext.Dentists.Add(d);

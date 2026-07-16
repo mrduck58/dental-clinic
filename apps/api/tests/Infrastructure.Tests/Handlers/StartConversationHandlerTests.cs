@@ -32,7 +32,7 @@ public class StartConversationHandlerTests
         _db.Users.Add(user);
         _userId = user.Id;
 
-        _patient = Patient.Create("Bệnh nhân Test", new DateOnly(1990, 1, 1), "Nam", user.Id);
+        _patient = Patient.Create(user.Id, new DateOnly(1990, 1, 1), "Nam");
         _db.Patients.Add(_patient);
         await _db.SaveChangesAsync();
 
@@ -111,7 +111,7 @@ public class StartConversationHandlerTests
     {
         var dentistUser = User.Create($"dentist-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: "BS Nguyễn Văn A");
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "BS Nguyễn Văn A", "Chỉnh nha", 5);
+        var dentist = Dentist.Create(dentistUser.Id, "Chỉnh nha", 5);
         _db.Dentists.Add(dentist);
         await _db.SaveChangesAsync();
         return (dentist, dentistUser);

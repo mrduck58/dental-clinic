@@ -43,10 +43,9 @@ public class GetPatientQueueHandler(
             if (user == null) return null;
 
             patient = Patient.Create(
-                fullName: user.FullName ?? user.Username ?? user.Email,
+                userId: user.Id,
                 dateOfBirth: user.DateOfBirth ?? new DateOnly(2000, 1, 1),
                 gender: user.Gender ?? "Nam",
-                userId: user.Id,
                 phoneNumber: user.PhoneNumber
             );
 

@@ -22,9 +22,9 @@ public class GetAiAnalyticsHandlerTests
             .Options;
         _db = new AppDbContext(options);
 
-        var user = User.Create($"patient-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", "Patient");
+        var user = User.Create($"patient-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: "Bệnh nhân Test");
         _db.Users.Add(user);
-        _patient = Patient.Create("Bệnh nhân Test", new DateOnly(1990, 1, 1), "Nam", user.Id);
+        _patient = Patient.Create(user.Id, new DateOnly(1990, 1, 1), "Nam");
         _db.Patients.Add(_patient);
         await _db.SaveChangesAsync();
 

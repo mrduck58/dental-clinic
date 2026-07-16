@@ -42,12 +42,12 @@ public class SummarizePatientHistoryHandlerTests
     [Test]
     public async Task HandleAsync_PatientHasPastVisit_IncludesHistoryInPromptAndReturnsFixedDisclaimer()
     {
-        var patientUser = User.Create("p1", "p1@test.com", "hash", "Patient");
-        var dentistUser = User.Create("d1", "d1@test.com", "hash", "Dentist");
+        var patientUser = User.Create("p1", "p1@test.com", "hash", "Patient", fullName: "Bệnh nhân Test");
+        var dentistUser = User.Create("d1", "d1@test.com", "hash", "Dentist", fullName: "BS. Test");
         _db.Users.AddRange(patientUser, dentistUser);
 
-        var patient = Patient.Create("Bệnh nhân Test", new DateOnly(1990, 1, 1), "Nam", patientUser.Id);
-        var dentist = Dentist.Create(dentistUser.Id, "BS. Test", "Nha khoa tổng quát", 5);
+        var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
+        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
         _db.Patients.Add(patient);
         _db.Dentists.Add(dentist);
 
@@ -56,7 +56,7 @@ public class SummarizePatientHistoryHandlerTests
         _db.Appointments.Add(pastAppointment);
         await _db.SaveChangesAsync();
 
-        _db.Diagnoses.Add(Diagnosis.Create(pastAppointment.Id, "K02.1", "Sâu răng tiến triển", "Cần theo dõi thêm"));
+        _db.Diagnoses.Add(Diagnosis.Create(pastAppointment.Id, "K02.1: Sâu răng tiến triển", new DiagnosisDetails(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, "Cần theo dõi thêm")));
         var prescription = Prescription.Create(pastAppointment.Id);
         _db.Prescriptions.Add(prescription);
         await _db.SaveChangesAsync();
@@ -153,12 +153,12 @@ public class SummarizePatientHistoryHandlerTests
     private async Task<(Patient patient, Dentist dentist)> SeedPatientAndDentistAsync(
         string patientUsername, string dentistUsername)
     {
-        var patientUser = User.Create(patientUsername, $"{patientUsername}@test.com", "hash", "Patient");
-        var dentistUser = User.Create(dentistUsername, $"{dentistUsername}@test.com", "hash", "Dentist");
+        var patientUser = User.Create(patientUsername, $"{patientUsername}@test.com", "hash", "Patient", fullName: "Bệnh nhân Test");
+        var dentistUser = User.Create(dentistUsername, $"{dentistUsername}@test.com", "hash", "Dentist", fullName: "BS. Test");
         _db.Users.AddRange(patientUser, dentistUser);
 
-        var patient = Patient.Create("Bệnh nhân Test", new DateOnly(1990, 1, 1), "Nam", patientUser.Id);
-        var dentist = Dentist.Create(dentistUser.Id, "BS. Test", "Nha khoa tổng quát", 5);
+        var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
+        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
         _db.Patients.Add(patient);
         _db.Dentists.Add(dentist);
         await _db.SaveChangesAsync();
@@ -169,12 +169,12 @@ public class SummarizePatientHistoryHandlerTests
     [Test]
     public async Task HandleAsync_PatientHasNoPastVisit_ReturnsCannedMessageWithoutCallingAi()
     {
-        var patientUser = User.Create("p2", "p2@test.com", "hash", "Patient");
-        var dentistUser = User.Create("d2", "d2@test.com", "hash", "Dentist");
+        var patientUser = User.Create("p2", "p2@test.com", "hash", "Patient", fullName: "Bệnh nhân Mới");
+        var dentistUser = User.Create("d2", "d2@test.com", "hash", "Dentist", fullName: "BS. Test 2");
         _db.Users.AddRange(patientUser, dentistUser);
 
-        var patient = Patient.Create("Bệnh nhân Mới", new DateOnly(1995, 1, 1), "Nữ", patientUser.Id);
-        var dentist = Dentist.Create(dentistUser.Id, "BS. Test 2", "Nha khoa tổng quát", 3);
+        var patient = Patient.Create(patientUser.Id, new DateOnly(1995, 1, 1), "Nữ");
+        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 3);
         _db.Patients.Add(patient);
         _db.Dentists.Add(dentist);
 

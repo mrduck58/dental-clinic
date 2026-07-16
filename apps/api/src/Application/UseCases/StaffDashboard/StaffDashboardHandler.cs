@@ -80,9 +80,9 @@ public class StaffDashboardHandler(AppDbContext dbContext)
             .Take(clampedLimit)
             .Select(a => new StaffTodayAppointmentDto(
                 a.Id,
-                a.Patient.FullName,
+                a.Patient.User.FullName ?? string.Empty,
                 a.Service != null ? a.Service.Name : null,
-                a.Dentist.FullName,
+                a.Dentist.User.FullName ?? string.Empty,
                 a.AppointmentDate,
                 a.Status.ToString()))
             .ToListAsync(ct);
@@ -97,7 +97,7 @@ public class StaffDashboardHandler(AppDbContext dbContext)
         var invoices = await dbContext.Invoices
             .AsNoTracking()
             .Include(i => i.Items)
-            .Include(i => i.Appointment).ThenInclude(a => a.Patient)
+            .Include(i => i.Appointment).ThenInclude(a => a.Patient).ThenInclude(p => p.User)
             .Where(i => i.Status == PaymentStatus.Unpaid)
             .OrderBy(i => i.CreatedAt)
             .Take(clampedLimit)

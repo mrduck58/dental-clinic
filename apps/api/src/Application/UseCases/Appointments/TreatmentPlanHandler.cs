@@ -176,7 +176,7 @@ public class TreatmentPlanHandler(
         var plans = await dbContext.TreatmentPlans
             .AsNoTracking()
             .Include(tp => tp.Service)
-            .Include(tp => tp.Dentist)
+            .Include(tp => tp.Dentist).ThenInclude(d => d.User)
             .Where(tp => tp.PatientId == patientId)
             .OrderBy(tp => tp.CreatedAt)
             .ToListAsync(ct);
@@ -195,7 +195,7 @@ public class TreatmentPlanHandler(
     public async Task<TreatmentPlanDto> AddStepProgressAsync(Guid treatmentPlanId, AddStepProgressRequest request, CancellationToken ct = default)
     {
         var treatmentPlan = await dbContext.TreatmentPlans
-            .Include(tp => tp.Dentist)
+            .Include(tp => tp.Dentist).ThenInclude(d => d.User)
             .FirstOrDefaultAsync(tp => tp.Id == treatmentPlanId, ct)
             ?? throw new NotFoundException("Không tìm thấy liệu trình điều trị.");
 
@@ -345,7 +345,7 @@ public class TreatmentPlanHandler(
         var plan = await dbContext.TreatmentPlans
             .AsNoTracking()
             .Include(tp => tp.Service)
-            .Include(tp => tp.Dentist)
+            .Include(tp => tp.Dentist).ThenInclude(d => d.User)
             .FirstAsync(tp => tp.Id == planId, ct);
 
         return ToDto(plan, await GetAmountPaidAsync(planId, ct));

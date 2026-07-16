@@ -37,10 +37,9 @@ public class CreateAppointmentHandler(
                 ?? throw new InvalidOperationException("Không tìm thấy tài khoản.");
 
             primaryPatient = Patient.Create(
-                user.FullName ?? user.Email,
-                user.DateOfBirth ?? new DateOnly(1990, 1, 1),
-                user.Gender ?? "Nam",
-                cmd.UserId);
+                userId: cmd.UserId,
+                dateOfBirth: user.DateOfBirth ?? new DateOnly(1990, 1, 1),
+                gender: user.Gender ?? "Nam");
 
             await patientRepository.AddAsync(primaryPatient, ct);
         }

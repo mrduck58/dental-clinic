@@ -501,7 +501,7 @@ public class AppointmentsController(
         var utcEnd   = utcStart.AddDays(1);
 
         var dentists = await dbContext.Dentists
-            .Select(d => new { d.Id, d.FullName, d.UserId })
+            .Select(d => new { d.Id, FullName = d.User.FullName, d.UserId })
             .ToListAsync(cancellationToken);
 
         var todaySchedules = await dbContext.WorkSchedules
@@ -632,7 +632,7 @@ public class AppointmentsController(
     public async Task<IActionResult> GetPatientMedicalHistory(Guid patientId, CancellationToken cancellationToken)
     {
         var appointments = await dbContext.Appointments
-            .Include(a => a.Dentist)
+            .Include(a => a.Dentist).ThenInclude(d => d.User)
             .Include(a => a.Service)
             .Include(a => a.Diagnoses)
             .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Service)

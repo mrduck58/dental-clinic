@@ -233,8 +233,8 @@ public class SendChatMessageHandler(
 
         var nowUtc = DateTimeOffset.UtcNow;
         var upcoming = await dbContext.Appointments
-            .Include(a => a.Dentist)
-            .Include(a => a.Patient)
+            .Include(a => a.Dentist).ThenInclude(d => d.User)
+            .Include(a => a.Patient).ThenInclude(p => p.User)
             .Where(a => relevantPatientIds.Contains(a.PatientId) &&
                 (a.Status == AppointmentStatus.Pending || a.Status == AppointmentStatus.Confirmed) &&
                 a.AppointmentDate >= nowUtc)
