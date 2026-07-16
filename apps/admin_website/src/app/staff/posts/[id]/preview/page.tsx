@@ -44,7 +44,7 @@ export default function PreviewPostPage({ params }: PreviewPostPageProps) {
         <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 shadow-sm shadow-slate-100/50">
           <div className="flex items-center gap-4">
             <Link
-              href="/dashboard/posts"
+              href="/staff/posts"
               className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
               title="Quay lại danh sách"
             >
@@ -85,7 +85,7 @@ export default function PreviewPostPage({ params }: PreviewPostPageProps) {
           ) : !post ? (
             <div className="flex flex-col items-center justify-center py-32 gap-4">
               <p className="text-slate-400 font-semibold text-[15px]">Không tìm thấy bài viết.</p>
-              <Link href="/dashboard/posts" className="text-primary font-bold text-[14px] hover:underline">
+              <Link href="/staff/posts" className="text-primary font-bold text-[14px] hover:underline">
                 Quay lại danh sách
               </Link>
             </div>

@@ -63,7 +63,7 @@ export default function PreviewPostPage({ params }: PreviewPostPageProps) {
           <div className="flex items-center gap-4">
             {post && (
               <Link
-                href={`/dashboard/posts/${id}/edit`}
+                href={`/admin/posts/${id}/edit`}
                 className="inline-flex items-center gap-2 bg-primary hover:bg-primary-hover text-white font-bold text-[13px] px-4 py-2 rounded-xl transition-all shadow-md shadow-primary/25"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">

@@ -66,11 +66,18 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
             .FirstOrDefaultAsync(cancellationToken);
     }
 
-    public async Task<bool> HasInProgressAppointmentAsync(Guid dentistId, Guid excludeAppointmentId, CancellationToken cancellationToken = default)
+    public async Task<Appointment?> GetInProgressByDentistAsync(
+        Guid dentistId, Guid excludeAppointmentId,
+        DateTimeOffset utcStart, DateTimeOffset utcEnd,
+        CancellationToken cancellationToken = default)
     {
-        return await dbContext.Appointments.AnyAsync(a =>
-            a.DentistId == dentistId &&
-            a.Id != excludeAppointmentId &&
-            a.Status == DentalClinic.API.Domain.Enums.AppointmentStatus.InProgress, cancellationToken);
+        return await dbContext.Appointments
+            .Include(a => a.Patient)
+            .FirstOrDefaultAsync(a =>
+                a.DentistId == dentistId &&
+                a.Id != excludeAppointmentId &&
+                a.Status == DentalClinic.API.Domain.Enums.AppointmentStatus.InProgress &&
+                a.AppointmentDate >= utcStart &&
+                a.AppointmentDate < utcEnd, cancellationToken);
     }
 }

@@ -52,6 +52,48 @@ const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
   Cancelled:    { label: "Đã hủy",     cls: "bg-red-50 text-red-700 border border-red-200" },
 };
 
+// Các trường của phiếu khám răng miệng (khớp DiagnosisFields ở apiClient)
+const EMPTY_EXAM_FORM = {
+  description: "",
+  gumCondition: "", oralMucosaCondition: "", gumBleeding: "", painOnChewing: "",
+  teethCount: "", decayedTeeth: "", wornOrBrokenTeeth: "", looseTeeth: "",
+  tartar: "", plaque: "", badBreath: "",
+  tmjSymptoms: "", occlusion: "", occlusionDeviation: "",
+  conclusion: "",
+};
+type ExamForm = typeof EMPTY_EXAM_FORM;
+
+function ExamSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mb-2.5">{title}</div>
+      {children}
+    </div>
+  );
+}
+
+function ExamField({ label, placeholder, value, onChange, disabled }: {
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div>
+      <label className="text-[12px] font-bold text-slate-500 mb-1 block">{label}</label>
+      <input
+        type="text"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        disabled={disabled}
+        className="w-full px-3 py-2.5 text-[13px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-medium text-slate-700 placeholder:text-slate-300 disabled:opacity-60 disabled:cursor-not-allowed"
+      />
+    </div>
+  );
+}
+
 export default function PatientDetailPage() {
   useRequireDentist();
   const { id } = useParams<{ id: string }>();
@@ -62,22 +104,11 @@ export default function PatientDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>("diagnosis");
 
-  // Diagnosis state
-  const [complaint, setComplaint] = useState("");
-  const [findings, setFindings] = useState("");
-  const [diagnosis, setDiagnosis] = useState("");
+  // Phiếu khám răng miệng — gom các trường vào một object cho gọn
+  const [form, setForm] = useState<ExamForm>(EMPTY_EXAM_FORM);
   const [diagSaved, setDiagSaved] = useState(false);
+  const setField = (key: keyof ExamForm, value: string) => setForm(f => ({ ...f, [key]: value }));
 
-  // New diagnosis fields
-  const [heartRate, setHeartRate] = useState<string>("");
-  const [temperature, setTemperature] = useState<string>("");
-  const [bloodPressureSystolic, setBloodPressureSystolic] = useState<string>("");
-  const [bloodPressureDiastolic, setBloodPressureDiastolic] = useState<string>("");
-  const [medicalHistoryInput, setMedicalHistoryInput] = useState<string>("");
-  const [allergyHistory, setAllergyHistory] = useState<string>("");
-  const [dentalCondition, setDentalCondition] = useState<string>("");
-  const [conclusion, setConclusion] = useState<string>("");
-  
   // Patient medical history
   const [medicalHistory, setMedicalHistory] = useState<PatientMedicalHistoryDto[]>([]);
 
@@ -113,22 +144,29 @@ export default function PatientDetailPage() {
       setLoading(true);
       const data = await getExaminationApi(id);
       setExamination(data);
-      setComplaint(data.symptoms ?? "");
       setError(null);
 
-      // Load diagnosis data into form fields
-      const existingDiagnosis = data.diagnoses[0];
-      if (existingDiagnosis) {
-        setDiagnosis(existingDiagnosis.description ?? "");
-        setFindings(existingDiagnosis.notes ?? "");
-        setHeartRate(existingDiagnosis.heartRate?.toString() ?? "");
-        setTemperature(existingDiagnosis.temperature?.toString() ?? "");
-        setBloodPressureSystolic(existingDiagnosis.bloodPressureSystolic?.toString() ?? "");
-        setBloodPressureDiastolic(existingDiagnosis.bloodPressureDiastolic?.toString() ?? "");
-        setMedicalHistoryInput(existingDiagnosis.medicalHistory ?? "");
-        setAllergyHistory(existingDiagnosis.allergyHistory ?? "");
-        setDentalCondition(existingDiagnosis.dentalCondition ?? "");
-        setConclusion(existingDiagnosis.conclusion ?? "");
+      // Đổ phiếu khám đã lưu (nếu có) vào form
+      const d = data.diagnoses[0];
+      if (d) {
+        setForm({
+          description: d.description ?? "",
+          gumCondition: d.gumCondition ?? "",
+          oralMucosaCondition: d.oralMucosaCondition ?? "",
+          gumBleeding: d.gumBleeding ?? "",
+          painOnChewing: d.painOnChewing ?? "",
+          teethCount: d.teethCount ?? "",
+          decayedTeeth: d.decayedTeeth ?? "",
+          wornOrBrokenTeeth: d.wornOrBrokenTeeth ?? "",
+          looseTeeth: d.looseTeeth ?? "",
+          tartar: d.tartar ?? "",
+          plaque: d.plaque ?? "",
+          badBreath: d.badBreath ?? "",
+          tmjSymptoms: d.tmjSymptoms ?? "",
+          occlusion: d.occlusion ?? "",
+          occlusionDeviation: d.occlusionDeviation ?? "",
+          conclusion: d.conclusion ?? "",
+        });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không thể tải thông tin khám");
@@ -185,18 +223,24 @@ export default function PatientDetailPage() {
   const handleSaveDiagnosis = async () => {
     if (!examination) return;
     try {
+      const t = (v: string) => (v.trim() ? v.trim() : undefined);
       const diagnosisData = {
-        diagnosisCode: "D01",
-        description: diagnosis,
-        notes: findings,
-        heartRate: heartRate ? parseFloat(heartRate) : undefined,
-        temperature: temperature ? parseFloat(temperature) : undefined,
-        bloodPressureSystolic: bloodPressureSystolic ? parseFloat(bloodPressureSystolic) : undefined,
-        bloodPressureDiastolic: bloodPressureDiastolic ? parseFloat(bloodPressureDiastolic) : undefined,
-        medicalHistory: medicalHistoryInput || undefined,
-        allergyHistory: allergyHistory || undefined,
-        dentalCondition: dentalCondition || undefined,
-        conclusion: conclusion || undefined,
+        description: form.description.trim(),
+        gumCondition: t(form.gumCondition),
+        oralMucosaCondition: t(form.oralMucosaCondition),
+        gumBleeding: t(form.gumBleeding),
+        painOnChewing: t(form.painOnChewing),
+        teethCount: t(form.teethCount),
+        decayedTeeth: t(form.decayedTeeth),
+        wornOrBrokenTeeth: t(form.wornOrBrokenTeeth),
+        looseTeeth: t(form.looseTeeth),
+        tartar: t(form.tartar),
+        plaque: t(form.plaque),
+        badBreath: t(form.badBreath),
+        tmjSymptoms: t(form.tmjSymptoms),
+        occlusion: t(form.occlusion),
+        occlusionDeviation: t(form.occlusionDeviation),
+        conclusion: t(form.conclusion),
       };
 
       const existingDiagnosisId = examination.diagnoses[0]?.id;
@@ -219,20 +263,9 @@ export default function PatientDetailPage() {
       }
 
       setDiagSaved(true);
-      showToast("Đã lưu tất cả thông tin khám!", "success");
+      showToast("Đã lưu phiếu khám!", "success");
 
-      // Update form state immediately to reflect saved data
-      setDiagnosis(diagnosis);
-      setFindings(findings);
-      setHeartRate(heartRate);
-      setTemperature(temperature);
-      setBloodPressureSystolic(bloodPressureSystolic);
-      setBloodPressureDiastolic(bloodPressureDiastolic);
-      setMedicalHistoryInput(medicalHistoryInput);
-      setAllergyHistory(allergyHistory);
-      setDentalCondition(dentalCondition);
-
-      // Also reload to sync with server data
+      // Tải lại để đồng bộ với dữ liệu server
       await loadExamination();
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Lưu thất bại", "error");
@@ -357,7 +390,7 @@ return (
 
               {/* ─── TAB: CHUẨN ĐOÁN ─── */}
               {activeTab === "diagnosis" && (
-                <div className="grid gap-6" style={{ gridTemplateColumns: "2fr 1fr" }}>
+                <div className="grid gap-6 items-start" style={{ gridTemplateColumns: "1fr 1fr" }}>
                   {/* LEFT: Patient Info + History */}
                   <div className="flex flex-col gap-6">
 
@@ -582,159 +615,118 @@ return (
                     </div>
                   </div>
 
-                  {/* RIGHT: Diagnosis Form */}
-                  <div className="flex flex-col gap-6">
+                  {/* RIGHT: Phiếu khám răng miệng */}
+                  <div>
                     <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
-                      <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
+                      <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2 shrink-0">
                         <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
-                        <span className="text-[14px] font-black text-slate-900">Thông tin khám</span>
+                        <span className="text-[14px] font-black text-slate-900">Thông tin khám răng miệng</span>
                       </div>
-                      <div className="p-5 flex flex-col gap-4">
+                      <div className="p-5 flex flex-col gap-5">
 
-                        {/* Vital Signs */}
-                        <div>
-                          <div className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mb-3">Chỉ số sinh tồn</div>
+                        <ExamSection title="Tình trạng lợi – niêm mạc">
                           <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <label className="text-[11px] font-bold text-slate-500 mb-1 block">Nhịp tim (lần/phút)</label>
-                              <input
-                                type="number"
-                                value={heartRate}
-                                onChange={(e) => setHeartRate(e.target.value)}
-                                placeholder="vd: 80"
-                                disabled={!isInProgress}
-                                className="w-full px-3 py-2 text-[13px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none font-medium text-slate-700 disabled:opacity-60 disabled:cursor-not-allowed"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-[11px] font-bold text-slate-500 mb-1 block">Nhiệt độ (°C)</label>
-                              <input
-                                type="number"
-                                value={temperature}
-                                onChange={(e) => setTemperature(e.target.value)}
-                                placeholder="vd: 37.0"
-                                step="0.1"
-                                disabled={!isInProgress}
-                                className="w-full px-3 py-2 text-[13px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none font-medium text-slate-700 disabled:opacity-60 disabled:cursor-not-allowed"
-                              />
-                            </div>
-                            {/* Blood Pressure - 2 column grid */}
-                            <div>
-                              <label className="text-[11px] font-bold text-slate-500 mb-1 block">Huyết áp tâm thu (mmHg)</label>
-                              <input
-                                type="number"
-                                value={bloodPressureSystolic}
-                                onChange={(e) => setBloodPressureSystolic(e.target.value)}
-                                placeholder="Tâm thu"
-                                disabled={!isInProgress}
-                                className="w-full px-3 py-2 text-[13px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none font-medium text-slate-700 disabled:opacity-60 disabled:cursor-not-allowed"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-[11px] font-bold text-slate-500 mb-1 block">Huyết áp tâm trương (mmHg)</label>
-                              <input
-                                type="number"
-                                value={bloodPressureDiastolic}
-                                onChange={(e) => setBloodPressureDiastolic(e.target.value)}
-                                placeholder="Tâm trương"
-                                disabled={!isInProgress}
-                                className="w-full px-3 py-2 text-[13px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none font-medium text-slate-700 disabled:opacity-60 disabled:cursor-not-allowed"
-                              />
-                            </div>
+                            <ExamField label="Tình trạng lợi" placeholder="vd: Lợi hồng hào, không viêm"
+                              value={form.gumCondition} onChange={v => setField("gumCondition", v)} disabled={!isInProgress} />
+                            <ExamField label="Tình trạng niêm mạc miệng" placeholder="vd: Bình thường, không tổn thương"
+                              value={form.oralMucosaCondition} onChange={v => setField("oralMucosaCondition", v)} disabled={!isInProgress} />
+                            <ExamField label="Chảy máu lợi" placeholder="vd: Có / Không"
+                              value={form.gumBleeding} onChange={v => setField("gumBleeding", v)} disabled={!isInProgress} />
+                            <ExamField label="Đau khi chạm / ăn nhai" placeholder="vd: Có / Không"
+                              value={form.painOnChewing} onChange={v => setField("painOnChewing", v)} disabled={!isInProgress} />
                           </div>
-                        </div>
+                        </ExamSection>
 
-                        {/* Medical History & Allergy History - 2 columns */}
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mb-1 block">Tiền sử bệnh lý</label>
-                            <textarea
-                              value={medicalHistoryInput}
-                              onChange={(e) => setMedicalHistoryInput(e.target.value)}
-                              placeholder="VD: Tiểu đường, cao huyết áp..."
-                              rows={2}
-                              disabled={!isInProgress}
-                              className="w-full px-3 py-2 text-[12px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none font-medium text-slate-700 resize-none disabled:opacity-60 disabled:cursor-not-allowed"
-                            />
+                        <ExamSection title="Tình trạng răng">
+                          <div className="grid grid-cols-2 gap-3">
+                            <ExamField label="Số răng hiện có" placeholder="vd: 28 răng"
+                              value={form.teethCount} onChange={v => setField("teethCount", v)} disabled={!isInProgress} />
+                            <ExamField label="Răng sâu" placeholder="vd: Răng 16, 26 sâu mặt nhai"
+                              value={form.decayedTeeth} onChange={v => setField("decayedTeeth", v)} disabled={!isInProgress} />
+                            <ExamField label="Răng mòn / nứt / vỡ" placeholder="vd: Răng 11 mòn cổ, 21 nứt cạnh cắn"
+                              value={form.wornOrBrokenTeeth} onChange={v => setField("wornOrBrokenTeeth", v)} disabled={!isInProgress} />
+                            <ExamField label="Răng lung lay" placeholder="vd: Răng 31 độ 1"
+                              value={form.looseTeeth} onChange={v => setField("looseTeeth", v)} disabled={!isInProgress} />
                           </div>
-                          <div>
-                            <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mb-1 block">Tiền sử dị ứng</label>
-                            <textarea
-                              value={allergyHistory}
-                              onChange={(e) => setAllergyHistory(e.target.value)}
-                              placeholder="VD: Dị ứng penicillin, hải sản..."
-                              rows={2}
-                              disabled={!isInProgress}
-                              className="w-full px-3 py-2 text-[12px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none font-medium text-slate-700 resize-none disabled:opacity-60 disabled:cursor-not-allowed"
-                            />
-                          </div>
-                        </div>
+                        </ExamSection>
 
-                        {/* Dental Condition */}
-                        <div>
-                          <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mb-1 block">Tình trạng răng</label>
+                        <ExamSection title="Vệ sinh răng miệng">
+                          <div className="grid grid-cols-2 gap-3">
+                            <ExamField label="Cao răng" placeholder="vd: Ít / Trung bình / Nhiều"
+                              value={form.tartar} onChange={v => setField("tartar", v)} disabled={!isInProgress} />
+                            <ExamField label="Mảng bám" placeholder="vd: Ít / Trung bình / Nhiều"
+                              value={form.plaque} onChange={v => setField("plaque", v)} disabled={!isInProgress} />
+                            <ExamField label="Mùi hôi miệng" placeholder="vd: Có / Không"
+                              value={form.badBreath} onChange={v => setField("badBreath", v)} disabled={!isInProgress} />
+                          </div>
+                        </ExamSection>
+
+                        <ExamSection title="Khớp thái dương hàm">
+                          <ExamField label="Triệu chứng" placeholder="vd: Không đau, không tiếng kêu khớp"
+                            value={form.tmjSymptoms} onChange={v => setField("tmjSymptoms", v)} disabled={!isInProgress} />
+                        </ExamSection>
+
+                        <ExamSection title="Khớp cắn">
+                          <div className="grid grid-cols-2 gap-3">
+                            <ExamField label="Khớp cắn" placeholder="vd: Khớp cắn chuẩn / Cắn chéo / Cắn hở / Cắn sâu"
+                              value={form.occlusion} onChange={v => setField("occlusion", v)} disabled={!isInProgress} />
+                            <ExamField label="Sai lệch khớp cắn" placeholder="vd: Không / Có"
+                              value={form.occlusionDeviation} onChange={v => setField("occlusionDeviation", v)} disabled={!isInProgress} />
+                          </div>
+                        </ExamSection>
+
+                        <ExamSection title="Chẩn đoán">
                           <textarea
-                            value={dentalCondition}
-                            onChange={(e) => setDentalCondition(e.target.value)}
-                            placeholder="Mô tả tình trạng răng hiện tại..."
-                            rows={2}
-                            disabled={!isInProgress}
-                            className="w-full px-3 py-2 text-[13px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none font-medium text-slate-700 resize-none disabled:opacity-60 disabled:cursor-not-allowed"
-                          />
-                        </div>
-
-                        {/* Diagnosis */}
-                        <div>
-                          <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mb-1 block">Chẩn đoán</label>
-                          <textarea
-                            value={diagnosis}
-                            onChange={(e) => setDiagnosis(e.target.value)}
+                            value={form.description}
+                            onChange={e => setField("description", e.target.value)}
                             placeholder="Nhập chẩn đoán..."
                             rows={2}
                             disabled={!isInProgress}
-                            className="w-full px-3 py-2 text-[13px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none font-medium text-slate-700 resize-none disabled:opacity-60 disabled:cursor-not-allowed"
+                            className="w-full px-3 py-2.5 text-[13px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-medium text-slate-700 placeholder:text-slate-300 resize-none disabled:opacity-60 disabled:cursor-not-allowed"
                           />
-                        </div>
+                        </ExamSection>
 
-                        {/* Clinical Findings */}
-                        <div>
-                          <label className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mb-1 block">Kết quả thăm khám lâm sàng</label>
+                        <ExamSection title="Kết quả & kế hoạch điều trị">
                           <textarea
-                            value={findings}
-                            onChange={(e) => setFindings(e.target.value)}
-                            placeholder="Ghi chép kết quả khám..."
-                            rows={2}
+                            value={form.conclusion}
+                            onChange={e => setField("conclusion", e.target.value)}
+                            placeholder="Nhập kế hoạch điều trị / tư vấn..."
+                            rows={3}
                             disabled={!isInProgress}
-                            className="w-full px-3 py-2 text-[13px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none font-medium text-slate-700 resize-none disabled:opacity-60 disabled:cursor-not-allowed"
+                            className="w-full px-3 py-2.5 text-[13px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-medium text-slate-700 placeholder:text-slate-300 resize-none disabled:opacity-60 disabled:cursor-not-allowed"
                           />
-                        </div>
+                        </ExamSection>
+                      </div>
 
-                        {/* Save Button */}
-                        <div className="flex items-center gap-3 pt-2">
-                          {diagSaved && (
-                            <span className="text-[12px] text-green-600 font-bold animate-fade-in flex items-center gap-1">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                              </svg>
-                              Đã lưu
-                            </span>
-                          )}
-                          <button
-                            onClick={handleSaveDiagnosis}
-                            disabled={!isInProgress}
-                            className="ml-auto flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-[13px] font-black rounded-xl hover:bg-red-600 transition-all shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
+                      {/* Footer ghim — nút lưu luôn thấy, không phải kéo xuống */}
+                      <div className="px-5 py-3.5 border-t border-slate-100 bg-slate-50/40 flex items-center gap-3 shrink-0">
+                        {diagSaved && (
+                          <span className="text-[12px] text-green-600 font-bold animate-fade-in flex items-center gap-1">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                             </svg>
-                            Lưu tất cả
-                          </button>
-                        </div>
+                            Đã lưu
+                          </span>
+                        )}
+                        {!isInProgress && (
+                          <span className="text-[12px] font-semibold text-amber-600">
+                            Bấm &quot;Bắt đầu khám&quot; để nhập phiếu khám.
+                          </span>
+                        )}
+                        <button
+                          onClick={handleSaveDiagnosis}
+                          disabled={!isInProgress}
+                          className="ml-auto flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-[13px] font-black rounded-xl hover:bg-red-600 transition-all shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                          </svg>
+                          Lưu phiếu khám
+                        </button>
                       </div>
                     </div>
-
                   </div>
                 </div>
               )}

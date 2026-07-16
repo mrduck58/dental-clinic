@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.Services;
 
-public record ProcedureStepRequest(int StepNumber, string Name, int PercentOfTotal);
+public record ProcedureStepRequest(int StepNumber, string Name);
 
 public class TreatmentProcedureDto
 {
@@ -13,7 +13,6 @@ public class TreatmentProcedureDto
     public Guid ServiceId { get; set; }
     public int StepNumber { get; set; }
     public string Name { get; set; } = string.Empty;
-    public int PercentOfTotal { get; set; }
 }
 
 public class TreatmentProcedureHandler(AppDbContext dbContext)
@@ -29,8 +28,7 @@ public class TreatmentProcedureHandler(AppDbContext dbContext)
                 Id = p.Id,
                 ServiceId = p.ServiceId,
                 StepNumber = p.StepNumber,
-                Name = p.Name,
-                PercentOfTotal = p.PercentOfTotal
+                Name = p.Name
             })
             .ToListAsync(ct);
     }
@@ -55,7 +53,7 @@ public class TreatmentProcedureHandler(AppDbContext dbContext)
         dbContext.TreatmentProcedures.RemoveRange(existing);
 
         foreach (var step in steps.OrderBy(s => s.StepNumber))
-            dbContext.TreatmentProcedures.Add(TreatmentProcedure.Create(serviceId, step.StepNumber, step.Name.Trim(), step.PercentOfTotal));
+            dbContext.TreatmentProcedures.Add(TreatmentProcedure.Create(serviceId, step.StepNumber, step.Name.Trim()));
 
         await dbContext.SaveChangesAsync(ct);
 

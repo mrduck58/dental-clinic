@@ -12,6 +12,9 @@ import {
   updateTreatmentPlanApi,
   deleteTreatmentPlanApi,
   addTreatmentPlanProgressApi,
+  updateTreatmentPlanProgressApi,
+  reorderTreatmentPlanProgressApi,
+  deleteTreatmentPlanProgressApi,
   type ExaminationDto,
   type PatientMedicalHistoryDto,
   type TreatmentPlanDto,
@@ -96,6 +99,18 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
   const [progressDate, setProgressDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [progressNote, setProgressNote] = useState("");
   const [savingProgress, setSavingProgress] = useState(false);
+  // Bước ngoài quy trình chuẩn — bác sĩ tự nhập tên
+  const [progressCustom, setProgressCustom] = useState(false);
+
+  // ── Modal: sửa mục đã ghi trong nhật ký ────────────────────────────────────
+  const [editEntry, setEditEntry] = useState<{ planId: string; entryIndex: number; stepName: string } | null>(null);
+  const [editPercent, setEditPercent] = useState<number>(0);
+  const [editNote, setEditNote] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  // ── Kéo-thả sắp xếp nhật ký điều trị (chỉ trong cùng một liệu trình) ────────
+  const [dragKey, setDragKey] = useState<string | null>(null);      // `${planId}:${entryIndex}`
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null);
 
   const loadPlans = useCallback(async (patientId: string) => {
     try {
@@ -155,11 +170,11 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
     [plans, chainIds]
   );
 
-  // Nhật ký điều trị: gộp stepProgress của các liệu trình đang hiển thị, mới nhất trước
+  // Nhật ký điều trị: gộp stepProgress của các liệu trình đang hiển thị theo ĐÚNG thứ tự đã lưu
+  // (không sort theo ngày để bác sĩ tự kéo-thả sắp xếp). entryIndex = vị trí gốc trong mảng của liệu trình.
   const progressRows = useMemo(() =>
     visiblePlans
-      .flatMap(p => p.stepProgress.map(sp => ({ ...sp, planId: p.id, serviceName: p.serviceName })))
-      .sort((a, b) => b.date.localeCompare(a.date)),
+      .flatMap(p => p.stepProgress.map((sp, entryIndex) => ({ ...sp, planId: p.id, entryIndex, serviceName: p.serviceName }))),
     [visiblePlans]
   );
 
@@ -243,6 +258,7 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
     setProgressPercent(0);
     setProgressDate(new Date().toISOString().slice(0, 10));
     setProgressNote("");
+    setProgressCustom(false);
     setShowAddProgress(true);
     const plan = plans.find(p => p.id === target);
     if (plan) {
@@ -259,6 +275,7 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
     setProgressStepNumber("");
     setProgressStepName("");
     setProgressPercent(0);
+    setProgressCustom(false);
     const plan = plans.find(p => p.id === planId);
     if (plan) {
       setLoadingSteps(true);
@@ -287,6 +304,65 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
       showToast(err instanceof Error ? err.message : "Không thể ghi nhận quá trình", "error");
     } finally {
       setSavingProgress(false);
+    }
+  };
+
+  const handleOpenEdit = (row: { planId: string; entryIndex: number; stepName: string; percent: number; note: string | null }) => {
+    setEditEntry({ planId: row.planId, entryIndex: row.entryIndex, stepName: row.stepName });
+    setEditPercent(row.percent);
+    setEditNote(row.note ?? "");
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editEntry) return;
+    try {
+      setSavingEdit(true);
+      await updateTreatmentPlanProgressApi(editEntry.planId, {
+        entryIndex: editEntry.entryIndex,
+        percent: editPercent,
+        note: editNote.trim() || undefined,
+      });
+      showToast("Đã cập nhật quá trình điều trị");
+      setEditEntry(null);
+      if (examination) await loadPlans(examination.patient.id);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Không thể sửa quá trình", "error");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const handleReorderDrop = async (src: string, target: { planId: string; entryIndex: number }) => {
+    setDragKey(null);
+    setDragOverKey(null);
+    if (!src) return;
+    const [srcPlanId, srcIdxStr] = src.split(":");
+    const from = Number(srcIdxStr);
+    // Chỉ đổi thứ tự trong cùng một liệu trình (mỗi liệu trình lưu nhật ký riêng)
+    if (srcPlanId !== target.planId || from === target.entryIndex || Number.isNaN(from)) return;
+    const plan = plans.find(p => p.id === target.planId);
+    if (!plan) return;
+    const n = plan.stepProgress.length;
+    const order = Array.from({ length: n }, (_, i) => i);
+    const [moved] = order.splice(from, 1);
+    order.splice(target.entryIndex, 0, moved);
+    try {
+      await reorderTreatmentPlanProgressApi(target.planId, order);
+      showToast("Đã đổi thứ tự quá trình điều trị");
+      if (examination) await loadPlans(examination.patient.id);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Không thể đổi thứ tự", "error");
+    }
+  };
+
+  const handleDeleteProgress = async (row: { planId: string; entryIndex: number; stepName: string }) => {
+    if (!confirm(`Xóa mục "${row.stepName}" khỏi quá trình điều trị?`)) return;
+    try {
+      await deleteTreatmentPlanProgressApi(row.planId, row.entryIndex);
+      showToast("Đã xóa mục quá trình điều trị");
+      if (examination) await loadPlans(examination.patient.id);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Không thể xóa quá trình", "error");
     }
   };
 
@@ -403,20 +479,23 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
                   {examination.diagnoses.map(d => (
                     <div key={d.id} className="border border-amber-100 bg-amber-50/50 rounded-xl p-4">
                       <div className="text-[14px] font-bold text-slate-800">{d.description}</div>
-                      {d.dentalCondition && (
-                        <div className="text-[12px] font-medium text-slate-600 mt-1.5">
-                          <span className="font-extrabold text-slate-400 uppercase text-[10px] tracking-wider">Tình trạng răng: </span>
-                          {d.dentalCondition}
+                      {[
+                        ["Răng sâu", d.decayedTeeth],
+                        ["Răng mòn / nứt / vỡ", d.wornOrBrokenTeeth],
+                        ["Răng lung lay", d.looseTeeth],
+                        ["Tình trạng lợi", d.gumCondition],
+                        ["Tiền sử dị ứng", d.allergyHistory],
+                      ].filter(([, v]) => v).map(([label, v]) => (
+                        <div key={label} className="text-[12px] font-medium text-slate-600 mt-1.5">
+                          <span className="font-extrabold text-slate-400 uppercase text-[10px] tracking-wider">{label}: </span>
+                          {v}
                         </div>
-                      )}
+                      ))}
                       {d.conclusion && (
                         <div className="text-[12px] font-medium text-slate-600 mt-1">
-                          <span className="font-extrabold text-slate-400 uppercase text-[10px] tracking-wider">Kết luận: </span>
+                          <span className="font-extrabold text-slate-400 uppercase text-[10px] tracking-wider">Kết quả & kế hoạch: </span>
                           {d.conclusion}
                         </div>
-                      )}
-                      {d.notes && (
-                        <div className="text-[12px] italic text-slate-500 mt-1">{d.notes}</div>
                       )}
                     </div>
                   ))}
@@ -502,13 +581,50 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
                 <p className="text-[13px] font-semibold text-slate-400 text-center py-6">Chưa ghi nhận quá trình điều trị nào.</p>
               ) : (
                 <div className="divide-y divide-slate-100">
-                  <div className="grid gap-3 py-2.5 text-[11px] font-extrabold text-slate-400 uppercase tracking-wider" style={{ gridTemplateColumns: "90px 1fr 160px" }}>
+                  <div className="grid gap-3 py-2.5 text-[11px] font-extrabold text-slate-400 uppercase tracking-wider items-center" style={{ gridTemplateColumns: "24px 90px 1fr 160px 68px" }}>
+                    <span />
                     <span>Ngày</span>
                     <span>Nội dung / điều trị</span>
                     <span>Bác sĩ</span>
+                    <span />
                   </div>
-                  {progressRows.map((row, idx) => (
-                    <div key={idx} className="grid gap-3 py-3 items-start" style={{ gridTemplateColumns: "90px 1fr 160px" }}>
+                  {progressRows.map((row) => {
+                    const rowKey = `${row.planId}:${row.entryIndex}`;
+                    return (
+                    <div
+                      key={rowKey}
+                      draggable={isInProgress}
+                      onDragStart={e => {
+                        if (!isInProgress) { e.preventDefault(); return; }
+                        e.dataTransfer.setData("text/plain", rowKey);
+                        e.dataTransfer.effectAllowed = "move";
+                        setDragKey(rowKey);
+                      }}
+                      onDragEnd={() => { setDragKey(null); setDragOverKey(null); }}
+                      onDragOver={e => {
+                        if (!isInProgress) return;
+                        e.preventDefault(); // bắt buộc để onDrop có thể fire
+                        e.dataTransfer.dropEffect = "move";
+                        // Chỉ tô sáng khi cùng liệu trình (dùng cho hiển thị)
+                        if (dragKey && dragKey.split(":")[0] === row.planId) setDragOverKey(rowKey);
+                      }}
+                      onDragLeave={() => setDragOverKey(k => (k === rowKey ? null : k))}
+                      onDrop={e => {
+                        e.preventDefault();
+                        const src = e.dataTransfer.getData("text/plain");
+                        void handleReorderDrop(src, { planId: row.planId, entryIndex: row.entryIndex });
+                      }}
+                      className={`grid gap-3 py-3 items-start transition-colors ${dragKey === rowKey ? "opacity-40" : ""} ${dragOverKey === rowKey ? "bg-sky-50" : ""}`}
+                      style={{ gridTemplateColumns: "24px 90px 1fr 160px 68px" }}
+                    >
+                      <span
+                        title={isInProgress ? "Kéo để đổi thứ tự" : undefined}
+                        className={`flex items-center justify-center pt-0.5 text-slate-300 ${isInProgress ? "cursor-grab active:cursor-grabbing hover:text-slate-500" : "opacity-40"}`}
+                      >
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M9 5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM9 12a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM9 19a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM18 5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM18 12a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM18 19a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
+                        </svg>
+                      </span>
                       <span className="text-[13px] font-bold text-slate-600 font-mono">{fmtDate(row.date)}</span>
                       <div>
                         <div className="text-[13.5px] font-bold text-slate-800">
@@ -520,8 +636,31 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
                         {row.note && <div className="text-[12px] italic text-slate-500 mt-0.5">{row.note}</div>}
                       </div>
                       <span className="text-[13px] font-semibold text-slate-600">{row.dentistName}</span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleOpenEdit(row)}
+                          disabled={!isInProgress}
+                          title={isInProgress ? "Sửa tiến độ" : "Chỉ sửa được khi buổi khám đang diễn ra"}
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-300 hover:text-sky-600 hover:bg-sky-50 disabled:hover:bg-transparent disabled:hover:text-slate-200 disabled:text-slate-200 disabled:cursor-not-allowed cursor-pointer"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => void handleDeleteProgress(row)}
+                          disabled={!isInProgress}
+                          title={isInProgress ? "Xóa mục này" : "Chỉ xóa được khi buổi khám đang diễn ra"}
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50 disabled:hover:bg-transparent disabled:hover:text-slate-200 disabled:text-slate-200 disabled:cursor-not-allowed cursor-pointer"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
               <div className="py-3 border-t border-slate-100 flex justify-center">
@@ -763,39 +902,70 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
                       <button
                         key={step.id}
                         onClick={() => {
+                          setProgressCustom(false);
                           setProgressStepNumber(step.stepNumber);
                           setProgressStepName(step.name);
-                          setProgressPercent(step.percentOfTotal);
                         }}
-                        className={`flex items-center justify-between px-3.5 py-2.5 rounded-lg border text-left transition-colors cursor-pointer ${
-                          progressStepNumber === step.stepNumber
+                        className={`flex items-center px-3.5 py-2.5 rounded-lg border text-left transition-colors cursor-pointer ${
+                          !progressCustom && progressStepNumber === step.stepNumber
                             ? "bg-sky-50 border-sky-300 text-sky-800"
                             : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
                         }`}
                       >
                         <span className="text-[13px] font-bold">{step.stepNumber}. {step.name}</span>
-                        <span className="text-[12px] font-black">{step.percentOfTotal}%</span>
                       </button>
                     ))}
-                  </div>
-                ) : (
-                  <div className="mt-1.5 grid grid-cols-3 gap-3">
-                    <div className="col-span-2">
+
+                    {/* Bước ngoài quy trình chuẩn — không phải ca nào cũng theo đúng quy trình */}
+                    <button
+                      onClick={() => {
+                        setProgressCustom(true);
+                        setProgressStepNumber("");
+                        setProgressStepName("");
+                      }}
+                      className={`flex items-center gap-2 px-3.5 py-2.5 rounded-lg border border-dashed text-left transition-colors cursor-pointer ${
+                        progressCustom
+                          ? "bg-violet-50 border-violet-300 text-violet-800"
+                          : "bg-white border-slate-300 text-slate-500 hover:bg-slate-50"
+                      }`}
+                    >
+                      <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                      </svg>
+                      <span className="text-[13px] font-bold">Khác — tự nhập bước điều trị</span>
+                    </button>
+
+                    {progressCustom && (
                       <input
-                        type="text" placeholder="Tên bước (dịch vụ chưa có quy trình)"
+                        type="text" autoFocus
+                        placeholder="Nhập nội dung điều trị (VD: Xử lý viêm lợi phát sinh)"
                         value={progressStepName}
                         onChange={e => setProgressStepName(e.target.value)}
                         className="w-full px-3 py-2.5 text-[13px] bg-slate-50 border border-slate-200 rounded-lg focus:border-primary focus:outline-none font-bold"
                       />
-                    </div>
-                    <input
-                      type="number" min={0} max={100} placeholder="%"
-                      value={progressPercent || ""}
-                      onChange={e => setProgressPercent(Math.min(100, Math.max(0, Number(e.target.value))))}
-                      className="w-full px-3 py-2.5 text-[13px] bg-slate-50 border border-slate-200 rounded-lg focus:border-primary focus:outline-none font-bold"
-                    />
+                    )}
                   </div>
+                ) : (
+                  <input
+                    type="text" placeholder="Tên bước (dịch vụ chưa có quy trình)"
+                    value={progressStepName}
+                    onChange={e => setProgressStepName(e.target.value)}
+                    className="w-full mt-1.5 px-3 py-2.5 text-[13px] bg-slate-50 border border-slate-200 rounded-lg focus:border-primary focus:outline-none font-bold"
+                  />
                 )}
+              </div>
+
+              <div>
+                <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Tiến độ bước này (%)</label>
+                <div className="relative mt-1.5">
+                  <input
+                    type="number" min={0} max={100} placeholder="VD: 30"
+                    value={progressPercent || ""}
+                    onChange={e => setProgressPercent(Math.min(100, Math.max(0, Number(e.target.value))))}
+                    className="w-full px-3 py-2.5 pr-8 text-[13px] bg-slate-50 border border-slate-200 rounded-lg focus:border-primary focus:outline-none font-bold"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[13px] font-bold text-slate-400">%</span>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -823,6 +993,59 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
                 className="w-full py-3 bg-primary text-white text-[14px] font-black rounded-xl hover:bg-red-600 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed cursor-pointer"
               >
                 {savingProgress ? "Đang lưu..." : "Ghi nhận"}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ══════════ MODAL: SỬA TIẾN ĐỘ ĐÃ GHI ══════════ */}
+      {editEntry && createPortal(
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-6" onClick={() => setEditEntry(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+              <span className="text-[15px] font-black text-slate-900">Sửa tiến độ</span>
+              <button onClick={() => setEditEntry(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-6 flex flex-col gap-4">
+              <div className="bg-slate-50 border border-slate-100 rounded-xl px-4 py-3">
+                <div className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Bước điều trị</div>
+                <div className="text-[14px] font-black text-slate-800 mt-0.5">{editEntry.stepName}</div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Tiến độ hoàn thành (%)</label>
+                <div className="relative mt-1.5">
+                  <input
+                    type="number" min={0} max={100} autoFocus
+                    value={editPercent || ""}
+                    onChange={e => setEditPercent(Math.min(100, Math.max(0, Number(e.target.value))))}
+                    className="w-full px-3 py-2.5 pr-8 text-[13px] bg-slate-50 border border-slate-200 rounded-lg focus:border-primary focus:outline-none font-bold"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[13px] font-bold text-slate-400">%</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Ghi chú</label>
+                <input
+                  type="text" placeholder="Tùy chọn..." value={editNote}
+                  onChange={e => setEditNote(e.target.value)}
+                  className="w-full mt-1.5 px-3 py-2.5 text-[13px] bg-slate-50 border border-slate-200 rounded-lg focus:border-primary focus:outline-none font-semibold"
+                />
+              </div>
+
+              <button
+                onClick={() => void handleSaveEdit()}
+                disabled={savingEdit}
+                className="w-full py-3 bg-primary text-white text-[14px] font-black rounded-xl hover:bg-red-600 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed cursor-pointer"
+              >
+                {savingEdit ? "Đang lưu..." : "Lưu thay đổi"}
               </button>
             </div>
           </div>

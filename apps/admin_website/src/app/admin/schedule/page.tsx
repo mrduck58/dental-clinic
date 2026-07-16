@@ -367,7 +367,7 @@ export default function SchedulePage() {
 
               {/* Edit */}
               <Link
-                href={`/dashboard/schedule/edit?week=${formatDateKey(currentMonday)}`}
+                href={`/admin/schedule/edit?week=${formatDateKey(currentMonday)}`}
                 className="flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-red-50/50 text-primary text-[13px] font-bold border border-primary/60 rounded-xl transition-all shadow-sm cursor-pointer whitespace-nowrap"
               >
                 <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -378,7 +378,7 @@ export default function SchedulePage() {
 
               {/* Create new week */}
               <Link
-                href={`/dashboard/schedule/edit?week=${formatDateKey(currentMonday)}`}
+                href={`/admin/schedule/edit?week=${formatDateKey(currentMonday)}`}
                 className="flex items-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary-hover text-white text-[13px] font-bold rounded-xl shadow-md shadow-primary/15 transition-all cursor-pointer whitespace-nowrap"
               >
                 <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
