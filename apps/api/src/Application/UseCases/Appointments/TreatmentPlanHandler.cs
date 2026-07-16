@@ -1,7 +1,10 @@
 using System.Text.Json;
+using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
+using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -64,7 +67,10 @@ public class TreatmentPlanDto
     public DateTimeOffset? CompletedAt { get; set; }
 }
 
-public class TreatmentPlanHandler(AppDbContext dbContext)
+public class TreatmentPlanHandler(
+    AppDbContext dbContext,
+    IPatientRepository patientRepository,
+    INotificationService notificationService)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -94,6 +100,20 @@ public class TreatmentPlanHandler(AppDbContext dbContext)
 
         dbContext.TreatmentPlans.Add(treatmentPlan);
         await dbContext.SaveChangesAsync(ct);
+
+        // Báo cho bệnh nhân có kế hoạch điều trị mới (nếu tài khoản có liên kết User).
+        var patient = await patientRepository.GetByIdAsync(appointment.PatientId, ct);
+        if (patient?.UserId is Guid patientUserId)
+        {
+            await notificationService.CreateAsync(new CreateNotificationRequest(
+                UserId: patientUserId,
+                Type: NotificationType.Service,
+                Priority: NotificationPriority.Medium,
+                Title: "Kế hoạch điều trị mới",
+                Body: $"Bác sĩ đã lập kế hoạch điều trị: {service.Name}. Xem chi tiết trong hồ sơ khám bệnh.",
+                RelatedEntityType: "TreatmentPlan",
+                RelatedEntityId: treatmentPlan.Id.ToString()), ct);
+        }
 
         return await LoadDtoAsync(treatmentPlan.Id, ct);
     }

@@ -1,6 +1,9 @@
+using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
+using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -41,7 +44,10 @@ public record UpdatePrescriptionItemRequest(
     string Usage,
     string? Notes);
 
-public class PrescriptionHandler(AppDbContext dbContext)
+public class PrescriptionHandler(
+    AppDbContext dbContext,
+    IPatientRepository patientRepository,
+    INotificationService notificationService)
 {
     public async Task<PrescriptionDto> CreateAsync(CreatePrescriptionRequest request, CancellationToken ct = default)
     {
@@ -86,6 +92,21 @@ public class PrescriptionHandler(AppDbContext dbContext)
         var createdPrescription = await dbContext.Prescriptions
             .Include(p => p.Items)
             .FirstAsync(p => p.Id == prescription.Id, ct);
+
+        // Báo cho bệnh nhân có đơn thuốc mới (nếu tài khoản có liên kết User) — trước đây bệnh nhân
+        // chỉ biết đơn thuốc khi tự vào xem hồ sơ, không được chủ động báo.
+        var patient = await patientRepository.GetByIdAsync(appointment.PatientId, ct);
+        if (patient?.UserId is Guid patientUserId)
+        {
+            await notificationService.CreateAsync(new CreateNotificationRequest(
+                UserId: patientUserId,
+                Type: NotificationType.Service,
+                Priority: NotificationPriority.Medium,
+                Title: "Đơn thuốc mới",
+                Body: "Bác sĩ đã kê đơn thuốc mới cho bạn. Xem chi tiết trong hồ sơ khám bệnh.",
+                RelatedEntityType: "Appointment",
+                RelatedEntityId: appointment.Id.ToString()), ct);
+        }
 
         return ToDto(createdPrescription);
     }

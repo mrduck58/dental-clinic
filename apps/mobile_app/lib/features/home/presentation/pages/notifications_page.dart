@@ -1,34 +1,37 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
+import 'package:mobile_app/core/network/api_client.dart';
+import 'package:mobile_app/features/home/data/models/notification_models.dart';
+import 'package:mobile_app/features/home/data/notification_service.dart';
+import 'package:dio/dio.dart';
 
-class NotificationItem {
-  final String id;
-  final String titleVi;
-  final String titleEn;
-  final String messageVi;
-  final String messageEn;
-  final DateTime timestamp;
-  bool isRead;
+/// Icon/màu hiển thị theo NotificationType từ backend (system/account/schedule/service/
+/// security/reminder/appointment/invoice) — khớp cách phân loại ở NotificationBell của admin_website.
+class _TypeStyle {
   final IconData icon;
-  final Color iconBg;
-  final bool isReminder;
-
-  NotificationItem({
-    required this.id,
-    required this.titleVi,
-    required this.titleEn,
-    required this.messageVi,
-    required this.messageEn,
-    required this.timestamp,
-    this.isRead = false,
-    required this.icon,
-    required this.iconBg,
-    this.isReminder = false,
-  });
+  final Color color;
+  final Color bg;
+  const _TypeStyle(this.icon, this.color, this.bg);
 }
+
+const Map<String, _TypeStyle> _typeStyles = {
+  'appointment': _TypeStyle(Iconsax.calendar_tick, Color(0xFF0284C7), Color(0xFFE0F2FE)),
+  'reminder': _TypeStyle(Iconsax.clock, Color(0xFFD97706), Color(0xFFFEF3C7)),
+  'schedule': _TypeStyle(Iconsax.calendar, Color(0xFFD97706), Color(0xFFFEF3C7)),
+  'security': _TypeStyle(Iconsax.shield_tick, Color(0xFFE11D48), Color(0xFFFFE4E6)),
+  'account': _TypeStyle(Iconsax.user, Color(0xFFDC2626), Color(0xFFFEE2E2)),
+  'system': _TypeStyle(Icons.settings_rounded, Color(0xFF7C3AED), Color(0xFFEDE9FE)),
+  'invoice': _TypeStyle(Iconsax.receipt_1, Color(0xFF059669), Color(0xFFD1FAE5)),
+  'service': _TypeStyle(Iconsax.health, Color(0xFF2563EB), Color(0xFFDBEAFE)),
+};
+const _fallbackStyle = _TypeStyle(Iconsax.notification, Colors.grey, Color(0xFFF1F5F9));
+
+_TypeStyle _styleFor(String type) => _typeStyles[type] ?? _fallbackStyle;
 
 class NotificationsPage extends StatefulWidget {
   const NotificationsPage({super.key});
@@ -38,86 +41,86 @@ class NotificationsPage extends StatefulWidget {
 }
 
 class _NotificationsPageState extends State<NotificationsPage> {
+  final _service = NotificationService();
+
   int _selectedTab = 0; // 0=All, 1=Unread, 2=Reminders
+  List<NotificationItem> _notifications = [];
+  bool _isLoading = true;
+  String? _error;
 
-  final List<NotificationItem> _notifications = [
-    NotificationItem(
-      id: '1',
-      titleVi: 'Lịch khám sắp tới',
-      titleEn: 'Upcoming Appointment',
-      messageVi: 'Lịch hẹn khám răng định kỳ với BS. Sarah Williams vào lúc 09:00 ngày mai.',
-      messageEn: 'Your routine checkup with Dr. Sarah Williams is scheduled at 09:00 tomorrow.',
-      timestamp: DateTime.now().subtract(const Duration(hours: 2)),
-      isRead: false,
-      icon: Iconsax.calendar_tick,
-      iconBg: const Color(0xFFFEE2E2),
-      isReminder: true,
-    ),
-    NotificationItem(
-      id: '2',
-      titleVi: 'Giảm giá Đặc biệt',
-      titleEn: 'Special Discount',
-      messageVi: 'Ưu đãi 20% các dịch vụ thẩm mỹ răng sứ nhân dịp khai trương chi nhánh mới.',
-      messageEn: 'Get 20% off cosmetic porcelain teeth services for our new branch grand opening.',
-      timestamp: DateTime.now().subtract(const Duration(days: 1)),
-      isRead: true,
-      icon: Iconsax.discount_shape,
-      iconBg: const Color(0xFFFEF3C7),
-    ),
-    NotificationItem(
-      id: '3',
-      titleVi: 'Thay đổi Lịch hẹn',
-      titleEn: 'Schedule Changes',
-      messageVi: 'Lịch hẹn khám ngày 28/06/2026 đã được dời sang 14:00 theo yêu cầu.',
-      messageEn: 'Your appointment on 06/28/2026 has been rescheduled to 14:00 as requested.',
-      timestamp: DateTime.now().subtract(const Duration(days: 2)),
-      isRead: false,
-      icon: Iconsax.clock,
-      iconBg: const Color(0xFFE0F2FE),
-      isReminder: true,
-    ),
-    NotificationItem(
-      id: '4',
-      titleVi: 'Công nghệ Nha khoa mới',
-      titleEn: 'New Dental Technology',
-      messageVi: 'Phòng khám đã đưa công nghệ Dental AI mới nhất vào phân tích và chẩn đoán cấu trúc hàm.',
-      messageEn: 'We have integrated the latest Dental AI technology for jaw structure analysis.',
-      timestamp: DateTime.now().subtract(const Duration(days: 3)),
-      isRead: true,
-      icon: Iconsax.cpu,
-      iconBg: const Color(0xFFDCFCE7),
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
 
-  String _formatTime(DateTime dt, String lang) {
-    final diff = DateTime.now().difference(dt);
-    if (diff.inMinutes < 60) {
-      return lang == 'vi' ? '${diff.inMinutes} phút trước' : '${diff.inMinutes}m ago';
-    } else if (diff.inHours < 24) {
-      return lang == 'vi' ? '${diff.inHours} giờ trước' : '${diff.inHours}h ago';
-    } else {
-      return lang == 'vi' ? '${diff.inDays} ngày trước' : '${diff.inDays}d ago';
+  Future<void> _load() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final result = await _service.getNotifications(pageSize: 50);
+      if (!mounted) return;
+      setState(() => _notifications = result.items);
+    } catch (e) {
+      if (!mounted) return;
+      final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
+      setState(() {
+        _error = e is DioException
+            ? ApiClient.errorMessage(e)
+            : (isVi ? 'Không thể tải thông báo.' : 'Could not load notifications.');
+      });
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  void _markAllRead() {
+  Future<void> _markOneRead(NotificationItem item) async {
+    if (item.isRead) return;
     setState(() {
-      for (var item in _notifications) {
-        item.isRead = true;
-      }
+      _notifications = _notifications
+          .map((n) => n.id == item.id ? n.copyWith(isRead: true) : n)
+          .toList();
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(context.l10n('mark_all_read')),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    try {
+      await _service.markAsRead(item.id);
+    } catch (_) {
+      // Lỗi mạng khi đánh dấu đã đọc không đáng để rollback UI hay làm phiền người dùng
+      // bằng thông báo lỗi — lần tải lại trang sau sẽ tự đồng bộ đúng trạng thái từ server.
+    }
   }
 
-  void _deleteAll() {
+  Future<void> _markAllRead() async {
+    final previous = _notifications;
     setState(() {
-      _notifications.clear();
+      _notifications = _notifications.map((n) => n.copyWith(isRead: true)).toList();
     });
+    try {
+      await _service.markAllAsRead();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.l10n('mark_all_read')), behavior: SnackBarBehavior.floating),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _notifications = previous);
+      final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(isVi ? 'Không thể đánh dấu đã đọc. Thử lại sau.' : 'Could not mark as read. Try again later.'),
+      ));
+    }
+  }
+
+  Future<void> _deleteAll() async {
+    final items = _notifications;
+    setState(() => _notifications = []);
+    try {
+      await Future.wait(items.map((n) => _service.delete(n.id)));
+    } catch (_) {
+      // Một vài item có thể xóa thất bại giữa chừng — tải lại để đồng bộ đúng trạng thái thật.
+      await _load();
+    }
   }
 
   void _showOptionsBottomSheet(BuildContext ctx) {
@@ -159,7 +162,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                 ),
                 onTap: () {
                   Navigator.pop(ctx);
-                  _markAllRead();
+                  unawaited(_markAllRead());
                 },
               ),
               ListTile(
@@ -178,7 +181,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                 ),
                 onTap: () {
                   Navigator.pop(ctx);
-                  _deleteAll();
+                  unawaited(_deleteAll());
                 },
               ),
               const SizedBox(height: 4),
@@ -194,9 +197,22 @@ class _NotificationsPageState extends State<NotificationsPage> {
       case 1:
         return _notifications.where((n) => !n.isRead).toList();
       case 2:
-        return _notifications.where((n) => n.isReminder).toList();
+        return _notifications.where((n) => n.type == 'reminder').toList();
       default:
         return _notifications;
+    }
+  }
+
+  String _formatTime(DateTime dt, String lang) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1) {
+      return lang == 'vi' ? 'Vừa xong' : 'Just now';
+    } else if (diff.inMinutes < 60) {
+      return lang == 'vi' ? '${diff.inMinutes} phút trước' : '${diff.inMinutes}m ago';
+    } else if (diff.inHours < 24) {
+      return lang == 'vi' ? '${diff.inHours} giờ trước' : '${diff.inHours}h ago';
+    } else {
+      return lang == 'vi' ? '${diff.inDays} ngày trước' : '${diff.inDays}d ago';
     }
   }
 
@@ -279,42 +295,86 @@ class _NotificationsPageState extends State<NotificationsPage> {
           ),
         ),
       ),
-      body: _buildList(context, _filteredList, isVi),
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: _buildBody(context, isVi),
+      ),
     );
+  }
+
+  Widget _buildBody(BuildContext context, bool isVi) {
+    if (_isLoading && _notifications.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error != null && _notifications.isEmpty) {
+      return ListView(
+        // Bọc trong ListView để RefreshIndicator (kéo để tải lại) vẫn hoạt động ở trạng thái lỗi.
+        children: [
+          SizedBox(
+            height: MediaQuery.of(context).size.height * 0.6,
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Iconsax.warning_2, size: 40, color: context.textMuted),
+                  const SizedBox(height: 12),
+                  Text(_error!, style: TextStyle(color: context.textSecondary), textAlign: TextAlign.center),
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: _load,
+                    child: Text(isVi ? 'Thử lại' : 'Retry'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return _buildList(context, _filteredList, isVi);
   }
 
   Widget _buildList(BuildContext context, List<NotificationItem> items, bool isVi) {
     if (items.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 40.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 90,
-                height: 90,
-                decoration: BoxDecoration(
-                  color: context.isDark ? Colors.grey[800] : const Color(0xFFF1F5F9),
-                  shape: BoxShape.circle,
+      return ListView(
+        children: [
+          SizedBox(
+            height: MediaQuery.of(context).size.height * 0.6,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 40.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 90,
+                      height: 90,
+                      decoration: BoxDecoration(
+                        color: context.isDark ? Colors.grey[800] : const Color(0xFFF1F5F9),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Iconsax.notification_status, size: 40, color: context.textMuted),
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      context.l10n('notifications_empty'),
+                      style: TextStyle(color: context.textPrimary, fontSize: 18, fontWeight: FontWeight.w800),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      context.l10n('no_notifications_desc'),
+                      style: TextStyle(color: context.textSecondary, fontSize: 14),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
                 ),
-                child: Icon(Iconsax.notification_status, size: 40, color: context.textMuted),
               ),
-              const SizedBox(height: 24),
-              Text(
-                context.l10n('notifications_empty'),
-                style: TextStyle(color: context.textPrimary, fontSize: 18, fontWeight: FontWeight.w800),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                context.l10n('no_notifications_desc'),
-                style: TextStyle(color: context.textSecondary, fontSize: 14),
-                textAlign: TextAlign.center,
-              ),
-            ],
+            ),
           ),
-        ),
+        ],
       );
     }
 
@@ -324,7 +384,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
       separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final item = items[index];
-        // Use uniform border + ClipRRect for left accent to avoid Flutter constraint
+        final style = _styleFor(item.type);
         return ClipRRect(
           borderRadius: BorderRadius.circular(16),
           child: Container(
@@ -347,14 +407,12 @@ class _NotificationsPageState extends State<NotificationsPage> {
             ),
             child: Row(
               children: [
-                // Left accent bar for unread
-                if (!item.isRead)
-                  Container(width: 4, color: AppColors.primary),
+                if (!item.isRead) Container(width: 4, color: AppColors.primary),
                 Expanded(
                   child: Material(
                     color: Colors.transparent,
                     child: InkWell(
-                      onTap: () => setState(() => item.isRead = true),
+                      onTap: () => unawaited(_markOneRead(item)),
                       child: Padding(
                         padding: const EdgeInsets.all(16.0),
                         child: Row(
@@ -364,10 +422,10 @@ class _NotificationsPageState extends State<NotificationsPage> {
                               width: 48,
                               height: 48,
                               decoration: BoxDecoration(
-                                color: context.isDark ? Colors.red[900]?.withValues(alpha: 0.3) : item.iconBg,
+                                color: context.isDark ? style.color.withValues(alpha: 0.2) : style.bg,
                                 shape: BoxShape.circle,
                               ),
-                              child: Icon(item.icon, color: AppColors.primary, size: 22),
+                              child: Icon(style.icon, color: style.color, size: 22),
                             ),
                             const SizedBox(width: 14),
                             Expanded(
@@ -379,7 +437,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                                     children: [
                                       Expanded(
                                         child: Text(
-                                          isVi ? item.titleVi : item.titleEn,
+                                          item.title,
                                           style: TextStyle(
                                             color: context.textPrimary,
                                             fontWeight: item.isRead ? FontWeight.w500 : FontWeight.w800,
@@ -401,7 +459,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                                   ),
                                   const SizedBox(height: 6),
                                   Text(
-                                    isVi ? item.messageVi : item.messageEn,
+                                    item.body,
                                     style: TextStyle(
                                       color: item.isRead ? context.textSecondary : context.textPrimary.withValues(alpha: 0.9),
                                       fontSize: 13,
@@ -410,7 +468,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
-                                    _formatTime(item.timestamp, isVi ? 'vi' : 'en'),
+                                    _formatTime(item.createdAt, isVi ? 'vi' : 'en'),
                                     style: TextStyle(
                                       color: context.textMuted,
                                       fontSize: 11,
