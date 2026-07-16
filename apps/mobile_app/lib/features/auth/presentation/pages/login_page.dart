@@ -21,6 +21,16 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
+  // Trên Web, Client ID lấy từ thẻ meta google-signin-client_id (web/index.html).
+  // Trên native (Android/iOS), serverClientId phải là client Web Application
+  // (khớp GoogleAuthSettings:ClientId ở backend) để idToken trả về xác thực được.
+  final _googleSignIn = kIsWeb
+      ? GoogleSignIn()
+      : GoogleSignIn(
+          serverClientId:
+              '480881191460-8e7emobqjha18fkom70vs432jq0fmttk.apps.googleusercontent.com',
+        );
+
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
 
@@ -42,7 +52,7 @@ class _LoginPageState extends State<LoginPage> {
     if (kIsWeb) {
       // Trên Web, nút Google (renderButton) tự xử lý popup/consent và phát
       // tài khoản qua stream này — không gọi signIn() trực tiếp được.
-      _googleAccountSub = GoogleSignIn().onCurrentUserChanged.listen((account) {
+      _googleAccountSub = _googleSignIn.onCurrentUserChanged.listen((account) {
         if (account != null) _handleGoogleAccount(account);
       });
     }
@@ -99,7 +109,7 @@ class _LoginPageState extends State<LoginPage> {
 
   /// Luồng native (Android/iOS/desktop) — gọi signIn() trực tiếp.
   Future<void> _handleGoogleSignIn() async {
-    final googleUser = await GoogleSignIn().signIn();
+    final googleUser = await _googleSignIn.signIn();
     if (googleUser == null) return; // Người dùng huỷ đăng nhập
     await _handleGoogleAccount(googleUser);
   }
