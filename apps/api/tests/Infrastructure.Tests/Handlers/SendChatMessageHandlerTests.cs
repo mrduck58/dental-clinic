@@ -41,7 +41,7 @@ public class SendChatMessageHandlerTests
         _db.Users.Add(user);
         _userId = user.Id;
 
-        _patient = Patient.Create("Bệnh nhân Test", new DateOnly(1990, 1, 1), "Nam", user.Id);
+        _patient = Patient.Create(user.Id, new DateOnly(1990, 1, 1), "Nam");
         _db.Patients.Add(_patient);
 
         _conversation = ChatConversation.Create(_patient.Id);
@@ -109,7 +109,7 @@ public class SendChatMessageHandlerTests
             fullName: "BS Nguyễn Văn A");
         _db.Users.Add(dentistUser);
 
-        var dentist = Dentist.Create(dentistUser.Id, "BS Nguyễn Văn A", "Chỉnh nha", 5);
+        var dentist = Dentist.Create(dentistUser.Id, "Chỉnh nha", 5);
         _db.Dentists.Add(dentist);
 
         _db.WorkSchedules.Add(WorkSchedule.Create(
@@ -354,8 +354,10 @@ public class SendChatMessageHandlerTests
         var tomorrow = TomorrowVn();
         var dentist = await SeedDentistWithScheduleAsync(tomorrow);
 
+        var childUser = User.CreateEmployee($"family-{Guid.NewGuid()}@songiangdental.com", "Patient", fullName: "Bé Bún");
+        _db.Users.Add(childUser);
         var child = Patient.Create(
-            "Bé Bún", new DateOnly(2018, 1, 1), "Nam", primaryPatientId: _patient.Id, relationship: "Con");
+            childUser.Id, new DateOnly(2018, 1, 1), "Nam", primaryPatientId: _patient.Id, relationship: "Con");
         _db.Patients.Add(child);
         await _db.SaveChangesAsync();
         _patientRepo.GetFamilyMembersAsync(_patient.Id, Arg.Any<CancellationToken>())

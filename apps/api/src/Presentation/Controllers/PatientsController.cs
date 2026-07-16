@@ -22,10 +22,9 @@ public class PatientsController(
             if (user == null) return null;
 
             patient = Patient.Create(
-                fullName: user.FullName ?? user.Username ?? user.Email,
+                userId: user.Id,
                 dateOfBirth: user.DateOfBirth ?? new DateOnly(2000, 1, 1),
                 gender: user.Gender ?? "Nam",
-                userId: user.Id,
                 phoneNumber: user.PhoneNumber
             );
 
@@ -57,7 +56,7 @@ public class PatientsController(
             p.PhoneNumber ?? p.User?.PhoneNumber,
             p.DateOfBirth,
             p.Gender,
-            p.UserId != null
+            p.User != null && p.User.PasswordHash != null
         )));
     }
 
@@ -166,8 +165,17 @@ public class PatientsController(
         var primaryPatient = await GetOrCreatePrimaryPatientAsync(userId.Value, ct);
         if (primaryPatient == null) return NotFound("Patient profile not found.");
 
+        // Create a placeholder user for the family member
+        var placeholderUser = DentalClinic.API.Domain.Entities.User.CreateEmployee(
+            email: $"family-{Guid.NewGuid()}@songiangdental.com",
+            role: "Patient",
+            phoneNumber: request.PhoneNumber,
+            fullName: request.FullName
+        );
+        await userRepository.AddAsync(placeholderUser, ct);
+
         var member = Patient.Create(
-            fullName: request.FullName,
+            userId: placeholderUser.Id,
             dateOfBirth: request.DateOfBirth,
             gender: request.Gender,
             phoneNumber: request.PhoneNumber,

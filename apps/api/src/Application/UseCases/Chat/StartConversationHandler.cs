@@ -29,10 +29,9 @@ public class StartConversationHandler(
                 ?? throw new NotFoundException("Không tìm thấy tài khoản.");
 
             patient = Patient.Create(
-                user.FullName ?? user.Email,
-                user.DateOfBirth ?? new DateOnly(1990, 1, 1),
-                user.Gender ?? "Nam",
-                userId);
+                userId: userId,
+                dateOfBirth: user.DateOfBirth ?? new DateOnly(1990, 1, 1),
+                gender: user.Gender ?? "Nam");
             await patientRepository.AddAsync(patient, ct);
         }
 

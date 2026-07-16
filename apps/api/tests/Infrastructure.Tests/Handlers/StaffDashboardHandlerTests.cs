@@ -32,12 +32,12 @@ public class StaffDashboardHandlerTests
     private async Task<(Patient patient, Dentist dentist)> SeedBasicDataAsync(
         string dentistName = "BS. Nguyễn Văn A")
     {
-        var patientUser = User.Create("p1", $"p1-{Guid.NewGuid()}@test.com", "hash", "Patient");
-        var dentistUser = User.Create("d1", $"d1-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        var patientUser = User.Create("p1", $"p1-{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: "Trần Thị B");
+        var dentistUser = User.Create("d1", $"d1-{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: dentistName);
         _db.Users.AddRange(patientUser, dentistUser);
 
-        var dentist = Dentist.Create(dentistUser.Id, dentistName, "Nha khoa tổng quát", 5);
-        var patient = Patient.Create("Trần Thị B", new DateOnly(1990, 1, 1), "Nữ", patientUser.Id);
+        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nữ");
         _db.Dentists.Add(dentist);
         _db.Patients.Add(patient);
 

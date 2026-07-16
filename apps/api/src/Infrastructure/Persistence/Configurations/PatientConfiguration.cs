@@ -15,5 +15,12 @@ public class PatientConfiguration : IEntityTypeConfiguration<Patient>
             .WithMany(p => p.FamilyMembers)
             .HasForeignKey(p => p.PrimaryPatientId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // Required one-to-one relationship with User
+        builder.HasOne(p => p.User)
+            .WithOne(u => u.Patient)
+            .HasForeignKey<Patient>(p => p.UserId)
+            .IsRequired()
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

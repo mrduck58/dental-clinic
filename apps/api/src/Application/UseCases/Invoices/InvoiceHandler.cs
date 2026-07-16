@@ -124,7 +124,7 @@ public class InvoiceHandler(
         var appointments = await dbContext.Appointments
             .AsNoTracking()
             .Include(a => a.Patient).ThenInclude(p => p.User)
-            .Include(a => a.Dentist)
+            .Include(a => a.Dentist).ThenInclude(d => d.User)
             .Include(a => a.Diagnoses)
             .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Service)
             .Where(a => a.Status == AppointmentStatus.PendingPayment && !a.Invoices.Any())
@@ -205,7 +205,7 @@ public class InvoiceHandler(
         var remainingParents = await dbContext.Invoices
             .AsNoTracking()
             .Include(i => i.Appointment).ThenInclude(a => a.Patient).ThenInclude(p => p.User)
-            .Include(i => i.Appointment).ThenInclude(a => a.Dentist)
+            .Include(i => i.Appointment).ThenInclude(a => a.Dentist).ThenInclude(d => d.User)
             .Where(i => i.CollectingRemaining && !i.IsSettled && i.TotalAmount > i.DepositAmount
                         && !dbContext.Invoices.Any(c => c.ParentInvoiceId == i.Id))
             .OrderBy(i => i.CreatedAt)
@@ -431,7 +431,7 @@ public class InvoiceHandler(
         var plans = await dbContext.TreatmentPlans
             .AsNoTracking()
             .Include(tp => tp.Patient).ThenInclude(p => p.User)
-            .Include(tp => tp.Dentist)
+            .Include(tp => tp.Dentist).ThenInclude(d => d.User)
             .Include(tp => tp.Service)
             .Where(tp => tp.Status == TreatmentPlanStatus.InProgress)
             .OrderByDescending(tp => tp.CreatedAt)
@@ -621,7 +621,7 @@ public class InvoiceHandler(
             .AsNoTracking()
             .Include(i => i.Items)
             .Include(i => i.Appointment).ThenInclude(a => a.Patient).ThenInclude(p => p.User)
-            .Include(i => i.Appointment).ThenInclude(a => a.Dentist);
+            .Include(i => i.Appointment).ThenInclude(a => a.Dentist).ThenInclude(d => d.User);
 
     private async Task<string> GenerateInvoiceNumberAsync(CancellationToken ct)
     {

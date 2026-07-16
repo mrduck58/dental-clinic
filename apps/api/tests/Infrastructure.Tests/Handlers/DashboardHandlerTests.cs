@@ -35,12 +35,12 @@ public class DashboardHandlerTests
     private async Task<(Patient patient, Dentist dentist)> SeedBasicDataAsync(
         string dentistName = "BS. Nguyễn Văn A", string specialization = "Nha khoa tổng quát")
     {
-        var patientUser = User.Create("p1", $"p1-{Guid.NewGuid()}@test.com", "hash", "Patient");
-        var dentistUser = User.Create("d1", $"d1-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        var patientUser = User.Create("p1", $"p1-{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: "Trần Thị B");
+        var dentistUser = User.Create("d1", $"d1-{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: dentistName);
         _db.Users.AddRange(patientUser, dentistUser);
 
-        var dentist = Dentist.Create(dentistUser.Id, dentistName, specialization, 5);
-        var patient = Patient.Create("Trần Thị B", new DateOnly(1990, 1, 1), "Nữ", patientUser.Id);
+        var dentist = Dentist.Create(dentistUser.Id, specialization, 5);
+        var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nữ");
         _db.Dentists.Add(dentist);
         _db.Patients.Add(patient);
 
@@ -78,7 +78,9 @@ public class DashboardHandlerTests
     [Test]
     public async Task GetStatsAsync_PatientCreatedThisWeek_CountsAsNewPatient()
     {
-        var patient = Patient.Create("Bệnh nhân mới", new DateOnly(1995, 5, 5), "Nam");
+        var user = User.CreateEmployee($"pnew-{Guid.NewGuid()}@test.com", "Patient", fullName: "Bệnh nhân mới");
+        _db.Users.Add(user);
+        var patient = Patient.Create(user.Id, new DateOnly(1995, 5, 5), "Nam");
         SetCreatedAt(patient, DateTimeOffset.UtcNow);
         _db.Patients.Add(patient);
         await _db.SaveChangesAsync();
@@ -92,7 +94,9 @@ public class DashboardHandlerTests
     [Test]
     public async Task GetStatsAsync_PatientCreatedLongAgo_NotCountedInCurrentPeriod()
     {
-        var patient = Patient.Create("Bệnh nhân cũ", new DateOnly(1980, 1, 1), "Nam");
+        var user = User.CreateEmployee($"pold-{Guid.NewGuid()}@test.com", "Patient", fullName: "Bệnh nhân cũ");
+        _db.Users.Add(user);
+        var patient = Patient.Create(user.Id, new DateOnly(1980, 1, 1), "Nam");
         SetCreatedAt(patient, DateTimeOffset.UtcNow.AddDays(-400));
         _db.Patients.Add(patient);
         await _db.SaveChangesAsync();
@@ -147,7 +151,9 @@ public class DashboardHandlerTests
     [Test]
     public async Task GetStatsAsync_PreviousPeriodZero_TrendIsHundredPercent()
     {
-        var patient = Patient.Create("Bệnh nhân mới", new DateOnly(1995, 5, 5), "Nam");
+        var user = User.CreateEmployee($"pnew2-{Guid.NewGuid()}@test.com", "Patient", fullName: "Bệnh nhân mới");
+        _db.Users.Add(user);
+        var patient = Patient.Create(user.Id, new DateOnly(1995, 5, 5), "Nam");
         SetCreatedAt(patient, DateTimeOffset.UtcNow);
         _db.Patients.Add(patient);
         await _db.SaveChangesAsync();

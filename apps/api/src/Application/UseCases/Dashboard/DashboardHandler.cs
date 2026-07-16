@@ -279,7 +279,7 @@ public class DashboardHandler(AppDbContext dbContext)
             .Select(a => new TodayAppointmentItemDto(
                 a.Id,
                 a.AppointmentDate,
-                a.Patient.FullName,
+                a.Patient.User.FullName ?? string.Empty,
                 a.Service != null ? a.Service.Name : null,
                 a.Status.ToString()))
             .ToListAsync(ct);
@@ -314,8 +314,8 @@ public class DashboardHandler(AppDbContext dbContext)
         var dentistsByName = await dbContext.Dentists
             .AsNoTracking()
             .Include(d => d.User)
-            .Where(d => staffNames.Contains(d.FullName))
-            .ToDictionaryAsync(d => d.FullName, d => d, ct);
+            .Where(d => staffNames.Contains(d.User.FullName ?? string.Empty))
+            .ToDictionaryAsync(d => d.User.FullName ?? string.Empty, d => d, ct);
 
         var dayStart = ToVn(selectedDate);
         var dayEnd = ToVn(selectedDate.AddDays(1));

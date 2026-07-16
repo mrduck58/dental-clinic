@@ -69,7 +69,7 @@ public class CreateStaffHandler(IUserRepository userRepository, AppDbContext dbC
         if (string.Equals(command.Role, "Dentist", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(command.Role, "Doctor",  StringComparison.OrdinalIgnoreCase))
         {
-            var dentist = Dentist.Create(user.Id, command.FullName,
+            var dentist = Dentist.Create(user.Id,
                 command.Specialty ?? "Nha khoa tổng quát",
                 command.YearsOfExperience ?? 0);
             dbContext.Dentists.Add(dentist);

@@ -7,8 +7,8 @@ namespace DentalClinic.API.Domain.Entities;
 public class Patient
 {
     public Guid Id { get; private set; }
-    public Guid? UserId { get; private set; } // Nullable — bệnh nhân tạo thủ công không cần tài khoản
-    public string FullName { get; private set; } = string.Empty;
+    public Guid UserId { get; private set; }
+    public string FullName => User?.FullName ?? string.Empty;
     public DateOnly DateOfBirth { get; private set; }
     public string Gender { get; private set; } = string.Empty;
     public string? PhoneNumber { get; private set; } // Lưu trực tiếp cho walk-in patient chưa có tài khoản
@@ -22,7 +22,7 @@ public class Patient
     public DateTimeOffset CreatedAt { get; private set; }
 
     // Navigation properties
-    public User? User { get; private set; }
+    public User User { get; private set; } = null!;
     public Patient? PrimaryPatient { get; private set; }
     public ICollection<Patient> FamilyMembers { get; private set; } = [];
     public ICollection<Appointment> Appointments { get; private set; } = [];
@@ -30,17 +30,16 @@ public class Patient
     private Patient() { }
 
     public static Patient Create(
-        string fullName, DateOnly dateOfBirth, string gender, Guid? userId = null,
+        Guid userId, DateOnly dateOfBirth, string gender,
         string? phoneNumber = null, Guid? primaryPatientId = null, string? relationship = null,
         string? profilePictureUrl = null)
     {
         return new Patient
         {
             Id = Guid.NewGuid(),
-            FullName = fullName,
+            UserId = userId,
             DateOfBirth = dateOfBirth,
             Gender = gender,
-            UserId = userId,
             PhoneNumber = phoneNumber,
             PrimaryPatientId = primaryPatientId,
             Relationship = relationship,
@@ -49,7 +48,13 @@ public class Patient
         };
     }
 
-    public void SetFullName(string name) => FullName = name;
+    public void SetFullName(string name)
+    {
+        if (User != null)
+        {
+            User.UpdatePatientProfile(name, User.PhoneNumber ?? string.Empty, User.DateOfBirth, User.Gender, User.ProfilePictureUrl);
+        }
+    }
     public void SetPhoneNumber(string? phone) => PhoneNumber = phone;
     public void SetDateOfBirth(DateOnly dob) => DateOfBirth = dob;
     public void SetGender(string gender) => Gender = gender;

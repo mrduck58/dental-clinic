@@ -69,7 +69,9 @@ public class CreateWalkInAppointmentHandler(AppDbContext dbContext)
 
         if (patient == null)
         {
-            patient = Patient.Create(cmd.PatientName, cmd.DateOfBirth, cmd.Gender, phoneNumber: cmd.PatientPhone);
+            var placeholderUser = User.CreateEmployee($"walkin-{Guid.NewGuid()}@songiangdental.com", "Patient", cmd.PatientPhone, cmd.PatientName);
+            dbContext.Users.Add(placeholderUser);
+            patient = Patient.Create(placeholderUser.Id, cmd.DateOfBirth, cmd.Gender, phoneNumber: cmd.PatientPhone);
             dbContext.Patients.Add(patient);
         }
         else
@@ -78,6 +80,7 @@ public class CreateWalkInAppointmentHandler(AppDbContext dbContext)
             patient.SetPhoneNumber(cmd.PatientPhone);
             patient.SetDateOfBirth(cmd.DateOfBirth);
             patient.SetGender(cmd.Gender);
+            patient.SetFullName(cmd.PatientName);
         }
 
         // 4. Bệnh nhân đã có mặt tại quầy nên bỏ qua cả Pending lẫn Confirmed:
