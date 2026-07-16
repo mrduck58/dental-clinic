@@ -29,7 +29,8 @@ public class AppointmentsController(
     FollowUpReminderHandler followUpReminderHandler,
     GetStaffScheduleHandler staffScheduleHandler,
     CreateWalkInAppointmentHandler createWalkInHandler,
-    SummarizePatientHistoryHandler summarizePatientHistoryHandler) : ControllerBase
+    SummarizePatientHistoryHandler summarizePatientHistoryHandler,
+    GetPatientQueueHandler getPatientQueueHandler) : ControllerBase
 {
     /// <summary>POST api/appointments — Đặt lịch khám mới</summary>
     [HttpPost]
@@ -418,6 +419,18 @@ public class AppointmentsController(
         var vietnamNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, vietnamTz);
         var queryDate = date ?? DateOnly.FromDateTime(vietnamNow);
         var result = await getWaitingQueueHandler.HandleAsync(queryDate, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>GET api/appointments/queue/patient — Lấy hàng đợi của bệnh nhân/thành viên (Patient)</summary>
+    [HttpGet("queue/patient")]
+    [Authorize(Roles = "Patient")]
+    public async Task<IActionResult> GetPatientQueue(
+        [FromQuery] Guid? patientId,
+        CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        var result = await getPatientQueueHandler.HandleAsync(userId, patientId, cancellationToken);
         return Ok(result);
     }
 

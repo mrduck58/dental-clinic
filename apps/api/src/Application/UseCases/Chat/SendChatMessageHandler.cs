@@ -578,7 +578,7 @@ public class SendChatMessageHandler(
                 SuggestBooking: false, null);
         }
 
-        var appointmentDate = new DateTimeOffset(date.ToDateTime(time), TimeSpan.FromHours(7));
+        var appointmentDate = new DateTimeOffset(date.ToDateTime(time), TimeSpan.FromHours(7)).ToUniversalTime();
 
         try
         {
@@ -749,7 +749,7 @@ public class SendChatMessageHandler(
                 SuggestBooking: false, null);
         }
 
-        var newAppointmentDate = new DateTimeOffset(date.ToDateTime(time), TimeSpan.FromHours(7));
+        var newAppointmentDate = new DateTimeOffset(date.ToDateTime(time), TimeSpan.FromHours(7)).ToUniversalTime();
 
         CreateAppointmentResult created;
         try
