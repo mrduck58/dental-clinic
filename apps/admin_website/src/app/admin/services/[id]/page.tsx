@@ -5,7 +5,12 @@ import Link from "next/link";
 import AdminSidebar from "../../../../components/shared/AdminSidebar";
 import NotificationBell from "../../../../components/shared/NotificationBell";
 import { useRequireAdmin } from "../../../../hooks/useRequireAdmin";
-import { getServiceByIdApi, type ServiceDto } from "../../../../lib/apiClient";
+import {
+  getServiceByIdApi,
+  getServiceProceduresApi,
+  type ServiceDto,
+  type TreatmentProcedureDto,
+} from "../../../../lib/apiClient";
 
 interface ServiceDetailPageProps {
   params: Promise<{ id: string }>;
@@ -16,6 +21,7 @@ export default function ServiceDetailPage({ params }: ServiceDetailPageProps) {
   const { id } = React.use(params);
 
   const [service, setService] = useState<ServiceDto | null>(null);
+  const [procedures, setProcedures] = useState<TreatmentProcedureDto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,6 +30,10 @@ export default function ServiceDetailPage({ params }: ServiceDetailPageProps) {
       .then(setService)
       .catch(() => setError("Không thể tải thông tin dịch vụ."))
       .finally(() => setIsLoading(false));
+
+    getServiceProceduresApi(id)
+      .then((list) => setProcedures([...list].sort((a, b) => a.stepNumber - b.stepNumber)))
+      .catch(() => { /* dịch vụ chưa có quy trình */ });
   }, [id]);
 
   const formatPrice = (price: number) => {
@@ -137,7 +147,7 @@ export default function ServiceDetailPage({ params }: ServiceDetailPageProps) {
 
           <div className="flex items-center gap-3">
             <Link
-              href={`/dashboard/services/edit/${service.id}`}
+              href={`/admin/services/edit/${service.id}`}
               className="flex items-center gap-2 px-4 py-2 text-[14px] font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 rounded-xl transition-all cursor-pointer"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -217,6 +227,63 @@ export default function ServiceDetailPage({ params }: ServiceDetailPageProps) {
                   </p>
                 </div>
               </div>
+            </div>
+
+            {/* Các bước thực hiện (quy trình điều trị của dịch vụ) */}
+            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden mt-6">
+              <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/30 flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-[15px] font-extrabold text-slate-700">Các bước thực hiện</h3>
+                  <p className="text-[12px] font-semibold text-slate-400 mt-0.5">
+                    Quy trình chuẩn của dịch vụ — bác sĩ chọn bước tương ứng khi ghi nhận quá trình điều trị.
+                  </p>
+                </div>
+                {procedures.length > 0 && (
+                  <span className="text-[12px] font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg shrink-0">
+                    {procedures.length} bước
+                  </span>
+                )}
+              </div>
+
+              {procedures.length === 0 ? (
+                <div className="p-8 flex flex-col items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-slate-100 text-slate-300 flex items-center justify-center">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664M9 6.108c-.376.023-.75.05-1.124.08C6.845 6.282 6 7.245 6 8.38v10.37A2.25 2.25 0 008.25 21h.375" />
+                    </svg>
+                  </div>
+                  <p className="text-[13.5px] font-semibold text-slate-400">Dịch vụ này chưa có quy trình điều trị.</p>
+                  <Link
+                    href={`/admin/services/edit/${service.id}`}
+                    className="px-4 py-2 text-[13px] font-bold text-primary border border-primary/30 rounded-xl hover:bg-primary/5 transition-all cursor-pointer"
+                  >
+                    Thêm quy trình
+                  </Link>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[13px]">
+                    <thead>
+                      <tr className="bg-slate-50/70 border-b border-slate-100 text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
+                        <th className="px-6 py-3.5 text-left w-20">Bước</th>
+                        <th className="px-6 py-3.5 text-left">Tên bước</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {procedures.map((p) => (
+                        <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="px-6 py-3.5">
+                            <span className="w-7 h-7 rounded-lg bg-primary/10 text-primary inline-flex items-center justify-center text-[12px] font-black">
+                              {p.stepNumber}
+                            </span>
+                          </td>
+                          <td className="px-6 py-3.5 font-bold text-slate-800">{p.name}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         </div>

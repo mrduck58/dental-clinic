@@ -7,30 +7,44 @@ namespace DentalClinic.API.Application.UseCases.Appointments;
 
 public record CreateDiagnosisRequest(
     Guid AppointmentId,
-    string DiagnosisCode,
     string Description,
-    string? Notes,
-    decimal? HeartRate,
-    decimal? Temperature,
-    decimal? BloodPressureSystolic,
-    decimal? BloodPressureDiastolic,
+    string? GumCondition,
+    string? OralMucosaCondition,
+    string? GumBleeding,
+    string? PainOnChewing,
+    string? TeethCount,
+    string? DecayedTeeth,
+    string? WornOrBrokenTeeth,
+    string? LooseTeeth,
+    string? Tartar,
+    string? Plaque,
+    string? BadBreath,
+    string? TmjSymptoms,
+    string? Occlusion,
+    string? OcclusionDeviation,
     string? MedicalHistory,
     string? AllergyHistory,
-    string? DentalCondition,
     string? Conclusion);
 
 public record UpdateDiagnosisRequest(
     Guid DiagnosisId,
-    string DiagnosisCode,
     string Description,
-    string? Notes,
-    decimal? HeartRate,
-    decimal? Temperature,
-    decimal? BloodPressureSystolic,
-    decimal? BloodPressureDiastolic,
+    string? GumCondition,
+    string? OralMucosaCondition,
+    string? GumBleeding,
+    string? PainOnChewing,
+    string? TeethCount,
+    string? DecayedTeeth,
+    string? WornOrBrokenTeeth,
+    string? LooseTeeth,
+    string? Tartar,
+    string? Plaque,
+    string? BadBreath,
+    string? TmjSymptoms,
+    string? Occlusion,
+    string? OcclusionDeviation,
     string? MedicalHistory,
     string? AllergyHistory,
-    string? DentalCondition,
     string? Conclusion);
 
 public class DiagnosisHandler(AppDbContext dbContext)
@@ -47,19 +61,7 @@ public class DiagnosisHandler(AppDbContext dbContext)
         if (appointment.Status != Domain.Enums.AppointmentStatus.InProgress)
             throw new InvalidOperationException("Chỉ có thể thêm chuẩn đoán khi cuộc hẹn đang trong trạng thái đang khám.");
 
-        var diagnosis = Diagnosis.Create(
-            request.AppointmentId,
-            request.DiagnosisCode,
-            request.Description,
-            request.Notes,
-            request.HeartRate,
-            request.Temperature,
-            request.BloodPressureSystolic,
-            request.BloodPressureDiastolic,
-            request.MedicalHistory,
-            request.AllergyHistory,
-            request.DentalCondition,
-            request.Conclusion);
+        var diagnosis = Diagnosis.Create(request.AppointmentId, request.Description, ToDetails(request));
 
         dbContext.Diagnoses.Add(diagnosis);
         await dbContext.SaveChangesAsync(ct);
@@ -74,18 +76,7 @@ public class DiagnosisHandler(AppDbContext dbContext)
         if (diagnosis == null)
             throw new KeyNotFoundException("Không tìm thấy chuẩn đoán.");
 
-        diagnosis.Update(
-            request.DiagnosisCode,
-            request.Description,
-            request.Notes,
-            request.HeartRate,
-            request.Temperature,
-            request.BloodPressureSystolic,
-            request.BloodPressureDiastolic,
-            request.MedicalHistory,
-            request.AllergyHistory,
-            request.DentalCondition,
-            request.Conclusion);
+        diagnosis.Update(request.Description, ToDetails(request));
         await dbContext.SaveChangesAsync(ct);
 
         return ToDto(diagnosis);
@@ -102,24 +93,47 @@ public class DiagnosisHandler(AppDbContext dbContext)
         await dbContext.SaveChangesAsync(ct);
     }
 
-    public static DiagnosisDto ToDto(Diagnosis diagnosis)
+    private static DiagnosisDetails ToDetails(CreateDiagnosisRequest r) => new(
+        Norm(r.GumCondition), Norm(r.OralMucosaCondition), Norm(r.GumBleeding), Norm(r.PainOnChewing),
+        Norm(r.TeethCount), Norm(r.DecayedTeeth), Norm(r.WornOrBrokenTeeth), Norm(r.LooseTeeth),
+        Norm(r.Tartar), Norm(r.Plaque), Norm(r.BadBreath),
+        Norm(r.TmjSymptoms), Norm(r.Occlusion), Norm(r.OcclusionDeviation),
+        Norm(r.MedicalHistory), Norm(r.AllergyHistory), Norm(r.Conclusion));
+
+    private static DiagnosisDetails ToDetails(UpdateDiagnosisRequest r) => new(
+        Norm(r.GumCondition), Norm(r.OralMucosaCondition), Norm(r.GumBleeding), Norm(r.PainOnChewing),
+        Norm(r.TeethCount), Norm(r.DecayedTeeth), Norm(r.WornOrBrokenTeeth), Norm(r.LooseTeeth),
+        Norm(r.Tartar), Norm(r.Plaque), Norm(r.BadBreath),
+        Norm(r.TmjSymptoms), Norm(r.Occlusion), Norm(r.OcclusionDeviation),
+        Norm(r.MedicalHistory), Norm(r.AllergyHistory), Norm(r.Conclusion));
+
+    private static string? Norm(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    public static DiagnosisDto ToDto(Diagnosis d)
     {
         return new DiagnosisDto
         {
-            Id = diagnosis.Id,
-            DiagnosisCode = diagnosis.DiagnosisCode,
-            Description = diagnosis.Description,
-            Notes = diagnosis.Notes,
-            HeartRate = diagnosis.HeartRate,
-            Temperature = diagnosis.Temperature,
-            BloodPressureSystolic = diagnosis.BloodPressureSystolic,
-            BloodPressureDiastolic = diagnosis.BloodPressureDiastolic,
-            MedicalHistory = diagnosis.MedicalHistory,
-            AllergyHistory = diagnosis.AllergyHistory,
-            DentalCondition = diagnosis.DentalCondition,
-            Conclusion = diagnosis.Conclusion,
-            CreatedAt = diagnosis.CreatedAt,
-            UpdatedAt = diagnosis.UpdatedAt
+            Id = d.Id,
+            Description = d.Description,
+            GumCondition = d.GumCondition,
+            OralMucosaCondition = d.OralMucosaCondition,
+            GumBleeding = d.GumBleeding,
+            PainOnChewing = d.PainOnChewing,
+            TeethCount = d.TeethCount,
+            DecayedTeeth = d.DecayedTeeth,
+            WornOrBrokenTeeth = d.WornOrBrokenTeeth,
+            LooseTeeth = d.LooseTeeth,
+            Tartar = d.Tartar,
+            Plaque = d.Plaque,
+            BadBreath = d.BadBreath,
+            TmjSymptoms = d.TmjSymptoms,
+            Occlusion = d.Occlusion,
+            OcclusionDeviation = d.OcclusionDeviation,
+            MedicalHistory = d.MedicalHistory,
+            AllergyHistory = d.AllergyHistory,
+            Conclusion = d.Conclusion,
+            CreatedAt = d.CreatedAt,
+            UpdatedAt = d.UpdatedAt
         };
     }
 }

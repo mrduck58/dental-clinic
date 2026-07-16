@@ -1875,18 +1875,29 @@ export interface DentistBriefDto {
 
 export interface DiagnosisDto {
   id: string;
-  diagnosisCode: string;
-  description: string;
-  notes: string | null;
-  // Các trường khám lâm sàng
-  heartRate: number | null;
-  temperature: number | null;
-  bloodPressureSystolic: number | null;
-  bloodPressureDiastolic: number | null;
+  description: string;              // Chẩn đoán
+  // Tình trạng lợi – niêm mạc
+  gumCondition: string | null;
+  oralMucosaCondition: string | null;
+  gumBleeding: string | null;
+  painOnChewing: string | null;
+  // Tình trạng răng
+  teethCount: string | null;
+  decayedTeeth: string | null;
+  wornOrBrokenTeeth: string | null;
+  looseTeeth: string | null;
+  // Vệ sinh răng miệng
+  tartar: string | null;
+  plaque: string | null;
+  badBreath: string | null;
+  // Khớp thái dương hàm / khớp cắn
+  tmjSymptoms: string | null;
+  occlusion: string | null;
+  occlusionDeviation: string | null;
+  // Tiền sử
   medicalHistory: string | null;
   allergyHistory: string | null;
-  dentalCondition: string | null;
-  conclusion: string | null;
+  conclusion: string | null;        // Kết quả & kế hoạch điều trị
   createdAt: string;
   updatedAt: string | null;
 }
@@ -1984,7 +1995,6 @@ export interface PatientMedicalHistoryDto {
 }
 
 export interface MedicalHistoryDiagnosisDto {
-  diagnosisCode: string;
   description: string;
   conclusion: string | null;
   createdAt: string;
@@ -2038,33 +2048,32 @@ export async function getPatientAiSummaryApi(
 }
 
 // Diagnosis APIs
-export interface CreateDiagnosisRequest {
-  diagnosisCode: string;
-  description: string;
-  notes?: string;
-  heartRate?: number;
-  temperature?: number;
-  bloodPressureSystolic?: number;
-  bloodPressureDiastolic?: number;
+/** Các trường của phiếu khám răng miệng — dùng chung cho tạo mới và cập nhật. */
+export interface DiagnosisFields {
+  description: string;              // Chẩn đoán
+  gumCondition?: string;
+  oralMucosaCondition?: string;
+  gumBleeding?: string;
+  painOnChewing?: string;
+  teethCount?: string;
+  decayedTeeth?: string;
+  wornOrBrokenTeeth?: string;
+  looseTeeth?: string;
+  tartar?: string;
+  plaque?: string;
+  badBreath?: string;
+  tmjSymptoms?: string;
+  occlusion?: string;
+  occlusionDeviation?: string;
   medicalHistory?: string;
   allergyHistory?: string;
-  dentalCondition?: string;
-  conclusion?: string;
+  conclusion?: string;              // Kết quả & kế hoạch điều trị
 }
 
-export interface UpdateDiagnosisRequest {
+export type CreateDiagnosisRequest = DiagnosisFields;
+
+export interface UpdateDiagnosisRequest extends DiagnosisFields {
   diagnosisId: string;
-  diagnosisCode: string;
-  description: string;
-  notes?: string;
-  heartRate?: number;
-  temperature?: number;
-  bloodPressureSystolic?: number;
-  bloodPressureDiastolic?: number;
-  medicalHistory?: string;
-  allergyHistory?: string;
-  dentalCondition?: string;
-  conclusion?: string;
 }
 
 export async function createDiagnosisApi(appointmentId: string, request: CreateDiagnosisRequest): Promise<DiagnosisDto> {
@@ -2175,6 +2184,62 @@ export interface AddStepProgressRequest {
   note?: string;
 }
 
+export interface UpdateStepProgressRequest {
+  entryIndex: number; // vị trí mục trong nhật ký (stepProgress)
+  percent: number;
+  note?: string;
+}
+
+export async function updateTreatmentPlanProgressApi(
+  treatmentPlanId: string,
+  request: UpdateStepProgressRequest
+): Promise<TreatmentPlanDto> {
+  const res = await fetch(`${API_URL}/api/appointments/treatment-plan/${treatmentPlanId}/progress`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(request),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể sửa quá trình điều trị");
+  }
+  return res.json() as Promise<TreatmentPlanDto>;
+}
+
+export async function reorderTreatmentPlanProgressApi(
+  treatmentPlanId: string,
+  order: number[] // hoán vị các index gốc theo thứ tự mới
+): Promise<TreatmentPlanDto> {
+  const res = await fetch(`${API_URL}/api/appointments/treatment-plan/${treatmentPlanId}/progress/reorder`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ order }),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể đổi thứ tự quá trình điều trị");
+  }
+  return res.json() as Promise<TreatmentPlanDto>;
+}
+
+export async function deleteTreatmentPlanProgressApi(
+  treatmentPlanId: string,
+  entryIndex: number
+): Promise<TreatmentPlanDto> {
+  const res = await fetch(`${API_URL}/api/appointments/treatment-plan/${treatmentPlanId}/progress/${entryIndex}`, {
+    method: "DELETE",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể xóa quá trình điều trị");
+  }
+  return res.json() as Promise<TreatmentPlanDto>;
+}
+
 export async function addTreatmentPlanProgressApi(
   treatmentPlanId: string,
   request: AddStepProgressRequest
@@ -2198,13 +2263,11 @@ export interface TreatmentProcedureDto {
   serviceId: string;
   stepNumber: number;
   name: string;
-  percentOfTotal: number;
 }
 
 export interface ProcedureStepRequest {
   stepNumber: number;
   name: string;
-  percentOfTotal: number;
 }
 
 export async function getServiceProceduresApi(serviceId: string): Promise<TreatmentProcedureDto[]> {

@@ -338,7 +338,7 @@ export default function PostsListPage() {
                             <div className="flex items-center justify-center gap-4">
                               {/* Preview Button */}
                               <Link
-                                href={`/dashboard/posts/${post.id}/preview`}
+                                href={`/admin/posts/${post.id}/preview`}
                                 className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all"
                                 title="Xem trước bài viết"
                               >
@@ -349,7 +349,7 @@ export default function PostsListPage() {
                               </Link>
                               {/* Edit Button */}
                               <Link
-                                href={`/dashboard/posts/${post.id}/edit`}
+                                href={`/admin/posts/${post.id}/edit`}
                                 className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
                                 title="Chỉnh sửa bài viết"
                               >

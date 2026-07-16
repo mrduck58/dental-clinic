@@ -261,6 +261,42 @@ public class AppointmentsController(
         return Ok(result);
     }
 
+    /// <summary>PUT api/appointments/treatment-plan/{treatmentPlanId}/progress — Sửa một mục trong nhật ký điều trị.</summary>
+    [HttpPut("treatment-plan/{treatmentPlanId}/progress")]
+    [Authorize(Roles = "Staff,Admin,Dentist")]
+    public async Task<IActionResult> UpdateTreatmentPlanProgress(
+        Guid treatmentPlanId,
+        [FromBody] UpdateStepProgressRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await treatmentPlanHandler.UpdateStepProgressAsync(treatmentPlanId, request, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>PUT api/appointments/treatment-plan/{treatmentPlanId}/progress/reorder — Đổi thứ tự các mục nhật ký điều trị.</summary>
+    [HttpPut("treatment-plan/{treatmentPlanId}/progress/reorder")]
+    [Authorize(Roles = "Staff,Admin,Dentist")]
+    public async Task<IActionResult> ReorderTreatmentPlanProgress(
+        Guid treatmentPlanId,
+        [FromBody] ReorderStepProgressRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await treatmentPlanHandler.ReorderStepProgressAsync(treatmentPlanId, request, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>DELETE api/appointments/treatment-plan/{treatmentPlanId}/progress/{entryIndex} — Xóa một mục trong nhật ký điều trị.</summary>
+    [HttpDelete("treatment-plan/{treatmentPlanId}/progress/{entryIndex:int}")]
+    [Authorize(Roles = "Staff,Admin,Dentist")]
+    public async Task<IActionResult> DeleteTreatmentPlanProgress(
+        Guid treatmentPlanId,
+        int entryIndex,
+        CancellationToken cancellationToken)
+    {
+        var result = await treatmentPlanHandler.DeleteStepProgressAsync(treatmentPlanId, entryIndex, cancellationToken);
+        return Ok(result);
+    }
+
     #endregion
 
     #region Prescription
@@ -602,7 +638,6 @@ public class AppointmentsController(
             a.Service?.Name ?? "Khám tổng quát",
             a.Symptoms,
             a.Diagnoses.Select(d => new MedicalHistoryDiagnosisDto(
-                d.DiagnosisCode,
                 d.Description,
                 d.Conclusion,
                 d.CreatedAt
@@ -680,7 +715,6 @@ public record PatientMedicalHistoryDto(
     List<MedicalHistoryPrescriptionItemDto> PrescriptionItems);
 
 public record MedicalHistoryDiagnosisDto(
-    string DiagnosisCode,
     string Description,
     string? Conclusion,
     DateTimeOffset CreatedAt);

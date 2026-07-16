@@ -50,18 +50,29 @@ public class DentistBriefDto
 public class DiagnosisDto
 {
     public Guid Id { get; set; }
-    public string DiagnosisCode { get; set; } = string.Empty;
-    public string Description { get; set; } = string.Empty;
-    public string? Notes { get; set; }
-    // Các trường khám lâm sàng
-    public decimal? HeartRate { get; set; }
-    public decimal? Temperature { get; set; }
-    public decimal? BloodPressureSystolic { get; set; }
-    public decimal? BloodPressureDiastolic { get; set; }
+    public string Description { get; set; } = string.Empty;   // Chẩn đoán
+    // Tình trạng lợi – niêm mạc
+    public string? GumCondition { get; set; }
+    public string? OralMucosaCondition { get; set; }
+    public string? GumBleeding { get; set; }
+    public string? PainOnChewing { get; set; }
+    // Tình trạng răng
+    public string? TeethCount { get; set; }
+    public string? DecayedTeeth { get; set; }
+    public string? WornOrBrokenTeeth { get; set; }
+    public string? LooseTeeth { get; set; }
+    // Vệ sinh răng miệng
+    public string? Tartar { get; set; }
+    public string? Plaque { get; set; }
+    public string? BadBreath { get; set; }
+    // Khớp thái dương hàm / khớp cắn
+    public string? TmjSymptoms { get; set; }
+    public string? Occlusion { get; set; }
+    public string? OcclusionDeviation { get; set; }
+    // Tiền sử
     public string? MedicalHistory { get; set; }
     public string? AllergyHistory { get; set; }
-    public string? DentalCondition { get; set; }
-    public string? Conclusion { get; set; }
+    public string? Conclusion { get; set; }                   // Kết quả & kế hoạch điều trị
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? UpdatedAt { get; set; }
 }
@@ -154,23 +165,7 @@ public class GetExaminationHandler(AppDbContext dbContext)
             FollowUpDate = appointment.FollowUpDate,
             FollowUpNote = appointment.FollowUpNote,
             IsFollowUpVisit = appointment.FollowUpFromAppointmentId != null,
-            Diagnoses = appointment.Diagnoses.Select(d => new DiagnosisDto
-            {
-                Id = d.Id,
-                DiagnosisCode = d.DiagnosisCode,
-                Description = d.Description,
-                Notes = d.Notes,
-                HeartRate = d.HeartRate,
-                Temperature = d.Temperature,
-                BloodPressureSystolic = d.BloodPressureSystolic,
-                BloodPressureDiastolic = d.BloodPressureDiastolic,
-                MedicalHistory = d.MedicalHistory,
-                AllergyHistory = d.AllergyHistory,
-                DentalCondition = d.DentalCondition,
-                Conclusion = d.Conclusion,
-                CreatedAt = d.CreatedAt,
-                UpdatedAt = d.UpdatedAt
-            }).ToList(),
+            Diagnoses = appointment.Diagnoses.Select(DiagnosisHandler.ToDto).ToList(),
             TreatmentPlans = appointment.TreatmentPlans
                 .Select(tp => TreatmentPlanHandler.ToDto(tp))
                 .ToList(),

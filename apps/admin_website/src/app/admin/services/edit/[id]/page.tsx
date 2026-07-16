@@ -15,7 +15,6 @@ import {
 
 interface ProcedureStepForm {
   name: string;
-  percentOfTotal: string; // giữ dạng chuỗi cho input, parse khi lưu
 }
 
 interface EditServicePageProps {
@@ -58,7 +57,7 @@ export default function EditServicePage({ params }: EditServicePageProps) {
       .finally(() => setIsLoading(false));
 
     getServiceProceduresApi(id)
-      .then((list) => setSteps(list.map(p => ({ name: p.name, percentOfTotal: String(p.percentOfTotal) }))))
+      .then((list) => setSteps(list.map(p => ({ name: p.name }))))
       .catch(() => { /* dịch vụ chưa có quy trình */ });
   }, [id]);
 
@@ -76,10 +75,9 @@ export default function EditServicePage({ params }: EditServicePageProps) {
         cleaned.map((s, i) => ({
           stepNumber: i + 1,
           name: s.name.trim(),
-          percentOfTotal: Math.min(100, Math.max(0, parseInt(s.percentOfTotal) || 0)),
         }))
       );
-      setSteps(saved.map(p => ({ name: p.name, percentOfTotal: String(p.percentOfTotal) })));
+      setSteps(saved.map(p => ({ name: p.name })));
       setStepsMessage({ text: "Đã lưu quy trình điều trị.", ok: true });
     } catch (err) {
       setStepsMessage({ text: err instanceof Error ? err.message : "Lưu quy trình thất bại.", ok: false });
@@ -403,18 +401,6 @@ export default function EditServicePage({ params }: EditServicePageProps) {
                       onChange={(e) => setSteps(prev => prev.map((s, idx) => idx === i ? { ...s, name: e.target.value } : s))}
                       className="flex-1 px-4 py-2.5 text-[13.5px] bg-white border border-slate-200 rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all font-semibold text-slate-800 placeholder:text-slate-300"
                     />
-                    <div className="relative w-28 shrink-0">
-                      <input
-                        type="number"
-                        min={0}
-                        max={100}
-                        placeholder="0"
-                        value={step.percentOfTotal}
-                        onChange={(e) => setSteps(prev => prev.map((s, idx) => idx === i ? { ...s, percentOfTotal: e.target.value } : s))}
-                        className="w-full px-4 py-2.5 pr-9 text-[13.5px] bg-white border border-slate-200 rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all font-semibold text-slate-800"
-                      />
-                      <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[13px] text-slate-400 font-bold">%</span>
-                    </div>
                     <button
                       type="button"
                       onClick={() => setSteps(prev => prev.filter((_, idx) => idx !== i))}
@@ -430,7 +416,7 @@ export default function EditServicePage({ params }: EditServicePageProps) {
 
                 <button
                   type="button"
-                  onClick={() => setSteps(prev => [...prev, { name: "", percentOfTotal: "" }])}
+                  onClick={() => setSteps(prev => [...prev, { name: "" }])}
                   className="self-start flex items-center gap-2 px-4 py-2 text-[13px] font-bold text-primary border border-primary/30 rounded-xl hover:bg-primary/5 transition-all cursor-pointer"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -446,9 +432,6 @@ export default function EditServicePage({ params }: EditServicePageProps) {
                     {stepsMessage.text}
                   </p>
                 )}
-                <span className="text-[12px] font-bold text-slate-400">
-                  Tổng: {steps.reduce((s, st) => s + (parseInt(st.percentOfTotal) || 0), 0)}%
-                </span>
                 <button
                   type="button"
                   onClick={handleSaveSteps}

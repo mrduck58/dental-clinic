@@ -92,8 +92,13 @@ public class SummarizePatientHistoryHandler(IAiChatService aiChatService, AppDbC
 
             foreach (var d in a.Diagnoses)
             {
-                var note = string.IsNullOrWhiteSpace(d.Notes) ? "" : $" (Ghi chú: {d.Notes})";
-                sb.AppendLine($"Chẩn đoán: [{d.DiagnosisCode}] {d.Description}{note}");
+                sb.AppendLine($"Chẩn đoán: {d.Description}");
+                if (!string.IsNullOrWhiteSpace(d.Conclusion))
+                    sb.AppendLine($"Kết quả & kế hoạch điều trị: {d.Conclusion}");
+                if (!string.IsNullOrWhiteSpace(d.MedicalHistory))
+                    sb.AppendLine($"Tiền sử bệnh lý: {d.MedicalHistory}");
+                if (!string.IsNullOrWhiteSpace(d.AllergyHistory))
+                    sb.AppendLine($"Tiền sử dị ứng: {d.AllergyHistory}");
             }
 
             foreach (var t in a.TreatmentPlans)
