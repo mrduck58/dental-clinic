@@ -80,7 +80,7 @@ public class AppointmentsController(
     public async Task<IActionResult> ConfirmAppointment(Guid id, CancellationToken cancellationToken)
     {
         await updateAppointmentStatusHandler.ConfirmAsync(id, cancellationToken);
-        return NoContent();
+        return Ok(new { message = "Đã xác nhận lịch hẹn." });
     }
 
     /// <summary>PUT api/appointments/{id}/cancel — Hủy lịch hẹn</summary>
@@ -93,7 +93,7 @@ public class AppointmentsController(
     {
         var reason = request?.Reason;
         await updateAppointmentStatusHandler.CancelAsync(id, reason, cancellationToken);
-        return NoContent();
+        return Ok(new { message = "Đã hủy lịch hẹn." });
     }
 
     /// <summary>PUT api/appointments/{id}/checkin — Check-in bệnh nhân (Staff/Admin)</summary>
@@ -102,7 +102,7 @@ public class AppointmentsController(
     public async Task<IActionResult> CheckInAppointment(Guid id, CancellationToken cancellationToken)
     {
         await updateAppointmentStatusHandler.CheckInAsync(id, cancellationToken);
-        return NoContent();
+        return Ok(new { message = "Đã check-in bệnh nhân." });
     }
 
     /// <summary>PUT api/appointments/{id}/no-show — Ghi nhận bệnh nhân vắng mặt (Staff/Admin)</summary>
@@ -111,7 +111,7 @@ public class AppointmentsController(
     public async Task<IActionResult> MarkNoShow(Guid id, CancellationToken cancellationToken)
     {
         await updateAppointmentStatusHandler.MarkNoShowAsync(id, cancellationToken);
-        return NoContent();
+        return Ok(new { message = "Đã ghi nhận bệnh nhân vắng mặt." });
     }
 
     /// <summary>PUT api/appointments/{id}/start — Bắt đầu khám (Dentist/Staff/Admin)</summary>
@@ -120,7 +120,7 @@ public class AppointmentsController(
     public async Task<IActionResult> StartTreatment(Guid id, CancellationToken cancellationToken)
     {
         await updateAppointmentStatusHandler.StartTreatmentAsync(id, cancellationToken);
-        return NoContent();
+        return Ok(new { message = "Đã bắt đầu khám." });
     }
 
     /// <summary>PUT api/appointments/{id}/complete — Hoàn thành khám (Staff/Admin)</summary>
@@ -129,7 +129,7 @@ public class AppointmentsController(
     public async Task<IActionResult> CompleteTreatment(Guid id, CancellationToken cancellationToken)
     {
         await updateAppointmentStatusHandler.CompleteAsync(id, cancellationToken);
-        return NoContent();
+        return Ok(new { message = "Đã hoàn thành khám." });
     }
 
     /// <summary>PUT api/appointments/{id}/end-treatment — Kết thúc điều trị, chuyển sang chờ thanh toán (Staff/Admin/Dentist)</summary>
@@ -138,7 +138,7 @@ public class AppointmentsController(
     public async Task<IActionResult> EndTreatment(Guid id, CancellationToken cancellationToken)
     {
         await updateAppointmentStatusHandler.EndTreatmentAsync(id, cancellationToken);
-        return NoContent();
+        return Ok(new { message = "Đã kết thúc điều trị, chuyển sang chờ thanh toán." });
     }
 
     /// <summary>GET api/appointments/{id}/examination — Lấy thông tin khám bệnh (Staff/Admin/Dentist)</summary>
