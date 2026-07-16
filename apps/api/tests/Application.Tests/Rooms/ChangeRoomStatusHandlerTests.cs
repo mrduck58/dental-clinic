@@ -61,4 +61,36 @@ public class ChangeRoomStatusHandlerTests
 
         await act.Should().ThrowAsync<ArgumentException>();
     }
+
+    /// <summary>
+    /// Đổi trạng thái phòng sang "Ngừng hoạt động" phải phản ánh đúng ActiveStatus = "Ngừng hoạt động"
+    /// trong DTO trả về, khác với các trạng thái còn lại (đều là "Hoạt động").
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_ChangeToNgungHoatDong_ReturnsInactiveActiveStatus()
+    {
+        var room = Room.Create("P01", "Phòng 1", "1", "Loại", "Mô tả");
+        _repo.GetByIdAsync(room.Id, Arg.Any<CancellationToken>()).Returns(room);
+        var handler = new ChangeRoomStatusHandler(_repo);
+
+        var result = await handler.HandleAsync(room.Id, new ChangeRoomStatusRequest("Ngừng hoạt động"));
+
+        result.Status.Should().Be("Ngừng hoạt động");
+        result.ActiveStatus.Should().Be("Ngừng hoạt động");
+    }
+
+    /// <summary>
+    /// Chuỗi trạng thái rỗng cũng phải ném ArgumentException vì không khớp giá trị Vietnamese hợp lệ nào.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_EmptyStatus_ThrowsArgumentException()
+    {
+        var room = Room.Create("P01", "Phòng 1", "1", "Loại", "Mô tả");
+        _repo.GetByIdAsync(room.Id, Arg.Any<CancellationToken>()).Returns(room);
+        var handler = new ChangeRoomStatusHandler(_repo);
+
+        Func<Task> act = () => handler.HandleAsync(room.Id, new ChangeRoomStatusRequest(""));
+
+        await act.Should().ThrowAsync<ArgumentException>();
+    }
 }

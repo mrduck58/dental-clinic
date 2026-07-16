@@ -112,6 +112,44 @@ public class RegisterHandlerTests
         result.Email.Should().Be(TestEmail);
     }
 
+    /// <summary>
+    /// Sau khi tạo OTP mới, phải lưu OTP vào database đúng 1 lần,
+    /// tránh trường hợp email chứa OTP được gửi đi nhưng OTP không được lưu tương ứng.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_NewEmail_SavesOtpOnce()
+    {
+        await _handler.HandleAsync(ValidCommand);
+
+        await _otpRepo.Received(1).AddAsync(Arg.Any<OtpCode>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Response trả về phải chứa message hướng dẫn kiểm tra email để lấy mã OTP,
+    /// giúp client hiển thị đúng nội dung hướng dẫn cho người dùng vừa đăng ký.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_NewEmail_ReturnsMessageAboutCheckingEmail()
+    {
+        var result = await _handler.HandleAsync(ValidCommand);
+
+        result.Message.Should().Contain("email");
+    }
+
+    /// <summary>
+    /// User Patient mới tạo phải có Username trùng với Email vì bệnh nhân đăng ký
+    /// chưa có username riêng — RegisterHandler dùng chính email làm username.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_NewEmail_CreatesUserWithUsernameEqualToEmail()
+    {
+        await _handler.HandleAsync(ValidCommand);
+
+        await _userRepo.Received(1).AddAsync(
+            Arg.Is<User>(u => u.Username == TestEmail),
+            Arg.Any<CancellationToken>());
+    }
+
     // ── Error paths ───────────────────────────────────────────────────────────
 
     /// <summary>

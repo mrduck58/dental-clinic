@@ -203,6 +203,61 @@ public class StaffDashboardHandlerTests
         result.Should().HaveCount(2);
     }
 
+    /// <summary>Lịch hẹn CheckedIn và InProgress cũng phải xuất hiện trong danh sách cần staff theo dõi,
+    /// không chỉ Confirmed.</summary>
+    [Test]
+    public async Task GetTodayAppointmentsAsync_IncludesCheckedInAndInProgressStatuses()
+    {
+        var (patient, dentist) = await SeedBasicDataAsync();
+        var checkedIn = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
+        checkedIn.Confirm();
+        checkedIn.CheckIn();
+        var inProgress = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
+        inProgress.Confirm();
+        inProgress.CheckIn();
+        inProgress.StartTreatment();
+        _db.Appointments.AddRange(checkedIn, inProgress);
+        await _db.SaveChangesAsync();
+
+        var result = await _handler.GetTodayAppointmentsAsync(5);
+
+        result.Should().HaveCount(2);
+        result.Select(a => a.Status).Should().BeEquivalentTo(new[] { "CheckedIn", "InProgress" });
+    }
+
+    /// <summary>limit &lt;= 0 phải được kẹp về tối thiểu 1 thay vì trả về rỗng hoặc lỗi.</summary>
+    [Test]
+    public async Task GetTodayAppointmentsAsync_LimitBelowMinimum_ClampsToOne()
+    {
+        var (patient, dentist) = await SeedBasicDataAsync();
+        for (var i = 0; i < 3; i++)
+        {
+            var a = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddMinutes(i));
+            a.Confirm();
+            _db.Appointments.Add(a);
+        }
+        await _db.SaveChangesAsync();
+
+        var result = await _handler.GetTodayAppointmentsAsync(0);
+
+        result.Should().ContainSingle();
+    }
+
+    /// <summary>limit vượt quá 50 phải được kẹp về tối đa 50.</summary>
+    [Test]
+    public async Task GetTodayAppointmentsAsync_LimitAboveMaximum_ClampsToFifty()
+    {
+        var (patient, dentist) = await SeedBasicDataAsync();
+        var a = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
+        a.Confirm();
+        _db.Appointments.Add(a);
+        await _db.SaveChangesAsync();
+
+        var result = await _handler.GetTodayAppointmentsAsync(200);
+
+        result.Should().ContainSingle();
+    }
+
     private static Appointment MakeConfirmedAt(Guid patientId, Guid dentistId, DateTimeOffset date)
     {
         var appt = Appointment.Create(patientId, dentistId, date);
@@ -297,5 +352,59 @@ public class StaffDashboardHandlerTests
         var result = await _handler.GetPendingInvoicesAsync(5);
 
         result.Should().BeEmpty();
+    }
+
+    /// <summary>Hóa đơn không có dòng chi tiết nào (Items rỗng) phải trả về ServiceName null,
+    /// không được ném lỗi khi gọi FirstOrDefault trên danh sách rỗng.</summary>
+    [Test]
+    public async Task GetPendingInvoicesAsync_InvoiceWithNoItems_ReturnsNullServiceName()
+    {
+        var (patient, dentist) = await SeedBasicDataAsync();
+        var appt = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
+        _db.Appointments.Add(appt);
+        await _db.SaveChangesAsync();
+
+        var invoice = Invoice.Issue(appt.Id, "INV001", [], 0, PaymentMethod.Cash, PaymentType.Full, 0m);
+        _db.Invoices.Add(invoice);
+        await _db.SaveChangesAsync();
+
+        var dto = (await _handler.GetPendingInvoicesAsync(5)).Single();
+
+        dto.ServiceName.Should().BeNull();
+    }
+
+    /// <summary>limit &lt;= 0 phải được kẹp về tối thiểu 1.</summary>
+    [Test]
+    public async Task GetPendingInvoicesAsync_LimitBelowMinimum_ClampsToOne()
+    {
+        var (patient, dentist) = await SeedBasicDataAsync();
+        for (var i = 0; i < 3; i++)
+        {
+            var appt = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
+            _db.Appointments.Add(appt);
+            await _db.SaveChangesAsync();
+            _db.Invoices.Add(Invoice.Issue(appt.Id, $"INV00{i}", [("A", 1, 100_000m)], 0, PaymentMethod.Cash, PaymentType.Full, 100_000m));
+        }
+        await _db.SaveChangesAsync();
+
+        var result = await _handler.GetPendingInvoicesAsync(0);
+
+        result.Should().ContainSingle();
+    }
+
+    /// <summary>limit vượt quá 50 phải được kẹp về tối đa 50.</summary>
+    [Test]
+    public async Task GetPendingInvoicesAsync_LimitAboveMaximum_ClampsToFifty()
+    {
+        var (patient, dentist) = await SeedBasicDataAsync();
+        var appt = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
+        _db.Appointments.Add(appt);
+        await _db.SaveChangesAsync();
+        _db.Invoices.Add(Invoice.Issue(appt.Id, "INV001", [("A", 1, 100_000m)], 0, PaymentMethod.Cash, PaymentType.Full, 100_000m));
+        await _db.SaveChangesAsync();
+
+        var result = await _handler.GetPendingInvoicesAsync(200);
+
+        result.Should().ContainSingle();
     }
 }

@@ -1,4 +1,5 @@
 using DentalClinic.API.Application.UseCases.Feedbacks;
+using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
@@ -82,5 +83,47 @@ public class ApproveFeedbackHandlerTests
         await handler.HandleAsync(feedback.Id);
 
         await _repo.Received(1).UpdateAsync(feedback, Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Duyệt feedback đang bị Hidden phải chuyển sang Featured (nhánh else của điều kiện toggle),
+    /// ghi đè trạng thái Hidden trước đó.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_HiddenFeedback_StatusBecomesFeatured()
+    {
+        var feedback = Feedback.Create("Khách A", 5, "Tốt");
+        feedback.Hide();
+        _repo.GetByIdAsync(feedback.Id, Arg.Any<CancellationToken>()).Returns(feedback);
+        var handler = new ApproveFeedbackHandler(_repo, _activityLog, _currentUser);
+
+        var result = await handler.HandleAsync(feedback.Id);
+
+        result.Status.Should().Be("Featured");
+    }
+
+    /// <summary>
+    /// Duyệt/bỏ duyệt phải ghi activity log với đúng action Approve và module Feedback.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_ValidFeedback_LogsActivityWithApproveAction()
+    {
+        var feedback = Feedback.Create("Khách A", 5, "Tốt");
+        _repo.GetByIdAsync(feedback.Id, Arg.Any<CancellationToken>()).Returns(feedback);
+        var handler = new ApproveFeedbackHandler(_repo, _activityLog, _currentUser);
+
+        await handler.HandleAsync(feedback.Id);
+
+        await _activityLog.Received(1).LogAsync(
+            userId: Arg.Any<Guid?>(),
+            userName: Arg.Any<string>(),
+            userRole: Arg.Any<string>(),
+            action: ActivityAction.Approve,
+            module: ActivityModule.Feedback,
+            description: Arg.Any<string>(),
+            status: Arg.Any<string>(),
+            ipAddress: Arg.Any<string?>(),
+            targetId: feedback.Id.ToString(),
+            ct: Arg.Any<CancellationToken>());
     }
 }

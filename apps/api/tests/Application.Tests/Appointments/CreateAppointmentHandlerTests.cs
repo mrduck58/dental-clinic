@@ -167,6 +167,77 @@ public class CreateAppointmentHandlerTests
             Arg.Any<CancellationToken>());
     }
 
+    /// <summary>
+    /// Khi bệnh nhân chưa có hồ sơ Patient và tài khoản User cũng không tồn tại, handler phải ném
+    /// InvalidOperationException — không thể tạo hồ sơ Patient từ một tài khoản không có thật.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_PatientNotExistsAndUserNotFound_ThrowsInvalidOperationException()
+    {
+        var cmd = MakeCmd();
+        _patientRepo.GetByUserIdAsync(cmd.UserId, Arg.Any<CancellationToken>()).Returns((Patient?)null);
+        _userRepo.GetByIdAsync(cmd.UserId, Arg.Any<CancellationToken>()).Returns((User?)null);
+
+        Func<Task> act = () => _handler.HandleAsync(cmd);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+    }
+
+    /// <summary>
+    /// Khi PatientId trỏ đến một hồ sơ hợp lệ thuộc gia đình (PrimaryPatientId đúng), lịch hẹn phải
+    /// gắn vào hồ sơ thành viên đó chứ không phải hồ sơ chính — để đúng người được đặt lịch.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_ValidFamilyMemberPatientId_BooksAppointmentForFamilyMember()
+    {
+        var primaryPatient = Patient.Create("Chủ hộ", DateOnly.FromDateTime(DateTime.Today.AddYears(-40)), "Nam", Guid.NewGuid());
+        var familyMember = Patient.Create("Con", DateOnly.FromDateTime(DateTime.Today.AddYears(-10)), "Nam", primaryPatientId: primaryPatient.Id);
+        var cmd = MakeCmd() with { UserId = primaryPatient.UserId!.Value, PatientId = familyMember.Id };
+        _patientRepo.GetByUserIdAsync(cmd.UserId, Arg.Any<CancellationToken>()).Returns(primaryPatient);
+        _patientRepo.GetByIdAsync(familyMember.Id, Arg.Any<CancellationToken>()).Returns(familyMember);
+
+        await _handler.HandleAsync(cmd);
+
+        await _appointmentRepo.Received(1).AddAsync(
+            Arg.Is<Appointment>(a => a.PatientId == familyMember.Id), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Khi PatientId không thuộc gia đình của người dùng hiện tại (hoặc không tồn tại), handler phải
+    /// ném InvalidOperationException — chặn đặt lịch hộ hồ sơ của người khác.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_PatientIdNotBelongingToFamily_ThrowsInvalidOperationException()
+    {
+        var primaryPatient = Patient.Create("Chủ hộ", DateOnly.FromDateTime(DateTime.Today.AddYears(-40)), "Nam", Guid.NewGuid());
+        var otherPatient = Patient.Create("Người lạ", DateOnly.FromDateTime(DateTime.Today.AddYears(-30)), "Nữ");
+        var cmd = MakeCmd() with { UserId = primaryPatient.UserId!.Value, PatientId = otherPatient.Id };
+        _patientRepo.GetByUserIdAsync(cmd.UserId, Arg.Any<CancellationToken>()).Returns(primaryPatient);
+        _patientRepo.GetByIdAsync(otherPatient.Id, Arg.Any<CancellationToken>()).Returns(otherPatient);
+
+        Func<Task> act = () => _handler.HandleAsync(cmd);
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+    }
+
+    /// <summary>
+    /// Khi không tìm được userId của nha sĩ (chưa có tài khoản liên kết), handler không được gọi
+    /// notificationService.CreateAsync — tránh gửi thông báo cho UserId rỗng.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_DentistUserIdNotFound_DoesNotSendDentistNotification()
+    {
+        var cmd = MakeCmd();
+        var existingPatient = Patient.Create("Test", DateOnly.FromDateTime(DateTime.Today.AddYears(-20)), "Nam", cmd.UserId);
+        _patientRepo.GetByUserIdAsync(cmd.UserId, Arg.Any<CancellationToken>()).Returns(existingPatient);
+        _appointmentRepo.GetDentistUserIdAsync(cmd.DentistId, Arg.Any<CancellationToken>()).Returns((Guid?)null);
+
+        await _handler.HandleAsync(cmd);
+
+        await _notification.DidNotReceive().CreateAsync(
+            Arg.Any<CreateNotificationRequest>(), Arg.Any<CancellationToken>());
+    }
+
     private static CreateAppointmentCommand MakeCmd() =>
         new(Guid.NewGuid(), Guid.NewGuid(), DateTimeOffset.UtcNow.AddDays(1), null, null, null);
 }

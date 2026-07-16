@@ -508,4 +508,47 @@ public class SendChatMessageHandlerTests
 
         await _appointmentRepo.DidNotReceive().AddAsync(Arg.Any<Appointment>(), Arg.Any<CancellationToken>());
     }
+
+    /// <summary>Tài khoản gọi chat chưa có hồ sơ bệnh nhân (patientRepository trả về null) phải ném
+    /// NotFoundException, không gọi AI.</summary>
+    [Test]
+    public async Task HandleAsync_PatientNotFound_ThrowsNotFoundException()
+    {
+        _patientRepo.GetByUserIdAsync(_userId, Arg.Any<CancellationToken>()).Returns((Patient?)null);
+
+        var act = () => _handler.HandleAsync(_userId, _conversation.Id, "Xin chào");
+
+        await act.Should().ThrowAsync<NotFoundException>();
+        await _aiChatService.DidNotReceive().AskAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Mã hội thoại không tồn tại trong DB phải ném NotFoundException, không gọi AI.</summary>
+    [Test]
+    public async Task HandleAsync_ConversationNotFound_ThrowsNotFoundException()
+    {
+        var act = () => _handler.HandleAsync(_userId, Guid.NewGuid(), "Xin chào");
+
+        await act.Should().ThrowAsync<NotFoundException>();
+        await _aiChatService.DidNotReceive().AskAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Hội thoại tồn tại nhưng thuộc về bệnh nhân khác phải ném NotFoundException — tránh
+    /// bệnh nhân A gửi tin nhắn vào hội thoại của bệnh nhân B.</summary>
+    [Test]
+    public async Task HandleAsync_ConversationBelongsToDifferentPatient_ThrowsNotFoundException()
+    {
+        var otherPatient = Patient.Create("Bệnh nhân khác", new DateOnly(1985, 3, 3), "Nữ");
+        _db.Patients.Add(otherPatient);
+        var otherConversation = ChatConversation.Create(otherPatient.Id);
+        _db.ChatConversations.Add(otherConversation);
+        await _db.SaveChangesAsync();
+
+        var act = () => _handler.HandleAsync(_userId, otherConversation.Id, "Xin chào");
+
+        await act.Should().ThrowAsync<NotFoundException>();
+        await _aiChatService.DidNotReceive().AskAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
 }

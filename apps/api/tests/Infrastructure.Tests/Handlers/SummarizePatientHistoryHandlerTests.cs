@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.UseCases.Appointments;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Infrastructure.Persistence;
 using FluentAssertions;
@@ -186,5 +187,19 @@ public class SummarizePatientHistoryHandlerTests
         result.Summary.Should().Contain("chưa có lịch sử khám");
         await _aiChatService.DidNotReceive().SummarizeAsync(
             Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// appointmentId không tồn tại phải ném NotFoundException, để controller trả về 404 thay vì
+    /// NullReferenceException khi truy cập currentAppointment.PatientId.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_NonExistentAppointment_ThrowsNotFoundException()
+    {
+        var nonExistentId = Guid.NewGuid();
+
+        Func<Task> act = () => _handler.HandleAsync(nonExistentId);
+
+        await act.Should().ThrowAsync<NotFoundException>();
     }
 }

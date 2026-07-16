@@ -1,6 +1,8 @@
+using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
+using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -27,7 +29,7 @@ public record CreateWalkInResult(
     string PatientName,
     string Status);
 
-public class CreateWalkInAppointmentHandler(AppDbContext dbContext)
+public class CreateWalkInAppointmentHandler(AppDbContext dbContext, INotificationService notificationService)
 {
     public async Task<CreateWalkInResult> HandleAsync(CreateWalkInCommand cmd, CancellationToken ct = default)
     {
@@ -91,6 +93,24 @@ public class CreateWalkInAppointmentHandler(AppDbContext dbContext)
         await dbContext.SaveChangesAsync(ct);
 
         var code = $"DK{cmd.AppointmentDate:yyyyMMdd}{appointment.Id.ToString("N")[..6].ToUpper()}";
+
+        // Bệnh nhân đã ngồi chờ tại quầy (CheckedIn ngay) nên bác sĩ càng cần được báo ngay lập tức —
+        // không báo Staff vì chính nhân viên đang thao tác đã biết rõ việc này rồi.
+        var dentistUserId = await dbContext.Dentists
+            .Where(d => d.Id == cmd.DentistId)
+            .Select(d => (Guid?)d.UserId)
+            .FirstOrDefaultAsync(ct);
+        if (dentistUserId.HasValue)
+        {
+            await notificationService.CreateAsync(new CreateNotificationRequest(
+                UserId: dentistUserId.Value,
+                Type: NotificationType.Appointment,
+                Priority: NotificationPriority.High,
+                Title: "Bệnh nhân vãng lai mới",
+                Body: $"{patient.FullName} vừa đến khám và đang chờ tại quầy.",
+                RelatedEntityType: "Appointment",
+                RelatedEntityId: appointment.Id.ToString()), ct);
+        }
 
         return new CreateWalkInResult(appointment.Id, code, patient.FullName, appointment.Status.ToString());
     }

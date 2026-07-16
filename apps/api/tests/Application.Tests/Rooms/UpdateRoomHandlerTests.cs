@@ -88,4 +88,39 @@ public class UpdateRoomHandlerTests
 
         await act.Should().ThrowAsync<ConflictException>();
     }
+
+    /// <summary>
+    /// Giữ nguyên code/tên cũ (không đổi) không được coi là trùng lặp vì ExcludeId
+    /// loại trừ chính phòng đang cập nhật khỏi kiểm tra tồn tại.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_SameCodeAndName_DoesNotThrowConflict()
+    {
+        var room = Room.Create("P01", "Phòng 1", "1", "Loại", "Mô tả");
+        _repo.GetByIdAsync(room.Id, Arg.Any<CancellationToken>()).Returns(room);
+        var handler = new UpdateRoomHandler(_repo, _activityLog, _currentUser);
+
+        Func<Task> act = () => handler.HandleAsync(room.Id, new UpdateRoomRequest("P01", "Phòng 1", "2", "Loại Mới", "Mô tả mới"));
+
+        await act.Should().NotThrowAsync();
+        await _repo.Received(1).UpdateAsync(room, Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Phòng không tồn tại phải dừng ngay ở bước tìm kiếm, không được gọi tiếp
+    /// ExistsByCodeAsync/ExistsByNameAsync hay UpdateAsync.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_NotFound_DoesNotCheckDuplicatesOrUpdate()
+    {
+        _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Room?)null);
+        var handler = new UpdateRoomHandler(_repo, _activityLog, _currentUser);
+
+        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid(), new UpdateRoomRequest("P01", "Phòng", "1", "Loại", "Mô tả"));
+
+        await act.Should().ThrowAsync<NotFoundException>();
+        await _repo.DidNotReceive().ExistsByCodeAsync(Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>());
+        await _repo.DidNotReceive().ExistsByNameAsync(Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>());
+        await _repo.DidNotReceive().UpdateAsync(Arg.Any<Room>(), Arg.Any<CancellationToken>());
+    }
 }

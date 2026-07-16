@@ -126,4 +126,36 @@ public class GetAccountsHandlerTests
 
         await _userRepo.Received(1).GetAllAsync(Arg.Any<CancellationToken>());
     }
+
+    /// <summary>
+    /// Id và CreatedAt của user cũng phải được ánh xạ đúng sang AccountDto,
+    /// đảm bảo client có đủ thông tin định danh và thời điểm tạo tài khoản.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_MapsIdAndCreatedAtCorrectly()
+    {
+        var user = User.Create("adminuser", "admin@test.com", "hash", "Admin");
+        _userRepo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<User> { user });
+
+        var result = (await _handler.HandleAsync()).Single();
+
+        result.Id.Should().Be(user.Id);
+        result.CreatedAt.Should().Be(user.CreatedAt);
+    }
+
+    /// <summary>
+    /// User bị vô hiệu hóa (IsActive = false) phải được ánh xạ đúng giá trị IsActive = false,
+    /// không được mặc định thành true trong AccountDto.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_InactiveUser_MapsIsActiveFalse()
+    {
+        var user = User.Create("inactiveuser", "inactive@test.com", "hash", "Staff");
+        user.SetActive(false);
+        _userRepo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<User> { user });
+
+        var result = (await _handler.HandleAsync()).Single();
+
+        result.IsActive.Should().BeFalse();
+    }
 }

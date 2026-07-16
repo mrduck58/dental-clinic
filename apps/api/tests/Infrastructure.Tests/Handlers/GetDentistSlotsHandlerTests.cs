@@ -71,4 +71,91 @@ public class GetDentistSlotsHandlerTests
 
         slots.Values.Should().OnlyContain(s => s.Period == WorkShifts.PeriodMorning);
     }
+
+    /// <summary>Ngày được đánh dấu nghỉ lễ (IsHoliday) phải trả về danh sách rỗng, không hiển thị
+    /// bất kỳ bác sĩ hay khung giờ nào để đặt lịch.</summary>
+    [Test]
+    public async Task HandleAsync_HolidaySchedule_ReturnsEmptyList()
+    {
+        var date = DateOnly.FromDateTime(DateTime.Today.AddDays(1));
+        _db.WorkSchedules.Add(WorkSchedule.Create(date, "", "holiday", "holiday", "", "", "", true));
+        await _db.SaveChangesAsync();
+
+        var result = await _handler.HandleAsync(date);
+
+        result.Should().BeEmpty();
+    }
+
+    /// <summary>Chủ Nhật không có WorkSchedule nào phải trả về rỗng — mặc định không làm việc Chủ Nhật.</summary>
+    [Test]
+    public async Task HandleAsync_SundayWithNoSchedule_ReturnsEmptyList()
+    {
+        var sunday = Enumerable.Range(1, 14)
+            .Select(i => DateOnly.FromDateTime(DateTime.Today.AddDays(i)))
+            .First(d => d.DayOfWeek == DayOfWeek.Sunday);
+
+        var result = await _handler.HandleAsync(sunday);
+
+        result.Should().BeEmpty();
+    }
+
+    /// <summary>Ngày thường (không phải Chủ Nhật) không có WorkSchedule nào cũng phải trả về rỗng —
+    /// không cho đặt lịch khi chưa có phân ca.</summary>
+    [Test]
+    public async Task HandleAsync_WeekdayWithNoSchedule_ReturnsEmptyList()
+    {
+        var weekday = Enumerable.Range(1, 14)
+            .Select(i => DateOnly.FromDateTime(DateTime.Today.AddDays(i)))
+            .First(d => d.DayOfWeek != DayOfWeek.Sunday);
+
+        var result = await _handler.HandleAsync(weekday);
+
+        result.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Bác sĩ được phân ca và chưa có lịch hẹn nào phải xuất hiện với đầy đủ thông tin DTO
+    /// (tên, chuyên khoa, số năm kinh nghiệm) và toàn bộ slot đều chưa được đặt.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_DentistScheduledWithNoBookings_ReturnsDentistWithAllSlotsFree()
+    {
+        var date = DateOnly.FromDateTime(DateTime.Today.AddDays(1));
+        var dentistUser = User.Create("d2", "d2@test.com", "hash", "Dentist");
+        _db.Users.Add(dentistUser);
+        var dentist = Dentist.Create(dentistUser.Id, "BS. Free", "Implant", 7);
+        _db.Dentists.Add(dentist);
+        _db.WorkSchedules.Add(WorkSchedule.Create(date, "08:00-10:00", "dentist", "Dentist", dentist.FullName, "P2", "#fff", false));
+        await _db.SaveChangesAsync();
+
+        var result = (await _handler.HandleAsync(date)).ToList();
+
+        var dto = result.Should().ContainSingle().Subject;
+        dto.FullName.Should().Be("BS. Free");
+        dto.Specialization.Should().Be("Implant");
+        dto.ExperienceYears.Should().Be(7);
+        dto.Slots.Should().OnlyContain(s => !s.IsBooked);
+    }
+
+    /// <summary>
+    /// Chỉ những bác sĩ có tên khớp với WorkSchedule của ngày đó mới được trả về — bác sĩ tồn tại
+    /// trong hệ thống nhưng không được phân ca hôm đó không được xuất hiện trong danh sách đặt lịch.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_DentistWithoutScheduleOnThatDay_IsExcludedFromResult()
+    {
+        var date = DateOnly.FromDateTime(DateTime.Today.AddDays(1));
+        var scheduledUser = User.Create("d3", "d3@test.com", "hash", "Dentist");
+        var unscheduledUser = User.Create("d4", "d4@test.com", "hash", "Dentist");
+        _db.Users.AddRange(scheduledUser, unscheduledUser);
+        var scheduledDentist = Dentist.Create(scheduledUser.Id, "BS. Có ca", "Nha khoa tổng quát", 5);
+        var unscheduledDentist = Dentist.Create(unscheduledUser.Id, "BS. Không ca", "Nha khoa tổng quát", 5);
+        _db.Dentists.AddRange(scheduledDentist, unscheduledDentist);
+        _db.WorkSchedules.Add(WorkSchedule.Create(date, "08:00-10:00", "dentist", "Dentist", scheduledDentist.FullName, "P1", "#fff", false));
+        await _db.SaveChangesAsync();
+
+        var result = (await _handler.HandleAsync(date)).ToList();
+
+        result.Should().ContainSingle(d => d.FullName == "BS. Có ca");
+    }
 }

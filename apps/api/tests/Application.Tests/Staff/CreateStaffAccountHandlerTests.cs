@@ -82,4 +82,55 @@ public class CreateStaffAccountHandlerTests
 
         result.HasAccount.Should().BeTrue();
     }
+
+    /// <summary>
+    /// Username được sinh tự động từ phần trước dấu @ của email, chuyển thường
+    /// và thay dấu chấm/gạch ngang bằng gạch dưới.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_GeneratesUsernameFromEmailLocalPart()
+    {
+        var user = User.CreateEmployee("First.Last-Name@Test.com", "Staff");
+        _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
+        var handler = new CreateStaffAccountHandler(_userRepo, _emailService);
+
+        var result = await handler.HandleAsync(user.Id);
+
+        result.Username.Should().Be("first_last_name");
+    }
+
+    /// <summary>
+    /// Nếu username sinh ra từ email đã bị trùng, handler phải nối thêm hậu tố ngẫu nhiên
+    /// để đảm bảo tính duy nhất trước khi lưu.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_UsernameCollision_AppendsRandomSuffix()
+    {
+        var user = User.CreateEmployee("emp@test.com", "Staff");
+        _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
+        _userRepo.ExistsByUsernameAsync("emp", Arg.Any<CancellationToken>()).Returns(true);
+        var handler = new CreateStaffAccountHandler(_userRepo, _emailService);
+
+        var result = await handler.HandleAsync(user.Id);
+
+        result.Username.Should().StartWith("emp_");
+        result.Username.Should().NotBe("emp");
+    }
+
+    /// <summary>
+    /// Khi nhân viên không có FullName, email thông tin đăng nhập phải dùng username
+    /// làm tên hiển thị thay thế (fallback).
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_NoFullName_EmailUsesUsernameAsDisplayName()
+    {
+        var user = User.CreateEmployee("emp@test.com", "Staff", fullName: null);
+        _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
+        var handler = new CreateStaffAccountHandler(_userRepo, _emailService);
+
+        await handler.HandleAsync(user.Id);
+
+        await _emailService.Received(1).SendStaffCredentialsAsync(
+            user.Email, user.Username!, Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
 }

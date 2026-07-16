@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.DTOs.Services;
 using DentalClinic.API.Application.UseCases.Services;
+using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
@@ -63,5 +64,28 @@ public class CreateServiceHandlerTests
         var result = await handler.HandleAsync(new CreateServiceRequest("Tẩy trắng", 800000m, 60, "Mô tả", "https://img.com/teeth.jpg"));
 
         result.ImageUrl.Should().Be("https://img.com/teeth.jpg");
+    }
+
+    /// <summary>
+    /// Tạo dịch vụ hợp lệ phải ghi log hoạt động với action Create, module Service.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_ValidRequest_LogsActivityWithCreateAction()
+    {
+        var handler = new CreateServiceHandler(_repo, _activityLog, _currentUser);
+
+        var result = await handler.HandleAsync(new CreateServiceRequest("Nhổ răng", 200000m, 30, "Mô tả", null));
+
+        await _activityLog.Received(1).LogAsync(
+            userId: Arg.Any<Guid?>(),
+            userName: Arg.Any<string>(),
+            userRole: Arg.Any<string>(),
+            action: ActivityAction.Create,
+            module: ActivityModule.Service,
+            description: Arg.Is<string>(d => d.Contains("Nhổ răng")),
+            status: ActivityStatus.Success,
+            ipAddress: Arg.Any<string?>(),
+            targetId: result.Id.ToString(),
+            ct: Arg.Any<CancellationToken>());
     }
 }

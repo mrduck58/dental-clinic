@@ -69,6 +69,57 @@ public class ResetStaffPasswordHandlerTests
         result.TemporaryPassword.Should().HaveLength(8);
     }
 
+    /// <summary>
+    /// Nhân viên chưa có tài khoản (Username null) và không có FullName phải dùng Email
+    /// làm tên hiển thị trong email gửi mật khẩu mới (fallback cuối cùng của chuỗi ??).
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_NoFullNameAndNoUsername_EmailUsesEmailAsDisplayName()
+    {
+        var user = User.CreateEmployee("emp@test.com", "Staff", fullName: null);
+        _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
+        var handler = new ResetStaffPasswordHandler(_userRepo, _emailService);
+
+        await handler.HandleAsync(user.Id);
+
+        await _emailService.Received(1).SendStaffCredentialsAsync(
+            user.Email, user.Email, Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Nhân viên đã có tài khoản (Username khác null) nhưng không có FullName phải dùng
+    /// Username làm tên hiển thị (fallback thứ hai của chuỗi ??).
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_NoFullNameButHasUsername_EmailUsesUsernameAsDisplayName()
+    {
+        var user = User.Create("myusername", "emp@test.com", "hash", "Staff", fullName: null);
+        _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
+        var handler = new ResetStaffPasswordHandler(_userRepo, _emailService);
+
+        await handler.HandleAsync(user.Id);
+
+        await _emailService.Received(1).SendStaffCredentialsAsync(
+            user.Email, "myusername", Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Kết quả trả về phải chứa đúng Id và Email của nhân viên đã reset mật khẩu,
+    /// không bị lẫn với các trường khác.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_ExistingUser_ReturnsCorrectIdAndEmail()
+    {
+        var user = MakeEmployee();
+        _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
+        var handler = new ResetStaffPasswordHandler(_userRepo, _emailService);
+
+        var result = await handler.HandleAsync(user.Id);
+
+        result.Id.Should().Be(user.Id);
+        result.Email.Should().Be(user.Email);
+    }
+
     private static User MakeEmployee()
         => User.CreateEmployee("emp@test.com", "Staff", "0901234567", "Nhân Viên Test");
 }

@@ -166,6 +166,35 @@ public class DashboardHandlerTests
         result.NewPatientsTrendPercent.Should().Be(0);
     }
 
+    /// <summary>Không truyền range (null) phải mặc định về "week" thay vì ném lỗi.</summary>
+    [Test]
+    public async Task GetStatsAsync_NullRange_DefaultsToWeek()
+    {
+        var result = await _handler.GetStatsAsync(null);
+
+        result.Range.Should().Be("week");
+    }
+
+    /// <summary>Kỳ hiện tại giảm so với kỳ trước phải cho ra % tăng trưởng âm (không phải trị tuyệt đối).</summary>
+    [Test]
+    public async Task GetStatsAsync_CurrentPeriodLowerThanPrevious_TrendIsNegative()
+    {
+        var (patient, dentist) = await SeedBasicDataAsync();
+        var (weekStart, _) = ThisWeek();
+        // Kỳ trước (tuần trước): 2 lịch hẹn hợp lệ.
+        _db.Appointments.AddRange(
+            Appointment.Create(patient.Id, dentist.Id, ToVn(weekStart.AddDays(-7)).AddHours(9)),
+            Appointment.Create(patient.Id, dentist.Id, ToVn(weekStart.AddDays(-6)).AddHours(9)),
+            // Kỳ hiện tại (tuần này): 1 lịch hẹn.
+            Appointment.Create(patient.Id, dentist.Id, ToVn(weekStart).AddHours(9)));
+        await _db.SaveChangesAsync();
+
+        var result = await _handler.GetStatsAsync("week");
+
+        result.AppointmentsCount.Should().Be(1);
+        result.AppointmentsTrendPercent.Should().BeLessThan(0);
+    }
+
     // ── GetAppointmentTrendAsync ─────────────────────────────────────────────
 
     [Test]
@@ -207,6 +236,32 @@ public class DashboardHandlerTests
         var result = await _handler.GetAppointmentTrendAsync("year");
 
         result.Points.Should().HaveCount(12);
+    }
+
+    /// <summary>Range "month" phải chia theo tuần trong tháng (số bucket = số tuần cần để phủ hết
+    /// các ngày trong tháng hiện tại, tối đa 5 khi tháng có 31 ngày).</summary>
+    [Test]
+    public async Task GetAppointmentTrendAsync_MonthRange_ReturnsWeeklyBucketsCoveringWholeMonth()
+    {
+        var today = TodayVn();
+        var daysInMonth = DateTime.DaysInMonth(today.Year, today.Month);
+        var expectedBuckets = (int)Math.Ceiling(daysInMonth / 7.0);
+
+        var result = await _handler.GetAppointmentTrendAsync("month");
+
+        result.Range.Should().Be("month");
+        result.Points.Should().HaveCount(expectedBuckets);
+        result.Points.Sum(p => p.Count).Should().Be(0);
+    }
+
+    /// <summary>Không truyền range (null) phải mặc định về "week" thay vì ném lỗi.</summary>
+    [Test]
+    public async Task GetAppointmentTrendAsync_NullRange_DefaultsToWeek()
+    {
+        var result = await _handler.GetAppointmentTrendAsync(null);
+
+        result.Range.Should().Be("week");
+        result.Points.Should().HaveCount(7);
     }
 
     // ── GetServiceDistributionAsync ──────────────────────────────────────────
@@ -261,6 +316,45 @@ public class DashboardHandlerTests
         result.Items.Should().BeEmpty();
     }
 
+    /// <summary>topN &lt;= 0 phải được kẹp về tối thiểu 1 (chỉ dịch vụ đông nhất + 1 mục "khác"),
+    /// không được ném lỗi hay trả về 0 mục.</summary>
+    [Test]
+    public async Task GetServiceDistributionAsync_TopNBelowMinimum_ClampsToOne()
+    {
+        var (patient, dentist) = await SeedBasicDataAsync();
+        var services = Enumerable.Range(1, 3)
+            .Select(i => Service.Create($"Dịch vụ {i}", 100_000m, 30, "Mô tả"))
+            .ToList();
+        _db.Services.AddRange(services);
+        foreach (var service in services)
+            _db.Appointments.Add(Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow, serviceId: service.Id));
+        await _db.SaveChangesAsync();
+
+        var result = await _handler.GetServiceDistributionAsync("week", topN: 0);
+
+        result.Items.Should().HaveCount(2);
+        result.Items.Count(i => i.ServiceId != null).Should().Be(1);
+    }
+
+    /// <summary>topN vượt quá 20 phải được kẹp về tối đa 20.</summary>
+    [Test]
+    public async Task GetServiceDistributionAsync_TopNAboveMaximum_ClampsToTwenty()
+    {
+        var (patient, dentist) = await SeedBasicDataAsync();
+        var services = Enumerable.Range(1, 3)
+            .Select(i => Service.Create($"Dịch vụ {i}", 100_000m, 30, "Mô tả"))
+            .ToList();
+        _db.Services.AddRange(services);
+        foreach (var service in services)
+            _db.Appointments.Add(Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow, serviceId: service.Id));
+        await _db.SaveChangesAsync();
+
+        var result = await _handler.GetServiceDistributionAsync("week", topN: 100);
+
+        result.Items.Should().HaveCount(3);
+        result.Items.Should().OnlyContain(i => i.ServiceId != null);
+    }
+
     // ── GetTodayAppointmentsAsync ─────────────────────────────────────────────
 
     [Test]
@@ -291,6 +385,29 @@ public class DashboardHandlerTests
         result.TotalCount.Should().Be(5);
         result.Items.Should().HaveCount(2);
         result.TotalPages.Should().Be(3);
+    }
+
+    /// <summary>page &lt;= 0 phải được kẹp về trang 1 thay vì gây lỗi Skip âm.</summary>
+    [Test]
+    public async Task GetTodayAppointmentsAsync_PageBelowOne_ClampsToFirstPage()
+    {
+        var (patient, dentist) = await SeedBasicDataAsync();
+        _db.Appointments.Add(Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow));
+        await _db.SaveChangesAsync();
+
+        var result = await _handler.GetTodayAppointmentsAsync(0, 10);
+
+        result.Page.Should().Be(1);
+        result.Items.Should().ContainSingle();
+    }
+
+    /// <summary>pageSize vượt quá 100 phải được kẹp về tối đa 100.</summary>
+    [Test]
+    public async Task GetTodayAppointmentsAsync_PageSizeAboveMaximum_ClampsToOneHundred()
+    {
+        var result = await _handler.GetTodayAppointmentsAsync(1, 1000);
+
+        result.PageSize.Should().Be(100);
     }
 
     // ── GetWeeklyScheduleAsync ────────────────────────────────────────────────

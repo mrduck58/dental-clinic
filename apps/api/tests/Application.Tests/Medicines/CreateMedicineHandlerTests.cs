@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.DTOs.Medicines;
 using DentalClinic.API.Application.UseCases.Medicines;
+using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
@@ -66,5 +67,29 @@ public class CreateMedicineHandlerTests
         result.GenericName.Should().Be("Ibuprofen BP");
         result.Unit.Should().Be("Viên");
         result.Description.Should().Be("Giảm đau");
+    }
+
+    /// <summary>
+    /// Tạo thuốc thành công phải ghi nhật ký hoạt động đúng hành động (Create), module (Medicine)
+    /// và mô tả có chứa tên thuốc vừa tạo.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_ValidRequest_LogsCreateActivityWithMedicineName()
+    {
+        var handler = new CreateMedicineHandler(_repo, _activityLog, _currentUser);
+
+        await handler.HandleAsync(new CreateMedicineRequest("Amoxicillin", "Amoxicillin", "GSK", "Viên", "Kháng sinh"));
+
+        await _activityLog.Received(1).LogAsync(
+            userId: Arg.Any<Guid?>(),
+            userName: Arg.Any<string?>(),
+            userRole: Arg.Any<string?>(),
+            action: ActivityAction.Create,
+            module: ActivityModule.Medicine,
+            description: Arg.Is<string>(d => d.Contains("Amoxicillin")),
+            status: ActivityStatus.Success,
+            ipAddress: Arg.Any<string?>(),
+            targetId: Arg.Any<string?>(),
+            ct: Arg.Any<CancellationToken>());
     }
 }

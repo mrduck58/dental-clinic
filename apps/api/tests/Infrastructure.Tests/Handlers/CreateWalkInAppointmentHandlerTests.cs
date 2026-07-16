@@ -1,9 +1,11 @@
 using DentalClinic.API.Application.UseCases.Appointments;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
+using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Infrastructure.Persistence;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using NSubstitute;
 using NUnit.Framework;
 
 namespace DentalClinic.API.Infrastructure.Tests.Handlers;
@@ -12,8 +14,10 @@ namespace DentalClinic.API.Infrastructure.Tests.Handlers;
 public class CreateWalkInAppointmentHandlerTests
 {
     private AppDbContext _db = null!;
+    private INotificationService _notificationService = null!;
     private CreateWalkInAppointmentHandler _handler = null!;
     private Guid _dentistId;
+    private Guid _dentistUserId;
 
     [SetUp]
     public async Task SetUp()
@@ -22,7 +26,8 @@ public class CreateWalkInAppointmentHandlerTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         _db = new AppDbContext(options);
-        _handler = new CreateWalkInAppointmentHandler(_db);
+        _notificationService = Substitute.For<INotificationService>();
+        _handler = new CreateWalkInAppointmentHandler(_db, _notificationService);
 
         var dentistUser = User.Create("d1", $"d1-{Guid.NewGuid()}@test.com", "hash", "Dentist");
         _db.Users.Add(dentistUser);
@@ -30,6 +35,7 @@ public class CreateWalkInAppointmentHandlerTests
         _db.Dentists.Add(dentist);
         await _db.SaveChangesAsync();
         _dentistId = dentist.Id;
+        _dentistUserId = dentistUser.Id;
     }
 
     [TearDown]
@@ -69,6 +75,27 @@ public class CreateWalkInAppointmentHandlerTests
 
         result.Status.Should().Be("CheckedIn");
         result.PatientName.Should().Be("Nguyễn Văn A");
+    }
+
+    /// <summary>Bệnh nhân vãng lai vào thẳng hàng đợi nên bác sĩ càng cần được báo ngay — không báo
+    /// Staff vì chính nhân viên đang thao tác tại quầy đã biết rõ việc này rồi.</summary>
+    [Test]
+    public async Task HandleAsync_CreatesWalkIn_NotifiesDentistOnly()
+    {
+        var futureDate = DateTimeOffset.UtcNow.AddHours(1);
+
+        var result = await _handler.HandleAsync(MakeCommand(futureDate));
+
+        await _notificationService.Received(1).CreateAsync(
+            Arg.Is<CreateNotificationRequest>(r =>
+                r.UserId == _dentistUserId &&
+                r.Type == "appointment" &&
+                r.Priority == "high" &&
+                r.Body.Contains("Nguyễn Văn A") &&
+                r.RelatedEntityId == result.AppointmentId.ToString()),
+            Arg.Any<CancellationToken>());
+        await _notificationService.DidNotReceive().CreateForMultipleUsersAsync(
+            Arg.Any<IEnumerable<Guid>>(), Arg.Any<CreateNotificationRequest>(), Arg.Any<CancellationToken>());
     }
 
     [Test]
@@ -126,6 +153,27 @@ public class CreateWalkInAppointmentHandlerTests
         await _handler.HandleAsync(MakeCommand(DateTimeOffset.UtcNow.AddHours(2)));
 
         _db.Patients.Should().HaveCount(1);
+        _db.Appointments.Should().HaveCount(2);
+    }
+
+    /// <summary>
+    /// Lịch hẹn cũ tại đúng khung giờ đó đã bị hủy (Cancelled) không được coi là chiếm slot —
+    /// staff phải đặt lại được bình thường cho bệnh nhân khác vào đúng giờ đó.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_SlotOnlyHasCancelledAppointment_AllowsBooking()
+    {
+        var futureDate = DateTimeOffset.UtcNow.AddHours(1);
+        var cancelledPatient = Patient.Create("Bệnh nhân hủy", new DateOnly(1988, 3, 3), "Nữ", phoneNumber: "0900000009");
+        _db.Patients.Add(cancelledPatient);
+        var cancelledAppointment = Appointment.Create(cancelledPatient.Id, _dentistId, futureDate);
+        cancelledAppointment.Cancel("Đổi ý");
+        _db.Appointments.Add(cancelledAppointment);
+        await _db.SaveChangesAsync();
+
+        var result = await _handler.HandleAsync(MakeCommand(futureDate));
+
+        result.Status.Should().Be("CheckedIn");
         _db.Appointments.Should().HaveCount(2);
     }
 }

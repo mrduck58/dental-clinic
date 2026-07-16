@@ -74,6 +74,41 @@ public class ApproveLeaveRequestHandlerTests
         await act.Should().ThrowAsync<ValidationException>();
     }
 
+    /// <summary>
+    /// Duyệt đơn đã bị từ chối (Rejected) phải ném ValidationException,
+    /// vì đơn đã ở trạng thái kết thúc, không còn ở trạng thái chờ xử lý.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_RejectedRequest_ThrowsValidationException()
+    {
+        var lr = MakeRequest();
+        lr.Reject(null);
+        _repo.GetByIdAsync(lr.Id, Arg.Any<CancellationToken>()).Returns(lr);
+        var handler = new ApproveLeaveRequestHandler(_repo, _activityLog, _notification, _currentUser);
+
+        Func<Task> act = () => handler.HandleAsync(lr.Id);
+
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    /// <summary>
+    /// Duyệt đơn thành công phải gửi thông báo cho đúng người nộp đơn (UserId của request),
+    /// để nhân viên biết đơn xin nghỉ của mình đã được duyệt.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_PendingRequest_SendsNotificationToRequester()
+    {
+        var lr = MakeRequest();
+        _repo.GetByIdAsync(lr.Id, Arg.Any<CancellationToken>()).Returns(lr);
+        var handler = new ApproveLeaveRequestHandler(_repo, _activityLog, _notification, _currentUser);
+
+        await handler.HandleAsync(lr.Id);
+
+        await _notification.Received(1).CreateAsync(
+            Arg.Is<CreateNotificationRequest>(n => n.UserId == lr.UserId),
+            Arg.Any<CancellationToken>());
+    }
+
     private static LeaveRequest MakeRequest()
     {
         var today = DateOnly.FromDateTime(DateTime.Today);

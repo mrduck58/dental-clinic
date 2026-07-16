@@ -239,6 +239,63 @@ public class GetActivityLogsHandlerTests
             Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
     }
 
+    /// <summary>
+    /// Owner cũng phải được coi như Admin — được phép lọc theo bất kỳ UserId nào, không bị ép về
+    /// UserId của chính mình.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_WhenUserIsOwner_AllowsArbitraryUserIdFilter()
+    {
+        _currentUser.UserRole.Returns("Owner");
+
+        var requestedUserId = Guid.NewGuid();
+        await _handler.HandleAsync(new GetActivityLogsQuery(requestedUserId, null, null, null, null, null, null));
+
+        await _repo.Received(1).GetPagedAsync(
+            requestedUserId, Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
+            Arg.Any<DateTimeOffset?>(), Arg.Any<DateTimeOffset?>(),
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    // ── EndDate normalization ────────────────────────────────────────────────
+
+    /// <summary>
+    /// EndDate không có phần giờ (đúng nửa đêm) phải được mở rộng đến cuối ngày (23:59:59.9999999)
+    /// để bao gồm trọn vẹn ngày đó, tránh bỏ sót log phát sinh trong ngày.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_EndDateAtMidnight_ExtendedToEndOfDay()
+    {
+        var endDate = new DateTimeOffset(2024, 1, 15, 0, 0, 0, TimeSpan.Zero);
+        var expectedEndDate = endDate.AddDays(1).AddTicks(-1); // 2024-01-15 23:59:59.9999999
+
+        await _handler.HandleAsync(
+            new GetActivityLogsQuery(null, null, null, null, null, null, endDate));
+
+        await _repo.Received(1).GetPagedAsync(
+            Arg.Any<Guid?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
+            Arg.Any<DateTimeOffset?>(), expectedEndDate,
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// EndDate đã có phần giờ khác nửa đêm phải được truyền nguyên vẹn xuống repository,
+    /// không bị cộng thêm ngày.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_EndDateWithTimeComponent_PassedUnchanged()
+    {
+        var endDate = new DateTimeOffset(2024, 1, 15, 14, 30, 0, TimeSpan.Zero);
+
+        await _handler.HandleAsync(
+            new GetActivityLogsQuery(null, null, null, null, null, null, endDate));
+
+        await _repo.Received(1).GetPagedAsync(
+            Arg.Any<Guid?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
+            Arg.Any<DateTimeOffset?>(), endDate,
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private void SetupRepo(IList<ActivityLog> items, int total)

@@ -81,6 +81,50 @@ public class UpdateStaffHandlerTests
         await _userRepo.DidNotReceive().ExistsByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
+    /// <summary>
+    /// So sánh email khi giữ nguyên phải không phân biệt hoa/thường (OrdinalIgnoreCase),
+    /// nếu không sẽ bị coi nhầm là đổi email và kiểm tra conflict không cần thiết.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_SameEmailDifferentCase_DoesNotCheckEmailConflict()
+    {
+        var user = MakeEmployee(email: "Same@Test.com");
+        _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
+        var handler = new UpdateStaffHandler(_userRepo);
+
+        await handler.HandleAsync(BuildCommand(user.Id, email: "same@test.com"));
+
+        await _userRepo.DidNotReceive().ExistsByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Dữ liệu không hợp lệ (họ tên rỗng) phải ném ValidationException ngay từ bước validate,
+    /// trước cả khi tìm nhân viên theo ID.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_InvalidFullName_ThrowsValidationExceptionBeforeLookup()
+    {
+        var handler = new UpdateStaffHandler(_userRepo);
+
+        Func<Task> act = () => handler.HandleAsync(BuildCommand(Guid.NewGuid()) with { FullName = "" });
+
+        await act.Should().ThrowAsync<ValidationException>();
+        await _userRepo.DidNotReceive().GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Vai trò không nằm trong danh sách hợp lệ (Staff/Dentist/Admin) phải ném ValidationException.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_InvalidRole_ThrowsValidationException()
+    {
+        var handler = new UpdateStaffHandler(_userRepo);
+
+        Func<Task> act = () => handler.HandleAsync(BuildCommand(Guid.NewGuid()) with { Role = "SuperAdmin" });
+
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
     private static User MakeEmployee(string email = "emp@test.com")
         => User.CreateEmployee(email, "Staff", "0901234567", "Nhân Viên Test");
 
