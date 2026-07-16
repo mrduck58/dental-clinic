@@ -20,14 +20,15 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 
             // 2. Insert placeholder User records for those patients
             migrationBuilder.Sql(@"
-                INSERT INTO ""Users"" (""Id"", ""Email"", ""Role"", ""FullName"", ""PhoneNumber"", ""CreatedAt"")
+                INSERT INTO ""Users"" (""Id"", ""Email"", ""Role"", ""FullName"", ""PhoneNumber"", ""CreatedAt"", ""IsActive"")
                 SELECT 
                     p.""Id"",
                     'placeholder_' || CAST(p.""Id"" AS text) || '@songiangdental.com',
                     'Patient',
                     COALESCE(p.""FullName"", 'Bệnh nhân chưa đặt tên'),
                     p.""PhoneNumber"",
-                    NOW()
+                    NOW(),
+                    true
                 FROM ""Patients"" p
                 WHERE NOT EXISTS (SELECT 1 FROM ""Users"" u WHERE u.""Id"" = p.""UserId"");
             ");
