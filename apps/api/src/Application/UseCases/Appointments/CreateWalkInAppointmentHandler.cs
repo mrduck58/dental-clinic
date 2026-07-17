@@ -110,7 +110,7 @@ public class CreateWalkInAppointmentHandler(AppDbContext dbContext, INotificatio
                 Type: NotificationType.Appointment,
                 Priority: NotificationPriority.High,
                 Title: "Bệnh nhân vãng lai mới",
-                Body: $"{patient.FullName} vừa đến khám và đang chờ tại quầy.",
+                Body: $"{cmd.PatientName} vừa đến khám và đang chờ tại quầy.",
                 RelatedEntityType: "Appointment",
                 RelatedEntityId: appointment.Id.ToString()), ct);
         }

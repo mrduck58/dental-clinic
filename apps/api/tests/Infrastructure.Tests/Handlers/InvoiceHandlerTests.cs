@@ -41,8 +41,8 @@ public class InvoiceHandlerTests
         var patientUser = User.Create("inv-p", $"inv-p-{Guid.NewGuid()}@test.com", "hash", "Patient");
         var dentistUser = User.Create("inv-d", $"inv-d-{Guid.NewGuid()}@test.com", "hash", "Dentist");
         _db.Users.AddRange(patientUser, dentistUser);
-        var patient = Patient.Create("Bệnh nhân Hóa Đơn", new DateOnly(1990, 1, 1), "Nam", patientUser.Id);
-        var dentist = Dentist.Create(dentistUser.Id, "BS Hóa Đơn", "Nha khoa tổng quát", 5);
+        var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
+        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
         _db.Patients.Add(patient);
         _db.Dentists.Add(dentist);
         var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
@@ -88,8 +88,8 @@ public class InvoiceHandlerTests
     {
         var dentistUser = User.Create("inv1", $"inv1-{Guid.NewGuid()}@test.com", "hash", "Dentist");
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "BS Test", "Nha khoa tổng quát", 5);
-        var patient = Patient.Create("Bệnh nhân X", new DateOnly(1990, 1, 1), "Nam");
+        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
         _db.Dentists.Add(dentist);
         _db.Patients.Add(patient);
         var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);

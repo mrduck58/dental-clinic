@@ -45,7 +45,7 @@ public class GetMyConversationsHandlerTests
     [Test]
     public async Task HandleAsync_MultipleConversations_OrderedByUpdatedAtDescending()
     {
-        var patient = Patient.Create("Bệnh nhân Hội Thoại", new DateOnly(1990, 1, 1), "Nam");
+        var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
         _db.Patients.Add(patient);
         var older = ChatConversation.Create(patient.Id);
         var newer = ChatConversation.Create(patient.Id);
@@ -64,7 +64,7 @@ public class GetMyConversationsHandlerTests
     [Test]
     public async Task HandleAsync_PreviewUsesLastUserMessage_NotAssistantMessage()
     {
-        var patient = Patient.Create("Bệnh nhân Preview", new DateOnly(1990, 1, 1), "Nam");
+        var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
         _db.Patients.Add(patient);
         var conversation = ChatConversation.Create(patient.Id);
         _db.ChatConversations.Add(conversation);
@@ -83,7 +83,7 @@ public class GetMyConversationsHandlerTests
     [Test]
     public async Task HandleAsync_NoUserMessagesYet_UsesDefaultPreviewText()
     {
-        var patient = Patient.Create("Bệnh nhân Mới", new DateOnly(1990, 1, 1), "Nam");
+        var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
         _db.Patients.Add(patient);
         var conversation = ChatConversation.Create(patient.Id);
         _db.ChatConversations.Add(conversation);
@@ -99,7 +99,7 @@ public class GetMyConversationsHandlerTests
     [Test]
     public async Task HandleAsync_LongPreviewText_TruncatesTo80CharsWithEllipsis()
     {
-        var patient = Patient.Create("Bệnh nhân Dài", new DateOnly(1990, 1, 1), "Nam");
+        var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
         _db.Patients.Add(patient);
         var conversation = ChatConversation.Create(patient.Id);
         _db.ChatConversations.Add(conversation);

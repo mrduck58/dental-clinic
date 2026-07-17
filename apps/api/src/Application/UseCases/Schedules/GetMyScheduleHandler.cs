@@ -15,7 +15,9 @@ public class GetMyScheduleHandler(AppDbContext dbContext)
         if (!DateOnly.TryParse(weekStart, out var start))
             throw new ArgumentException("Invalid date format. Use YYYY-MM-DD.");
 
-        var dentist = await dbContext.Dentists.FirstOrDefaultAsync(d => d.UserId == userId, ct);
+        var dentist = await dbContext.Dentists
+            .Include(d => d.User)
+            .FirstOrDefaultAsync(d => d.UserId == userId, ct);
         if (dentist == null)
             return Enumerable.Empty<ScheduleEntryDto>();
 

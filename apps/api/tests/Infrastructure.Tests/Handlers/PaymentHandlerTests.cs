@@ -52,8 +52,8 @@ public class PaymentHandlerTests
         var patientUser = User.Create("pay-p", $"pay-p-{Guid.NewGuid()}@test.com", "hash", "Patient");
         var dentistUser = User.Create("pay-d", $"pay-d-{Guid.NewGuid()}@test.com", "hash", "Dentist");
         _db.Users.AddRange(patientUser, dentistUser);
-        var patient = Patient.Create("Bệnh nhân Thanh Toán", new DateOnly(1990, 1, 1), "Nam", patientUser.Id);
-        var dentist = Dentist.Create(dentistUser.Id, "BS Thanh Toán", "Nha khoa tổng quát", 5);
+        var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
+        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
         _db.Patients.Add(patient);
         _db.Dentists.Add(dentist);
         var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);

@@ -221,9 +221,9 @@ public class GetStaffScheduleHandlerTests
 
         var patientUser = User.Create("bn1", $"{Guid.NewGuid()}@test.com", "hash", "Patient");
         _db.Users.Add(patientUser);
-        var patient = Patient.Create("Nguyễn Văn Bệnh Nhân", new DateOnly(1990, 1, 1), "Nam", patientUser.Id);
+        var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
         _db.Patients.Add(patient);
-        var dentist = Dentist.Create(user.Id, user.FullName!, "Nha khoa tổng quát", 5);
+        var dentist = Dentist.Create(user.Id, "Nha khoa tổng quát", 5);
         _db.Dentists.Add(dentist);
         await _db.SaveChangesAsync();
 
@@ -252,9 +252,9 @@ public class GetStaffScheduleHandlerTests
             Today, "08:00-10:00", "dentist", "dentist", user.FullName!, "Phòng 1", "border-primary", false));
         var patientUser = User.Create("bn2", $"{Guid.NewGuid()}@test.com", "hash", "Patient");
         _db.Users.Add(patientUser);
-        var patient = Patient.Create("Bệnh Nhân Hủy", new DateOnly(1990, 1, 1), "Nam", patientUser.Id);
+        var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
         _db.Patients.Add(patient);
-        var dentist = Dentist.Create(user.Id, user.FullName!, "Nha khoa tổng quát", 5);
+        var dentist = Dentist.Create(user.Id, "Nha khoa tổng quát", 5);
         _db.Dentists.Add(dentist);
         await _db.SaveChangesAsync();
 

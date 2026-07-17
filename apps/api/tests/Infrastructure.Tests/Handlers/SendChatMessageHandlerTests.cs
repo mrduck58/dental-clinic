@@ -541,7 +541,7 @@ public class SendChatMessageHandlerTests
     [Test]
     public async Task HandleAsync_ConversationBelongsToDifferentPatient_ThrowsNotFoundException()
     {
-        var otherPatient = Patient.Create("Bệnh nhân khác", new DateOnly(1985, 3, 3), "Nữ");
+        var otherPatient = Patient.Create(Guid.Empty, new DateOnly(1985, 3, 3), "Nữ");
         _db.Patients.Add(otherPatient);
         var otherConversation = ChatConversation.Create(otherPatient.Id);
         _db.ChatConversations.Add(otherConversation);

@@ -41,8 +41,8 @@ public class GetExaminationHandlerTests
     {
         var dentistUser = User.Create("ex1", $"ex1-{Guid.NewGuid()}@test.com", "hash", "Dentist");
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "BS Khám", "Nha khoa tổng quát", 5);
-        var patient = Patient.Create("Bệnh nhân Khám", new DateOnly(1990, 1, 1), "Nam");
+        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
         _db.Dentists.Add(dentist);
         _db.Patients.Add(patient);
         var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
@@ -72,8 +72,8 @@ public class GetExaminationHandlerTests
     {
         var dentistUser = User.Create("ex2", $"ex2-{Guid.NewGuid()}@test.com", "hash", "Dentist");
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "BS Chuỗi", "Nha khoa tổng quát", 5);
-        var patient = Patient.Create("Bệnh nhân Chuỗi", new DateOnly(1990, 1, 1), "Nam");
+        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
         _db.Dentists.Add(dentist);
         _db.Patients.Add(patient);
         var original = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddDays(-10));

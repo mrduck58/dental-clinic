@@ -62,7 +62,7 @@ public class GetDentistSlotsHandler(AppDbContext dbContext, IAppointmentReposito
 
         var dentists = await dbContext.Dentists
             .Include(d => d.User)
-            .Where(d => dentistNames.Contains(d.FullName))
+            .Where(d => dentistNames.Contains(d.User.FullName ?? string.Empty))
             .ToListAsync(ct);
         var dayAppointments = await appointmentRepository.GetByDateAsync(date, ct);
 
