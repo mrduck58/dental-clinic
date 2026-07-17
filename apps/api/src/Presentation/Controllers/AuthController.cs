@@ -141,7 +141,7 @@ public class AuthController(
                 request.YearsOfExperience),
             cancellationToken);
 
-        return NoContent();
+        return Ok(new { message = "Đã cập nhật thông tin cá nhân." });
     }
 
     /// <summary>PUT api/auth/me/change-password — Đổi mật khẩu tài khoản hiện tại</summary>
@@ -161,7 +161,7 @@ public class AuthController(
             new ChangePasswordCommand(userId, request.CurrentPassword, request.NewPassword),
             cancellationToken);
 
-        return NoContent();
+        return Ok(new { message = "Đã đổi mật khẩu thành công." });
     }
 
     /// <summary>POST api/auth/logout — Đăng xuất (client xóa token; server-side hook cho tương lai)</summary>

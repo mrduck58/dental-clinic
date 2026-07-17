@@ -61,7 +61,7 @@ public class ServicesController(
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         await delete.HandleAsync(id, ct);
-        return NoContent();
+        return Ok(new { message = "Đã xóa dịch vụ." });
     }
 
     /// <summary>PATCH api/services/{id}/status — Bật/tắt trạng thái dịch vụ (Admin)</summary>

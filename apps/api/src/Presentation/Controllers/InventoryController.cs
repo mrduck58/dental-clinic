@@ -90,6 +90,6 @@ public class InventoryController(
             ?? "Nhân viên";
 
         await markMaterialRequestDone.HandleAsync(id, handledBy, ct);
-        return NoContent();
+        return Ok(new { message = "Đã đánh dấu hoàn tất yêu cầu vật tư." });
     }
 }

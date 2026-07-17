@@ -86,7 +86,7 @@ public class PatientsController(
         patient.UpdateMedicalHistory(request.MedicalHistory ?? string.Empty);
         await patientRepository.UpdateAsync(patient, ct);
 
-        return NoContent();
+        return Ok(new { message = "Đã cập nhật tiền sử bệnh lý." });
     }
 
     [HttpGet("{patientId:guid}/medical-history")]
@@ -129,7 +129,7 @@ public class PatientsController(
         patient.UpdateMedicalHistory(request.MedicalHistory ?? string.Empty);
         await patientRepository.UpdateAsync(patient, ct);
 
-        return NoContent();
+        return Ok(new { message = "Đã cập nhật tiền sử bệnh lý." });
     }
 
     [HttpGet("family-members")]
@@ -220,7 +220,7 @@ public class PatientsController(
 
         await patientRepository.UpdateAsync(member, ct);
 
-        return NoContent();
+        return Ok(new { message = "Đã cập nhật thông tin thành viên gia đình." });
     }
 
     [HttpDelete("family-members/{id:guid}")]
@@ -239,7 +239,7 @@ public class PatientsController(
 
         await patientRepository.DeleteAsync(member, ct);
 
-        return NoContent();
+        return Ok(new { message = "Đã xóa thành viên gia đình." });
     }
 }
 
