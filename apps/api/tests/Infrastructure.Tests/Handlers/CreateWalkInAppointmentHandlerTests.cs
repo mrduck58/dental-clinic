@@ -166,7 +166,7 @@ public class CreateWalkInAppointmentHandlerTests
     public async Task HandleAsync_SlotOnlyHasCancelledAppointment_AllowsBooking()
     {
         var futureDate = DateTimeOffset.UtcNow.AddHours(1);
-        var cancelledPatient = Patient.Create("Bệnh nhân hủy", new DateOnly(1988, 3, 3), "Nữ", phoneNumber: "0900000009");
+        var cancelledPatient = Patient.Create(Guid.Empty, new DateOnly(1988, 3, 3), "Nữ", phoneNumber: "0900000009");
         _db.Patients.Add(cancelledPatient);
         var cancelledAppointment = Appointment.Create(cancelledPatient.Id, _dentistId, futureDate);
         cancelledAppointment.Cancel("Đổi ý");

@@ -46,7 +46,7 @@ public class GetConversationMessagesHandlerTests
     [Test]
     public async Task HandleAsync_ConversationNotFound_ThrowsNotFoundException()
     {
-        var patient = Patient.Create("Bệnh nhân Chat", new DateOnly(1990, 1, 1), "Nam");
+        var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
         _db.Patients.Add(patient);
         await _db.SaveChangesAsync();
         _patientRepo.GetByUserIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(patient);
@@ -61,8 +61,8 @@ public class GetConversationMessagesHandlerTests
     [Test]
     public async Task HandleAsync_ConversationBelongsToAnotherPatient_ThrowsNotFoundException()
     {
-        var patient = Patient.Create("Bệnh nhân A", new DateOnly(1990, 1, 1), "Nam");
-        var otherPatient = Patient.Create("Bệnh nhân B", new DateOnly(1991, 1, 1), "Nữ");
+        var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
+        var otherPatient = Patient.Create(Guid.Empty, new DateOnly(1991, 1, 1), "Nữ");
         _db.Patients.AddRange(patient, otherPatient);
         var conversation = ChatConversation.Create(otherPatient.Id);
         _db.ChatConversations.Add(conversation);
@@ -78,7 +78,7 @@ public class GetConversationMessagesHandlerTests
     [Test]
     public async Task HandleAsync_ValidConversation_ReturnsMessagesOrderedByCreatedAt()
     {
-        var patient = Patient.Create("Bệnh nhân Của Tôi", new DateOnly(1990, 1, 1), "Nam");
+        var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
         _db.Patients.Add(patient);
         var conversation = ChatConversation.Create(patient.Id);
         _db.ChatConversations.Add(conversation);

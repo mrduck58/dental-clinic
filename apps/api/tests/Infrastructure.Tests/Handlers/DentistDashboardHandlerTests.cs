@@ -52,9 +52,9 @@ public class DentistDashboardHandlerTests
     {
         var dentistUser = User.Create("dd1", "dd1@test.com", "hash", "Dentist");
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "BS Dashboard Test", "Nha khoa tổng quát", 5);
+        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
         _db.Dentists.Add(dentist);
-        var patient = Patient.Create("Bệnh nhân A", new DateOnly(1990, 1, 1), "Nam");
+        var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
         _db.Patients.Add(patient);
         await _db.SaveChangesAsync();
 
@@ -85,9 +85,9 @@ public class DentistDashboardHandlerTests
     {
         var dentistUser = User.Create("dd2", "dd2@test.com", "hash", "Dentist");
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "BS Dashboard Test 2", "Nha khoa tổng quát", 5);
+        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
         _db.Dentists.Add(dentist);
-        var patient = Patient.Create("Bệnh nhân B", new DateOnly(1992, 2, 2), "Nữ");
+        var patient = Patient.Create(Guid.Empty, new DateOnly(1992, 2, 2), "Nữ");
         _db.Patients.Add(patient);
         await _db.SaveChangesAsync();
 
@@ -112,7 +112,7 @@ public class DentistDashboardHandlerTests
     {
         var dentistUser = User.Create("dd3", "dd3@test.com", "hash", "Dentist");
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "BS Ca Làm Việc", "Nha khoa tổng quát", 5);
+        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
         _db.Dentists.Add(dentist);
         await _db.SaveChangesAsync();
 
@@ -140,7 +140,7 @@ public class DentistDashboardHandlerTests
     {
         var dentistUser = User.Create("dd4", "dd4@test.com", "hash", "Dentist");
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "BS Nghỉ Lễ", "Nha khoa tổng quát", 5);
+        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
         _db.Dentists.Add(dentist);
         await _db.SaveChangesAsync();
 
@@ -160,7 +160,7 @@ public class DentistDashboardHandlerTests
     {
         var dentistUser = User.Create("dd5", "dd5@test.com", "hash", "Dentist");
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "BS Ca Hôm Nay", "Nha khoa tổng quát", 5);
+        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
         _db.Dentists.Add(dentist);
         await _db.SaveChangesAsync();
 

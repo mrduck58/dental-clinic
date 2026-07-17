@@ -56,8 +56,8 @@ public class TreatmentPlanHandlerTests
         var patientUser = User.Create("p3", "p3@test.com", "hash", "Patient");
         var dentistUser = User.Create("d3", "d3@test.com", "hash", "Dentist");
         _db.Users.AddRange(patientUser, dentistUser);
-        var patient = Patient.Create("Bệnh nhân Test", new DateOnly(1990, 1, 1), "Nam", patientUser.Id);
-        var dentist = Dentist.Create(dentistUser.Id, "BS Test", "Nha khoa tổng quát", 5);
+        var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
+        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
         _db.Patients.Add(patient);
         _db.Dentists.Add(dentist);
         await _db.SaveChangesAsync();
@@ -84,8 +84,8 @@ public class TreatmentPlanHandlerTests
     {
         var dentistUser = User.Create("d4", "d4@test.com", "hash", "Dentist");
         _db.Users.Add(dentistUser);
-        var patient = Patient.Create("Bệnh nhân Vãng lai", new DateOnly(1990, 1, 1), "Nam", userId: null);
-        var dentist = Dentist.Create(dentistUser.Id, "BS Test 2", "Nha khoa tổng quát", 3);
+        var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
+        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 3);
         _db.Patients.Add(patient);
         _db.Dentists.Add(dentist);
         await _db.SaveChangesAsync();
@@ -106,8 +106,8 @@ public class TreatmentPlanHandlerTests
         var patientUser = User.Create(patientUsername, $"{patientUsername}@test.com", "hash", "Patient");
         var dentistUser = User.Create(dentistUsername, $"{dentistUsername}@test.com", "hash", "Dentist");
         _db.Users.AddRange(patientUser, dentistUser);
-        var patient = Patient.Create("Bệnh nhân Test", new DateOnly(1990, 1, 1), "Nam", patientUser.Id);
-        var dentist = Dentist.Create(dentistUser.Id, "BS Test", "Nha khoa tổng quát", 5);
+        var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
+        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
         _db.Patients.Add(patient);
         _db.Dentists.Add(dentist);
         await _db.SaveChangesAsync();

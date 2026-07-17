@@ -30,8 +30,8 @@ public class DiagnosisHandlerTests
     {
         var dentistUser = User.Create("dg1", $"dg1-{Guid.NewGuid()}@test.com", "hash", "Dentist");
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "BS Chẩn đoán", "Nha khoa tổng quát", 5);
-        var patient = Patient.Create("Bệnh nhân Chẩn đoán", new DateOnly(1990, 1, 1), "Nam");
+        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
         _db.Dentists.Add(dentist);
         _db.Patients.Add(patient);
         var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
@@ -60,8 +60,8 @@ public class DiagnosisHandlerTests
     {
         var dentistUser = User.Create("dg2", $"dg2-{Guid.NewGuid()}@test.com", "hash", "Dentist");
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "BS Test", "Nha khoa tổng quát", 5);
-        var patient = Patient.Create("Bệnh nhân X", new DateOnly(1990, 1, 1), "Nam");
+        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
         _db.Dentists.Add(dentist);
         _db.Patients.Add(patient);
         var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);

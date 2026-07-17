@@ -47,8 +47,8 @@ public class GetMyAppointmentsHandlerTests
     {
         var dentistUser = User.Create("ma1", $"ma1-{Guid.NewGuid()}@test.com", "hash", "Dentist");
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "BS Của Tôi", "Nha khoa tổng quát", 5);
-        var patient = Patient.Create("Bệnh nhân Của Tôi", new DateOnly(1990, 1, 1), "Nam");
+        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
         _db.Dentists.Add(dentist);
         _db.Patients.Add(patient);
         var older = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddDays(-5));
@@ -70,12 +70,12 @@ public class GetMyAppointmentsHandlerTests
     {
         var dentistUser = User.Create("ma2", $"ma2-{Guid.NewGuid()}@test.com", "hash", "Dentist");
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "BS Gia Đình", "Nha khoa tổng quát", 5);
-        var primary = Patient.Create("Chủ Tài Khoản", new DateOnly(1980, 1, 1), "Nam");
+        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        var primary = Patient.Create(Guid.Empty, new DateOnly(1980, 1, 1), "Nam");
         _db.Dentists.Add(dentist);
         _db.Patients.Add(primary);
         await _db.SaveChangesAsync();
-        var familyMember = Patient.Create("Con Của Chủ TK", new DateOnly(2010, 1, 1), "Nữ",
+        var familyMember = Patient.Create(Guid.Empty, new DateOnly(2010, 1, 1), "Nữ",
             primaryPatientId: primary.Id, relationship: "Con");
         _db.Patients.Add(familyMember);
         var familyAppointment = Appointment.Create(familyMember.Id, dentist.Id, DateTimeOffset.UtcNow);
