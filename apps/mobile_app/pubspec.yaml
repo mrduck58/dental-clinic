@@ -72,6 +72,36 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
 
+  # Sinh icon app cho Android/iOS/Web/macOS/Windows từ 1 ảnh nguồn
+  flutter_launcher_icons: ^0.14.3
+  # Sinh màn hình splash native (trước khi Flutter engine load xong) từ 1 ảnh nguồn
+  flutter_native_splash: ^2.4.4
+
+# Cấu hình flutter_launcher_icons — chạy: dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/logo.jpg"
+  min_sdk_android: 21
+  web:
+    generate: true
+    image_path: "assets/images/logo.jpg"
+  macos:
+    generate: true
+    image_path: "assets/images/logo.jpg"
+  windows:
+    generate: true
+    image_path: "assets/images/logo.jpg"
+
+# Cấu hình flutter_native_splash — chạy: dart run flutter_native_splash:create
+flutter_native_splash:
+  color: "#FFF5F5"
+  image: "assets/images/logo.jpg"
+  android_12:
+    color: "#FFF5F5"
+    image: "assets/images/logo.jpg"
+  web: true
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 

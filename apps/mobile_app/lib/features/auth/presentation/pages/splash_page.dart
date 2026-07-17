@@ -80,11 +80,6 @@ class _SplashPageState extends State<SplashPage>
                         width: 120,
                         height: 120,
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFFEF4444), Color(0xFFB91C1C)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
@@ -94,17 +89,20 @@ class _SplashPageState extends State<SplashPage>
                             ),
                           ],
                         ),
-                        child: const Icon(
-                          Icons.local_hospital_rounded,
-                          color: Colors.white,
-                          size: 60,
+                        child: ClipOval(
+                          child: Image.asset(
+                            'assets/images/logo.jpg',
+                            width: 120,
+                            height: 120,
+                            fit: BoxFit.cover,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 36),
                       const Text(
-                        'Nha Khoa',
+                        'Nha Khoa Sơn Giang',
                         style: TextStyle(
-                          fontSize: 40,
+                          fontSize: 32,
                           fontWeight: FontWeight.w800,
                           color: AppColors.textPrimary,
                           letterSpacing: -1,
