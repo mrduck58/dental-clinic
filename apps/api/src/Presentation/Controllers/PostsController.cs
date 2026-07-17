@@ -62,7 +62,7 @@ public class PostsController(
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         await delete.HandleAsync(id, ct);
-        return NoContent();
+        return Ok(new { message = "Đã xóa bài viết." });
     }
 
     /// <summary>POST api/posts/generate-ai-draft — Soạn nháp bài viết bằng AI từ dịch vụ/ưu đãi có sẵn

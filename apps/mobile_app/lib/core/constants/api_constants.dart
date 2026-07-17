@@ -2,8 +2,10 @@ import 'package:flutter/foundation.dart';
 
 abstract class ApiConstants {
   // Web/desktop → localhost | Android emulator → 10.0.2.2 | iOS simulator → localhost
+  // Điện thoại thật qua cáp USB → localhost (cần chạy `adb reverse tcp:5239 tcp:5239` trước).
+  // ⚠️ Nếu quay lại test bằng Android Emulator, phải đổi lại thành 'http://10.0.2.2:5239/api'.
   static final String baseUrl =
-      kIsWeb ? 'http://localhost:5239/api' : 'http://10.0.2.2:5239/api';
+      kIsWeb ? 'http://localhost:5239/api' : 'http://localhost:5239/api';
 
   static const String login = '/auth/login';
   static const String register = '/auth/register';

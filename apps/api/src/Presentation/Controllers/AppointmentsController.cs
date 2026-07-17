@@ -199,7 +199,7 @@ public class AppointmentsController(
     public async Task<IActionResult> DeleteDiagnosis(Guid diagnosisId, CancellationToken cancellationToken)
     {
         await diagnosisHandler.DeleteAsync(diagnosisId, cancellationToken);
-        return NoContent();
+        return Ok(new { message = "Đã xóa chuẩn đoán." });
     }
 
     #endregion
@@ -238,7 +238,7 @@ public class AppointmentsController(
     public async Task<IActionResult> DeleteTreatmentPlan(Guid treatmentPlanId, CancellationToken cancellationToken)
     {
         await treatmentPlanHandler.DeleteAsync(treatmentPlanId, cancellationToken);
-        return NoContent();
+        return Ok(new { message = "Đã xóa liệu trình điều trị." });
     }
 
     /// <summary>GET api/appointments/patients/{patientId}/treatment-plans — Tất cả liệu trình của một bệnh nhân.</summary>
@@ -360,7 +360,7 @@ public class AppointmentsController(
     public async Task<IActionResult> DeletePrescriptionItem(Guid itemId, CancellationToken cancellationToken)
     {
         await prescriptionHandler.DeleteItemAsync(itemId, cancellationToken);
-        return NoContent();
+        return Ok(new { message = "Đã xóa thuốc khỏi đơn." });
     }
 
     #endregion
@@ -455,7 +455,7 @@ public class AppointmentsController(
         CancellationToken cancellationToken)
     {
         await reorderQueuePatientHandler.HandleAsync(id, request.SwapWithAppointmentId, cancellationToken);
-        return NoContent();
+        return Ok(new { message = "Đã đổi thứ tự hàng đợi." });
     }
 
     /// <summary>GET api/appointments/dentist/dashboard — Dữ liệu tổng quan cho bác sĩ (Dentist/Admin)</summary>

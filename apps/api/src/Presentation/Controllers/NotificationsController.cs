@@ -39,7 +39,7 @@ public class NotificationsController(
     public async Task<IActionResult> MarkAsRead(Guid id, CancellationToken cancellationToken)
     {
         await notificationService.MarkAsReadAsync(id, cancellationToken);
-        return NoContent();
+        return Ok(new { message = "Đã đánh dấu thông báo đã đọc." });
     }
 
     /// <summary>PUT api/notifications/read-all — Đánh dấu tất cả thông báo đã đọc</summary>
@@ -47,7 +47,7 @@ public class NotificationsController(
     public async Task<IActionResult> MarkAllAsRead(CancellationToken cancellationToken)
     {
         await notificationService.MarkAllAsReadAsync(CurrentUserId, cancellationToken);
-        return NoContent();
+        return Ok(new { message = "Đã đánh dấu tất cả thông báo đã đọc." });
     }
 
     /// <summary>DELETE api/notifications/{id} — Xóa một thông báo</summary>
@@ -55,6 +55,6 @@ public class NotificationsController(
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
     {
         await notificationService.DeleteAsync(id, cancellationToken);
-        return NoContent();
+        return Ok(new { message = "Đã xóa thông báo." });
     }
 }

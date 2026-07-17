@@ -57,7 +57,7 @@ public class RoomsController(
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         await delete.HandleAsync(id, ct);
-        return NoContent();
+        return Ok(new { message = "Đã xóa phòng." });
     }
 
     /// <summary>PATCH api/rooms/{id}/status — Đổi trạng thái phòng</summary>
