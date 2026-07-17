@@ -4,6 +4,8 @@ using DentalClinic.API.Application.DTOs.Schedules;
 using DentalClinic.API.Application.UseCases.Schedules;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using DentalClinic.API.Infrastructure.Persistence;
 
 namespace DentalClinic.API.Presentation.Controllers;
 
@@ -46,6 +48,7 @@ public class SchedulesController(
         var result = await saveWeekSchedule.HandleAsync(weekStart, request, ct);
         return Ok(result);
     }
+
 
     private Guid GetCurrentUserId()
     {

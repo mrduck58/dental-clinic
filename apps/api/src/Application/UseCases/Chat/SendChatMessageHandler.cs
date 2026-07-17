@@ -205,7 +205,7 @@ public class SendChatMessageHandler(
 
         // Bảng Dentists là nguồn Id thật cho lịch hẹn/slot (DentistSummaryDto.Id là User.Id,
         // không dùng được cho CreateAppointment) — cần cho việc đối chiếu tên → DentistId.
-        var dentistEntities = await dbContext.Dentists.ToListAsync(ct);
+        var dentistEntities = await dbContext.Dentists.Include(d => d.User).ToListAsync(ct);
 
         var posts = await dbContext.Posts
             .Where(p => p.IsPublished)
