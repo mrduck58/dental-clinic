@@ -109,7 +109,7 @@ public class TransferQueuePatientHandler(
 
         return dentists
             .Where(d => onShiftNames.Contains(d.FullName) &&
-                        string.Equals(d.User?.EmploymentStatus, User.DefaultEmploymentStatus,
+                        string.Equals(d.EmploymentStatus, User.DefaultEmploymentStatus,
                                       StringComparison.OrdinalIgnoreCase))
             .OrderBy(d => d.FullName, StringComparer.CurrentCulture)
             .FirstOrDefault();
@@ -145,7 +145,7 @@ public class TransferQueuePatientHandler(
         return dentists.FirstOrDefault(d =>
             d.Id == dentistId &&
             assignableNames.Contains(d.FullName) &&
-            string.Equals(d.User?.EmploymentStatus, User.DefaultEmploymentStatus,
+            string.Equals(d.EmploymentStatus, User.DefaultEmploymentStatus,
                           StringComparison.OrdinalIgnoreCase));
     }
 }

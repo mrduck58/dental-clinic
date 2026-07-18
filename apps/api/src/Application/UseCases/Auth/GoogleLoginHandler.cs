@@ -35,10 +35,18 @@ public class GoogleLoginHandler(
 
         var token = jwtService.GenerateToken(user);
 
+        var profilePic = user.Role switch
+        {
+            "Patient" => user.Patient?.ProfilePictureUrl,
+            "Dentist" => user.Dentist?.ProfilePictureUrl,
+            "Staff" => user.Staff?.ProfilePictureUrl,
+            _ => null
+        };
+
         return new GoogleLoginResponseDto(
             AccessToken: token,
             ExpiresIn: 15 * 60,
             IsNewUser: isNewUser,
-            User: new AuthUserDto(user.Id, user.Username ?? user.Email, user.FullName, user.Email, user.Role, user.IsActive, user.ProfilePictureUrl));
+            User: new AuthUserDto(user.Id, user.Username ?? user.Email, user.FullName, user.Email, user.Role, user.IsActive, profilePic));
     }
 }

@@ -112,8 +112,9 @@ public class TreatmentPlanHandler(
 
         // Báo cho bệnh nhân có kế hoạch điều trị mới (nếu tài khoản có liên kết User).
         var patient = await patientRepository.GetByIdAsync(appointment.PatientId, ct);
-        if (patient?.UserId is Guid patientUserId)
+        if (patient != null && patient.UserId != Guid.Empty)
         {
+            var patientUserId = patient.UserId;
             await notificationService.CreateAsync(new CreateNotificationRequest(
                 UserId: patientUserId,
                 Type: NotificationType.Service,

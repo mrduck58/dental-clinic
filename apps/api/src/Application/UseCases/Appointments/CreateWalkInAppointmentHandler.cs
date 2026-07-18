@@ -72,8 +72,9 @@ public class CreateWalkInAppointmentHandler(AppDbContext dbContext, INotificatio
         if (patient == null)
         {
             var placeholderUser = User.CreateEmployee($"walkin-{Guid.NewGuid()}@songiangdental.com", "Patient", cmd.PatientPhone, cmd.PatientName);
+            placeholderUser.UpdateGender(cmd.Gender);
             dbContext.Users.Add(placeholderUser);
-            patient = Patient.Create(placeholderUser.Id, cmd.DateOfBirth, cmd.Gender, phoneNumber: cmd.PatientPhone);
+            patient = Patient.Create(placeholderUser.Id, cmd.DateOfBirth);
             dbContext.Patients.Add(patient);
         }
         else

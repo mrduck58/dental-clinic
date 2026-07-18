@@ -66,8 +66,8 @@ public class GetStaffScheduleHandler(AppDbContext dbContext)
             .Where(u =>
                 (string.Equals(u.Role, "Dentist", StringComparison.OrdinalIgnoreCase) ||
                  string.Equals(u.Role, "Doctor",  StringComparison.OrdinalIgnoreCase)) &&
-                string.Equals(u.EmploymentStatus, "Active", StringComparison.OrdinalIgnoreCase) &&
-                workingToday.ContainsKey(u.FullName ?? u.Email))
+                string.Equals(u.Dentist?.EmploymentStatus ?? "Active", "Active", StringComparison.OrdinalIgnoreCase) &&
+                workingToday.ContainsKey(!string.IsNullOrWhiteSpace(u.FullName) ? u.FullName : u.Email))
             .OrderBy(u => u.FullName)
             .ToList();
 
@@ -76,8 +76,10 @@ public class GetStaffScheduleHandler(AppDbContext dbContext)
         foreach (var user in dentistUsers.Where(u => u.Dentist == null))
         {
             var d = Dentist.Create(user.Id,
-                        user.Specialty ?? "Nha khoa tổng quát",
-                        user.YearsOfExperience ?? 0);
+                        $"DT-{Guid.NewGuid().ToString("N")[..8].ToUpper()}",
+                        "Nha khoa tổng quát",
+                        "N/A",
+                        experienceYears: 0);
             dbContext.Dentists.Add(d);
             createdDentists[user.Id] = d;
         }
@@ -96,7 +98,7 @@ public class GetStaffScheduleHandler(AppDbContext dbContext)
         var result = dentistUsers.Select(user =>
         {
             var dentist = user.Dentist ?? createdDentists[user.Id];
-            var name = user.FullName ?? user.Email;
+            var name = !string.IsNullOrWhiteSpace(user.FullName) ? user.FullName : user.Email;
             var shifts = workingToday.GetValueOrDefault(name, []);
             var dentistAppts = appointments.Where(a => a.DentistId == dentist.Id).ToList();
             var room = todaySchedules.FirstOrDefault(s => s.StaffName == name)?.Room ?? "—";

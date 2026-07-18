@@ -62,7 +62,6 @@ public class PatientRepository(AppDbContext dbContext) : IPatientRepository
             .Include(p => p.User)
             .Where(p =>
                 (p.User.FullName != null && p.User.FullName.ToLower().Contains(needle)) ||
-                (p.PhoneNumber != null && p.PhoneNumber.Contains(needle)) ||
                 (p.User.PhoneNumber != null && p.User.PhoneNumber.Contains(needle)))
             .OrderBy(p => p.User.FullName)
             .Take(limit)

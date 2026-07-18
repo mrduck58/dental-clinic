@@ -110,11 +110,13 @@ public class TransferQueuePatientHandlerTests
         var today = DateOnly.FromDateTime(NowVietnam().Date);
         var shift = CurrentShiftCode();
 
-        var sourceDentistUser = User.Create("tq3", $"tq3-{Guid.NewGuid()}@test.com", "hash", "Dentist");
-        var targetDentistUser = User.Create("tq4", $"tq4-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        var sourceDentistUser = User.Create("tq3", $"tq3-{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: "BS Nguồn");
+        var targetDentistUser = User.Create("tq4", $"tq4-{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: "BS Đích");
         _db.Users.AddRange(sourceDentistUser, targetDentistUser);
         var sourceDentist = Dentist.Create(sourceDentistUser.Id, "Nha khoa tổng quát", 5);
         var targetDentist = Dentist.Create(targetDentistUser.Id, "Nha khoa tổng quát", 5);
+        sourceDentist.User = sourceDentistUser;
+        targetDentist.User = targetDentistUser;
         var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
         _db.Dentists.AddRange(sourceDentist, targetDentist);
         _db.Patients.Add(patient);
@@ -144,9 +146,10 @@ public class TransferQueuePatientHandlerTests
     {
         var today = DateOnly.FromDateTime(NowVietnam().Date);
         var shift = CurrentShiftCode();
-        var dentistUser = User.Create("tq5", $"tq5-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        var dentistUser = User.Create("tq5", $"tq5-{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: "BS Trực");
         _db.Users.Add(dentistUser);
         var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        dentist.User = dentistUser;
         var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
         _db.Dentists.Add(dentist);
         _db.Patients.Add(patient);

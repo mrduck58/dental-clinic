@@ -42,8 +42,7 @@ public class DiagnosisHandlerTests
     }
 
     private static CreateDiagnosisRequest MakeCreateRequest(Guid appointmentId) => new(
-        appointmentId, "K02.1", "Sâu răng ngà", "Ghi chú", 75, 36.5m, 120, 80,
-        null, null, "Răng số 6 hàm dưới", "Cần trám");
+        appointmentId, "Sâu răng ngà", null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, "Cần trám");
 
     /// <summary>Tạo chẩn đoán cho lịch hẹn không tồn tại phải báo lỗi thay vì tạo dữ liệu mồ côi.</summary>
     [Test]
@@ -82,7 +81,6 @@ public class DiagnosisHandlerTests
 
         var result = await _handler.CreateAsync(MakeCreateRequest(appointment.Id));
 
-        result.DiagnosisCode.Should().Be("K02.1");
         result.Description.Should().Be("Sâu răng ngà");
         (await _db.Diagnoses.CountAsync()).Should().Be(1);
     }
@@ -92,7 +90,7 @@ public class DiagnosisHandlerTests
     public async Task UpdateAsync_DiagnosisNotFound_ThrowsKeyNotFoundException()
     {
         var request = new UpdateDiagnosisRequest(
-            Guid.NewGuid(), "K02.2", "Mới", null, null, null, null, null, null, null, null, null);
+            Guid.NewGuid(), "Mới", null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
 
         Func<Task> act = () => _handler.UpdateAsync(request);
 
@@ -107,10 +105,8 @@ public class DiagnosisHandlerTests
         var created = await _handler.CreateAsync(MakeCreateRequest(appointment.Id));
 
         var updateRequest = new UpdateDiagnosisRequest(
-            created.Id, "K04.0", "Viêm tủy răng", "Ghi chú mới", null, null, null, null, null, null, null, "Kết luận mới");
+            created.Id, "Viêm tủy răng", null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, "Kết luận mới");
         var result = await _handler.UpdateAsync(updateRequest);
-
-        result.DiagnosisCode.Should().Be("K04.0");
         result.Description.Should().Be("Viêm tủy răng");
         result.Conclusion.Should().Be("Kết luận mới");
     }

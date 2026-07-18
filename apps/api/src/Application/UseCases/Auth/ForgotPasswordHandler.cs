@@ -33,7 +33,7 @@ public class ForgotPasswordHandler(
 
         await emailService.SendPasswordResetAsync(
             user.Email,
-            user.FullName ?? user.Username ?? user.Email,
+            !string.IsNullOrWhiteSpace(user.FullName) ? user.FullName : (user.Username ?? user.Email),
             resetLink,
             ct);
     }

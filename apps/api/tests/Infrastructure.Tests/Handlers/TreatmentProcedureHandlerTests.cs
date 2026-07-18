@@ -51,8 +51,8 @@ public class TreatmentProcedureHandlerTests
     public async Task GetByServiceAsync_ReturnsStepsOrderedByStepNumber()
     {
         var service = await SeedServiceAsync();
-        _db.TreatmentProcedures.Add(TreatmentProcedure.Create(service.Id, 2, "Đặt trụ Implant", 50));
-        _db.TreatmentProcedures.Add(TreatmentProcedure.Create(service.Id, 1, "Khám và chụp X-quang", 20));
+        _db.TreatmentProcedures.Add(TreatmentProcedure.Create(service.Id, 2, "Đặt trụ Implant"));
+        _db.TreatmentProcedures.Add(TreatmentProcedure.Create(service.Id, 1, "Khám và chụp X-quang"));
         await _db.SaveChangesAsync();
 
         var result = await _handler.GetByServiceAsync(service.Id);
@@ -79,8 +79,8 @@ public class TreatmentProcedureHandlerTests
         var service = await SeedServiceAsync();
         var otherService = Service.Create("Tẩy trắng", 800_000m, 60, "Làm sáng răng");
         _db.Services.Add(otherService);
-        _db.TreatmentProcedures.Add(TreatmentProcedure.Create(service.Id, 1, "Bước của dịch vụ chính", 100));
-        _db.TreatmentProcedures.Add(TreatmentProcedure.Create(otherService.Id, 1, "Bước của dịch vụ khác", 100));
+        _db.TreatmentProcedures.Add(TreatmentProcedure.Create(service.Id, 1, "Bước của dịch vụ chính"));
+        _db.TreatmentProcedures.Add(TreatmentProcedure.Create(otherService.Id, 1, "Bước của dịch vụ khác"));
         await _db.SaveChangesAsync();
 
         var result = await _handler.GetByServiceAsync(service.Id);
@@ -93,7 +93,7 @@ public class TreatmentProcedureHandlerTests
     [Test]
     public async Task ReplaceForServiceAsync_ServiceNotFound_ThrowsNotFoundException()
     {
-        var steps = new List<ProcedureStepRequest> { new(1, "Bước 1", 100) };
+        var steps = new List<ProcedureStepRequest> { new(1, "Bước 1") };
 
         Func<Task> act = () => _handler.ReplaceForServiceAsync(Guid.NewGuid(), steps);
 
@@ -105,7 +105,7 @@ public class TreatmentProcedureHandlerTests
     public async Task ReplaceForServiceAsync_StepWithEmptyName_ThrowsValidationException()
     {
         var service = await SeedServiceAsync();
-        var steps = new List<ProcedureStepRequest> { new(1, "  ", 100) };
+        var steps = new List<ProcedureStepRequest> { new(1, "  ") };
 
         Func<Task> act = () => _handler.ReplaceForServiceAsync(service.Id, steps);
 
@@ -117,7 +117,7 @@ public class TreatmentProcedureHandlerTests
     public async Task ReplaceForServiceAsync_DuplicateStepNumbers_ThrowsValidationException()
     {
         var service = await SeedServiceAsync();
-        var steps = new List<ProcedureStepRequest> { new(1, "Bước A", 50), new(1, "Bước B", 50) };
+        var steps = new List<ProcedureStepRequest> { new(1, "Bước A"), new(1, "Bước B") };
 
         Func<Task> act = () => _handler.ReplaceForServiceAsync(service.Id, steps);
 
@@ -129,10 +129,10 @@ public class TreatmentProcedureHandlerTests
     public async Task ReplaceForServiceAsync_ValidRequest_ReplacesOldStepsWithNewOnes()
     {
         var service = await SeedServiceAsync();
-        _db.TreatmentProcedures.Add(TreatmentProcedure.Create(service.Id, 1, "Bước Cũ", 100));
+        _db.TreatmentProcedures.Add(TreatmentProcedure.Create(service.Id, 1, "Bước Cũ"));
         await _db.SaveChangesAsync();
 
-        var newSteps = new List<ProcedureStepRequest> { new(1, "Bước Mới 1", 40), new(2, "Bước Mới 2", 60) };
+        var newSteps = new List<ProcedureStepRequest> { new(1, "Bước Mới 1"), new(2, "Bước Mới 2") };
         var result = await _handler.ReplaceForServiceAsync(service.Id, newSteps);
 
         result.Should().HaveCount(2);
@@ -145,7 +145,7 @@ public class TreatmentProcedureHandlerTests
     public async Task ReplaceForServiceAsync_EmptyStepsList_RemovesAllExistingProcedures()
     {
         var service = await SeedServiceAsync();
-        _db.TreatmentProcedures.Add(TreatmentProcedure.Create(service.Id, 1, "Bước Cũ", 100));
+        _db.TreatmentProcedures.Add(TreatmentProcedure.Create(service.Id, 1, "Bước Cũ"));
         await _db.SaveChangesAsync();
 
         var result = await _handler.ReplaceForServiceAsync(service.Id, []);
@@ -159,7 +159,7 @@ public class TreatmentProcedureHandlerTests
     public async Task ReplaceForServiceAsync_StepNameWithSurroundingWhitespace_IsTrimmedBeforeSaving()
     {
         var service = await SeedServiceAsync();
-        var steps = new List<ProcedureStepRequest> { new(1, "  Khám tổng quát  ", 100) };
+        var steps = new List<ProcedureStepRequest> { new(1, "  Khám tổng quát  ") };
 
         var result = await _handler.ReplaceForServiceAsync(service.Id, steps);
 
@@ -173,10 +173,10 @@ public class TreatmentProcedureHandlerTests
         var service = await SeedServiceAsync();
         var otherService = Service.Create("Tẩy trắng", 800_000m, 60, "Làm sáng răng");
         _db.Services.Add(otherService);
-        _db.TreatmentProcedures.Add(TreatmentProcedure.Create(otherService.Id, 1, "Bước dịch vụ khác", 100));
+        _db.TreatmentProcedures.Add(TreatmentProcedure.Create(otherService.Id, 1, "Bước dịch vụ khác"));
         await _db.SaveChangesAsync();
 
-        await _handler.ReplaceForServiceAsync(service.Id, [new(1, "Bước dịch vụ chính", 100)]);
+        await _handler.ReplaceForServiceAsync(service.Id, [new(1, "Bước dịch vụ chính")]);
 
         var otherProcedures = await _handler.GetByServiceAsync(otherService.Id);
         otherProcedures.Should().ContainSingle(p => p.Name == "Bước dịch vụ khác");

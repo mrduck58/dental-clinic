@@ -96,8 +96,9 @@ public class PrescriptionHandler(
         // Báo cho bệnh nhân có đơn thuốc mới (nếu tài khoản có liên kết User) — trước đây bệnh nhân
         // chỉ biết đơn thuốc khi tự vào xem hồ sơ, không được chủ động báo.
         var patient = await patientRepository.GetByIdAsync(appointment.PatientId, ct);
-        if (patient?.UserId is Guid patientUserId)
+        if (patient != null && patient.UserId != Guid.Empty)
         {
+            var patientUserId = patient.UserId;
             await notificationService.CreateAsync(new CreateNotificationRequest(
                 UserId: patientUserId,
                 Type: NotificationType.Service,

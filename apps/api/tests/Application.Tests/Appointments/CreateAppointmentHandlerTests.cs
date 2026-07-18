@@ -47,7 +47,7 @@ public class CreateAppointmentHandlerTests
     public async Task HandleAsync_PatientAlreadyExists_DoesNotCreateNewPatient()
     {
         var cmd = MakeCmd();
-        var existingPatient = Patient.Create("Nguyễn Văn A", DateOnly.FromDateTime(DateTime.Today.AddYears(-20)), "Nam", cmd.UserId);
+        var existingPatient = Patient.Create(cmd.UserId, DateOnly.FromDateTime(DateTime.Today.AddYears(-20)), "Nam");
         _patientRepo.GetByUserIdAsync(cmd.UserId, Arg.Any<CancellationToken>()).Returns(existingPatient);
 
         await _handler.HandleAsync(cmd);
@@ -80,7 +80,7 @@ public class CreateAppointmentHandlerTests
     public async Task HandleAsync_SlotAlreadyBooked_ThrowsConflictException()
     {
         var cmd = MakeCmd();
-        var existingPatient = Patient.Create("Test", DateOnly.FromDateTime(DateTime.Today.AddYears(-20)), "Nam", cmd.UserId);
+        var existingPatient = Patient.Create(cmd.UserId, DateOnly.FromDateTime(DateTime.Today.AddYears(-20)), "Nam");
         _patientRepo.GetByUserIdAsync(cmd.UserId, Arg.Any<CancellationToken>()).Returns(existingPatient);
         // Lịch hẹn khác đã chiếm đúng khung giờ này của cùng nha sĩ → chồng lấn.
         var conflictingAppointment = Appointment.Create(Guid.NewGuid(), cmd.DentistId, cmd.AppointmentDate);
@@ -100,7 +100,7 @@ public class CreateAppointmentHandlerTests
     public async Task HandleAsync_ValidCommand_CallsAppointmentAddAsync()
     {
         var cmd = MakeCmd();
-        var existingPatient = Patient.Create("Test", DateOnly.FromDateTime(DateTime.Today.AddYears(-20)), "Nam", cmd.UserId);
+        var existingPatient = Patient.Create(cmd.UserId, DateOnly.FromDateTime(DateTime.Today.AddYears(-20)), "Nam");
         _patientRepo.GetByUserIdAsync(cmd.UserId, Arg.Any<CancellationToken>()).Returns(existingPatient);
 
         await _handler.HandleAsync(cmd);
@@ -116,7 +116,7 @@ public class CreateAppointmentHandlerTests
     public async Task HandleAsync_ValidCommand_ReturnsPendingStatus()
     {
         var cmd = MakeCmd();
-        var existingPatient = Patient.Create("Test", DateOnly.FromDateTime(DateTime.Today.AddYears(-20)), "Nam", cmd.UserId);
+        var existingPatient = Patient.Create(cmd.UserId, DateOnly.FromDateTime(DateTime.Today.AddYears(-20)), "Nam");
         _patientRepo.GetByUserIdAsync(cmd.UserId, Arg.Any<CancellationToken>()).Returns(existingPatient);
 
         var result = await _handler.HandleAsync(cmd);
@@ -132,7 +132,7 @@ public class CreateAppointmentHandlerTests
     public async Task HandleAsync_ValidCommand_NotifiesDentistUser()
     {
         var cmd = MakeCmd();
-        var existingPatient = Patient.Create("Test", DateOnly.FromDateTime(DateTime.Today.AddYears(-20)), "Nam", cmd.UserId);
+        var existingPatient = Patient.Create(cmd.UserId, DateOnly.FromDateTime(DateTime.Today.AddYears(-20)), "Nam");
         var dentistUserId = Guid.NewGuid();
         _patientRepo.GetByUserIdAsync(cmd.UserId, Arg.Any<CancellationToken>()).Returns(existingPatient);
         _appointmentRepo.GetDentistUserIdAsync(cmd.DentistId, Arg.Any<CancellationToken>()).Returns(dentistUserId);
@@ -152,7 +152,7 @@ public class CreateAppointmentHandlerTests
     public async Task HandleAsync_ValidCommand_NotifiesAllStaff()
     {
         var cmd = MakeCmd();
-        var existingPatient = Patient.Create("Test", DateOnly.FromDateTime(DateTime.Today.AddYears(-20)), "Nam", cmd.UserId);
+        var existingPatient = Patient.Create(cmd.UserId, DateOnly.FromDateTime(DateTime.Today.AddYears(-20)), "Nam");
         var staff1 = Guid.NewGuid();
         var staff2 = Guid.NewGuid();
         _patientRepo.GetByUserIdAsync(cmd.UserId, Arg.Any<CancellationToken>()).Returns(existingPatient);
@@ -190,9 +190,9 @@ public class CreateAppointmentHandlerTests
     [Test]
     public async Task HandleAsync_ValidFamilyMemberPatientId_BooksAppointmentForFamilyMember()
     {
-        var primaryPatient = Patient.Create("Chủ hộ", DateOnly.FromDateTime(DateTime.Today.AddYears(-40)), "Nam", Guid.NewGuid());
-        var familyMember = Patient.Create("Con", DateOnly.FromDateTime(DateTime.Today.AddYears(-10)), "Nam", primaryPatientId: primaryPatient.Id);
-        var cmd = MakeCmd() with { UserId = primaryPatient.UserId!.Value, PatientId = familyMember.Id };
+        var primaryPatient = Patient.Create(Guid.NewGuid(), DateOnly.FromDateTime(DateTime.Today.AddYears(-40)), "Nam");
+        var familyMember = Patient.Create(Guid.Empty, DateOnly.FromDateTime(DateTime.Today.AddYears(-10)), "Nam", primaryPatientId: primaryPatient.Id);
+        var cmd = MakeCmd() with { UserId = primaryPatient.UserId, PatientId = familyMember.Id };
         _patientRepo.GetByUserIdAsync(cmd.UserId, Arg.Any<CancellationToken>()).Returns(primaryPatient);
         _patientRepo.GetByIdAsync(familyMember.Id, Arg.Any<CancellationToken>()).Returns(familyMember);
 
@@ -209,9 +209,9 @@ public class CreateAppointmentHandlerTests
     [Test]
     public async Task HandleAsync_PatientIdNotBelongingToFamily_ThrowsInvalidOperationException()
     {
-        var primaryPatient = Patient.Create("Chủ hộ", DateOnly.FromDateTime(DateTime.Today.AddYears(-40)), "Nam", Guid.NewGuid());
-        var otherPatient = Patient.Create("Người lạ", DateOnly.FromDateTime(DateTime.Today.AddYears(-30)), "Nữ");
-        var cmd = MakeCmd() with { UserId = primaryPatient.UserId!.Value, PatientId = otherPatient.Id };
+        var primaryPatient = Patient.Create(Guid.NewGuid(), DateOnly.FromDateTime(DateTime.Today.AddYears(-40)), "Nam");
+        var otherPatient = Patient.Create(Guid.Empty, DateOnly.FromDateTime(DateTime.Today.AddYears(-30)), "Nữ");
+        var cmd = MakeCmd() with { UserId = primaryPatient.UserId, PatientId = otherPatient.Id };
         _patientRepo.GetByUserIdAsync(cmd.UserId, Arg.Any<CancellationToken>()).Returns(primaryPatient);
         _patientRepo.GetByIdAsync(otherPatient.Id, Arg.Any<CancellationToken>()).Returns(otherPatient);
 
@@ -228,7 +228,7 @@ public class CreateAppointmentHandlerTests
     public async Task HandleAsync_DentistUserIdNotFound_DoesNotSendDentistNotification()
     {
         var cmd = MakeCmd();
-        var existingPatient = Patient.Create("Test", DateOnly.FromDateTime(DateTime.Today.AddYears(-20)), "Nam", cmd.UserId);
+        var existingPatient = Patient.Create(cmd.UserId, DateOnly.FromDateTime(DateTime.Today.AddYears(-20)), "Nam");
         _patientRepo.GetByUserIdAsync(cmd.UserId, Arg.Any<CancellationToken>()).Returns(existingPatient);
         _appointmentRepo.GetDentistUserIdAsync(cmd.DentistId, Arg.Any<CancellationToken>()).Returns((Guid?)null);
 

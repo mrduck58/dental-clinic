@@ -1,4 +1,4 @@
-﻿using DentalClinic.API.Application.DTOs.Auth;
+using DentalClinic.API.Application.DTOs.Auth;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Domain.Constants;
@@ -37,7 +37,7 @@ public class LoginHandler(IUserRepository userRepository, IJwtService jwtService
 
             await activityLogService.LogAsync(
                 userId: user.Id,
-                userName: user.FullName ?? user.Email,
+                userName: !string.IsNullOrWhiteSpace(user.FullName) ? user.FullName : user.Email,
                 userRole: user.Role,
                 action: ActivityAction.Login,
                 module: ActivityModule.Account,
@@ -53,7 +53,7 @@ public class LoginHandler(IUserRepository userRepository, IJwtService jwtService
         {
             await activityLogService.LogAsync(
                 userId: user.Id,
-                userName: user.FullName ?? user.Email,
+                userName: !string.IsNullOrWhiteSpace(user.FullName) ? user.FullName : user.Email,
                 userRole: user.Role,
                 action: ActivityAction.Login,
                 module: ActivityModule.Account,
@@ -69,7 +69,7 @@ public class LoginHandler(IUserRepository userRepository, IJwtService jwtService
 
         await activityLogService.LogAsync(
             userId: user.Id,
-            userName: user.FullName ?? user.Email,
+            userName: !string.IsNullOrWhiteSpace(user.FullName) ? user.FullName : user.Email,
             userRole: user.Role,
             action: ActivityAction.Login,
             module: ActivityModule.Account,
@@ -78,9 +78,17 @@ public class LoginHandler(IUserRepository userRepository, IJwtService jwtService
             ipAddress: command.IpAddress,
             ct: ct);
 
+        var profilePic = user.Role switch
+        {
+            "Patient" => user.Patient?.ProfilePictureUrl,
+            "Dentist" => user.Dentist?.ProfilePictureUrl,
+            "Staff" => user.Staff?.ProfilePictureUrl,
+            _ => null
+        };
+
         return new LoginResponseDto(
             AccessToken: token,
             ExpiresIn: 15 * 60,
-            User: new AuthUserDto(user.Id, user.Username ?? user.Email, user.FullName, user.Email, user.Role, user.IsActive, user.ProfilePictureUrl));
+            User: new AuthUserDto(user.Id, user.Username ?? user.Email, user.FullName, user.Email, user.Role, user.IsActive, profilePic));
     }
 }

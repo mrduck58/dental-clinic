@@ -347,7 +347,7 @@ public class DashboardHandler(AppDbContext dbContext)
             return new ShiftEntryDto(
                 s.StaffName,
                 dentist?.Specialization,
-                dentist?.User?.ProfilePictureUrl,
+                dentist?.ProfilePictureUrl,
                 s.Room,
                 s.RoomColor,
                 isBusy);

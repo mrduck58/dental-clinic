@@ -30,8 +30,8 @@ public class StartConversationHandler(
 
             patient = Patient.Create(
                 userId: userId,
-                dateOfBirth: user.DateOfBirth ?? new DateOnly(1990, 1, 1),
-                gender: user.Gender ?? "Nam");
+                dateOfBirth: null);
+            patient.User = user;
             await patientRepository.AddAsync(patient, ct);
         }
 

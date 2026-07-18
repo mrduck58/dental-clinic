@@ -13,6 +13,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<OtpCode> OtpCodes => Set<OtpCode>();
     public DbSet<Patient> Patients => Set<Patient>();
     public DbSet<Dentist> Dentists => Set<Dentist>();
+    public DbSet<Staff> Staffs => Set<Staff>();
     public DbSet<Appointment> Appointments => Set<Appointment>();
     public DbSet<Invoice> Invoices => Set<Invoice>();
     public DbSet<InvoiceItem> InvoiceItems => Set<InvoiceItem>();

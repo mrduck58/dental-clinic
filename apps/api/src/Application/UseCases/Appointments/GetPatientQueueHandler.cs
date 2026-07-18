@@ -44,10 +44,8 @@ public class GetPatientQueueHandler(
 
             patient = Patient.Create(
                 userId: user.Id,
-                dateOfBirth: user.DateOfBirth ?? new DateOnly(2000, 1, 1),
-                gender: user.Gender ?? "Nam",
-                phoneNumber: user.PhoneNumber
-            );
+                dateOfBirth: null);
+            patient.User = user;
 
             await patientRepository.AddAsync(patient, ct);
         }

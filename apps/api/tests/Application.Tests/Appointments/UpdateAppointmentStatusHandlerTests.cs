@@ -225,7 +225,7 @@ public class UpdateAppointmentStatusHandlerTests
     {
         var id = Guid.NewGuid();
         var patientUserId = Guid.NewGuid();
-        var patient = Patient.Create("Test Patient", new DateOnly(1990, 1, 1), "Nam", patientUserId);
+        var patient = Patient.Create(patientUserId, new DateOnly(1990, 1, 1), "Nam");
         var appt = Appointment.Create(patient.Id, Guid.NewGuid(), DateTimeOffset.UtcNow.AddDays(1));
 
         _currentUser.IsAuthenticated.Returns(true);
@@ -250,8 +250,8 @@ public class UpdateAppointmentStatusHandlerTests
     {
         var id = Guid.NewGuid();
         var patientUserId = Guid.NewGuid();
-        var patient = Patient.Create("Primary Patient", new DateOnly(1990, 1, 1), "Nam", patientUserId);
-        var familyMember = Patient.Create("Family Member", new DateOnly(2015, 5, 5), "Nam", primaryPatientId: patient.Id, relationship: "Con trai");
+        var patient = Patient.Create(patientUserId, new DateOnly(1990, 1, 1), "Nam");
+        var familyMember = Patient.Create(Guid.Empty, new DateOnly(2015, 5, 5), "Nam", primaryPatientId: patient.Id, relationship: "Con trai");
         var appt = Appointment.Create(familyMember.Id, Guid.NewGuid(), DateTimeOffset.UtcNow.AddDays(1));
 
         _currentUser.IsAuthenticated.Returns(true);
@@ -276,8 +276,8 @@ public class UpdateAppointmentStatusHandlerTests
     {
         var id = Guid.NewGuid();
         var patientUserId = Guid.NewGuid();
-        var patient = Patient.Create("Primary Patient", new DateOnly(1990, 1, 1), "Nam", patientUserId);
-        var otherPatient = Patient.Create("Other Patient", new DateOnly(1995, 2, 2), "Nữ");
+        var patient = Patient.Create(patientUserId, new DateOnly(1990, 1, 1), "Nam");
+        var otherPatient = Patient.Create(Guid.Empty, new DateOnly(1995, 2, 2), "Nữ");
         var appt = Appointment.Create(otherPatient.Id, Guid.NewGuid(), DateTimeOffset.UtcNow.AddDays(1));
 
         _currentUser.IsAuthenticated.Returns(true);
@@ -546,7 +546,7 @@ public class UpdateAppointmentStatusHandlerTests
     {
         var id = Guid.NewGuid();
         var patientUserId = Guid.NewGuid();
-        var patient = Patient.Create("Bệnh nhân", new DateOnly(1990, 1, 1), "Nam", patientUserId);
+        var patient = Patient.Create(patientUserId, new DateOnly(1990, 1, 1), "Nam");
         var appt = Appointment.Create(patient.Id, Guid.NewGuid(), DateTimeOffset.UtcNow.AddDays(-1));
         appt.Confirm();
         appt.CheckIn();

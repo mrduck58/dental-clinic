@@ -45,10 +45,14 @@ public class GetMyAppointmentsHandlerTests
     [Test]
     public async Task HandleAsync_ReturnsOwnAppointments_OrderedByDateDescending()
     {
-        var dentistUser = User.Create("ma1", $"ma1-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        var dentistUser = User.Create("ma1", $"ma1-{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: "BS ma1");
         _db.Users.Add(dentistUser);
         var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
-        var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
+        dentist.User = dentistUser;
+        var patientUser = User.Create("pa1", $"pa1-{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: "Bệnh Nhân Một");
+        _db.Users.Add(patientUser);
+        var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
+        patient.User = patientUser;
         _db.Dentists.Add(dentist);
         _db.Patients.Add(patient);
         var older = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddDays(-5));
@@ -68,15 +72,22 @@ public class GetMyAppointmentsHandlerTests
     [Test]
     public async Task HandleAsync_IncludesFamilyMemberAppointments()
     {
-        var dentistUser = User.Create("ma2", $"ma2-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        var dentistUser = User.Create("ma2", $"ma2-{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: "BS ma2");
         _db.Users.Add(dentistUser);
         var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
-        var primary = Patient.Create(Guid.Empty, new DateOnly(1980, 1, 1), "Nam");
+        dentist.User = dentistUser;
+        var primaryUser = User.Create("pa2", $"pa2-{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: "Bệnh Nhân Hai");
+        _db.Users.Add(primaryUser);
+        var primary = Patient.Create(primaryUser.Id, new DateOnly(1980, 1, 1), "Nam");
+        primary.User = primaryUser;
         _db.Dentists.Add(dentist);
         _db.Patients.Add(primary);
         await _db.SaveChangesAsync();
-        var familyMember = Patient.Create(Guid.Empty, new DateOnly(2010, 1, 1), "Nữ",
+        var familyUser = User.Create("pa2fam", $"pa2fam-{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: "Con Bệnh Nhân Hai");
+        _db.Users.Add(familyUser);
+        var familyMember = Patient.Create(familyUser.Id, new DateOnly(2010, 1, 1), "Nữ",
             primaryPatientId: primary.Id, relationship: "Con");
+        familyMember.User = familyUser;
         _db.Patients.Add(familyMember);
         var familyAppointment = Appointment.Create(familyMember.Id, dentist.Id, DateTimeOffset.UtcNow);
         _db.Appointments.Add(familyAppointment);
