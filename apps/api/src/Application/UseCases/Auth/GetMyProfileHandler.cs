@@ -40,6 +40,78 @@ public class GetMyProfileHandler(IUserRepository userRepository)
         var user = await userRepository.GetByIdAsync(userId, ct)
             ?? throw new NotFoundException("Không tìm thấy tài khoản.");
 
+        DateOnly? dob = user.Role switch
+        {
+            "Patient" => user.Patient?.DateOfBirth,
+            "Dentist" => user.Dentist?.DateOfBirth,
+            "Staff" => user.Staff?.DateOfBirth,
+            _ => null
+        };
+        string? address = user.Role switch
+        {
+            "Patient" => user.Patient?.Address,
+            "Dentist" => user.Dentist?.Address,
+            "Staff" => user.Staff?.Address,
+            _ => null
+        };
+        string? profilePic = user.Role switch
+        {
+            "Patient" => user.Patient?.ProfilePictureUrl,
+            "Dentist" => user.Dentist?.ProfilePictureUrl,
+            "Staff" => user.Staff?.ProfilePictureUrl,
+            _ => null
+        };
+        string? employeeId = user.Role switch
+        {
+            "Dentist" => user.Dentist?.EmployeeId,
+            "Staff" => user.Staff?.EmployeeId,
+            _ => null
+        };
+        string? department = user.Role switch
+        {
+            "Dentist" => user.Dentist?.Department,
+            "Staff" => user.Staff?.Department,
+            _ => null
+        };
+        string? employmentStatus = user.Role switch
+        {
+            "Dentist" => user.Dentist?.EmploymentStatus,
+            "Staff" => user.Staff?.EmploymentStatus,
+            _ => null
+        };
+        string? position = user.Role switch
+        {
+            "Dentist" => user.Dentist?.Position,
+            "Staff" => user.Staff?.Position,
+            _ => null
+        };
+        DateOnly? startDate = user.Role switch
+        {
+            "Dentist" => user.Dentist?.StartDate,
+            "Staff" => user.Staff?.StartDate,
+            _ => null
+        };
+        string? education = user.Role switch
+        {
+            "Dentist" => user.Dentist?.Education,
+            _ => null
+        };
+        string? bio = user.Role switch
+        {
+            "Dentist" => user.Dentist?.Biography,
+            _ => null
+        };
+        DateOnly? certIssuedDate = user.Role switch
+        {
+            "Dentist" => user.Dentist?.CertificateIssuedDate,
+            _ => null
+        };
+        string? certIssuedBy = user.Role switch
+        {
+            "Dentist" => user.Dentist?.CertificateIssuedBy,
+            _ => null
+        };
+
         decimal baseSalary = 0;
         decimal allowance = 0;
         string salaryNote = string.Empty;
@@ -47,7 +119,7 @@ public class GetMyProfileHandler(IUserRepository userRepository)
         if (user.Role == "Dentist")
         {
             baseSalary = 40000000;
-            allowance = (user.YearsOfExperience ?? 0) * 2000000;
+            allowance = (user.Dentist?.ExperienceYears ?? 0) * 2000000;
             salaryNote = "Lương cơ bản bác sĩ + Phụ cấp theo số ca điều trị thực tế (phụ cấp chuyên môn)";
         }
         else if (user.Role == "Admin")
@@ -65,30 +137,30 @@ public class GetMyProfileHandler(IUserRepository userRepository)
 
         return new UserProfileDto(
             user.Id,
-            user.FullName ?? string.Empty,
-            user.Email,
+            user.FullName,
+            user.Email ?? string.Empty,
             user.PhoneNumber,
-            user.DateOfBirth,
+            dob,
             user.Gender,
-            user.ProfilePictureUrl,
+            profilePic,
             user.Role,
-            user.EmployeeId,
-            user.Department,
-            user.EmploymentStatus,
-            user.Position,
-            user.StartDate,
-            user.Specialty,
-            user.LicenseNumber,
-            user.YearsOfExperience,
-            user.Education,
-            user.Bio,
-            user.Address,
+            employeeId,
+            department,
+            employmentStatus,
+            position,
+            startDate,
+            user.Dentist?.Specialization,
+            user.Dentist?.LicenseNumber,
+            user.Dentist?.ExperienceYears,
+            education,
+            bio,
+            address,
             baseSalary,
             allowance,
             salaryNote,
-            user.CertificateIssuedDate,
-            user.CertificateIssuedBy,
-            user.ServicesHandled,
+            certIssuedDate,
+            certIssuedBy,
+            null,
             user.Username,
             user.CreatedAt
         );

@@ -39,10 +39,14 @@ public class GetExaminationHandlerTests
     [Test]
     public async Task HandleAsync_AppointmentWithDiagnosisAndPrescription_ReturnsFullDto()
     {
-        var dentistUser = User.Create("ex1", $"ex1-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        var dentistUser = User.Create("ex1", $"ex1-{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: "BS Khám");
         _db.Users.Add(dentistUser);
         var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
-        var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
+        dentist.User = dentistUser;
+        var patientUser = User.Create("pa_ex1", $"pa_ex1-{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: "Bệnh nhân Khám");
+        _db.Users.Add(patientUser);
+        var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
+        patient.User = patientUser;
         _db.Dentists.Add(dentist);
         _db.Patients.Add(patient);
         var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
@@ -50,7 +54,7 @@ public class GetExaminationHandlerTests
         _db.Appointments.Add(appointment);
         await _db.SaveChangesAsync();
 
-        var diagnosis = Diagnosis.Create(appointment.Id, "K02.1", "Sâu răng", null, null, null, null, null, null, null, null, null);
+        var diagnosis = Diagnosis.Create(appointment.Id, "K02.1", new DiagnosisDetails("Sâu răng", null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null));
         _db.Diagnoses.Add(diagnosis);
         var prescription = Prescription.Create(appointment.Id, "Uống sau ăn");
         _db.Prescriptions.Add(prescription);
@@ -61,7 +65,7 @@ public class GetExaminationHandlerTests
         result.Should().NotBeNull();
         result!.Patient.FullName.Should().Be("Bệnh nhân Khám");
         result.Dentist.FullName.Should().Be("BS Khám");
-        result.Diagnoses.Should().ContainSingle(d => d.DiagnosisCode == "K02.1");
+        result.Diagnoses.Should().ContainSingle(d => d.Description == "K02.1");
         result.Prescription.Should().NotBeNull();
         result.Prescription!.Notes.Should().Be("Uống sau ăn");
     }
@@ -70,10 +74,14 @@ public class GetExaminationHandlerTests
     [Test]
     public async Task HandleAsync_FollowUpAppointment_ReturnsFollowUpChain()
     {
-        var dentistUser = User.Create("ex2", $"ex2-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        var dentistUser = User.Create("ex2", $"ex2-{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: "BS ex2");
         _db.Users.Add(dentistUser);
         var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
-        var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
+        dentist.User = dentistUser;
+        var patientUser = User.Create("pa_ex2", $"pa_ex2-{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: "Bệnh Nhân ex2");
+        _db.Users.Add(patientUser);
+        var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
+        patient.User = patientUser;
         _db.Dentists.Add(dentist);
         _db.Patients.Add(patient);
         var original = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddDays(-10));

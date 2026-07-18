@@ -27,10 +27,16 @@ public class GetStaffScheduleHandlerTests
     [TearDown]
     public async Task TearDown() => await _db.DisposeAsync();
 
-    private async Task<User> SeedActiveDentistUserAsync(string fullName)
+    private async Task<User> SeedActiveDentistUserAsync(string fullName, string employmentStatus = "Active")
     {
-        // User.Create mặc định EmploymentStatus = "Active".
         var user = User.Create($"u-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: fullName);
+        user.SetStaffProfile(new StaffProfileData(
+            EmployeeId: null, Department: null, EmploymentStatus: employmentStatus, ProfilePictureUrl: null,
+            ProfessionalNotes: null, Specialty: null, LicenseNumber: null, YearsOfExperience: null,
+            Gender: null, DateOfBirth: null, Address: null, StartDate: null, ServicesHandled: null,
+            CertificateIssuedDate: null, CertificateIssuedBy: null, Education: null, Bio: null,
+            Position: null, EmploymentType: null, BaseSalary: null, SalaryUnit: null,
+            LeaveAccrued: null, Allowance: null));
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
         return user;
@@ -219,11 +225,13 @@ public class GetStaffScheduleHandlerTests
         _db.WorkSchedules.Add(WorkSchedule.Create(
             Today, "08:00-10:00", "dentist", "dentist", user.FullName!, "Phòng 1", "border-primary", false));
 
-        var patientUser = User.Create("bn1", $"{Guid.NewGuid()}@test.com", "hash", "Patient");
+        var patientUser = User.Create("bn1", $"{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: "Nguyễn Văn Bệnh Nhân");
         _db.Users.Add(patientUser);
         var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
+        patient.User = patientUser;
         _db.Patients.Add(patient);
         var dentist = Dentist.Create(user.Id, "Nha khoa tổng quát", 5);
+        dentist.User = user;
         _db.Dentists.Add(dentist);
         await _db.SaveChangesAsync();
 
@@ -250,11 +258,13 @@ public class GetStaffScheduleHandlerTests
         var user = await SeedActiveDentistUserAsync("BS. Có lịch hủy");
         _db.WorkSchedules.Add(WorkSchedule.Create(
             Today, "08:00-10:00", "dentist", "dentist", user.FullName!, "Phòng 1", "border-primary", false));
-        var patientUser = User.Create("bn2", $"{Guid.NewGuid()}@test.com", "hash", "Patient");
+        var patientUser = User.Create("bn2", $"{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: "Nguyễn Bệnh Nhân Hủy");
         _db.Users.Add(patientUser);
         var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
+        patient.User = patientUser;
         _db.Patients.Add(patient);
         var dentist = Dentist.Create(user.Id, "Nha khoa tổng quát", 5);
+        dentist.User = user;
         _db.Dentists.Add(dentist);
         await _db.SaveChangesAsync();
 
@@ -277,14 +287,7 @@ public class GetStaffScheduleHandlerTests
     [Test]
     public async Task HandleAsync_InactiveDentist_ExcludedFromResult()
     {
-        var user = await SeedActiveDentistUserAsync("BS. Đã nghỉ việc");
-        user.SetStaffProfile(new StaffProfileData(
-            EmployeeId: null, Department: null, EmploymentStatus: "Inactive", ProfilePictureUrl: null,
-            ProfessionalNotes: null, Specialty: null, LicenseNumber: null, YearsOfExperience: null,
-            Gender: null, DateOfBirth: null, Address: null, StartDate: null, ServicesHandled: null,
-            CertificateIssuedDate: null, CertificateIssuedBy: null, Education: null, Bio: null,
-            Position: null, EmploymentType: null, BaseSalary: null, SalaryUnit: null,
-            LeaveAccrued: null, Allowance: null));
+        var user = await SeedActiveDentistUserAsync("BS. Đã nghỉ việc", "Inactive");
         _db.WorkSchedules.Add(WorkSchedule.Create(
             Today, "08:00-10:00", "dentist", "dentist", user.FullName!, "Phòng 1", "border-primary", false));
         await _db.SaveChangesAsync();

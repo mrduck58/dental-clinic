@@ -41,7 +41,7 @@ public class GetMyAppointmentsHandler(
             a.Id,
             $"DK{a.AppointmentDate:yyyyMMdd}{a.Id.ToString("N")[..6].ToUpper()}",
             a.Dentist.FullName,
-            a.Dentist.User.ProfilePictureUrl,
+            a.Dentist.ProfilePictureUrl,
             a.Dentist.Specialization,
             a.AppointmentDate,
             a.Status.ToString(),

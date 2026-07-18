@@ -24,8 +24,8 @@ public class GetDentistsHandler(IUserRepository userRepository)
             .Where(u =>
                 (string.Equals(u.Role, "Dentist", StringComparison.OrdinalIgnoreCase) ||
                  string.Equals(u.Role, "Doctor", StringComparison.OrdinalIgnoreCase)) &&
-                string.Equals(u.EmploymentStatus, "Active", StringComparison.OrdinalIgnoreCase))
+                string.Equals(u.Dentist?.EmploymentStatus ?? "Active", "Active", StringComparison.OrdinalIgnoreCase))
             .Select(u => new DentistSummaryDto(
-                u.Id, u.FullName, u.Specialty, u.ProfilePictureUrl, u.YearsOfExperience, u.Bio));
+                u.Id, u.FullName, u.Dentist?.Specialization, u.Dentist?.ProfilePictureUrl, u.Dentist?.ExperienceYears, u.Dentist?.Biography));
     }
 }

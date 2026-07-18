@@ -65,17 +65,6 @@ public class CreateStaffHandler(IUserRepository userRepository, AppDbContext dbC
             command.EmploymentType, command.BaseSalary, command.SalaryUnit, command.LeaveAccrued,
             command.Allowance));
 
-        // Tạo Dentist entry cho bác sĩ để FK appointment hoạt động và hiện đúng trong lịch
-        if (string.Equals(command.Role, "Dentist", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(command.Role, "Doctor",  StringComparison.OrdinalIgnoreCase))
-        {
-            var dentist = Dentist.Create(user.Id,
-                command.Specialty ?? "Nha khoa tổng quát",
-                command.YearsOfExperience ?? 0);
-            dbContext.Dentists.Add(dentist);
-        }
-
-        // userRepository.AddAsync gọi SaveChangesAsync — lưu cả User lẫn Dentist trong cùng transaction
         await userRepository.AddAsync(user, ct);
 
         return GetStaffHandler.ToDto(user);

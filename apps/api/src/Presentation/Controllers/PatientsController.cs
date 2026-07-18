@@ -23,10 +23,9 @@ public class PatientsController(
 
             patient = Patient.Create(
                 userId: user.Id,
-                dateOfBirth: user.DateOfBirth ?? new DateOnly(2000, 1, 1),
-                gender: user.Gender ?? "Nam",
-                phoneNumber: user.PhoneNumber
+                dateOfBirth: null
             );
+            patient.User = user;
 
             await patientRepository.AddAsync(patient, ct);
         }
@@ -172,16 +171,16 @@ public class PatientsController(
             phoneNumber: request.PhoneNumber,
             fullName: request.FullName
         );
+        placeholderUser.UpdateGender(request.Gender);
         await userRepository.AddAsync(placeholderUser, ct);
 
         var member = Patient.Create(
             userId: placeholderUser.Id,
             dateOfBirth: request.DateOfBirth,
-            gender: request.Gender,
-            phoneNumber: request.PhoneNumber,
+            address: null,
+            profilePictureUrl: request.ProfilePictureUrl,
             primaryPatientId: primaryPatient.Id,
-            relationship: request.Relationship,
-            profilePictureUrl: request.ProfilePictureUrl
+            relationship: request.Relationship
         );
 
         await patientRepository.AddAsync(member, ct);
@@ -250,7 +249,7 @@ public record PatientSearchResultDto(
     Guid Id,
     string FullName,
     string? PhoneNumber,
-    DateOnly DateOfBirth,
+    DateOnly? DateOfBirth,
     string Gender,
     bool HasAccount
 );
@@ -259,7 +258,7 @@ public record FamilyMemberDto(
     Guid Id,
     string FullName,
     string Relationship,
-    DateOnly DateOfBirth,
+    DateOnly? DateOfBirth,
     string Gender,
     string? PhoneNumber,
     string? ProfilePictureUrl
@@ -268,7 +267,7 @@ public record FamilyMemberDto(
 public record CreateFamilyMemberRequest(
     string FullName,
     string Relationship,
-    DateOnly DateOfBirth,
+    DateOnly? DateOfBirth,
     string Gender,
     string? PhoneNumber,
     string? ProfilePictureUrl
@@ -277,7 +276,7 @@ public record CreateFamilyMemberRequest(
 public record UpdateFamilyMemberRequest(
     string FullName,
     string Relationship,
-    DateOnly DateOfBirth,
+    DateOnly? DateOfBirth,
     string Gender,
     string? PhoneNumber,
     string? ProfilePictureUrl

@@ -38,8 +38,8 @@ public class CreateAppointmentHandler(
 
             primaryPatient = Patient.Create(
                 userId: cmd.UserId,
-                dateOfBirth: user.DateOfBirth ?? new DateOnly(1990, 1, 1),
-                gender: user.Gender ?? "Nam");
+                dateOfBirth: null);
+            primaryPatient.User = user;
 
             await patientRepository.AddAsync(primaryPatient, ct);
         }

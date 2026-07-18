@@ -98,9 +98,9 @@ public class GetDentistSlotsHandler(AppDbContext dbContext, IAppointmentReposito
                 d.Id,
                 d.FullName,
                 d.Specialization,
-                d.User.ProfilePictureUrl,
+                d.ProfilePictureUrl,
                 d.Shift,
-                d.ExperienceYears,
+                d.ExperienceYears ?? 0,
                 slots);
         });
     }

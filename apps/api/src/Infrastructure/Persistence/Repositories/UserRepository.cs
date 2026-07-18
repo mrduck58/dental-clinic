@@ -7,10 +7,18 @@ namespace DentalClinic.API.Infrastructure.Persistence.Repositories;
 public class UserRepository(AppDbContext db) : IUserRepository
 {
     public async Task<User?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
-        await db.Users.FirstOrDefaultAsync(u => u.Id == id, ct);
+        await db.Users
+            .Include(u => u.Staff)
+            .Include(u => u.Dentist)
+            .Include(u => u.Patient)
+            .FirstOrDefaultAsync(u => u.Id == id, ct);
 
     public async Task<User?> GetByEmailAsync(string email, CancellationToken ct = default) =>
-        await db.Users.FirstOrDefaultAsync(u => u.Email == email, ct);
+        await db.Users
+            .Include(u => u.Staff)
+            .Include(u => u.Dentist)
+            .Include(u => u.Patient)
+            .FirstOrDefaultAsync(u => u.Email == email, ct);
 
     public async Task<bool> ExistsByEmailAsync(string email, CancellationToken ct = default) =>
         await db.Users.AnyAsync(u => u.Email == email, ct);
@@ -31,10 +39,16 @@ public class UserRepository(AppDbContext db) : IUserRepository
     }
 
     public async Task<IEnumerable<User>> GetAllAsync(CancellationToken ct = default) =>
-        await db.Users.OrderBy(u => u.CreatedAt).ToListAsync(ct);
+        await db.Users
+            .Include(u => u.Staff)
+            .Include(u => u.Dentist)
+            .Include(u => u.Patient)
+            .OrderBy(u => u.CreatedAt).ToListAsync(ct);
 
     public async Task<IEnumerable<User>> GetEmployeesWithoutAccountAsync(CancellationToken ct = default) =>
         await db.Users
+            .Include(u => u.Staff)
+            .Include(u => u.Dentist)
             .Where(u => u.Role != "Patient" && u.PasswordHash == null)
             .OrderBy(u => u.CreatedAt)
             .ToListAsync(ct);
@@ -44,6 +58,8 @@ public class UserRepository(AppDbContext db) : IUserRepository
         int page, int pageSize, CancellationToken ct = default)
     {
         var query = db.Users
+            .Include(u => u.Staff)
+            .Include(u => u.Dentist)
             .Where(u => u.Role != "Patient")
             .AsQueryable();
 
@@ -52,11 +68,12 @@ public class UserRepository(AppDbContext db) : IUserRepository
             var term = search.Trim().ToLower();
             query = query.Where(u =>
                 (u.FullName != null && u.FullName.ToLower().Contains(term)) ||
-                u.Email.ToLower().Contains(term) ||
+                (u.Email != null && u.Email.ToLower().Contains(term)) ||
                 (u.Username != null && u.Username.ToLower().Contains(term)) ||
                 (u.PhoneNumber != null && u.PhoneNumber.Contains(term)) ||
-                (u.EmployeeId != null && u.EmployeeId.ToLower().Contains(term)) ||
-                (u.LicenseNumber != null && u.LicenseNumber.ToLower().Contains(term)));
+                (u.Staff != null && u.Staff.EmployeeId != null && u.Staff.EmployeeId.ToLower().Contains(term)) ||
+                (u.Dentist != null && u.Dentist.EmployeeId != null && u.Dentist.EmployeeId.ToLower().Contains(term)) ||
+                (u.Dentist != null && u.Dentist.LicenseNumber != null && u.Dentist.LicenseNumber.ToLower().Contains(term)));
         }
 
         if (!string.IsNullOrWhiteSpace(role))
@@ -68,7 +85,11 @@ public class UserRepository(AppDbContext db) : IUserRepository
         }
 
         if (!string.IsNullOrWhiteSpace(status))
-            query = query.Where(u => u.EmploymentStatus == status);
+        {
+            query = query.Where(u => 
+                (u.Staff != null && u.Staff.EmploymentStatus == status) ||
+                (u.Dentist != null && u.Dentist.EmploymentStatus == status));
+        }
 
         var total = await query.CountAsync(ct);
         var items = await query

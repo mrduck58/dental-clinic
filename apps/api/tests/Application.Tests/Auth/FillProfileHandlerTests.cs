@@ -88,7 +88,7 @@ public class FillProfileHandlerTests
 
         await _handler.HandleAsync(ValidCommand);
 
-        user.DateOfBirth.Should().Be(ValidCommand.DateOfBirth);
+        user.Patient?.DateOfBirth.Should().Be(ValidCommand.DateOfBirth);
         user.Gender.Should().Be(ValidCommand.Gender);
     }
 
@@ -124,11 +124,11 @@ public class FillProfileHandlerTests
 
         user.FullName.Should().Be("Trần An");
         user.PhoneNumber.Should().Be("0909876543");
-        user.Address.Should().Be("123 Lê Lợi");
-        user.Bio.Should().Be("Bác sĩ giỏi");
-        user.Education.Should().Be("Đại học Y Dược");
-        user.Specialty.Should().Be("Nha chu");
-        user.YearsOfExperience.Should().Be(8);
+        user.Dentist?.Address.Should().Be("123 Lê Lợi");
+        user.Dentist?.Biography.Should().Be("Bác sĩ giỏi");
+        user.Dentist?.Education.Should().Be("Đại học Y Dược");
+        user.Dentist?.Specialization.Should().Be("Nha chu");
+        user.Dentist?.ExperienceYears.Should().Be(8);
     }
 
     /// <summary>

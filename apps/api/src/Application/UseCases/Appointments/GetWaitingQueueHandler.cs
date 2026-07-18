@@ -93,7 +93,7 @@ public class GetWaitingQueueHandler(AppDbContext dbContext)
 
         var dentistsToShow = activeDentists
             .Where(d => schedulesByName.ContainsKey(d.FullName) &&
-                        string.Equals(d.User?.EmploymentStatus, User.DefaultEmploymentStatus,
+                        string.Equals(d.EmploymentStatus, User.DefaultEmploymentStatus,
                                       StringComparison.OrdinalIgnoreCase))
             .ToList();
 
