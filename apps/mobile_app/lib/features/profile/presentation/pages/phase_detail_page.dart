@@ -1,18 +1,34 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'package:iconsax/iconsax.dart';
-import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
-import 'package:mobile_app/features/profile/data/medical_record_mock.dart';
+import 'package:mobile_app/core/utils/money_formatter.dart';
+import 'package:mobile_app/features/profile/data/medical_record_service.dart';
 
 class PhaseDetailPage extends StatelessWidget {
-  final TreatmentPlanPhase phase;
+  final RealTreatmentPlan phase;
   const PhaseDetailPage({super.key, required this.phase});
+
+  String _formatDate(DateTime d) => '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
   @override
   Widget build(BuildContext context) {
     final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
+    final title = phase.teeth == null || phase.teeth!.isEmpty
+        ? phase.serviceName
+        : '${phase.serviceName} - Răng ${phase.teeth}';
+    final statusLabel = switch (phase.status) {
+      'Completed' => isVi ? 'Hoàn thành' : 'Completed',
+      'InProgress' => isVi ? 'Đang điều trị' : 'In progress',
+      'Cancelled' => isVi ? 'Đã hủy' : 'Cancelled',
+      _ => phase.status,
+    };
+    // Khớp đúng màu trạng thái với treatment_plan_page.dart / bảng PLAN_STATUS bên admin_website.
+    final statusColor = switch (phase.status) {
+      'Completed' => AppColors.success,
+      'InProgress' => AppColors.secondary,
+      'Cancelled' => AppColors.primary,
+      _ => context.textMuted,
+    };
 
     return Scaffold(
       backgroundColor: context.bg,
@@ -21,10 +37,10 @@ class PhaseDetailPage extends StatelessWidget {
         elevation: 0,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_new_rounded, color: context.textPrimary, size: 20),
-          onPressed: () => context.pop(),
+          onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
-          isVi ? 'Chi tiết giai đoạn' : 'Phase Details',
+          isVi ? 'Chi tiết dịch vụ điều trị' : 'Treatment Item Details',
           style: TextStyle(
             color: context.textPrimary,
             fontWeight: FontWeight.w800,
@@ -63,58 +79,40 @@ class PhaseDetailPage extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        isVi ? 'Giai đoạn 2' : 'Phase 2',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w900,
-                          color: AppColors.primary,
-                          letterSpacing: 0.5,
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: context.textPrimary,
+                          ),
                         ),
                       ),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF16A34A).withValues(alpha: 0.12),
+                          color: statusColor.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
-                          isVi ? 'Hoàn thành' : 'Completed',
-                          style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w900,
-                            color: Color(0xFF16A34A),
-                          ),
+                          statusLabel,
+                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: statusColor),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    isVi ? 'Điều trị tủy răng lần 2' : 'Root Canal Treatment (Session 2)',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: context.textPrimary,
-                    ),
-                  ),
                   const SizedBox(height: 20),
-
-                  // Info grid
                   Row(
                     children: [
                       Expanded(
-                        child: _buildInfoCell(
-                          context,
-                          isVi ? 'NGÀY ĐIỀU TRỊ' : 'TREATMENT DATE',
-                          '27/07/2026',
-                        ),
+                        child: _buildInfoCell(context, isVi ? 'BÁC SĨ THỰC HIỆN' : 'ATTENDING DOCTOR', phase.dentistName),
                       ),
                       Expanded(
                         child: _buildInfoCell(
                           context,
-                          isVi ? 'BÁC SĨ THỰC HIỆN' : 'ATTENDING DOCTOR',
-                          isVi ? 'BS. Nguyễn Văn A' : 'Dr. Alan Nguyen',
+                          isVi ? 'BẢO HÀNH ĐẾN' : 'WARRANTY UNTIL',
+                          phase.warrantyUntil == null ? '—' : _formatDate(phase.warrantyUntil!),
                         ),
                       ),
                     ],
@@ -123,18 +121,10 @@ class PhaseDetailPage extends StatelessWidget {
                   Row(
                     children: [
                       Expanded(
-                        child: _buildInfoCell(
-                          context,
-                          isVi ? 'THỜI GIAN KHÁM' : 'DURATION',
-                          isVi ? '45 phút' : '45 minutes',
-                        ),
+                        child: _buildInfoCell(context, isVi ? 'CHI PHÍ' : 'COST', formatVnd(phase.totalCost)),
                       ),
                       Expanded(
-                        child: _buildInfoCell(
-                          context,
-                          isVi ? 'TÌNH TRẠNG' : 'STATUS',
-                          isVi ? 'Đã hoàn thành' : 'Completed',
-                        ),
+                        child: _buildInfoCell(context, isVi ? 'ĐÃ THANH TOÁN' : 'PAID', formatVnd(phase.amountPaid)),
                       ),
                     ],
                   ),
@@ -143,125 +133,125 @@ class PhaseDetailPage extends StatelessWidget {
             ),
             const SizedBox(height: 28),
 
-            // Symptoms checklists
-            Text(
-              isVi ? 'Triệu chứng lâm sàng' : 'Clinical Symptoms Reported',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                color: context.textPrimary,
+            if (phase.notes != null && phase.notes!.isNotEmpty) ...[
+              Text(
+                isVi ? 'Ghi chú' : 'Notes',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: context.textPrimary),
               ),
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: context.card,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: context.divider),
+                ),
+                child: Text(
+                  phase.notes!,
+                  style: TextStyle(fontSize: 13.5, color: context.textSecondary, height: 1.5, fontWeight: FontWeight.w500),
+                ),
+              ),
+              const SizedBox(height: 28),
+            ],
+
+            // Real step-progress log
+            Text(
+              isVi ? 'Nhật ký tiến độ điều trị' : 'Treatment Progress Log',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: context.textPrimary),
             ),
             const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: context.card,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: context.divider),
-              ),
-              child: Column(
-                children: [
-                  _buildSymptomRow(context, isVi ? 'Cảm giác đau nhức răng' : 'Toothache pain intensity', isVi ? 'Không còn đau' : 'No pain', true),
-                  Divider(color: context.divider, height: 1),
-                  _buildSymptomRow(context, isVi ? 'Nhạy cảm nhiệt độ (nóng/lạnh)' : 'Sensitivity to heat/cold', isVi ? 'Ê buốt nhẹ' : 'Mild sensitivity', false),
-                  Divider(color: context.divider, height: 1),
-                  _buildSymptomRow(context, isVi ? 'Sưng nướu quanh chân răng' : 'Swelling around target gum area', isVi ? 'Hết sưng' : 'Normal', true),
-                ],
-              ),
-            ),
-            const SizedBox(height: 28),
-
-            // Results Section
-            Text(
-              isVi ? 'Kết quả điều trị' : 'Treatment Results',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                color: context.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: context.card,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: context.divider),
-              ),
-              child: Text(
-                isVi
-                    ? 'Đã tiến hành làm sạch toàn bộ buồng tủy, bơm rửa sát khuẩn các ống tủy chân răng. Đặt thuốc sát trùng và trám tạm theo đúng quy trình.'
-                    : 'Cleaned the entire pulp chamber, flushed and disinfected all root canal pathways. Placed medicaments and sealed temporarily according to standard guidelines.',
-                style: TextStyle(
-                  fontSize: 13.5,
-                  color: context.textSecondary,
-                  height: 1.5,
-                  fontWeight: FontWeight.w500,
+            if (phase.stepProgress.isEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: context.card,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: context.divider),
+                ),
+                child: Text(
+                  isVi ? 'Chưa có mục nào trong nhật ký tiến độ.' : 'No progress entries logged yet.',
+                  style: TextStyle(color: context.textMuted),
+                ),
+              )
+            else
+              Container(
+                decoration: BoxDecoration(
+                  color: context.card,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: context.divider),
+                ),
+                child: Column(
+                  children: List.generate(phase.stepProgress.length, (i) {
+                    final step = phase.stepProgress[i];
+                    return Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                width: 32,
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  color: AppColors.success.withValues(alpha: context.isDark ? 0.22 : 0.12),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Center(
+                                  child: step.stepNumber > 0
+                                      ? Text(
+                                          '${step.stepNumber}',
+                                          style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.success, fontSize: 13),
+                                        )
+                                      : const Icon(Icons.add_rounded, size: 16, color: AppColors.success),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            step.stepName,
+                                            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: context.textPrimary),
+                                          ),
+                                        ),
+                                        Text(
+                                          '${step.percent}%',
+                                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: AppColors.success),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '${_formatDate(step.date)} · ${step.dentistName}',
+                                      style: TextStyle(fontSize: 11.5, color: context.textMuted, fontWeight: FontWeight.w600),
+                                    ),
+                                    if (step.note != null && step.note!.isNotEmpty) ...[
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        step.note!,
+                                        style: TextStyle(fontSize: 12.5, color: context.textSecondary, height: 1.4),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (i != phase.stepProgress.length - 1) Divider(color: context.divider, height: 1),
+                      ],
+                    );
+                  }),
                 ),
               ),
-            ),
-            const SizedBox(height: 28),
-
-            // Before / After Comparison
-            Text(
-              isVi ? 'Hình ảnh trước / sau' : 'Before / After Comparison',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                color: context.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildComparisonImage(
-                    context,
-                    isVi ? 'Trước điều trị' : 'Before',
-                    const Color(0xFFFCA5A5), // inflammed pinkish red background
-                    isVi ? 'Tủy viêm xám' : 'Inflamed grey pulp',
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildComparisonImage(
-                    context,
-                    isVi ? 'Sau điều trị' : 'After',
-                    const Color(0xFF93C5FD), // clean blue background
-                    isVi ? 'Ống tủy sạch' : 'Clean root canals',
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 28),
-
-            // Actions Row / Cards
-            Text(
-              isVi ? 'Tác vụ liên quan' : 'Related Actions',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                color: context.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 14),
-            _buildActionCard(
-              context,
-              icon: Iconsax.health,
-              title: isVi ? 'Chi tiết điều trị' : 'Treatment Details',
-              subtitle: isVi ? 'Xem quy trình và vật liệu sử dụng' : 'Check procedures and materials used',
-              onTap: () => context.push(AppRoutes.treatmentDetail),
-            ),
-            const SizedBox(height: 12),
-            _buildActionCard(
-              context,
-              icon: Iconsax.receipt_2,
-              title: isVi ? 'Đơn thuốc' : 'Prescription',
-              subtitle: isVi ? 'Xem thông tin đơn thuốc được kê' : 'Check prescribed medicines',
-              onTap: () => context.push(AppRoutes.prescriptionDetail),
-            ),
           ],
         ),
       ),
@@ -291,157 +281,6 @@ class PhaseDetailPage extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildSymptomRow(BuildContext context, String symptom, String status, bool positive) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(symptom, style: TextStyle(fontSize: 13.5, color: context.textPrimary, fontWeight: FontWeight.w600)),
-          Row(
-            children: [
-              Icon(
-                positive ? Icons.check_circle_rounded : Icons.info_outline_rounded,
-                color: positive ? const Color(0xFF16A34A) : Colors.amber,
-                size: 16,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                status,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: positive ? const Color(0xFF16A34A) : Colors.amber,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildComparisonImage(BuildContext context, String label, Color dentalColor, String desc) {
-    return Container(
-      decoration: BoxDecoration(
-        color: context.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: context.divider),
-      ),
-      child: Column(
-        children: [
-          Container(
-            height: 100,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: dentalColor.withValues(alpha: 0.2),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
-            ),
-            child: Icon(Iconsax.flash_1, color: dentalColor, size: 36),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    color: context.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  desc,
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: context.textSecondary,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionCard(
-    BuildContext context, {
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: context.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: context.divider),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: context.isDark ? 0.1 : 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryLight,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(icon, color: AppColors.primary, size: 22),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: TextStyle(
-                            fontSize: 14.5,
-                            fontWeight: FontWeight.w800,
-                            color: context.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          subtitle,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: context.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(Icons.arrow_forward_ios_rounded, size: 14, color: context.textMuted),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

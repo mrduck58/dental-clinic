@@ -4,16 +4,60 @@ import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
-import 'package:mobile_app/features/profile/data/medical_record_mock.dart';
+import 'package:mobile_app/features/profile/data/medical_record_service.dart';
 
-class TreatmentPlanPage extends StatelessWidget {
-  final MedicalRecordEvent event;
+class TreatmentPlanPage extends StatefulWidget {
+  final MedicalHistoryEvent event;
   const TreatmentPlanPage({super.key, required this.event});
+
+  @override
+  State<TreatmentPlanPage> createState() => _TreatmentPlanPageState();
+}
+
+class _TreatmentPlanPageState extends State<TreatmentPlanPage> {
+  List<RealTreatmentPlan> _phases = [];
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final plans = await MedicalRecordService().getMyTreatmentPlans(patientId: widget.event.patientId);
+      // Gộp theo cả chuỗi tái khám (không chỉ đúng buổi hẹn đang xem) — liệu trình dài hạn
+      // (niềng răng, cấy ghép...) được tạo ở buổi đầu tiên, các buổi tái khám sau chỉ ghi thêm
+      // tiến độ vào CÙNG 1 liệu trình đó chứ không tạo liệu trình mới.
+      final chainIds = widget.event.treatmentChainIds;
+      setState(() {
+        _phases = plans.where((p) => p.appointmentId != null && chainIds.contains(p.appointmentId)).toList();
+        _isLoading = false;
+      });
+    } catch (_) {
+      setState(() {
+        _error = 'load_failed';
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
-    final phases = event.phases ?? [];
+    // Tính theo trạng thái THẬT của từng dịch vụ (không phải % của bước điều trị gần nhất — mỗi
+    // bước chỉ ghi % hoàn thành CỦA RIÊNG bước đó, không phải % của cả liệu trình, nên không thể
+    // suy ra tiến độ tổng thể từ đó). "Hoàn thành" = số dịch vụ đã Completed / tổng số dịch vụ còn
+    // hiệu lực (bỏ qua dịch vụ đã hủy) — khớp đúng cách admin_website hiển thị trạng thái.
+    final activePhases = _phases.where((p) => p.status != 'Cancelled').toList();
+    final completedCount = activePhases.where((p) => p.status == 'Completed').length;
+    final overallProgress = activePhases.isEmpty ? 0.0 : completedCount / activePhases.length;
 
     return Scaffold(
       backgroundColor: context.bg,
@@ -33,18 +77,28 @@ class TreatmentPlanPage extends StatelessWidget {
           ),
         ),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: Icon(Iconsax.more, color: context.textPrimary),
-            onPressed: () {},
-          ),
-        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(color: context.divider, height: 1),
         ),
       ),
-      body: SingleChildScrollView(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        isVi ? 'Không thể tải kế hoạch điều trị.' : 'Failed to load treatment plan.',
+                        style: TextStyle(color: context.textMuted),
+                      ),
+                      const SizedBox(height: 12),
+                      TextButton(onPressed: _load, child: Text(isVi ? 'Thử lại' : 'Retry')),
+                    ],
+                  ),
+                )
+              : SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -81,7 +135,7 @@ class TreatmentPlanPage extends StatelessWidget {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          isVi ? 'Alex Johnson' : 'Alex Johnson',
+                          widget.event.patientName,
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w800,
@@ -90,7 +144,7 @@ class TreatmentPlanPage extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          isVi ? 'Mã BN: #8821' : 'Patient ID: #8821',
+                          widget.event.appointmentCode,
                           style: TextStyle(
                             fontSize: 13,
                             color: context.textSecondary,
@@ -100,21 +154,10 @@ class TreatmentPlanPage extends StatelessWidget {
                         const SizedBox(height: 16),
                         Row(
                           children: [
-                            Icon(Iconsax.calendar_1, size: 14, color: context.textMuted),
-                            const SizedBox(width: 6),
-                            Text(
-                              isVi ? 'Dự kiến: Th11 2024' : 'Est. Completion: Nov 2024',
-                              style: TextStyle(fontSize: 12, color: context.textSecondary, fontWeight: FontWeight.w600),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
                             Icon(Iconsax.user, size: 14, color: context.textMuted),
                             const SizedBox(width: 6),
                             Text(
-                              event.doctorName,
+                              widget.event.dentistName,
                               style: TextStyle(fontSize: 12, color: context.textSecondary, fontWeight: FontWeight.w600),
                             ),
                           ],
@@ -123,37 +166,38 @@ class TreatmentPlanPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 16),
-                  // Circular Progress Indicator
+                  // Circular Progress Indicator — xanh (success) vì thể hiện phần ĐÃ hoàn thành,
+                  // thu nhỏ lại so với trước để đỡ lấn át nội dung chính bên trái.
                   Stack(
                     alignment: Alignment.center,
                     children: [
                       SizedBox(
-                        width: 80,
-                        height: 80,
+                        width: 64,
+                        height: 64,
                         child: CircularProgressIndicator(
-                          value: 0.65,
-                          strokeWidth: 8,
+                          value: overallProgress,
+                          strokeWidth: 6,
                           backgroundColor: context.isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
-                          color: AppColors.primary,
+                          color: AppColors.success,
                         ),
                       ),
                       Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Text(
-                            '65%',
-                            style: TextStyle(
-                              fontSize: 18,
+                          Text(
+                            '${(overallProgress * 100).round()}%',
+                            style: const TextStyle(
+                              fontSize: 15,
                               fontWeight: FontWeight.w900,
-                              color: AppColors.primary,
+                              color: AppColors.success,
                             ),
                           ),
                           Text(
-                            isVi ? 'Tổng thể' : 'Overall',
+                            '$completedCount/${activePhases.length}',
                             style: TextStyle(
                               fontSize: 9,
-                              fontWeight: FontWeight.w800,
-                              color: context.textSecondary,
+                              fontWeight: FontWeight.w700,
+                              color: context.textMuted,
                             ),
                           ),
                         ],
@@ -167,7 +211,7 @@ class TreatmentPlanPage extends StatelessWidget {
 
             // Phases Timeline Section Title
             Text(
-              isVi ? 'Các giai đoạn điều trị' : 'Treatment Phases',
+              isVi ? 'Các dịch vụ điều trị' : 'Treatment Items',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
@@ -176,51 +220,49 @@ class TreatmentPlanPage extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            // Phases ListView
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: phases.length,
-              itemBuilder: (context, index) {
-                final phase = phases[index];
-                return _buildPhaseItem(context, phase, isVi, index == phases.length - 1);
-              },
-            ),
+            if (_phases.isEmpty)
+              Text(
+                isVi ? 'Chưa có liệu trình nào cho buổi khám này.' : 'No treatment items for this visit yet.',
+                style: TextStyle(color: context.textMuted),
+              )
+            else
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _phases.length,
+                itemBuilder: (context, index) {
+                  final phase = _phases[index];
+                  return _buildPhaseItem(context, phase, isVi, index == _phases.length - 1);
+                },
+              ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildPhaseItem(BuildContext context, TreatmentPlanPhase phase, bool isVi, bool isLast) {
-    Color cardBorderColor = context.divider;
-    Widget statusIcon = const Icon(Icons.circle_outlined, color: Colors.grey, size: 18);
-    bool isCompleted = phase.status == 'Completed';
-    bool isInProgress = phase.status == 'In Progress';
+  /// Màu + nhãn trạng thái — khớp đúng bảng PLAN_STATUS bên app quản lý (apps/admin_website)
+  /// để bệnh nhân và bác sĩ nhìn thấy cùng một ngôn ngữ màu sắc cho cùng 1 trạng thái.
+  (Color, String, String) _statusStyle(String status, bool isVi) => switch (status) {
+        'Completed' => (AppColors.success, isVi ? 'HOÀN THÀNH' : 'COMPLETED', isVi ? 'Hoàn thành' : 'Completed'),
+        'InProgress' => (AppColors.secondary, isVi ? 'ĐANG LÀM' : 'IN PROGRESS', isVi ? 'Đang làm' : 'In progress'),
+        'Cancelled' => (AppColors.primary, isVi ? 'ĐÃ HỦY' : 'CANCELLED', isVi ? 'Đã hủy' : 'Cancelled'),
+        _ => (context.textMuted, isVi ? 'CHỜ THỰC HIỆN' : 'PLANNED', isVi ? 'Chờ thực hiện' : 'Planned'),
+      };
 
-    if (isCompleted) {
-      statusIcon = const Icon(Icons.check_circle, color: Color(0xFF16A34A), size: 18);
-    } else if (isInProgress) {
-      cardBorderColor = AppColors.primary.withValues(alpha: 0.3);
-      statusIcon = Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: AppColors.primary.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
-        ),
-        child: Text(
-          isVi ? 'ĐANG LÀM' : 'IN PROCESS',
-          style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: AppColors.primary),
-        ),
-      );
-    }
+  Widget _buildPhaseItem(BuildContext context, RealTreatmentPlan phase, bool isVi, bool isLast) {
+    final (statusColor, statusLabel, _) = _statusStyle(phase.status, isVi);
+    final isCompleted = phase.status == 'Completed';
+    final isInProgress = phase.status == 'InProgress';
+
+    final title = phase.teeth == null || phase.teeth!.isEmpty
+        ? phase.serviceName
+        : '${phase.serviceName} - Răng ${phase.teeth}';
 
     return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Timeline indicator column
           Column(
             children: [
               Container(
@@ -228,11 +270,8 @@ class TreatmentPlanPage extends StatelessWidget {
                 height: 14,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: isCompleted ? const Color(0xFF16A34A) : (isInProgress ? AppColors.primary : Colors.transparent),
-                  border: Border.all(
-                    color: isCompleted ? const Color(0xFF16A34A) : (isInProgress ? AppColors.primary : const Color(0xFF94A3B8)),
-                    width: 2.5,
-                  ),
+                  color: isCompleted || isInProgress ? statusColor : Colors.transparent,
+                  border: Border.all(color: statusColor, width: 2.5),
                 ),
               ),
               if (!isLast)
@@ -246,122 +285,145 @@ class TreatmentPlanPage extends StatelessWidget {
           ),
           const SizedBox(width: 16),
 
-          // Card content column
           Expanded(
             child: Container(
               margin: const EdgeInsets.only(bottom: 20),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: phase.status == 'Upcoming'
-                    ? (context.isDark ? const Color(0xFF0F172A).withValues(alpha: 0.2) : const Color(0xFFF8FAFC))
-                    : context.card,
+                color: context.card,
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: cardBorderColor),
+                border: Border.all(color: isInProgress ? statusColor.withValues(alpha: 0.35) : context.divider),
                 boxShadow: [
-                  if (phase.status != 'Upcoming')
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: context.isDark ? 0.1 : 0.03),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    ),
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: context.isDark ? 0.1 : 0.03),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
                 ],
               ),
-              child: Opacity(
-                opacity: phase.status == 'Upcoming' ? 0.5 : 1.0,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Header title + Status
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            phase.title,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              color: context.textPrimary,
-                            ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: context.textPrimary,
                           ),
                         ),
-                        statusIcon,
-                      ],
-                    ),
-                    const SizedBox(height: 12),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: context.isDark ? 0.22 : 0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          statusLabel,
+                          style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: statusColor),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
 
-                    // Tasks Checklist
-                    ...phase.tasks.map((task) {
+                  // Step progress log (dữ liệu thật)
+                  if (phase.stepProgress.isEmpty)
+                    Text(
+                      isVi ? 'Chưa có nhật ký tiến độ.' : 'No progress logged yet.',
+                      style: TextStyle(fontSize: 12.5, color: context.textMuted, fontWeight: FontWeight.w500),
+                    )
+                  else
+                    ...phase.stepProgress.map((step) {
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 8.0),
                         child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            Icon(
-                              task.isCompleted ? Icons.check_box : Icons.check_box_outline_blank,
-                              size: 16,
-                              color: task.isCompleted ? const Color(0xFF16A34A) : context.textMuted,
+                            Container(
+                              width: 20,
+                              height: 20,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: AppColors.success.withValues(alpha: context.isDark ? 0.22 : 0.12),
+                                shape: BoxShape.circle,
+                              ),
+                              child: step.stepNumber > 0
+                                  ? Text(
+                                      '${step.stepNumber}',
+                                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.success),
+                                    )
+                                  : const Icon(Icons.add_rounded, size: 12, color: AppColors.success),
                             ),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                task.title,
+                                step.stepName,
                                 style: TextStyle(
                                   fontSize: 12.5,
-                                  color: task.isCompleted ? context.textSecondary : context.textMuted,
-                                  fontWeight: task.isCompleted ? FontWeight.w600 : FontWeight.w500,
+                                  color: context.textSecondary,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
+                            ),
+                            Text(
+                              '${step.percent}%',
+                              style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: AppColors.success),
                             ),
                           ],
                         ),
                       );
                     }),
-                    const SizedBox(height: 12),
+                  const SizedBox(height: 12),
 
-                    // Bottom Row: Timeline + Action Link
-                    Divider(color: context.divider, height: 1),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(Iconsax.clock, size: 12, color: context.textMuted),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${phase.durationText} · ${phase.finishedDate}',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: context.textMuted,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (isInProgress)
-                          GestureDetector(
-                            onTap: () {
-                              context.push(AppRoutes.phaseDetail, extra: phase);
-                            },
-                            child: Row(
-                              children: [
-                                Text(
-                                  isVi ? 'Xem chi tiết' : 'View Details',
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppColors.primary,
-                                  ),
-                                ),
-                                const SizedBox(width: 2),
-                                const Icon(Iconsax.arrow_right_3, size: 12, color: AppColors.primary),
-                              ],
+                  Divider(color: context.divider, height: 1),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Iconsax.clock, size: 12, color: context.textMuted),
+                          const SizedBox(width: 4),
+                          Text(
+                            isVi ? 'Bác sĩ: ${phase.dentistName}' : 'Dentist: ${phase.dentistName}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: context.textMuted,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
-                      ],
-                    ),
-                  ],
-                ),
+                        ],
+                      ),
+                      if (phase.stepProgress.isNotEmpty)
+                        GestureDetector(
+                          onTap: () {
+                            context.push(AppRoutes.phaseDetail, extra: phase);
+                          },
+                          child: Row(
+                            children: [
+                              Text(
+                                isVi ? 'Xem chi tiết' : 'View Details',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                              const SizedBox(width: 2),
+                              const Icon(Iconsax.arrow_right_3, size: 12, color: AppColors.primary),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ),

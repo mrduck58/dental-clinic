@@ -4,7 +4,16 @@ import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
-import 'package:mobile_app/features/profile/data/medical_record_mock.dart';
+import 'package:mobile_app/features/auth/data/auth_service.dart';
+import 'package:mobile_app/features/profile/data/family_member.dart';
+import 'package:mobile_app/features/profile/data/medical_record_service.dart';
+
+class _SelectablePatient {
+  final String id;
+  final String name;
+  final String relation;
+  const _SelectablePatient({required this.id, required this.name, required this.relation});
+}
 
 class ExamineHistoryPage extends StatefulWidget {
   const ExamineHistoryPage({super.key});
@@ -15,15 +24,21 @@ class ExamineHistoryPage extends StatefulWidget {
 
 class _ExamineHistoryPageState extends State<ExamineHistoryPage> {
   final _searchCtrl = TextEditingController();
-  PatientRecord _selectedPatient = MedicalRecordMock.patients.first;
-  List<MedicalRecordEvent> _filteredEvents = [];
+  final _service = MedicalRecordService();
+
+  List<MedicalHistoryEvent> _allEvents = [];
+  List<_SelectablePatient> _patients = [];
+  _SelectablePatient? _selectedPatient;
+  List<MedicalHistoryEvent> _filteredEvents = [];
   String _searchQuery = '';
   bool _isDropdownOpen = false;
+  bool _isLoading = true;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _filterEvents();
+    _load();
     _searchCtrl.addListener(() {
       setState(() {
         _searchQuery = _searchCtrl.text;
@@ -38,27 +53,70 @@ class _ExamineHistoryPageState extends State<ExamineHistoryPage> {
     super.dispose();
   }
 
+  Future<void> _load() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final events = await _service.getMyMedicalHistory();
+      final selfEvents = events.where((e) => e.patientRelationship == 'Tôi');
+      final selfEvent = selfEvents.isEmpty ? null : selfEvents.first;
+      final profile = await AuthService().getMyProfile();
+      await FamilyService().loadFromServer();
+      final family = FamilyService().getMembers();
+
+      final patients = <_SelectablePatient>[
+        _SelectablePatient(
+          id: selfEvent?.patientId ?? 'self',
+          name: profile.fullName,
+          relation: 'Tôi',
+        ),
+        ...family.map((m) => _SelectablePatient(id: m.id, name: m.fullName, relation: m.relationship)),
+      ];
+
+      setState(() {
+        _allEvents = events;
+        _patients = patients;
+        _selectedPatient = patients.first;
+        _isLoading = false;
+      });
+      _filterEvents();
+    } catch (_) {
+      setState(() {
+        _error = 'load_failed';
+        _isLoading = false;
+      });
+    }
+  }
+
   void _filterEvents() {
-    if (_searchQuery.trim().isEmpty) {
-      _filteredEvents = MedicalRecordMock.events;
-    } else {
+    final selected = _selectedPatient;
+    var events = selected == null
+        ? _allEvents
+        : _allEvents.where((e) {
+            if (selected.relation == 'Tôi') return e.patientRelationship == 'Tôi';
+            return e.patientId == selected.id;
+          }).toList();
+
+    if (_searchQuery.trim().isNotEmpty) {
       final q = _searchQuery.toLowerCase();
-      _filteredEvents = MedicalRecordMock.events.where((e) {
-        return e.title.toLowerCase().contains(q) ||
-            e.doctorName.toLowerCase().contains(q) ||
-            e.year.toString().contains(q);
+      events = events.where((e) {
+        return e.serviceName.toLowerCase().contains(q) ||
+            e.dentistName.toLowerCase().contains(q) ||
+            e.appointmentDate.year.toString().contains(q);
       }).toList();
     }
+    setState(() => _filteredEvents = events);
   }
 
   @override
   Widget build(BuildContext context) {
     final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
 
-    // Group filtered events by year
     final years = <int>{};
     for (var e in _filteredEvents) {
-      years.add(e.year);
+      years.add(e.appointmentDate.year);
     }
     final sortedYears = years.toList()..sort((a, b) => b.compareTo(a));
 
@@ -80,18 +138,28 @@ class _ExamineHistoryPageState extends State<ExamineHistoryPage> {
           ),
         ),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: Icon(Icons.more_vert, color: context.textPrimary),
-            onPressed: () {},
-          ),
-        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(color: context.divider, height: 1),
         ),
       ),
-      body: Column(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        isVi ? 'Không thể tải lịch sử khám bệnh.' : 'Failed to load examine history.',
+                        style: TextStyle(color: context.textMuted),
+                      ),
+                      const SizedBox(height: 12),
+                      TextButton(onPressed: _load, child: Text(isVi ? 'Thử lại' : 'Retry')),
+                    ],
+                  ),
+                )
+              : Column(
         children: [
           // Dropdown Member Card & Inline dropdown
           Padding(
@@ -126,16 +194,8 @@ class _ExamineHistoryPageState extends State<ExamineHistoryPage> {
                           decoration: BoxDecoration(
                             color: AppColors.primaryLight,
                             shape: BoxShape.circle,
-                            image: _selectedPatient.id == 'cuong'
-                                ? null
-                                : const DecorationImage(
-                                    image: AssetImage('assets/images/bac_si_1.png'),
-                                    fit: BoxFit.cover,
-                                  ),
                           ),
-                          child: _selectedPatient.id == 'cuong'
-                              ? const Icon(Icons.person, color: AppColors.primary, size: 22)
-                              : null,
+                          child: const Icon(Icons.person, color: AppColors.primary, size: 22),
                         ),
                         const SizedBox(width: 14),
                         Expanded(
@@ -143,7 +203,7 @@ class _ExamineHistoryPageState extends State<ExamineHistoryPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                _selectedPatient.name,
+                                _selectedPatient?.name ?? '',
                                 style: TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w800,
@@ -152,7 +212,7 @@ class _ExamineHistoryPageState extends State<ExamineHistoryPage> {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                _selectedPatient.relation,
+                                _selectedPatient?.relation ?? '',
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: context.textSecondary,
@@ -186,8 +246,8 @@ class _ExamineHistoryPageState extends State<ExamineHistoryPage> {
                       ],
                     ),
                     child: Column(
-                      children: MedicalRecordMock.patients.map((p) {
-                        final isSelected = p.id == _selectedPatient.id;
+                      children: _patients.map((p) {
+                        final isSelected = p.id == _selectedPatient?.id;
                         return Column(
                           children: [
                             ListTile(
@@ -227,10 +287,10 @@ class _ExamineHistoryPageState extends State<ExamineHistoryPage> {
                                   _selectedPatient = p;
                                   _isDropdownOpen = false;
                                 });
+                                _filterEvents();
                               },
                             ),
-                            if (p != MedicalRecordMock.patients.last)
-                              Divider(color: context.divider, height: 1),
+                            if (p != _patients.last) Divider(color: context.divider, height: 1),
                           ],
                         );
                       }).toList(),
@@ -284,7 +344,7 @@ class _ExamineHistoryPageState extends State<ExamineHistoryPage> {
                     itemCount: sortedYears.length,
                     itemBuilder: (context, yearIndex) {
                       final year = sortedYears[yearIndex];
-                      final yearEvents = _filteredEvents.where((e) => e.year == year).toList();
+                      final yearEvents = _filteredEvents.where((e) => e.appointmentDate.year == year).toList();
 
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -324,22 +384,43 @@ class _ExamineHistoryPageState extends State<ExamineHistoryPage> {
                             ),
                           ),
 
-                          // List of events under this year with custom vertical line
+                          // List of events under this year — mốc thời gian có màu theo đúng
+                          // trạng thái buổi khám (xanh lá = đang điều trị, sky = đã hoàn thành),
+                          // khớp với badge trên chính thẻ sự kiện thay vì chỉ là 1 đường kẻ vô nghĩa.
                           Column(
                             children: List.generate(yearEvents.length, (eventIndex) {
                               final event = yearEvents[eventIndex];
+                              final isLastOverall = year == sortedYears.last && eventIndex == yearEvents.length - 1;
+                              final dotColor = event.isJourney ? AppColors.success : AppColors.secondary;
                               return IntrinsicHeight(
                                 child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
                                   children: [
-                                    // Custom timeline left line spacer
-                                    Padding(
-                                      padding: const EdgeInsets.only(left: 15),
-                                      child: Container(
-                                        width: 2,
-                                        color: context.isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                                    SizedBox(
+                                      width: 32,
+                                      child: Column(
+                                        children: [
+                                          const SizedBox(height: 6),
+                                          Container(
+                                            width: 10,
+                                            height: 10,
+                                            decoration: BoxDecoration(
+                                              color: dotColor,
+                                              shape: BoxShape.circle,
+                                              border: Border.all(color: context.bg, width: 2),
+                                            ),
+                                          ),
+                                          if (!isLastOverall)
+                                            Expanded(
+                                              child: Container(
+                                                width: 2,
+                                                color: context.isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                                              ),
+                                            ),
+                                        ],
                                       ),
                                     ),
-                                    const SizedBox(width: 20),
+                                    const SizedBox(width: 8),
                                     // Event Card Content
                                     Expanded(
                                       child: _buildEventCard(event, isVi),
@@ -359,9 +440,12 @@ class _ExamineHistoryPageState extends State<ExamineHistoryPage> {
     );
   }
 
-  Widget _buildEventCard(MedicalRecordEvent event, bool isVi) {
-    final statusColor = event.status == 'Active' ? const Color(0xFF10B981) : const Color(0xFF0284C7);
-    final statusBg = event.status == 'Active'
+  String _formatDate(DateTime d) => '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+
+  Widget _buildEventCard(MedicalHistoryEvent event, bool isVi) {
+    final isJourney = event.isJourney;
+    final statusColor = isJourney ? const Color(0xFF10B981) : const Color(0xFF0284C7);
+    final statusBg = isJourney
         ? const Color(0xFF10B981).withValues(alpha: 0.15)
         : const Color(0xFF0284C7).withValues(alpha: 0.1);
 
@@ -384,25 +468,18 @@ class _ExamineHistoryPageState extends State<ExamineHistoryPage> {
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            onTap: () {
-              if (event.isJourney) {
-                context.push(AppRoutes.treatmentPlan, extra: event);
-              } else {
-                context.push(AppRoutes.examinationDetail, extra: event);
-              }
-            },
+            onTap: () => context.push(AppRoutes.examinationDetail, extra: event),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Title + Status Badge
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Expanded(
                         child: Text(
-                          event.title,
+                          event.serviceName,
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w800,
@@ -418,9 +495,9 @@ class _ExamineHistoryPageState extends State<ExamineHistoryPage> {
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
-                          isVi
-                              ? (event.status == 'Active' ? 'Hoạt động' : 'Hoàn thành')
-                              : event.status,
+                          isJourney
+                              ? (isVi ? 'Đang điều trị' : 'In progress')
+                              : (isVi ? 'Hoàn thành' : 'Completed'),
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w900,
@@ -431,14 +508,12 @@ class _ExamineHistoryPageState extends State<ExamineHistoryPage> {
                     ],
                   ),
                   const SizedBox(height: 12),
-
-                  // Dentist info row
                   Row(
                     children: [
                       Icon(Iconsax.briefcase, size: 14, color: context.textMuted),
                       const SizedBox(width: 8),
                       Text(
-                        event.doctorName,
+                        event.dentistName,
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -448,14 +523,12 @@ class _ExamineHistoryPageState extends State<ExamineHistoryPage> {
                     ],
                   ),
                   const SizedBox(height: 6),
-
-                  // Date info row
                   Row(
                     children: [
                       Icon(Iconsax.calendar_1, size: 14, color: context.textMuted),
                       const SizedBox(width: 8),
                       Text(
-                        event.dateStr,
+                        _formatDate(event.appointmentDate),
                         style: TextStyle(
                           fontSize: 13,
                           color: context.textSecondary,
@@ -464,44 +537,6 @@ class _ExamineHistoryPageState extends State<ExamineHistoryPage> {
                       ),
                     ],
                   ),
-
-                  // Active progress bar if journey
-                  if (event.isJourney && event.progressText != null && event.progressPercent != null) ...[
-                    const SizedBox(height: 14),
-                    Divider(color: context.divider, height: 1),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          event.progressText!,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                        Text(
-                          '${(event.progressPercent! * 100).toInt()}%',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            color: context.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: LinearProgressIndicator(
-                        value: event.progressPercent,
-                        minHeight: 6,
-                        color: AppColors.primary,
-                        backgroundColor: AppColors.primary.withValues(alpha: 0.15),
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),
