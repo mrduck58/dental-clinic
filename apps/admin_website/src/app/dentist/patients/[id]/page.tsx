@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import DentistSidebar from "../../../../components/shared/DentistSidebar";
 import DentistPageHeader from "../../../../components/shared/DentistPageHeader";
 import AiSummaryText from "../../../../components/shared/AiSummaryText";
@@ -98,6 +98,8 @@ export default function PatientDetailPage() {
   useRequireDentist();
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const editMode = searchParams.get("edit") === "1";
 
   const [examination, setExamination] = useState<ExaminationDto | null>(null);
   const [loading, setLoading] = useState(true);
@@ -180,8 +182,9 @@ export default function PatientDetailPage() {
     if (!examination?.patient?.id) return;
     try {
       const history = await getPatientMedicalHistoryApi(examination.patient.id);
-      // Loại buổi hẹn hiện tại (đang khám / vừa kết thúc) khỏi lịch sử — nó được xem trực tiếp ở các tab
-      setMedicalHistory(history.filter(r => r.appointmentId !== id));
+      // Hiển thị toàn bộ lịch sử khám (gồm cả buổi vừa kết thúc) để đồng bộ với tab liệu trình.
+      // Buổi đang khám (InProgress) vốn không nằm trong medical-history nên không bị trùng.
+      setMedicalHistory(history);
     } catch {
       // Silently fail for medical history
     }
@@ -305,6 +308,9 @@ export default function PatientDetailPage() {
   const statusConfig = STATUS_LABEL[examination.status] ?? { label: examination.status, cls: "bg-slate-100 text-slate-600" };
   const isInProgress = examination.status === "InProgress";
   const isPendingPayment = examination.status === "PendingPayment";
+  // Đơn đã kết thúc: cho phép sửa khi mở ở chế độ chỉnh sửa (?edit=1).
+  const isFinished = examination.status === "PendingPayment" || examination.status === "Completed";
+  const canEdit = isInProgress || (editMode && isFinished);
 
 return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
@@ -347,6 +353,22 @@ return (
                 >
                   Bắt đầu khám
                 </button>
+              )}
+              {isFinished && !editMode && (
+                <Link
+                  href={`/dentist/patients/${id}?edit=1`}
+                  className="flex items-center px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-[13px] font-bold rounded-xl transition-all shadow-sm cursor-pointer"
+                >
+                  Chỉnh sửa
+                </Link>
+              )}
+              {isFinished && editMode && (
+                <Link
+                  href={`/dentist/patients/${id}`}
+                  className="flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[13px] font-bold rounded-xl transition-all shadow-sm cursor-pointer"
+                >
+                  Xong
+                </Link>
               )}
             </div>
           }
@@ -629,51 +651,51 @@ return (
                         <ExamSection title="Tình trạng lợi – niêm mạc">
                           <div className="grid grid-cols-2 gap-3">
                             <ExamField label="Tình trạng lợi" placeholder="vd: Lợi hồng hào, không viêm"
-                              value={form.gumCondition} onChange={v => setField("gumCondition", v)} disabled={!isInProgress} />
+                              value={form.gumCondition} onChange={v => setField("gumCondition", v)} disabled={!canEdit} />
                             <ExamField label="Tình trạng niêm mạc miệng" placeholder="vd: Bình thường, không tổn thương"
-                              value={form.oralMucosaCondition} onChange={v => setField("oralMucosaCondition", v)} disabled={!isInProgress} />
+                              value={form.oralMucosaCondition} onChange={v => setField("oralMucosaCondition", v)} disabled={!canEdit} />
                             <ExamField label="Chảy máu lợi" placeholder="vd: Có / Không"
-                              value={form.gumBleeding} onChange={v => setField("gumBleeding", v)} disabled={!isInProgress} />
+                              value={form.gumBleeding} onChange={v => setField("gumBleeding", v)} disabled={!canEdit} />
                             <ExamField label="Đau khi chạm / ăn nhai" placeholder="vd: Có / Không"
-                              value={form.painOnChewing} onChange={v => setField("painOnChewing", v)} disabled={!isInProgress} />
+                              value={form.painOnChewing} onChange={v => setField("painOnChewing", v)} disabled={!canEdit} />
                           </div>
                         </ExamSection>
 
                         <ExamSection title="Tình trạng răng">
                           <div className="grid grid-cols-2 gap-3">
                             <ExamField label="Số răng hiện có" placeholder="vd: 28 răng"
-                              value={form.teethCount} onChange={v => setField("teethCount", v)} disabled={!isInProgress} />
+                              value={form.teethCount} onChange={v => setField("teethCount", v)} disabled={!canEdit} />
                             <ExamField label="Răng sâu" placeholder="vd: Răng 16, 26 sâu mặt nhai"
-                              value={form.decayedTeeth} onChange={v => setField("decayedTeeth", v)} disabled={!isInProgress} />
+                              value={form.decayedTeeth} onChange={v => setField("decayedTeeth", v)} disabled={!canEdit} />
                             <ExamField label="Răng mòn / nứt / vỡ" placeholder="vd: Răng 11 mòn cổ, 21 nứt cạnh cắn"
-                              value={form.wornOrBrokenTeeth} onChange={v => setField("wornOrBrokenTeeth", v)} disabled={!isInProgress} />
+                              value={form.wornOrBrokenTeeth} onChange={v => setField("wornOrBrokenTeeth", v)} disabled={!canEdit} />
                             <ExamField label="Răng lung lay" placeholder="vd: Răng 31 độ 1"
-                              value={form.looseTeeth} onChange={v => setField("looseTeeth", v)} disabled={!isInProgress} />
+                              value={form.looseTeeth} onChange={v => setField("looseTeeth", v)} disabled={!canEdit} />
                           </div>
                         </ExamSection>
 
                         <ExamSection title="Vệ sinh răng miệng">
                           <div className="grid grid-cols-2 gap-3">
                             <ExamField label="Cao răng" placeholder="vd: Ít / Trung bình / Nhiều"
-                              value={form.tartar} onChange={v => setField("tartar", v)} disabled={!isInProgress} />
+                              value={form.tartar} onChange={v => setField("tartar", v)} disabled={!canEdit} />
                             <ExamField label="Mảng bám" placeholder="vd: Ít / Trung bình / Nhiều"
-                              value={form.plaque} onChange={v => setField("plaque", v)} disabled={!isInProgress} />
+                              value={form.plaque} onChange={v => setField("plaque", v)} disabled={!canEdit} />
                             <ExamField label="Mùi hôi miệng" placeholder="vd: Có / Không"
-                              value={form.badBreath} onChange={v => setField("badBreath", v)} disabled={!isInProgress} />
+                              value={form.badBreath} onChange={v => setField("badBreath", v)} disabled={!canEdit} />
                           </div>
                         </ExamSection>
 
                         <ExamSection title="Khớp thái dương hàm">
                           <ExamField label="Triệu chứng" placeholder="vd: Không đau, không tiếng kêu khớp"
-                            value={form.tmjSymptoms} onChange={v => setField("tmjSymptoms", v)} disabled={!isInProgress} />
+                            value={form.tmjSymptoms} onChange={v => setField("tmjSymptoms", v)} disabled={!canEdit} />
                         </ExamSection>
 
                         <ExamSection title="Khớp cắn">
                           <div className="grid grid-cols-2 gap-3">
                             <ExamField label="Khớp cắn" placeholder="vd: Khớp cắn chuẩn / Cắn chéo / Cắn hở / Cắn sâu"
-                              value={form.occlusion} onChange={v => setField("occlusion", v)} disabled={!isInProgress} />
+                              value={form.occlusion} onChange={v => setField("occlusion", v)} disabled={!canEdit} />
                             <ExamField label="Sai lệch khớp cắn" placeholder="vd: Không / Có"
-                              value={form.occlusionDeviation} onChange={v => setField("occlusionDeviation", v)} disabled={!isInProgress} />
+                              value={form.occlusionDeviation} onChange={v => setField("occlusionDeviation", v)} disabled={!canEdit} />
                           </div>
                         </ExamSection>
 
@@ -683,7 +705,7 @@ return (
                             onChange={e => setField("description", e.target.value)}
                             placeholder="Nhập chẩn đoán..."
                             rows={2}
-                            disabled={!isInProgress}
+                            disabled={!canEdit}
                             className="w-full px-3 py-2.5 text-[13px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-medium text-slate-700 placeholder:text-slate-300 resize-none disabled:opacity-60 disabled:cursor-not-allowed"
                           />
                         </ExamSection>
@@ -694,7 +716,7 @@ return (
                             onChange={e => setField("conclusion", e.target.value)}
                             placeholder="Nhập kế hoạch điều trị / tư vấn..."
                             rows={3}
-                            disabled={!isInProgress}
+                            disabled={!canEdit}
                             className="w-full px-3 py-2.5 text-[13px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-medium text-slate-700 placeholder:text-slate-300 resize-none disabled:opacity-60 disabled:cursor-not-allowed"
                           />
                         </ExamSection>
@@ -710,14 +732,14 @@ return (
                             Đã lưu
                           </span>
                         )}
-                        {!isInProgress && (
+                        {!canEdit && (
                           <span className="text-[12px] font-semibold text-amber-600">
-                            Bấm &quot;Bắt đầu khám&quot; để nhập phiếu khám.
+                            {isFinished ? "Bật \"Chỉnh sửa\" để sửa phiếu khám." : "Bấm \"Bắt đầu khám\" để nhập phiếu khám."}
                           </span>
                         )}
                         <button
                           onClick={handleSaveDiagnosis}
-                          disabled={!isInProgress}
+                          disabled={!canEdit}
                           className="ml-auto flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-[13px] font-black rounded-xl hover:bg-red-600 transition-all shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -733,17 +755,17 @@ return (
 
               {/* ─── TAB: LIỆU TRÌNH ─── */}
               {activeTab === "treatment" && (
-                <TreatmentWorkspace appointmentId={id} />
+                <TreatmentWorkspace appointmentId={id} editMode={editMode && isFinished} />
               )}
 
               {/* ─── TAB: ĐƠN THUỐC ─── */}
               {activeTab === "prescription" && (
-                <PrescriptionWorkspace appointmentId={id} />
+                <PrescriptionWorkspace appointmentId={id} editMode={editMode && isFinished} />
               )}
 
               {/* ─── TAB: TÁI KHÁM ─── */}
               {activeTab === "followup" && (
-                <FollowUpWorkspace appointmentId={id} />
+                <FollowUpWorkspace appointmentId={id} editMode={editMode && isFinished} />
               )}
 
             </div>{/* end left col */}

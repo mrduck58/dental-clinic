@@ -1,5 +1,6 @@
 using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Enums;
+using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using Microsoft.Extensions.Logging;
@@ -228,7 +229,7 @@ public class UpdateAppointmentStatusHandler(
         }
 
         if (appointment.Status != AppointmentStatus.CheckedIn)
-            throw new InvalidOperationException("Chỉ có thể bắt đầu khám lịch hẹn đã check-in.");
+            throw new ValidationException("Chỉ có thể bắt đầu khám lịch hẹn đã check-in.");
 
         // Mỗi bác sĩ chỉ khám một bệnh nhân tại một thời điểm — chỉ xét trong cùng ngày với buổi hẹn này,
         // để một ca cũ quên bấm "Kết thúc điều trị" không khóa bác sĩ ở những ngày sau.
@@ -237,7 +238,7 @@ public class UpdateAppointmentStatusHandler(
         var inProgress = await appointmentRepository.GetInProgressByDentistAsync(
             appointment.DentistId, appointmentId, dayStartUtc, dayStartUtc.AddDays(1), ct);
         if (inProgress != null)
-            throw new InvalidOperationException(
+            throw new ConflictException(
                 $"Bạn đang khám bệnh nhân {inProgress.Patient.FullName}. Vui lòng kết thúc điều trị bệnh nhân đó trước khi bắt đầu khám bệnh nhân mới.");
 
         appointment.StartTreatment();

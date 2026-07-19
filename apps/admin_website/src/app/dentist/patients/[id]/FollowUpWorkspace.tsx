@@ -12,6 +12,8 @@ import {
 
 interface FollowUpWorkspaceProps {
   appointmentId: string;
+  /** Cho phép sửa dù buổi hẹn đã kết thúc (chế độ chỉnh sửa đơn hoàn thành). */
+  editMode?: boolean;
 }
 
 // Các mốc hẹn tái khám nhanh
@@ -60,7 +62,7 @@ function CardHeader({ title, icon, color, action }: {
   );
 }
 
-export default function FollowUpWorkspace({ appointmentId }: FollowUpWorkspaceProps) {
+export default function FollowUpWorkspace({ appointmentId, editMode = false }: FollowUpWorkspaceProps) {
   const [examination, setExamination] = useState<ExaminationDto | null>(null);
   const [plans, setPlans] = useState<TreatmentPlanDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,7 +81,7 @@ export default function FollowUpWorkspace({ appointmentId }: FollowUpWorkspacePr
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const isInProgress = examination?.status === "InProgress";
+  const canEdit = examination?.status === "InProgress" || editMode;
 
   useEffect(() => {
     let cancelled = false;
@@ -103,15 +105,23 @@ export default function FollowUpWorkspace({ appointmentId }: FollowUpWorkspacePr
     return () => { cancelled = true; };
   }, [appointmentId]);
 
-  // Quá trình điều trị của ngày hẹn này
+  // Chỉ tính liệu trình thuộc buổi khám hiện tại (+ chuỗi tái khám của nó), không lấy các đơn khác cùng ngày.
+  const chainIds = useMemo(() => {
+    const ids = new Set(examination?.relatedAppointmentIds ?? []);
+    ids.add(appointmentId);
+    return ids;
+  }, [examination?.relatedAppointmentIds, appointmentId]);
+
+  // Quá trình điều trị của ngày hẹn này — chỉ trong đơn hiện tại
   const todayProgress = useMemo(() => {
     if (!examination) return [];
     const key = dayKey(examination.appointmentDate);
     return plans
+      .filter(p => p.appointmentId != null && chainIds.has(p.appointmentId))
       .flatMap(p => p.stepProgress.map(sp => ({ ...sp, serviceName: p.serviceName })))
       .filter(sp => dayKey(sp.date) === key)
       .sort((a, b) => a.stepNumber - b.stepNumber);
-  }, [plans, examination]);
+  }, [plans, examination, chainIds]);
 
   // Ngày tái khám được chọn (preset hoặc tùy chỉnh)
   const selectedDate = useMemo(() => {
@@ -325,7 +335,7 @@ export default function FollowUpWorkspace({ appointmentId }: FollowUpWorkspacePr
                 title="Đã hẹn tái khám"
                 icon="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                 action={
-                  isInProgress && (
+                  canEdit && (
                     <button
                       onClick={() => void handleClear()}
                       disabled={saving}
@@ -363,7 +373,7 @@ export default function FollowUpWorkspace({ appointmentId }: FollowUpWorkspacePr
                     <button
                       key={p.label}
                       onClick={() => { setSelectedPreset(i); setCustomValue(""); }}
-                      disabled={!isInProgress}
+                      disabled={!canEdit}
                       className={`px-3 py-2.5 rounded-xl border text-[12.5px] font-bold transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 ${
                         selectedPreset === i
                           ? "bg-green-50 border-green-400 text-green-700"
@@ -384,13 +394,13 @@ export default function FollowUpWorkspace({ appointmentId }: FollowUpWorkspacePr
                     type="number" min={1} placeholder="Số..."
                     value={customValue}
                     onChange={e => { setCustomValue(e.target.value); setSelectedPreset(null); }}
-                    disabled={!isInProgress}
+                    disabled={!canEdit}
                     className="w-20 px-3 py-2.5 text-[13px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:outline-none font-bold text-slate-700 disabled:opacity-60"
                   />
                   <select
                     value={customUnit}
                     onChange={e => setCustomUnit(e.target.value as "days" | "months")}
-                    disabled={!isInProgress}
+                    disabled={!canEdit}
                     className="flex-1 px-3 py-2.5 text-[13px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:outline-none font-bold text-slate-700 cursor-pointer disabled:opacity-60"
                   >
                     <option value="days">ngày</option>
@@ -415,15 +425,15 @@ export default function FollowUpWorkspace({ appointmentId }: FollowUpWorkspacePr
                   onChange={e => setNote(e.target.value)}
                   rows={2}
                   placeholder="VD: Tái khám kiểm tra mão sứ..."
-                  disabled={!isInProgress}
+                  disabled={!canEdit}
                   className="w-full mt-1.5 px-3.5 py-2.5 text-[13px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:outline-none font-semibold text-slate-700 resize-none disabled:opacity-60"
                 />
               </div>
 
               <button
                 onClick={() => void handleSave()}
-                disabled={!isInProgress || !selectedDate || saving}
-                title={isInProgress ? undefined : "Chỉ hẹn tái khám được khi buổi hẹn đang khám"}
+                disabled={!canEdit || !selectedDate || saving}
+                title={canEdit ? undefined : "Chỉ hẹn tái khám được khi buổi hẹn đang khám"}
                 className="w-full py-3 bg-green-600 text-white text-[14px] font-black rounded-xl hover:bg-green-700 transition-all shadow-sm shadow-green-500/25 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none disabled:cursor-not-allowed cursor-pointer"
               >
                 {saving ? "Đang lưu..." : "Lưu lịch hẹn tái khám"}
@@ -433,7 +443,7 @@ export default function FollowUpWorkspace({ appointmentId }: FollowUpWorkspacePr
                 Không đặt lịch hẹn mới cho bệnh nhân — chỉ lưu ngày cần khám lại. Khi bác sĩ bấm{" "}
                 <span className="font-black text-slate-500">&quot;Kết thúc điều trị&quot;</span>, hệ thống sẽ gửi thông báo nhắc tái khám cho bệnh nhân.
               </p>
-              {!isInProgress && (
+              {!canEdit && (
                 <p className="text-[11.5px] font-semibold text-amber-600 text-center">
                   Buổi hẹn chưa ở trạng thái đang khám — chỉ xem.
                 </p>

@@ -16,6 +16,8 @@ import {
 
 interface PrescriptionWorkspaceProps {
   appointmentId: string;
+  /** Cho phép sửa dù buổi hẹn đã kết thúc (chế độ chỉnh sửa đơn hoàn thành). */
+  editMode?: boolean;
 }
 
 const COMMON_MEDS = [
@@ -59,7 +61,7 @@ function CardHeader({ title, icon, color, action }: {
 const inputCls = "w-full px-3.5 py-2.5 text-[13px] bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-semibold text-slate-700 placeholder:text-slate-400";
 const labelCls = "text-[11px] font-extrabold text-slate-500 uppercase tracking-wider";
 
-export default function PrescriptionWorkspace({ appointmentId }: PrescriptionWorkspaceProps) {
+export default function PrescriptionWorkspace({ appointmentId, editMode = false }: PrescriptionWorkspaceProps) {
   const [examination, setExamination] = useState<ExaminationDto | null>(null);
   const [prescription, setPrescription] = useState<PrescriptionDto | null>(null);
   const [plans, setPlans] = useState<TreatmentPlanDto[]>([]);
@@ -83,7 +85,7 @@ export default function PrescriptionWorkspace({ appointmentId }: PrescriptionWor
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const isInProgress = examination?.status === "InProgress";
+  const canEdit = examination?.status === "InProgress" || editMode;
 
   const reloadPrescription = useCallback(async () => {
     try {
@@ -125,15 +127,23 @@ export default function PrescriptionWorkspace({ appointmentId }: PrescriptionWor
 
   const medicineOptions = medicines.length > 0 ? medicines.map(m => m.name) : COMMON_MEDS;
 
-  // Quá trình điều trị của ngày hẹn này
+  // Chỉ tính liệu trình thuộc buổi khám hiện tại (+ chuỗi tái khám của nó), không lấy các đơn khác cùng ngày.
+  const chainIds = useMemo(() => {
+    const ids = new Set(examination?.relatedAppointmentIds ?? []);
+    ids.add(appointmentId);
+    return ids;
+  }, [examination?.relatedAppointmentIds, appointmentId]);
+
+  // Quá trình điều trị của ngày hẹn này — chỉ trong đơn hiện tại
   const todayProgress = useMemo(() => {
     if (!examination) return [];
     const key = dayKey(examination.appointmentDate);
     return plans
+      .filter(p => p.appointmentId != null && chainIds.has(p.appointmentId))
       .flatMap(p => p.stepProgress.map(sp => ({ ...sp, serviceName: p.serviceName })))
       .filter(sp => dayKey(sp.date) === key)
       .sort((a, b) => a.stepNumber - b.stepNumber);
-  }, [plans, examination]);
+  }, [plans, examination, chainIds]);
 
   const canAdd = (medName !== KHAC ? medName.trim() !== "" : customName.trim() !== "") && quantity > 0;
 
@@ -336,7 +346,7 @@ export default function PrescriptionWorkspace({ appointmentId }: PrescriptionWor
                         </div>
                         {item.notes && <div className="text-[11.5px] italic text-slate-400 mt-0.5">{item.notes}</div>}
                       </div>
-                      {isInProgress && (
+                      {canEdit && (
                         <button
                           onClick={() => void handleDeleteItem(item.id)}
                           className="p-1 rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-500 transition-all cursor-pointer shrink-0 mt-0.5"
@@ -367,7 +377,7 @@ export default function PrescriptionWorkspace({ appointmentId }: PrescriptionWor
                 <select
                   value={medName}
                   onChange={e => setMedName(e.target.value)}
-                  disabled={!isInProgress}
+                  disabled={!canEdit}
                   className={inputCls + " cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"}
                 >
                   {medicineOptions.map(m => <option key={m} value={m}>{m}</option>)}
@@ -386,7 +396,7 @@ export default function PrescriptionWorkspace({ appointmentId }: PrescriptionWor
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1.5">
                   <label className={labelCls}>Liều dùng</label>
-                  <input list="rx-dosages" value={dosage} onChange={e => setDosage(e.target.value)} disabled={!isInProgress} className={inputCls + " disabled:opacity-60"} />
+                  <input list="rx-dosages" value={dosage} onChange={e => setDosage(e.target.value)} disabled={!canEdit} className={inputCls + " disabled:opacity-60"} />
                   <datalist id="rx-dosages">{DOSAGES.map(d => <option key={d} value={d} />)}</datalist>
                 </div>
                 <div className="flex flex-col gap-1.5">
@@ -394,18 +404,18 @@ export default function PrescriptionWorkspace({ appointmentId }: PrescriptionWor
                   <input
                     type="number" min={1} value={quantity}
                     onChange={e => setQuantity(Math.max(1, Number(e.target.value)))}
-                    disabled={!isInProgress}
+                    disabled={!canEdit}
                     className={inputCls + " disabled:opacity-60"}
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className={labelCls}>Tần suất</label>
-                  <input list="rx-frequencies" value={frequency} onChange={e => setFrequency(e.target.value)} disabled={!isInProgress} className={inputCls + " disabled:opacity-60"} />
+                  <input list="rx-frequencies" value={frequency} onChange={e => setFrequency(e.target.value)} disabled={!canEdit} className={inputCls + " disabled:opacity-60"} />
                   <datalist id="rx-frequencies">{FREQUENCIES.map(f => <option key={f} value={f} />)}</datalist>
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className={labelCls}>Thời gian</label>
-                  <input list="rx-durations" value={duration} onChange={e => setDuration(e.target.value)} disabled={!isInProgress} className={inputCls + " disabled:opacity-60"} />
+                  <input list="rx-durations" value={duration} onChange={e => setDuration(e.target.value)} disabled={!canEdit} className={inputCls + " disabled:opacity-60"} />
                   <datalist id="rx-durations">{DURATIONS.map(d => <option key={d} value={d} />)}</datalist>
                 </div>
               </div>
@@ -417,7 +427,7 @@ export default function PrescriptionWorkspace({ appointmentId }: PrescriptionWor
                     <button
                       key={hint} type="button"
                       onClick={() => setNote(n => n ? `${n}. ${hint}` : hint)}
-                      disabled={!isInProgress}
+                      disabled={!canEdit}
                       className="px-2 py-1 text-[10.5px] font-semibold bg-slate-100 text-slate-500 rounded-lg hover:bg-violet-100 hover:text-violet-700 transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       + {hint}
@@ -429,20 +439,20 @@ export default function PrescriptionWorkspace({ appointmentId }: PrescriptionWor
                   onChange={e => setNote(e.target.value)}
                   rows={2}
                   placeholder="Hoặc nhập hướng dẫn..."
-                  disabled={!isInProgress}
+                  disabled={!canEdit}
                   className={inputCls + " resize-none disabled:opacity-60"}
                 />
               </div>
 
               <button
                 onClick={() => void handleAddItem()}
-                disabled={!isInProgress || !canAdd || saving}
-                title={isInProgress ? undefined : "Chỉ kê đơn được khi buổi hẹn đang khám"}
+                disabled={!canEdit || !canAdd || saving}
+                title={canEdit ? undefined : "Chỉ kê đơn được khi buổi hẹn đang khám"}
                 className="w-full py-2.5 bg-violet-600 text-white text-[13.5px] font-black rounded-xl hover:bg-violet-700 transition-all shadow-sm shadow-violet-500/25 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none disabled:cursor-not-allowed cursor-pointer"
               >
                 {saving ? "Đang lưu..." : "Thêm vào đơn"}
               </button>
-              {!isInProgress && (
+              {!canEdit && (
                 <p className="text-[11.5px] font-semibold text-amber-600 text-center">
                   Buổi hẹn chưa ở trạng thái đang khám — chỉ xem.
                 </p>

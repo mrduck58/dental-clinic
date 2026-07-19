@@ -59,8 +59,8 @@ public class PrescriptionHandler(
         if (appointment == null)
             throw new KeyNotFoundException("Không tìm thấy lịch hẹn.");
 
-        if (appointment.Status != AppointmentStatus.InProgress)
-            throw new InvalidOperationException("Chỉ có thể tạo đơn thuốc khi cuộc hẹn đang trong trạng thái đang khám.");
+        if (appointment.Status is not (AppointmentStatus.InProgress or AppointmentStatus.PendingPayment or AppointmentStatus.Completed))
+            throw new ValidationException("Chỉ có thể tạo đơn thuốc khi buổi hẹn đang khám hoặc đã kết thúc điều trị.");
 
         // Check if prescription already exists
         var existingPrescription = appointment.Prescriptions.FirstOrDefault();

@@ -2188,6 +2188,7 @@ export interface UpdateStepProgressRequest {
   entryIndex: number; // vị trí mục trong nhật ký (stepProgress)
   percent: number;
   note?: string;
+  stepName?: string; // đổi tên bước điều trị
 }
 
 export async function updateTreatmentPlanProgressApi(
