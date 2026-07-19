@@ -4,7 +4,10 @@ import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
-import 'package:mobile_app/features/booking/data/booking_models.dart';
+import 'package:mobile_app/features/home/data/home_service.dart';
+import 'package:mobile_app/features/home/data/models/doctor_model.dart';
+import 'package:mobile_app/features/home/data/models/review_model.dart';
+import 'package:mobile_app/features/home/data/review_service.dart';
 
 class DentistsListPage extends StatefulWidget {
   const DentistsListPage({super.key});
@@ -15,13 +18,17 @@ class DentistsListPage extends StatefulWidget {
 
 class _DentistsListPageState extends State<DentistsListPage> {
   final _searchCtrl = TextEditingController();
-  List<DoctorInfo> _filteredDentists = [];
+  List<DoctorModel> _dentists = [];
+  List<DoctorModel> _filteredDentists = [];
+  final Map<String, DentistReviewsResult> _reviewsByDentist = {};
   String _searchQuery = '';
+  bool _isLoading = true;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _filterDentists();
+    _loadDentists();
     _searchCtrl.addListener(() {
       setState(() {
         _searchQuery = _searchCtrl.text;
@@ -36,15 +43,44 @@ class _DentistsListPageState extends State<DentistsListPage> {
     super.dispose();
   }
 
+  Future<void> _loadDentists() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final dentists = await HomeService().getDentists();
+      setState(() {
+        _dentists = dentists;
+        _isLoading = false;
+        _filterDentists();
+      });
+
+      final reviewResults = await Future.wait(
+        dentists.map((d) => ReviewService().getReviewsForDentist(d.id)),
+      );
+      if (!mounted) return;
+      setState(() {
+        for (var i = 0; i < dentists.length; i++) {
+          _reviewsByDentist[dentists[i].id] = reviewResults[i];
+        }
+      });
+    } catch (_) {
+      setState(() {
+        _error = 'load_failed';
+        _isLoading = false;
+      });
+    }
+  }
+
   void _filterDentists() {
-    final list = BookingMockData.doctors;
     if (_searchQuery.trim().isEmpty) {
-      _filteredDentists = list;
+      _filteredDentists = _dentists;
     } else {
       final q = _searchQuery.toLowerCase();
-      _filteredDentists = list.where((d) {
-        return d.name.toLowerCase().contains(q) ||
-            d.specialty.toLowerCase().contains(q);
+      _filteredDentists = _dentists.where((d) {
+        return d.fullName.toLowerCase().contains(q) ||
+            (d.specialty ?? '').toLowerCase().contains(q);
       }).toList();
     }
   }
@@ -109,7 +145,23 @@ class _DentistsListPageState extends State<DentistsListPage> {
 
           // Dentists directory list
           Expanded(
-            child: _filteredDentists.isEmpty
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              isVi ? 'Không thể tải danh sách nha sĩ.' : 'Failed to load dentists.',
+                              style: TextStyle(color: context.textMuted),
+                            ),
+                            const SizedBox(height: 12),
+                            TextButton(onPressed: _loadDentists, child: Text(isVi ? 'Thử lại' : 'Retry')),
+                          ],
+                        ),
+                      )
+                    : _filteredDentists.isEmpty
                 ? Center(
                     child: Text(
                       isVi ? 'Không tìm thấy nha sĩ phù hợp.' : 'No dentist matching search.',
@@ -121,6 +173,10 @@ class _DentistsListPageState extends State<DentistsListPage> {
                     itemCount: _filteredDentists.length,
                     itemBuilder: (context, i) {
                       final doc = _filteredDentists[i];
+                      final reviewsResult = _reviewsByDentist[doc.id];
+                      final avgRating = reviewsResult?.averageRating ?? 0;
+                      final reviewsCount = reviewsResult?.reviewCount ?? 0;
+                      final specialty = doc.specialty ?? (isVi ? 'Nha sĩ tổng quát' : 'General Dentist');
                       return Container(
                         margin: const EdgeInsets.only(bottom: 16),
                         padding: const EdgeInsets.all(16),
@@ -138,14 +194,27 @@ class _DentistsListPageState extends State<DentistsListPage> {
                         ),
                         child: Row(
                           children: [
-                            // Avatar
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(16),
-                              child: Container(
-                                width: 72,
-                                height: 72,
-                                color: context.isDark ? AppColors.primary.withValues(alpha: 0.15) : AppColors.primaryLight,
-                                child: Icon(Iconsax.user, color: AppColors.primary, size: 30),
+                            // Avatar — viền màu sky nhẹ để tách khỏi nền, thay vì chỉ 1 khối phẳng
+                            Container(
+                              padding: const EdgeInsets.all(2),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(color: AppColors.secondary.withValues(alpha: context.isDark ? 0.35 : 0.25), width: 1.5),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(15),
+                                child: Container(
+                                  width: 68,
+                                  height: 68,
+                                  color: context.isDark ? AppColors.primary.withValues(alpha: 0.15) : AppColors.primaryLight,
+                                  child: doc.profilePictureUrl != null
+                                      ? Image.network(
+                                          doc.profilePictureUrl!,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, __, ___) => Icon(Iconsax.user, color: AppColors.primary, size: 28),
+                                        )
+                                      : Icon(Iconsax.user, color: AppColors.primary, size: 28),
+                                ),
                               ),
                             ),
                             const SizedBox(width: 16),
@@ -163,26 +232,47 @@ class _DentistsListPageState extends State<DentistsListPage> {
                                       color: context.textPrimary,
                                     ),
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    doc.specialty,
-                                    style: TextStyle(
-                                      fontSize: 12.5,
-                                      color: context.textSecondary,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Row(
+                                  const SizedBox(height: 6),
+                                  Wrap(
+                                    crossAxisAlignment: WrapCrossAlignment.center,
+                                    spacing: 6,
+                                    runSpacing: 4,
                                     children: [
-                                      const Icon(Icons.star_rounded, color: Colors.amber, size: 16),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        '${doc.rating} (${doc.reviewCount}+ reviews)',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700,
-                                          color: context.textSecondary,
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.secondary.withValues(alpha: context.isDark ? 0.2 : 0.1),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Text(
+                                          specialty,
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            color: AppColors.secondary,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.accent.withValues(alpha: context.isDark ? 0.2 : 0.12),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(Icons.star_rounded, color: AppColors.accent, size: 13),
+                                            const SizedBox(width: 2),
+                                            Text(
+                                              '$avgRating ($reviewsCount)',
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w800,
+                                                color: AppColors.accent,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
                                     ],
@@ -195,11 +285,7 @@ class _DentistsListPageState extends State<DentistsListPage> {
                             IconButton(
                               icon: const Icon(Iconsax.arrow_right_3, color: AppColors.primary, size: 20),
                               onPressed: () {
-                                // Navigate to booking using this doctor
-                                context.push(
-                                  AppRoutes.bookingSelectPatient,
-                                  extra: doc,
-                                );
+                                context.push(AppRoutes.dentistProfile, extra: doc);
                               },
                             ),
                           ],

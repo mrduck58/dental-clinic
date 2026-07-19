@@ -1,5 +1,6 @@
 import 'package:mobile_app/core/constants/api_constants.dart';
 import 'package:mobile_app/core/network/api_client.dart';
+import 'package:mobile_app/features/home/data/models/dentist_detail_model.dart';
 import 'package:mobile_app/features/home/data/models/doctor_model.dart';
 import 'package:mobile_app/features/home/data/models/post_model.dart';
 import 'package:mobile_app/features/home/data/models/service_model.dart';
@@ -17,6 +18,11 @@ class HomeService {
     return list
         .map((e) => DoctorModel.fromJson(e as Map<String, dynamic>))
         .toList();
+  }
+
+  Future<DentistDetailModel> getDentistDetail(String dentistId) async {
+    final res = await _client.get(ApiConstants.dentistDetail(dentistId));
+    return DentistDetailModel.fromJson(res.data as Map<String, dynamic>);
   }
 
   Future<List<ServiceModel>> getServices() async {

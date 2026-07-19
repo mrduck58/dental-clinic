@@ -1,3 +1,5 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using DentalClinic.API.Application.UseCases.Appointments;
 using DentalClinic.API.Application.UseCases.Staff;
 using Microsoft.AspNetCore.Authorization;
@@ -9,7 +11,9 @@ namespace DentalClinic.API.Presentation.Controllers;
 [Route("api/dentists")]
 public class DentistsController(
     GetDentistsHandler getDentistsHandler,
-    GetDentistSlotsHandler getDentistSlotsHandler) : ControllerBase
+    GetDentistSlotsHandler getDentistSlotsHandler,
+    GetDentistDetailHandler getDentistDetailHandler,
+    DentistReviewHandler dentistReviewHandler) : ControllerBase
 {
     /// <summary>GET api/dentists — Danh sách nha sĩ cho trang chủ mobile</summary>
     [HttpGet]
@@ -29,5 +33,43 @@ public class DentistsController(
     {
         var result = await getDentistSlotsHandler.HandleAsync(date, cancellationToken);
         return Ok(result);
+    }
+
+    /// <summary>GET api/dentists/{id} — Chi tiết hồ sơ nha sĩ (bio, kinh nghiệm, số bệnh nhân đã khám thật)</summary>
+    [HttpGet("{id:guid}")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetDentistDetail(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await getDentistDetailHandler.HandleAsync(id, cancellationToken);
+        if (result is null) return NotFound(new { title = "Không tìm thấy nha sĩ." });
+        return Ok(result);
+    }
+
+    /// <summary>GET api/dentists/{id}/reviews — Danh sách đánh giá + điểm trung bình của nha sĩ</summary>
+    [HttpGet("{id:guid}/reviews")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetDentistReviews(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await dentistReviewHandler.GetForDentistAsync(id, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>POST api/dentists/{id}/reviews — Gửi (hoặc cập nhật) đánh giá của bệnh nhân hiện tại cho nha sĩ</summary>
+    [HttpPost("{id:guid}/reviews")]
+    [Authorize(Roles = "Patient")]
+    public async Task<IActionResult> CreateDentistReview(
+        Guid id, [FromBody] CreateDentistReviewRequest request, CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        var result = await dentistReviewHandler.UpsertAsync(id, userId, request, cancellationToken);
+        return Ok(result);
+    }
+
+    private Guid GetCurrentUserId()
+    {
+        var sub = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+            ?? User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? throw new UnauthorizedAccessException("Không xác định được người dùng từ token.");
+        return Guid.Parse(sub);
     }
 }
