@@ -49,12 +49,13 @@ import 'package:mobile_app/features/home/presentation/pages/search_page.dart';
 import 'package:mobile_app/features/appointment/presentation/screens/appointment_details_page.dart';
 import 'package:mobile_app/features/profile/presentation/pages/examine_history_page.dart';
 import 'package:mobile_app/features/profile/presentation/pages/examination_detail_page.dart';
+import 'package:mobile_app/features/profile/presentation/pages/diagnosis_detail_page.dart';
+import 'package:mobile_app/features/profile/presentation/pages/followup_detail_page.dart';
 import 'package:mobile_app/features/profile/presentation/pages/treatment_plan_page.dart';
 import 'package:mobile_app/features/profile/presentation/pages/phase_detail_page.dart';
-import 'package:mobile_app/features/profile/presentation/pages/treatment_detail_page.dart';
 import 'package:mobile_app/features/profile/presentation/pages/prescription_detail_page.dart';
 import 'package:mobile_app/features/profile/presentation/pages/medicine_detail_page.dart';
-import 'package:mobile_app/features/profile/data/medical_record_mock.dart';
+import 'package:mobile_app/features/profile/data/medical_record_service.dart';
 
 final GoRouter appRouter = GoRouter(
   initialLocation: AppRoutes.splash,
@@ -275,27 +276,31 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: AppRoutes.examinationDetail,
-      builder: (context, state) => ExaminationDetailPage(event: state.extra as MedicalRecordEvent),
+      builder: (context, state) => ExaminationDetailPage(event: state.extra as MedicalHistoryEvent),
+    ),
+    GoRoute(
+      path: AppRoutes.diagnosisDetail,
+      builder: (context, state) => DiagnosisDetailPage(event: state.extra as MedicalHistoryEvent),
+    ),
+    GoRoute(
+      path: AppRoutes.followUpDetail,
+      builder: (context, state) => FollowUpDetailPage(event: state.extra as MedicalHistoryEvent),
     ),
     GoRoute(
       path: AppRoutes.treatmentPlan,
-      builder: (context, state) => TreatmentPlanPage(event: state.extra as MedicalRecordEvent),
+      builder: (context, state) => TreatmentPlanPage(event: state.extra as MedicalHistoryEvent),
     ),
     GoRoute(
       path: AppRoutes.phaseDetail,
-      builder: (context, state) => PhaseDetailPage(phase: state.extra as TreatmentPlanPhase),
-    ),
-    GoRoute(
-      path: AppRoutes.treatmentDetail,
-      builder: (context, state) => const TreatmentDetailPage(),
+      builder: (context, state) => PhaseDetailPage(phase: state.extra as RealTreatmentPlan),
     ),
     GoRoute(
       path: AppRoutes.prescriptionDetail,
-      builder: (context, state) => const PrescriptionDetailPage(),
+      builder: (context, state) => PrescriptionDetailPage(event: state.extra as MedicalHistoryEvent),
     ),
     GoRoute(
       path: AppRoutes.medicineDetail,
-      builder: (context, state) => MedicineDetailPage(medicine: state.extra as MedicineModel),
+      builder: (context, state) => MedicineDetailPage(medicine: state.extra as MedicalHistoryPrescriptionItem),
     ),
 
     // ── Booking flow (standalone, không có Bottom Nav) ────────────────────
@@ -374,9 +379,10 @@ abstract class AppRoutes {
   static const queue = '/queue';
   static const appointmentDetails = '/appointments/details';
   static const examinationDetail = '/medical-records/exam-detail';
+  static const diagnosisDetail = '/medical-records/diagnosis-detail';
+  static const followUpDetail = '/medical-records/followup-detail';
   static const treatmentPlan = '/medical-records/treatment-plan';
   static const phaseDetail = '/medical-records/phase-detail';
-  static const treatmentDetail = '/medical-records/treatment-detail';
   static const prescriptionDetail = '/medical-records/prescription-detail';
   static const medicineDetail = '/medical-records/medicine-detail';
 
