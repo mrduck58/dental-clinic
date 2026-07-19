@@ -26,6 +26,8 @@ interface TreatmentWorkspaceProps {
   appointmentId: string;
   /** Có onBack → hiển thị header riêng (dùng ở trang Phác đồ điều trị); không có → chế độ nhúng trong tab. */
   onBack?: () => void;
+  /** Cho phép sửa dù buổi hẹn đã kết thúc (chế độ chỉnh sửa đơn hoàn thành). */
+  editMode?: boolean;
 }
 
 const fmtMoney = (n: number) => n.toLocaleString("vi-VN") + "đ";
@@ -61,7 +63,7 @@ function CardHeader({ title, icon, color, action }: {
   );
 }
 
-export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentWorkspaceProps) {
+export default function TreatmentWorkspace({ appointmentId, onBack, editMode = false }: TreatmentWorkspaceProps) {
   const [examination, setExamination] = useState<ExaminationDto | null>(null);
   const [medicalHistory, setMedicalHistory] = useState<PatientMedicalHistoryDto[]>([]);
   const [plans, setPlans] = useState<TreatmentPlanDto[]>([]);
@@ -76,7 +78,7 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
     setTimeout(() => setToast(null), 4000);
   };
 
-  const isInProgress = examination?.status === "InProgress";
+  const canEdit = examination?.status === "InProgress" || editMode;
 
   // ── Modal: thêm dịch vụ ────────────────────────────────────────────────────
   const [showAddService, setShowAddService] = useState(false);
@@ -84,7 +86,6 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
   const [selService, setSelService] = useState<ServiceDto | null>(null);
   const [addQuantity, setAddQuantity] = useState(1);
   const [addTeeth, setAddTeeth] = useState("");
-  const [addWarranty, setAddWarranty] = useState(""); // yyyy-MM
   const [addNotes, setAddNotes] = useState("");
   const [savingService, setSavingService] = useState(false);
 
@@ -104,6 +105,7 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
 
   // ── Modal: sửa mục đã ghi trong nhật ký ────────────────────────────────────
   const [editEntry, setEditEntry] = useState<{ planId: string; entryIndex: number; stepName: string } | null>(null);
+  const [editStepName, setEditStepName] = useState("");
   const [editPercent, setEditPercent] = useState<number>(0);
   const [editNote, setEditNote] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
@@ -200,10 +202,9 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
       setSavingService(true);
       await createTreatmentPlanApi(appointmentId, {
         serviceId: selService.id,
-        quantity: addQuantity,
+        quantity: Math.max(1, addQuantity),
         teeth: addTeeth.trim() || undefined,
         notes: addNotes.trim() || undefined,
-        warrantyUntil: addWarranty ? `${addWarranty}-01` : undefined,
       });
       showToast("Đã thêm dịch vụ vào liệu trình");
       setShowAddService(false);
@@ -211,7 +212,6 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
       setServiceSearch("");
       setAddQuantity(1);
       setAddTeeth("");
-      setAddWarranty("");
       setAddNotes("");
       await loadPlans(examination.patient.id);
     } catch (err) {
@@ -309,18 +309,24 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
 
   const handleOpenEdit = (row: { planId: string; entryIndex: number; stepName: string; percent: number; note: string | null }) => {
     setEditEntry({ planId: row.planId, entryIndex: row.entryIndex, stepName: row.stepName });
+    setEditStepName(row.stepName);
     setEditPercent(row.percent);
     setEditNote(row.note ?? "");
   };
 
   const handleSaveEdit = async () => {
     if (!editEntry) return;
+    if (!editStepName.trim()) {
+      showToast("Vui lòng nhập tên bước điều trị", "error");
+      return;
+    }
     try {
       setSavingEdit(true);
       await updateTreatmentPlanProgressApi(editEntry.planId, {
         entryIndex: editEntry.entryIndex,
         percent: editPercent,
         note: editNote.trim() || undefined,
+        stepName: editStepName.trim(),
       });
       showToast("Đã cập nhật quá trình điều trị");
       setEditEntry(null);
@@ -409,7 +415,7 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
             <div className="text-[15px] font-black text-slate-900 truncate">Liệu trình điều trị — {pt.fullName}</div>
             <div className="text-[12px] font-semibold text-slate-400">{examination.appointmentCode} · {fmtDate(examination.appointmentDate)}</div>
           </div>
-          {!isInProgress && (
+          {!canEdit && (
             <span className="text-[12px] font-bold px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg">
               Buổi hẹn chưa ở trạng thái đang khám — chỉ xem
             </span>
@@ -593,16 +599,16 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
                     return (
                     <div
                       key={rowKey}
-                      draggable={isInProgress}
+                      draggable={canEdit}
                       onDragStart={e => {
-                        if (!isInProgress) { e.preventDefault(); return; }
+                        if (!canEdit) { e.preventDefault(); return; }
                         e.dataTransfer.setData("text/plain", rowKey);
                         e.dataTransfer.effectAllowed = "move";
                         setDragKey(rowKey);
                       }}
                       onDragEnd={() => { setDragKey(null); setDragOverKey(null); }}
                       onDragOver={e => {
-                        if (!isInProgress) return;
+                        if (!canEdit) return;
                         e.preventDefault(); // bắt buộc để onDrop có thể fire
                         e.dataTransfer.dropEffect = "move";
                         // Chỉ tô sáng khi cùng liệu trình (dùng cho hiển thị)
@@ -618,8 +624,8 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
                       style={{ gridTemplateColumns: "24px 90px 1fr 160px 68px" }}
                     >
                       <span
-                        title={isInProgress ? "Kéo để đổi thứ tự" : undefined}
-                        className={`flex items-center justify-center pt-0.5 text-slate-300 ${isInProgress ? "cursor-grab active:cursor-grabbing hover:text-slate-500" : "opacity-40"}`}
+                        title={canEdit ? "Kéo để đổi thứ tự" : undefined}
+                        className={`flex items-center justify-center pt-0.5 text-slate-300 ${canEdit ? "cursor-grab active:cursor-grabbing hover:text-slate-500" : "opacity-40"}`}
                       >
                         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                           <path d="M9 5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM9 12a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM9 19a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM18 5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM18 12a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM18 19a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
@@ -628,10 +634,10 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
                       <span className="text-[13px] font-bold text-slate-600 font-mono">{fmtDate(row.date)}</span>
                       <div>
                         <div className="text-[13.5px] font-bold text-slate-800">
-                          {row.serviceName} <span className="text-slate-400">→</span> {row.stepName}
-                        </div>
-                        <div className="text-[12px] font-semibold text-sky-600 mt-0.5">
-                          {row.stepNumber > 0 ? `${row.stepNumber}. ` : ""}{row.stepName} ({row.percent}%)
+                          {row.serviceName} <span className="text-slate-400">→</span>{" "}
+                          <span className="text-sky-600">
+                            {row.stepNumber > 0 ? `${row.stepNumber}. ` : ""}{row.stepName} ({row.percent}%)
+                          </span>
                         </div>
                         {row.note && <div className="text-[12px] italic text-slate-500 mt-0.5">{row.note}</div>}
                       </div>
@@ -639,8 +645,8 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => handleOpenEdit(row)}
-                          disabled={!isInProgress}
-                          title={isInProgress ? "Sửa tiến độ" : "Chỉ sửa được khi buổi khám đang diễn ra"}
+                          disabled={!canEdit}
+                          title={canEdit ? "Sửa tiến độ" : "Chỉ sửa được khi buổi khám đang diễn ra"}
                           className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-300 hover:text-sky-600 hover:bg-sky-50 disabled:hover:bg-transparent disabled:hover:text-slate-200 disabled:text-slate-200 disabled:cursor-not-allowed cursor-pointer"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -649,8 +655,8 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
                         </button>
                         <button
                           onClick={() => void handleDeleteProgress(row)}
-                          disabled={!isInProgress}
-                          title={isInProgress ? "Xóa mục này" : "Chỉ xóa được khi buổi khám đang diễn ra"}
+                          disabled={!canEdit}
+                          title={canEdit ? "Xóa mục này" : "Chỉ xóa được khi buổi khám đang diễn ra"}
                           className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50 disabled:hover:bg-transparent disabled:hover:text-slate-200 disabled:text-slate-200 disabled:cursor-not-allowed cursor-pointer"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -666,8 +672,8 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
               <div className="py-3 border-t border-slate-100 flex justify-center">
                 <button
                   onClick={() => void handleOpenProgress()}
-                  disabled={activePlans.length === 0 || !isInProgress}
-                  title={isInProgress ? undefined : "Bấm \"Bắt đầu khám\" để ghi nhận quá trình điều trị"}
+                  disabled={activePlans.length === 0 || !canEdit}
+                  title={canEdit ? undefined : "Bấm \"Bắt đầu khám\" để ghi nhận quá trình điều trị"}
                   className="flex items-center gap-1.5 text-[13px] font-bold text-primary hover:text-red-700 disabled:text-slate-300 disabled:cursor-not-allowed cursor-pointer"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -688,8 +694,8 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
               action={
                 <button
                   onClick={() => setShowAddService(true)}
-                  disabled={!isInProgress}
-                  title={isInProgress ? undefined : "Chỉ thêm được khi buổi hẹn đang khám"}
+                  disabled={!canEdit}
+                  title={canEdit ? undefined : "Chỉ thêm được khi buổi hẹn đang khám"}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-[12.5px] font-bold bg-primary text-white rounded-lg hover:bg-red-600 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed cursor-pointer"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -815,12 +821,13 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
                     <span className="text-[13.5px] font-black text-emerald-800">{selService.name}</span>
                     <span className="text-[13.5px] font-black text-emerald-700 tabular-nums">{fmtMoney(selService.price)}</span>
                   </div>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Số lượng</label>
                       <input
-                        type="number" min={1} value={addQuantity}
-                        onChange={e => setAddQuantity(Math.max(1, Number(e.target.value)))}
+                        type="number" inputMode="numeric" min={1} value={addQuantity || ""}
+                        onChange={e => setAddQuantity(e.target.value === "" ? 0 : Math.max(0, Math.floor(Number(e.target.value) || 0)))}
+                        onBlur={() => setAddQuantity(q => (q < 1 ? 1 : q))}
                         className="w-full mt-1 px-3 py-2 text-[13px] bg-white border border-slate-200 rounded-lg focus:border-primary focus:outline-none font-bold"
                       />
                     </div>
@@ -829,14 +836,6 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
                       <input
                         type="text" placeholder="VD: 21, 36" value={addTeeth}
                         onChange={e => setAddTeeth(e.target.value)}
-                        className="w-full mt-1 px-3 py-2 text-[13px] bg-white border border-slate-200 rounded-lg focus:border-primary focus:outline-none font-bold"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">BH đến</label>
-                      <input
-                        type="month" value={addWarranty}
-                        onChange={e => setAddWarranty(e.target.value)}
                         className="w-full mt-1 px-3 py-2 text-[13px] bg-white border border-slate-200 rounded-lg focus:border-primary focus:outline-none font-bold"
                       />
                     </div>
@@ -1013,9 +1012,13 @@ export default function TreatmentWorkspace({ appointmentId, onBack }: TreatmentW
               </button>
             </div>
             <div className="p-6 flex flex-col gap-4">
-              <div className="bg-slate-50 border border-slate-100 rounded-xl px-4 py-3">
-                <div className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Bước điều trị</div>
-                <div className="text-[14px] font-black text-slate-800 mt-0.5">{editEntry.stepName}</div>
+              <div>
+                <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Bước điều trị</label>
+                <input
+                  type="text" placeholder="Tên bước..." value={editStepName}
+                  onChange={e => setEditStepName(e.target.value)}
+                  className="w-full mt-1.5 px-3 py-2.5 text-[13px] bg-slate-50 border border-slate-200 rounded-lg focus:border-primary focus:outline-none font-bold"
+                />
               </div>
 
               <div>

@@ -92,16 +92,27 @@ function PatientRow({ p, idx }: { p: DentistPatientDto; idx: number }) {
           </span>
         </div>
 
-        {/* Action button */}
-        <Link
-          href={`/dentist/patients/${p.appointmentId}`}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-bold transition-all shrink-0 bg-slate-100 text-slate-500 hover:bg-slate-200"
-        >
-          Xem hồ sơ
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-          </svg>
-        </Link>
+        {/* Action buttons */}
+        <div className="flex items-center gap-2 shrink-0">
+          <Link
+            href={`/dentist/patients/${p.appointmentId}?edit=1`}
+            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-[13px] font-bold transition-all bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+            </svg>
+            Chỉnh sửa
+          </Link>
+          <Link
+            href={`/dentist/patients/${p.appointmentId}`}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-bold transition-all bg-slate-100 text-slate-500 hover:bg-slate-200"
+          >
+            Xem hồ sơ
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+            </svg>
+          </Link>
+        </div>
       </div>
     </div>
   );

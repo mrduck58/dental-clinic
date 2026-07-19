@@ -58,8 +58,8 @@ public class DiagnosisHandler(AppDbContext dbContext)
         if (appointment == null)
             throw new KeyNotFoundException("Không tìm thấy lịch hẹn.");
 
-        if (appointment.Status != Domain.Enums.AppointmentStatus.InProgress)
-            throw new InvalidOperationException("Chỉ có thể thêm chuẩn đoán khi cuộc hẹn đang trong trạng thái đang khám.");
+        if (appointment.Status is not (Domain.Enums.AppointmentStatus.InProgress or Domain.Enums.AppointmentStatus.PendingPayment or Domain.Enums.AppointmentStatus.Completed))
+            throw new ValidationException("Chỉ có thể thêm chuẩn đoán khi buổi hẹn đang khám hoặc đã kết thúc điều trị.");
 
         var diagnosis = Diagnosis.Create(request.AppointmentId, request.Description, ToDetails(request));
 

@@ -32,7 +32,8 @@ public record UpdateTreatmentPlanRequest(
 public record UpdateStepProgressRequest(
     int EntryIndex,
     int Percent,
-    string? Note);
+    string? Note,
+    string? StepName = null);
 
 /// <summary>Sắp xếp lại nhật ký điều trị — Order là danh sách index gốc theo thứ tự mới.</summary>
 public record ReorderStepProgressRequest(List<int> Order);
@@ -89,8 +90,8 @@ public class TreatmentPlanHandler(
             .FirstOrDefaultAsync(a => a.Id == request.AppointmentId, ct)
             ?? throw new NotFoundException("Không tìm thấy lịch hẹn.");
 
-        if (appointment.Status != AppointmentStatus.InProgress)
-            throw new ValidationException("Chỉ có thể thêm liệu trình khi cuộc hẹn đang trong trạng thái đang khám.");
+        if (appointment.Status is not (AppointmentStatus.InProgress or AppointmentStatus.PendingPayment or AppointmentStatus.Completed))
+            throw new ValidationException("Chỉ có thể thêm liệu trình khi buổi hẹn đang khám hoặc đã kết thúc điều trị.");
 
         var service = await dbContext.Services
             .FirstOrDefaultAsync(s => s.Id == request.ServiceId, ct)
@@ -205,9 +206,10 @@ public class TreatmentPlanHandler(
 
         // Chỉ ghi nhận quá trình khi bệnh nhân đang trong buổi khám (bác sĩ đã bấm "Bắt đầu khám")
         var hasActiveVisit = await dbContext.Appointments.AnyAsync(a =>
-            a.PatientId == treatmentPlan.PatientId && a.Status == AppointmentStatus.InProgress, ct);
+            a.PatientId == treatmentPlan.PatientId &&
+            (a.Status == AppointmentStatus.InProgress || a.Status == AppointmentStatus.PendingPayment || a.Status == AppointmentStatus.Completed), ct);
         if (!hasActiveVisit)
-            throw new ValidationException("Chỉ có thể ghi nhận quá trình điều trị khi buổi khám đang diễn ra (đã bấm Bắt đầu khám).");
+            throw new ValidationException("Chỉ có thể ghi nhận quá trình điều trị khi buổi hẹn đang khám hoặc đã kết thúc điều trị.");
 
         var entries = ParseStepProgress(treatmentPlan.StepProgressJson);
         entries.Add(new StepProgressEntryDto
@@ -239,9 +241,10 @@ public class TreatmentPlanHandler(
             ?? throw new NotFoundException("Không tìm thấy liệu trình điều trị.");
 
         var hasActiveVisit = await dbContext.Appointments.AnyAsync(a =>
-            a.PatientId == treatmentPlan.PatientId && a.Status == AppointmentStatus.InProgress, ct);
+            a.PatientId == treatmentPlan.PatientId &&
+            (a.Status == AppointmentStatus.InProgress || a.Status == AppointmentStatus.PendingPayment || a.Status == AppointmentStatus.Completed), ct);
         if (!hasActiveVisit)
-            throw new ValidationException("Chỉ có thể sửa quá trình điều trị khi buổi khám đang diễn ra (đã bấm Bắt đầu khám).");
+            throw new ValidationException("Chỉ có thể sửa quá trình điều trị khi buổi hẹn đang khám hoặc đã kết thúc điều trị.");
 
         var entries = ParseStepProgress(treatmentPlan.StepProgressJson);
         if (request.EntryIndex < 0 || request.EntryIndex >= entries.Count)
@@ -249,6 +252,8 @@ public class TreatmentPlanHandler(
 
         entries[request.EntryIndex].Percent = Math.Clamp(request.Percent, 0, 100);
         entries[request.EntryIndex].Note = NormalizeText(request.Note);
+        if (!string.IsNullOrWhiteSpace(request.StepName))
+            entries[request.EntryIndex].StepName = request.StepName.Trim();
 
         treatmentPlan.UpdateStepProgress(JsonSerializer.Serialize(entries, JsonOptions));
         await dbContext.SaveChangesAsync(ct);
@@ -264,9 +269,10 @@ public class TreatmentPlanHandler(
             ?? throw new NotFoundException("Không tìm thấy liệu trình điều trị.");
 
         var hasActiveVisit = await dbContext.Appointments.AnyAsync(a =>
-            a.PatientId == treatmentPlan.PatientId && a.Status == AppointmentStatus.InProgress, ct);
+            a.PatientId == treatmentPlan.PatientId &&
+            (a.Status == AppointmentStatus.InProgress || a.Status == AppointmentStatus.PendingPayment || a.Status == AppointmentStatus.Completed), ct);
         if (!hasActiveVisit)
-            throw new ValidationException("Chỉ có thể đổi thứ tự quá trình điều trị khi buổi khám đang diễn ra (đã bấm Bắt đầu khám).");
+            throw new ValidationException("Chỉ có thể đổi thứ tự quá trình điều trị khi buổi hẹn đang khám hoặc đã kết thúc điều trị.");
 
         var entries = ParseStepProgress(treatmentPlan.StepProgressJson);
         var order = request.Order;
@@ -291,9 +297,10 @@ public class TreatmentPlanHandler(
             ?? throw new NotFoundException("Không tìm thấy liệu trình điều trị.");
 
         var hasActiveVisit = await dbContext.Appointments.AnyAsync(a =>
-            a.PatientId == treatmentPlan.PatientId && a.Status == AppointmentStatus.InProgress, ct);
+            a.PatientId == treatmentPlan.PatientId &&
+            (a.Status == AppointmentStatus.InProgress || a.Status == AppointmentStatus.PendingPayment || a.Status == AppointmentStatus.Completed), ct);
         if (!hasActiveVisit)
-            throw new ValidationException("Chỉ có thể xóa quá trình điều trị khi buổi khám đang diễn ra (đã bấm Bắt đầu khám).");
+            throw new ValidationException("Chỉ có thể xóa quá trình điều trị khi buổi hẹn đang khám hoặc đã kết thúc điều trị.");
 
         var entries = ParseStepProgress(treatmentPlan.StepProgressJson);
         if (entryIndex < 0 || entryIndex >= entries.Count)
