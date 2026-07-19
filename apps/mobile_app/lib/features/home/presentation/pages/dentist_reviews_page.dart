@@ -17,10 +17,11 @@ class DentistReviewsPage extends StatefulWidget {
 }
 
 class _DentistReviewsPageState extends State<DentistReviewsPage> {
-  final _reviewService = ReviewService();
   List<ReviewModel> _reviews = [];
-  double _avgRating = 5.0;
+  double _avgRating = 0;
   String _sortBy = 'highest';
+  bool _isLoading = true;
+  String? _error;
 
   @override
   void initState() {
@@ -28,22 +29,40 @@ class _DentistReviewsPageState extends State<DentistReviewsPage> {
     _loadReviews();
   }
 
-  void _loadReviews() {
-    final list = _reviewService.getReviewsForDentist(widget.doctor.id);
-    final avg = _reviewService.getAverageRating(widget.doctor.id);
+  Future<void> _loadReviews() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final result = await ReviewService().getReviewsForDentist(widget.doctor.id);
+      final list = List<ReviewModel>.from(result.reviews);
+      _sortList(list);
+      setState(() {
+        _reviews = list;
+        _avgRating = result.averageRating;
+        _isLoading = false;
+      });
+    } catch (_) {
+      setState(() {
+        _error = 'load_failed';
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _sortList(List<ReviewModel> list) {
     if (_sortBy == 'highest') {
       list.sort((a, b) => b.rating.compareTo(a.rating));
     } else {
-      list.sort((a, b) {
-        if (a.id.startsWith('rev_') && !b.id.startsWith('rev_')) return -1;
-        if (!a.id.startsWith('rev_') && b.id.startsWith('rev_')) return 1;
-        return b.id.compareTo(a.id);
-      });
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     }
-    setState(() {
-      _reviews = list;
-      _avgRating = avg;
-    });
+  }
+
+  int get _recommendPercent {
+    if (_reviews.isEmpty) return 0;
+    final positive = _reviews.where((r) => r.rating >= 4).length;
+    return ((positive / _reviews.length) * 100).round();
   }
 
   @override
@@ -66,19 +85,29 @@ class _DentistReviewsPageState extends State<DentistReviewsPage> {
           style: TextStyle(color: context.textPrimary, fontWeight: FontWeight.w800, fontSize: 18),
         ),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: Icon(Iconsax.notification, color: context.textPrimary),
-            onPressed: () {},
-          ),
-        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(color: context.divider, height: 1),
         ),
       ),
       body: SafeArea(
-        child: Column(
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          isVi ? 'Không thể tải đánh giá.' : 'Failed to load reviews.',
+                          style: TextStyle(color: context.textMuted),
+                        ),
+                        const SizedBox(height: 12),
+                        TextButton(onPressed: _loadReviews, child: Text(isVi ? 'Thử lại' : 'Retry')),
+                      ],
+                    ),
+                  )
+                : Column(
           children: [
             Expanded(
               child: CustomScrollView(
@@ -146,7 +175,7 @@ class _DentistReviewsPageState extends State<DentistReviewsPage> {
                                 Column(
                                   children: [
                                     Text(
-                                      '98%',
+                                      '$_recommendPercent%',
                                       style: TextStyle(fontSize: 34, fontWeight: FontWeight.w900, color: context.textPrimary),
                                     ),
                                     const SizedBox(height: 4),
@@ -156,7 +185,7 @@ class _DentistReviewsPageState extends State<DentistReviewsPage> {
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      isVi ? 'Độ hài lòng cao' : 'High satisfaction',
+                                      isVi ? 'Từ 4 sao trở lên' : '4 stars and above',
                                       style: TextStyle(fontSize: 11, color: context.textMuted),
                                     ),
                                   ],
@@ -213,7 +242,7 @@ class _DentistReviewsPageState extends State<DentistReviewsPage> {
                                   if (val != null) {
                                     setState(() {
                                       _sortBy = val;
-                                      _loadReviews();
+                                      _sortList(_reviews);
                                     });
                                   }
                                 },
@@ -242,7 +271,7 @@ class _DentistReviewsPageState extends State<DentistReviewsPage> {
                             delegate: SliverChildBuilderDelegate(
                               (context, index) => Padding(
                                 padding: const EdgeInsets.only(bottom: 16),
-                                child: _buildReviewCard(_reviews[index]),
+                                child: _buildReviewCard(context, _reviews[index], isVi),
                               ),
                               childCount: _reviews.length,
                             ),
@@ -292,9 +321,10 @@ class _DentistReviewsPageState extends State<DentistReviewsPage> {
     );
   }
 
-  Widget _buildReviewCard(ReviewModel review) {
+  Widget _buildReviewCard(BuildContext context, ReviewModel review, bool isVi) {
     final initials = review.patientName.trim().split(' ').where((w) => w.isNotEmpty).toList();
     final avatarChar = initials.isEmpty ? 'U' : initials.last[0].toUpperCase();
+    final dateText = '${review.createdAt.day.toString().padLeft(2, '0')}/${review.createdAt.month.toString().padLeft(2, '0')}/${review.createdAt.year}';
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -346,7 +376,7 @@ class _DentistReviewsPageState extends State<DentistReviewsPage> {
                           }),
                         ),
                         const SizedBox(width: 8),
-                        Text(review.date, style: TextStyle(fontSize: 11, color: context.textMuted)),
+                        Text(dateText, style: TextStyle(fontSize: 11, color: context.textMuted)),
                       ],
                     ),
                   ],

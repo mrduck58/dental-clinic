@@ -74,7 +74,7 @@ class NotificationPageResult {
         items: (json['items'] as List<dynamic>)
             .map((e) => NotificationItem.fromJson(e as Map<String, dynamic>))
             .toList(),
-        total: json['total'] as int,
+        total: json['totalCount'] as int,
         page: json['page'] as int,
         pageSize: json['pageSize'] as int,
         totalPages: json['totalPages'] as int,

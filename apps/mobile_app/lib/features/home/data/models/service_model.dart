@@ -5,6 +5,7 @@ class ServiceModel {
   final int durationMinutes;
   final String description;
   final String? imageUrl;
+  final String? iconUrl;
   final int viewCount;
 
   const ServiceModel({
@@ -14,6 +15,7 @@ class ServiceModel {
     required this.durationMinutes,
     required this.description,
     this.imageUrl,
+    this.iconUrl,
     this.viewCount = 0,
   });
 
@@ -25,6 +27,7 @@ class ServiceModel {
       durationMinutes: json['durationMinutes'] as int,
       description: json['description'] as String? ?? '',
       imageUrl: json['imageUrl'] as String?,
+      iconUrl: json['iconUrl'] as String?,
       viewCount: json['viewCount'] as int? ?? json['ViewCount'] as int? ?? 0,
     );
   }

@@ -108,6 +108,16 @@ Hệ thống sẽ tự động build và chạy:
    flutter run
    ```
 
+**Chạy trên điện thoại Android thật qua cáp USB:** `ApiConstants.baseUrl` trỏ tới `http://localhost:5239/api`
+cho điện thoại thật (khác với Android Emulator dùng `10.0.2.2`) — `localhost` trên điện thoại chỉ có
+nghĩa khi có cầu nối cổng tới máy tính. Trước khi chạy app, luôn chạy lệnh sau (mỗi lần cắm lại cáp
+USB / khởi động lại máy tính / mất kết nối adb thì phải chạy lại, vì mapping này không tự lưu):
+```bash
+adb reverse tcp:5239 tcp:5239
+```
+Nếu không thấy `adb` trong PATH, dùng đường dẫn đầy đủ tới `platform-tools/adb.exe` trong thư mục
+cài Android SDK (thường ở `%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe`).
+
 ---
 
 ## ⚠️ Khắc phục một số lỗi thường gặp (Troubleshooting)
@@ -121,3 +131,10 @@ Hệ thống sẽ tự động build và chạy:
    ```bash
    cd ios && pod install --repo-update && cd ..
    ```
+4. **Mobile app báo "Lỗi kết nối quá thời gian" / "Không thể kết nối máy chủ" khi chạy trên điện thoại Android thật qua USB:**
+   Hầu như luôn là do thiếu (hoặc mất) tunnel `adb reverse`. Chạy lại:
+   ```bash
+   adb reverse tcp:5239 tcp:5239
+   adb reverse --list   # xác nhận thấy "UsbFfs tcp:5239 tcp:5239"
+   ```
+   Kiểm tra thêm: backend API (`dotnet run` ở `apps/api`) có đang chạy không (`curl http://localhost:5239/api/dentists` phải trả `200`).

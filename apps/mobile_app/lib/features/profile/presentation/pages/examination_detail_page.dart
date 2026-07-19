@@ -4,15 +4,51 @@ import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
-import 'package:mobile_app/features/profile/data/medical_record_mock.dart';
+import 'package:mobile_app/features/profile/data/medical_record_service.dart';
 
-class ExaminationDetailPage extends StatelessWidget {
-  final MedicalRecordEvent event;
+/// Trang trung tâm của 1 buổi khám — 4 lối vào tương ứng đúng 4 tab bác sĩ thấy khi khám
+/// (apps/admin_website): Chẩn đoán / Liệu trình / Đơn thuốc / Tái khám.
+class ExaminationDetailPage extends StatefulWidget {
+  final MedicalHistoryEvent event;
   const ExaminationDetailPage({super.key, required this.event});
+
+  @override
+  State<ExaminationDetailPage> createState() => _ExaminationDetailPageState();
+}
+
+class _ExaminationDetailPageState extends State<ExaminationDetailPage> {
+  MedicalHistoryEvent get event => widget.event;
+
+  // null = đang tải. Đếm theo CẢ CHUỖI tái khám (không chỉ riêng buổi hẹn này) — một liệu trình
+  // dài hạn có thể được tạo ở buổi trước/sau buổi đang xem, xem event.treatmentPlans (chỉ scope
+  // theo đúng buổi hẹn này) sẽ đếm thiếu.
+  List<RealTreatmentPlan>? _chainTreatmentPlans;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTreatmentPlans();
+  }
+
+  Future<void> _loadTreatmentPlans() async {
+    try {
+      final plans = await MedicalRecordService().getMyTreatmentPlans(patientId: event.patientId);
+      final chainIds = event.treatmentChainIds;
+      if (!mounted) return;
+      setState(() {
+        _chainTreatmentPlans = plans.where((p) => p.appointmentId != null && chainIds.contains(p.appointmentId)).toList();
+      });
+    } catch (_) {
+      // Giữ null (đang tải) — thẻ sẽ tự thử lại khi mở lại trang; không chặn các mục khác.
+    }
+  }
+
+  String _formatDate(DateTime d) => '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
   @override
   Widget build(BuildContext context) {
     final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
+    final treatmentCount = _chainTreatmentPlans?.length;
 
     return Scaffold(
       backgroundColor: context.bg,
@@ -32,369 +68,217 @@ class ExaminationDetailPage extends StatelessWidget {
           ),
         ),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: Icon(Iconsax.notification, color: context.textPrimary),
-            onPressed: () {},
-          ),
-        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(color: context.divider, height: 1),
         ),
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Visit summary card
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: context.card,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: context.divider),
+              ),
+              child: Row(
                 children: [
-                  // Visit Date Header Box
                   Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: context.card,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: context.divider),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: AppColors.primaryLight,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Iconsax.calendar_1, color: AppColors.primary, size: 20),
-                        ),
-                        const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              isVi ? 'NGÀY KHÁM' : 'Visit Date',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                color: context.textMuted,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              event.dateStr,
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w800,
-                                color: context.textPrimary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(color: AppColors.primaryLight, shape: BoxShape.circle),
+                    child: const Icon(Iconsax.calendar_1, color: AppColors.primary, size: 22),
                   ),
-                  const SizedBox(height: 20),
-
-                  // Health metrics indicators row
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildMetricTile(
-                          context,
-                          icon: Iconsax.weight,
-                          title: isVi ? 'Cân nặng' : 'Weight',
-                          value: '68 kg',
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildMetricTile(
-                          context,
-                          icon: Iconsax.heart,
-                          title: isVi ? 'Huyết áp' : 'Blood Pres.',
-                          value: '120/80',
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildMetricTile(
-                          context,
-                          icon: Iconsax.info_circle,
-                          title: isVi ? 'Nhóm máu' : 'Blood Type',
-                          value: 'O+',
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Attending Dentist card
-                  Text(
-                    isVi ? 'Bác sĩ phụ trách' : 'Attending Dentist',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      color: context.textMuted,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: context.card,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: context.divider),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 48,
-                          height: 48,
-                          decoration: const BoxDecoration(
-                            color: AppColors.primaryLight,
-                            shape: BoxShape.circle,
-                            image: DecorationImage(
-                              image: AssetImage('assets/images/bac_si_1.png'),
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                event.doctorName,
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w800,
-                                  color: context.textPrimary,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                event.doctorSpecialty,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: context.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Diagnosis & Notes
-                  Text(
-                    isVi ? 'Chẩn đoán & Ghi chú lâm sàng' : 'Diagnosis & Clinical Notes',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      color: context.textMuted,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: context.card,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: context.divider),
-                    ),
+                  const SizedBox(width: 14),
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            const Icon(Icons.description_outlined, color: AppColors.primary, size: 18),
-                            const SizedBox(width: 8),
-                            Text(
-                              isVi ? 'Kế hoạch chẩn trị' : 'Clinical Summary',
-                              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: context.textPrimary),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
                         Text(
-                          event.diagnosis ?? (isVi ? 'Không có ghi chú.' : 'No notes available.'),
-                          style: TextStyle(
-                            fontSize: 13.5,
-                            color: context.textSecondary,
-                            height: 1.5,
-                            fontWeight: FontWeight.w500,
-                          ),
+                          event.serviceName,
+                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: context.textPrimary),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${_formatDate(event.appointmentDate)} · ${event.dentistName}',
+                          style: TextStyle(fontSize: 12.5, color: context.textSecondary, fontWeight: FontWeight.w600),
                         ),
                       ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Diagnostic X-Rays
-                  Text(
-                    isVi ? 'Hình ảnh X-Quang chẩn đoán' : 'Diagnostic X-Rays',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      color: context.textMuted,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: (event.xRays ?? ['Dental X-Ray']).map((xray) {
-                        return Container(
-                          width: 110,
-                          margin: const EdgeInsets.only(right: 12),
-                          decoration: BoxDecoration(
-                            color: context.card,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: context.divider),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Dark x-ray negative simulation container
-                              Container(
-                                height: 80,
-                                width: double.infinity,
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFF0F172A),
-                                  borderRadius: BorderRadius.vertical(top: Radius.circular(15)),
-                                ),
-                                child: Stack(
-                                  alignment: Alignment.center,
-                                  children: [
-                                    Opacity(
-                                      opacity: 0.15,
-                                      child: Icon(Icons.grid_on, color: Colors.white, size: 60),
-                                    ),
-                                    const Icon(Icons.broken_image_outlined, color: Colors.white60, size: 24),
-                                  ],
-                                ),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                                child: Text(
-                                  xray,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w800,
-                                    color: context.textPrimary,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }).toList(),
                     ),
                   ),
                 ],
               ),
             ),
-          ),
 
-          // Bottom buttons
-          Container(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-            decoration: BoxDecoration(
-              color: context.card,
-              border: Border(top: BorderSide(color: context.divider)),
-            ),
-            child: Column(
-              children: [
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      final activePlan = MedicalRecordMock.events.firstWhere((e) => e.isJourney);
-                      context.push(AppRoutes.treatmentPlan, extra: activePlan);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            if (event.symptoms != null && event.symptoms!.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: context.card,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: context.divider),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isVi ? 'TRIỆU CHỨNG' : 'SYMPTOMS',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: context.textMuted, letterSpacing: 0.5),
                     ),
-                    icon: const Icon(Icons.assignment_outlined, color: Colors.white, size: 18),
-                    label: Text(
-                      isVi ? 'Xem kế hoạch điều trị' : 'View Treatment Plan',
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14),
+                    const SizedBox(height: 6),
+                    Text(event.symptoms!, style: TextStyle(fontSize: 13.5, color: context.textSecondary, height: 1.4)),
+                  ],
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 28),
+            Text(
+              isVi ? 'Xem chi tiết' : 'View details',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: context.textPrimary),
+            ),
+            const SizedBox(height: 14),
+
+            // Lưới 2x2 — 4 lối vào cùng cấp độ quan trọng, không cần đọc tuần tự như 1 danh sách dọc.
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: _optionCard(
+                      context,
+                      icon: Iconsax.health,
+                      color: AppColors.accent,
+                      title: isVi ? 'Chẩn đoán' : 'Diagnosis',
+                      subtitle: event.diagnoses.isEmpty
+                          ? (isVi ? 'Chưa có phiếu khám' : 'No diagnosis yet')
+                          : (isVi ? 'Xem phiếu khám' : 'View exam record'),
+                      onTap: () => context.push(AppRoutes.diagnosisDetail, extra: event),
                     ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(isVi ? 'Đang tải tóm tắt khám bệnh (PDF)...' : 'Downloading exam summary (PDF)...'),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    },
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.primary,
-                      side: const BorderSide(color: AppColors.primary),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    icon: const Icon(Icons.download, size: 18),
-                    label: Text(
-                      isVi ? 'Tải tóm tắt khám bệnh (PDF)' : 'Download Summary (PDF)',
-                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _optionCard(
+                      context,
+                      icon: Iconsax.health1,
+                      color: AppColors.secondary,
+                      title: isVi ? 'Liệu trình' : 'Treatment',
+                      subtitle: treatmentCount == null
+                          ? (isVi ? 'Đang tải...' : 'Loading...')
+                          : treatmentCount == 0
+                              ? (isVi ? 'Chưa có liệu trình' : 'None yet')
+                              : (isVi ? '$treatmentCount dịch vụ' : '$treatmentCount items'),
+                      onTap: () => context.push(AppRoutes.treatmentPlan, extra: event),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 12),
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: _optionCard(
+                      context,
+                      icon: Iconsax.document_text,
+                      color: AppColors.primary,
+                      title: isVi ? 'Đơn thuốc' : 'Prescription',
+                      subtitle: event.prescriptionItems.isEmpty
+                          ? (isVi ? 'Chưa có đơn thuốc' : 'None yet')
+                          : (isVi ? '${event.prescriptionItems.length} loại thuốc' : '${event.prescriptionItems.length} medicines'),
+                      onTap: () => context.push(AppRoutes.prescriptionDetail, extra: event),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _optionCard(
+                      context,
+                      icon: Iconsax.calendar_2,
+                      color: AppColors.success,
+                      title: isVi ? 'Tái khám' : 'Follow-up',
+                      subtitle: event.followUpDate == null
+                          ? (isVi ? 'Chưa hẹn' : 'Not scheduled')
+                          : _formatDate(event.followUpDate!),
+                      onTap: () => context.push(AppRoutes.followUpDetail, extra: event),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildMetricTile(BuildContext context, {required IconData icon, required String title, required String value}) {
+  Widget _optionCard(
+    BuildContext context, {
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
       decoration: BoxDecoration(
         color: context.card,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: context.divider),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: AppColors.primary, size: 20),
-          const SizedBox(height: 6),
-          Text(
-            title,
-            style: TextStyle(fontSize: 10, color: context.textSecondary, fontWeight: FontWeight.w500),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            style: TextStyle(fontSize: 13, color: context.textPrimary, fontWeight: FontWeight.w800),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: context.isDark ? 0.1 : 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
           ),
         ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: context.isDark ? 0.2 : 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(icon, color: color, size: 20),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    title,
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: context.textPrimary),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    style: TextStyle(fontSize: 11.5, color: context.textSecondary, fontWeight: FontWeight.w600),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

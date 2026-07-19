@@ -121,6 +121,46 @@ Quản lý các vật liệu tiêu hao, công cụ dụng cụ nha khoa dùng n�
 
 ---
 
+---
+
+## 🆕 Cập nhật gần đây (2026-07-19) — Nhóm bảng phục vụ mobile app
+
+> Lưu ý: các bảng số 1–7 ở trên là tài liệu thiết kế ban đầu, đã không còn khớp hoàn toàn với schema
+> thật hiện tại (VD: `MedicalRecords` đã được tách thành `Diagnoses`/`TreatmentPlans`/`Prescriptions`
+> qua các migration sau này). Phần dưới đây chỉ ghi lại các thay đổi schema thật đã thêm trong đợt
+> này — tham khảo `apps/api/src/Infrastructure/Persistence/Migrations/` để biết trạng thái chính xác.
+
+### Bảng `DentistReviews` (mới — migration `AddDentistReviews`)
+Đánh giá của bệnh nhân dành cho nha sĩ, thay cho hệ thống review mock trong bộ nhớ ở mobile app cũ.
+
+| Tên trường | Kiểu dữ liệu | Ràng buộc | Mô tả |
+| :--- | :--- | :--- | :--- |
+| `Id` | Guid | PK | Khóa chính |
+| `DentistId` | Guid | FK → `Dentists`, Not Null | Nha sĩ được đánh giá |
+| `PatientId` | Guid | FK → `Patients`, Not Null | Bệnh nhân đánh giá |
+| `Rating` | int | Not Null (1–5) | Số sao |
+| `Comment` | varchar(2000) | Not Null | Nội dung đánh giá |
+| `TagsCsv` | varchar(500) | Nullable | Nhãn nổi bật do bệnh nhân chọn, lưu dạng CSV (VD: `"Không đau,Chuyên nghiệp"`) — expose qua property `Tags` (list, không map cột) |
+| `CreatedAt` / `UpdatedAt` | DateTimeOffset | Not Null | |
+
+Ràng buộc: unique index `(DentistId, PatientId)` — mỗi bệnh nhân chỉ có 1 đánh giá/nha sĩ (gửi lại
+sẽ `UPDATE`, không `INSERT` mới). Validate ở tầng handler: chỉ được tạo nếu bệnh nhân đã có buổi
+khám `Completed`/`PendingPayment` với nha sĩ đó.
+
+### Bảng `PrescriptionItems` — 3 cột mới (migration `AddPrescriptionItemReminderFields`)
+Bổ sung dữ liệu có cấu trúc để mobile sinh lịch nhắc uống thuốc thật, thay vì hiển thị lịch giả cố định.
+
+| Tên trường | Kiểu dữ liệu | Ràng buộc | Mô tả |
+| :--- | :--- | :--- | :--- |
+| `TimesPerDay` | int | Nullable | Số lần uống/ngày — bác sĩ nhập ở trang kê đơn (admin_website). Để trống nếu tần suất không cố định (VD: "khi đau") |
+| `DurationDays` | int | Nullable | Số ngày dùng thuốc |
+| `StartDate` | date | Nullable | Ngày bắt đầu uống, mặc định = ngày kê đơn |
+
+Chỉ khi **cả 3 cột đều có giá trị** thì `GetMedicationRemindersHandler` mới sinh nhắc nhở cho dòng
+thuốc đó (xem `docs/api-endpoints.md` mục 8) — tránh suy đoán lịch từ dữ liệu thiếu.
+
+---
+
 ## 🛠️ Quy tắc viết Code tầng Domain & Persistence
 1. **Sử dụng EF Core Entity Configurations:** Tách biệt cấu hình Fluent API ra khỏi `DbContext`. Mỗi Entity có một file cấu hình riêng kế thừa `IEntityTypeConfiguration<T>` đặt tại tầng `Infrastructure/Persistence/Configurations`.
 2. **Khóa ngoại & Navigation Properties:** Phải khai báo tường minh cả trường Id và đối tượng tham chiếu. Ví dụ:

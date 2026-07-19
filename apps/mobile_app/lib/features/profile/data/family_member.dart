@@ -47,40 +47,14 @@ class FamilyService {
   factory FamilyService() => _instance;
   FamilyService._internal();
 
-  final List<FamilyMember> _members = [
-    FamilyMember(
-      id: 'member_1',
-      fullName: 'Sarah Johnson',
-      relationship: 'Vợ/Chồng',
-      dateOfBirth: DateTime(1988, 5, 15),
-      gender: 'Nữ',
-      phoneNumber: '+1 555-0199',
-      profilePictureUrl: 'assets/images/bac_si_3.png',
-    ),
-    FamilyMember(
-      id: 'member_2',
-      fullName: 'Emily Johnson',
-      relationship: 'Con',
-      dateOfBirth: DateTime(2012, 8, 20),
-      gender: 'Nữ',
-      phoneNumber: '+1 555-0200',
-      profilePictureUrl: 'assets/images/bac_si_4.png',
-    ),
-    FamilyMember(
-      id: 'member_3',
-      fullName: 'Leo Johnson',
-      relationship: 'Con',
-      dateOfBirth: DateTime(2015, 6, 14),
-      gender: 'Nam',
-      phoneNumber: '+1 555-0201',
-      profilePictureUrl: 'assets/images/bac_si_2.png',
-    ),
-  ];
+  final List<FamilyMember> _members = [];
 
   final _auth = AuthService();
 
   List<FamilyMember> getMembers() => List.unmodifiable(_members);
 
+  /// Ném lại lỗi thay vì nuốt âm thầm — nếu không, danh sách cũ (có thể rỗng)
+  /// sẽ bị hiển thị như thể tải thành công, khiến người dùng không biết là lỗi mạng.
   Future<void> loadFromServer() async {
     try {
       final list = await _auth.getFamilyMembers();
@@ -100,6 +74,7 @@ class FamilyService {
       }));
     } catch (e) {
       debugPrint("FamilyService: Failed to load from server: $e");
+      rethrow;
     }
   }
 
@@ -126,6 +101,7 @@ class FamilyService {
       _members.add(created);
     } catch (e) {
       debugPrint("FamilyService: Failed to create family member on server: $e");
+      rethrow;
     }
   }
 
@@ -146,6 +122,7 @@ class FamilyService {
       }
     } catch (e) {
       debugPrint("FamilyService: Failed to update family member on server: $e");
+      rethrow;
     }
   }
 
@@ -155,6 +132,7 @@ class FamilyService {
       _members.removeWhere((m) => m.id == id);
     } catch (e) {
       debugPrint("FamilyService: Failed to delete family member on server: $e");
+      rethrow;
     }
   }
 }

@@ -25,6 +25,7 @@ interface Service {
   status: "Active" | "Inactive";
   description: string;
   popular: number;
+  iconUrl: string | null;
 }
 
 function toService(dto: ServiceDto): Service {
@@ -36,6 +37,7 @@ function toService(dto: ServiceDto): Service {
     status: dto.isActive ? "Active" : "Inactive",
     description: dto.description,
     popular: dto.viewCount,
+    iconUrl: dto.iconUrl,
   };
 }
 
@@ -384,6 +386,7 @@ export default function ServicesPage() {
               <table className="w-full text-left border-collapse text-[14px]">
                 <thead>
                   <tr className="bg-slate-50/50 font-extrabold text-slate-400 uppercase tracking-wider border-b border-slate-150">
+                    <th className="px-6 py-4">Icon</th>
                     <th className="px-6 py-4">Dịch vụ</th>
                     <th className="px-6 py-4">Giá dịch vụ</th>
                     <th className="px-6 py-4">Thời gian</th>
@@ -394,13 +397,27 @@ export default function ServicesPage() {
                 <tbody className="divide-y divide-slate-100 font-semibold text-slate-600">
                   {isLoading ? (
                     <tr>
-                      <td colSpan={5} className="px-6 py-10 text-center text-slate-400 font-bold">
+                      <td colSpan={6} className="px-6 py-10 text-center text-slate-400 font-bold">
                         Đang tải dữ liệu...
                       </td>
                     </tr>
                   ) : paginatedServices.length > 0 ? (
                     paginatedServices.map((service) => (
                       <tr key={service.id} className="hover:bg-slate-50/40 transition-colors">
+                        {/* Icon */}
+                        <td className="px-6 py-4.5">
+                          <div className="w-10 h-10 rounded-xl border border-slate-200 bg-slate-50/50 flex items-center justify-center overflow-hidden shrink-0">
+                            {service.iconUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={service.iconUrl} alt={service.name} className="w-6 h-6 object-contain" />
+                            ) : (
+                              <svg className="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                              </svg>
+                            )}
+                          </div>
+                        </td>
+
                         {/* Service name & description */}
                         <td className="px-6 py-4.5">
                           <div className="min-w-0">
@@ -485,7 +502,7 @@ export default function ServicesPage() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={5} className="px-6 py-10 text-center text-slate-400 font-bold">
+                      <td colSpan={6} className="px-6 py-10 text-center text-slate-400 font-bold">
                         Không tìm thấy dịch vụ nào khớp với bộ lọc.
                       </td>
                     </tr>

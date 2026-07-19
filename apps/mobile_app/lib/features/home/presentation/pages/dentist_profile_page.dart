@@ -4,7 +4,10 @@ import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
+import 'package:mobile_app/features/home/data/home_service.dart';
+import 'package:mobile_app/features/home/data/models/dentist_detail_model.dart';
 import 'package:mobile_app/features/home/data/models/doctor_model.dart';
+import 'package:mobile_app/features/home/data/models/review_model.dart';
 import 'package:mobile_app/features/home/data/review_service.dart';
 
 class DentistProfilePage extends StatefulWidget {
@@ -16,34 +19,49 @@ class DentistProfilePage extends StatefulWidget {
 }
 
 class _DentistProfilePageState extends State<DentistProfilePage> {
-  final _reviewService = ReviewService();
-  late double _avgRating;
-  late int _reviewsCount;
+  DentistDetailModel? _detail;
+  double _avgRating = 0;
+  int _reviewsCount = 0;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadReviewsInfo();
+    _load();
   }
 
-  void _loadReviewsInfo() {
-    setState(() {
-      _avgRating = _reviewService.getAverageRating(widget.doctor.id);
-      _reviewsCount = _reviewService.getReviewsForDentist(widget.doctor.id).length;
-    });
+  Future<void> _load() async {
+    setState(() => _isLoading = true);
+    try {
+      final results = await Future.wait([
+        HomeService().getDentistDetail(widget.doctor.id),
+        ReviewService().getReviewsForDentist(widget.doctor.id),
+      ]);
+      if (!mounted) return;
+      final detail = results[0] as DentistDetailModel;
+      final reviews = results[1] as DentistReviewsResult;
+      setState(() {
+        _detail = detail;
+        _avgRating = reviews.averageRating;
+        _reviewsCount = reviews.reviewCount;
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     final doc = widget.doctor;
-    final expYears = doc.yearsOfExperience ?? 12;
-    final specialtyStr = (doc.specialty ?? (isVi ? 'Nha sĩ tổng quát' : 'General Dentist')).toUpperCase();
+    final detail = _detail;
+    final expYears = detail?.yearsOfExperience ?? doc.yearsOfExperience;
+    final specialtyStr = (detail?.specialty ?? doc.specialty ?? (isVi ? 'Nha sĩ tổng quát' : 'General Dentist')).toUpperCase();
 
-    final bioText = doc.bio ??
-        (isVi
-            ? 'Chuyên gia về chỉnh nha nâng cao và nha khoa thẩm mỹ. Tận tâm mang lại nụ cười hoàn hảo bằng kỹ thuật ít xâm lấn và công nghệ nha khoa tiên tiến.'
-            : 'Specialist in advanced orthodontics and cosmetic dentistry. Committed to delivering perfect smiles using minimally invasive techniques and cutting-edge dental technology.');
+    final bioText = detail?.bio ??
+        doc.bio ??
+        (isVi ? 'Chưa có thông tin giới thiệu.' : 'No biography available yet.');
 
     return Scaffold(
       backgroundColor: context.bg,
@@ -60,19 +78,15 @@ class _DentistProfilePageState extends State<DentistProfilePage> {
           style: TextStyle(color: context.textPrimary, fontWeight: FontWeight.w800, fontSize: 20),
         ),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: Icon(Iconsax.notification, color: context.textPrimary),
-            onPressed: () {},
-          ),
-        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(color: context.divider, height: 1),
         ),
       ),
       body: SafeArea(
-        child: Column(
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : Column(
           children: [
             Expanded(
               child: SingleChildScrollView(
@@ -110,34 +124,35 @@ class _DentistProfilePageState extends State<DentistProfilePage> {
                                   : _placeholderAvatar(),
                             ),
                           ),
-                          Positioned(
-                            bottom: 6,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: AppColors.primary,
-                                borderRadius: BorderRadius.circular(999),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: AppColors.primary.withValues(alpha: 0.35),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 3),
-                                  ),
-                                ],
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.star_rounded, color: Colors.white, size: 14),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    _avgRating.toString(),
-                                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800),
-                                  ),
-                                ],
+                          if (_reviewsCount > 0)
+                            Positioned(
+                              bottom: 6,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary,
+                                  borderRadius: BorderRadius.circular(999),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: AppColors.primary.withValues(alpha: 0.35),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 3),
+                                    ),
+                                  ],
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.star_rounded, color: Colors.white, size: 14),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      _avgRating.toString(),
+                                      style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
                         ],
                       ),
                     ),
@@ -151,10 +166,19 @@ class _DentistProfilePageState extends State<DentistProfilePage> {
                             doc.fullName,
                             style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: context.textPrimary),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '$specialtyStr • $expYears ${isVi ? 'NĂM KINH NGHIỆM' : 'YRS EXPERIENCE'}',
-                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.primary, letterSpacing: 0.5),
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: AppColors.secondary.withValues(alpha: context.isDark ? 0.2 : 0.1),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              expYears == null
+                                  ? specialtyStr
+                                  : '$specialtyStr • $expYears ${isVi ? 'NĂM KINH NGHIỆM' : 'YRS EXPERIENCE'}',
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.secondary, letterSpacing: 0.4),
+                            ),
                           ),
                         ],
                       ),
@@ -167,39 +191,28 @@ class _DentistProfilePageState extends State<DentistProfilePage> {
                       style: TextStyle(fontSize: 14, color: context.textSecondary, height: 1.5),
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 20),
-
-                    // Badges row
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      alignment: WrapAlignment.center,
-                      children: [
-                        _BadgeWidget(label: isVi ? 'Chứng nhận Invisalign®' : 'Invisalign® Certified'),
-                        _BadgeWidget(label: isVi ? 'Được đánh giá cao 2025' : 'Top Rated 2025'),
-                        _BadgeWidget(label: isVi ? 'Hội đồng y khoa chứng nhận' : 'Board Certified'),
-                      ],
-                    ),
                     const SizedBox(height: 28),
 
-                    // Numeric Stats
+                    // Numeric Stats (dữ liệu thật)
                     Row(
                       children: [
                         Expanded(
                           child: _buildStatCard(
                             context: context,
                             icon: Iconsax.people,
-                            value: '2.4k+',
-                            label: isVi ? 'Bệnh nhân' : 'Patients',
+                            color: AppColors.secondary,
+                            value: '${detail?.patientCount ?? 0}',
+                            label: isVi ? 'Bệnh nhân đã khám' : 'Patients Treated',
                           ),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
                           child: _buildStatCard(
                             context: context,
-                            icon: Iconsax.award,
-                            value: '15+',
-                            label: isVi ? 'Giải thưởng' : 'Awards',
+                            icon: Iconsax.star,
+                            color: AppColors.accent,
+                            value: '$_reviewsCount',
+                            label: isVi ? 'Đánh giá' : 'Reviews',
                           ),
                         ),
                       ],
@@ -227,12 +240,12 @@ class _DentistProfilePageState extends State<DentistProfilePage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  isVi ? 'ĐÃ XÁC MINH DANH TÍNH' : 'IDENTITY VERIFIED',
+                                  isVi ? 'NHA SĨ CHÍNH THỨC' : 'OFFICIAL CLINIC DENTIST',
                                   style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.success, letterSpacing: 0.5),
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  isVi ? 'Chuyên gia y tế được cấp phép hành nghề đầy đủ.' : 'Fully licensed medical professional.',
+                                  isVi ? 'Thuộc đội ngũ nha sĩ đang làm việc tại phòng khám.' : 'Part of the clinic\'s active dentist team.',
                                   style: TextStyle(fontSize: 12, color: context.textSecondary),
                                 ),
                               ],
@@ -241,60 +254,33 @@ class _DentistProfilePageState extends State<DentistProfilePage> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 28),
 
-                    // Specializations
-                    Text(
-                      isVi ? 'Chuyên môn chuyên sâu' : 'Areas of Expertise',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: context.textPrimary),
-                    ),
-                    const SizedBox(height: 12),
-                    _buildSpecialtyItem(
-                      context: context,
-                      icon: Iconsax.magicpen,
-                      title: isVi ? 'Chỉnh nha vô hình (Invisalign)' : 'Invisible Orthodontics (Invisalign)',
-                      desc: isVi
-                          ? 'Chuyên gia về phương pháp niềng khay trong suốt và lập kế hoạch điều trị kỹ thuật số.'
-                          : 'Expert in clear aligner therapy and digital treatment planning.',
-                    ),
-                    const SizedBox(height: 12),
-                    _buildSpecialtyItem(
-                      context: context,
-                      icon: Iconsax.health,
-                      title: isVi ? 'Nha khoa trẻ em' : 'Pediatric Dentistry',
-                      desc: isVi
-                          ? 'Can thiệp sớm và hướng dẫn phát triển răng xương cho bệnh nhân nhỏ tuổi.'
-                          : 'Early intervention and dental development guidance for young patients.',
-                    ),
-                    const SizedBox(height: 28),
+                    if (detail?.education != null && detail!.education!.isNotEmpty) ...[
+                      const SizedBox(height: 28),
+                      Text(
+                        isVi ? 'Học vấn' : 'Education',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: context.textPrimary),
+                      ),
+                      const SizedBox(height: 12),
+                      _buildInfoCard(context: context, icon: Iconsax.book_1, text: detail.education!),
+                    ],
 
-                    // Work Experience
-                    Text(
-                      isVi ? 'Kinh nghiệm làm việc' : 'Work Experience',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: context.textPrimary),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildExperienceTimeline(
-                      context: context,
-                      yearRange: isVi ? '2020 - HIỆN TẠI' : '2020 - PRESENT',
-                      role: isVi ? 'Bác sĩ Chỉnh nha Cấp cao' : 'Senior Orthodontist',
-                      hospital: isVi ? 'Bệnh viện Răng Hàm Mặt Quốc tế Sài Gòn' : 'Saigon International Dental Hospital',
-                      isFirst: true,
-                    ),
-                    _buildExperienceTimeline(
-                      context: context,
-                      yearRange: '2014 - 2020',
-                      role: isVi ? 'Bác sĩ Nha khoa Liên kết' : 'Associate Dentist',
-                      hospital: isVi ? 'Tập đoàn Y tế Metropolitan' : 'Metropolitan Healthcare Group',
-                      isLast: true,
-                    ),
+                    if (detail?.certificateIssuedBy != null && detail!.certificateIssuedBy!.isNotEmpty) ...[
+                      const SizedBox(height: 20),
+                      Text(
+                        isVi ? 'Chứng chỉ hành nghề' : 'Certification',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: context.textPrimary),
+                      ),
+                      const SizedBox(height: 12),
+                      _buildInfoCard(context: context, icon: Iconsax.medal_star, text: detail.certificateIssuedBy!),
+                    ],
                     const SizedBox(height: 28),
 
                     // Reviews Preview Card
                     InkWell(
                       onTap: () async {
                         await context.push(AppRoutes.dentistReviews, extra: doc);
-                        _loadReviewsInfo();
+                        _load();
                       },
                       borderRadius: BorderRadius.circular(18),
                       child: Container(
@@ -333,7 +319,9 @@ class _DentistProfilePageState extends State<DentistProfilePage> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    '⭐ $_avgRating/5.0 ($_reviewsCount ${isVi ? 'đánh giá' : 'reviews'})',
+                                    _reviewsCount == 0
+                                        ? (isVi ? 'Chưa có đánh giá nào' : 'No reviews yet')
+                                        : '⭐ $_avgRating/5.0 ($_reviewsCount ${isVi ? 'đánh giá' : 'reviews'})',
                                     style: TextStyle(fontSize: 13, color: context.textSecondary, fontWeight: FontWeight.w600),
                                   ),
                                 ],
@@ -397,6 +385,7 @@ class _DentistProfilePageState extends State<DentistProfilePage> {
   Widget _buildStatCard({
     required BuildContext context,
     required IconData icon,
+    required Color color,
     required String value,
     required String label,
   }) {
@@ -412,22 +401,25 @@ class _DentistProfilePageState extends State<DentistProfilePage> {
       ),
       child: Column(
         children: [
-          Icon(icon, color: AppColors.primary, size: 24),
-          const SizedBox(height: 8),
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: context.isDark ? 0.2 : 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(height: 10),
           Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: context.textPrimary)),
           const SizedBox(height: 2),
-          Text(label, style: TextStyle(fontSize: 12, color: context.textSecondary)),
+          Text(label, style: TextStyle(fontSize: 12, color: context.textSecondary), textAlign: TextAlign.center),
         ],
       ),
     );
   }
 
-  Widget _buildSpecialtyItem({
-    required BuildContext context,
-    required IconData icon,
-    required String title,
-    required String desc,
-  }) {
+  Widget _buildInfoCard({required BuildContext context, required IconData icon, required String text}) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -448,103 +440,9 @@ class _DentistProfilePageState extends State<DentistProfilePage> {
           ),
           const SizedBox(width: 14),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: context.textPrimary)),
-                const SizedBox(height: 4),
-                Text(desc, style: TextStyle(fontSize: 12, color: context.textSecondary, height: 1.4)),
-              ],
-            ),
+            child: Text(text, style: TextStyle(fontSize: 13, color: context.textSecondary, height: 1.4)),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildExperienceTimeline({
-    required BuildContext context,
-    required String yearRange,
-    required String role,
-    required String hospital,
-    bool isFirst = false,
-    bool isLast = false,
-  }) {
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Column(
-            children: [
-              Container(
-                width: 12,
-                height: 12,
-                decoration: BoxDecoration(
-                  color: isFirst ? AppColors.primary : const Color(0xFF94A3B8),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: context.card, width: 2),
-                ),
-              ),
-              if (!isLast)
-                Expanded(
-                  child: Container(
-                    width: 2,
-                    color: context.isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 16),
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: context.card,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: context.divider),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    yearRange,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: isFirst ? AppColors.primary : context.textMuted,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(role, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: context.textPrimary)),
-                  const SizedBox(height: 2),
-                  Text(hospital, style: TextStyle(fontSize: 12, color: context.textSecondary)),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _BadgeWidget extends StatelessWidget {
-  final String label;
-  const _BadgeWidget({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: context.isDark ? const Color(0xFF1E1B4B) : const Color(0xFFEEF2FF),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: context.isDark ? const Color(0xFF312E81) : const Color(0xFFE0E7FF)),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF6366F1)),
       ),
     );
   }

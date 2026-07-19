@@ -34,6 +34,7 @@ class MyInvoiceDto {
   final String paymentType; // "Full" | "Deposit"
   final String paymentMethod; // "Cash" | "BankTransfer" | "OnlinePayment"
   final String status; // "Unpaid" | "Paid" | "Refunded"
+  final DateTime? paymentDate;
 
   const MyInvoiceDto({
     required this.id,
@@ -47,6 +48,7 @@ class MyInvoiceDto {
     required this.paymentType,
     required this.paymentMethod,
     required this.status,
+    this.paymentDate,
   });
 
   factory MyInvoiceDto.fromJson(Map<String, dynamic> json) => MyInvoiceDto(
@@ -63,6 +65,7 @@ class MyInvoiceDto {
         paymentType: json['paymentType'] as String? ?? 'Full',
         paymentMethod: json['paymentMethod'] as String? ?? 'Cash',
         status: json['status'] as String? ?? 'Unpaid',
+        paymentDate: json['paymentDate'] == null ? null : DateTime.parse(json['paymentDate'] as String),
       );
 }
 
@@ -127,6 +130,17 @@ class PaymentService {
     final token = await _auth.getToken();
     if (token == null) throw Exception('Chưa đăng nhập.');
     final res = await _client.get(ApiConstants.myInvoices, token: token);
+    final list = res.data as List<dynamic>;
+    return list
+        .map((e) => MyInvoiceDto.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Hóa đơn đã thanh toán của bệnh nhân hiện tại (tab "Lịch sử giao dịch").
+  Future<List<MyInvoiceDto>> getPaymentHistory() async {
+    final token = await _auth.getToken();
+    if (token == null) throw Exception('Chưa đăng nhập.');
+    final res = await _client.get(ApiConstants.myPaymentHistory, token: token);
     final list = res.data as List<dynamic>;
     return list
         .map((e) => MyInvoiceDto.fromJson(e as Map<String, dynamic>))

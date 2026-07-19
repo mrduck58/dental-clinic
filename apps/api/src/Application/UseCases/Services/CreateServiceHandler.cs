@@ -15,7 +15,8 @@ public class CreateServiceHandler(IServiceRepository serviceRepository, IActivit
             request.Price,
             request.DurationMinutes,
             request.Description,
-            request.ImageUrl);
+            request.ImageUrl,
+            request.IconUrl);
 
         await serviceRepository.AddAsync(service, ct);
 
@@ -34,6 +35,6 @@ public class CreateServiceHandler(IServiceRepository serviceRepository, IActivit
         return new ServiceDto(
             service.Id, service.Name, service.Price,
             service.DurationMinutes, service.IsActive, service.Description,
-            service.ViewCount, service.ImageUrl, service.CreatedAt, service.UpdatedAt);
+            service.ViewCount, service.ImageUrl, service.IconUrl, service.CreatedAt, service.UpdatedAt);
     }
 }

@@ -30,7 +30,8 @@ public class AppointmentsController(
     GetStaffScheduleHandler staffScheduleHandler,
     CreateWalkInAppointmentHandler createWalkInHandler,
     SummarizePatientHistoryHandler summarizePatientHistoryHandler,
-    GetPatientQueueHandler getPatientQueueHandler) : ControllerBase
+    GetPatientQueueHandler getPatientQueueHandler,
+    GetMedicationRemindersHandler getMedicationRemindersHandler) : ControllerBase
 {
     /// <summary>POST api/appointments — Đặt lịch khám mới</summary>
     [HttpPost]
@@ -626,6 +627,136 @@ public class AppointmentsController(
         return Ok(patients);
     }
 
+    /// <summary>
+    /// GET api/appointments/my/treatment-plans — Liệu trình điều trị (kèm nhật ký tiến độ thật) của chính
+    /// bệnh nhân đang đăng nhập và các thành viên gia đình. Lọc theo patientId nếu chỉ muốn xem 1 thành viên.
+    /// </summary>
+    [HttpGet("my/treatment-plans")]
+    [Authorize(Roles = "Patient")]
+    public async Task<IActionResult> GetMyTreatmentPlans([FromQuery] Guid? patientId, CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        var patient = await dbContext.Patients.FirstOrDefaultAsync(p => p.UserId == userId, cancellationToken);
+        if (patient is null) return Ok(new List<TreatmentPlanDto>());
+
+        var allowedIds = await dbContext.Patients
+            .Where(p => p.Id == patient.Id || p.PrimaryPatientId == patient.Id)
+            .Select(p => p.Id)
+            .ToListAsync(cancellationToken);
+
+        if (patientId != null && !allowedIds.Contains(patientId.Value))
+            return Ok(new List<TreatmentPlanDto>());
+
+        var targetIds = patientId != null ? new List<Guid> { patientId.Value } : allowedIds;
+
+        var result = new List<TreatmentPlanDto>();
+        foreach (var pid in targetIds)
+        {
+            result.AddRange(await treatmentPlanHandler.GetByPatientAsync(pid, cancellationToken));
+        }
+
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// GET api/appointments/my/medication-reminders?date=yyyy-MM-dd — Lịch nhắc uống thuốc thật cho một ngày,
+    /// sinh từ các đơn thuốc đang trong thời gian sử dụng của bệnh nhân hiện tại và thành viên gia đình.
+    /// </summary>
+    [HttpGet("my/medication-reminders")]
+    [Authorize(Roles = "Patient")]
+    public async Task<IActionResult> GetMyMedicationReminders([FromQuery] DateOnly date, CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        var result = await getMedicationRemindersHandler.HandleAsync(userId, date, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// GET api/appointments/my/medical-history — Lịch sử khám của chính bệnh nhân đang đăng nhập
+    /// (và các thành viên gia đình dưới tài khoản này). Lọc theo patientId nếu chỉ muốn xem 1 thành viên.
+    /// </summary>
+    [HttpGet("my/medical-history")]
+    [Authorize(Roles = "Patient")]
+    public async Task<IActionResult> GetMyMedicalHistory([FromQuery] Guid? patientId, CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        var patient = await dbContext.Patients.FirstOrDefaultAsync(p => p.UserId == userId, cancellationToken);
+        if (patient is null) return Ok(new List<MyMedicalHistoryDto>());
+
+        var appointments = await dbContext.Appointments
+            .Include(a => a.Dentist).ThenInclude(d => d.User)
+            .Include(a => a.Patient)
+            .Include(a => a.Service)
+            .Include(a => a.Diagnoses)
+            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Service)
+            .Include(a => a.Prescriptions).ThenInclude(p => p.Items)
+            .Where(a => (a.PatientId == patient.Id || a.Patient.PrimaryPatientId == patient.Id) &&
+                        (patientId == null || a.PatientId == patientId) &&
+                        (a.Status == AppointmentStatus.Completed || a.Status == AppointmentStatus.PendingPayment))
+            .OrderByDescending(a => a.AppointmentDate)
+            .Take(50)
+            .ToListAsync(cancellationToken);
+
+        // Chuỗi buổi hẹn gốc của lượt tái khám (đi ngược FollowUpFromAppointmentId) — để mobile gộp
+        // liệu trình điều trị dài hạn xuyên suốt nhiều buổi tái khám thay vì chỉ khớp đúng 1 buổi.
+        var chainByAppointment = new Dictionary<Guid, List<Guid>>();
+        foreach (var a in appointments)
+        {
+            chainByAppointment[a.Id] = await GetFollowUpChainAsync(a.Id, cancellationToken);
+        }
+
+        var history = appointments.Select(a => new MyMedicalHistoryDto(
+            a.Id,
+            $"DK{a.AppointmentDate:yyyyMMdd}{a.Id.ToString("N")[..6].ToUpper()}",
+            a.AppointmentDate,
+            a.Dentist.FullName,
+            a.Service?.Name ?? "Khám tổng quát",
+            a.Symptoms,
+            a.PatientId,
+            a.Patient.FullName,
+            a.PatientId == patient.Id ? "Tôi" : (a.Patient.Relationship ?? string.Empty),
+            a.FollowUpDate,
+            a.FollowUpNote,
+            chainByAppointment[a.Id],
+            a.Diagnoses.Select(d => new MedicalHistoryDiagnosisDto(
+                d.Description,
+                d.GumCondition,
+                d.OralMucosaCondition,
+                d.GumBleeding,
+                d.PainOnChewing,
+                d.TeethCount,
+                d.DecayedTeeth,
+                d.WornOrBrokenTeeth,
+                d.LooseTeeth,
+                d.Tartar,
+                d.Plaque,
+                d.BadBreath,
+                d.TmjSymptoms,
+                d.Occlusion,
+                d.OcclusionDeviation,
+                d.Conclusion,
+                d.CreatedAt
+            )).ToList(),
+            a.TreatmentPlans.Select(tp => new MedicalHistoryTreatmentPlanDto(
+                string.IsNullOrWhiteSpace(tp.Teeth) ? tp.Service.Name : $"{tp.Service.Name} - Răng {tp.Teeth}",
+                tp.Status.ToString(),
+                tp.TotalCost
+            )).ToList(),
+            a.Prescriptions.FirstOrDefault() != null
+                ? a.Prescriptions.First().Items.Select(i => new MedicalHistoryPrescriptionItemDto(
+                    i.MedicineName,
+                    i.Dosage,
+                    i.Quantity,
+                    i.Unit,
+                    i.Usage,
+                    i.Notes
+                )).ToList()
+                : new List<MedicalHistoryPrescriptionItemDto>()
+        )).ToList();
+
+        return Ok(history);
+    }
+
     /// <summary>GET api/patients/{patientId}/medical-history — Lấy lịch sử khám của bệnh nhân (Dentist/Staff/Admin)</summary>
     [HttpGet("patients/{patientId}/medical-history")]
     [Authorize(Roles = "Dentist,Staff,Admin,Owner")]
@@ -652,6 +783,20 @@ public class AppointmentsController(
             a.Symptoms,
             a.Diagnoses.Select(d => new MedicalHistoryDiagnosisDto(
                 d.Description,
+                d.GumCondition,
+                d.OralMucosaCondition,
+                d.GumBleeding,
+                d.PainOnChewing,
+                d.TeethCount,
+                d.DecayedTeeth,
+                d.WornOrBrokenTeeth,
+                d.LooseTeeth,
+                d.Tartar,
+                d.Plaque,
+                d.BadBreath,
+                d.TmjSymptoms,
+                d.Occlusion,
+                d.OcclusionDeviation,
                 d.Conclusion,
                 d.CreatedAt
             )).ToList(),
@@ -665,7 +810,9 @@ public class AppointmentsController(
                     i.MedicineName,
                     i.Dosage,
                     i.Quantity,
-                    i.Unit
+                    i.Unit,
+                    i.Usage,
+                    i.Notes
                 )).ToList()
                 : new List<MedicalHistoryPrescriptionItemDto>()
         )).ToList();
@@ -688,6 +835,43 @@ public class AppointmentsController(
             ?? User.FindFirstValue(ClaimTypes.NameIdentifier)
             ?? throw new UnauthorizedAccessException("Không xác định được người dùng từ token.");
         return Guid.Parse(sub);
+    }
+
+    /// <summary>
+    /// Toàn bộ chuỗi tái khám của một buổi hẹn — cả buổi gốc (đi ngược FollowUpFromAppointmentId)
+    /// LẪN các buổi tái khám sau nó (đi xuôi). Trước đây chỉ đi ngược nên xem từ buổi hẹn GỐC sẽ
+    /// không thấy các liệu trình/đơn thuốc được ghi thêm ở các buổi TÁI KHÁM sau — chỉ xem từ buổi
+    /// tái khám mới nhất mới thấy đủ. Dò 2 chiều tới khi không còn buổi hẹn mới nào (chặn vòng lặp).
+    /// </summary>
+    private async Task<List<Guid>> GetFollowUpChainAsync(Guid appointmentId, CancellationToken ct)
+    {
+        var chain = new HashSet<Guid> { appointmentId };
+        bool added;
+        do
+        {
+            added = false;
+
+            var parents = await dbContext.Appointments
+                .Where(a => chain.Contains(a.Id) && a.FollowUpFromAppointmentId != null)
+                .Select(a => a.FollowUpFromAppointmentId!.Value)
+                .ToListAsync(ct);
+            foreach (var p in parents)
+            {
+                if (chain.Add(p)) added = true;
+            }
+
+            var children = await dbContext.Appointments
+                .Where(a => a.FollowUpFromAppointmentId != null && chain.Contains(a.FollowUpFromAppointmentId.Value))
+                .Select(a => a.Id)
+                .ToListAsync(ct);
+            foreach (var c in children)
+            {
+                if (chain.Add(c)) added = true;
+            }
+        } while (added);
+
+        chain.Remove(appointmentId);
+        return chain.ToList();
     }
 }
 
@@ -729,8 +913,45 @@ public record PatientMedicalHistoryDto(
 
 public record MedicalHistoryDiagnosisDto(
     string Description,
+    // Tình trạng lợi – niêm mạc
+    string? GumCondition,
+    string? OralMucosaCondition,
+    string? GumBleeding,
+    string? PainOnChewing,
+    // Tình trạng răng
+    string? TeethCount,
+    string? DecayedTeeth,
+    string? WornOrBrokenTeeth,
+    string? LooseTeeth,
+    // Vệ sinh răng miệng
+    string? Tartar,
+    string? Plaque,
+    string? BadBreath,
+    // Khớp thái dương hàm / khớp cắn
+    string? TmjSymptoms,
+    string? Occlusion,
+    string? OcclusionDeviation,
     string? Conclusion,
     DateTimeOffset CreatedAt);
+
+public record MyMedicalHistoryDto(
+    Guid AppointmentId,
+    string AppointmentCode,
+    DateTimeOffset AppointmentDate,
+    string DentistName,
+    string ServiceName,
+    string? Symptoms,
+    Guid PatientId,
+    string PatientName,
+    string PatientRelationship,
+    DateOnly? FollowUpDate,
+    string? FollowUpNote,
+    // Chuỗi buổi hẹn gốc của lượt tái khám (đi ngược FollowUpFromAppointmentId) — dùng để gộp
+    // liệu trình điều trị dài hạn (niềng răng, cấy ghép...) xuyên suốt nhiều buổi tái khám.
+    List<Guid> RelatedAppointmentIds,
+    List<MedicalHistoryDiagnosisDto> Diagnoses,
+    List<MedicalHistoryTreatmentPlanDto> TreatmentPlans,
+    List<MedicalHistoryPrescriptionItemDto> PrescriptionItems);
 
 public record MedicalHistoryTreatmentPlanDto(
     string Description,
@@ -741,4 +962,6 @@ public record MedicalHistoryPrescriptionItemDto(
     string MedicineName,
     string Dosage,
     int Quantity,
-    string Unit);
+    string Unit,
+    string Usage,
+    string? Notes);

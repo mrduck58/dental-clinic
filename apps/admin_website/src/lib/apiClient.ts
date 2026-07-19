@@ -427,6 +427,7 @@ export interface ServiceDto {
   description: string;
   viewCount: number;
   imageUrl: string | null;
+  iconUrl: string | null;
   createdAt: string;
   updatedAt: string | null;
 }
@@ -437,6 +438,7 @@ export interface CreateServiceRequest {
   durationMinutes: number;
   description: string;
   imageUrl?: string | null;
+  iconUrl?: string | null;
 }
 
 export interface UpdateServiceRequest {
@@ -445,6 +447,7 @@ export interface UpdateServiceRequest {
   durationMinutes: number;
   description: string;
   imageUrl?: string | null;
+  iconUrl?: string | null;
 }
 
 // ── Service endpoints ──────────────────────────────────────────────────────
@@ -1940,6 +1943,9 @@ export interface PrescriptionItemDto {
   unit: string;
   usage: string;
   notes: string | null;
+  timesPerDay: number | null;
+  durationDays: number | null;
+  startDate: string | null;
 }
 
 export interface PrescriptionDto {
@@ -2320,6 +2326,9 @@ export interface PrescriptionItemRequest {
   unit: string;
   usage: string;
   notes?: string;
+  timesPerDay?: number;
+  durationDays?: number;
+  startDate?: string;
 }
 
 export interface CreatePrescriptionRequest {
@@ -2340,6 +2349,9 @@ export interface AddPrescriptionItemRequest {
   unit: string;
   usage: string;
   notes?: string;
+  timesPerDay?: number;
+  durationDays?: number;
+  startDate?: string;
 }
 
 export interface UpdatePrescriptionItemRequest {
@@ -2350,6 +2362,9 @@ export interface UpdatePrescriptionItemRequest {
   unit: string;
   usage: string;
   notes?: string;
+  timesPerDay?: number;
+  durationDays?: number;
+  startDate?: string;
 }
 
 export async function createPrescriptionApi(appointmentId: string, request: CreatePrescriptionRequest): Promise<PrescriptionDto> {
@@ -2391,6 +2406,9 @@ export async function addPrescriptionItemApi(request: AddPrescriptionItemRequest
       unit: request.unit,
       usage: request.usage,
       notes: request.notes,
+      timesPerDay: request.timesPerDay,
+      durationDays: request.durationDays,
+      startDate: request.startDate,
     }),
   });
   await checkAuth(res);

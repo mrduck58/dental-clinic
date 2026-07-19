@@ -6,6 +6,7 @@ import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/home/data/home_service.dart';
 import 'package:mobile_app/features/home/data/models/doctor_model.dart';
+import 'package:mobile_app/features/home/data/models/review_model.dart';
 import 'package:mobile_app/features/home/data/models/service_model.dart';
 import 'package:mobile_app/features/home/data/review_service.dart';
 import 'package:mobile_app/features/booking/data/booking_models.dart';
@@ -19,11 +20,11 @@ class SearchPage extends StatefulWidget {
 
 class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateMixin {
   final _homeService = HomeService();
-  final _reviewService = ReviewService();
   final _searchCtrl = TextEditingController();
 
   List<DoctorModel> _doctors = [];
   List<ServiceModel> _services = [];
+  final Map<String, DentistReviewsResult> _reviewsByDentist = {};
   bool _isLoading = true;
   String _searchQuery = '';
   int _activeTab = 0; // 0 = Dentist, 1 = Service
@@ -47,10 +48,21 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
         _homeService.getDentists(),
         _homeService.getServices(),
       ]);
+      final doctors = List<DoctorModel>.from(results[0] as List);
       setState(() {
-        _doctors = List<DoctorModel>.from(results[0] as List);
+        _doctors = doctors;
         _services = List<ServiceModel>.from(results[1] as List);
         _isLoading = false;
+      });
+
+      final reviewResults = await Future.wait(
+        doctors.map((d) => ReviewService().getReviewsForDentist(d.id)),
+      );
+      if (!mounted) return;
+      setState(() {
+        for (var i = 0; i < doctors.length; i++) {
+          _reviewsByDentist[doctors[i].id] = reviewResults[i];
+        }
       });
     } catch (_) {
       setState(() => _isLoading = false);
@@ -201,8 +213,9 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
       separatorBuilder: (_, __) => const SizedBox(height: 16),
       itemBuilder: (context, i) {
         final doc = list[i];
-        final avgRating = _reviewService.getAverageRating(doc.id);
-        final reviewsCount = _reviewService.getReviewsForDentist(doc.id).length;
+        final reviewsResult = _reviewsByDentist[doc.id];
+        final avgRating = reviewsResult?.averageRating ?? 0;
+        final reviewsCount = reviewsResult?.reviewCount ?? 0;
         final specialty = doc.specialty ?? (isVi ? 'Nha sĩ tổng quát' : 'General Dentist');
         final expYears = doc.yearsOfExperience ?? 10;
 

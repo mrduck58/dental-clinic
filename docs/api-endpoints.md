@@ -280,3 +280,62 @@ ràng. Dời lịch giữ nguyên bác sĩ/dịch vụ của lịch gốc, chỉ
   đánh giá cao được soạn theo hướng cảm ơn. Chỉ điền sẵn vào ô trả lời trên UI — nhân viên xem lại,
   chỉnh sửa rồi tự gửi qua `POST /feedbacks/{id}/reply` như bình thường; AI không tự gửi phản hồi.
 * **Response (200 OK):** `{ "replyText": "Cảm ơn bạn đã tin tưởng phòng khám..." }`
+
+---
+
+## 📱 8. API dành riêng cho Mobile App (Patient self-service)
+
+Nhóm endpoint này được thêm để mobile app (Flutter) thay thế toàn bộ dữ liệu mock/hardcode bằng dữ
+liệu thật, có ownership check (bệnh nhân chỉ xem được dữ liệu của chính mình và người thân đã đăng
+ký dưới tài khoản — so khớp qua `Patient.PrimaryPatientId`).
+
+### Lịch sử khám bệnh của chính bệnh nhân
+* **Endpoint:** `GET /appointments/my/medical-history?patientId={optional}`
+* **Quyền truy cập:** `Patient`
+* Trả về tối đa 50 buổi khám đã hoàn tất (`Completed`/`PendingPayment`) của bệnh nhân hiện tại **và**
+  thành viên gia đình, mỗi buổi gồm chẩn đoán + tóm tắt liệu trình + đơn thuốc trong cùng một lần gọi.
+  Bỏ `patientId` để lấy tất cả; truyền vào để chỉ xem 1 thành viên cụ thể.
+* **Response (200 OK):** danh sách `MyMedicalHistoryDto` — mỗi phần tử gồm `appointmentId`,
+  `appointmentCode`, `appointmentDate`, `dentistName`, `serviceName`, `symptoms`, `patientId`,
+  `patientName`, `patientRelationship` (`"Tôi"` nếu là chính chủ), `diagnoses[]`, `treatmentPlans[]`,
+  `prescriptionItems[]` (gồm cả `usage`, `notes`).
+
+### Liệu trình điều trị kèm nhật ký tiến độ thật
+* **Endpoint:** `GET /appointments/my/treatment-plans?patientId={optional}`
+* **Quyền truy cập:** `Patient`
+* Trả về từng dòng dịch vụ trong kế hoạch điều trị (`TreatmentPlanDto`) kèm `stepProgress[]` —
+  nhật ký các bước đã thực hiện thật (số thứ tự, tên bước, %, ngày, bác sĩ, ghi chú), dùng để mobile
+  hiển thị tiến độ điều trị thay vì phần trăm/checklist bịa.
+
+### Lịch sử thanh toán (hóa đơn đã trả)
+* **Endpoint:** `GET /payments/invoices/my/history`
+* **Quyền truy cập:** `Patient`
+* Cặp với `GET /payments/invoices/my` (hóa đơn **chưa** trả) đã có — endpoint này trả hóa đơn
+  **đã** thanh toán (`Status == Paid`) của bệnh nhân hiện tại, sắp xếp theo `PaymentDate` giảm dần.
+
+### Chi tiết hồ sơ nha sĩ
+* **Endpoint:** `GET /dentists/{id}`
+* **Quyền truy cập:** Công khai
+* Trả về `DentistDetailDto`: `bio`, `education`, `certificateIssuedBy`, `yearsOfExperience`, và
+  **`patientCount`** — số bệnh nhân duy nhất tính thật từ các buổi khám hoàn tất với nha sĩ này
+  (không phải số liệu marketing cố định).
+
+### Đánh giá nha sĩ (thay hệ thống review mock trong bộ nhớ)
+* **Endpoint:** `GET /dentists/{id}/reviews` — công khai, trả `{ averageRating, reviewCount, reviews[] }`
+  (mỗi review gồm `patientName`, `rating`, `comment`, `tags[]`, `createdAt`).
+* **Endpoint:** `POST /dentists/{id}/reviews` — `Patient`. Body: `{ rating: 1-5, comment, tags?: string[] }`.
+  Mỗi bệnh nhân chỉ có **1 đánh giá / nha sĩ** (gửi lại sẽ ghi đè, không tạo bản ghi mới). Yêu cầu
+  bệnh nhân đã có ít nhất 1 buổi khám hoàn tất với nha sĩ đó — nếu chưa, trả lỗi 422.
+
+### Lịch nhắc uống thuốc thật
+* **Endpoint:** `GET /appointments/my/medication-reminders?date=yyyy-MM-dd`
+* **Quyền truy cập:** `Patient`
+* Sinh danh sách nhắc thuốc cho một ngày cụ thể, chỉ từ các dòng đơn thuốc đã được bác sĩ nhập đủ
+  `TimesPerDay` + `DurationDays` (xem mục "Kê đơn thuốc" trong `docs/database.md`). Đơn thuốc không
+  có 2 field này (VD: dùng "khi đau") sẽ **không** sinh nhắc nhở — không suy đoán lịch khi thiếu dữ
+  liệu. Giờ nhắc được dàn đều trong khung 07:00–21:00 theo số lần/ngày (giờ gợi ý, không phải giờ
+  bác sĩ chỉ định chính xác vì đơn thuốc chỉ ghi tần suất, không ghi giờ cụ thể).
+* **Response (200 OK):** danh sách `MedicationReminderDto` — `prescriptionItemId`, `medicineName`,
+  `dosage`, `usage`, `time` ("HH:mm"), `patientId`, `patientName`, `patientRelationship`.
+* Trạng thái "đã uống" **không lưu ở backend** — mobile lưu cục bộ trên máy (SharedPreferences),
+  vì đây là dữ liệu người dùng tự ghi nhận, không cần đồng bộ nhiều thiết bị ở giai đoạn này.

@@ -4,10 +4,13 @@ import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
-import 'package:mobile_app/features/profile/data/medical_record_mock.dart';
+import 'package:mobile_app/features/profile/data/medical_record_service.dart';
 
 class PrescriptionDetailPage extends StatelessWidget {
-  const PrescriptionDetailPage({super.key});
+  final MedicalHistoryEvent event;
+  const PrescriptionDetailPage({super.key, required this.event});
+
+  String _formatDate(DateTime d) => '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
   @override
   Widget build(BuildContext context) {
@@ -63,7 +66,7 @@ class PrescriptionDetailPage extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        isVi ? 'MÃ ĐƠN THUỐC' : 'PRESCRIPTION ID',
+                        isVi ? 'MÃ LỊCH HẸN' : 'APPOINTMENT CODE',
                         style: const TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w900,
@@ -72,7 +75,7 @@ class PrescriptionDetailPage extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        '#RX-202488',
+                        event.appointmentCode,
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w800,
@@ -83,7 +86,7 @@ class PrescriptionDetailPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    isVi ? 'Đơn thuốc sau điều trị tủy' : 'Post-Op Root Canal Prescription',
+                    event.serviceName,
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
@@ -98,7 +101,7 @@ class PrescriptionDetailPage extends StatelessWidget {
                       Icon(Iconsax.user, size: 14, color: context.textMuted),
                       const SizedBox(width: 6),
                       Text(
-                        isVi ? 'Bác sĩ kê đơn: BS. Sarah Miller' : 'Prescribing: Dr. Sarah Miller',
+                        isVi ? 'Bác sĩ kê đơn: ${event.dentistName}' : 'Prescribing: ${event.dentistName}',
                         style: TextStyle(fontSize: 12.5, color: context.textSecondary, fontWeight: FontWeight.w600),
                       ),
                     ],
@@ -109,7 +112,7 @@ class PrescriptionDetailPage extends StatelessWidget {
                       Icon(Iconsax.calendar_1, size: 14, color: context.textMuted),
                       const SizedBox(width: 6),
                       Text(
-                        isVi ? 'Ngày kê đơn: 27 Tháng 06, 2026' : 'Date: June 27, 2026',
+                        isVi ? 'Ngày kê đơn: ${_formatDate(event.appointmentDate)}' : 'Date: ${_formatDate(event.appointmentDate)}',
                         style: TextStyle(fontSize: 12.5, color: context.textSecondary, fontWeight: FontWeight.w600),
                       ),
                     ],
@@ -147,8 +150,8 @@ class PrescriptionDetailPage extends StatelessWidget {
                         const SizedBox(height: 4),
                         Text(
                           isVi
-                              ? 'Vui lòng uống thuốc đúng giờ, không tự ý ngừng uống kháng sinh trước thời hạn để tránh tình trạng lờn thuốc.'
-                              : 'Please take the antibiotics strictly on schedule and complete the full 5-day course to prevent bacterial resistance.',
+                              ? 'Vui lòng dùng thuốc đúng liều lượng và thời gian theo chỉ định của bác sĩ.'
+                              : 'Please take medicines strictly as directed by your dentist.',
                           style: const TextStyle(
                             fontSize: 12.5,
                             color: Color(0xFF92400E),
@@ -174,22 +177,28 @@ class PrescriptionDetailPage extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: MedicalRecordMock.medicines.length,
-              itemBuilder: (context, index) {
-                final med = MedicalRecordMock.medicines[index];
-                return _buildDrugCard(context, med, isVi);
-              },
-            ),
+            if (event.prescriptionItems.isEmpty)
+              Text(
+                isVi ? 'Không có thuốc nào được kê.' : 'No medicines prescribed.',
+                style: TextStyle(color: context.textMuted),
+              )
+            else
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: event.prescriptionItems.length,
+                itemBuilder: (context, index) {
+                  final med = event.prescriptionItems[index];
+                  return _buildDrugCard(context, med, isVi);
+                },
+              ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildDrugCard(BuildContext context, MedicineModel med, bool isVi) {
+  Widget _buildDrugCard(BuildContext context, MedicalHistoryPrescriptionItem med, bool isVi) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -216,7 +225,6 @@ class PrescriptionDetailPage extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
-                  // Icon indicator
                   Container(
                     width: 46,
                     height: 46,
@@ -227,14 +235,12 @@ class PrescriptionDetailPage extends StatelessWidget {
                     child: const Icon(Iconsax.menu_board, color: AppColors.primary, size: 20),
                   ),
                   const SizedBox(width: 14),
-
-                  // Drug info
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          med.name,
+                          med.medicineName,
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w800,
@@ -243,7 +249,7 @@ class PrescriptionDetailPage extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '${med.type} · ${med.duration}',
+                          '${med.quantity} ${med.unit}',
                           style: TextStyle(
                             fontSize: 12,
                             color: context.textSecondary,
@@ -269,8 +275,6 @@ class PrescriptionDetailPage extends StatelessWidget {
                       ],
                     ),
                   ),
-
-                  // Arrow forward
                   Icon(Icons.arrow_forward_ios_rounded, size: 14, color: context.textMuted),
                 ],
               ),

@@ -20,7 +20,10 @@ public record PrescriptionItemRequest(
     int Quantity,
     string Unit,
     string Usage,
-    string? Notes);
+    string? Notes,
+    int? TimesPerDay = null,
+    int? DurationDays = null,
+    DateOnly? StartDate = null);
 
 public record UpdatePrescriptionRequest(
     Guid PrescriptionId,
@@ -33,7 +36,10 @@ public record AddPrescriptionItemRequest(
     int Quantity,
     string Unit,
     string Usage,
-    string? Notes);
+    string? Notes,
+    int? TimesPerDay = null,
+    int? DurationDays = null,
+    DateOnly? StartDate = null);
 
 public record UpdatePrescriptionItemRequest(
     Guid ItemId,
@@ -42,7 +48,10 @@ public record UpdatePrescriptionItemRequest(
     int Quantity,
     string Unit,
     string Usage,
-    string? Notes);
+    string? Notes,
+    int? TimesPerDay = null,
+    int? DurationDays = null,
+    DateOnly? StartDate = null);
 
 public class PrescriptionHandler(
     AppDbContext dbContext,
@@ -81,7 +90,10 @@ public class PrescriptionHandler(
                     itemRequest.Quantity,
                     itemRequest.Unit,
                     itemRequest.Usage,
-                    itemRequest.Notes);
+                    itemRequest.Notes,
+                    itemRequest.TimesPerDay,
+                    itemRequest.DurationDays,
+                    itemRequest.StartDate);
                 dbContext.PrescriptionItems.Add(item);
             }
         }
@@ -105,7 +117,7 @@ public class PrescriptionHandler(
                 Priority: NotificationPriority.Medium,
                 Title: "Đơn thuốc mới",
                 Body: "Bác sĩ đã kê đơn thuốc mới cho bạn. Xem chi tiết trong hồ sơ khám bệnh.",
-                RelatedEntityType: "Appointment",
+                RelatedEntityType: "Prescription",
                 RelatedEntityId: appointment.Id.ToString()), ct);
         }
 
@@ -143,7 +155,10 @@ public class PrescriptionHandler(
             request.Quantity,
             request.Unit,
             request.Usage,
-            request.Notes);
+            request.Notes,
+            request.TimesPerDay,
+            request.DurationDays,
+            request.StartDate);
 
         dbContext.PrescriptionItems.Add(item);
         await dbContext.SaveChangesAsync(ct);
@@ -169,7 +184,10 @@ public class PrescriptionHandler(
             request.Quantity,
             request.Unit,
             request.Usage,
-            request.Notes);
+            request.Notes,
+            request.TimesPerDay,
+            request.DurationDays,
+            request.StartDate);
 
         await dbContext.SaveChangesAsync(ct);
 
@@ -215,7 +233,10 @@ public class PrescriptionHandler(
                 Quantity = i.Quantity,
                 Unit = i.Unit,
                 Usage = i.Usage,
-                Notes = i.Notes
+                Notes = i.Notes,
+                TimesPerDay = i.TimesPerDay,
+                DurationDays = i.DurationDays,
+                StartDate = i.StartDate
             }).ToList()
         };
     }

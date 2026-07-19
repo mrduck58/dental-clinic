@@ -4,6 +4,7 @@ import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
+import 'package:mobile_app/features/booking/data/booking_service.dart';
 import 'package:mobile_app/features/profile/data/family_member.dart';
 
 class FamilyMembersPage extends StatefulWidget {
@@ -16,6 +17,10 @@ class FamilyMembersPage extends StatefulWidget {
 class _FamilyMembersPageState extends State<FamilyMembersPage> {
   final _familyService = FamilyService();
   bool _isLoading = true;
+  bool _hasError = false;
+  final Map<String, DateTime> _lastVisitByPatientId = {};
+
+  static const _visitedStatuses = {'Completed', 'PendingPayment'};
 
   @override
   void initState() {
@@ -24,8 +29,25 @@ class _FamilyMembersPageState extends State<FamilyMembersPage> {
   }
 
   Future<void> _loadMembers() async {
-    setState(() => _isLoading = true);
-    await _familyService.loadFromServer();
+    setState(() {
+      _isLoading = true;
+      _hasError = false;
+    });
+    try {
+      await _familyService.loadFromServer();
+      final appointments = await BookingService().getMyAppointments();
+      _lastVisitByPatientId.clear();
+      for (final a in appointments) {
+        if (a.patientId == null || !_visitedStatuses.contains(a.status)) continue;
+        final date = a.parsedDate;
+        final current = _lastVisitByPatientId[a.patientId];
+        if (current == null || date.isAfter(current)) {
+          _lastVisitByPatientId[a.patientId!] = date;
+        }
+      }
+    } catch (_) {
+      if (mounted) setState(() => _hasError = true);
+    }
     if (mounted) {
       setState(() => _isLoading = false);
     }
@@ -48,17 +70,14 @@ class _FamilyMembersPageState extends State<FamilyMembersPage> {
     }
   }
 
-  String _getLastVisitMock(String memberId, bool isVi) {
-    switch (memberId) {
-      case 'member_1':
-        return isVi ? 'Khám lần cuối: 12/09/2023' : 'Last Visit: Sep 12, 2023';
-      case 'member_2':
-        return isVi ? 'Khám lần cuối: 28/08/2023' : 'Last Visit: Aug 28, 2023';
-      case 'member_3':
-        return isVi ? 'Khám lần cuối: 14/06/2023' : 'Last Visit: Jun 14, 2023';
-      default:
-        return isVi ? 'Chưa có lịch khám gần đây' : 'No recent visits';
+  String _getLastVisitText(String memberId, bool isVi) {
+    final date = _lastVisitByPatientId[memberId];
+    if (date == null) {
+      return isVi ? 'Chưa có lịch khám gần đây' : 'No recent visits';
     }
+    final d = date.day.toString().padLeft(2, '0');
+    final m = date.month.toString().padLeft(2, '0');
+    return isVi ? 'Khám lần cuối: $d/$m/${date.year}' : 'Last Visit: ${date.year}-$m-$d';
   }
 
   @override
@@ -87,7 +106,21 @@ class _FamilyMembersPageState extends State<FamilyMembersPage> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
-          : SingleChildScrollView(
+          : _hasError && members.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        isVi ? 'Không thể tải danh sách thành viên.' : 'Failed to load family members.',
+                        style: TextStyle(color: context.textMuted),
+                      ),
+                      const SizedBox(height: 12),
+                      TextButton(onPressed: _loadMembers, child: Text(isVi ? 'Thử lại' : 'Retry')),
+                    ],
+                  ),
+                )
+              : SingleChildScrollView(
               padding: const EdgeInsets.all(18.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -97,7 +130,7 @@ class _FamilyMembersPageState extends State<FamilyMembersPage> {
             // Members list
             ...members.map((member) {
               final relText = isVi ? member.relationship : _getEnglishRelationship(member.relationship);
-              final lastVisitText = _getLastVisitMock(member.id, isVi);
+              final lastVisitText = _getLastVisitText(member.id, isVi);
               final badgeColor = context.isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9);
               final badgeTextColor = context.isDark ? context.textSecondary : const Color(0xFF475569);
 

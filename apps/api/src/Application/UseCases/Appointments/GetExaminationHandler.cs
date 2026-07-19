@@ -94,6 +94,9 @@ public class PrescriptionItemDto
     public string Unit { get; set; } = string.Empty;
     public string Usage { get; set; } = string.Empty;
     public string? Notes { get; set; }
+    public int? TimesPerDay { get; set; }
+    public int? DurationDays { get; set; }
+    public DateOnly? StartDate { get; set; }
 }
 
 public class GetExaminationHandler(AppDbContext dbContext)
@@ -114,24 +117,45 @@ public class GetExaminationHandler(AppDbContext dbContext)
             return null;
 
         var dto = ToDto(appointment);
-        dto.RelatedAppointmentIds = await GetFollowUpChainAsync(appointment.FollowUpFromAppointmentId, ct);
+        dto.RelatedAppointmentIds = await GetFollowUpChainAsync(appointment.Id, ct);
         return dto;
     }
 
-    /// <summary>Đi ngược chuỗi tái khám: buổi gốc trực tiếp → buổi gốc của buổi gốc... (chặn vòng lặp).</summary>
-    private async Task<List<Guid>> GetFollowUpChainAsync(Guid? fromId, CancellationToken ct)
+    /// <summary>
+    /// Toàn bộ chuỗi tái khám của một buổi hẹn — cả buổi gốc (đi ngược FollowUpFromAppointmentId)
+    /// LẪN các buổi tái khám sau nó (đi xuôi). Trước đây chỉ đi ngược nên xem từ buổi hẹn GỐC sẽ
+    /// không thấy các liệu trình/đơn thuốc được ghi thêm ở các buổi TÁI KHÁM sau — chỉ xem từ buổi
+    /// tái khám mới nhất mới thấy đủ. Dò 2 chiều tới khi không còn buổi hẹn mới nào (chặn vòng lặp).
+    /// </summary>
+    private async Task<List<Guid>> GetFollowUpChainAsync(Guid appointmentId, CancellationToken ct)
     {
-        var chain = new List<Guid>();
-        var cursor = fromId;
-        while (cursor is Guid id && !chain.Contains(id))
+        var chain = new HashSet<Guid> { appointmentId };
+        bool added;
+        do
         {
-            chain.Add(id);
-            cursor = await dbContext.Appointments
-                .Where(a => a.Id == id)
-                .Select(a => a.FollowUpFromAppointmentId)
-                .FirstOrDefaultAsync(ct);
-        }
-        return chain;
+            added = false;
+
+            var parents = await dbContext.Appointments
+                .Where(a => chain.Contains(a.Id) && a.FollowUpFromAppointmentId != null)
+                .Select(a => a.FollowUpFromAppointmentId!.Value)
+                .ToListAsync(ct);
+            foreach (var p in parents)
+            {
+                if (chain.Add(p)) added = true;
+            }
+
+            var children = await dbContext.Appointments
+                .Where(a => a.FollowUpFromAppointmentId != null && chain.Contains(a.FollowUpFromAppointmentId.Value))
+                .Select(a => a.Id)
+                .ToListAsync(ct);
+            foreach (var c in children)
+            {
+                if (chain.Add(c)) added = true;
+            }
+        } while (added);
+
+        chain.Remove(appointmentId);
+        return chain.ToList();
     }
 
     public static ExaminationDto ToDto(Appointment appointment)

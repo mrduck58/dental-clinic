@@ -1,9 +1,10 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
-import 'package:mobile_app/features/auth/data/auth_service.dart';
+import 'package:mobile_app/core/network/api_client.dart';
 import 'package:mobile_app/features/home/data/models/doctor_model.dart';
 import 'package:mobile_app/features/home/data/review_service.dart';
 
@@ -16,33 +17,17 @@ class WriteReviewPage extends StatefulWidget {
 }
 
 class _WriteReviewPageState extends State<WriteReviewPage> {
-  final _auth = AuthService();
   final _reviewService = ReviewService();
   final _commentCtrl = TextEditingController();
 
   double _rating = 0.0;
   final List<String> _selectedTags = [];
-  String _patientName = '';
-
-  @override
-  void initState() {
-    super.initState();
-    _loadPatientName();
-  }
+  bool _isSubmitting = false;
 
   @override
   void dispose() {
     _commentCtrl.dispose();
     super.dispose();
-  }
-
-  Future<void> _loadPatientName() async {
-    final name = await _auth.getUserName();
-    if (mounted) {
-      setState(() {
-        _patientName = name ?? 'Patient';
-      });
-    }
   }
 
   void _toggleTag(String tag) {
@@ -55,7 +40,7 @@ class _WriteReviewPageState extends State<WriteReviewPage> {
     });
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     final comment = _commentCtrl.text.trim();
 
@@ -68,15 +53,22 @@ class _WriteReviewPageState extends State<WriteReviewPage> {
       return;
     }
 
-    _reviewService.addReview(
-      dentistId: widget.doctor.id,
-      rating: _rating,
-      comment: comment,
-      tags: _selectedTags,
-      patientName: _patientName,
-    );
-
-    _showSuccessDialog();
+    setState(() => _isSubmitting = true);
+    try {
+      await _reviewService.submitReview(
+        dentistId: widget.doctor.id,
+        rating: _rating,
+        comment: comment,
+        tags: _selectedTags,
+      );
+      if (!mounted) return;
+      _showSuccessDialog();
+    } on DioException catch (e) {
+      if (!mounted) return;
+      _showSnackbar(ApiClient.errorMessage(e));
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   void _showSnackbar(String message) {
@@ -350,16 +342,22 @@ class _WriteReviewPageState extends State<WriteReviewPage> {
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: _submit,
+                  onPressed: _isSubmitting ? null : _submit,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     elevation: 0,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                   ),
-                  child: Text(
-                    isVi ? 'Gửi đánh giá' : 'Submit Review',
-                    style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700),
-                  ),
+                  child: _isSubmitting
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white),
+                        )
+                      : Text(
+                          isVi ? 'Gửi đánh giá' : 'Submit Review',
+                          style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700),
+                        ),
                 ),
               ),
             ),

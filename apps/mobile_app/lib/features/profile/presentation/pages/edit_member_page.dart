@@ -107,8 +107,15 @@ class _EditMemberPageState extends State<EditMemberPage> {
       profilePictureUrl: widget.member.profilePictureUrl,
     );
 
-    await _familyService.updateMember(updated);
+    try {
+      await _familyService.updateMember(updated);
+    } catch (_) {
+      if (!mounted) return;
+      _showSnackbar('Không thể cập nhật thành viên. Vui lòng thử lại.');
+      return;
+    }
 
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Row(
@@ -147,7 +154,12 @@ class _EditMemberPageState extends State<EditMemberPage> {
     );
 
     if (confirm == true) {
-      await _familyService.removeMember(widget.member.id);
+      try {
+        await _familyService.removeMember(widget.member.id);
+      } catch (_) {
+        if (mounted) _showSnackbar('Không thể xóa thành viên. Vui lòng thử lại.');
+        return;
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

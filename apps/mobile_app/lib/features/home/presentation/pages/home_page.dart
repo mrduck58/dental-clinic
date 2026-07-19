@@ -6,10 +6,8 @@ import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/auth/data/auth_service.dart';
 import 'package:mobile_app/features/home/data/home_service.dart';
-import 'package:mobile_app/features/home/data/models/doctor_model.dart';
 import 'package:mobile_app/features/home/data/models/post_model.dart';
 import 'package:mobile_app/features/home/data/models/service_model.dart';
-import 'package:mobile_app/features/home/presentation/widgets/doctor_avatar_card.dart';
 import 'package:mobile_app/features/booking/data/booking_service.dart';
 import 'package:mobile_app/features/booking/data/booking_models.dart';
 import 'package:mobile_app/features/home/presentation/widgets/home_banner.dart';
@@ -30,7 +28,6 @@ class _HomePageState extends State<HomePage> {
   final _homeService = HomeService();
   final _auth = AuthService();
 
-  List<DoctorModel> _doctors = [];
   List<ServiceModel> _services = [];
   List<PostModel> _posts = [];
   String _userName = '';
@@ -48,7 +45,6 @@ class _HomePageState extends State<HomePage> {
     setState(() => _isLoading = true);
     final token = await _auth.getToken();
     final results = await Future.wait<dynamic>([
-      _homeService.getDentists().catchError((_) => <DoctorModel>[]),
       _homeService.getServices().catchError((_) => <ServiceModel>[]),
       _homeService.getPosts().catchError((_) => <PostModel>[]),
       _auth.getUserName(),
@@ -59,7 +55,7 @@ class _HomePageState extends State<HomePage> {
     ]);
     if (!mounted) return;
 
-    final appointments = List<MyAppointmentItem>.from(results[5] as List);
+    final appointments = List<MyAppointmentItem>.from(results[4] as List);
     MyAppointmentItem? nearestUpcoming;
     if (appointments.isNotEmpty) {
       final upcoming = appointments.where((a) {
@@ -77,11 +73,10 @@ class _HomePageState extends State<HomePage> {
     }
 
     setState(() {
-      _doctors = List<DoctorModel>.from(results[0] as List);
-      _services = List<ServiceModel>.from(results[1] as List);
-      _posts = List<PostModel>.from(results[2] as List);
-      _userName = (results[3] as String?) ?? '';
-      _avatarUrl = results[4] as String?;
+      _services = List<ServiceModel>.from(results[0] as List);
+      _posts = List<PostModel>.from(results[1] as List);
+      _userName = (results[2] as String?) ?? '';
+      _avatarUrl = results[3] as String?;
       _upcomingAppointment = nearestUpcoming;
       _isLoading = false;
     });
@@ -133,28 +128,6 @@ class _HomePageState extends State<HomePage> {
                             item: _upcomingAppointment!,
                             onRefresh: _loadAll,
                           )),
-                const SizedBox(height: 26),
-
-                // Nha sĩ nổi bật
-                HomeSectionHeader(
-                  title: context.l10n('featured_dentists'),
-                  onSeeAll: () => context.push(AppRoutes.dentistsList),
-                ),
-                const SizedBox(height: 14),
-                _isLoading
-                    ? const _LoadingRow()
-                    : _doctors.isEmpty
-                        ? _EmptySection(message: context.l10n('load_doctors_failed'))
-                        : SizedBox(
-                            height: 150,
-                            child: ListView.separated(
-                              scrollDirection: Axis.horizontal,
-                              itemCount: _doctors.length > 4 ? 4 : _doctors.length,
-                              separatorBuilder: (_, _) => const SizedBox(width: 16),
-                              itemBuilder: (_, i) =>
-                                  DoctorAvatarCard(doctor: _doctors[i]),
-                            ),
-                          ),
                 const SizedBox(height: 26),
 
                  // Dịch vụ nổi bật

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
@@ -27,6 +28,7 @@ class ServiceCard extends StatelessWidget {
     final style = _styles[index % _styles.length];
     final gradientColors = style.$1;
     final icon = style.$2;
+    final hasCustomIcon = service.iconUrl != null && service.iconUrl!.isNotEmpty;
     final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     final quickInfo = '${service.durationText} â€¢ ${context.l10n('at_clinic')}';
 
@@ -56,15 +58,28 @@ class ServiceCard extends StatelessWidget {
               Container(
                 width: 48,
                 height: 48,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: gradientColors,
-                  ),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(icon, color: Colors.white, size: 22),
+                decoration: hasCustomIcon
+                    ? BoxDecoration(
+                        color: context.isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(14),
+                      )
+                    : BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: gradientColors,
+                        ),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                child: hasCustomIcon
+                    ? Padding(
+                        padding: const EdgeInsets.all(10),
+                        child: SvgPicture.network(
+                          service.iconUrl!,
+                          placeholderBuilder: (_) => const SizedBox(),
+                        ),
+                      )
+                    : Icon(icon, color: Colors.white, size: 22),
               ),
               SizedBox(width: 14),
               Expanded(

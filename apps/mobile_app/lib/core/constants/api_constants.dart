@@ -21,15 +21,21 @@ abstract class ApiConstants {
 
   static const String dentists = '/dentists';
   static const String dentistSlots = '/dentists/slots';
+  static String dentistDetail(String id) => '/dentists/$id';
+  static String dentistReviews(String id) => '/dentists/$id/reviews';
   static const String services = '/services';
   static const String posts = '/posts';
   static const String appointments = '/appointments';
   static const String myAppointments = '/appointments/my';
   static const String patientQueue = '/appointments/queue/patient';
   static const String medicalHistory = '/patients/my-medical-history';
+  static const String myMedicalHistoryRecords = '/appointments/my/medical-history';
+  static const String myTreatmentPlans = '/appointments/my/treatment-plans';
+  static const String myMedicationReminders = '/appointments/my/medication-reminders';
   static const String familyMembers = '/patients/family-members';
 
   static const String myInvoices = '/payments/invoices/my';
+  static const String myPaymentHistory = '/payments/invoices/my/history';
   static String paymentRequest(String invoiceId) =>
       '/payments/invoices/$invoiceId/request';
   static String paymentStatus(String invoiceId) =>

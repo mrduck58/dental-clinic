@@ -29,6 +29,6 @@ public class GetServicesHandler(IServiceRepository serviceRepository)
         return services.Select(s => new ServiceDto(
             s.Id, s.Name, s.Price,
             s.DurationMinutes, s.IsActive, s.Description,
-            s.ViewCount, s.ImageUrl, s.CreatedAt, s.UpdatedAt));
+            s.ViewCount, s.ImageUrl, s.IconUrl, s.CreatedAt, s.UpdatedAt));
     }
 }
