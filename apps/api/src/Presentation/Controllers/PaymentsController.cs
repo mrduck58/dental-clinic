@@ -31,6 +31,20 @@ public class PaymentsController(
         return Ok(result);
     }
 
+    /// <summary>GET api/payments/invoices/my/history — Hóa đơn đã thanh toán của bệnh nhân hiện tại (mobile app).</summary>
+    [HttpGet("invoices/my/history")]
+    [Authorize(Roles = "Patient")]
+    public async Task<IActionResult> GetMyPaymentHistory(CancellationToken cancellationToken)
+    {
+        var patient = currentUser.UserId is Guid userId
+            ? await patientRepository.GetByUserIdAsync(userId, cancellationToken)
+            : null;
+        if (patient is null) return Ok(new List<InvoiceDto>());
+
+        var result = await invoiceHandler.GetPaidByPatientAsync(patient.Id, cancellationToken);
+        return Ok(result);
+    }
+
     /// <summary>POST api/payments/invoices/{invoiceId}/request — Tạo yêu cầu thanh toán (link/QR) cho hóa đơn.</summary>
     [HttpPost("invoices/{invoiceId:guid}/request")]
     [Authorize(Roles = "Patient,Staff,Admin,Owner")]

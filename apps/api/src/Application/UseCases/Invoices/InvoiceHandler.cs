@@ -407,6 +407,17 @@ public class InvoiceHandler(
         return invoices.Select(ToDto).ToList();
     }
 
+    /// <summary>Hóa đơn đã thanh toán của một bệnh nhân cụ thể (mobile app — tab "Lịch sử giao dịch").</summary>
+    public async Task<List<InvoiceDto>> GetPaidByPatientAsync(Guid patientId, CancellationToken ct = default)
+    {
+        var invoices = await QueryWithDetails()
+            .Where(i => i.Status == PaymentStatus.Paid && i.Appointment.PatientId == patientId)
+            .OrderByDescending(i => i.PaymentDate)
+            .ToListAsync(ct);
+
+        return invoices.Select(ToDto).ToList();
+    }
+
     /// <summary>
     /// Tab "Công nợ": các hóa đơn chưa thu đủ — số tiền đã thu nhỏ hơn tổng tiền
     /// (hóa đơn đặt cọc còn dư nợ). Không tính hóa đơn đã hoàn tiền.

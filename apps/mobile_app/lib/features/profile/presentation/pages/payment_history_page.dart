@@ -22,11 +22,16 @@ class _PaymentHistoryPageState extends State<PaymentHistoryPage> with SingleTick
   bool _loading = true;
   String? _error;
 
+  List<MyInvoiceDto> _history = [];
+  bool _historyLoading = true;
+  String? _historyError;
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _load();
+    _loadHistory();
   }
 
   @override
@@ -54,6 +59,25 @@ class _PaymentHistoryPageState extends State<PaymentHistoryPage> with SingleTick
     }
   }
 
+  Future<void> _loadHistory() async {
+    setState(() {
+      _historyLoading = true;
+      _historyError = null;
+    });
+    try {
+      final history = await _service.getPaymentHistory();
+      setState(() {
+        _history = history;
+        _historyLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _historyError = 'Không thể tải lịch sử giao dịch. Vui lòng thử lại.';
+        _historyLoading = false;
+      });
+    }
+  }
+
   double _getOutstandingTotal() {
     return _invoices.fold(0.0, (sum, i) => sum + i.depositAmount);
   }
@@ -66,7 +90,10 @@ class _PaymentHistoryPageState extends State<PaymentHistoryPage> with SingleTick
 
   Future<void> _payNow(MyInvoiceDto item) async {
     final paid = await context.push<bool>(AppRoutes.paymentGatewaySelect, extra: item);
-    if (paid == true) _load();
+    if (paid == true) {
+      _load();
+      _loadHistory();
+    }
   }
 
   @override
@@ -142,17 +169,142 @@ class _PaymentHistoryPageState extends State<PaymentHistoryPage> with SingleTick
   }
 
   Widget _buildPaymentsTab(bool isVi) {
-    // Lịch sử giao dịch đã thanh toán chưa có endpoint riêng cho mobile — hiển thị placeholder.
+    if (_historyLoading) {
+      return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+    }
+    if (_historyError != null) {
+      return RefreshIndicator(
+        onRefresh: _loadHistory,
+        child: ListView(
+          children: [
+            const SizedBox(height: 80),
+            Icon(Icons.error_outline_rounded, color: Colors.orange[700], size: 48),
+            const SizedBox(height: 12),
+            Center(child: Text(_historyError!, style: TextStyle(color: context.textSecondary))),
+            const SizedBox(height: 12),
+            Center(
+              child: OutlinedButton(
+                onPressed: _loadHistory,
+                style: OutlinedButton.styleFrom(side: const BorderSide(color: AppColors.primary)),
+                child: Text(isVi ? 'Thử lại' : 'Retry', style: const TextStyle(color: AppColors.primary)),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     return RefreshIndicator(
-      onRefresh: _load,
+      onRefresh: _loadHistory,
       child: ListView(
         padding: const EdgeInsets.all(18),
         children: [
-          const SizedBox(height: 60),
-          Center(
-            child: Text(
-              isVi ? 'Chưa có lịch sử giao dịch.' : 'No transactions found.',
-              style: TextStyle(color: context.textSecondary),
+          if (_history.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 60),
+              child: Center(
+                child: Text(
+                  isVi ? 'Chưa có lịch sử giao dịch.' : 'No transactions found.',
+                  style: TextStyle(color: context.textSecondary),
+                ),
+              ),
+            )
+          else
+            ..._history.map((item) => _buildHistoryCard(item, isVi)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHistoryCard(MyInvoiceDto item, bool isVi) {
+    final date = item.paymentDate ?? item.createdAt;
+    final dateText = '${_formatMonth(date.month, isVi)} ${date.day}, ${date.year}';
+    final title = item.items.isNotEmpty
+        ? item.items.map((i) => i.name).join(', ')
+        : (isVi ? 'Hóa đơn điều trị' : 'Treatment invoice');
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: context.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: context.divider),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: context.isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  _formatMonth(date.month, isVi),
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: context.textSecondary),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${date.day}',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: context.textPrimary),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: context.textPrimary),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: context.isDark ? const Color(0xFF14532D) : const Color(0xFFDCFCE7),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        isVi ? 'ĐÃ THANH TOÁN' : 'PAID',
+                        style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Colors.green[800]),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Iconsax.receipt_1, size: 14, color: context.textSecondary),
+                        const SizedBox(width: 4),
+                        Text(
+                          item.invoiceNumber,
+                          style: TextStyle(fontSize: 13, color: context.textSecondary, fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      formatVnd(item.totalAmount),
+                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: context.textPrimary),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(dateText, style: TextStyle(fontSize: 11, color: context.textSecondary)),
+              ],
             ),
           ),
         ],
