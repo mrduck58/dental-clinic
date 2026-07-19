@@ -3,11 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/core/network/api_client.dart';
+import 'package:mobile_app/features/booking/data/booking_service.dart';
 import 'package:mobile_app/features/home/data/models/notification_models.dart';
 import 'package:mobile_app/features/home/data/notification_service.dart';
+import 'package:mobile_app/features/profile/data/medical_record_service.dart';
 import 'package:dio/dio.dart';
 
 /// Icon/màu hiển thị theo NotificationType từ backend (system/account/schedule/service/
@@ -89,6 +92,100 @@ class _NotificationsPageState extends State<NotificationsPage> {
       // Lỗi mạng khi đánh dấu đã đọc không đáng để rollback UI hay làm phiền người dùng
       // bằng thông báo lỗi — lần tải lại trang sau sẽ tự đồng bộ đúng trạng thái từ server.
     }
+  }
+
+  /// Điều hướng tới màn hình tương ứng với nội dung thông báo (RelatedEntityType do backend gắn
+  /// khi tạo thông báo — xem PROJECT.md mục "Notification triggers").
+  // Chặn double-tap: nếu không giữ trạng thái này, bấm nhanh 2 lần có thể push cùng 1 route
+  // 2 lần liên tiếp trước khi trang đầu kịp lên, gây lỗi Flutter "duplicate page key"
+  // (assertion trong navigator.dart). Chỉ mở khóa lại sau khi route đã push xong VÀ người
+  // dùng quay lại (await context.push hoàn thành khi route đó bị pop).
+  bool _isOpening = false;
+
+  Future<void> _openNotification(NotificationItem item) async {
+    if (_isOpening) return;
+    _isOpening = true;
+    unawaited(_markOneRead(item));
+    try {
+      switch (item.relatedEntityType) {
+        case 'Appointment':
+          await _navigateToAppointment(item.relatedEntityId);
+          break;
+        case 'Invoice':
+          if (mounted) await context.push(AppRoutes.paymentHistory);
+          break;
+        case 'Prescription':
+          // RelatedEntityId = AppointmentId (đơn thuốc gắn với 1 buổi khám cụ thể).
+          await _navigateToMedicalEvent(item.relatedEntityId, AppRoutes.prescriptionDetail);
+          break;
+        case 'TreatmentPlan':
+          // RelatedEntityId = TreatmentPlanId — cần tra ra AppointmentId của nó trước.
+          await _navigateToTreatmentPlan(item.relatedEntityId);
+          break;
+        default:
+          // Loại system/account/security... chưa có màn hình chi tiết tương ứng.
+          break;
+      }
+    } finally {
+      _isOpening = false;
+    }
+  }
+
+  bool _hasDestination(NotificationItem item) => const {
+        'Appointment',
+        'Invoice',
+        'Prescription',
+        'TreatmentPlan',
+      }.contains(item.relatedEntityType);
+
+  Future<void> _navigateToAppointment(String? appointmentId) async {
+    if (appointmentId != null) {
+      try {
+        final appointments = await BookingService().getMyAppointments();
+        final match = appointments.where((a) => a.appointmentId == appointmentId);
+        if (match.isNotEmpty) {
+          if (mounted) await context.push(AppRoutes.appointmentDetails, extra: match.first);
+          return;
+        }
+      } catch (_) {
+        // Không lấy được danh sách lịch hẹn (lỗi mạng) — vẫn đưa người dùng tới danh sách chung.
+      }
+    }
+    if (mounted) await context.push(AppRoutes.appointments);
+  }
+
+  /// Mở đúng buổi khám (dựa vào appointmentId) tại 1 route con cụ thể của trang chi tiết khám
+  /// (đơn thuốc/chẩn đoán/tái khám) — nếu không tìm thấy thì lùi về danh sách lịch sử khám chung.
+  Future<void> _navigateToMedicalEvent(String? appointmentId, String route) async {
+    if (appointmentId != null) {
+      try {
+        final history = await MedicalRecordService().getMyMedicalHistory();
+        final match = history.where((e) => e.appointmentId == appointmentId);
+        if (match.isNotEmpty) {
+          if (mounted) await context.push(route, extra: match.first);
+          return;
+        }
+      } catch (_) {
+        // Không lấy được lịch sử khám (lỗi mạng) — vẫn đưa người dùng tới danh sách chung.
+      }
+    }
+    if (mounted) await context.push(AppRoutes.medicalRecords);
+  }
+
+  Future<void> _navigateToTreatmentPlan(String? treatmentPlanId) async {
+    if (treatmentPlanId != null) {
+      try {
+        final plans = await MedicalRecordService().getMyTreatmentPlans();
+        final planMatch = plans.where((p) => p.id == treatmentPlanId);
+        if (planMatch.isNotEmpty && planMatch.first.appointmentId != null) {
+          await _navigateToMedicalEvent(planMatch.first.appointmentId, AppRoutes.treatmentPlan);
+          return;
+        }
+      } catch (_) {
+        // Không lấy được liệu trình (lỗi mạng) — vẫn đưa người dùng tới danh sách chung.
+      }
+    }
+    if (mounted) await context.push(AppRoutes.medicalRecords);
   }
 
   Future<void> _markAllRead() async {
@@ -412,7 +509,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                   child: Material(
                     color: Colors.transparent,
                     child: InkWell(
-                      onTap: () => unawaited(_markOneRead(item)),
+                      onTap: () => unawaited(_openNotification(item)),
                       child: Padding(
                         padding: const EdgeInsets.all(16.0),
                         child: Row(
@@ -467,13 +564,28 @@ class _NotificationsPageState extends State<NotificationsPage> {
                                     ),
                                   ),
                                   const SizedBox(height: 8),
-                                  Text(
-                                    _formatTime(item.createdAt, isVi ? 'vi' : 'en'),
-                                    style: TextStyle(
-                                      color: context.textMuted,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                                  Row(
+                                    children: [
+                                      Text(
+                                        _formatTime(item.createdAt, isVi ? 'vi' : 'en'),
+                                        style: TextStyle(
+                                          color: context.textMuted,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      if (_hasDestination(item)) ...[
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          isVi ? '· Xem chi tiết →' : '· View detail →',
+                                          style: const TextStyle(
+                                            color: AppColors.primary,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
                                   ),
                                 ],
                               ),
