@@ -95,8 +95,15 @@ class _AddMemberPageState extends State<AddMemberPage> {
       profilePictureUrl: 'assets/images/bac_si_4.png', // Default female avatar or placeholder
     );
 
-    await _familyService.addMember(newMember);
+    try {
+      await _familyService.addMember(newMember);
+    } catch (_) {
+      if (!mounted) return;
+      _showSnackbar('Không thể thêm thành viên. Vui lòng thử lại.');
+      return;
+    }
 
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Row(
