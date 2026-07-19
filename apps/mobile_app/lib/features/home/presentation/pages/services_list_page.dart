@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
@@ -267,6 +268,7 @@ class _ServicesListPageState extends State<ServicesListPage> {
   Widget _buildFeaturedServiceBanner(ServiceModel service) {
     final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     final cat = _getLocalizedCategoryName(_getServiceCategory(service), isVi).toUpperCase();
+    final hasCustomIcon = service.iconUrl != null && service.iconUrl!.isNotEmpty;
     final quickInfo = '${service.durationText} • ${isVi ? 'Tại phòng khám' : 'At Clinic'}';
 
     return GestureDetector(
@@ -326,11 +328,23 @@ class _ServicesListPageState extends State<ServicesListPage> {
                   Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        Iconsax.shield_tick,
-                        color: Colors.white,
-                        size: 44,
-                      ),
+                      if (hasCustomIcon)
+                        Container(
+                          width: 64,
+                          height: 64,
+                          padding: EdgeInsets.all(13),
+                          decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                          child: SvgPicture.network(
+                            service.iconUrl!,
+                            placeholderBuilder: (_) => const SizedBox(),
+                          ),
+                        )
+                      else
+                        Icon(
+                          Iconsax.shield_tick,
+                          color: Colors.white,
+                          size: 44,
+                        ),
                       SizedBox(height: 8),
                       Text(
                         context.l10n('featured_service_title'),

@@ -9,6 +9,7 @@ public record ServiceDto(
     string Description,
     int ViewCount,
     string? ImageUrl,
+    string? IconUrl,
     DateTimeOffset CreatedAt,
     DateTimeOffset? UpdatedAt);
 
@@ -17,11 +18,13 @@ public record CreateServiceRequest(
     decimal Price,
     int DurationMinutes,
     string Description,
-    string? ImageUrl);
+    string? ImageUrl,
+    string? IconUrl);
 
 public record UpdateServiceRequest(
     string Name,
     decimal Price,
     int DurationMinutes,
     string Description,
-    string? ImageUrl);
+    string? ImageUrl,
+    string? IconUrl);

@@ -54,6 +54,9 @@ dependencies:
   # Mở link thanh toán (checkout URL của PayOS) trong browser/app ví hệ thống
   url_launcher: ^6.3.1
 
+  # Render icon SVG (icon dịch vụ do admin upload) tải trực tiếp từ URL
+  flutter_svg: ^2.0.10+1
+
   # Đăng nhập Google (trực tiếp, không qua Firebase)
   google_sign_in: ^6.2.2
   # Render nút Google chính thức trên Web — bắt buộc để lấy idToken (Google chỉ cấp
