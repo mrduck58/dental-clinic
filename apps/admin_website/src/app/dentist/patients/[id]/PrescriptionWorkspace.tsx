@@ -83,6 +83,10 @@ export default function PrescriptionWorkspace({ appointmentId, editMode = false 
   const [duration, setDuration] = useState(DURATIONS[2]);
   const [quantity, setQuantity] = useState(1);
   const [note, setNote] = useState("");
+  // Dữ liệu có cấu trúc để sinh lịch nhắc uống thuốc thật trên mobile — tùy chọn,
+  // để trống nếu tần suất không theo lịch cố định (VD: "Khi đau").
+  const [timesPerDay, setTimesPerDay] = useState<number | "">(2);
+  const [durationDays, setDurationDays] = useState<number | "">(7);
   const [saving, setSaving] = useState(false);
 
   const canEdit = examination?.status === "InProgress" || editMode;
@@ -166,6 +170,8 @@ export default function PrescriptionWorkspace({ appointmentId, editMode = false 
         unit,
         usage: `${frequency}, ${duration}`,
         notes: note.trim() || undefined,
+        timesPerDay: timesPerDay === "" ? undefined : timesPerDay,
+        durationDays: durationDays === "" ? undefined : durationDays,
       });
       showToast("Đã thêm thuốc vào đơn");
       setCustomName("");
@@ -345,6 +351,11 @@ export default function PrescriptionWorkspace({ appointmentId, editMode = false 
                           {item.dosage} × {item.quantity} {item.unit} · {item.usage}
                         </div>
                         {item.notes && <div className="text-[11.5px] italic text-slate-400 mt-0.5">{item.notes}</div>}
+                        {item.timesPerDay != null && item.durationDays != null && (
+                          <div className="inline-block mt-1 text-[10.5px] font-bold text-violet-600 bg-violet-50 px-2 py-0.5 rounded-md">
+                            Nhắc lịch: {item.timesPerDay} lần/ngày × {item.durationDays} ngày
+                          </div>
+                        )}
                       </div>
                       {canEdit && (
                         <button
@@ -419,6 +430,32 @@ export default function PrescriptionWorkspace({ appointmentId, editMode = false 
                   <datalist id="rx-durations">{DURATIONS.map(d => <option key={d} value={d} />)}</datalist>
                 </div>
               </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className={labelCls}>Số lần/ngày (để nhắc lịch)</label>
+                  <input
+                    type="number" min={1} max={6} value={timesPerDay}
+                    onChange={e => setTimesPerDay(e.target.value === "" ? "" : Math.max(1, Number(e.target.value)))}
+                    disabled={!canEdit}
+                    placeholder="Để trống nếu không cố định"
+                    className={inputCls + " disabled:opacity-60"}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className={labelCls}>Số ngày dùng (để nhắc lịch)</label>
+                  <input
+                    type="number" min={1} value={durationDays}
+                    onChange={e => setDurationDays(e.target.value === "" ? "" : Math.max(1, Number(e.target.value)))}
+                    disabled={!canEdit}
+                    placeholder="Để trống nếu không cố định"
+                    className={inputCls + " disabled:opacity-60"}
+                  />
+                </div>
+              </div>
+              <p className="text-[10.5px] font-semibold text-slate-400 -mt-2">
+                Dùng để sinh lịch nhắc uống thuốc thật trên app bệnh nhân. Để trống nếu không theo lịch cố định (VD: &quot;Khi đau&quot;).
+              </p>
 
               <div className="flex flex-col gap-1.5">
                 <label className={labelCls}>Hướng dẫn sử dụng</label>
