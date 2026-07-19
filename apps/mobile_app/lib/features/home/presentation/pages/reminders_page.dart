@@ -3,30 +3,8 @@ import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
-
-class ReminderItem {
-  final String id;
-  final String title;
-  final String dosageVi;
-  final String dosageEn;
-  final String timeText;
-  final String typeText; // MORNING, AFTERNOON, EVENING
-  final IconData icon;
-  final Color iconBg;
-  String status; // 'completed', 'overdue', 'scheduled'
-
-  ReminderItem({
-    required this.id,
-    required this.title,
-    required this.dosageVi,
-    required this.dosageEn,
-    required this.timeText,
-    required this.typeText,
-    required this.icon,
-    required this.iconBg,
-    this.status = 'scheduled',
-  });
-}
+import 'package:mobile_app/features/home/data/medication_reminder_service.dart';
+import 'package:mobile_app/features/home/data/models/medication_reminder_model.dart';
 
 class RemindersPage extends StatefulWidget {
   const RemindersPage({super.key});
@@ -36,43 +14,67 @@ class RemindersPage extends StatefulWidget {
 }
 
 class _RemindersPageState extends State<RemindersPage> {
-  DateTime _selectedDate = DateTime(2024, 9, 13);
+  DateTime _selectedDate = DateTime.now();
+  List<MedicationReminder> _reminders = [];
+  final Map<String, bool> _taken = {};
+  bool _isLoading = true;
+  String? _error;
 
-  final List<ReminderItem> _reminders = [
-    ReminderItem(
-      id: 'r1',
-      title: 'Amoxicillin 500mg',
-      dosageVi: 'Uống 1 viên - Sau bữa sáng',
-      dosageEn: 'Take 1 pill - After breakfast',
-      timeText: '08:30 AM',
-      typeText: 'MORNING',
-      icon: Icons.local_pharmacy_outlined,
-      iconBg: const Color(0xFFFEE2E2),
-      status: 'completed',
-    ),
-    ReminderItem(
-      id: 'r2',
-      title: 'Chlorhexidine Mouthwash',
-      dosageVi: 'Súc miệng 10ml - Trong 30 giây',
-      dosageEn: 'Rinse 10ml - 30 seconds',
-      timeText: '01:30 PM',
-      typeText: 'AFTERNOON',
-      icon: Icons.local_activity_outlined,
-      iconBg: const Color(0xFFFEF3C7),
-      status: 'overdue',
-    ),
-    ReminderItem(
-      id: 'r3',
-      title: 'Ibuprofen 400mg',
-      dosageVi: 'Uống 1 viên - Nếu đau nhức',
-      dosageEn: 'Take 1 pill - If pain',
-      timeText: '08:30 PM',
-      typeText: 'EVENING',
-      icon: Icons.local_pharmacy_outlined,
-      iconBg: const Color(0xFFE0F2FE),
-      status: 'scheduled',
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  String _takenKey(MedicationReminder r) => '${r.prescriptionItemId}|${r.time}';
+
+  Future<void> _load() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final reminders = await MedicationReminderService().getReminders(_selectedDate);
+      final takenEntries = await Future.wait(reminders.map((r) async {
+        final taken = await ReminderTakenStore.isTaken(r.prescriptionItemId, _selectedDate, r.time);
+        return MapEntry(_takenKey(r), taken);
+      }));
+      if (!mounted) return;
+      setState(() {
+        _reminders = reminders;
+        _taken
+          ..clear()
+          ..addEntries(takenEntries);
+        _isLoading = false;
+      });
+    } catch (_) {
+      setState(() {
+        _error = 'load_failed';
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _markTaken(MedicationReminder r) async {
+    await ReminderTakenStore.setTaken(r.prescriptionItemId, _selectedDate, r.time, true);
+    if (!mounted) return;
+    setState(() => _taken[_takenKey(r)] = true);
+  }
+
+  bool _isSameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
+
+  /// 'completed' | 'overdue' | 'scheduled' — chỉ 'overdue' khi mốc giờ đã qua và chưa đánh dấu.
+  String _statusFor(MedicationReminder r) {
+    if (_taken[_takenKey(r)] == true) return 'completed';
+    final now = DateTime.now();
+    if (_selectedDate.isBefore(DateTime(now.year, now.month, now.day))) return 'overdue';
+    if (_isSameDay(_selectedDate, now)) {
+      final reminderMinutes = r.hour * 60 + (int.tryParse(r.time.split(':').last) ?? 0);
+      final nowMinutes = now.hour * 60 + now.minute;
+      return nowMinutes > reminderMinutes ? 'overdue' : 'scheduled';
+    }
+    return 'scheduled';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -97,7 +99,23 @@ class _RemindersPageState extends State<RemindersPage> {
         ),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        isVi ? 'Không thể tải lịch nhắc thuốc.' : 'Failed to load reminders.',
+                        style: TextStyle(color: context.textMuted),
+                      ),
+                      const SizedBox(height: 12),
+                      TextButton(onPressed: _load, child: Text(isVi ? 'Thử lại' : 'Retry')),
+                    ],
+                  ),
+                )
+              : SingleChildScrollView(
         padding: const EdgeInsets.all(18.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -107,7 +125,7 @@ class _RemindersPageState extends State<RemindersPage> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  isVi ? 'Tháng 9, 2024' : 'September 2024',
+                  _monthLabel(_selectedDate, isVi),
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w900,
@@ -119,51 +137,57 @@ class _RemindersPageState extends State<RemindersPage> {
             ),
             const SizedBox(height: 16),
 
-            // Horizontal Day Selector
             _buildDaySelector(isVi),
             const SizedBox(height: 28),
 
-            // Sections Morning, Afternoon, Evening
             _buildReminderSection('MORNING', isVi),
             const SizedBox(height: 20),
             _buildReminderSection('AFTERNOON', isVi),
             const SizedBox(height: 20),
             _buildReminderSection('EVENING', isVi),
-            const SizedBox(height: 28),
 
-            // Recovery Tip Card
-            _buildRecoveryTipCard(isVi),
+            if (_reminders.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 40),
+                child: Center(
+                  child: Text(
+                    isVi ? 'Không có thuốc cần uống vào ngày này.' : 'No medications scheduled for this day.',
+                    style: TextStyle(color: context.textMuted),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
     );
   }
 
+  String _monthLabel(DateTime date, bool isVi) {
+    if (isVi) return 'Tháng ${date.month}, ${date.year}';
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    return '${months[date.month - 1]} ${date.year}';
+  }
+
   Widget _buildDaySelector(bool isVi) {
-    final days = [
-      {'day': '11', 'weekVi': 'T2', 'weekEn': 'MON'},
-      {'day': '12', 'weekVi': 'T3', 'weekEn': 'TUE'},
-      {'day': '13', 'weekVi': 'T4', 'weekEn': 'WED'},
-      {'day': '14', 'weekVi': 'T5', 'weekEn': 'THU'},
-      {'day': '15', 'weekVi': 'T6', 'weekEn': 'FRI'},
-      {'day': '16', 'weekVi': 'T7', 'weekEn': 'SAT'},
-    ];
+    final monday = _selectedDate.subtract(Duration(days: _selectedDate.weekday - 1));
+    final days = List.generate(7, (i) => monday.add(Duration(days: i)));
+    const weekViLabels = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+    const weekEnLabels = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: days.map((d) {
-        final dayNum = int.parse(d['day']!);
-        final isSelected = _selectedDate.day == dayNum;
-        final weekText = isVi ? d['weekVi']! : d['weekEn']!;
+      children: List.generate(7, (i) {
+        final day = days[i];
+        final isSelected = _isSameDay(_selectedDate, day);
+        final weekText = isVi ? weekViLabels[i] : weekEnLabels[i];
 
         return GestureDetector(
           onTap: () {
-            setState(() {
-              _selectedDate = DateTime(2024, 9, dayNum);
-            });
+            setState(() => _selectedDate = day);
+            _load();
           },
           child: Container(
-            width: 52,
+            width: 46,
             padding: const EdgeInsets.symmetric(vertical: 12),
             decoration: BoxDecoration(
               color: isSelected ? AppColors.primary : context.card,
@@ -191,7 +215,7 @@ class _RemindersPageState extends State<RemindersPage> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  d['day']!,
+                  '${day.day}',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w900,
@@ -202,52 +226,71 @@ class _RemindersPageState extends State<RemindersPage> {
             ),
           ),
         );
-      }).toList(),
+      }),
     );
   }
 
   Widget _buildReminderSection(String type, bool isVi) {
-    final list = _reminders.where((r) => r.typeText == type).toList();
+    final list = _reminders.where((r) {
+      if (type == 'MORNING') return r.hour < 12;
+      if (type == 'AFTERNOON') return r.hour >= 12 && r.hour < 18;
+      return r.hour >= 18;
+    }).toList()
+      ..sort((a, b) => a.time.compareTo(b.time));
     if (list.isEmpty) return const SizedBox.shrink();
 
-    String sectionTitle;
-    if (type == 'MORNING') {
-      sectionTitle = isVi ? 'BUỔI SÁNG - 08:30' : 'MORNING - 08:30 AM';
-    } else if (type == 'AFTERNOON') {
-      sectionTitle = isVi ? 'BUỔI CHIỀU - 13:30' : 'AFTERNOON - 01:30 PM';
-    } else {
-      sectionTitle = isVi ? 'BUỔI TỐI - 20:30' : 'EVENING - 08:30 PM';
-    }
+    final sectionTitle = switch (type) {
+      'MORNING' => isVi ? 'BUỔI SÁNG' : 'MORNING',
+      'AFTERNOON' => isVi ? 'BUỔI CHIỀU' : 'AFTERNOON',
+      _ => isVi ? 'BUỔI TỐI' : 'EVENING',
+    };
+    // Icon + màu riêng cho từng buổi — dễ quét mắt hơn là chỉ đọc chữ "SÁNG/CHIỀU/TỐI".
+    final (sectionIcon, sectionColor) = switch (type) {
+      'MORNING' => (Icons.wb_twilight_rounded, AppColors.accent),
+      'AFTERNOON' => (Icons.wb_sunny_rounded, AppColors.accent),
+      _ => (Icons.nights_stay_rounded, const Color(0xFF6366F1)),
+    };
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              width: 6,
-              height: 6,
-              decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              sectionTitle.toUpperCase(),
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                color: context.textSecondary,
-                letterSpacing: 0.5,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 24,
+                height: 24,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: sectionColor.withValues(alpha: context.isDark ? 0.22 : 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(sectionIcon, size: 14, color: sectionColor),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        ...list.map((item) => _buildReminderCard(item, isVi)),
-      ],
+              const SizedBox(width: 8),
+              Text(
+                sectionTitle,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  color: context.textSecondary,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ...list.map((item) => _buildReminderCard(item, isVi)),
+        ],
+      ),
     );
   }
 
-  Widget _buildReminderCard(ReminderItem item, bool isVi) {
+  Widget _buildReminderCard(MedicationReminder item, bool isVi) {
+    final status = _statusFor(item);
+    final subtitle = item.usage.isNotEmpty ? '${item.dosage} · ${item.usage}' : item.dosage;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -262,18 +305,16 @@ class _RemindersPageState extends State<RemindersPage> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Icon Box
               Container(
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: item.iconBg,
+                  color: context.isDark ? AppColors.primary.withValues(alpha: 0.15) : AppColors.primaryLight,
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(item.icon, color: AppColors.primary, size: 22),
+                child: const Icon(Icons.local_pharmacy_outlined, color: AppColors.primary, size: 22),
               ),
               const SizedBox(width: 14),
-              // Details
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -283,7 +324,7 @@ class _RemindersPageState extends State<RemindersPage> {
                       children: [
                         Expanded(
                           child: Text(
-                            item.title,
+                            item.medicineName,
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w800,
@@ -291,18 +332,21 @@ class _RemindersPageState extends State<RemindersPage> {
                             ),
                           ),
                         ),
-                        // Status Badge
-                        _buildStatusBadge(item.status, isVi),
+                        _buildStatusBadge(status, isVi),
                       ],
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      isVi ? item.dosageVi : item.dosageEn,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: context.textSecondary,
-                      ),
+                      subtitle,
+                      style: TextStyle(fontSize: 13, color: context.textSecondary),
                     ),
+                    if (item.patientRelationship != 'Tôi') ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        '${isVi ? 'Cho' : 'For'}: ${item.patientName}',
+                        style: TextStyle(fontSize: 11.5, color: context.textMuted, fontWeight: FontWeight.w600),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -311,8 +355,7 @@ class _RemindersPageState extends State<RemindersPage> {
           const SizedBox(height: 14),
           Divider(color: context.divider, height: 1),
           const SizedBox(height: 12),
-          // Action buttons depending on status
-          _buildActionButtons(item, isVi),
+          _buildActionButtons(item, status, isVi),
         ],
       ),
     );
@@ -339,155 +382,39 @@ class _RemindersPageState extends State<RemindersPage> {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 9,
-          fontWeight: FontWeight.w900,
-          color: text,
-        ),
-      ),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(6)),
+      child: Text(label, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: text)),
     );
   }
 
-  Widget _buildActionButtons(ReminderItem item, bool isVi) {
-    if (item.status == 'completed') {
+  Widget _buildActionButtons(MedicationReminder item, String status, bool isVi) {
+    if (status == 'completed') {
       return Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 16),
           const SizedBox(width: 6),
           Text(
-            isVi ? 'Đã uống thuốc lúc ' : 'Taken at ',
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF10B981),
-            ),
-          ),
-          Text(
-            item.timeText,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w900,
-              color: Color(0xFF10B981),
-            ),
+            isVi ? 'Đã uống thuốc lúc ${item.time}' : 'Taken at ${item.time}',
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF10B981)),
           ),
         ],
-      );
-    } else if (item.status == 'overdue') {
-      return Row(
-        children: [
-          Expanded(
-            child: OutlinedButton(
-              onPressed: () {
-                setState(() => item.status = 'completed');
-              },
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: AppColors.primary, width: 1.5),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                foregroundColor: AppColors.primary,
-              ),
-              child: Text(
-                isVi ? 'UỐNG LÚC 12:30' : 'TAKE AT 12:30 PM',
-                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: TextButton(
-              onPressed: () {
-                setState(() => item.status = 'scheduled');
-              },
-              style: TextButton.styleFrom(
-                foregroundColor: context.textSecondary,
-              ),
-              child: Text(
-                isVi ? 'Bỏ qua' : 'Dismiss',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-              ),
-            ),
-          ),
-        ],
-      );
-    } else {
-      return SizedBox(
-        width: double.infinity,
-        height: 38,
-        child: ElevatedButton(
-          onPressed: () {
-            setState(() => item.status = 'completed');
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primary,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-          child: Text(
-            isVi ? 'ĐÁNH DẤU ĐÃ UỐNG' : 'MARK AS TAKEN',
-            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
-          ),
-        ),
       );
     }
-  }
-
-  Widget _buildRecoveryTipCard(bool isVi) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: context.isDark ? const Color(0xFF321E1E) : const Color(0xFFFFF1F2),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: context.isDark ? Colors.transparent : const Color(0xFFFECDD3)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: const BoxDecoration(
-              color: AppColors.primary,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.add_rounded,
-              color: Colors.white,
-              size: 18,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  isVi ? 'Lời khuyên phục hồi' : 'Recovery Tip',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: context.isDark ? Colors.white : const Color(0xFF9F1239),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  isVi
-                      ? 'Hãy cắn chặt miếng bông gòn trong miệng của bạn trong 30 phút đầu tiên để tạo cục máu đông và ngưng chảy máu hoàn toàn.'
-                      : 'Keep the cotton pad in your mouth for the first 30 mins to facilitate blood clot and completely stop bleeding.',
-                  style: TextStyle(
-                    fontSize: 13,
-                    height: 1.5,
-                    color: context.isDark ? const Color(0xFFFDA4AF) : const Color(0xFFBE123C),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+    return SizedBox(
+      width: double.infinity,
+      height: 38,
+      child: ElevatedButton(
+        onPressed: () => _markTaken(item),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: status == 'overdue' ? const Color(0xFFD97706) : AppColors.primary,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+        child: Text(
+          isVi ? 'ĐÁNH DẤU ĐÃ UỐNG' : 'MARK AS TAKEN',
+          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
+        ),
       ),
     );
   }
