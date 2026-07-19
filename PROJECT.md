@@ -1,6 +1,6 @@
 # DentalClinic — Project Overview
 > Fast-load context doc. Read this before starting a Claude session.
-> Updated: 2026-06-30 | Active branch: `feature/135-activity-logs-api`
+> Updated: 2026-07-19 | Active branch: `feature/mobile-app`
 
 ---
 
@@ -211,6 +211,72 @@ Covered: login, account CRUD, appointment transitions, medicine, inventory, leav
 | `Application.Tests/LeaveRequests/CreateLeaveRequestHandlerTests.cs` | 7 | Fixed constructor (added `INotificationService`, `IUserRepository`); added 2 notification tests |
 | `Application.Tests/Appointments/UpdateAppointmentStatusHandlerTests.cs` | existing+3 | Fixed constructor (added `INotificationService`); added dentist-notify tests for Confirm/Cancel/CheckIn |
 | `Application.Tests/Appointments/CreateAppointmentHandlerTests.cs` | 7 | New file; tests patient creation, slot conflict, dentist notify, staff notify |
+
+---
+
+## Feature — Mobile App: Replace Mock Data with Real API (branch `feature/mobile-app`, 2026-07-19)
+
+Full audit + fix of every mobile app screen still using static/mock data instead of real API calls.
+Split into "Nhóm A" (backend already existed or needed only a light addition) and "Nhóm B" (needed
+new entities/migrations). Both done this session; session stopped before the last Nhóm B item
+(user session/device management — not started).
+
+### Nhóm A — wired to existing/lightly-extended backend
+- **Dentist directory** (`dentists_list_page.dart`): was `BookingMockData.doctors` (hardcoded 4
+  doctors) → now `HomeService.getDentists()`. Fixed a latent bug: the page navigated to
+  `bookingSelectPatient` passing a raw `DoctorInfo` as `extra`, but that route casts
+  `state.extra as BookingDraft?` — would have crashed at runtime. Now routes to `dentistProfile`.
+- **Family member last-visit date** (`family_members_page.dart`): was a hardcoded `switch` on member
+  id → now derived from real `BookingService.getMyAppointments()` (latest `Completed`/`PendingPayment`
+  per patientId). Also fixed two latent bugs found in `family_member.dart`'s `FamilyService`: (1) 3
+  hardcoded fallback members ("Sarah/Emily/Leo Johnson") were shown silently whenever the server call
+  failed; (2) `addMember`/`updateMember`/`removeMember` swallowed all errors and the UI always showed
+  a success toast regardless of whether the API call actually succeeded.
+- **Payment history** — Payments tab (`payment_history_page.dart`) was an explicit empty placeholder.
+  Added `InvoiceHandler.GetPaidByPatientAsync` + `GET /payments/invoices/my/history` (mirrors the
+  existing unpaid-invoices endpoint), wired the tab to it.
+- **Medical history / prescriptions / treatment plan** — the biggest item. Added
+  `GET /appointments/my/medical-history` and `GET /appointments/my/treatment-plans` (Patient-role,
+  ownership-checked, self + family). Rewired `examine_history_page`, `examination_detail_page`
+  (fixed a bug where "View Treatment Plan" always opened a random hardcoded mock plan regardless of
+  which exam was open), `treatment_plan_page`, `phase_detail_page`, `prescription_detail_page`,
+  `medicine_detail_page`. Removed fabricated content with **no real data source at all** rather than
+  leaving it in: fake vitals (weight/blood pressure/blood type), fake X-ray thumbnails, fake symptom
+  checklists, fake before/after treatment images, fake medicine side-effects/components — these are
+  a patient-safety concern, not just "not wired to API yet". Deleted the now-fully-dead
+  `medical_record_mock.dart` and `BookingMockData` class.
+
+### Nhóm B — new entities/migrations
+- **Dentist reviews**: new `DentistReview` entity (see `docs/database.md`), `GET/POST
+  /dentists/{id}/reviews`, `GET /dentists/{id}` (adds real `patientCount`). Rewired
+  `review_service.dart` (was an in-memory singleton with hardcoded seed reviews),
+  `dentist_profile_page`, `dentist_reviews_page`, `write_review_page`, `search_page`. Removed
+  per-dentist fabricated badges/awards/work-experience timeline (identical fake data for every
+  dentist); replaced the fake "98% Recommend" stat with one computed from real ratings (≥4★ ratio).
+- **Medication reminders**: added `TimesPerDay`/`DurationDays`/`StartDate` to `PrescriptionItem`
+  (see `docs/database.md`), new `GET /appointments/my/medication-reminders?date=`. Updated the
+  dentist-side prescribing form (`apps/admin_website/.../PrescriptionWorkspace.tsx`) with 2 new
+  optional number inputs so this data actually gets populated. Rewired `reminders_page.dart`: real
+  current date (was hardcoded `DateTime(2024, 9, 13)`), real week/day selector, "taken" state
+  persisted locally per-device via `SharedPreferences` (`ReminderTakenStore`) since there's no
+  backend concept of reminder-taken state. Removed the hardcoded "Recovery Tip" card (generic advice
+  not tied to any real procedure/data).
+
+### Not done this session
+- **User session/device management** (`security_page.dart`) — still fully mocked (hardcoded session
+  count + device list, "logout" buttons are no-ops). Would need a new `RefreshToken`/`UserSession`
+  entity and touches the existing auth/JWT flow — flagged as the highest-risk remaining item, not
+  started.
+
+### ⚠️ Operational note: `dotnet ef database update <target>`
+The dev DB (`appsettings.Development.json` → Supabase Postgres, shared, not a disposable local DB)
+got accidentally rolled back 8 migrations mid-session by running `database update` with a stale
+migration name as the target instead of the migration immediately before the one being reverted.
+Fixed immediately by re-running `database update` with no target (reapplies everything back to
+latest) — schema was fully restored, and in this case no real data existed yet in the affected
+columns/tables, but **always run `dotnet ef migrations list` right before `database update <target>`
+and confirm the target is the exact migration you mean** — an old target silently reverts everything
+after it, not just the one migration you're trying to undo.
 
 ---
 
