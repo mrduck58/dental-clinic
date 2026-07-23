@@ -190,6 +190,8 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<GetStaffScheduleHandler>();
         services.AddScoped<CreateWalkInAppointmentHandler>();
         services.AddScoped<SummarizePatientHistoryHandler>();
+        services.AddScoped<SuggestTreatmentHandler>();
+        services.AddScoped<SuggestPrescriptionHandler>();
 
         services.AddScoped<GetRoomsHandler>();
         services.AddScoped<GetRoomByIdHandler>();

@@ -30,6 +30,8 @@ public class AppointmentsController(
     GetStaffScheduleHandler staffScheduleHandler,
     CreateWalkInAppointmentHandler createWalkInHandler,
     SummarizePatientHistoryHandler summarizePatientHistoryHandler,
+    SuggestTreatmentHandler suggestTreatmentHandler,
+    SuggestPrescriptionHandler suggestPrescriptionHandler,
     GetPatientQueueHandler getPatientQueueHandler,
     GetMedicationRemindersHandler getMedicationRemindersHandler) : ControllerBase
 {
@@ -163,6 +165,26 @@ public class AppointmentsController(
         Guid id, [FromQuery] bool force, CancellationToken cancellationToken)
     {
         var result = await summarizePatientHistoryHandler.HandleAsync(id, force, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>GET api/appointments/{id}/treatment-suggestion — Gợi ý hướng điều trị bằng AI dựa trên
+    /// phiếu khám đã lưu của buổi khám này + lịch sử khám trước đây (Dentist). Cần lưu phiếu khám trước.</summary>
+    [HttpGet("{id}/treatment-suggestion")]
+    [Authorize(Roles = "Dentist")]
+    public async Task<IActionResult> GetTreatmentSuggestion(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await suggestTreatmentHandler.HandleAsync(id, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>GET api/appointments/{id}/prescription-suggestion — Gợi ý đơn thuốc bằng AI dựa trên
+    /// chẩn đoán + liệu trình điều trị của buổi khám này (Dentist). Cần lưu phiếu khám trước.</summary>
+    [HttpGet("{id}/prescription-suggestion")]
+    [Authorize(Roles = "Dentist")]
+    public async Task<IActionResult> GetPrescriptionSuggestion(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await suggestPrescriptionHandler.HandleAsync(id, cancellationToken);
         return Ok(result);
     }
 

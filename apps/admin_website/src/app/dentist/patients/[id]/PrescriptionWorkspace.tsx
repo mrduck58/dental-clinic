@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import AiSummaryText from "../../../../components/shared/AiSummaryText";
 import {
   getExaminationApi,
   getPatientTreatmentPlansApi,
@@ -8,10 +9,12 @@ import {
   createPrescriptionApi,
   addPrescriptionItemApi,
   deletePrescriptionItemApi,
+  getPrescriptionSuggestionApi,
   type ExaminationDto,
   type TreatmentPlanDto,
   type MedicineDto,
   type PrescriptionDto,
+  type PrescriptionSuggestionDto,
 } from "../../../../lib/apiClient";
 
 interface PrescriptionWorkspaceProps {
@@ -88,6 +91,25 @@ export default function PrescriptionWorkspace({ appointmentId, editMode = false 
   const [timesPerDay, setTimesPerDay] = useState<number | "">(2);
   const [durationDays, setDurationDays] = useState<number | "">(7);
   const [saving, setSaving] = useState(false);
+
+  // Gợi ý đơn thuốc bằng AI — dựa trên chẩn đoán + liệu trình điều trị của buổi khám này.
+  // Không cache: bác sĩ có thể thêm/xóa thuốc liên tục, mỗi lần bấm tạo lại theo dữ liệu mới nhất.
+  const [rxSuggestion, setRxSuggestion] = useState<PrescriptionSuggestionDto | null>(null);
+  const [rxSuggestionLoading, setRxSuggestionLoading] = useState(false);
+  const [rxSuggestionError, setRxSuggestionError] = useState<string | null>(null);
+
+  const loadRxSuggestion = useCallback(async () => {
+    setRxSuggestionLoading(true);
+    setRxSuggestionError(null);
+    try {
+      const data = await getPrescriptionSuggestionApi(appointmentId);
+      setRxSuggestion(data);
+    } catch (err) {
+      setRxSuggestionError(err instanceof Error ? err.message : "Không thể tạo gợi ý đơn thuốc");
+    } finally {
+      setRxSuggestionLoading(false);
+    }
+  }, [appointmentId]);
 
   const canEdit = examination?.status === "InProgress" || editMode;
 
@@ -317,6 +339,64 @@ export default function PrescriptionWorkspace({ appointmentId, editMode = false 
                       <span className="text-[13px] font-semibold text-slate-600">{row.dentistName}</span>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Gợi ý đơn thuốc bằng AI */}
+          <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
+            <CardHeader
+              color="text-emerald-600"
+              title="Gợi ý đơn thuốc"
+              icon="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18"
+              action={
+                examination.diagnoses.length > 0 ? (
+                  <button
+                    onClick={() => void loadRxSuggestion()}
+                    disabled={rxSuggestionLoading}
+                    className={rxSuggestion
+                      ? "px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-[11.5px] font-bold hover:bg-slate-50 disabled:opacity-50 transition-all cursor-pointer"
+                      : "px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-[11.5px] font-bold hover:opacity-90 disabled:opacity-50 transition-all cursor-pointer"}
+                  >
+                    {rxSuggestionLoading ? "Đang tạo..." : rxSuggestion ? "Làm mới" : "Tạo gợi ý"}
+                  </button>
+                ) : undefined
+              }
+            />
+            <div className="px-5 py-4 max-h-[300px] overflow-y-auto">
+              {examination.diagnoses.length === 0 && (
+                <span className="text-[12.5px] text-slate-400">
+                  Cần lưu phiếu khám ở tab Chẩn đoán trước để tạo gợi ý đơn thuốc.
+                </span>
+              )}
+              {examination.diagnoses.length > 0 && rxSuggestionLoading && (
+                <div className="flex items-center justify-center py-6">
+                  <div className="w-5 h-5 border-2 border-slate-200 border-t-emerald-600 rounded-full animate-spin" />
+                </div>
+              )}
+              {examination.diagnoses.length > 0 && !rxSuggestionLoading && rxSuggestionError && (
+                <div className="flex flex-col gap-2">
+                  <span className="text-[12.5px] font-semibold text-red-600">{rxSuggestionError}</span>
+                  <button
+                    onClick={() => void loadRxSuggestion()}
+                    className="self-start text-[12px] font-bold text-primary hover:underline cursor-pointer"
+                  >
+                    Thử lại
+                  </button>
+                </div>
+              )}
+              {examination.diagnoses.length > 0 && !rxSuggestionLoading && !rxSuggestionError && !rxSuggestion && (
+                <span className="text-[12.5px] text-slate-400">
+                  Dựa trên chẩn đoán và liệu trình điều trị để gợi ý tên thuốc/liều dùng phù hợp, hỗ trợ bác sĩ tham khảo khi kê đơn.
+                </span>
+              )}
+              {!rxSuggestionLoading && rxSuggestion && (
+                <div className="flex flex-col gap-3">
+                  <AiSummaryText text={rxSuggestion.suggestion} />
+                  <div className="px-3 py-2 rounded-lg bg-amber-50 border border-amber-200">
+                    <span className="text-[11px] font-semibold text-amber-700 leading-snug">{rxSuggestion.disclaimer}</span>
+                  </div>
                 </div>
               )}
             </div>

@@ -2053,6 +2053,40 @@ export async function getPatientAiSummaryApi(
   return res.json() as Promise<PatientHistorySummaryDto>;
 }
 
+export interface TreatmentSuggestionDto {
+  suggestion: string;
+  disclaimer: string;
+}
+
+export async function getTreatmentSuggestionApi(appointmentId: string): Promise<TreatmentSuggestionDto> {
+  const res = await fetch(`${API_URL}/api/appointments/${appointmentId}/treatment-suggestion`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tạo gợi ý điều trị");
+  }
+  return res.json() as Promise<TreatmentSuggestionDto>;
+}
+
+export interface PrescriptionSuggestionDto {
+  suggestion: string;
+  disclaimer: string;
+}
+
+export async function getPrescriptionSuggestionApi(appointmentId: string): Promise<PrescriptionSuggestionDto> {
+  const res = await fetch(`${API_URL}/api/appointments/${appointmentId}/prescription-suggestion`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tạo gợi ý đơn thuốc");
+  }
+  return res.json() as Promise<PrescriptionSuggestionDto>;
+}
+
 // Diagnosis APIs
 /** Các trường của phiếu khám răng miệng — dùng chung cho tạo mới và cập nhật. */
 export interface DiagnosisFields {
