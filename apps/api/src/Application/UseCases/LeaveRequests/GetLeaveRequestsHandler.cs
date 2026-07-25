@@ -31,8 +31,8 @@ public class GetLeaveRequestsHandler(ILeaveRequestRepository leaveRequestReposit
     internal static LeaveRequestDto ToDto(LeaveRequest r) => new(
         r.Id,
         r.UserId,
-        r.User.FullName ?? r.User.Email,
-        r.User.Department,
+        !string.IsNullOrWhiteSpace(r.User.FullName) ? r.User.FullName : (r.User.Email ?? string.Empty),
+        r.User.Role == "Dentist" || r.User.Role == "Doctor" ? r.User.Dentist?.Department : r.User.Staff?.Department,
         r.LeaveType.ToString(),
         r.StartDate,
         r.EndDate,

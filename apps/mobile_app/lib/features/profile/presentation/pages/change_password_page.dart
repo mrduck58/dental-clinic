@@ -243,26 +243,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      isVi ? 'Cập nhật thông tin đăng nhập' : 'Update login credentials',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        color: context.textPrimary,
-                      ),
-                    ),
-                    SizedBox(height: 6),
-                    Text(
-                      isVi 
-                          ? 'Đảm bảo tài khoản của bạn được bảo mật bằng một mật khẩu mạnh.'
-                          : 'Ensure your account is secured with a strong password.',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: context.textSecondary,
-                        height: 1.4,
-                      ),
-                    ),
-                    SizedBox(height: 24),
+
 
                     // Secure Protection Card
                     Container(
@@ -548,4 +529,3 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     );
   }
 }
-

@@ -90,4 +90,58 @@ public class GetMedicinesHandlerTests
 
         result.Should().HaveCount(2);
     }
+
+    /// <summary>
+    /// Chuỗi tìm kiếm rỗng phải được xem như không có filter, trả về toàn bộ danh sách.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_EmptySearch_ReturnsAll()
+    {
+        _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<Medicine>
+        {
+            Medicine.Create("Amoxicillin", "Amoxicillin", "GSK", "Viên", "Kháng sinh"),
+            Medicine.Create("Paracetamol", "Paracetamol", "Pharma", "Viên", "Hạ sốt"),
+        });
+        var handler = new GetMedicinesHandler(_repo);
+
+        var result = await handler.HandleAsync(search: "");
+
+        result.Should().HaveCount(2);
+    }
+
+    /// <summary>
+    /// Chuỗi tìm kiếm chỉ gồm khoảng trắng phải được xem như không có filter, trả về toàn bộ danh sách.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_WhitespaceSearch_ReturnsAll()
+    {
+        _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<Medicine>
+        {
+            Medicine.Create("Amoxicillin", "Amoxicillin", "GSK", "Viên", "Kháng sinh"),
+            Medicine.Create("Paracetamol", "Paracetamol", "Pharma", "Viên", "Hạ sốt"),
+        });
+        var handler = new GetMedicinesHandler(_repo);
+
+        var result = await handler.HandleAsync(search: "   ");
+
+        result.Should().HaveCount(2);
+    }
+
+    /// <summary>
+    /// Tìm kiếm không khớp thuốc nào phải trả về danh sách rỗng, không lỗi.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_SearchNoMatch_ReturnsEmpty()
+    {
+        _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<Medicine>
+        {
+            Medicine.Create("Amoxicillin", "Amoxicillin", "GSK", "Viên", "Kháng sinh"),
+            Medicine.Create("Paracetamol", "Paracetamol", "Pharma", "Viên", "Hạ sốt"),
+        });
+        var handler = new GetMedicinesHandler(_repo);
+
+        var result = await handler.HandleAsync(search: "khôngtồntại");
+
+        result.Should().BeEmpty();
+    }
 }

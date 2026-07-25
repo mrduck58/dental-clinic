@@ -4,6 +4,7 @@ using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Domain.Interfaces.Services;
 using FluentAssertions;
 using NSubstitute;
 using NUnit.Framework;
@@ -14,9 +15,18 @@ namespace DentalClinic.API.Application.Tests.LeaveRequests;
 public class RejectLeaveRequestHandlerTests
 {
     private ILeaveRequestRepository _repo = null!;
+    private IActivityLogService _activityLog = null!;
+    private INotificationService _notification = null!;
+    private ICurrentUserService _currentUser = null!;
 
     [SetUp]
-    public void SetUp() => _repo = Substitute.For<ILeaveRequestRepository>();
+    public void SetUp()
+    {
+        _repo = Substitute.For<ILeaveRequestRepository>();
+        _activityLog = Substitute.For<IActivityLogService>();
+        _notification = Substitute.For<INotificationService>();
+        _currentUser = Substitute.For<ICurrentUserService>();
+    }
 
     /// <summary>
     /// Từ chối đơn Pending phải lưu reviewer note và trả về status Rejected.
@@ -26,7 +36,7 @@ public class RejectLeaveRequestHandlerTests
     {
         var lr = MakeRequest();
         _repo.GetByIdAsync(lr.Id, Arg.Any<CancellationToken>()).Returns(lr);
-        var handler = new RejectLeaveRequestHandler(_repo);
+        var handler = new RejectLeaveRequestHandler(_repo, _activityLog, _notification, _currentUser);
 
         var result = await handler.HandleAsync(lr.Id, new RejectLeaveRequestRequest("Không đủ điều kiện"));
 
@@ -41,7 +51,7 @@ public class RejectLeaveRequestHandlerTests
     public async Task HandleAsync_NotFound_ThrowsNotFoundException()
     {
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((LeaveRequest?)null);
-        var handler = new RejectLeaveRequestHandler(_repo);
+        var handler = new RejectLeaveRequestHandler(_repo, _activityLog, _notification, _currentUser);
 
         Func<Task> act = () => handler.HandleAsync(Guid.NewGuid(), new RejectLeaveRequestRequest(null));
 
@@ -57,11 +67,46 @@ public class RejectLeaveRequestHandlerTests
         var lr = MakeRequest();
         lr.Reject(null);
         _repo.GetByIdAsync(lr.Id, Arg.Any<CancellationToken>()).Returns(lr);
-        var handler = new RejectLeaveRequestHandler(_repo);
+        var handler = new RejectLeaveRequestHandler(_repo, _activityLog, _notification, _currentUser);
 
         Func<Task> act = () => handler.HandleAsync(lr.Id, new RejectLeaveRequestRequest(null));
 
         await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    /// <summary>
+    /// Từ chối đơn đã được duyệt (Approved) phải ném ValidationException,
+    /// không cho phép từ chối đơn đã xử lý xong theo chiều ngược lại.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_ApprovedRequest_ThrowsValidationException()
+    {
+        var lr = MakeRequest();
+        lr.Approve();
+        _repo.GetByIdAsync(lr.Id, Arg.Any<CancellationToken>()).Returns(lr);
+        var handler = new RejectLeaveRequestHandler(_repo, _activityLog, _notification, _currentUser);
+
+        Func<Task> act = () => handler.HandleAsync(lr.Id, new RejectLeaveRequestRequest(null));
+
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    /// <summary>
+    /// Từ chối với ReviewerNote null/rỗng thì nội dung thông báo không được chứa
+    /// phần "Lý do:" (nhánh string.IsNullOrWhiteSpace trong body thông báo).
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_NullReviewerNote_NotificationBodyExcludesReasonSegment()
+    {
+        var lr = MakeRequest();
+        _repo.GetByIdAsync(lr.Id, Arg.Any<CancellationToken>()).Returns(lr);
+        var handler = new RejectLeaveRequestHandler(_repo, _activityLog, _notification, _currentUser);
+
+        await handler.HandleAsync(lr.Id, new RejectLeaveRequestRequest(null));
+
+        await _notification.Received(1).CreateAsync(
+            Arg.Is<CreateNotificationRequest>(n => !n.Body.Contains("Lý do:")),
+            Arg.Any<CancellationToken>());
     }
 
     private static LeaveRequest MakeRequest()

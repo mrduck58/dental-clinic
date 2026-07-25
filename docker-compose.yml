@@ -35,6 +35,10 @@ services:
       - JwtSettings__Secret=${JWT_SECRET}
       - Supabase__Url=${SUPABASE_URL}
       - Supabase__AnonKey=${SUPABASE_ANON_KEY}
+      - PayOSSettings__ClientId=${PAYOS_CLIENT_ID}
+      - PayOSSettings__ApiKey=${PAYOS_API_KEY}
+      - PayOSSettings__ChecksumKey=${PAYOS_CHECKSUM_KEY}
+      - GoogleAuthSettings__ClientId=${GOOGLE_CLIENT_ID}
     expose:
       - "8080"
     networks:

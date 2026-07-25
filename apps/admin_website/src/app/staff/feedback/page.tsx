@@ -1,160 +1,602 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import StaffSidebar from "../../../components/shared/StaffSidebar";
 import StaffPageHeader from "../../../components/shared/StaffPageHeader";
 import { useRequireStaff } from "../../../hooks/useRequireStaff";
+import {
+  getFeedbacksApi,
+  featureFeedbackApi,
+  replyFeedbackApi,
+  generateFeedbackReplyApi,
+  type FeedbackDto,
+} from "../../../lib/apiClient";
 
-const REVIEWS = [
-  { id: 1,  name: "Nguyễn Văn An",   date: "13/06/2026", rating: 5, service: "Nhổ răng khôn",       dentist: "BS. Thảo", comment: "Bác sĩ rất nhẹ nhàng và tận tình, không đau chút nào. Cơ sở sạch sẽ, nhân viên thân thiện. Sẽ quay lại lần sau!", recommend: true  },
-  { id: 2,  name: "Trần Thị Bích",   date: "13/06/2026", rating: 4, service: "Trám răng số 6",      dentist: "BS. Minh", comment: "Dịch vụ tốt, bác sĩ giải thích rõ ràng trước khi làm. Chờ hơi lâu một chút nhưng chấp nhận được.", recommend: true  },
-  { id: 3,  name: "Phạm Minh Cường", date: "12/06/2026", rating: 5, service: "Kiểm tra định kỳ",   dentist: "BS. Thảo", comment: "Phòng khám hiện đại, trang thiết bị mới. Bác sĩ nhiệt tình tư vấn kỹ về sức khỏe răng miệng.", recommend: true  },
-  { id: 4,  name: "Lê Thu Hà",       date: "12/06/2026", rating: 3, service: "Tẩy trắng Zoom",     dentist: "BS. Linh", comment: "Kết quả khá tốt, tuy nhiên quy trình mất nhiều thời gian hơn dự kiến. Giá cũng hơi cao.", recommend: false },
-  { id: 5,  name: "Hoàng Văn Đức",   date: "11/06/2026", rating: 5, service: "Cấy ghép Implant",   dentist: "BS. Minh", comment: "Cực kỳ hài lòng với kết quả implant. Bác sĩ Minh có tay nghề rất cao. Tôi đã giới thiệu cho bạn bè rồi.", recommend: true  },
-  { id: 6,  name: "Vũ Thị Ngọc",     date: "11/06/2026", rating: 4, service: "Bọc răng sứ",        dentist: "BS. Linh", comment: "Màu răng sứ rất tự nhiên và khớp với răng thật. Hài lòng với kết quả thẩm mỹ.", recommend: true  },
-  { id: 7,  name: "Đỗ Quang Huy",    date: "10/06/2026", rating: 2, service: "Lấy cao răng",       dentist: "BS. Thảo", comment: "Vẫn còn đau sau khi lấy cao răng được 2 ngày, không biết có bình thường không. Mong phòng khám tư vấn kỹ hơn.", recommend: false },
-  { id: 8,  name: "Nguyễn Thị Mai",  date: "10/06/2026", rating: 5, service: "Chỉnh nha",          dentist: "BS. Minh", comment: "Phòng khám rất chuyên nghiệp. Quá trình chỉnh nha được theo dõi sát sao. Nhân viên lễ tân vui vẻ và nhiệt tình.", recommend: true  },
-];
-
-function Stars({ rating, size = "sm" }: { rating: number; size?: "sm"|"lg" }) {
-  const w = size === "lg" ? "w-5 h-5" : "w-4 h-4";
-  return (
-    <div className="flex gap-0.5">
-      {[1,2,3,4,5].map(i => (
-        <svg key={i} className={`${w} ${i <= rating ? "text-amber-400" : "text-slate-200"}`} fill="currentColor" viewBox="0 0 24 24">
-          <path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
-        </svg>
-      ))}
-    </div>
-  );
-}
-
-export default function FeedbackPage() {
+export default function StaffFeedbackPage() {
   useRequireStaff();
 
-  const [filter, setFilter] = useState(0);
-  const [search, setSearch] = useState("");
+  const [feedbacks, setFeedbacks] = useState<FeedbackDto[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [ratingFilter, setRatingFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(5);
 
-  const avgRating = REVIEWS.reduce((sum, r) => sum + r.rating, 0) / REVIEWS.length;
-  const recommend = REVIEWS.filter(r => r.recommend).length;
-  const distribution = [5,4,3,2,1].map(s => ({ star: s, count: REVIEWS.filter(r => r.rating === s).length }));
+  const [replyTarget, setReplyTarget] = useState<FeedbackDto | null>(null);
+  const [replyContent, setReplyContent] = useState("");
+  const [aiSuggestLoading, setAiSuggestLoading] = useState(false);
 
-  const filtered = REVIEWS.filter(r => {
-    const matchStar   = filter === 0 || r.rating === filter;
-    const matchSearch = !search || r.name.toLowerCase().includes(search.toLowerCase()) || r.service.toLowerCase().includes(search.toLowerCase());
-    return matchStar && matchSearch;
-  });
+  const [toast, setToast] = useState<{ show: boolean; message: string; isError?: boolean } | null>(null);
+
+  const showToast = (message: string, isError = false) => {
+    setToast({ show: true, message, isError });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  useEffect(() => {
+    async function load() {
+      setIsLoading(true);
+      try {
+        const data = await getFeedbacksApi();
+        setFeedbacks(data);
+      } catch {
+        showToast("Không thể tải danh sách phản hồi.", true);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    load();
+  }, []);
+
+  const stats = useMemo(() => ({
+    total: feedbacks.length,
+    featured: feedbacks.filter((f) => f.status === "Featured").length,
+    replied: feedbacks.filter((f) => !!f.replyText).length,
+    avgRating: feedbacks.length > 0
+      ? (feedbacks.reduce((sum, f) => sum + f.rating, 0) / feedbacks.length).toFixed(1)
+      : "0.0",
+  }), [feedbacks]);
+
+  const handleFeature = async (id: string) => {
+    try {
+      const updated = await featureFeedbackApi(id);
+      setFeedbacks((prev) => prev.map((fb) => (fb.id === id ? updated : fb)));
+      showToast("Đã cập nhật trạng thái nổi bật!");
+    } catch {
+      showToast("Có lỗi xảy ra. Vui lòng thử lại.", true);
+    }
+  };
+
+  const handleReplyClick = (fb: FeedbackDto) => {
+    setReplyTarget(fb);
+    setReplyContent(fb.replyText ?? "");
+  };
+
+  const handleReplySubmit = async () => {
+    if (!replyTarget) return;
+    try {
+      const updated = await replyFeedbackApi(replyTarget.id, { replyText: replyContent });
+      setFeedbacks((prev) => prev.map((fb) => (fb.id === replyTarget.id ? updated : fb)));
+      setReplyTarget(null);
+      setReplyContent("");
+      showToast("Đã gửi câu trả lời phản hồi thành công!");
+    } catch {
+      showToast("Có lỗi xảy ra. Vui lòng thử lại.", true);
+    }
+  };
+
+  const handleSuggestAiReply = async () => {
+    if (!replyTarget) return;
+    setAiSuggestLoading(true);
+    try {
+      const draft = await generateFeedbackReplyApi(replyTarget.id);
+      setReplyContent(draft.replyText);
+    } catch {
+      showToast("Không thể soạn nháp bằng AI. Vui lòng thử lại.", true);
+    } finally {
+      setAiSuggestLoading(false);
+    }
+  };
+
+  const filteredFeedbacks = useMemo(() => {
+    return feedbacks.filter((fb) => {
+      const matchesSearch =
+        fb.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        fb.comment.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesRating =
+        ratingFilter === "All" || fb.rating === parseInt(ratingFilter);
+      const matchesStatus =
+        statusFilter === "All" || fb.status === statusFilter;
+      return matchesSearch && matchesRating && matchesStatus;
+    });
+  }, [feedbacks, searchQuery, ratingFilter, statusFilter]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, ratingFilter, statusFilter, itemsPerPage]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredFeedbacks.length / itemsPerPage));
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedFeedbacks = filteredFeedbacks.slice(startIndex, startIndex + itemsPerPage);
+
+  const getInitials = (name: string) =>
+    name.trim().split(/\s+/).slice(-2).map((w) => w[0]).join("").toUpperCase();
 
   return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
-      <StaffSidebar activeMenu="feedback" />
-      <main className="flex-1 flex flex-col min-w-0">
-        <StaffPageHeader title="Phản Hồi & Đánh Giá" subtitle="Xem đánh giá của bệnh nhân về dịch vụ" />
 
-        <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-5">
-          {/* Stats row */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 shrink-0">
-            {/* Average rating */}
-            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 flex items-center gap-6">
-              <div className="text-center shrink-0">
-                <div className="text-5xl font-black text-slate-900">{avgRating.toFixed(1)}</div>
-                <Stars rating={Math.round(avgRating)} size="lg" />
-                <div className="text-[12px] text-slate-400 font-semibold mt-1">{REVIEWS.length} đánh giá</div>
-              </div>
-              <div className="flex-1 flex flex-col gap-1.5">
-                {distribution.map(({ star, count }) => (
-                  <div key={star} className="flex items-center gap-2">
-                    <span className="text-[12px] font-bold text-slate-500 w-3 shrink-0">{star}</span>
-                    <svg className="w-3 h-3 text-amber-400 shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" /></svg>
-                    <div className="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden">
-                      <div className="h-full bg-amber-400 rounded-full transition-all" style={{ width: `${(count / REVIEWS.length) * 100}%` }} />
-                    </div>
-                    <span className="text-[12px] font-semibold text-slate-400 w-4 text-right">{count}</span>
-                  </div>
-                ))}
+      <StaffSidebar activeMenu="feedback" />
+
+      <main className="flex-1 flex flex-col min-w-0">
+        <StaffPageHeader title="Phản Hồi & Đánh Giá" subtitle="Xem và phản hồi đánh giá của bệnh nhân" />
+
+        <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-6">
+
+          {/* TOAST */}
+          {toast?.show && (
+            <div className="fixed top-6 right-6 z-[100] animate-fade-in">
+              <div className={`bg-white border rounded-2xl shadow-xl shadow-slate-200/60 p-4 flex items-center gap-3 max-w-sm ${toast.isError ? "border-red-200" : "border-green-200"}`}>
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${toast.isError ? "bg-red-100" : "bg-green-100"}`}>
+                  {toast.isError ? (
+                    <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  )}
+                </div>
+                <span className="text-[13px] font-black text-slate-900">{toast.message}</span>
               </div>
             </div>
+          )}
 
-            {/* Recommend rate */}
-            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 flex flex-col items-center justify-center gap-2">
-              <div className="w-16 h-16 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center">
-                <svg className="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.633 10.5c.806 0 1.533-.446 2.031-1.08a9.041 9.041 0 012.861-2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 00.322-1.672V3a.75.75 0 01.75-.75A2.25 2.25 0 0116.5 4.5c0 1.152-.26 2.243-.723 3.218-.266.558.107 1.282.725 1.282h3.126c1.026 0 1.945.694 2.054 1.715.045.422.068.85.068 1.285a11.95 11.95 0 01-2.649 7.521c-.388.482-.987.729-1.605.729H13.48c-.483 0-.964-.078-1.423-.23l-3.114-1.04a4.501 4.501 0 00-1.423-.23H5.904M14.25 9h2.25M5.904 18.75c.083.205.173.405.27.602.197.4-.078.898-.523.898h-.908c-.889 0-1.713-.518-1.972-1.368a12 12 0 01-.521-3.507c0-1.553.295-3.036.831-4.398C3.387 10.203 4.167 9.75 5 9.75h1.053c.472 0 .745.556.5.96a8.958 8.958 0 00-1.302 4.665c0 1.194.232 2.333.654 3.375z" />
+          {/* STATS GRID */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 shrink-0">
+
+            {/* Tổng phản hồi */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm hover-lift flex items-center justify-between hover:border-primary/40 transition-all duration-200">
+              <div>
+                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Tổng số phản hồi</span>
+                <span className="text-3xl font-black text-slate-900 block mt-1">{stats.total}</span>
+              </div>
+              <div className="w-12 h-12 rounded-xl bg-red-50 text-primary flex items-center justify-center shrink-0">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
                 </svg>
               </div>
-              <div className="text-3xl font-black text-emerald-600">{Math.round((recommend / REVIEWS.length) * 100)}%</div>
-              <div className="text-[13px] font-bold text-slate-700 text-center">Sẵn sàng giới thiệu</div>
-              <div className="text-[12px] text-slate-400 font-medium">{recommend}/{REVIEWS.length} bệnh nhân</div>
             </div>
 
-            {/* Total this month */}
-            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 flex flex-col justify-between">
-              <div className="text-[12px] font-extrabold text-slate-400 uppercase tracking-wider">Tháng này</div>
-              <div className="text-4xl font-black text-slate-900 mt-2">{REVIEWS.length}</div>
-              <div className="text-[13px] text-slate-500 font-semibold">đánh giá mới</div>
-              <div className="flex items-center gap-1.5 mt-3 text-[12.5px] font-bold text-emerald-600">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" /></svg>
-                +12% so với tháng trước
+            {/* Nổi bật */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm hover-lift flex items-center justify-between hover:border-yellow-400/60 transition-all duration-200">
+              <div>
+                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Nổi bật</span>
+                <span className="text-3xl font-black text-yellow-500 block mt-1">{stats.featured}</span>
+              </div>
+              <div className="w-12 h-12 rounded-xl bg-yellow-50 text-yellow-500 flex items-center justify-center shrink-0">
+                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+                </svg>
+              </div>
+            </div>
+
+            {/* Đã trả lời */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm hover-lift flex items-center justify-between hover:border-green-400/60 transition-all duration-200">
+              <div>
+                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Đã trả lời</span>
+                <span className="text-3xl font-black text-green-600 block mt-1">{stats.replied}</span>
+              </div>
+              <div className="w-12 h-12 rounded-xl bg-green-50 text-green-500 flex items-center justify-center shrink-0">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
+                </svg>
+              </div>
+            </div>
+
+            {/* Điểm trung bình */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm hover-lift flex items-center justify-between hover:border-orange-400/60 transition-all duration-200">
+              <div>
+                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Điểm trung bình</span>
+                <span className="text-3xl font-black text-orange-500 block mt-1">
+                  {stats.avgRating}<span className="text-lg font-bold text-slate-400 ml-1">/ 5</span>
+                </span>
+              </div>
+              <div className="w-12 h-12 rounded-xl bg-orange-50 text-orange-400 flex items-center justify-center shrink-0">
+                <svg className="w-6 h-6 fill-orange-400" viewBox="0 0 24 24">
+                  <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+                </svg>
               </div>
             </div>
           </div>
 
-          {/* Filters */}
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative min-w-[200px]">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>
-              <input value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Tìm tên, dịch vụ..."
-                className="w-full pl-9 pr-3 py-2 text-[13px] border border-slate-200 rounded-xl bg-white focus:outline-none focus:border-primary/50" />
-            </div>
-            <div className="flex gap-2">
-              {[0,5,4,3,2,1].map(s => (
-                <button key={s} onClick={() => setFilter(s)}
-                  className={`px-3 py-1.5 rounded-xl text-[12.5px] font-bold border transition-all cursor-pointer flex items-center gap-1 ${
-                    filter === s ? "bg-primary text-white border-primary" : "bg-white text-slate-500 border-slate-200 hover:border-primary/40 hover:text-primary"
-                  }`}>
-                  {s === 0 ? "Tất cả" : <><svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" /></svg>{s} sao</>}
-                </button>
-              ))}
-            </div>
-          </div>
+          {/* FILTER BAR */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col gap-3 shrink-0">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="relative flex-1 max-w-md">
+                <span className="absolute inset-y-0 left-3.5 flex items-center text-slate-400">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </span>
+                <input
+                  type="text"
+                  placeholder="Tìm kiếm phản hồi..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 text-[15px] bg-slate-100/80 rounded-full border border-transparent focus:bg-white focus:border-slate-200 focus:outline-none transition-all font-semibold text-slate-800"
+                />
+              </div>
 
-          {/* Reviews */}
-          <div className="flex flex-col gap-3">
-            {filtered.map(r => (
-              <div key={r.id} className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-sky-50 border border-sky-100 flex items-center justify-center font-black text-secondary shrink-0">
-                      {r.name.split(" ").slice(-1)[0][0]}
-                    </div>
-                    <div>
-                      <div className="text-[14px] font-bold text-slate-900">{r.name}</div>
-                      <div className="text-[12px] text-slate-400 font-medium">{r.date} · {r.service} · {r.dentist}</div>
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end gap-1.5 shrink-0">
-                    <Stars rating={r.rating} />
-                    {r.recommend ? (
-                      <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full text-[11px] font-black">👍 Đề xuất</span>
-                    ) : (
-                      <span className="px-2 py-0.5 bg-slate-100 text-slate-500 border border-slate-200 rounded-full text-[11px] font-semibold">Không đề xuất</span>
-                    )}
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <select
+                    value={ratingFilter}
+                    onChange={(e) => setRatingFilter(e.target.value)}
+                    className="appearance-none bg-white text-slate-700 font-bold text-[14px] pl-4 pr-10 py-2.5 rounded-xl border border-slate-200 focus:outline-none transition-all cursor-pointer"
+                  >
+                    <option value="All">Lọc theo Đánh giá</option>
+                    <option value="5">5 Sao</option>
+                    <option value="4">4 Sao</option>
+                    <option value="3">3 Sao</option>
+                    <option value="2">2 Sao</option>
+                    <option value="1">1 Sao</option>
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center text-slate-400">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                    </svg>
                   </div>
                 </div>
-                {r.comment && (
-                  <p className="mt-3 text-[13.5px] text-slate-600 font-medium leading-relaxed pl-[52px]">{r.comment}</p>
-                )}
+
+                <div className="relative">
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="appearance-none bg-white text-slate-700 font-bold text-[14px] pl-4 pr-10 py-2.5 rounded-xl border border-slate-200 focus:outline-none transition-all cursor-pointer"
+                  >
+                    <option value="All">Lọc theo Trạng thái</option>
+                    <option value="Pending">Chờ phê duyệt</option>
+                    <option value="Featured">Nổi bật</option>
+                    <option value="Hidden">Đã ẩn</option>
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center text-slate-400">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                    </svg>
+                  </div>
+                </div>
               </div>
-            ))}
-            {filtered.length === 0 && (
-              <div className="bg-white rounded-2xl border border-slate-200/60 p-12 text-center text-slate-400 font-semibold text-[13px]">
-                Không tìm thấy đánh giá nào
+            </div>
+
+            <div className="flex items-center gap-2 text-[13px] text-slate-500 font-semibold border-t border-slate-100 pt-3">
+              <span>Hiển thị</span>
+              <div className="relative">
+                <select
+                  value={itemsPerPage}
+                  onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                  className="appearance-none bg-white border border-slate-200 rounded-lg pl-3 pr-7 py-1 text-[13px] font-bold text-slate-700 focus:outline-none cursor-pointer"
+                >
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-slate-400">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                  </svg>
+                </div>
+              </div>
+              <span>/ trang</span>
+              <span className="text-slate-300 mx-1">·</span>
+              <span>Tìm thấy <span className="font-black text-slate-700">{filteredFeedbacks.length}</span> kết quả</span>
+            </div>
+          </div>
+
+          {/* TABLE */}
+          <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden flex flex-col">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-[14px]">
+                <thead>
+                  <tr className="bg-slate-50/50 font-extrabold text-slate-400 uppercase tracking-wider border-b border-slate-150">
+                    <th className="px-6 py-4">Tên khách hàng</th>
+                    <th className="px-6 py-4">Đánh giá</th>
+                    <th className="px-6 py-4">Bình luận</th>
+                    <th className="px-6 py-4">Ngày</th>
+                    <th className="px-6 py-4 text-center">Hành động</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-semibold text-slate-600">
+                  {isLoading ? (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-12 text-center text-slate-400 font-semibold">
+                        Đang tải...
+                      </td>
+                    </tr>
+                  ) : paginatedFeedbacks.length > 0 ? (
+                    paginatedFeedbacks.map((fb) => (
+                      <tr key={fb.id} className="hover:bg-slate-50/40 transition-colors">
+
+                        {/* Customer Info */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-full bg-red-50 border border-primary/20 text-primary flex items-center justify-center font-bold text-[13px] shrink-0 shadow-sm">
+                              {getInitials(fb.customerName)}
+                            </div>
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-bold text-slate-800">{fb.customerName}</span>
+                              <div>
+                                {fb.status === "Featured" && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full bg-yellow-50 text-yellow-600 border border-yellow-100">
+                                    <svg className="w-2.5 h-2.5 fill-yellow-500" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" /></svg>
+                                    Nổi bật
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Star Rating */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-0.5">
+                            {Array.from({ length: 5 }).map((_, idx) => (
+                              <svg
+                                key={idx}
+                                className={`w-4 h-4 ${idx < fb.rating ? "text-amber-400 fill-amber-400" : "text-slate-200 fill-slate-200"}`}
+                                viewBox="0 0 24 24"
+                              >
+                                <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+                              </svg>
+                            ))}
+                          </div>
+                        </td>
+
+                        {/* Comment */}
+                        <td className="px-6 py-4 max-w-lg">
+                          <div className="flex flex-col gap-1.5">
+                            <p className="text-slate-700 font-semibold text-[14px] leading-relaxed">
+                              {fb.comment}
+                            </p>
+                            {fb.replyText && (
+                              <div className="bg-slate-50 border border-slate-150/60 rounded-xl p-3.5 mt-1.5 shadow-sm">
+                                <div className="flex items-center gap-1.5 text-slate-400 text-[10px] font-extrabold uppercase tracking-wider mb-1">
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
+                                  </svg>
+                                  Phản hồi từ phòng khám:
+                                </div>
+                                <p className="text-slate-600 font-bold text-[13px] leading-relaxed">
+                                  {fb.replyText}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Date */}
+                        <td className="px-6 py-4 whitespace-nowrap text-slate-400 font-semibold">
+                          {new Date(fb.createdAt).toLocaleDateString("vi-VN", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                          })}
+                        </td>
+
+                        {/* Actions */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-2">
+
+                            {fb.status === "Featured" ? (
+                              <button
+                                onClick={() => handleFeature(fb.id)}
+                                className="inline-flex items-center gap-1.5 bg-yellow-400 hover:bg-yellow-500 text-white font-bold text-[13px] px-3.5 py-1.5 rounded-lg transition-all shadow-md shadow-yellow-200/60 cursor-pointer"
+                              >
+                                <svg className="w-3.5 h-3.5 fill-white" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" /></svg>
+                                Nổi bật
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleFeature(fb.id)}
+                                className="inline-flex items-center gap-1.5 border border-yellow-300 hover:bg-yellow-50 hover:border-yellow-400 text-yellow-600 font-bold text-[13px] px-3.5 py-1.5 rounded-lg transition-all cursor-pointer"
+                              >
+                                <svg className="w-3.5 h-3.5 fill-yellow-400" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" /></svg>
+                                Nổi bật
+                              </button>
+                            )}
+
+                            <button
+                              onClick={() => handleReplyClick(fb)}
+                              className="border border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-600 font-bold text-[13px] px-3.5 py-1.5 rounded-lg transition-all cursor-pointer"
+                            >
+                              Trả lời
+                            </button>
+
+                          </div>
+                        </td>
+
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-12 text-center text-slate-400 font-semibold">
+                        Không tìm thấy phản hồi nào phù hợp.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* PAGINATION */}
+            {filteredFeedbacks.length > 0 && (
+              <div className="p-4 border-t border-slate-100 flex items-center justify-between">
+                <span className="text-[12px] text-slate-400 font-semibold">
+                  Hiển thị{" "}
+                  <span className="font-black text-slate-600">{startIndex + 1}–{Math.min(startIndex + itemsPerPage, filteredFeedbacks.length)}</span>{" "}
+                  trong{" "}
+                  <span className="font-black text-slate-600">{filteredFeedbacks.length}</span>{" "}
+                  phản hồi
+                </span>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1}
+                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
+                      currentPage === 1
+                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
+                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
+                    }`}
+                  >
+                    |&lt;
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
+                      currentPage === 1
+                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
+                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
+                    }`}
+                  >
+                    &lt;
+                  </button>
+
+                  {Array.from({ length: totalPages }).map((_, idx) => {
+                    const p = idx + 1;
+                    return (
+                      <button
+                        key={p}
+                        onClick={() => setCurrentPage(p)}
+                        className={`w-9 h-9 rounded-xl border flex items-center justify-center font-extrabold text-[14px] transition-all cursor-pointer ${
+                          currentPage === p
+                            ? "bg-white border-primary text-primary shadow-sm font-black"
+                            : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    );
+                  })}
+
+                  <button
+                    onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
+                      currentPage === totalPages
+                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
+                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
+                    }`}
+                  >
+                    &gt;
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={currentPage === totalPages}
+                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
+                      currentPage === totalPages
+                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
+                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
+                    }`}
+                  >
+                    &gt;|
+                  </button>
+                </div>
               </div>
             )}
           </div>
+
         </div>
       </main>
+
+      {/* REPLY MODAL */}
+      {replyTarget && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xl max-w-lg w-full animate-fade-in flex flex-col gap-4">
+
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h4 className="text-[17px] font-black text-slate-900">
+                Trả lời đánh giá của {replyTarget.customerName}
+              </h4>
+              <button
+                onClick={() => setReplyTarget(null)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer p-1 rounded-lg hover:bg-slate-50 transition-all"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-150">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="font-bold text-[13px] text-slate-700">{replyTarget.customerName}</span>
+                <div className="flex items-center gap-0.5">
+                  {Array.from({ length: 5 }).map((_, idx) => (
+                    <svg
+                      key={idx}
+                      className={`w-3.5 h-3.5 ${idx < replyTarget.rating ? "text-amber-400 fill-amber-400" : "text-slate-200 fill-slate-200"}`}
+                      viewBox="0 0 24 24"
+                    >
+                      <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+                    </svg>
+                  ))}
+                </div>
+              </div>
+              <p className="text-[13px] text-slate-500 font-semibold leading-relaxed italic">
+                &quot;{replyTarget.comment}&quot;
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <label className="text-[12px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                  Nội dung phản hồi
+                </label>
+                <button
+                  type="button"
+                  onClick={() => void handleSuggestAiReply()}
+                  disabled={aiSuggestLoading}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-violet-50 text-violet-600 text-[11.5px] font-bold hover:bg-violet-100 disabled:opacity-50 transition-all cursor-pointer"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                  </svg>
+                  {aiSuggestLoading ? "Đang soạn..." : "Gợi ý AI"}
+                </button>
+              </div>
+              <textarea
+                value={replyContent}
+                onChange={(e) => setReplyContent(e.target.value)}
+                placeholder="Nhập câu trả lời của phòng khám..."
+                className="w-full p-3.5 text-[14px] border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-semibold text-slate-700 placeholder-slate-400"
+                rows={5}
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-3 border-t border-slate-100 pt-3">
+              <button
+                onClick={() => setReplyTarget(null)}
+                className="px-4 py-2 border border-slate-200 rounded-xl text-[13px] font-bold text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-all cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                onClick={handleReplySubmit}
+                disabled={!replyContent.trim()}
+                className="px-5 py-2 bg-primary hover:bg-primary-hover text-white rounded-xl text-[13px] font-bold shadow-md shadow-primary/10 transition-all disabled:opacity-55 disabled:cursor-not-allowed cursor-pointer"
+              >
+                Gửi phản hồi
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

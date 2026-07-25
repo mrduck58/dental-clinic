@@ -36,7 +36,7 @@ public class MedicinesController(
 
     /// <summary>POST api/medicines — Tạo thuốc mới (Admin)</summary>
     [HttpPost]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Owner")]
     public async Task<IActionResult> Create([FromBody] CreateMedicineRequest request, CancellationToken ct)
     {
         var result = await create.HandleAsync(request, ct);
@@ -45,7 +45,7 @@ public class MedicinesController(
 
     /// <summary>PUT api/medicines/{id} — Cập nhật thuốc (Admin)</summary>
     [HttpPut("{id:guid}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Owner")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateMedicineRequest request, CancellationToken ct)
     {
         var result = await update.HandleAsync(id, request, ct);
@@ -54,10 +54,10 @@ public class MedicinesController(
 
     /// <summary>DELETE api/medicines/{id} — Xóa thuốc (Admin)</summary>
     [HttpDelete("{id:guid}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Owner")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         await delete.HandleAsync(id, ct);
-        return NoContent();
+        return Ok(new { message = "Đã xóa thuốc." });
     }
 }

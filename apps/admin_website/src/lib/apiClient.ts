@@ -1,7 +1,15 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5239";
 
-// ── Types ──────────────────────────────────────────────────────────────────
+export class ApiValidationError extends Error {
+  errors: Record<string, string[]>;
+  constructor(message: string, errors: Record<string, string[]>) {
+    super(message);
+    this.name = "ApiValidationError";
+    this.errors = errors;
+  }
+}
 
+// ── Types ──────────────────────────────────────────────────────────────────
 export interface AuthUser {
   id: string;
   email: string;
@@ -9,6 +17,7 @@ export interface AuthUser {
   fullName: string | null;
   role: string;
   isActive: boolean;
+  profilePictureUrl: string | null;
 }
 
 export interface AccountDto {
@@ -30,8 +39,32 @@ export interface LoginResponse {
 
 // ── Auth endpoints ─────────────────────────────────────────────────────────
 
+export async function forgotPasswordApi(email: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/auth/forgot-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Gửi yêu cầu thất bại");
+  }
+}
+
+export async function resetPasswordApi(email: string, token: string, newPassword: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/auth/reset-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, token, newPassword }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Đặt lại mật khẩu thất bại");
+  }
+}
+
 export async function loginApi(email: string, password: string): Promise<LoginResponse> {
-  const res = await fetch(`${API_URL}/api/auth/login`, {
+  const res = await fetch(`${API_URL}/api/auth/staff/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
@@ -73,25 +106,59 @@ export async function createAccountApi(data: CreateAccountCommand): Promise<void
 
 const TOKEN_KEY = "dental_clinic_token";
 const USER_KEY = "dental_clinic_user";
+const REMEMBER_EMAIL_KEY = "dental_clinic_remember_email";
 
-export function saveSession(data: LoginResponse): void {
-  localStorage.setItem(TOKEN_KEY, data.accessToken);
-  localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+export function saveSession(data: LoginResponse, rememberMe: boolean): void {
+  const storage = rememberMe ? localStorage : sessionStorage;
+  storage.setItem(TOKEN_KEY, data.accessToken);
+  storage.setItem(USER_KEY, JSON.stringify(data.user));
+  // Clean up the other storage to avoid stale tokens
+  const other = rememberMe ? sessionStorage : localStorage;
+  other.removeItem(TOKEN_KEY);
+  other.removeItem(USER_KEY);
+}
+
+const REMEMBER_PASSWORD_KEY = "dental_clinic_remember_password";
+
+export function saveRememberCredentials(email: string, password: string): void {
+  localStorage.setItem(REMEMBER_EMAIL_KEY, email);
+  localStorage.setItem(REMEMBER_PASSWORD_KEY, password);
+}
+
+export function clearRememberCredentials(): void {
+  localStorage.removeItem(REMEMBER_EMAIL_KEY);
+  localStorage.removeItem(REMEMBER_PASSWORD_KEY);
+}
+
+export function getRememberedCredentials(): { email: string; password: string } | null {
+  if (typeof globalThis.window === "undefined") return null;
+  const email = localStorage.getItem(REMEMBER_EMAIL_KEY);
+  const password = localStorage.getItem(REMEMBER_PASSWORD_KEY);
+  if (!email || !password) return null;
+  return { email, password };
+}
+
+/** @deprecated use getRememberedCredentials */
+export function getRememberedEmail(): string | null {
+  if (typeof globalThis.window === "undefined") return null;
+  return localStorage.getItem(REMEMBER_EMAIL_KEY);
 }
 
 export function clearSession(): void {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  sessionStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(USER_KEY);
 }
 
 export function getToken(): string | null {
   if (typeof globalThis.window === "undefined") return null;
-  return localStorage.getItem(TOKEN_KEY);
+  return localStorage.getItem(TOKEN_KEY) ?? sessionStorage.getItem(TOKEN_KEY);
 }
 
 export function getUser(): AuthUser | null {
   if (typeof globalThis.window === "undefined") return null;
-  const raw = localStorage.getItem(USER_KEY);
+  const raw = localStorage.getItem(USER_KEY) ?? sessionStorage.getItem(USER_KEY);
   if (!raw) return null;
   try {
     return JSON.parse(raw) as AuthUser;
@@ -162,6 +229,11 @@ export interface StaffDto {
   education: string | null;
   bio: string | null;
   position: string | null;
+  employmentType: string | null;
+  baseSalary: number | null;
+  salaryUnit: string | null;
+  leaveAccrued: number | null;
+  allowance: number | null;
 }
 
 
@@ -202,6 +274,11 @@ export interface CreateStaffCommand {
   education?: string | null;
   bio?: string | null;
   position?: string | null;
+  employmentType?: string | null;
+  baseSalary?: number | null;
+  salaryUnit?: string | null;
+  leaveAccrued?: number | null;
+  allowance?: number | null;
 }
 
 export interface UpdateStaffCommand {
@@ -228,6 +305,11 @@ export interface UpdateStaffCommand {
   education?: string | null;
   bio?: string | null;
   position?: string | null;
+  employmentType?: string | null;
+  baseSalary?: number | null;
+  salaryUnit?: string | null;
+  leaveAccrued?: number | null;
+  allowance?: number | null;
 }
 
 export interface ResetPasswordResponse {
@@ -261,6 +343,19 @@ export async function getStaffApi(params?: {
   return res.json() as Promise<StaffListResponse>;
 }
 
+export async function getStaffByIdApi(id: string): Promise<StaffDto> {
+  const res = await fetch(`${API_URL}/api/staff/${id}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải chi tiết nhân viên");
+  }
+  return res.json() as Promise<StaffDto>;
+}
+
+
 export async function createStaffApi(data: CreateStaffCommand): Promise<void> {
   const res = await fetch(`${API_URL}/api/staff`, {
     method: "POST",
@@ -270,6 +365,9 @@ export async function createStaffApi(data: CreateStaffCommand): Promise<void> {
   await checkAuth(res);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
+    if (res.status === 422 && err.errors) {
+      throw new ApiValidationError(err.title ?? "Dữ liệu không hợp lệ", err.errors);
+    }
     throw new Error((err as { title?: string }).title ?? "Tạo nhân viên thất bại");
   }
 }
@@ -283,6 +381,9 @@ export async function updateStaffApi(id: string, data: UpdateStaffCommand): Prom
   await checkAuth(res);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
+    if (res.status === 422 && err.errors) {
+      throw new ApiValidationError(err.title ?? "Dữ liệu không hợp lệ", err.errors);
+    }
     throw new Error((err as { title?: string }).title ?? "Cập nhật nhân viên thất bại");
   }
   return res.json() as Promise<StaffDto>;
@@ -326,6 +427,7 @@ export interface ServiceDto {
   description: string;
   viewCount: number;
   imageUrl: string | null;
+  iconUrl: string | null;
   createdAt: string;
   updatedAt: string | null;
 }
@@ -336,6 +438,7 @@ export interface CreateServiceRequest {
   durationMinutes: number;
   description: string;
   imageUrl?: string | null;
+  iconUrl?: string | null;
 }
 
 export interface UpdateServiceRequest {
@@ -344,6 +447,7 @@ export interface UpdateServiceRequest {
   durationMinutes: number;
   description: string;
   imageUrl?: string | null;
+  iconUrl?: string | null;
 }
 
 // ── Service endpoints ──────────────────────────────────────────────────────
@@ -519,7 +623,7 @@ export async function deletePostApi(id: string): Promise<void> {
 export interface ScheduleEntryDto {
   id: string;
   date: string; // "YYYY-MM-DD"
-  shift: "morning" | "afternoon";
+  shift: string; // mã ca, ví dụ "08:00-10:00" (xem lib/shifts.ts). Dữ liệu cũ: "morning"/"afternoon"
   type: "dentist" | "staff";
   role: "dentist" | "assistant" | "staff";
   name: string;
@@ -530,7 +634,7 @@ export interface ScheduleEntryDto {
 
 export interface SaveScheduleEntryRequest {
   date: string;
-  shift: "morning" | "afternoon";
+  shift: string; // mã ca, ví dụ "08:00-10:00"
   type: "dentist" | "staff";
   role: "dentist" | "assistant" | "staff";
   name: string;
@@ -543,6 +647,19 @@ export interface SaveScheduleEntryRequest {
 
 export async function getWeekScheduleApi(weekStart: string): Promise<ScheduleEntryDto[]> {
   const res = await fetch(`${API_URL}/api/schedules?weekStart=${weekStart}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải lịch làm việc");
+  }
+  return res.json() as Promise<ScheduleEntryDto[]>;
+}
+
+// Lịch làm việc của chính nha sĩ đang đăng nhập (chỉ xem)
+export async function getMyScheduleApi(weekStart: string): Promise<ScheduleEntryDto[]> {
+  const res = await fetch(`${API_URL}/api/schedules/my?weekStart=${weekStart}`, {
     headers: { ...authHeaders() },
   });
   await checkAuth(res);
@@ -596,7 +713,8 @@ export async function uploadFileApi(file: File): Promise<{ url: string }> {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { title?: string }).title ?? "Upload file thất bại");
   }
-  return res.json() as Promise<{ url: string }>;
+  const data = await res.json() as { url: string };
+  return { url: data.url.startsWith("/") ? `${API_URL}${data.url}` : data.url };
 }
 
 // ── Promotion types ────────────────────────────────────────────────────────
@@ -802,6 +920,24 @@ export async function replyFeedbackApi(id: string, data: ReplyFeedbackRequest): 
   return res.json() as Promise<FeedbackDto>;
 }
 
+export interface FeedbackReplyDraftDto {
+  replyText: string;
+}
+
+/** Soạn NHÁP câu trả lời bằng AI cho một đánh giá — chỉ điền sẵn vào ô trả lời, không tự gửi. */
+export async function generateFeedbackReplyApi(id: string): Promise<FeedbackReplyDraftDto> {
+  const res = await fetch(`${API_URL}/api/feedbacks/${id}/ai-draft-reply`, {
+    method: "POST",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể soạn nháp bằng AI");
+  }
+  return res.json() as Promise<FeedbackReplyDraftDto>;
+}
+
 export async function createFeedbackApi(data: CreateFeedbackRequest): Promise<FeedbackDto> {
   const res = await fetch(`${API_URL}/api/feedbacks`, {
     method: "POST",
@@ -923,6 +1059,172 @@ export async function toggleMedicineStatusApi(id: string): Promise<MedicineDto> 
     throw new Error((err as { title?: string }).title ?? "Cập nhật trạng thái thất bại");
   }
   return res.json() as Promise<MedicineDto>;
+}
+
+// ── Inventory types ────────────────────────────────────────────────────────
+
+export interface SupplyItemDto {
+  id: string;
+  code: string;
+  name: string;
+  category: string;
+  unit: string;
+  quantity: number;
+  minQuantity: number;
+  isLow: boolean;
+  createdAt: string;
+  updatedAt: string | null;
+}
+
+export interface SupplyTransactionDto {
+  id: string;
+  supplyItemId: string;
+  itemName: string;
+  type: "import" | "export";
+  quantity: number;
+  note: string | null;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface CreateSupplyItemRequest {
+  code: string;
+  name: string;
+  category: string;
+  unit: string;
+  quantity: number;
+  minQuantity: number;
+}
+
+export interface CreateSupplyTransactionRequest {
+  supplyItemId: string;
+  type: "import" | "export";
+  quantity: number;
+  note?: string;
+}
+
+// ── Inventory endpoints ────────────────────────────────────────────────────
+
+export async function createSupplyItemApi(data: CreateSupplyItemRequest): Promise<SupplyItemDto> {
+  const res = await fetch(`${API_URL}/api/inventory/items`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Thêm vật tư thất bại");
+  }
+  return res.json() as Promise<SupplyItemDto>;
+}
+
+export async function getSupplyItemsApi(params?: {
+  search?: string;
+  category?: string;
+}): Promise<SupplyItemDto[]> {
+  const qs = new URLSearchParams();
+  if (params?.search) qs.set("search", params.search);
+  if (params?.category) qs.set("category", params.category);
+  const query = qs.toString() ? `?${qs.toString()}` : "";
+  const res = await fetch(`${API_URL}/api/inventory/items${query}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách vật tư");
+  }
+  return res.json() as Promise<SupplyItemDto[]>;
+}
+
+export async function getSupplyTransactionsApi(): Promise<SupplyTransactionDto[]> {
+  const res = await fetch(`${API_URL}/api/inventory/transactions`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải lịch sử giao dịch");
+  }
+  return res.json() as Promise<SupplyTransactionDto[]>;
+}
+
+export async function createSupplyTransactionApi(
+  data: CreateSupplyTransactionRequest
+): Promise<SupplyTransactionDto> {
+  const res = await fetch(`${API_URL}/api/inventory/transactions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Tạo giao dịch thất bại");
+  }
+  return res.json() as Promise<SupplyTransactionDto>;
+}
+
+export interface StockImportRequest {
+  name: string;
+  unit: string;
+  category: string;
+  quantity: number;
+  note?: string;
+}
+
+export async function stockImportApi(data: StockImportRequest): Promise<SupplyTransactionDto> {
+  const res = await fetch(`${API_URL}/api/inventory/stock-import`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Nhập kho thất bại");
+  }
+  return res.json() as Promise<SupplyTransactionDto>;
+}
+
+// ── Material requests (yêu cầu vật tư từ bác sĩ) ─────────────────────────────
+
+export interface MaterialRequestDto {
+  id: string;
+  courseName: string;
+  patientName: string;
+  dentistName: string;
+  content: string;
+  status: string;        // "Pending" | "Done"
+  createdAt: string;
+  handledAt: string | null;
+  handledBy: string | null;
+}
+
+export async function getMaterialRequestsApi(status?: string): Promise<MaterialRequestDto[]> {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+  const res = await fetch(`${API_URL}/api/inventory/material-requests${qs}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải yêu cầu vật tư");
+  }
+  return res.json() as Promise<MaterialRequestDto[]>;
+}
+
+export async function markMaterialRequestDoneApi(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/inventory/material-requests/${id}/done`, {
+    method: "PUT",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Cập nhật yêu cầu vật tư thất bại");
+  }
 }
 
 // ── Room types ─────────────────────────────────────────────────────────────
@@ -1151,6 +1453,398 @@ export async function approveLeaveRequestApi(id: string): Promise<LeaveRequestDt
   return res.json() as Promise<LeaveRequestDto>;
 }
 
+// ── Appointment types ──────────────────────────────────────────────────────────
+
+export interface StaffAppointmentDto {
+  appointmentId: string;
+  appointmentCode: string;
+  patientName: string;
+  patientPhone: string | null;
+  dentistName: string;
+  serviceName: string | null;
+  appointmentDate: string; // ISO8601
+  createdAt: string;       // ISO8601
+  status: string;          // "Pending" | "Confirmed" | "CheckedIn" | "InProgress" | "PendingPayment" | "Completed" | "Cancelled" | "NoShow"
+  symptoms: string | null;
+  checkedInAt: string | null; // ISO8601 — thời điểm check-in (null nếu chưa check-in)
+}
+
+// ── Appointment endpoints ──────────────────────────────────────────────────────
+
+export async function getStaffAppointmentsApi(params?: {
+  date?: string;   // "YYYY-MM-DD"
+  status?: string;
+}): Promise<StaffAppointmentDto[]> {
+  const qs = new URLSearchParams();
+  if (params?.date)   qs.set("date",   params.date);
+  if (params?.status) qs.set("status", params.status);
+  const query = qs.toString() ? `?${qs.toString()}` : "";
+  const res = await fetch(`${API_URL}/api/appointments${query}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách lịch hẹn");
+  }
+  return res.json() as Promise<StaffAppointmentDto[]>;
+}
+
+export async function confirmAppointmentApi(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/appointments/${id}/confirm`, {
+    method: "PUT",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Xác nhận lịch hẹn thất bại");
+  }
+}
+
+export async function cancelAppointmentApi(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/appointments/${id}/cancel`, {
+    method: "PUT",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Hủy lịch hẹn thất bại");
+  }
+}
+
+export async function checkInAppointmentApi(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/appointments/${id}/checkin`, {
+    method: "PUT",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Check-in thất bại");
+  }
+}
+
+export async function markNoShowAppointmentApi(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/appointments/${id}/no-show`, {
+    method: "PUT",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Ghi nhận vắng thất bại");
+  }
+}
+
+export async function startTreatmentApi(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/appointments/${id}/start`, {
+    method: "PUT",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Bắt đầu khám thất bại");
+  }
+}
+
+export async function completeTreatmentApi(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/appointments/${id}/complete`, {
+    method: "PUT",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Hoàn thành khám thất bại");
+  }
+}
+
+// ── Waiting Queue types ─────────────────────────────────────────────────────────
+
+export interface QueuePatientDto {
+  appointmentId: string;
+  appointmentCode: string;
+  patientName: string;
+  patientPhone: string | null;
+  serviceName: string | null;
+  dentistName: string;
+  appointmentDate: string;
+  checkedInAt: string | null;
+  queueNumber: number;
+  status: string;
+  symptoms: string | null;
+  waitMinutes: number;
+}
+
+export interface QueueDentistDto {
+  dentistId: string;
+  dentistName: string;
+  dentistColor: string;
+  shifts: string[];
+  isOnShiftNow: boolean;
+  isOnShiftSoon: boolean;
+}
+
+export interface RoomQueueDto {
+  roomName: string | null;
+  dentists: QueueDentistDto[];
+  patients: QueuePatientDto[];
+}
+
+export interface WaitingQueueResponse {
+  date: string;
+  totalWaiting: number;
+  totalInProgress: number;
+  totalCompleted: number;
+  rooms: RoomQueueDto[];
+}
+
+export async function getWaitingQueueApi(date?: string): Promise<WaitingQueueResponse> {
+  const params = new URLSearchParams();
+  if (date) params.set("date", date);
+  const query = params.toString() ? `?${params}` : "";
+  const res = await fetch(`${API_URL}/api/appointments/queue${query}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải hàng đợi");
+  }
+  return res.json() as Promise<WaitingQueueResponse>;
+}
+
+/**
+ * Chuyển bệnh nhân đang chờ sang hàng đợi của phòng khác. Phòng được suy ra từ bác sĩ
+ * phụ trách, nên API sẽ giao lịch hẹn cho bác sĩ đang trong ca trực tại phòng đích.
+ * Truyền `dentistId` khi lễ tân chọn rõ người khám (gần giờ giao ca giữa bác sĩ đang trực
+ * và bác sĩ sắp vào ca); bỏ trống thì API tự giao cho bác sĩ đang trực.
+ */
+export async function transferQueuePatientApi(
+  appointmentId: string, roomName: string, dentistId?: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/appointments/${appointmentId}/queue-room`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ roomName, dentistId }),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể chuyển bệnh nhân sang phòng khác");
+  }
+}
+
+/**
+ * Đổi chỗ thứ tự của một bệnh nhân đang chờ với người liền kề trong cùng hàng đợi phòng
+ * (nút đẩy lên / đẩy xuống một bậc). Chỉ hoán vị trí, không đổi thời gian chờ.
+ */
+export async function reorderQueuePatientApi(
+  appointmentId: string, swapWithAppointmentId: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/appointments/${appointmentId}/queue-order`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ swapWithAppointmentId }),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể đổi thứ tự hàng đợi");
+  }
+}
+
+export interface DentistPatientDto {
+  appointmentId: string;
+  appointmentCode: string;
+  patientName: string;
+  age: number;
+  gender: string;
+  phone: string | null;
+  appointmentDate: string;
+  status: string;
+  serviceName: string | null;
+  symptoms: string | null;
+  isNew: boolean;
+  isFollowUpVisit: boolean; // Buổi hẹn do staff check-in từ tab Tái khám
+}
+
+export interface DentistPatientsResponse {
+  date: string;
+  totalWaiting: number;
+  totalInProgress: number;
+  totalCompleted: number;
+  patients: DentistPatientDto[];
+}
+
+// ── Dentist Dashboard ──────────────────────────────────────────────────────
+
+export interface DentistShiftInfo {
+  label: string;        // "08:00 – 10:00"
+  period: string;       // "Buổi sáng" | "Buổi chiều" | "Buổi tối"
+  room: string | null;
+}
+
+export interface DentistWeekShifts {
+  total: number;
+  morning: number;
+  afternoon: number;
+  evening: number;
+}
+
+export interface DentistDashboardPatientDto {
+  appointmentId: string;
+  patientName: string;
+  serviceName: string | null;
+  time: string;
+  status: string;
+}
+
+export interface DentistDashboardResponse {
+  date: string;
+  totalPatientsToday: number;
+  totalWaiting: number;
+  totalInProgress: number;
+  totalCompleted: number;
+  weekShifts: DentistWeekShifts;
+  todayShifts: DentistShiftInfo[];
+  upcomingPatients: DentistDashboardPatientDto[];
+}
+
+// ── Staff Walk-in Schedule ─────────────────────────────────────────────────
+
+export interface StaffScheduleSlot {
+  time: string;
+  isBooked: boolean;
+  patientName: string | null;
+  isPast: boolean;
+}
+
+export interface StaffScheduleDentistDto {
+  dentistId: string;
+  name: string;
+  room: string;
+  slots: StaffScheduleSlot[]; // các khung giờ bác sĩ có ca hôm nay (đã lọc theo ca được phân)
+}
+
+export interface StaffScheduleResponse {
+  date: string;
+  dentists: StaffScheduleDentistDto[];
+}
+
+export async function getStaffScheduleApi(date?: string): Promise<StaffScheduleResponse> {
+  const params = new URLSearchParams();
+  if (date) params.set("date", date);
+  const query = params.toString() ? `?${params}` : "";
+  const res = await fetch(`${API_URL}/api/appointments/staff/schedule${query}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải lịch trống");
+  }
+  return res.json() as Promise<StaffScheduleResponse>;
+}
+
+export interface CreateWalkInRequest {
+  dentistId: string;
+  appointmentDate: string;
+  patientName: string;
+  patientPhone: string;
+  dateOfBirth: string;   // "YYYY-MM-DD"
+  gender: string;        // "Nam" | "Nữ" | "Khác"
+  serviceId?: string;
+  symptoms?: string;
+  patientId?: string;    // hồ sơ đã chọn từ ô tra cứu — tránh tạo bệnh nhân trùng
+}
+
+export interface PatientSearchResultDto {
+  id: string;
+  fullName: string;
+  phoneNumber: string | null;
+  dateOfBirth: string;   // "YYYY-MM-DD"
+  gender: string;
+  hasAccount: boolean;
+}
+
+/** Tra cứu bệnh nhân đã có hồ sơ (staff/admin). Dưới 2 ký tự backend trả về mảng rỗng. */
+export async function searchPatientsApi(query: string, limit = 8): Promise<PatientSearchResultDto[]> {
+  const params = new URLSearchParams({ q: query, limit: String(limit) });
+  const res = await fetch(`${API_URL}/api/patients/search?${params}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tìm bệnh nhân");
+  }
+  return res.json() as Promise<PatientSearchResultDto[]>;
+}
+
+export interface CreateWalkInResult {
+  appointmentId: string;
+  appointmentCode: string;
+  patientName: string;
+  status: string;
+}
+
+export async function createWalkInAppointmentApi(request: CreateWalkInRequest): Promise<CreateWalkInResult> {
+  const res = await fetch(`${API_URL}/api/appointments/walkin`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(request),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Đặt lịch tại quầy thất bại");
+  }
+  return res.json() as Promise<CreateWalkInResult>;
+}
+
+// ── Dentist Dashboard ──────────────────────────────────────────────────────
+
+export async function getDentistDashboardApi(): Promise<DentistDashboardResponse> {
+  const res = await fetch(`${API_URL}/api/appointments/dentist/dashboard`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải tổng quan");
+  }
+  return res.json() as Promise<DentistDashboardResponse>;
+}
+
+export async function getDentistPatientsApi(date?: string): Promise<DentistPatientsResponse> {
+  const params = new URLSearchParams();
+  if (date) params.set("date", date);
+  const query = params.toString() ? `?${params}` : "";
+  const res = await fetch(`${API_URL}/api/appointments/dentist/patients${query}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách bệnh nhân");
+  }
+  return res.json() as Promise<DentistPatientsResponse>;
+}
+
+export async function getDentistPastPatientsApi(): Promise<DentistPatientDto[]> {
+  const res = await fetch(`${API_URL}/api/appointments/dentist/patients/past`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách bệnh nhân đã từng khám");
+  }
+  return res.json() as Promise<DentistPatientDto[]>;
+}
+
 export async function rejectLeaveRequestApi(id: string, reviewerNote?: string): Promise<LeaveRequestDto> {
   const res = await fetch(`${API_URL}/api/leave-requests/${id}/reject`, {
     method: "PUT",
@@ -1163,4 +1857,1574 @@ export async function rejectLeaveRequestApi(id: string, reviewerNote?: string): 
     throw new Error((err as { title?: string }).title ?? "Không thể từ chối đơn nghỉ");
   }
   return res.json() as Promise<LeaveRequestDto>;
+}
+
+// ── Examination & Treatment APIs ─────────────────────────────────────────────────
+
+export interface PatientBriefDto {
+  id: string;
+  fullName: string;
+  phoneNumber: string | null;
+  email: string | null;
+  dateOfBirth: string | null;
+  gender: string | null;
+  address: string | null;
+}
+
+export interface DentistBriefDto {
+  id: string;
+  fullName: string;
+}
+
+export interface DiagnosisDto {
+  id: string;
+  description: string;              // Chẩn đoán
+  // Tình trạng lợi – niêm mạc
+  gumCondition: string | null;
+  oralMucosaCondition: string | null;
+  gumBleeding: string | null;
+  painOnChewing: string | null;
+  // Tình trạng răng
+  teethCount: string | null;
+  decayedTeeth: string | null;
+  wornOrBrokenTeeth: string | null;
+  looseTeeth: string | null;
+  // Vệ sinh răng miệng
+  tartar: string | null;
+  plaque: string | null;
+  badBreath: string | null;
+  // Khớp thái dương hàm / khớp cắn
+  tmjSymptoms: string | null;
+  occlusion: string | null;
+  occlusionDeviation: string | null;
+  // Tiền sử
+  medicalHistory: string | null;
+  allergyHistory: string | null;
+  conclusion: string | null;        // Kết quả & kế hoạch điều trị
+  createdAt: string;
+  updatedAt: string | null;
+}
+
+export interface StepProgressEntryDto {
+  stepNumber: number;
+  stepName: string;
+  percent: number;
+  date: string;
+  dentistName: string;
+  note: string | null;
+}
+
+export interface TreatmentPlanDto {
+  id: string;
+  patientId: string;
+  dentistId: string;
+  dentistName: string;
+  appointmentId: string | null;
+  serviceId: string;
+  serviceName: string;
+  unitPrice: number;
+  quantity: number;
+  teeth: string | null;
+  status: string;
+  warrantyUntil: string | null;
+  notes: string | null;
+  totalCost: number;
+  amountPaid: number;
+  stepProgress: StepProgressEntryDto[];
+  createdAt: string;
+  completedAt: string | null;
+}
+
+export interface PrescriptionItemDto {
+  id: string;
+  medicineName: string;
+  dosage: string;
+  quantity: number;
+  unit: string;
+  usage: string;
+  notes: string | null;
+  timesPerDay: number | null;
+  durationDays: number | null;
+  startDate: string | null;
+}
+
+export interface PrescriptionDto {
+  id: string;
+  notes: string | null;
+  createdAt: string;
+  items: PrescriptionItemDto[];
+}
+
+export interface ExaminationDto {
+  appointmentId: string;
+  appointmentCode: string;
+  patient: PatientBriefDto;
+  dentist: DentistBriefDto;
+  serviceName: string | null;
+  appointmentDate: string;
+  status: string;
+  symptoms: string | null;
+  notes: string | null;
+  startTime: string | null;
+  followUpDate: string | null;
+  followUpNote: string | null;
+  isFollowUpVisit: boolean;
+  relatedAppointmentIds: string[]; // Chuỗi buổi gốc của lượt tái khám
+  diagnoses: DiagnosisDto[];
+  treatmentPlans: TreatmentPlanDto[];
+  prescription: PrescriptionDto | null;
+}
+
+export async function getExaminationApi(appointmentId: string): Promise<ExaminationDto> {
+  const res = await fetch(`${API_URL}/api/appointments/${appointmentId}/examination`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải thông tin khám");
+  }
+  return res.json() as Promise<ExaminationDto>;
+}
+
+// Patient Medical History APIs
+export interface PatientMedicalHistoryDto {
+  appointmentId: string;
+  appointmentCode: string;
+  appointmentDate: string;
+  dentistName: string;
+  serviceName: string;
+  symptoms: string | null;
+  diagnoses: MedicalHistoryDiagnosisDto[];
+  treatmentPlans: MedicalHistoryTreatmentPlanDto[];
+  prescriptionItems: MedicalHistoryPrescriptionItemDto[];
+}
+
+export interface MedicalHistoryDiagnosisDto {
+  description: string;
+  conclusion: string | null;
+  createdAt: string;
+}
+
+export interface MedicalHistoryTreatmentPlanDto {
+  description: string;
+  status: string;
+  estimatedCost: number | null;
+}
+
+export interface MedicalHistoryPrescriptionItemDto {
+  medicineName: string;
+  dosage: string;
+  quantity: number;
+  unit: string;
+}
+
+export async function getPatientMedicalHistoryApi(patientId: string): Promise<PatientMedicalHistoryDto[]> {
+  const res = await fetch(`${API_URL}/api/appointments/patients/${patientId}/medical-history`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải lịch sử khám");
+  }
+  return res.json() as Promise<PatientMedicalHistoryDto[]>;
+}
+
+export interface PatientHistorySummaryDto {
+  summary: string;
+  disclaimer: string;
+  fromCache: boolean;
+}
+
+export async function getPatientAiSummaryApi(
+  appointmentId: string,
+  force = false,
+): Promise<PatientHistorySummaryDto> {
+  const qs = force ? "?force=true" : "";
+  const res = await fetch(`${API_URL}/api/appointments/${appointmentId}/ai-summary${qs}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tạo tóm tắt AI");
+  }
+  return res.json() as Promise<PatientHistorySummaryDto>;
+}
+
+export interface TreatmentSuggestionDto {
+  suggestion: string;
+  disclaimer: string;
+}
+
+export async function getTreatmentSuggestionApi(appointmentId: string): Promise<TreatmentSuggestionDto> {
+  const res = await fetch(`${API_URL}/api/appointments/${appointmentId}/treatment-suggestion`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tạo gợi ý điều trị");
+  }
+  return res.json() as Promise<TreatmentSuggestionDto>;
+}
+
+export interface PrescriptionSuggestionDto {
+  suggestion: string;
+  disclaimer: string;
+}
+
+export async function getPrescriptionSuggestionApi(appointmentId: string): Promise<PrescriptionSuggestionDto> {
+  const res = await fetch(`${API_URL}/api/appointments/${appointmentId}/prescription-suggestion`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tạo gợi ý đơn thuốc");
+  }
+  return res.json() as Promise<PrescriptionSuggestionDto>;
+}
+
+// Diagnosis APIs
+/** Các trường của phiếu khám răng miệng — dùng chung cho tạo mới và cập nhật. */
+export interface DiagnosisFields {
+  description: string;              // Chẩn đoán
+  gumCondition?: string;
+  oralMucosaCondition?: string;
+  gumBleeding?: string;
+  painOnChewing?: string;
+  teethCount?: string;
+  decayedTeeth?: string;
+  wornOrBrokenTeeth?: string;
+  looseTeeth?: string;
+  tartar?: string;
+  plaque?: string;
+  badBreath?: string;
+  tmjSymptoms?: string;
+  occlusion?: string;
+  occlusionDeviation?: string;
+  medicalHistory?: string;
+  allergyHistory?: string;
+  conclusion?: string;              // Kết quả & kế hoạch điều trị
+}
+
+export type CreateDiagnosisRequest = DiagnosisFields;
+
+export interface UpdateDiagnosisRequest extends DiagnosisFields {
+  diagnosisId: string;
+}
+
+export async function createDiagnosisApi(appointmentId: string, request: CreateDiagnosisRequest): Promise<DiagnosisDto> {
+  const res = await fetch(`${API_URL}/api/appointments/${appointmentId}/diagnosis`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(request),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể thêm chuẩn đoán");
+  }
+  return res.json() as Promise<DiagnosisDto>;
+}
+
+export async function updateDiagnosisApi(request: UpdateDiagnosisRequest): Promise<DiagnosisDto> {
+  const res = await fetch(`${API_URL}/api/appointments/diagnosis/${request.diagnosisId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(request),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể cập nhật chuẩn đoán");
+  }
+  return res.json() as Promise<DiagnosisDto>;
+}
+
+export async function deleteDiagnosisApi(diagnosisId: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/appointments/diagnosis/${diagnosisId}`, {
+    method: "DELETE",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể xóa chuẩn đoán");
+  }
+}
+
+// Treatment Plan APIs
+export interface CreateTreatmentPlanRequest {
+  serviceId: string;
+  unitPrice?: number;
+  quantity: number;
+  teeth?: string;
+  notes?: string;
+  warrantyUntil?: string;
+}
+
+export interface UpdateTreatmentPlanRequest {
+  treatmentPlanId: string;
+  unitPrice: number;
+  quantity: number;
+  teeth?: string;
+  notes?: string;
+  warrantyUntil?: string;
+  status?: string;
+}
+
+export async function createTreatmentPlanApi(appointmentId: string, request: CreateTreatmentPlanRequest): Promise<TreatmentPlanDto> {
+  const res = await fetch(`${API_URL}/api/appointments/${appointmentId}/treatment-plan`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(request),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tạo liệu trình");
+  }
+  return res.json() as Promise<TreatmentPlanDto>;
+}
+
+export async function updateTreatmentPlanApi(request: UpdateTreatmentPlanRequest): Promise<TreatmentPlanDto> {
+  const res = await fetch(`${API_URL}/api/appointments/treatment-plan/${request.treatmentPlanId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(request),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể cập nhật liệu trình");
+  }
+  return res.json() as Promise<TreatmentPlanDto>;
+}
+
+export async function getPatientTreatmentPlansApi(patientId: string): Promise<TreatmentPlanDto[]> {
+  const res = await fetch(`${API_URL}/api/appointments/patients/${patientId}/treatment-plans`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải liệu trình của bệnh nhân");
+  }
+  return res.json() as Promise<TreatmentPlanDto[]>;
+}
+
+export interface AddStepProgressRequest {
+  stepNumber: number;
+  stepName: string;
+  percent: number;
+  date?: string;
+  note?: string;
+}
+
+export interface UpdateStepProgressRequest {
+  entryIndex: number; // vị trí mục trong nhật ký (stepProgress)
+  percent: number;
+  note?: string;
+  stepName?: string; // đổi tên bước điều trị
+}
+
+export async function updateTreatmentPlanProgressApi(
+  treatmentPlanId: string,
+  request: UpdateStepProgressRequest
+): Promise<TreatmentPlanDto> {
+  const res = await fetch(`${API_URL}/api/appointments/treatment-plan/${treatmentPlanId}/progress`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(request),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể sửa quá trình điều trị");
+  }
+  return res.json() as Promise<TreatmentPlanDto>;
+}
+
+export async function reorderTreatmentPlanProgressApi(
+  treatmentPlanId: string,
+  order: number[] // hoán vị các index gốc theo thứ tự mới
+): Promise<TreatmentPlanDto> {
+  const res = await fetch(`${API_URL}/api/appointments/treatment-plan/${treatmentPlanId}/progress/reorder`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ order }),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể đổi thứ tự quá trình điều trị");
+  }
+  return res.json() as Promise<TreatmentPlanDto>;
+}
+
+export async function deleteTreatmentPlanProgressApi(
+  treatmentPlanId: string,
+  entryIndex: number
+): Promise<TreatmentPlanDto> {
+  const res = await fetch(`${API_URL}/api/appointments/treatment-plan/${treatmentPlanId}/progress/${entryIndex}`, {
+    method: "DELETE",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể xóa quá trình điều trị");
+  }
+  return res.json() as Promise<TreatmentPlanDto>;
+}
+
+export async function addTreatmentPlanProgressApi(
+  treatmentPlanId: string,
+  request: AddStepProgressRequest
+): Promise<TreatmentPlanDto> {
+  const res = await fetch(`${API_URL}/api/appointments/treatment-plan/${treatmentPlanId}/progress`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(request),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể ghi nhận quá trình điều trị");
+  }
+  return res.json() as Promise<TreatmentPlanDto>;
+}
+
+// Treatment Procedure APIs (quy trình điều trị chuẩn theo dịch vụ)
+export interface TreatmentProcedureDto {
+  id: string;
+  serviceId: string;
+  stepNumber: number;
+  name: string;
+}
+
+export interface ProcedureStepRequest {
+  stepNumber: number;
+  name: string;
+}
+
+export async function getServiceProceduresApi(serviceId: string): Promise<TreatmentProcedureDto[]> {
+  const res = await fetch(`${API_URL}/api/services/${serviceId}/procedures`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải quy trình điều trị");
+  }
+  return res.json() as Promise<TreatmentProcedureDto[]>;
+}
+
+export async function updateServiceProceduresApi(
+  serviceId: string,
+  steps: ProcedureStepRequest[]
+): Promise<TreatmentProcedureDto[]> {
+  const res = await fetch(`${API_URL}/api/services/${serviceId}/procedures`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(steps),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể lưu quy trình điều trị");
+  }
+  return res.json() as Promise<TreatmentProcedureDto[]>;
+}
+
+export async function deleteTreatmentPlanApi(treatmentPlanId: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/appointments/treatment-plan/${treatmentPlanId}`, {
+    method: "DELETE",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể xóa liệu trình");
+  }
+}
+
+// Prescription APIs
+export interface PrescriptionItemRequest {
+  medicineName: string;
+  dosage: string;
+  quantity: number;
+  unit: string;
+  usage: string;
+  notes?: string;
+  timesPerDay?: number;
+  durationDays?: number;
+  startDate?: string;
+}
+
+export interface CreatePrescriptionRequest {
+  notes?: string;
+  items?: PrescriptionItemRequest[];
+}
+
+export interface UpdatePrescriptionRequest {
+  prescriptionId: string;
+  notes?: string;
+}
+
+export interface AddPrescriptionItemRequest {
+  prescriptionId: string;
+  medicineName: string;
+  dosage: string;
+  quantity: number;
+  unit: string;
+  usage: string;
+  notes?: string;
+  timesPerDay?: number;
+  durationDays?: number;
+  startDate?: string;
+}
+
+export interface UpdatePrescriptionItemRequest {
+  itemId: string;
+  medicineName: string;
+  dosage: string;
+  quantity: number;
+  unit: string;
+  usage: string;
+  notes?: string;
+  timesPerDay?: number;
+  durationDays?: number;
+  startDate?: string;
+}
+
+export async function createPrescriptionApi(appointmentId: string, request: CreatePrescriptionRequest): Promise<PrescriptionDto> {
+  const res = await fetch(`${API_URL}/api/appointments/${appointmentId}/prescription`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(request),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tạo đơn thuốc");
+  }
+  return res.json() as Promise<PrescriptionDto>;
+}
+
+export async function updatePrescriptionApi(request: UpdatePrescriptionRequest): Promise<PrescriptionDto> {
+  const res = await fetch(`${API_URL}/api/appointments/prescription/${request.prescriptionId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ notes: request.notes }),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể cập nhật đơn thuốc");
+  }
+  return res.json() as Promise<PrescriptionDto>;
+}
+
+export async function addPrescriptionItemApi(request: AddPrescriptionItemRequest): Promise<PrescriptionDto> {
+  const res = await fetch(`${API_URL}/api/appointments/prescription/${request.prescriptionId}/items`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({
+      medicineName: request.medicineName,
+      dosage: request.dosage,
+      quantity: request.quantity,
+      unit: request.unit,
+      usage: request.usage,
+      notes: request.notes,
+      timesPerDay: request.timesPerDay,
+      durationDays: request.durationDays,
+      startDate: request.startDate,
+    }),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể thêm thuốc vào đơn");
+  }
+  return res.json() as Promise<PrescriptionDto>;
+}
+
+export async function deletePrescriptionItemApi(itemId: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/appointments/prescription-items/${itemId}`, {
+    method: "DELETE",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể xóa thuốc khỏi đơn");
+  }
+}
+
+// Follow-up Reminder APIs (nhắc tái khám — chỉ hẹn ngày, không đặt lịch mới)
+export interface FollowUpReminderDto {
+  appointmentId: string;
+  followUpDate: string | null;
+  followUpNote: string | null;
+}
+
+export async function setFollowUpReminderApi(
+  appointmentId: string,
+  request: { followUpDate: string; note?: string }
+): Promise<FollowUpReminderDto> {
+  const res = await fetch(`${API_URL}/api/appointments/${appointmentId}/follow-up-reminder`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(request),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể lưu lịch hẹn tái khám");
+  }
+  return res.json() as Promise<FollowUpReminderDto>;
+}
+
+export async function clearFollowUpReminderApi(appointmentId: string): Promise<FollowUpReminderDto> {
+  const res = await fetch(`${API_URL}/api/appointments/${appointmentId}/follow-up-reminder`, {
+    method: "DELETE",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể hủy lịch hẹn tái khám");
+  }
+  return res.json() as Promise<FollowUpReminderDto>;
+}
+
+// Bệnh nhân đang trong diện chờ tái khám (còn liệu trình đang thực hiện sau khi kết thúc điều trị)
+export interface FollowUpDueDto {
+  originalAppointmentId: string;
+  patientId: string;
+  patientName: string;
+  patientPhone: string | null;
+  gender: string | null;
+  dentistName: string;
+  serviceName: string | null;
+  originalAppointmentDate: string;
+  followUpDate: string | null;
+  followUpNote: string | null;
+  activePlans: string[]; // Các liệu trình đang thực hiện
+}
+
+export async function getFollowUpDueApi(): Promise<FollowUpDueDto[]> {
+  const res = await fetch(`${API_URL}/api/appointments/follow-up-due`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách chờ tái khám");
+  }
+  return res.json() as Promise<FollowUpDueDto[]>;
+}
+
+export async function checkInFollowUpApi(originalAppointmentId: string): Promise<{ appointmentId: string }> {
+  const res = await fetch(`${API_URL}/api/appointments/${originalAppointmentId}/follow-up-check-in`, {
+    method: "POST",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Check-in tái khám thất bại");
+  }
+  return res.json() as Promise<{ appointmentId: string }>;
+}
+
+// End Treatment API
+export async function endTreatmentApi(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/appointments/${id}/end-treatment`, {
+    method: "PUT",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Kết thúc điều trị thất bại");
+  }
+}
+
+// ── Profile APIs ──────────────────────────────────────────────────────────
+
+export interface UserProfileDto {
+  id: string;
+  fullName: string;
+  email: string;
+  phoneNumber: string | null;
+  dateOfBirth: string | null;
+  gender: string | null;
+  profilePictureUrl: string | null;
+  role: string;
+  employeeId: string | null;
+  department: string | null;
+  employmentStatus: string | null;
+  position: string | null;
+  startDate: string | null;
+  specialty: string | null;
+  licenseNumber: string | null;
+  yearsOfExperience: number | null;
+  education: string | null;
+  bio: string | null;
+  address: string | null;
+  baseSalary: number;
+  allowance: number;
+  salaryNote: string;
+  certificateIssuedDate: string | null;
+  certificateIssuedBy: string | null;
+  servicesHandled: string | null;
+  username: string | null;
+  createdAt: string;
+}
+
+export interface UpdateMyProfileCommand {
+  fullName: string;
+  phoneNumber: string;
+  dateOfBirth: string | null;
+  gender: string | null;
+  address?: string | null;
+  profilePictureUrl?: string | null;
+  bio?: string | null;
+  education?: string | null;
+  specialty?: string | null;
+  yearsOfExperience?: number | null;
+}
+
+export async function getMyProfileApi(): Promise<UserProfileDto> {
+  const res = await fetch(`${API_URL}/api/auth/me/profile`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải thông tin cá nhân");
+  }
+  return res.json() as Promise<UserProfileDto>;
+}
+
+export async function updateMyProfileApi(data: UpdateMyProfileCommand): Promise<void> {
+  const res = await fetch(`${API_URL}/api/auth/me/profile`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Cập nhật thông tin cá nhân thất bại");
+  }
+
+  // Update cached user session in local storage
+  if (typeof window !== "undefined") {
+    const rawUser = localStorage.getItem("dental_clinic_user");
+    if (rawUser) {
+      try {
+        const cachedUser = JSON.parse(rawUser) as AuthUser;
+        cachedUser.fullName = data.fullName;
+        if (data.profilePictureUrl !== undefined) {
+          cachedUser.profilePictureUrl = data.profilePictureUrl;
+        }
+        localStorage.setItem("dental_clinic_user", JSON.stringify(cachedUser));
+      } catch (e) {
+        console.error("Failed to update cached user", e);
+      }
+    }
+  }
+}
+
+export async function changePasswordApi(currentPassword: string, newPassword: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/auth/me/change-password`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Đổi mật khẩu thất bại");
+  }
+}
+
+// ── Clinic Info types & endpoints ───────────────────────────────────────────
+
+export interface MilestoneDto {
+  year: number;
+  description: string;
+}
+
+export interface FeatureDto {
+  title: string;
+  description: string;
+}
+
+export interface TreatmentStepDto {
+  title: string;
+  description: string;
+}
+
+export interface StatisticDto {
+  value: string;
+  label: string;
+}
+
+export interface ClinicInfoDto {
+  id: string;
+  aboutTitle: string;
+  aboutDescription: string;
+  foundedYear: number;
+  aboutImageUrl: string | null;
+  phone: string;
+  email: string;
+  address: string;
+  milestones: MilestoneDto[];
+  certifications: string[];
+  features: FeatureDto[];
+  treatmentSteps: TreatmentStepDto[];
+  statistics: StatisticDto[];
+  createdAt: string;
+  updatedAt?: string | null;
+}
+
+export interface UpdateClinicInfoRequest {
+  aboutTitle: string;
+  aboutDescription: string;
+  foundedYear: number;
+  phone: string;
+  email: string;
+  address: string;
+  aboutImageUrl: string | null;
+  milestones?: MilestoneDto[] | null;
+  certifications?: string[] | null;
+  features?: FeatureDto[] | null;
+  treatmentSteps?: TreatmentStepDto[] | null;
+  statistics?: StatisticDto[] | null;
+}
+
+export async function getClinicInfoApi(): Promise<ClinicInfoDto> {
+  const res = await fetch(`${API_URL}/api/clinic-info`, {
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải thông tin phòng khám");
+  }
+  return res.json() as Promise<ClinicInfoDto>;
+}
+
+export async function updateClinicInfoApi(data: UpdateClinicInfoRequest): Promise<ClinicInfoDto> {
+  const res = await fetch(`${API_URL}/api/clinic-info`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(),
+    },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Cập nhật thông tin phòng khám thất bại");
+  }
+  return res.json() as Promise<ClinicInfoDto>;
+}
+
+// ── Invoice types & endpoints ────────────────────────────────────────────────
+
+export interface InvoiceItemDto {
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+}
+
+export interface BillablePlanDto {
+  appointmentId: string;
+  appointmentCode: string;
+  patientName: string;
+  patientPhone: string | null;
+  gender: string | null;
+  dentistName: string;
+  appointmentDate: string;
+  diagnosis: string;
+  items: InvoiceItemDto[];
+  suggestedTotal: number;
+  outstandingInvoiceId: string | null;  // hóa đơn đặt cọc gốc nếu đây là "thu phần còn lại"
+  sourceInvoiceNumber: string | null;
+  // Khi mục này là một đợt thu của liệu trình điều trị
+  treatmentPlanId: string | null;
+  planName: string | null;
+  planTotal: number;
+  planAmountPaid: number;
+  planRemaining: number;
+}
+
+export interface InvoiceDto {
+  id: string;
+  invoiceNumber: string;
+  appointmentId: string;
+  patientName: string;
+  patientPhone: string | null;
+  gender: string | null;
+  dentistName: string;
+  appointmentDate: string;
+  items: InvoiceItemDto[];
+  subtotal: number;
+  discount: number;
+  totalAmount: number;
+  paymentType: string;    // "Full" | "Deposit"
+  depositAmount: number;  // Số tiền thu trên hóa đơn này
+  remainingAmount: number;
+  paymentMethod: string; // "Cash" | "BankTransfer" | "OnlinePayment"
+  status: string;        // "Unpaid" | "Paid" | "Refunded"
+  notes: string | null;
+  createdAt: string;
+  paymentDate: string | null;
+  parentInvoiceId: string | null;
+  isSettled: boolean;
+  collectingRemaining: boolean;
+}
+
+export interface IssueInvoiceItemRequest {
+  name: string;
+  quantity: number;
+  unitPrice: number;
+}
+
+export interface IssueInvoiceRequest {
+  appointmentId: string;
+  items: IssueInvoiceItemRequest[];
+  discount: number;
+  paymentMethod: string;   // "cash" | "transfer" | "app" or enum name
+  paymentType?: string;    // "full" | "deposit"
+  depositAmount?: number;  // bắt buộc > 0 khi đặt cọc
+  notes?: string | null;
+  parentInvoiceId?: string | null;  // khi thu phần còn lại của hóa đơn đặt cọc
+  treatmentPlanId?: string | null;  // khi thu một đợt của liệu trình điều trị
+}
+
+// ── Công nợ liệu trình điều trị ──────────────────────────────────────────────
+
+export interface OutstandingPlanDto {
+  treatmentPlanId: string;
+  planName: string;
+  patientName: string;
+  patientPhone: string | null;
+  gender: string | null;
+  dentistName: string;
+  totalCost: number;
+  amountPaid: number;
+  remainingAmount: number;
+  status: string;
+  createdAt: string;
+}
+
+export async function getOutstandingPlansApi(): Promise<OutstandingPlanDto[]> {
+  const res = await fetch(`${API_URL}/api/invoices/outstanding-plans`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải công nợ liệu trình");
+  }
+  return res.json() as Promise<OutstandingPlanDto[]>;
+}
+
+export async function getBillablePlansApi(): Promise<BillablePlanDto[]> {
+  const res = await fetch(`${API_URL}/api/invoices/billable-plans`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách liệu trình chờ xuất hóa đơn");
+  }
+  return res.json() as Promise<BillablePlanDto[]>;
+}
+
+export async function issueInvoiceApi(data: IssueInvoiceRequest): Promise<InvoiceDto> {
+  const res = await fetch(`${API_URL}/api/invoices`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Xuất hóa đơn thất bại");
+  }
+  return res.json() as Promise<InvoiceDto>;
+}
+
+export async function getPendingInvoicesApi(): Promise<InvoiceDto[]> {
+  const res = await fetch(`${API_URL}/api/invoices/pending`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải hóa đơn chờ thanh toán");
+  }
+  return res.json() as Promise<InvoiceDto[]>;
+}
+
+export async function getInvoiceHistoryApi(): Promise<InvoiceDto[]> {
+  const res = await fetch(`${API_URL}/api/invoices/history`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải lịch sử hóa đơn");
+  }
+  return res.json() as Promise<InvoiceDto[]>;
+}
+
+export async function getOutstandingInvoicesApi(): Promise<InvoiceDto[]> {
+  const res = await fetch(`${API_URL}/api/invoices/outstanding`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách công nợ");
+  }
+  return res.json() as Promise<InvoiceDto[]>;
+}
+
+export async function collectRemainingInvoiceApi(invoiceId: string): Promise<InvoiceDto> {
+  const res = await fetch(`${API_URL}/api/invoices/${invoiceId}/collect-remaining`, {
+    method: "PUT",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tạo yêu cầu thu phần còn lại");
+  }
+  return res.json() as Promise<InvoiceDto>;
+}
+
+export async function confirmInvoicePaymentApi(invoiceId: string, paymentMethod?: string): Promise<InvoiceDto> {
+  const res = await fetch(`${API_URL}/api/invoices/${invoiceId}/pay`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ paymentMethod: paymentMethod ?? null }),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Xác nhận thanh toán thất bại");
+  }
+  return res.json() as Promise<InvoiceDto>;
+}
+
+// ── Payment gateway (PayOS) — VietQR chuyển khoản & thanh toán online ───────
+
+export interface PaymentTransactionDto {
+  id: string;
+  invoiceId: string;
+  gateway: string;          // "PayOS"
+  status: string;           // "Pending" | "Success" | "Failed" | "Cancelled" | "Expired"
+  gatewayOrderCode: string;
+  amount: number;
+  checkoutUrl: string | null;
+  qrCode: string | null;
+  createdAt: string;
+  expiresAt: string | null;
+}
+
+export interface PaymentStatusDto {
+  invoiceId: string;
+  invoiceStatus: string;             // "Unpaid" | "Paid" | "Refunded"
+  latestTransaction: PaymentTransactionDto | null;
+}
+
+export async function createPaymentRequestApi(invoiceId: string, gateway?: string): Promise<PaymentTransactionDto> {
+  const res = await fetch(`${API_URL}/api/payments/invoices/${invoiceId}/request`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ gateway: gateway ?? "PayOS" }),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tạo yêu cầu thanh toán");
+  }
+  return res.json() as Promise<PaymentTransactionDto>;
+}
+
+export async function getPaymentStatusApi(invoiceId: string): Promise<PaymentStatusDto> {
+  const res = await fetch(`${API_URL}/api/payments/invoices/${invoiceId}/status`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể kiểm tra trạng thái thanh toán");
+  }
+  return res.json() as Promise<PaymentStatusDto>;
+}
+
+// ── Activity Logs ───────────────────────────────────────────────────────────
+
+export interface ActivityLogItemDto {
+  id: number;
+  userId: string | null;
+  userName: string;
+  userRole: string;
+  action: string;
+  module: string;
+  description: string;
+  ipAddress: string | null;
+  status: string;
+  targetId: string | null;
+  createdAt: string;
+}
+
+export interface ActivityLogPagedDto {
+  items: ActivityLogItemDto[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+// ── Notification types & endpoints ──────────────────────────────────────────
+
+export interface NotificationDto {
+  id: string;
+  type: string;
+  priority: string;
+  title: string;
+  body: string;
+  isRead: boolean;
+  readAt: string | null;
+  relatedEntityType: string | null;
+  relatedEntityId: string | null;
+  createdAt: string;
+}
+
+export interface NotificationPagedDto {
+  items: NotificationDto[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  unreadCount: number;
+}
+
+export async function getNotificationsApi(params?: {
+  type?: string;
+  priority?: string;
+  isRead?: boolean;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<NotificationPagedDto> {
+  const qs = new URLSearchParams();
+  if (params?.type)               qs.set("type",     params.type);
+  if (params?.priority)           qs.set("priority", params.priority);
+  if (params?.isRead !== undefined) qs.set("isRead",  String(params.isRead));
+  if (params?.search)             qs.set("search",   params.search);
+  if (params?.page)               qs.set("page",     String(params.page));
+  if (params?.pageSize)           qs.set("pageSize", String(params.pageSize));
+  const query = qs.toString() ? `?${qs.toString()}` : "";
+  const res = await fetch(`${API_URL}/api/notifications${query}`, {
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải thông báo");
+  }
+  return res.json() as Promise<NotificationPagedDto>;
+}
+
+export async function markNotificationReadApi(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/notifications/${id}/read`, {
+    method: "PUT",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Đánh dấu đã đọc thất bại");
+  }
+}
+
+export async function markAllNotificationsReadApi(): Promise<void> {
+  const res = await fetch(`${API_URL}/api/notifications/read-all`, {
+    method: "PUT",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Đánh dấu đọc tất cả thất bại");
+  }
+}
+
+export async function deleteNotificationApi(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/notifications/${id}`, {
+    method: "DELETE",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Xóa thông báo thất bại");
+  }
+}
+
+export async function getActivityLogsApi(params?: {
+  userId?: string;
+  action?: string;
+  module?: string;
+  status?: string;
+  search?: string;
+  startDate?: string;
+  endDate?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<ActivityLogPagedDto> {
+  const qs = new URLSearchParams();
+  if (params?.userId)    qs.set("userId",    params.userId);
+  if (params?.action)    qs.set("action",    params.action);
+  if (params?.module)    qs.set("module",    params.module);
+  if (params?.status)    qs.set("status",    params.status);
+  if (params?.search)    qs.set("search",    params.search);
+  if (params?.startDate) qs.set("startDate", params.startDate);
+  if (params?.endDate)   qs.set("endDate",   params.endDate);
+  if (params?.page)      qs.set("page",      String(params.page));
+  if (params?.pageSize)  qs.set("pageSize",  String(params.pageSize));
+  const query = qs.toString() ? `?${qs.toString()}` : "";
+
+  const res = await fetch(`${API_URL}/api/activity-logs${query}`, {
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải lịch sử hoạt động");
+  }
+  return res.json() as Promise<ActivityLogPagedDto>;
+}
+
+// ── Dashboard Admin (Tổng quan vận hành) ─────────────────────────────────────
+
+export type DashboardRange = "week" | "month" | "year";
+
+export interface DashboardStatsDto {
+  range: DashboardRange;
+  periodStart: string;
+  periodEnd: string;
+  newPatientsCount: number;
+  newPatientsTrendPercent: number;
+  appointmentsCount: number;
+  appointmentsTrendPercent: number;
+  revenueAmount: number;
+  revenueTrendPercent: number;
+}
+
+export async function getDashboardStatsApi(range: DashboardRange): Promise<DashboardStatsDto> {
+  const res = await fetch(`${API_URL}/api/dashboard/stats?range=${range}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải chỉ số tổng quan");
+  }
+  return res.json() as Promise<DashboardStatsDto>;
+}
+
+export interface AppointmentTrendPointDto {
+  periodStart: string;
+  periodEnd: string;
+  count: number;
+}
+
+export interface AppointmentTrendDto {
+  range: DashboardRange;
+  points: AppointmentTrendPointDto[];
+}
+
+export async function getAppointmentTrendApi(range: DashboardRange): Promise<AppointmentTrendDto> {
+  const res = await fetch(`${API_URL}/api/dashboard/appointment-trend?range=${range}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải biểu đồ lịch hẹn");
+  }
+  return res.json() as Promise<AppointmentTrendDto>;
+}
+
+export interface ServiceDistributionItemDto {
+  serviceId: string | null;
+  serviceName: string | null;
+  count: number;
+  percentage: number;
+}
+
+export interface ServiceDistributionDto {
+  range: DashboardRange;
+  totalAppointments: number;
+  items: ServiceDistributionItemDto[];
+}
+
+export async function getServiceDistributionApi(
+  range: DashboardRange,
+  topN = 5
+): Promise<ServiceDistributionDto> {
+  const res = await fetch(`${API_URL}/api/dashboard/service-distribution?range=${range}&topN=${topN}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải tỷ lệ dịch vụ");
+  }
+  return res.json() as Promise<ServiceDistributionDto>;
+}
+
+export interface DashboardTodayAppointmentDto {
+  id: string;
+  appointmentDate: string;
+  patientName: string;
+  serviceName: string | null;
+  status: string;
+}
+
+export interface DashboardTodayAppointmentsDto {
+  items: DashboardTodayAppointmentDto[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export async function getDashboardTodayAppointmentsApi(
+  page = 1,
+  pageSize = 10
+): Promise<DashboardTodayAppointmentsDto> {
+  const res = await fetch(`${API_URL}/api/dashboard/today-appointments?page=${page}&pageSize=${pageSize}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải lịch hẹn hôm nay");
+  }
+  return res.json() as Promise<DashboardTodayAppointmentsDto>;
+}
+
+export interface DashboardCalendarDayDto {
+  date: string;
+  isToday: boolean;
+}
+
+export interface DashboardShiftEntryDto {
+  staffName: string;
+  specialization: string | null;
+  profilePictureUrl: string | null;
+  room: string;
+  roomColor: string;
+  isBusy: boolean;
+}
+
+export interface DashboardWeeklyScheduleDto {
+  selectedDate: string;
+  week: DashboardCalendarDayDto[];
+  morningShift: DashboardShiftEntryDto[];
+  afternoonShift: DashboardShiftEntryDto[];
+}
+
+export async function getDashboardWeeklyScheduleApi(date?: string): Promise<DashboardWeeklyScheduleDto> {
+  const qs = date ? `?date=${date}` : "";
+  const res = await fetch(`${API_URL}/api/dashboard/weekly-schedule${qs}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải lịch vận hành phòng khám");
+  }
+  return res.json() as Promise<DashboardWeeklyScheduleDto>;
+}
+
+export interface DashboardFeedbackSummaryDto {
+  id: string;
+  customerName: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
+}
+
+export interface DashboardRecentFeedbackDto {
+  items: DashboardFeedbackSummaryDto[];
+  averageRating: number;
+  totalFeaturedCount: number;
+}
+
+export async function getDashboardRecentFeedbackApi(limit = 3): Promise<DashboardRecentFeedbackDto> {
+  const res = await fetch(`${API_URL}/api/dashboard/recent-feedback?limit=${limit}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải đánh giá khách hàng");
+  }
+  return res.json() as Promise<DashboardRecentFeedbackDto>;
+}
+
+// ── Dashboard Staff (Tổng quan lễ tân) ───────────────────────────────────────
+
+export interface StaffDashboardStatsDto {
+  appointmentsTodayCount: number;
+  waitingCheckInCount: number;
+  inProgressCount: number;
+  pendingInvoicesCount: number;
+}
+
+export async function getStaffDashboardStatsApi(): Promise<StaffDashboardStatsDto> {
+  const res = await fetch(`${API_URL}/api/staff-dashboard/stats`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải chỉ số tổng quan");
+  }
+  return res.json() as Promise<StaffDashboardStatsDto>;
+}
+
+export interface StaffDashboardTodayAppointmentDto {
+  id: string;
+  patientName: string;
+  serviceName: string | null;
+  dentistName: string;
+  appointmentDate: string;
+  status: string; // "Confirmed" | "CheckedIn" | "InProgress"
+}
+
+export async function getStaffDashboardTodayAppointmentsApi(
+  limit = 5
+): Promise<StaffDashboardTodayAppointmentDto[]> {
+  const res = await fetch(`${API_URL}/api/staff-dashboard/today-appointments?limit=${limit}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải lịch hẹn hôm nay");
+  }
+  return res.json() as Promise<StaffDashboardTodayAppointmentDto[]>;
+}
+
+export interface StaffDashboardPendingInvoiceDto {
+  id: string;
+  invoiceNumber: string;
+  patientName: string;
+  serviceName: string | null;
+  amount: number;
+}
+
+export async function getStaffDashboardPendingInvoicesApi(
+  limit = 3
+): Promise<StaffDashboardPendingInvoiceDto[]> {
+  const res = await fetch(`${API_URL}/api/staff-dashboard/pending-invoices?limit=${limit}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải hóa đơn chờ thanh toán");
+  }
+  return res.json() as Promise<StaffDashboardPendingInvoiceDto[]>;
+}
+
+// ── AI Analytics (thống kê vận hành các tính năng AI) ────────────────────────
+
+export interface AiFeatureUsageDto {
+  feature: string;
+  totalCalls: number;
+  successCount: number;
+  failureCount: number;
+  avgDurationMs: number;
+}
+
+export interface AiDailyUsageDto {
+  date: string;
+  calls: number;
+  failures: number;
+}
+
+export interface AiAnalyticsDto {
+  rangeDays: number | null;
+  totalConversations: number;
+  totalMessages: number;
+  totalUserMessages: number;
+  suggestBookingCount: number;
+  bookingActionCount: number;
+  usageByFeature: AiFeatureUsageDto[];
+  dailyUsage: AiDailyUsageDto[];
+}
+
+/** rangeDays = undefined/null → lấy TẤT CẢ dữ liệu từ trước tới nay (tùy chọn "Tất cả" trên UI). */
+export async function getAiAnalyticsApi(rangeDays?: number): Promise<AiAnalyticsDto> {
+  const qs = rangeDays != null ? `?rangeDays=${rangeDays}` : "";
+  const res = await fetch(`${API_URL}/api/ai-analytics${qs}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải thống kê AI");
+  }
+  return res.json() as Promise<AiAnalyticsDto>;
+}
+
+// ── AI Marketing Content Assistant (soạn nội dung bài viết/ưu đãi bằng AI) ───
+
+export interface MarketingContentDraftDto {
+  title: string;
+  content: string;
+  suggestedCategory: string;
+}
+
+export interface GenerateMarketingContentRequest {
+  serviceId?: string;
+  promotionId?: string;
+  topic?: string;
+  tone?: string;
+}
+
+export async function generateMarketingContentApi(
+  body: GenerateMarketingContentRequest
+): Promise<MarketingContentDraftDto> {
+  const res = await fetch(`${API_URL}/api/posts/generate-ai-draft`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(body),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể soạn nội dung bằng AI");
+  }
+  return res.json() as Promise<MarketingContentDraftDto>;
 }

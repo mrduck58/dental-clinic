@@ -7,7 +7,7 @@ namespace DentalClinic.API.Presentation.Controllers;
 
 [ApiController]
 [Route("api/rooms")]
-[Authorize(Roles = "Admin")]
+[Authorize(Roles = "Admin,Owner")]
 public class RoomsController(
     GetRoomsHandler getRooms,
     GetRoomByIdHandler getById,
@@ -57,7 +57,7 @@ public class RoomsController(
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         await delete.HandleAsync(id, ct);
-        return NoContent();
+        return Ok(new { message = "Đã xóa phòng." });
     }
 
     /// <summary>PATCH api/rooms/{id}/status — Đổi trạng thái phòng</summary>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { loginApi, saveSession } from "../../../lib/apiClient";
+import { loginApi, saveSession, getRememberedCredentials, saveRememberCredentials, clearRememberCredentials } from "../../../lib/apiClient";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -19,6 +19,12 @@ export default function LoginPage() {
       setSessionExpired(true);
       sessionStorage.removeItem("sessionExpired");
     }
+    const saved = getRememberedCredentials();
+    if (saved) {
+      setEmail(saved.email);
+      setPassword(saved.password);
+      setRememberMe(true);
+    }
   }, []);
 
   const handleSubmit = async (e: { preventDefault(): void }) => {
@@ -27,12 +33,23 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       const data = await loginApi(email, password);
-      if (data.user.role !== "Admin") {
-        setError("Tài khoản không có quyền truy cập hệ thống quản trị.");
-        return;
+      saveSession(data, rememberMe);
+      if (rememberMe) {
+        saveRememberCredentials(email, password);
+      } else {
+        clearRememberCredentials();
       }
-      saveSession(data);
-      router.push("/");
+
+      const role = data.user.role;
+      if (role === "Dentist") {
+        router.push("/dentist");
+      } else if (role === "Staff") {
+        router.push("/staff");
+      } else if (role === "Owner") {
+        router.push("/owner");
+      } else {
+        router.push("/");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Đăng nhập thất bại");
     } finally {
@@ -152,7 +169,7 @@ export default function LoginPage() {
                   Ghi nhớ đăng nhập
                 </label>
               </div>
-              <button type="button" className="font-bold text-primary hover:underline">
+              <button type="button" onClick={() => router.push("/auth/forgot-password")} className="font-bold text-primary hover:underline">
                 Quên mật khẩu?
               </button>
             </div>

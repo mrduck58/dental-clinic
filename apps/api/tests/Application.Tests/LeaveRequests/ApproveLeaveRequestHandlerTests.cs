@@ -3,6 +3,7 @@ using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Domain.Interfaces.Services;
 using FluentAssertions;
 using NSubstitute;
 using NUnit.Framework;
@@ -13,9 +14,18 @@ namespace DentalClinic.API.Application.Tests.LeaveRequests;
 public class ApproveLeaveRequestHandlerTests
 {
     private ILeaveRequestRepository _repo = null!;
+    private IActivityLogService _activityLog = null!;
+    private INotificationService _notification = null!;
+    private ICurrentUserService _currentUser = null!;
 
     [SetUp]
-    public void SetUp() => _repo = Substitute.For<ILeaveRequestRepository>();
+    public void SetUp()
+    {
+        _repo = Substitute.For<ILeaveRequestRepository>();
+        _activityLog = Substitute.For<IActivityLogService>();
+        _notification = Substitute.For<INotificationService>();
+        _currentUser = Substitute.For<ICurrentUserService>();
+    }
 
     /// <summary>
     /// Duyệt đơn đang Pending phải gọi UpdateAsync và trả về DTO với status Approved.
@@ -25,7 +35,7 @@ public class ApproveLeaveRequestHandlerTests
     {
         var lr = MakeRequest();
         _repo.GetByIdAsync(lr.Id, Arg.Any<CancellationToken>()).Returns(lr);
-        var handler = new ApproveLeaveRequestHandler(_repo);
+        var handler = new ApproveLeaveRequestHandler(_repo, _activityLog, _notification, _currentUser);
 
         var result = await handler.HandleAsync(lr.Id);
 
@@ -40,7 +50,7 @@ public class ApproveLeaveRequestHandlerTests
     public async Task HandleAsync_NotFound_ThrowsNotFoundException()
     {
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((LeaveRequest?)null);
-        var handler = new ApproveLeaveRequestHandler(_repo);
+        var handler = new ApproveLeaveRequestHandler(_repo, _activityLog, _notification, _currentUser);
 
         Func<Task> act = () => handler.HandleAsync(Guid.NewGuid());
 
@@ -57,11 +67,46 @@ public class ApproveLeaveRequestHandlerTests
         var lr = MakeRequest();
         lr.Approve();
         _repo.GetByIdAsync(lr.Id, Arg.Any<CancellationToken>()).Returns(lr);
-        var handler = new ApproveLeaveRequestHandler(_repo);
+        var handler = new ApproveLeaveRequestHandler(_repo, _activityLog, _notification, _currentUser);
 
         Func<Task> act = () => handler.HandleAsync(lr.Id);
 
         await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    /// <summary>
+    /// Duyệt đơn đã bị từ chối (Rejected) phải ném ValidationException,
+    /// vì đơn đã ở trạng thái kết thúc, không còn ở trạng thái chờ xử lý.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_RejectedRequest_ThrowsValidationException()
+    {
+        var lr = MakeRequest();
+        lr.Reject(null);
+        _repo.GetByIdAsync(lr.Id, Arg.Any<CancellationToken>()).Returns(lr);
+        var handler = new ApproveLeaveRequestHandler(_repo, _activityLog, _notification, _currentUser);
+
+        Func<Task> act = () => handler.HandleAsync(lr.Id);
+
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    /// <summary>
+    /// Duyệt đơn thành công phải gửi thông báo cho đúng người nộp đơn (UserId của request),
+    /// để nhân viên biết đơn xin nghỉ của mình đã được duyệt.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_PendingRequest_SendsNotificationToRequester()
+    {
+        var lr = MakeRequest();
+        _repo.GetByIdAsync(lr.Id, Arg.Any<CancellationToken>()).Returns(lr);
+        var handler = new ApproveLeaveRequestHandler(_repo, _activityLog, _notification, _currentUser);
+
+        await handler.HandleAsync(lr.Id);
+
+        await _notification.Received(1).CreateAsync(
+            Arg.Is<CreateNotificationRequest>(n => n.UserId == lr.UserId),
+            Arg.Any<CancellationToken>());
     }
 
     private static LeaveRequest MakeRequest()

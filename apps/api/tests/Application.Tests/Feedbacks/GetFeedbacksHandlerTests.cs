@@ -68,4 +68,74 @@ public class GetFeedbacksHandlerTests
 
         result.Should().HaveCount(2);
     }
+
+    /// <summary>
+    /// Tìm kiếm cũng phải khớp trên nội dung Comment, không chỉ CustomerName.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_SearchByComment_ReturnsMatching()
+    {
+        _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<Feedback>
+        {
+            Feedback.Create("A", 5, "Dịch vụ tuyệt vời"),
+            Feedback.Create("B", 4, "Bình thường"),
+        });
+        var handler = new GetFeedbacksHandler(_repo);
+
+        var result = await handler.HandleAsync(null, search: "tuyệt vời");
+
+        result.Should().ContainSingle();
+        result.First().CustomerName.Should().Be("A");
+    }
+
+    /// <summary>
+    /// Kết hợp filter status và search phải trả về giao của cả hai điều kiện.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_CombinedStatusAndSearch_ReturnsIntersection()
+    {
+        var pendingMatch = Feedback.Create("Nguyễn Văn An", 5, "Tốt");
+        var featuredMatch = Feedback.Create("Nguyễn Văn An", 4, "Khá");
+        featuredMatch.Feature();
+        var pendingNoMatch = Feedback.Create("Trần Thị Bình", 3, "Ổn");
+        _repo.GetAllAsync(Arg.Any<CancellationToken>())
+            .Returns(new List<Feedback> { pendingMatch, featuredMatch, pendingNoMatch });
+        var handler = new GetFeedbacksHandler(_repo);
+
+        var result = await handler.HandleAsync(status: "Pending", search: "văn an");
+
+        result.Should().ContainSingle();
+        result.First().Id.Should().Be(pendingMatch.Id);
+    }
+
+    /// <summary>
+    /// Status không khớp với bất kỳ giá trị enum nào phải trả về danh sách rỗng.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_UnknownStatus_ReturnsEmpty()
+    {
+        _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<Feedback>
+        {
+            Feedback.Create("A", 5, "Tốt"),
+        });
+        var handler = new GetFeedbacksHandler(_repo);
+
+        var result = await handler.HandleAsync(status: "KhongTonTai", null);
+
+        result.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Repository trả về danh sách rỗng phải trả về kết quả rỗng, không lỗi.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_EmptyRepository_ReturnsEmptyList()
+    {
+        _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<Feedback>());
+        var handler = new GetFeedbacksHandler(_repo);
+
+        var result = await handler.HandleAsync(null, null);
+
+        result.Should().BeEmpty();
+    }
 }

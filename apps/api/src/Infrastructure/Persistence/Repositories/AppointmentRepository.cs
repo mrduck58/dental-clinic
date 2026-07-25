@@ -26,6 +26,20 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<Appointment>> GetByDateAsync(DateOnly date, CancellationToken cancellationToken = default)
+    {
+        // Client gửi giờ VN local, .toUtc() → VD: 07:30 VN = 00:30 UTC.
+        // Lọc theo cửa sổ VN midnight, convert sang UTC (offset=0) để Npgsql chấp nhận.
+        var vnOffset = TimeSpan.FromHours(7);
+        var startUtc = new DateTimeOffset(date.Year, date.Month, date.Day, 0, 0, 0, vnOffset).ToUniversalTime();
+        var endUtc   = startUtc.AddDays(1);
+        return await dbContext.Appointments
+            .Include(a => a.Service)
+            .Where(a => a.AppointmentDate >= startUtc && a.AppointmentDate < endUtc
+                     && a.Status != DentalClinic.API.Domain.Enums.AppointmentStatus.Cancelled)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Appointment>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         return await dbContext.Appointments
@@ -42,5 +56,28 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
     {
         dbContext.Appointments.Update(appointment);
         await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<Guid?> GetDentistUserIdAsync(Guid dentistId, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Set<Dentist>()
+            .Where(d => d.Id == dentistId)
+            .Select(d => (Guid?)d.UserId)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<Appointment?> GetInProgressByDentistAsync(
+        Guid dentistId, Guid excludeAppointmentId,
+        DateTimeOffset utcStart, DateTimeOffset utcEnd,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Appointments
+            .Include(a => a.Patient)
+            .FirstOrDefaultAsync(a =>
+                a.DentistId == dentistId &&
+                a.Id != excludeAppointmentId &&
+                a.Status == DentalClinic.API.Domain.Enums.AppointmentStatus.InProgress &&
+                a.AppointmentDate >= utcStart &&
+                a.AppointmentDate < utcEnd, cancellationToken);
     }
 }

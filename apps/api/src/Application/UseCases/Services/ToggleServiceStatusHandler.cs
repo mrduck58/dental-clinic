@@ -17,6 +17,6 @@ public class ToggleServiceStatusHandler(IServiceRepository serviceRepository)
         return new ServiceDto(
             service.Id, service.Name, service.Price,
             service.DurationMinutes, service.IsActive, service.Description,
-            service.ViewCount, service.ImageUrl, service.CreatedAt, service.UpdatedAt);
+            service.ViewCount, service.ImageUrl, service.IconUrl, service.CreatedAt, service.UpdatedAt);
     }
 }

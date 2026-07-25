@@ -10,11 +10,14 @@ namespace DentalClinic.API.Infrastructure.Persistence;
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
     public DbSet<User> Users => Set<User>();
+    public DbSet<OtpCode> OtpCodes => Set<OtpCode>();
     public DbSet<Patient> Patients => Set<Patient>();
     public DbSet<Dentist> Dentists => Set<Dentist>();
+    public DbSet<Staff> Staffs => Set<Staff>();
     public DbSet<Appointment> Appointments => Set<Appointment>();
-    public DbSet<MedicalRecord> MedicalRecords => Set<MedicalRecord>();
     public DbSet<Invoice> Invoices => Set<Invoice>();
+    public DbSet<InvoiceItem> InvoiceItems => Set<InvoiceItem>();
+    public DbSet<PaymentTransaction> PaymentTransactions => Set<PaymentTransaction>();
     public DbSet<Service> Services => Set<Service>();
     public DbSet<Post> Posts => Set<Post>();
     public DbSet<Feedback> Feedbacks => Set<Feedback>();
@@ -23,6 +26,21 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<LeaveRequest> LeaveRequests => Set<LeaveRequest>();
     public DbSet<Room> Rooms => Set<Room>();
     public DbSet<Medicine> Medicines => Set<Medicine>();
+    public DbSet<SupplyItem> SupplyItems => Set<SupplyItem>();
+    public DbSet<SupplyTransaction> SupplyTransactions => Set<SupplyTransaction>();
+    public DbSet<MaterialRequest> MaterialRequests => Set<MaterialRequest>();
+    public DbSet<Diagnosis> Diagnoses => Set<Diagnosis>();
+    public DbSet<TreatmentPlan> TreatmentPlans => Set<TreatmentPlan>();
+    public DbSet<TreatmentProcedure> TreatmentProcedures => Set<TreatmentProcedure>();
+    public DbSet<Prescription> Prescriptions => Set<Prescription>();
+    public DbSet<PrescriptionItem> PrescriptionItems => Set<PrescriptionItem>();
+    public DbSet<ClinicInfo> ClinicInfos => Set<ClinicInfo>();
+    public DbSet<ActivityLog> ActivityLogs => Set<ActivityLog>();
+    public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<ChatConversation> ChatConversations => Set<ChatConversation>();
+    public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
+    public DbSet<AiUsageLog> AiUsageLogs => Set<AiUsageLog>();
+    public DbSet<DentistReview> DentistReviews => Set<DentistReview>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

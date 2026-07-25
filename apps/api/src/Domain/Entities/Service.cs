@@ -10,6 +10,7 @@ public class Service
     public string Description { get; private set; } = string.Empty;
     public int ViewCount { get; private set; }
     public string? ImageUrl { get; private set; }
+    public string? IconUrl { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset? UpdatedAt { get; private set; }
 
@@ -20,7 +21,8 @@ public class Service
         decimal price,
         int durationMinutes,
         string description,
-        string? imageUrl = null)
+        string? imageUrl = null,
+        string? iconUrl = null)
         => new()
         {
             Id = Guid.NewGuid(),
@@ -31,6 +33,7 @@ public class Service
             Description = description,
             ViewCount = 0,
             ImageUrl = imageUrl,
+            IconUrl = iconUrl,
             CreatedAt = DateTimeOffset.UtcNow,
         };
 
@@ -39,13 +42,15 @@ public class Service
         decimal price,
         int durationMinutes,
         string description,
-        string? imageUrl)
+        string? imageUrl,
+        string? iconUrl)
     {
         Name = name;
         Price = price;
         DurationMinutes = durationMinutes;
         Description = description;
         if (imageUrl is not null) ImageUrl = imageUrl;
+        if (iconUrl is not null) IconUrl = iconUrl;
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 

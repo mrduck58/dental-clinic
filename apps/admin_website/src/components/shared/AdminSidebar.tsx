@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
@@ -18,6 +18,7 @@ interface SidebarProps {
 export default function AdminSidebar({ activeMenu }: SidebarProps) {
   const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
   useEffect(() => { setUser(getUser()); }, []);
 
@@ -61,23 +62,9 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
             Tổng quan
           </Link>
 
-          {/* Quản lí nhân viên */}
-          <Link
-            href="/dashboard/employee"
-            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "staff"
-                ? "bg-primary text-white shadow-md shadow-primary/25"
-                : "text-slate-500 hover:bg-red-50 hover:text-primary"
-              }`}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-            </svg>
-            Quản lí nhân viên
-          </Link>
-
           {/* Quản lí dịch vụ */}
           <Link
-            href="/dashboard/services"
+            href="/admin/services"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "services"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
@@ -91,7 +78,7 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
 
           {/* Quản lí thuốc */}
           <Link
-            href="/dashboard/medicines"
+            href="/admin/medicines"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "medicines"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
@@ -104,23 +91,9 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
             Quản lí thuốc
           </Link>
 
-          {/* Quản lí bài viết */}
-          <Link
-            href="/dashboard/posts"
-            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "articles"
-                ? "bg-primary text-white shadow-md shadow-primary/25"
-                : "text-slate-500 hover:bg-red-50 hover:text-primary"
-              }`}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 01-2.25 2.25M16.5 7.5V18a2.25 2.25 0 002.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 002.25 2.25h13.5M6 7.5h3v3H6v-3z" />
-            </svg>
-            Quản lí bài viết
-          </Link>
-
           {/* Quản lí phòng */}
           <Link
-            href="/dashboard/rooms"
+            href="/admin/rooms"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "rooms"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
@@ -132,23 +105,9 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
             Quản lí phòng
           </Link>
 
-          {/* Lịch làm việc nhân viên */}
-          <Link
-            href="/dashboard/schedule"
-            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "schedule"
-                ? "bg-primary text-white shadow-md shadow-primary/25"
-                : "text-slate-500 hover:bg-red-50 hover:text-primary"
-              }`}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008zM9.75 15h.008v.008H9.75V15zm0 2.25h.008v.008H9.75v-.008zM7.5 15h.008v.008H7.5V15zm0 2.25h.008v.008H7.5v-.008zm6.75-4.5h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008V15zm0 2.25h.008v.008h-.008v-.008zm2.25-4.5h.008v.008H16.5v-.008zm0 2.25h.008v.008H16.5V15z" />
-            </svg>
-            Lịch làm việc
-          </Link>
-
           {/* Tài khoản và phân quyền */}
           <Link
-            href="/dashboard/permissions"
+            href="/admin/permissions"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "permissions"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
@@ -160,37 +119,23 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
             Tài khoản
           </Link>
 
-          {/* Phản hồi */}
+          {/* Thống kê AI */}
           <Link
-            href="/dashboard/feedback"
-            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "feedback"
-                ? "bg-primary text-white shadow-md shadow-primary/25"
-                : "text-slate-500 hover:bg-red-50 hover:text-primary"
-              }`}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
-            </svg>
-            Phản hồi
-          </Link>
-
-          {/* Đơn xin nghỉ */}
-          <Link
-            href="/dashboard/leaves"
-            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "leaves"
+            href="/admin/ai-analytics"
+            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "ai-analytics"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
               }`}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.375c.621 0 1.125-.504 1.125-1.125V11.25M9 9h7.5M12 3v18M3 5.25h18A2.25 2.25 0 0121 7.5v9a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 16.5v-9A2.25 2.25 0 015.25 5.25z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
             </svg>
-            Đơn xin nghỉ
+            Thống kê AI
           </Link>
 
           {/* Lịch sử hoạt động */}
           <Link
-            href="/dashboard/activity-logs"
+            href="/admin/activity-logs"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "history"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
@@ -201,22 +146,96 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
             </svg>
             Lịch sử hoạt động
           </Link>
+
+          {/* Thông báo */}
+          <Link
+            href="/admin/notifications"
+            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "notifications"
+                ? "bg-primary text-white shadow-md shadow-primary/25"
+                : "text-slate-500 hover:bg-red-50 hover:text-primary"
+              }`}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+            </svg>
+            Thông báo
+          </Link>
         </nav>
       </div>
 
       {/* User Profile & Logout */}
       <div className="border-t border-slate-100 pt-4 flex flex-col gap-3">
-        <div className="flex items-center gap-3 px-2 select-none">
-          <div className="w-10 h-10 rounded-full border-2 border-primary/20 bg-red-50/50 flex items-center justify-center font-bold text-primary shrink-0">
-            {initials}
-          </div>
-          <div className="min-w-0">
-            <div className="text-[14px] font-bold text-slate-900 leading-tight truncate">
-              {user?.fullName ?? user?.username ?? "..."}
+        <div className="relative">
+          {/* Dropdown Menu */}
+          {dropdownOpen && (
+            <div className="absolute bottom-full left-0 mb-2 w-full bg-white border border-slate-200 rounded-xl shadow-lg p-2 z-50 flex flex-col gap-0.5 animate-fade-in font-sans">
+              <Link
+                href="/admin/profile?tab=personal"
+                onClick={() => setDropdownOpen(false)}
+                className="flex items-center gap-2.5 px-3.5 py-2.5 text-[13.5px] font-bold text-slate-700 hover:text-primary hover:bg-red-50/40 rounded-lg transition-all"
+              >
+                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                </svg>
+                Thông tin cá nhân
+              </Link>
+              <Link
+                href="/admin/profile?tab=password"
+                onClick={() => setDropdownOpen(false)}
+                className="flex items-center gap-2.5 px-3.5 py-2.5 text-[13.5px] font-bold text-slate-700 hover:text-primary hover:bg-red-50/40 rounded-lg transition-all"
+              >
+                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                </svg>
+                Đổi mật khẩu
+              </Link>
+              <Link
+                href="/admin/profile?tab=activities"
+                onClick={() => setDropdownOpen(false)}
+                className="flex items-center gap-2.5 px-3.5 py-2.5 text-[13.5px] font-bold text-slate-700 hover:text-primary hover:bg-red-50/40 rounded-lg transition-all"
+              >
+                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Lịch sử hoạt động
+              </Link>
             </div>
-            <div className="text-[12px] font-semibold text-slate-400 mt-0.5">
-              {ROLE_LABEL[user?.role ?? ""] ?? user?.role ?? ""}
+          )}
+
+          {/* Trigger Card */}
+          <div
+            onClick={() => setDropdownOpen(!dropdownOpen)}
+            className="flex items-center gap-3 px-2 py-1.5 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all cursor-pointer select-none"
+          >
+            {user?.profilePictureUrl ? (
+              <img
+                src={user.profilePictureUrl}
+                alt="Avatar"
+                className="w-10 h-10 rounded-full border-2 border-primary/20 object-cover shrink-0"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-full border-2 border-primary/20 bg-red-50/50 flex items-center justify-center font-bold text-primary shrink-0">
+                {initials}
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="text-[14px] font-bold text-slate-900 leading-tight truncate">
+                {user?.fullName ?? user?.username ?? "..."}
+              </div>
+              <div className="text-[12px] font-semibold text-slate-400 mt-0.5">
+                {ROLE_LABEL[user?.role ?? ""] ?? user?.role ?? ""}
+              </div>
             </div>
+            {/* Arrow up/down */}
+            <svg
+              className={`w-4 h-4 text-slate-450 transition-transform duration-200 shrink-0 ${dropdownOpen ? "rotate-180" : ""}`}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+            </svg>
           </div>
         </div>
 

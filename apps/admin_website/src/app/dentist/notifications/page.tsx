@@ -1,27 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import DentistSidebar from "../../../components/shared/DentistSidebar";
 import DentistPageHeader from "../../../components/shared/DentistPageHeader";
 import { useRequireDentist } from "../../../hooks/useRequireDentist";
-
-const ALL_NOTIFICATIONS = [
-  { id: 1,  type: "appointment", title: "Bệnh nhân mới đặt lịch",      body: "Nguyễn Văn An đặt lịch nhổ răng khôn vào 14:00 hôm nay · Phòng 1",                          time: "5 phút trước",  date: "13/06/2026", read: false },
-  { id: 2,  type: "reminder",    title: "Nhắc nhở tái khám",           body: "Trần Thị Bích cần tái khám sau trám răng số 6, hạn 15/06/2026",                              time: "30 phút trước", date: "13/06/2026", read: false },
-  { id: 3,  type: "system",      title: "Lịch làm việc tuần tới",      body: "Ca sáng Thứ Hai 16/06 đã được phân công · Phòng 2 · 07:30–12:00",                            time: "2 giờ trước",   date: "13/06/2026", read: false },
-  { id: 4,  type: "appointment", title: "Bệnh nhân huỷ lịch",          body: "Phạm Minh Cường huỷ lịch kiểm tra định kỳ 09:00 ngày mai · Lý do: bận công việc",           time: "3 giờ trước",   date: "13/06/2026", read: true  },
-  { id: 5,  type: "reminder",    title: "Hoàn thiện hồ sơ điều trị",   body: "Cần hoàn thiện hồ sơ điều trị cho Lê Thu Hà và Hoàng Văn Đức trước 17:00 hôm nay",          time: "4 giờ trước",   date: "13/06/2026", read: true  },
-  { id: 6,  type: "system",      title: "Cập nhật phần mềm",           body: "Hệ thống sẽ bảo trì từ 22:00–23:00 tối nay · Vui lòng hoàn thành công việc trước thời gian này", time: "Hôm qua",    date: "12/06/2026", read: true  },
-  { id: 7,  type: "appointment", title: "Bệnh nhân đến sớm",           body: "Nguyễn Thị Mai đã check-in lúc 07:15, sớm hơn lịch hẹn 15 phút",                            time: "Hôm qua",       date: "12/06/2026", read: true  },
-  { id: 8,  type: "reminder",    title: "Kết quả xét nghiệm",          body: "Kết quả X-quang bệnh nhân Trần Văn Bình đã sẵn sàng · Vui lòng xem xét trước buổi khám",    time: "2 ngày trước",  date: "11/06/2026", read: true  },
-];
+import {
+  getNotificationsApi,
+  markNotificationReadApi,
+  markAllNotificationsReadApi,
+  deleteNotificationApi,
+  type NotificationDto,
+} from "../../../lib/apiClient";
 
 const FILTERS = [
-  { key: "all",         label: "Tất cả"      },
-  { key: "unread",      label: "Chưa đọc"    },
-  { key: "appointment", label: "Lịch hẹn"    },
-  { key: "reminder",    label: "Nhắc nhở"    },
-  { key: "system",      label: "Hệ thống"    },
+  { key: "all",         label: "Tất cả"   },
+  { key: "unread",      label: "Chưa đọc" },
+  { key: "appointment", label: "Lịch hẹn" },
+  { key: "reminder",    label: "Nhắc nhở" },
+  { key: "system",      label: "Hệ thống" },
 ];
 
 const TYPE_CFG: Record<string, { bg: string; color: string; badge: string; path: string }> = {
@@ -39,34 +35,92 @@ const TYPE_CFG: Record<string, { bg: string; color: string; badge: string; path:
   },
 };
 
-const TYPE_LABEL: Record<string, string> = { appointment: "Lịch hẹn", reminder: "Nhắc nhở", system: "Hệ thống" };
+const FALLBACK_CFG = TYPE_CFG.system;
+
+const TYPE_LABEL: Record<string, string> = {
+  appointment: "Lịch hẹn",
+  reminder: "Nhắc nhở",
+  system: "Hệ thống",
+  schedule: "Lịch làm việc",
+  security: "Bảo mật",
+  account: "Tài khoản",
+  service: "Dịch vụ",
+};
+
+function timeAgo(ts: string): string {
+  const diff = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
+  if (diff < 60) return "Vừa xong";
+  if (diff < 3600) return `${Math.floor(diff / 60)} phút trước`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} giờ trước`;
+  if (diff < 172800) return "Hôm qua";
+  return `${Math.floor(diff / 86400)} ngày trước`;
+}
+
+function toDateLabel(ts: string): string {
+  return new Date(ts).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
 
 export default function NotificationsPage() {
   useRequireDentist();
 
-  const [notes,  setNotes]  = useState(ALL_NOTIFICATIONS);
+  const [notes, setNotes] = useState<NotificationDto[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState("all");
 
-  const unread  = notes.filter(n => !n.read).length;
-  const markAll = () => setNotes(p => p.map(n => ({ ...n, read: true })));
-  const markOne = (id: number) => setNotes(p => p.map(n => n.id === id ? { ...n, read: true } : n));
-  const remove  = (id: number) => setNotes(p => p.filter(n => n.id !== id));
+  const fetchRef = useRef<() => Promise<void>>(async () => {});
 
-  const visible = notes.filter(n => {
-    if (filter === "unread")      return !n.read;
-    if (filter === "appointment") return n.type === "appointment";
-    if (filter === "reminder")    return n.type === "reminder";
-    if (filter === "system")      return n.type === "system";
-    return true;
-  });
+  const loadNotes = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await getNotificationsApi({
+        type:   filter !== "all" && filter !== "unread" ? filter.charAt(0).toUpperCase() + filter.slice(1) : undefined,
+        isRead: filter === "unread" ? false : undefined,
+        pageSize: 50,
+        page: 1,
+      });
+      setNotes(res.items);
+      setUnreadCount(res.unreadCount);
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
+  }, [filter]);
 
-  const grouped = visible.reduce<Record<string, typeof visible>>((acc, n) => {
-    (acc[n.date] ??= []).push(n); return acc;
+  useEffect(() => { fetchRef.current = loadNotes; }, [loadNotes]);
+  useEffect(() => { fetchRef.current(); }, [loadNotes]);
+
+  const markAll = async () => {
+    try {
+      await markAllNotificationsReadApi();
+      fetchRef.current();
+    } catch { /* ignore */ }
+  };
+
+  const markOne = async (id: string) => {
+    try {
+      await markNotificationReadApi(id);
+      setNotes(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+      setUnreadCount(c => Math.max(0, c - 1));
+    } catch { /* ignore */ }
+  };
+
+  const remove = async (id: string) => {
+    setNotes(prev => prev.filter(n => n.id !== id));
+    try {
+      await deleteNotificationApi(id);
+    } catch {
+      fetchRef.current();
+    }
+  };
+
+  const grouped = notes.reduce<Record<string, NotificationDto[]>>((acc, n) => {
+    const date = toDateLabel(n.createdAt);
+    (acc[date] ??= []).push(n);
+    return acc;
   }, {});
 
   return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
-      <DentistSidebar activeMenu="" />
+      <DentistSidebar activeMenu="notifications" />
       <main className="flex-1 flex flex-col min-w-0">
         <DentistPageHeader title="Thông báo" subtitle="Tất cả thông báo của bạn" />
 
@@ -83,13 +137,13 @@ export default function NotificationsPage() {
                       : "bg-white text-slate-500 border-slate-200 hover:border-primary/40 hover:text-primary hover:bg-red-50"
                   }`}>
                   {f.label}
-                  {f.key === "unread" && unread > 0 && (
-                    <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-black ${filter === "unread" ? "bg-white/25 text-white" : "bg-primary/10 text-primary"}`}>{unread}</span>
+                  {f.key === "unread" && unreadCount > 0 && (
+                    <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-black ${filter === "unread" ? "bg-white/25 text-white" : "bg-primary/10 text-primary"}`}>{unreadCount}</span>
                   )}
                 </button>
               ))}
             </div>
-            {unread > 0 && (
+            {unreadCount > 0 && (
               <button onClick={markAll}
                 className="flex items-center gap-1.5 px-3.5 py-1.5 text-[13px] font-bold text-slate-500 bg-white border border-slate-200 rounded-xl hover:border-primary/40 hover:text-primary hover:bg-red-50 transition-all cursor-pointer">
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
@@ -99,7 +153,11 @@ export default function NotificationsPage() {
           </div>
 
           {/* List */}
-          {visible.length === 0 ? (
+          {loading ? (
+            <div className="flex items-center justify-center py-24">
+              <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : notes.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-3 py-24 text-center">
               <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center">
                 <svg className="w-7 h-7 text-slate-300" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" /></svg>
@@ -117,28 +175,30 @@ export default function NotificationsPage() {
 
                   <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden divide-y divide-slate-100">
                     {items.map(n => {
-                      const cfg = TYPE_CFG[n.type] ?? TYPE_CFG.system;
+                      const typeKey = n.type.toLowerCase();
+                      const cfg = TYPE_CFG[typeKey] ?? FALLBACK_CFG;
+                      const label = TYPE_LABEL[typeKey] ?? n.type;
                       return (
                         <div key={n.id}
-                          className={`flex items-start gap-4 px-5 py-4 group transition-colors ${n.read ? "hover:bg-slate-50/60" : "bg-red-50/30 hover:bg-red-50/50"}`}>
+                          className={`flex items-start gap-4 px-5 py-4 group transition-colors ${n.isRead ? "hover:bg-slate-50/60" : "bg-red-50/30 hover:bg-red-50/50"}`}>
                           <div className={`w-9 h-9 rounded-xl ${cfg.bg} ${cfg.color} flex items-center justify-center shrink-0 mt-0.5`}>
-                            <svg className="w-4.5 h-4.5" style={{width:18,height:18}} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <svg style={{width:18,height:18}} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" d={cfg.path} />
                             </svg>
                           </div>
 
                           <div className="flex-1 min-w-0">
                             <div className="flex items-start gap-2 flex-wrap">
-                              <span className={`text-[13.5px] font-black leading-snug ${n.read ? "text-slate-700" : "text-slate-900"}`}>{n.title}</span>
-                              <span className={`px-2 py-0.5 text-[10.5px] font-black rounded-full border ${cfg.badge} shrink-0`}>{TYPE_LABEL[n.type]}</span>
-                              {!n.read && <span className="w-2 h-2 rounded-full bg-primary shrink-0 mt-1" />}
+                              <span className={`text-[13.5px] font-black leading-snug ${n.isRead ? "text-slate-700" : "text-slate-900"}`}>{n.title}</span>
+                              <span className={`px-2 py-0.5 text-[10.5px] font-black rounded-full border ${cfg.badge} shrink-0`}>{label}</span>
+                              {!n.isRead && <span className="w-2 h-2 rounded-full bg-primary shrink-0 mt-1" />}
                             </div>
                             <p className="text-[13px] text-slate-500 font-medium mt-1 leading-relaxed">{n.body}</p>
-                            <span className="text-[11.5px] text-slate-400 font-semibold mt-1.5 block">{n.time}</span>
+                            <span className="text-[11.5px] text-slate-400 font-semibold mt-1.5 block">{timeAgo(n.createdAt)}</span>
                           </div>
 
                           <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                            {!n.read && (
+                            {!n.isRead && (
                               <button onClick={() => markOne(n.id)} title="Đánh dấu đã đọc"
                                 className="p-1.5 rounded-lg hover:bg-green-50 text-slate-300 hover:text-green-600 transition-all cursor-pointer">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>

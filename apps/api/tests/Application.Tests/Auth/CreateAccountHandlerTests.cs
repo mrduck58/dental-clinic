@@ -1,4 +1,5 @@
 using DentalClinic.API.Application.UseCases.Auth;
+using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
@@ -13,6 +14,8 @@ public class CreateAccountHandlerTests
 {
     private IUserRepository _userRepo = null!;
     private IEmailService _emailService = null!;
+    private IActivityLogService _activityLog = null!;
+    private ICurrentUserService _currentUser = null!;
     private CreateAccountHandler _handler = null!;
 
     private static readonly CreateAccountCommand ValidCommand = new(
@@ -26,7 +29,9 @@ public class CreateAccountHandlerTests
     {
         _userRepo = Substitute.For<IUserRepository>();
         _emailService = Substitute.For<IEmailService>();
-        _handler = new CreateAccountHandler(_userRepo, _emailService);
+        _activityLog = Substitute.For<IActivityLogService>();
+        _currentUser = Substitute.For<ICurrentUserService>();
+        _handler = new CreateAccountHandler(_userRepo, _emailService, _activityLog, _currentUser);
 
         // Mặc định: email và username chưa tồn tại
         _userRepo.ExistsByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(false);
@@ -131,6 +136,42 @@ public class CreateAccountHandlerTests
         // suffix có dạng "nguyenvana_xxxx" (4 ký tự hex ngẫu nhiên)
         result.Username.Should().StartWith("nguyenvana_");
         result.Username.Length.Should().BeGreaterThan("nguyenvana".Length);
+    }
+
+    /// <summary>
+    /// Dấu gạch ngang trong email prefix cũng phải được chuyển thành dấu gạch dưới
+    /// giống như dấu chấm, đảm bảo username hợp lệ theo quy tắc định danh hệ thống.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_EmailWithHyphen_UsernameReplacesHyphenWithUnderscore()
+    {
+        var cmd = ValidCommand with { Email = "nguyen-van-a@test.com" };
+
+        var result = await _handler.HandleAsync(cmd);
+
+        result.Username.Should().Be("nguyen_van_a");
+    }
+
+    /// <summary>
+    /// Tạo tài khoản thành công phải ghi log hoạt động đúng 1 lần với action Create,
+    /// module Account và trạng thái Success, để admin có thể tra cứu lịch sử thao tác.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_NewEmail_LogsCreateActivityOnce()
+    {
+        await _handler.HandleAsync(ValidCommand);
+
+        await _activityLog.Received(1).LogAsync(
+            Arg.Any<Guid?>(),
+            Arg.Any<string>(),
+            Arg.Any<string>(),
+            ActivityAction.Create,
+            ActivityModule.Account,
+            Arg.Any<string>(),
+            ActivityStatus.Success,
+            Arg.Any<string?>(),
+            Arg.Any<string?>(),
+            Arg.Any<CancellationToken>());
     }
 
     // ── Error paths ───────────────────────────────────────────────────────────

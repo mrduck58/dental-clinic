@@ -12,7 +12,8 @@ public class PostsController(
     GetPostByIdHandler getById,
     CreatePostHandler create,
     UpdatePostHandler update,
-    DeletePostHandler delete) : ControllerBase
+    DeletePostHandler delete,
+    GenerateMarketingContentHandler generateAiDraft) : ControllerBase
 {
     /// <summary>GET api/posts — Danh sách bài viết (có filter)</summary>
     [HttpGet]
@@ -21,9 +22,10 @@ public class PostsController(
         [FromQuery] string? category,
         [FromQuery] string? status,
         [FromQuery] string? search,
+        [FromQuery] Guid? serviceId,
         CancellationToken ct)
     {
-        var result = await getPosts.HandleAsync(category, status, search, ct);
+        var result = await getPosts.HandleAsync(category, status, search, serviceId, ct);
         return Ok(result);
     }
 
@@ -38,28 +40,39 @@ public class PostsController(
 
     /// <summary>POST api/posts — Tạo bài viết mới (Admin)</summary>
     [HttpPost]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Staff")]
     public async Task<IActionResult> Create([FromBody] CreatePostRequest request, CancellationToken ct)
     {
         var result = await create.HandleAsync(request, ct);
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
 
-    /// <summary>PUT api/posts/{id} — Cập nhật bài viết (Admin)</summary>
+    /// <summary>PUT api/posts/{id} — Cập nhật bài viết (Staff)</summary>
     [HttpPut("{id:guid}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Staff")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdatePostRequest request, CancellationToken ct)
     {
         var result = await update.HandleAsync(id, request, ct);
         return Ok(result);
     }
 
-    /// <summary>DELETE api/posts/{id} — Xóa bài viết (Admin)</summary>
+    /// <summary>DELETE api/posts/{id} — Xóa bài viết (Staff)</summary>
     [HttpDelete("{id:guid}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Staff")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         await delete.HandleAsync(id, ct);
-        return NoContent();
+        return Ok(new { message = "Đã xóa bài viết." });
+    }
+
+    /// <summary>POST api/posts/generate-ai-draft — Soạn nháp bài viết bằng AI từ dịch vụ/ưu đãi có sẵn
+    /// (Staff). Chỉ trả về nội dung nháp để nhân viên xem lại — không tự tạo/xuất bản bài viết.</summary>
+    [HttpPost("generate-ai-draft")]
+    [Authorize(Roles = "Staff")]
+    public async Task<IActionResult> GenerateAiDraft(
+        [FromBody] GenerateMarketingContentRequest request, CancellationToken ct)
+    {
+        var result = await generateAiDraft.HandleAsync(request, ct);
+        return Ok(result);
     }
 }

@@ -1,58 +1,378 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import StaffSidebar from "../../../components/shared/StaffSidebar";
 import StaffPageHeader from "../../../components/shared/StaffPageHeader";
 import { useRequireStaff } from "../../../hooks/useRequireStaff";
+import {
+  getWaitingQueueApi,
+  transferQueuePatientApi,
+  reorderQueuePatientApi,
+  type WaitingQueueResponse,
+  type RoomQueueDto,
+  type QueueDentistDto,
+} from "../../../lib/apiClient";
+import { supabase } from "../../../lib/supabaseClient";
 
-type QueueStatus = "waiting" | "inprogress" | "done";
+const DENTIST_COLOR: Record<string, { bg: string; border: string; text: string }> = {
+  sky:     { bg: "bg-sky-50",     border: "border-sky-100",     text: "text-sky-700" },
+  violet:  { bg: "bg-violet-50",  border: "border-violet-100",  text: "text-violet-700" },
+  rose:    { bg: "bg-rose-50",    border: "border-rose-100",    text: "text-rose-700" },
+  amber:   { bg: "bg-amber-50",   border: "border-amber-100",   text: "text-amber-700" },
+  slate:   { bg: "bg-slate-50",   border: "border-slate-100",   text: "text-slate-700" },
+};
 
-interface QueueItem {
-  id: string; name: string; service: string; time: string;
-  dentist: string; room: string; waitMin: number; status: QueueStatus; note?: string;
+const initialsOf = (name: string) =>
+  name.trim().split(/\s+/).slice(-2).map(w => w[0]).join("").toUpperCase();
+
+const fmtTime = (iso: string) => {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+};
+
+// Thời gian chờ hiển thị dạng giờ + phút: 80 → "1h20p", 60 → "1h", 45 → "45p".
+const fmtWait = (mins: number) => {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return h > 0 ? `${h}h${m > 0 ? `${String(m).padStart(2, "0")}p` : ""}` : `${m}p`;
+};
+
+type DragState = { appointmentId: string; fromRoom: string | null } | null;
+
+function RoomQueueCard({ room, canDrag, drag, onDragStart, onDragEnd, onDrop, onReorder, transferringId, reorderingId }: {
+  room: RoomQueueDto;
+  canDrag: boolean;
+  drag: DragState;
+  onDragStart: (appointmentId: string, fromRoom: string | null) => void;
+  onDragEnd: () => void;
+  onDrop: (appointmentId: string, roomName: string) => void;
+  onReorder: (appointmentId: string, swapWithAppointmentId: string) => void;
+  transferringId: string | null;
+  reorderingId: string | null;
+}) {
+  // Danh sách người ĐANG CHỜ theo đúng thứ tự hiển thị — dùng để tìm người liền kề khi đẩy lên/xuống.
+  const waiting = room.patients.filter(p => p.status === "CheckedIn");
+  const [isOver, setIsOver] = useState(false);
+
+  const waitingCount = room.patients.filter(p => p.status === "CheckedIn").length;
+  const inProgressCount = room.patients.length - waitingCount;
+  // Chỉ ghi tên bác sĩ trên từng bệnh nhân khi phòng có nhiều hơn một bác sĩ trong ngày.
+  const showDentistPerPatient = room.dentists.length > 1;
+
+  // Nhận bệnh nhân khi phòng có bác sĩ đang trực HOẶC sắp vào ca (giao trước gần giờ giao ca).
+  // Không có ai thì không xác định được người phụ trách nên không cho thả.
+  const hasAssignableDentist = room.dentists.some(d => d.isOnShiftNow || d.isOnShiftSoon);
+  const canAcceptDrop = drag !== null && room.roomName !== null &&
+    room.roomName !== drag.fromRoom && hasAssignableDentist;
+
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!canAcceptDrop) return;
+    e.preventDefault();               // báo cho trình duyệt biết đây là vùng thả hợp lệ
+    e.dataTransfer.dropEffect = "move";
+    setIsOver(true);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    if (!canAcceptDrop || room.roomName === null) return;
+    e.preventDefault();
+    setIsOver(false);
+    onDrop(e.dataTransfer.getData("text/plain"), room.roomName);
+  };
+
+  return (
+    <div
+      onDragOver={handleDragOver}
+      onDragLeave={() => setIsOver(false)}
+      onDrop={handleDrop}
+      className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-all ${
+        isOver && canAcceptDrop ? "border-primary ring-2 ring-primary/40"
+        : canAcceptDrop ? "border-primary/40 border-dashed"
+        : drag !== null ? "border-slate-200/70 opacity-60"
+        : "border-slate-200/70"
+      }`}
+    >
+      {/* Header: phòng + bác sĩ trực kèm giờ ca làm */}
+      <div className="px-5 py-4 bg-slate-50 border-b border-slate-100">
+        <div className="flex items-start justify-between gap-3">
+          <div className="text-[15px] font-black text-slate-900">{room.roomName ?? "Chưa xếp phòng"}</div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {inProgressCount > 0 && (
+              <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-[11.5px] font-black">
+                {inProgressCount} đang khám
+              </span>
+            )}
+            <span className="px-2.5 py-1 bg-amber-100 text-amber-700 rounded-lg text-[11.5px] font-black">
+              {waitingCount} chờ
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-3 flex flex-col gap-1.5">
+          {room.dentists.length === 0 ? (
+            <div className="text-[12px] text-slate-400 font-semibold">Không có bác sĩ trực</div>
+          ) : (
+            room.dentists.map(dentist => {
+              const color = DENTIST_COLOR[dentist.dentistColor] ?? DENTIST_COLOR.slate;
+              return (
+                <div key={dentist.dentistId} className="flex items-center gap-2.5">
+                  <div className={`w-8 h-8 rounded-lg ${color.bg} border ${color.border} flex items-center justify-center font-black text-[11px] ${color.text} shrink-0`}>
+                    {initialsOf(dentist.dentistName)}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className={`text-[13px] font-black ${color.text} truncate`}>{dentist.dentistName}</span>
+                      {dentist.isOnShiftNow ? (
+                        <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded-md text-[10px] font-black shrink-0">Đang trực</span>
+                      ) : dentist.isOnShiftSoon ? (
+                        <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-md text-[10px] font-black shrink-0">Sắp vào ca</span>
+                      ) : null}
+                    </div>
+                    <div className="flex flex-wrap gap-1 mt-0.5">
+                      {dentist.shifts.length === 0 ? (
+                        <span className="text-[11px] font-semibold text-slate-400">Chưa phân ca</span>
+                      ) : (
+                        dentist.shifts.map(shift => (
+                          <span key={shift} className="px-1.5 py-0.5 bg-white border border-slate-200 rounded-md text-[11px] font-bold text-slate-600">
+                            {shift}
+                          </span>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      {/* Hàng đợi: người đang khám đứng đầu, rồi tới người chờ theo thứ tự check-in */}
+      <div className="divide-y divide-slate-100">
+        {room.patients.length === 0 ? (
+          <div className="py-10 text-center text-[13px] text-slate-400 font-semibold">
+            Chưa có bệnh nhân chờ
+          </div>
+        ) : (
+          room.patients.map(patient => {
+            const isInProgress = patient.status === "InProgress";
+            // Chỉ người đang chờ mới kéo được — người đang khám đã ngồi trên ghế của phòng này.
+            const isDraggable = canDrag && !isInProgress;
+            const isTransferring = transferringId === patient.appointmentId;
+            const isDragged = drag?.appointmentId === patient.appointmentId;
+            const isReordering = reorderingId === patient.appointmentId;
+
+            // Người liền kề trong hàng chờ để đẩy lên/xuống một bậc (chỉ trong nhóm đang chờ).
+            const wIdx = isInProgress ? -1 : waiting.findIndex(w => w.appointmentId === patient.appointmentId);
+            const upId = wIdx > 0 ? waiting[wIdx - 1].appointmentId : null;
+            const downId = wIdx >= 0 && wIdx < waiting.length - 1 ? waiting[wIdx + 1].appointmentId : null;
+            const canReorder = canDrag && !isInProgress;
+
+            return (
+              <div
+                key={patient.appointmentId}
+                draggable={isDraggable}
+                onDragStart={e => {
+                  e.dataTransfer.setData("text/plain", patient.appointmentId);
+                  e.dataTransfer.effectAllowed = "move";
+                  onDragStart(patient.appointmentId, room.roomName);
+                }}
+                onDragEnd={onDragEnd}
+                className={`px-5 py-4 transition-opacity ${isInProgress ? "bg-emerald-50/50" : ""} ${
+                  isDraggable ? "cursor-grab active:cursor-grabbing" : ""
+                } ${isDragged ? "opacity-40" : ""} ${isTransferring || isReordering ? "opacity-50 pointer-events-none" : ""}`}
+              >
+                <div className="flex items-center gap-4">
+                  {/* Số thứ tự — theo thứ tự check-in */}
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-[13px] shrink-0 ${
+                    isInProgress ? "bg-emerald-500 text-white" : "bg-amber-400 text-white"
+                  }`}>
+                    {isInProgress ? (
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M6.3 2.8A1 1 0 004.8 3.7v12.6a1 1 0 001.5.9l10.2-6.3a1 1 0 000-1.8L6.3 2.8z" />
+                      </svg>
+                    ) : patient.queueNumber}
+                  </div>
+
+                  {/* Avatar */}
+                  <div className="w-10 h-10 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center font-black text-[11px] text-sky-700 shrink-0">
+                    {initialsOf(patient.patientName)}
+                  </div>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[14px] font-black text-slate-900">{patient.patientName}</span>
+                      <span className="text-[12px] font-bold text-slate-400">
+                        {patient.checkedInAt
+                          ? `Check-in ${fmtTime(patient.checkedInAt)}`
+                          : `Hẹn ${fmtTime(patient.appointmentDate)}`}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                      <span className="text-[12px] text-slate-500 font-semibold">{patient.serviceName ?? "Khám tổng quát"}</span>
+                      {showDentistPerPatient && (
+                        <span className="text-[11.5px] text-slate-400 font-semibold">· {patient.dentistName}</span>
+                      )}
+                      {patient.waitMinutes > 0 && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-600 border border-amber-100 rounded-lg text-[11px] font-black">
+                          đã chờ {fmtWait(patient.waitMinutes)}
+                        </span>
+                      )}
+                    </div>
+                    {patient.symptoms && (
+                      <div className="mt-1.5 text-[11.5px] text-amber-600 font-semibold bg-amber-50 px-2 py-1 rounded-lg inline-block">
+                        {patient.symptoms}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Nút đẩy lên / xuống một bậc — chỉ cho người đang chờ, xem hàng đợi hôm nay */}
+                  {canReorder && (
+                    <div className="flex flex-col gap-0.5 shrink-0">
+                      <button
+                        onClick={e => { e.stopPropagation(); if (upId) onReorder(patient.appointmentId, upId); }}
+                        disabled={!upId || isReordering}
+                        title="Đẩy lên trước một người"
+                        className="w-6 h-5 flex items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:text-primary hover:border-primary disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" /></svg>
+                      </button>
+                      <button
+                        onClick={e => { e.stopPropagation(); if (downId) onReorder(patient.appointmentId, downId); }}
+                        disabled={!downId || isReordering}
+                        title="Đẩy xuống sau một người"
+                        className="w-6 h-5 flex items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:text-primary hover:border-primary disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Status badge */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={`px-2.5 py-1 rounded-lg text-[11.5px] font-black border ${
+                      isInProgress
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        : "bg-amber-50 text-amber-700 border-amber-200"
+                    }`}>
+                      {isInProgress ? "Đang khám" : "Đang chờ"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
 }
 
-const INITIAL_QUEUE: QueueItem[] = [
-  { id: "Q001", name: "Nguyễn Văn An",   service: "Nhổ răng khôn",       time: "08:30", dentist: "BS. Thảo", room: "Phòng 1", waitMin: 12, status: "inprogress" },
-  { id: "Q002", name: "Trần Thị Bích",   service: "Trám răng số 6",      time: "09:00", dentist: "BS. Minh", room: "Phòng 2", waitMin: 5,  status: "inprogress" },
-  { id: "Q003", name: "Phạm Minh Cường", service: "Kiểm tra định kỳ",    time: "09:30", dentist: "BS. Thảo", room: "Phòng 1", waitMin: 28, status: "waiting"    },
-  { id: "Q004", name: "Lê Thu Hà",       service: "Tẩy trắng răng Zoom", time: "10:00", dentist: "BS. Linh", room: "Phòng 3", waitMin: 45, status: "waiting"    },
-  { id: "Q005", name: "Hoàng Văn Đức",   service: "Cấy ghép Implant",    time: "10:30", dentist: "BS. Minh", room: "Phòng 2", waitMin: 60, status: "waiting",   note: "Dị ứng penicillin" },
-  { id: "Q006", name: "Vũ Thị Ngọc",     service: "Bọc răng sứ",         time: "08:00", dentist: "BS. Linh", room: "Phòng 3", waitMin: 0,  status: "done"       },
-  { id: "Q007", name: "Đỗ Quang Huy",    service: "Lấy cao răng",        time: "07:30", dentist: "BS. Thảo", room: "Phòng 1", waitMin: 0,  status: "done"       },
-];
-
-const COL_CFG: Record<QueueStatus, { label: string; bar: string; badge: string; dot: string; header: string; emptyBorder: string }> = {
-  waiting:    { label: "Đang chờ",  bar: "bg-amber-400",  badge: "bg-amber-50 text-amber-700 border border-amber-200",   dot: "bg-amber-500",  header: "text-amber-700",  emptyBorder: "border-amber-200"  },
-  inprogress: { label: "Đang khám", bar: "bg-violet-400", badge: "bg-violet-50 text-violet-700 border border-violet-200",dot: "bg-violet-500", header: "text-violet-700", emptyBorder: "border-violet-200" },
-  done:       { label: "Hoàn thành",bar: "bg-emerald-400",badge: "bg-emerald-50 text-emerald-700 border border-emerald-200",dot: "bg-emerald-500",header: "text-emerald-700",emptyBorder: "border-emerald-200"},
+const queueTodayIso = () => {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 };
-
-const DENTIST_BADGE: Record<string, string> = {
-  "BS. Thảo": "bg-sky-50 text-sky-700 border-sky-100",
-  "BS. Minh": "bg-violet-50 text-violet-700 border-violet-100",
-  "BS. Linh": "bg-rose-50 text-rose-700 border-rose-100",
-  "BS. Hùng": "bg-amber-50 text-amber-700 border-amber-100",
-};
-
-const NEXT_STATUS: Partial<Record<QueueStatus, QueueStatus>> = { waiting: "inprogress", inprogress: "done" };
-const NEXT_LABEL:  Record<QueueStatus, string> = { waiting: "Bắt đầu khám →", inprogress: "Hoàn thành →", done: "" };
 
 export default function QueuePage() {
   useRequireStaff();
-  const [queue, setQueue] = useState<QueueItem[]>(INITIAL_QUEUE);
+  const [queueData, setQueueData] = useState<WaitingQueueResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState(queueTodayIso());
+  const [drag, setDrag] = useState<DragState>(null);
+  const [transferringId, setTransferringId] = useState<string | null>(null);
+  const [reorderingId, setReorderingId] = useState<string | null>(null);
+  // Khi phòng đích có ≥2 bác sĩ chọn được (đang trực + sắp vào ca), hỏi lễ tân giao cho ai.
+  const [pendingPick, setPendingPick] = useState<{
+    appointmentId: string;
+    patientName: string;
+    roomName: string;
+    candidates: QueueDentistDto[];
+  } | null>(null);
 
-  const advance = (id: string) => setQueue(prev => prev.map(item => {
-    if (item.id !== id) return item;
-    const next = NEXT_STATUS[item.status];
-    return next ? { ...item, status: next, waitMin: 0 } : item;
-  }));
+  // Chuyển phòng = giao bệnh nhân cho bác sĩ đang trong ca trực ở đó, nên chỉ làm được
+  // với hàng đợi của hôm nay; ngày quá khứ không có khái niệm "đang trong ca".
+  const isToday = selectedDate === queueTodayIso();
 
-  const revert = (id: string) => setQueue(prev => prev.map(item => {
-    if (item.id !== id) return item;
-    const prev2: QueueStatus = item.status === "inprogress" ? "waiting" : item.status === "done" ? "inprogress" : "waiting";
-    return { ...item, status: prev2 };
-  }));
+  const loadQueue = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await getWaitingQueueApi(selectedDate);
+      setQueueData(data);
+      setError(null);
+    } catch {
+      setError("Không thể tải hàng đợi");
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedDate]);
+
+  useEffect(() => {
+    void loadQueue();
+    const channel = supabase
+      .channel("staff-queue-page")
+      .on("postgres_changes", { event: "*", schema: "public", table: "Appointments" }, () => {
+        void loadQueue();
+      })
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [loadQueue]);
+
+  const doTransfer = async (appointmentId: string, roomName: string, dentistId?: string) => {
+    setTransferringId(appointmentId);
+    try {
+      await transferQueuePatientApi(appointmentId, roomName, dentistId);
+      await loadQueue();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Không thể chuyển bệnh nhân sang phòng khác");
+    } finally {
+      setTransferringId(null);
+    }
+  };
+
+  const handleDropPatient = (appointmentId: string, roomName: string) => {
+    setDrag(null);
+    const room = queueData?.rooms.find(r => r.roomName === roomName);
+    // Bác sĩ có thể nhận bệnh nhân lúc này = đang trực hoặc sắp vào ca.
+    const candidates = room?.dentists.filter(d => d.isOnShiftNow || d.isOnShiftSoon) ?? [];
+
+    // Nhiều người (gần giờ giao ca) → hỏi lễ tân giao cho ai; một người → giao thẳng.
+    if (candidates.length >= 2) {
+      const patient = room?.patients.find(p => p.appointmentId === appointmentId);
+      setPendingPick({
+        appointmentId,
+        patientName: patient?.patientName ?? "bệnh nhân",
+        roomName,
+        candidates,
+      });
+      return;
+    }
+    void doTransfer(appointmentId, roomName, candidates[0]?.dentistId);
+  };
+
+  const handlePickDentist = (dentistId: string) => {
+    if (!pendingPick) return;
+    const { appointmentId, roomName } = pendingPick;
+    setPendingPick(null);
+    void doTransfer(appointmentId, roomName, dentistId);
+  };
+
+  const handleReorder = async (appointmentId: string, swapWithAppointmentId: string) => {
+    setReorderingId(appointmentId);
+    try {
+      await reorderQueuePatientApi(appointmentId, swapWithAppointmentId);
+      await loadQueue();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Không thể đổi thứ tự hàng đợi");
+    } finally {
+      setReorderingId(null);
+    }
+  };
+
+  const today = queueData?.date
+    ? new Date(queueData.date).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })
+    : new Date().toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
 
   return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
@@ -60,145 +380,159 @@ export default function QueuePage() {
       <main className="flex-1 flex flex-col min-w-0">
         <StaffPageHeader
           title="Hàng Đợi"
-          subtitle="Theo dõi tiến trình khám bệnh theo thời gian thực"
+          subtitle={
+            isToday
+              ? `Danh sách bệnh nhân theo phòng khám · ${today} · Kéo bệnh nhân đang chờ sang phòng khác để đổi bác sĩ`
+              : `Danh sách bệnh nhân theo phòng khám · ${today}`
+          }
           right={
             <div className="flex items-center gap-2 text-[12.5px] font-bold">
-              <span className="px-2.5 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl">{queue.filter(q => q.status === "waiting").length} chờ</span>
-              <span className="px-2.5 py-1.5 bg-violet-50 text-violet-700 border border-violet-200 rounded-xl">{queue.filter(q => q.status === "inprogress").length} đang khám</span>
-              <span className="px-2.5 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl">{queue.filter(q => q.status === "done").length} xong</span>
+              {queueData && (
+                <>
+                  <span className="px-2.5 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl">
+                    {queueData.totalInProgress} đang khám
+                  </span>
+                  <span className="px-2.5 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl">
+                    {queueData.totalWaiting} chờ
+                  </span>
+                </>
+              )}
+              <div className="flex items-center gap-1.5 pl-1">
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={e => setSelectedDate(e.target.value || queueTodayIso())}
+                  className="px-3 py-1.5 text-[12.5px] font-bold bg-white border border-slate-200 rounded-xl text-slate-700 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none cursor-pointer"
+                />
+                {selectedDate !== queueTodayIso() && (
+                  <button onClick={() => setSelectedDate(queueTodayIso())}
+                    className="px-2.5 py-1.5 rounded-xl border border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 transition-all cursor-pointer">
+                    Hôm nay
+                  </button>
+                )}
+              </div>
             </div>
           }
         />
 
         <div className="p-8 flex-1 overflow-y-auto">
-          {/* Progress bar */}
-          <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm px-6 py-4 flex items-center gap-5 mb-5">
-            <div className="flex flex-col gap-1 shrink-0">
-              <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Tiến độ hôm nay</span>
-              <span className="text-[24px] font-black text-slate-900 leading-none">
-                {queue.filter(q => q.status === "done").length}<span className="text-[14px] text-slate-400 font-bold">/{queue.length}</span>
-              </span>
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="w-8 h-8 border-3 border-primary/20 border-t-primary rounded-full animate-spin" />
             </div>
-            <div className="flex-1 flex flex-col gap-1.5">
-              <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-primary to-red-400 rounded-full transition-all duration-500"
-                  style={{ width: `${Math.round(queue.filter(q => q.status === "done").length / queue.length * 100)}%` }} />
+          ) : error ? (
+            <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm flex flex-col items-center gap-3 py-16">
+              <p className="text-[14px] font-semibold text-red-500">{error}</p>
+              <button onClick={loadQueue} className="px-4 py-2 text-[13px] font-bold bg-primary text-white rounded-xl cursor-pointer">
+                Thử lại
+              </button>
+            </div>
+          ) : queueData && queueData.rooms.length > 0 ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5">
+              {queueData.rooms.map(room => (
+                <RoomQueueCard
+                  key={room.roomName ?? "no-room"}
+                  room={room}
+                  canDrag={isToday}
+                  drag={drag}
+                  onDragStart={(appointmentId, fromRoom) => setDrag({ appointmentId, fromRoom })}
+                  onDragEnd={() => setDrag(null)}
+                  onDrop={handleDropPatient}
+                  onReorder={handleReorder}
+                  transferringId={transferringId}
+                  reorderingId={reorderingId}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm flex flex-col items-center gap-3 py-20">
+              <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center">
+                <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+                </svg>
               </div>
-              <div className="flex items-center gap-4 text-[11.5px] font-semibold">
-                <span className="flex items-center gap-1 text-emerald-600"><span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />{queue.filter(q => q.status === "done").length} hoàn thành</span>
-                <span className="flex items-center gap-1 text-violet-600"><span className="w-2 h-2 rounded-full bg-violet-400 animate-pulse inline-block" />{queue.filter(q => q.status === "inprogress").length} đang khám</span>
-                <span className="flex items-center gap-1 text-amber-600"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />{queue.filter(q => q.status === "waiting").length} đang chờ</span>
-              </div>
+              <p className="text-[14px] font-bold text-slate-500">Không có bác sĩ nào làm việc trong ngày này</p>
+              <p className="text-[12.5px] text-slate-400 font-semibold">Hàng đợi hiển thị theo phòng của bác sĩ có ca làm việc</p>
             </div>
-            <div className="text-right shrink-0">
-              <span className="text-[28px] font-black text-slate-800 leading-none">{Math.round(queue.filter(q => q.status === "done").length / queue.length * 100)}%</span>
-              <div className="text-[11px] font-bold text-slate-400 mt-0.5">hoàn thành</div>
-            </div>
-          </div>
-
-          {/* Kanban columns */}
-          <div className="grid grid-cols-3 gap-5">
-            {(["waiting","inprogress","done"] as QueueStatus[]).map(col => {
-              const cfg   = COL_CFG[col];
-              const items = queue.filter(q => q.status === col);
-              return (
-                <div key={col} className="flex flex-col gap-3">
-                  {/* Column header */}
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className={`w-2.5 h-2.5 rounded-full ${cfg.bar} ${col === "inprogress" ? "animate-pulse" : ""}`} />
-                      <span className={`text-[13px] font-black uppercase tracking-wider ${cfg.header}`}>{cfg.label}</span>
-                    </div>
-                    <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${cfg.badge}`}>{items.length}</span>
-                    <div className="flex-1 h-px bg-slate-200" />
-                  </div>
-
-                  {/* Cards */}
-                  {items.length === 0 ? (
-                    <div className={`rounded-2xl border-2 border-dashed ${cfg.emptyBorder} p-8 text-center text-[12.5px] font-semibold text-slate-400`}>
-                      Không có bệnh nhân
-                    </div>
-                  ) : (
-                    <div className="flex flex-col gap-2.5">
-                      {items.map(item => {
-                        const initials = item.name.trim().split(/\s+/).slice(-2).map(w => w[0]).join("").toUpperCase();
-                        return (
-                          <div key={item.id} className={`flex rounded-2xl border bg-white overflow-hidden shadow-sm transition-all ${
-                            col === "done" ? "opacity-70 border-slate-200/60" : col === "inprogress" ? "border-violet-200 shadow-violet-100/40" : "border-slate-200/70 hover:shadow-md"
-                          }`}>
-                            <div className={`w-1.5 shrink-0 ${cfg.bar}`} />
-                            <div className="flex flex-col gap-3 px-4 py-4 flex-1">
-                              {/* Header row */}
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-9 h-9 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center font-black text-[11px] text-sky-700 shrink-0">
-                                    {initials}
-                                  </div>
-                                  <div>
-                                    <div className="text-[14px] font-black text-slate-900 leading-tight">{item.name}</div>
-                                    <div className="text-[12px] text-slate-500 font-semibold mt-0.5 truncate">{item.service}</div>
-                                  </div>
-                                </div>
-                                <span className="text-[13px] font-mono font-black text-slate-500 shrink-0">{item.time}</span>
-                              </div>
-
-                              {/* Dentist + room */}
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className={`px-2 py-0.5 rounded-lg border text-[11.5px] font-black ${DENTIST_BADGE[item.dentist] ?? "bg-slate-50 text-slate-600 border-slate-100"}`}>
-                                  {item.dentist}
-                                </span>
-                                <span className="px-2 py-0.5 rounded-lg bg-slate-50 text-slate-500 border border-slate-100 text-[11.5px] font-semibold">
-                                  {item.room}
-                                </span>
-                                {col === "waiting" && item.waitMin > 0 && (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-50 text-amber-600 border border-amber-100 text-[11px] font-black">
-                                    ~{item.waitMin} phút
-                                  </span>
-                                )}
-                              </div>
-
-                              {/* Note */}
-                              {item.note && (
-                                <div className="flex items-start gap-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-xl">
-                                  <svg className="w-3.5 h-3.5 text-amber-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
-                                  <span className="text-[11.5px] font-semibold text-amber-800">{item.note}</span>
-                                </div>
-                              )}
-
-                              {/* Actions */}
-                              {col !== "done" ? (
-                                <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
-                                  <button onClick={() => advance(item.id)}
-                                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[12.5px] font-bold cursor-pointer transition-all ${
-                                      col === "waiting"
-                                        ? "bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-100"
-                                        : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-100"
-                                    }`}>
-                                    {NEXT_LABEL[col]}
-                                  </button>
-                                  <button onClick={() => revert(item.id)}
-                                    className="px-3 py-2 rounded-xl text-[12.5px] font-bold text-slate-400 hover:text-slate-600 hover:bg-slate-100 border border-slate-100 cursor-pointer transition-all">
-                                    ←
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-1.5 text-[12px] font-bold text-emerald-600 pt-1 border-t border-slate-100">
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                  Đã hoàn thành
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          )}
         </div>
       </main>
+
+      {pendingPick && (
+        <DentistPickerModal
+          patientName={pendingPick.patientName}
+          roomName={pendingPick.roomName}
+          candidates={pendingPick.candidates}
+          onPick={handlePickDentist}
+          onClose={() => setPendingPick(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Hỏi lễ tân giao bệnh nhân cho ai khi phòng đích có cả bác sĩ đang trực lẫn bác sĩ sắp vào ca. */
+function DentistPickerModal({ patientName, roomName, candidates, onPick, onClose }: {
+  patientName: string;
+  roomName: string;
+  candidates: QueueDentistDto[];
+  onPick: (dentistId: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-xl border border-slate-200/70 w-full max-w-md overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="px-6 py-5 border-b border-slate-100">
+          <div className="text-[15px] font-black text-slate-900">Chọn bác sĩ khám</div>
+          <div className="mt-1 text-[12.5px] text-slate-500 font-semibold">
+            Giao <span className="font-black text-slate-700">{patientName}</span> tại {roomName} cho:
+          </div>
+        </div>
+
+        <div className="p-3 flex flex-col gap-2">
+          {candidates.map(dentist => {
+            const color = DENTIST_COLOR[dentist.dentistColor] ?? DENTIST_COLOR.slate;
+            return (
+              <button
+                key={dentist.dentistId}
+                onClick={() => onPick(dentist.dentistId)}
+                className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:border-primary hover:bg-primary/5 transition-all cursor-pointer text-left"
+              >
+                <div className={`w-10 h-10 rounded-xl ${color.bg} border ${color.border} flex items-center justify-center font-black text-[12px] ${color.text} shrink-0`}>
+                  {initialsOf(dentist.dentistName)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13.5px] font-black text-slate-900 truncate">{dentist.dentistName}</div>
+                  <div className="text-[11.5px] text-slate-400 font-semibold truncate">
+                    {dentist.shifts.join(" · ") || "Chưa phân ca"}
+                  </div>
+                </div>
+                {dentist.isOnShiftNow ? (
+                  <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-[11px] font-black shrink-0">
+                    Đang trực
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-1 bg-amber-100 text-amber-700 rounded-lg text-[11px] font-black shrink-0">
+                    Sắp vào ca
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="px-6 py-4 border-t border-slate-100 flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-[13px] font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
+          >
+            Hủy
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

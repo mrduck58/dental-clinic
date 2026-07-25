@@ -70,4 +70,113 @@ public class GetServicesHandlerTests
 
         result.Should().HaveCount(2);
     }
+
+    /// <summary>
+    /// Filter status="Inactive" (bất kỳ giá trị khác "Active") chỉ trả về dịch vụ ngừng hoạt động.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_FilterByInactiveStatus_ReturnsOnlyInactive()
+    {
+        var active = Service.Create("Dịch vụ A", 100m, 30, "Mô tả", null);
+        var inactive = Service.Create("Dịch vụ B", 200m, 60, "Mô tả", null);
+        inactive.SetActive(false);
+        _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<Service> { active, inactive });
+        var handler = new GetServicesHandler(_repo);
+
+        var result = await handler.HandleAsync(status: "Inactive", null);
+
+        result.Should().HaveCount(1);
+        result.First().IsActive.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Filter status phải không phân biệt hoa thường (vd. "active" chữ thường vẫn khớp "Active").
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_StatusFilterLowerCase_StillMatchesActive()
+    {
+        var active = Service.Create("Dịch vụ A", 100m, 30, "Mô tả", null);
+        var inactive = Service.Create("Dịch vụ B", 200m, 60, "Mô tả", null);
+        inactive.SetActive(false);
+        _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<Service> { active, inactive });
+        var handler = new GetServicesHandler(_repo);
+
+        var result = await handler.HandleAsync(status: "active", null);
+
+        result.Should().HaveCount(1);
+        result.First().IsActive.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Kết hợp đồng thời filter status và search phải áp dụng cả hai điều kiện (AND).
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_CombinedStatusAndSearchFilters_AppliesBoth()
+    {
+        var activeMatch = Service.Create("Nhổ răng khôn", 100m, 30, "Mô tả", null);
+        var inactiveMatch = Service.Create("Nhổ răng sữa", 150m, 20, "Mô tả", null);
+        inactiveMatch.SetActive(false);
+        var activeNoMatch = Service.Create("Tẩy trắng", 300m, 45, "Mô tả", null);
+        _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<Service> { activeMatch, inactiveMatch, activeNoMatch });
+        var handler = new GetServicesHandler(_repo);
+
+        var result = await handler.HandleAsync(status: "Active", search: "răng");
+
+        result.Should().ContainSingle();
+        result.First().Name.Should().Be("Nhổ răng khôn");
+    }
+
+    /// <summary>
+    /// Tìm kiếm khớp theo Description khi tên không chứa từ khóa.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_SearchMatchesDescription_ReturnsMatchingServices()
+    {
+        _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<Service>
+        {
+            Service.Create("Implant", 100m, 30, "Cấy ghép răng implant cao cấp", null),
+            Service.Create("Tẩy trắng", 300m, 45, "Làm sáng màu răng", null),
+        });
+        var handler = new GetServicesHandler(_repo);
+
+        var result = await handler.HandleAsync(null, search: "cấy ghép");
+
+        result.Should().ContainSingle();
+        result.First().Name.Should().Be("Implant");
+    }
+
+    /// <summary>
+    /// Từ khóa tìm kiếm không khớp bất kỳ dịch vụ nào phải trả về danh sách rỗng.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_SearchNoMatches_ReturnsEmptyList()
+    {
+        _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<Service>
+        {
+            Service.Create("Nhổ răng", 100m, 30, "Mô tả", null),
+        });
+        var handler = new GetServicesHandler(_repo);
+
+        var result = await handler.HandleAsync(null, search: "không tồn tại");
+
+        result.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Filter chỉ chứa khoảng trắng phải được xem như không có filter (trả về toàn bộ).
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_WhitespaceOnlyFilters_AreIgnored()
+    {
+        _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<Service>
+        {
+            Service.Create("A", 100m, 30, "Mô tả", null),
+            Service.Create("B", 200m, 60, "Mô tả", null),
+        });
+        var handler = new GetServicesHandler(_repo);
+
+        var result = await handler.HandleAsync(status: "   ", search: "   ");
+
+        result.Should().HaveCount(2);
+    }
 }

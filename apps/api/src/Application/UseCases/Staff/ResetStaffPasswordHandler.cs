@@ -20,7 +20,7 @@ public class ResetStaffPasswordHandler(IUserRepository userRepository, IEmailSer
         user.ResetPassword(passwordHash);
         await userRepository.UpdateAsync(user, ct);
 
-        await emailService.SendStaffCredentialsAsync(user.Email, user.FullName ?? user.Username ?? user.Email, rawPassword, ct);
+        await emailService.SendStaffCredentialsAsync(user.Email, !string.IsNullOrWhiteSpace(user.FullName) ? user.FullName : (user.Username ?? user.Email), rawPassword, ct);
 
         return new ResetStaffPasswordResult(user.Id, user.Email, rawPassword);
     }

@@ -2,6 +2,7 @@ using DentalClinic.API.Application.DTOs.Promotions;
 using DentalClinic.API.Application.UseCases.Promotions;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Domain.Interfaces.Services;
 using FluentAssertions;
 using NSubstitute;
 using NUnit.Framework;
@@ -12,9 +13,16 @@ namespace DentalClinic.API.Application.Tests.Promotions;
 public class UpdatePromotionHandlerTests
 {
     private IPromotionRepository _repo = null!;
+    private IActivityLogService _activityLog = null!;
+    private ICurrentUserService _currentUser = null!;
 
     [SetUp]
-    public void SetUp() => _repo = Substitute.For<IPromotionRepository>();
+    public void SetUp()
+    {
+        _repo = Substitute.For<IPromotionRepository>();
+        _activityLog = Substitute.For<IActivityLogService>();
+        _currentUser = Substitute.For<ICurrentUserService>();
+    }
 
     /// <summary>
     /// Cập nhật khuyến mãi tồn tại phải gọi UpdateAsync và trả về true.
@@ -24,7 +32,7 @@ public class UpdatePromotionHandlerTests
     {
         var promo = MakePromotion("SALE10");
         _repo.GetByIdAsync(promo.Id, Arg.Any<CancellationToken>()).Returns(promo);
-        var handler = new UpdatePromotionHandler(_repo);
+        var handler = new UpdatePromotionHandler(_repo, _activityLog, _currentUser);
 
         var result = await handler.HandleAsync(promo.Id, BuildUpdateRequest("SALE20"));
 
@@ -40,12 +48,28 @@ public class UpdatePromotionHandlerTests
     public async Task HandleAsync_NotFound_ReturnsFalseWithoutException()
     {
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Promotion?)null);
-        var handler = new UpdatePromotionHandler(_repo);
+        var handler = new UpdatePromotionHandler(_repo, _activityLog, _currentUser);
 
         var result = await handler.HandleAsync(Guid.NewGuid(), BuildUpdateRequest("CODE"));
 
         result.Should().BeFalse();
         await _repo.DidNotReceive().UpdateAsync(Arg.Any<Promotion>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Code khuyến mãi mới nhập vào khi update phải được tự động chuyển thành chữ hoa,
+    /// nhất quán với hành vi của CreatePromotionHandler khi so sánh code lúc áp dụng.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_LowercaseCode_CodeStoredUpperCase()
+    {
+        var promo = MakePromotion("SALE10");
+        _repo.GetByIdAsync(promo.Id, Arg.Any<CancellationToken>()).Returns(promo);
+        var handler = new UpdatePromotionHandler(_repo, _activityLog, _currentUser);
+
+        await handler.HandleAsync(promo.Id, BuildUpdateRequest("sale20"));
+
+        promo.Code.Should().Be("SALE20");
     }
 
     private static Promotion MakePromotion(string code = "SALE10")

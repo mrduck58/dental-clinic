@@ -13,7 +13,8 @@ public class ServicesController(
     CreateServiceHandler create,
     UpdateServiceHandler update,
     DeleteServiceHandler delete,
-    ToggleServiceStatusHandler toggleStatus) : ControllerBase
+    ToggleServiceStatusHandler toggleStatus,
+    TreatmentProcedureHandler treatmentProcedures) : ControllerBase
 {
     /// <summary>GET api/services — Lấy danh sách dịch vụ (có filter)</summary>
     [HttpGet]
@@ -60,7 +61,7 @@ public class ServicesController(
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         await delete.HandleAsync(id, ct);
-        return NoContent();
+        return Ok(new { message = "Đã xóa dịch vụ." });
     }
 
     /// <summary>PATCH api/services/{id}/status — Bật/tắt trạng thái dịch vụ (Admin)</summary>
@@ -69,6 +70,27 @@ public class ServicesController(
     public async Task<IActionResult> ToggleStatus(Guid id, CancellationToken ct)
     {
         var result = await toggleStatus.HandleAsync(id, ct);
+        return Ok(result);
+    }
+
+    /// <summary>GET api/services/{id}/procedures — Quy trình điều trị chuẩn của dịch vụ</summary>
+    [HttpGet("{id:guid}/procedures")]
+    [Authorize(Roles = "Admin,Dentist,Staff,Owner")]
+    public async Task<IActionResult> GetProcedures(Guid id, CancellationToken ct)
+    {
+        var result = await treatmentProcedures.GetByServiceAsync(id, ct);
+        return Ok(result);
+    }
+
+    /// <summary>PUT api/services/{id}/procedures — Thay toàn bộ quy trình điều trị của dịch vụ (Admin)</summary>
+    [HttpPut("{id:guid}/procedures")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> ReplaceProcedures(
+        Guid id,
+        [FromBody] List<ProcedureStepRequest> steps,
+        CancellationToken ct)
+    {
+        var result = await treatmentProcedures.ReplaceForServiceAsync(id, steps, ct);
         return Ok(result);
     }
 }

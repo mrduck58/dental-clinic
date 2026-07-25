@@ -27,7 +27,7 @@ public class GetPostsHandlerTests
         });
         var handler = new GetPostsHandler(_repo);
 
-        var result = await handler.HandleAsync(null, null, null);
+        var result = await handler.HandleAsync(null, null, null, null);
 
         result.Should().HaveCount(3);
     }
@@ -44,7 +44,7 @@ public class GetPostsHandlerTests
         });
         var handler = new GetPostsHandler(_repo);
 
-        var result = await handler.HandleAsync(category: "Tư vấn", null, null);
+        var result = await handler.HandleAsync(category: "Tư vấn", null, null, null);
 
         result.Should().HaveCount(2);
         result.Should().OnlyContain(p => p.Category == "Tư vấn");
@@ -62,7 +62,7 @@ public class GetPostsHandlerTests
         });
         var handler = new GetPostsHandler(_repo);
 
-        var result = await handler.HandleAsync(null, status: "published", null);
+        var result = await handler.HandleAsync(null, status: "published", null, null);
 
         result.Should().HaveCount(2);
         result.Should().OnlyContain(p => p.IsPublished);
@@ -80,7 +80,7 @@ public class GetPostsHandlerTests
         });
         var handler = new GetPostsHandler(_repo);
 
-        var result = await handler.HandleAsync(null, status: "draft", null);
+        var result = await handler.HandleAsync(null, status: "draft", null, null);
 
         result.Should().HaveCount(2);
         result.Should().OnlyContain(p => !p.IsPublished);
@@ -98,7 +98,7 @@ public class GetPostsHandlerTests
         });
         var handler = new GetPostsHandler(_repo);
 
-        var result = await handler.HandleAsync(null, status: "PUBLISHED", null);
+        var result = await handler.HandleAsync(null, status: "PUBLISHED", null, null);
 
         result.Should().HaveCount(1);
         result.Single().IsPublished.Should().BeTrue();
@@ -118,7 +118,7 @@ public class GetPostsHandlerTests
         });
         var handler = new GetPostsHandler(_repo);
 
-        var result = await handler.HandleAsync(null, null, search: "chăm sóc");
+        var result = await handler.HandleAsync(null, null, search: "chăm sóc", serviceId: null);
 
         result.Should().HaveCount(2);
     }
@@ -135,9 +135,29 @@ public class GetPostsHandlerTests
         });
         var handler = new GetPostsHandler(_repo);
 
-        var result = await handler.HandleAsync(null, null, search: "nguyễn");
+        var result = await handler.HandleAsync(null, null, search: "nguyễn", serviceId: null);
 
         result.Should().HaveCount(2);
+    }
+
+    /// <summary>
+    /// Filter theo serviceId chỉ trả về bài viết gắn đúng dịch vụ đó,
+    /// loại bỏ bài viết gắn dịch vụ khác hoặc không gắn dịch vụ nào (ServiceId = null).
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_FilterByServiceId_ReturnsOnlyMatchingServicePosts()
+    {
+        var serviceId = Guid.NewGuid();
+        var post1 = Post.Create("Bài A", "Tư vấn", "BS. Test", "Nội dung", null, false, serviceId);
+        var post2 = Post.Create("Bài B", "Tư vấn", "BS. Test", "Nội dung", null, false, Guid.NewGuid());
+        var post3 = Post.Create("Bài C", "Tư vấn", "BS. Test", "Nội dung", null, false, null);
+        _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<Post> { post1, post2, post3 });
+        var handler = new GetPostsHandler(_repo);
+
+        var result = await handler.HandleAsync(null, null, null, serviceId: serviceId);
+
+        result.Should().HaveCount(1);
+        result.Single().ServiceId.Should().Be(serviceId);
     }
 
     /// <summary>
@@ -155,7 +175,7 @@ public class GetPostsHandlerTests
         });
         var handler = new GetPostsHandler(_repo);
 
-        var result = await handler.HandleAsync(category: "Tư vấn", status: "published", search: "chăm sóc");
+        var result = await handler.HandleAsync(category: "Tư vấn", status: "published", search: "chăm sóc", serviceId: null);
 
         result.Should().HaveCount(1);
     }
@@ -169,7 +189,7 @@ public class GetPostsHandlerTests
         _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<Post> { MakePost(category: "Tư vấn") });
         var handler = new GetPostsHandler(_repo);
 
-        var result = await handler.HandleAsync(category: "KhôngTồnTại", null, null);
+        var result = await handler.HandleAsync(category: "KhôngTồnTại", null, null, null);
 
         result.Should().BeEmpty();
     }

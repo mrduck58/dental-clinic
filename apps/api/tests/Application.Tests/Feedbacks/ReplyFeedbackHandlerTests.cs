@@ -78,4 +78,33 @@ public class ReplyFeedbackHandlerTests
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
+
+    /// <summary>
+    /// Nội dung trả lời null (không chỉ whitespace) cũng phải ném ValidationException.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_NullText_ThrowsValidationException()
+    {
+        var handler = new ReplyFeedbackHandler(_repo);
+
+        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid(), new ReplyFeedbackRequest(null!));
+
+        await act.Should().ThrowAsync<ValidationException>();
+        await _repo.DidNotReceive().GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Trả lời hợp lệ phải gọi UpdateAsync đúng 1 lần để lưu thay đổi.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_ValidText_CallsUpdateAsyncOnce()
+    {
+        var feedback = Feedback.Create("Khách A", 5, "Tốt");
+        _repo.GetByIdAsync(feedback.Id, Arg.Any<CancellationToken>()).Returns(feedback);
+        var handler = new ReplyFeedbackHandler(_repo);
+
+        await handler.HandleAsync(feedback.Id, new ReplyFeedbackRequest("Cảm ơn bạn!"));
+
+        await _repo.Received(1).UpdateAsync(feedback, Arg.Any<CancellationToken>());
+    }
 }

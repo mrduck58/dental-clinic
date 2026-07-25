@@ -1,6 +1,7 @@
 using DentalClinic.API.Application.UseCases.Promotions;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Domain.Interfaces.Services;
 using FluentAssertions;
 using NSubstitute;
 using NUnit.Framework;
@@ -11,9 +12,16 @@ namespace DentalClinic.API.Application.Tests.Promotions;
 public class DeletePromotionHandlerTests
 {
     private IPromotionRepository _repo = null!;
+    private IActivityLogService _activityLog = null!;
+    private ICurrentUserService _currentUser = null!;
 
     [SetUp]
-    public void SetUp() => _repo = Substitute.For<IPromotionRepository>();
+    public void SetUp()
+    {
+        _repo = Substitute.For<IPromotionRepository>();
+        _activityLog = Substitute.For<IActivityLogService>();
+        _currentUser = Substitute.For<ICurrentUserService>();
+    }
 
     /// <summary>
     /// Xóa khuyến mãi tồn tại phải gọi DeleteAsync và trả về true.
@@ -23,7 +31,7 @@ public class DeletePromotionHandlerTests
     {
         var promo = MakePromotion();
         _repo.GetByIdAsync(promo.Id, Arg.Any<CancellationToken>()).Returns(promo);
-        var handler = new DeletePromotionHandler(_repo);
+        var handler = new DeletePromotionHandler(_repo, _activityLog, _currentUser);
 
         var result = await handler.HandleAsync(promo.Id);
 
@@ -39,7 +47,7 @@ public class DeletePromotionHandlerTests
     public async Task HandleAsync_NotFound_ReturnsFalseWithoutException()
     {
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Promotion?)null);
-        var handler = new DeletePromotionHandler(_repo);
+        var handler = new DeletePromotionHandler(_repo, _activityLog, _currentUser);
 
         var result = await handler.HandleAsync(Guid.NewGuid());
 

@@ -81,6 +81,41 @@ public class CancelLeaveRequestHandlerTests
         await act.Should().ThrowAsync<ValidationException>();
     }
 
+    /// <summary>
+    /// Hủy đơn đã bị từ chối (Rejected) phải ném ValidationException,
+    /// vì đơn đã ở trạng thái kết thúc, không còn ở trạng thái chờ xử lý.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_RejectedRequest_ThrowsValidationException()
+    {
+        var userId = Guid.NewGuid();
+        var lr = MakeRequest(userId);
+        lr.Reject(null);
+        _repo.GetByIdAsync(lr.Id, Arg.Any<CancellationToken>()).Returns(lr);
+        var handler = new CancelLeaveRequestHandler(_repo);
+
+        Func<Task> act = () => handler.HandleAsync(lr.Id, userId);
+
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    /// <summary>
+    /// User khác không sở hữu đơn cố hủy phải bị chặn trước khi gọi UpdateAsync,
+    /// đảm bảo không có thay đổi nào được lưu khi vi phạm quyền sở hữu.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_DifferentUser_DoesNotCallUpdateAsync()
+    {
+        var lr = MakeRequest(Guid.NewGuid());
+        _repo.GetByIdAsync(lr.Id, Arg.Any<CancellationToken>()).Returns(lr);
+        var handler = new CancelLeaveRequestHandler(_repo);
+
+        Func<Task> act = () => handler.HandleAsync(lr.Id, Guid.NewGuid());
+
+        await act.Should().ThrowAsync<ValidationException>();
+        await _repo.DidNotReceive().UpdateAsync(Arg.Any<LeaveRequest>(), Arg.Any<CancellationToken>());
+    }
+
     private static LeaveRequest MakeRequest(Guid userId)
     {
         var today = DateOnly.FromDateTime(DateTime.Today);

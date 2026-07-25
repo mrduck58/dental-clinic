@@ -26,7 +26,7 @@ public class CreateStaffHandlerTests
     [Test]
     public async Task HandleAsync_NewEmail_CallsAddAsyncOnce()
     {
-        var handler = new CreateStaffHandler(_userRepo);
+        var handler = new CreateStaffHandler(_userRepo, null!);
 
         await handler.HandleAsync(BuildCommand());
 
@@ -40,7 +40,7 @@ public class CreateStaffHandlerTests
     [Test]
     public async Task HandleAsync_NewEmail_ReturnedDtoHasNoAccount()
     {
-        var handler = new CreateStaffHandler(_userRepo);
+        var handler = new CreateStaffHandler(_userRepo, null!);
 
         var result = await handler.HandleAsync(BuildCommand());
 
@@ -54,7 +54,7 @@ public class CreateStaffHandlerTests
     public async Task HandleAsync_DuplicateEmail_ThrowsConflictException()
     {
         _userRepo.ExistsByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(true);
-        var handler = new CreateStaffHandler(_userRepo);
+        var handler = new CreateStaffHandler(_userRepo, null!);
 
         Func<Task> act = () => handler.HandleAsync(BuildCommand());
 
@@ -68,11 +68,54 @@ public class CreateStaffHandlerTests
     public async Task HandleAsync_DuplicateEmail_DoesNotCallAddAsync()
     {
         _userRepo.ExistsByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(true);
-        var handler = new CreateStaffHandler(_userRepo);
+        var handler = new CreateStaffHandler(_userRepo, null!);
 
         Assert.CatchAsync(() => handler.HandleAsync(BuildCommand()));
 
         await _userRepo.DidNotReceive().AddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Dữ liệu không hợp lệ (họ tên rỗng) phải ném ValidationException ngay từ bước validate,
+    /// trước khi kiểm tra trùng email hay gọi AddAsync.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_InvalidFullName_ThrowsValidationExceptionBeforeAnyRepoCall()
+    {
+        var handler = new CreateStaffHandler(_userRepo, null!);
+
+        Func<Task> act = () => handler.HandleAsync(BuildCommand() with { FullName = "" });
+
+        await act.Should().ThrowAsync<ValidationException>();
+        await _userRepo.DidNotReceive().ExistsByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _userRepo.DidNotReceive().AddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Vai trò "Dentist" bắt buộc phải có Specialty và LicenseNumber; thiếu các trường này
+    /// phải ném ValidationException dù các trường khác hợp lệ.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_DentistRoleWithoutSpecialtyOrLicense_ThrowsValidationException()
+    {
+        var handler = new CreateStaffHandler(_userRepo, null!);
+
+        Func<Task> act = () => handler.HandleAsync(BuildCommand() with { Role = "Dentist", Specialty = null, LicenseNumber = null });
+
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    /// <summary>
+    /// Số điện thoại sai định dạng (chứa chữ cái) phải ném ValidationException.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_InvalidPhoneNumber_ThrowsValidationException()
+    {
+        var handler = new CreateStaffHandler(_userRepo, null!);
+
+        Func<Task> act = () => handler.HandleAsync(BuildCommand() with { PhoneNumber = "abc-not-a-phone" });
+
+        await act.Should().ThrowAsync<ValidationException>();
     }
 
     private static CreateStaffCommand BuildCommand(string email = "newstaff@test.com")
@@ -82,5 +125,6 @@ public class CreateStaffHandlerTests
             LicenseNumber: null, YearsOfExperience: null, Gender: null, DateOfBirth: null,
             Address: null, StartDate: null, ServicesHandled: null,
             CertificateIssuedDate: null, CertificateIssuedBy: null,
-            Education: null, Bio: null, Position: null);
+            Education: null, Bio: null, Position: null,
+            EmploymentType: null, BaseSalary: null, SalaryUnit: null, LeaveAccrued: null, Allowance: null);
 }

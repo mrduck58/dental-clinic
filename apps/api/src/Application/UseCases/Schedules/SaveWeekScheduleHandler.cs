@@ -9,12 +9,12 @@ public class SaveWeekScheduleHandler(IWorkScheduleRepository repo)
     public async Task<IEnumerable<ScheduleEntryDto>> HandleAsync(
         string weekStart, SaveWeekScheduleRequest request, CancellationToken ct)
     {
-        if (!DateOnly.TryParse(weekStart, out var weekDate))
+        if (!DateOnly.TryParseExact(weekStart, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var weekDate))
             throw new ArgumentException("Invalid date format. Use YYYY-MM-DD.");
 
         var entries = request.Entries.Select(e =>
         {
-            if (!DateOnly.TryParse(e.Date, out var d))
+            if (!DateOnly.TryParseExact(e.Date, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d))
                 throw new ArgumentException($"Invalid entry date: {e.Date}");
             return WorkSchedule.Create(d, e.Shift, e.Type, e.Role, e.Name, e.Room, e.RoomColor, e.IsHoliday);
         }).ToList();

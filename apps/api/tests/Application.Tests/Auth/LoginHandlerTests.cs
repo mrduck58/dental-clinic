@@ -1,4 +1,5 @@
 using DentalClinic.API.Application.UseCases.Auth;
+using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
@@ -13,6 +14,7 @@ public class LoginHandlerTests
 {
     private IUserRepository _userRepo = null!;
     private IJwtService _jwtService = null!;
+    private IActivityLogService _activityLog = null!;
     private LoginHandler _handler = null!;
 
     [SetUp]
@@ -20,7 +22,8 @@ public class LoginHandlerTests
     {
         _userRepo = Substitute.For<IUserRepository>();
         _jwtService = Substitute.For<IJwtService>();
-        _handler = new LoginHandler(_userRepo, _jwtService);
+        _activityLog = Substitute.For<IActivityLogService>();
+        _handler = new LoginHandler(_userRepo, _jwtService, _activityLog);
     }
 
     // ── Happy path ────────────────────────────────────────────────────────────
@@ -89,6 +92,119 @@ public class LoginHandlerTests
         await _handler.HandleAsync(new LoginCommand(user.Email, "pass123"));
 
         _jwtService.Received(1).GenerateToken(user);
+    }
+
+    /// <summary>
+    /// Đăng nhập thành công phải ghi log hoạt động đúng 1 lần với action Login
+    /// và status Success, để hệ thống lưu vết lịch sử đăng nhập của người dùng.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_ValidCredentials_LogsSuccessActivityOnce()
+    {
+        var user = CreateActiveUserWithPassword("pass123");
+        _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
+        _jwtService.GenerateToken(Arg.Any<User>()).Returns("token");
+
+        await _handler.HandleAsync(new LoginCommand(user.Email, "pass123"));
+
+        await _activityLog.Received(1).LogAsync(
+            user.Id,
+            Arg.Any<string>(),
+            user.Role,
+            ActivityAction.Login,
+            ActivityModule.Account,
+            Arg.Any<string>(),
+            ActivityStatus.Success,
+            Arg.Any<string?>(),
+            Arg.Any<string?>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Mật khẩu sai phải ghi log hoạt động với status Failed và userId = null,
+    /// vì hệ thống chưa xác thực được danh tính người thực hiện đăng nhập.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_WrongPassword_LogsFailedActivityWithNullUserId()
+    {
+        var user = CreateActiveUserWithPassword("correctpass");
+        _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
+
+        Assert.CatchAsync(() => _handler.HandleAsync(new LoginCommand(user.Email, "wrongpass")));
+
+        await _activityLog.Received(1).LogAsync(
+            null,
+            Arg.Any<string>(),
+            Arg.Any<string>(),
+            ActivityAction.Login,
+            ActivityModule.Account,
+            Arg.Any<string>(),
+            ActivityStatus.Failed,
+            Arg.Any<string?>(),
+            Arg.Any<string?>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Tài khoản bị vô hiệu hóa phải ghi log hoạt động với status Failed,
+    /// giúp admin theo dõi các lần đăng nhập bị từ chối do tài khoản khóa.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_InactiveUser_LogsFailedActivity()
+    {
+        var user = CreateActiveUserWithPassword("pass123");
+        user.SetActive(false);
+        _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
+
+        Assert.CatchAsync(() => _handler.HandleAsync(new LoginCommand(user.Email, "pass123")));
+
+        await _activityLog.Received(1).LogAsync(
+            user.Id,
+            Arg.Any<string>(),
+            user.Role,
+            ActivityAction.Login,
+            ActivityModule.Account,
+            Arg.Any<string>(),
+            ActivityStatus.Failed,
+            Arg.Any<string?>(),
+            Arg.Any<string?>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    // ── AllowedRoles: trường hợp hợp lệ ───────────────────────────────────────
+
+    /// <summary>
+    /// Khi role của user nằm trong danh sách AllowedRoles, đăng nhập phải thành công
+    /// và trả về access token — cổng đăng nhập không được chặn nhầm role hợp lệ.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_RoleWithinAllowedRoles_ReturnsAccessToken()
+    {
+        var staff = CreateActiveUserWithPassword("pass123");
+        _userRepo.GetByEmailAsync(staff.Email, Arg.Any<CancellationToken>()).Returns(staff);
+        _jwtService.GenerateToken(Arg.Any<User>()).Returns("jwt-token");
+
+        var result = await _handler.HandleAsync(
+            new LoginCommand(staff.Email, "pass123", AllowedRoles: ["Admin", "Dentist", "Staff"]));
+
+        result.AccessToken.Should().Be("jwt-token");
+    }
+
+    /// <summary>
+    /// AllowedRoles là mảng rỗng phải được xem như không có giới hạn cổng đăng nhập
+    /// (tương đương null), không được vô tình chặn tất cả mọi role.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_EmptyAllowedRolesArray_DoesNotRestrictLogin()
+    {
+        var user = CreateActiveUserWithPassword("pass123");
+        _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
+        _jwtService.GenerateToken(Arg.Any<User>()).Returns("jwt-token");
+
+        var result = await _handler.HandleAsync(
+            new LoginCommand(user.Email, "pass123", AllowedRoles: []));
+
+        result.AccessToken.Should().Be("jwt-token");
     }
 
     // ── Error paths ───────────────────────────────────────────────────────────
@@ -171,11 +287,70 @@ public class LoginHandlerTests
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
     }
 
+    // ── AllowedRoles (tách cổng đăng nhập bệnh nhân / nhân viên) ─────────────
+
+    /// <summary>
+    /// Bệnh nhân đăng nhập vào cổng nhân viên (AllowedRoles = ["Admin","Dentist","Staff"])
+    /// phải bị từ chối — mỗi cổng chỉ phục vụ đúng nhóm role của mình.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_PatientWithStaffPortalRoles_ThrowsUnauthorizedAccessException()
+    {
+        var patient = CreateActivePatientWithPassword("pass123");
+        _userRepo.GetByEmailAsync(patient.Email, Arg.Any<CancellationToken>()).Returns(patient);
+        _jwtService.GenerateToken(Arg.Any<User>()).Returns("token");
+
+        Func<Task> act = () => _handler.HandleAsync(
+            new LoginCommand(patient.Email, "pass123", AllowedRoles: ["Admin", "Dentist", "Staff"]));
+
+        await act.Should().ThrowAsync<UnauthorizedAccessException>();
+    }
+
+    /// <summary>
+    /// Nhân viên đăng nhập vào cổng bệnh nhân (AllowedRoles = ["Patient"])
+    /// phải bị từ chối — tách biệt luồng xác thực giữa hai nhóm.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_StaffWithPatientPortalRoles_ThrowsUnauthorizedAccessException()
+    {
+        var staff = CreateActiveUserWithPassword("pass123");
+        _userRepo.GetByEmailAsync(staff.Email, Arg.Any<CancellationToken>()).Returns(staff);
+        _jwtService.GenerateToken(Arg.Any<User>()).Returns("token");
+
+        Func<Task> act = () => _handler.HandleAsync(
+            new LoginCommand(staff.Email, "pass123", AllowedRoles: ["Patient"]));
+
+        await act.Should().ThrowAsync<UnauthorizedAccessException>();
+    }
+
+    /// <summary>
+    /// Tài khoản Patient chưa xác thực OTP (IsActive = false) phải nhận message
+    /// hướng dẫn xác thực qua OTP, khác với Staff bị vô hiệu hóa (hướng dẫn liên hệ admin).
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_InactivePatient_ThrowsWithOtpVerificationMessage()
+    {
+        var patient = CreateActivePatientWithPassword("pass123");
+        patient.SetActive(false);
+        _userRepo.GetByEmailAsync(patient.Email, Arg.Any<CancellationToken>()).Returns(patient);
+
+        Func<Task> act = () => _handler.HandleAsync(new LoginCommand(patient.Email, "pass123"));
+
+        await act.Should().ThrowAsync<UnauthorizedAccessException>()
+            .WithMessage("*xác thực*");
+    }
+
     // ── Helper ────────────────────────────────────────────────────────────────
 
     private static User CreateActiveUserWithPassword(string plainPassword)
     {
         var hash = BCrypt.Net.BCrypt.HashPassword(plainPassword);
         return User.Create("user1", "test@test.com", hash, "Staff");
+    }
+
+    private static User CreateActivePatientWithPassword(string plainPassword)
+    {
+        var hash = BCrypt.Net.BCrypt.HashPassword(plainPassword);
+        return User.Create("patient1", "patient@test.com", hash, "Patient");
     }
 }

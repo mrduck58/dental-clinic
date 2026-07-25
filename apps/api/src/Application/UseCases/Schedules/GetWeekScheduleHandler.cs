@@ -8,7 +8,7 @@ public class GetWeekScheduleHandler(IWorkScheduleRepository repo)
 {
     public async Task<IEnumerable<ScheduleEntryDto>> HandleAsync(string weekStart, CancellationToken ct)
     {
-        if (!DateOnly.TryParse(weekStart, out var date))
+        if (!DateOnly.TryParseExact(weekStart, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var date))
             throw new ArgumentException("Invalid date format. Use YYYY-MM-DD.");
 
         var entries = await repo.GetByWeekAsync(date, ct);

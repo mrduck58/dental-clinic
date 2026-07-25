@@ -26,7 +26,7 @@ public class CreateStaffAccountHandler(IUserRepository userRepository, IEmailSer
         await userRepository.UpdateAsync(user, ct);
 
         await emailService.SendStaffCredentialsAsync(
-            user.Email, user.FullName ?? username, rawPassword, ct);
+            user.Email, !string.IsNullOrWhiteSpace(user.FullName) ? user.FullName : username, rawPassword, ct);
 
         return GetStaffHandler.ToDto(user);
     }

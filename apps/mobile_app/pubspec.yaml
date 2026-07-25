@@ -19,7 +19,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.11.5
+  sdk: ^3.10.4
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -39,10 +39,29 @@ dependencies:
   go_router: ^14.0.0
 
   # Font chữ Nunito từ Google Fonts
-  google_fonts: ^6.2.1
+  google_fonts: ^8.1.0
 
   # Bộ icon hiện đại Iconsax
   iconsax: ^0.0.8
+
+  # HTTP client
+  dio: ^5.7.0
+
+  # Lưu token / trạng thái đăng nhập
+  shared_preferences: ^2.3.4
+  image_picker: ^1.2.2
+
+  # Mở link thanh toán (checkout URL của PayOS) trong browser/app ví hệ thống
+  url_launcher: ^6.3.1
+
+  # Render icon SVG (icon dịch vụ do admin upload) tải trực tiếp từ URL
+  flutter_svg: ^2.0.10+1
+
+  # Đăng nhập Google (trực tiếp, không qua Firebase)
+  google_sign_in: ^6.2.2
+  # Render nút Google chính thức trên Web — bắt buộc để lấy idToken (Google chỉ cấp
+  # idToken qua nút render sẵn, không qua signIn() gọi trực tiếp, trên nền tảng Web)
+  google_sign_in_web: ^0.12.4
 
 
 dev_dependencies:
@@ -55,6 +74,36 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+
+  # Sinh icon app cho Android/iOS/Web/macOS/Windows từ 1 ảnh nguồn
+  flutter_launcher_icons: ^0.14.3
+  # Sinh màn hình splash native (trước khi Flutter engine load xong) từ 1 ảnh nguồn
+  flutter_native_splash: ^2.4.4
+
+# Cấu hình flutter_launcher_icons — chạy: dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/logo.jpg"
+  min_sdk_android: 21
+  web:
+    generate: true
+    image_path: "assets/images/logo.jpg"
+  macos:
+    generate: true
+    image_path: "assets/images/logo.jpg"
+  windows:
+    generate: true
+    image_path: "assets/images/logo.jpg"
+
+# Cấu hình flutter_native_splash — chạy: dart run flutter_native_splash:create
+flutter_native_splash:
+  color: "#FFF5F5"
+  image: "assets/images/logo.jpg"
+  android_12:
+    color: "#FFF5F5"
+    image: "assets/images/logo.jpg"
+  web: true
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

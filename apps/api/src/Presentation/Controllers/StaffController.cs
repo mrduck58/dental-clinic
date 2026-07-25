@@ -6,7 +6,7 @@ namespace DentalClinic.API.Presentation.Controllers;
 
 [ApiController]
 [Route("api/staff")]
-[Authorize(Roles = "Admin")]
+[Authorize(Roles = "Admin,Owner")]
 public class StaffController(
     GetStaffHandler getStaffHandler,
     CreateStaffHandler createStaffHandler,
@@ -31,6 +31,16 @@ public class StaffController(
         return Ok(result);
     }
 
+    /// <summary>GET api/staff/{id} — Lấy chi tiết 1 nhân viên</summary>
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> GetStaffById(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await getStaffHandler.GetByIdAsync(id, cancellationToken);
+        return Ok(result);
+    }
+
     /// <summary>POST api/staff — Tạo hồ sơ nhân viên mới (chưa có tài khoản)</summary>
     [HttpPost]
     public async Task<IActionResult> CreateStaff(
@@ -45,10 +55,12 @@ public class StaffController(
                 request.Specialty, request.LicenseNumber, request.YearsOfExperience,
                 request.Gender, request.DateOfBirth, request.Address,
                 request.StartDate, request.ServicesHandled, request.CertificateIssuedDate,
-                request.CertificateIssuedBy, request.Education, request.Bio, request.Position),
+                request.CertificateIssuedBy, request.Education, request.Bio, request.Position,
+                request.EmploymentType, request.BaseSalary, request.SalaryUnit, request.LeaveAccrued,
+                request.Allowance),
             cancellationToken);
 
-        return CreatedAtAction(nameof(GetStaff), new { id = result.Id }, result);
+        return CreatedAtAction(nameof(GetStaffById), new { id = result.Id }, result);
     }
 
     /// <summary>PUT api/staff/{id} — Cập nhật thông tin nhân viên</summary>
@@ -66,7 +78,9 @@ public class StaffController(
                 request.Specialty, request.LicenseNumber, request.YearsOfExperience,
                 request.Gender, request.DateOfBirth, request.Address,
                 request.StartDate, request.ServicesHandled, request.CertificateIssuedDate,
-                request.CertificateIssuedBy, request.Education, request.Bio, request.Position),
+                request.CertificateIssuedBy, request.Education, request.Bio, request.Position,
+                request.EmploymentType, request.BaseSalary, request.SalaryUnit, request.LeaveAccrued,
+                request.Allowance),
             cancellationToken);
 
         return Ok(result);
@@ -117,7 +131,12 @@ public record CreateStaffRequestDto(
     string? CertificateIssuedBy,
     string? Education,
     string? Bio,
-    string? Position);
+    string? Position,
+    string? EmploymentType,
+    decimal? BaseSalary,
+    string? SalaryUnit,
+    decimal? LeaveAccrued,
+    decimal? Allowance);
 
 public record UpdateStaffRequestDto(
     string FullName,
@@ -141,4 +160,9 @@ public record UpdateStaffRequestDto(
     string? CertificateIssuedBy,
     string? Education,
     string? Bio,
-    string? Position);
+    string? Position,
+    string? EmploymentType,
+    decimal? BaseSalary,
+    string? SalaryUnit,
+    decimal? LeaveAccrued,
+    decimal? Allowance);

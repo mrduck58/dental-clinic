@@ -1,28 +1,34 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
 import DentistSidebar from "../../../components/shared/DentistSidebar";
 import DentistPageHeader from "../../../components/shared/DentistPageHeader";
 import { useRequireDentist } from "../../../hooks/useRequireDentist";
+import { getDentistPatientsApi, type DentistPatientDto, type DentistPatientsResponse } from "../../../lib/apiClient";
+import { supabase } from "../../../lib/supabaseClient";
+
+const todayIso = () => {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+};
 
 type PatientStatus = "waiting" | "in_progress" | "done";
 
-interface Patient {
-  id: string; name: string; age: number; gender: "Nam" | "Nữ";
-  phone: string; time: string; shift: "morning" | "afternoon";
-  reason: string; status: PatientStatus; isNew: boolean;
-}
+const STATUS_MAP: Record<string, PatientStatus> = {
+  "Confirmed":      "waiting",
+  "CheckedIn":      "waiting",
+  "InProgress":     "in_progress",
+  "PendingPayment": "done",
+  "Completed":      "done",
+};
 
-const MOCK_PATIENTS: Patient[] = [
-  { id: "P001", name: "Nguyễn Văn An",   age: 34, gender: "Nam", phone: "0912 345 678", time: "08:00", shift: "morning",   reason: "Nhổ răng khôn hàm dưới",              status: "done",        isNew: false },
-  { id: "P002", name: "Trần Thị Bích",   age: 28, gender: "Nữ",  phone: "0908 765 432", time: "08:30", shift: "morning",   reason: "Trám răng số 6",                       status: "in_progress", isNew: false },
-  { id: "P003", name: "Phạm Minh Cường", age: 45, gender: "Nam", phone: "0934 111 222", time: "09:00", shift: "morning",   reason: "Kiểm tra định kỳ, lấy cao răng",       status: "waiting",     isNew: false },
-  { id: "P004", name: "Lê Thu Hà",       age: 22, gender: "Nữ",  phone: "0977 333 444", time: "09:30", shift: "morning",   reason: "Tẩy trắng răng Zoom Advanced",         status: "waiting",     isNew: true  },
-  { id: "P005", name: "Hoàng Văn Đức",   age: 58, gender: "Nam", phone: "0901 555 666", time: "10:00", shift: "morning",   reason: "Cấy ghép Implant răng số 4 hàm trên",  status: "waiting",     isNew: false },
-  { id: "P006", name: "Nguyễn Thị Lan",  age: 31, gender: "Nữ",  phone: "0945 777 888", time: "10:30", shift: "morning",   reason: "Tái khám sau nhổ răng",                status: "waiting",     isNew: false },
-  { id: "P007", name: "Võ Minh Tuấn",    age: 19, gender: "Nam", phone: "0968 999 000", time: "14:00", shift: "afternoon", reason: "Niềng răng mắc cài kim loại",          status: "waiting",     isNew: true  },
-  { id: "P008", name: "Đinh Thị Nga",    age: 42, gender: "Nữ",  phone: "0912 111 999", time: "14:30", shift: "afternoon", reason: "Bọc sứ răng cửa",                      status: "waiting",     isNew: false },
+const STATUS_FILTERS = [
+  { key: "all", label: "Tất cả", statuses: ["waiting", "in_progress", "done"] as PatientStatus[], color: "bg-slate-100 text-slate-600 border-slate-200" },
+  { key: "waiting", label: "Chờ khám", statuses: ["waiting"] as PatientStatus[], color: "bg-amber-50 text-amber-700 border-amber-200" },
+  { key: "in_progress", label: "Đang khám", statuses: ["in_progress"] as PatientStatus[], color: "bg-sky-50 text-sky-700 border-sky-200" },
+  { key: "done", label: "Hoàn thành", statuses: ["done"] as PatientStatus[], color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
 ];
 
 const STATUS_CFG: Record<PatientStatus, { label: string; bar: string; badge: string; dot: string }> = {
@@ -31,11 +37,20 @@ const STATUS_CFG: Record<PatientStatus, { label: string; bar: string; badge: str
   done:        { label: "Hoàn thành", bar: "bg-emerald-400",badge: "bg-emerald-50 text-emerald-700 border border-emerald-200", dot: "bg-emerald-500" },
 };
 
-function PatientRow({ p, idx }: { p: Patient; idx: number }) {
-  const s = STATUS_CFG[p.status];
-  const isActive = p.status === "in_progress";
-  const isDone   = p.status === "done";
-  const initials = p.name.trim().split(/\s+/).slice(-2).map((w) => w[0]).join("").toUpperCase();
+function PatientRow({ p, idx }: { p: DentistPatientDto; idx: number }) {
+  const status = STATUS_MAP[p.status] ?? "waiting";
+  const s = STATUS_CFG[status];
+  const isActive = status === "in_progress";
+  const isDone   = status === "done";
+  const initials = p.patientName.trim().split(/\s+/).slice(-2).map((w: string) => w[0]).join("").toUpperCase();
+
+  const fmtTime = (iso: string) => {
+    const d = new Date(iso);
+    return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+  };
+
+  const time = fmtTime(p.appointmentDate);
+  const shift = new Date(p.appointmentDate).getHours() < 12 ? "morning" : "afternoon";
 
   return (
     <div className={`flex rounded-2xl border overflow-hidden transition-all hover:shadow-md ${
@@ -48,7 +63,7 @@ function PatientRow({ p, idx }: { p: Patient; idx: number }) {
 
         {/* Time + order */}
         <div className="flex flex-col items-center w-14 shrink-0">
-          <span className="text-[19px] font-black text-slate-900 font-mono leading-none tabular-nums">{p.time}</span>
+          <span className="text-[19px] font-black text-slate-900 font-mono leading-none tabular-nums">{time}</span>
           <span className="text-[11px] font-bold text-slate-400 mt-1">#{idx + 1}</span>
         </div>
 
@@ -65,9 +80,12 @@ function PatientRow({ p, idx }: { p: Patient; idx: number }) {
         {/* Main info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className={`text-[15px] font-black leading-tight ${isDone ? "text-slate-400" : "text-slate-900"}`}>{p.name}</span>
+            <span className={`text-[15px] font-black leading-tight ${isDone ? "text-slate-400" : "text-slate-900"}`}>{p.patientName}</span>
             {p.isNew && (
               <span className="px-1.5 py-0.5 bg-violet-100 text-violet-700 text-[10px] font-black rounded-md tracking-wide">MỚI</span>
+            )}
+            {p.isFollowUpVisit && (
+              <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-black rounded-md tracking-wide">TÁI KHÁM</span>
             )}
             <span className="text-[12px] text-slate-400 font-semibold">{p.age} tuổi · {p.gender}</span>
           </div>
@@ -75,9 +93,9 @@ function PatientRow({ p, idx }: { p: Patient; idx: number }) {
             <svg className="w-3.5 h-3.5 text-slate-300 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
             </svg>
-            <span className={`text-[13.5px] font-semibold truncate ${isDone ? "text-slate-400" : "text-slate-700"}`}>{p.reason}</span>
+            <span className={`text-[13.5px] font-semibold truncate ${isDone ? "text-slate-400" : "text-slate-700"}`}>{p.symptoms ?? p.serviceName ?? "Khám tổng quát"}</span>
           </div>
-          <div className="text-[12px] text-slate-400 font-medium mt-0.5 font-mono">{p.phone}</div>
+          <div className="text-[12px] text-slate-400 font-medium mt-0.5 font-mono">{p.phone ?? "—"}</div>
         </div>
 
         {/* Status badge */}
@@ -86,34 +104,47 @@ function PatientRow({ p, idx }: { p: Patient; idx: number }) {
             <span className={`w-1.5 h-1.5 rounded-full ${s.dot} ${isActive ? "animate-pulse" : ""}`} />
             {s.label}
           </span>
-          <span className={`text-[11px] font-bold px-2 py-0.5 rounded-lg ${p.shift === "morning" ? "bg-red-50 text-primary" : "bg-indigo-50 text-indigo-600"}`}>
-            {p.shift === "morning" ? "Ca sáng" : "Ca chiều"}
+          <span className={`text-[11px] font-bold px-2 py-0.5 rounded-lg ${shift === "morning" ? "bg-red-50 text-primary" : "bg-indigo-50 text-indigo-600"}`}>
+            {shift === "morning" ? "Ca sáng" : "Ca chiều"}
           </span>
         </div>
 
-        {/* Action button */}
-        <Link
-          href={`/dentist/patients/${p.id}`}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-bold transition-all shrink-0 ${
-            isActive
-              ? "bg-primary text-white hover:bg-red-600 shadow-sm shadow-primary/25"
-              : isDone
-                ? "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                : "bg-red-50 text-primary border border-primary/20 hover:bg-primary hover:text-white"
-          }`}
-        >
-          {isActive ? "Tiếp tục khám" : isDone ? "Xem hồ sơ" : "Bắt đầu khám"}
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-          </svg>
-        </Link>
+        {/* Action buttons */}
+        <div className="flex items-center gap-2 shrink-0">
+          {isDone && (
+            <Link
+              href={`/dentist/patients/${p.appointmentId}?edit=1`}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-[13px] font-bold transition-all bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+              </svg>
+              Chỉnh sửa
+            </Link>
+          )}
+          <Link
+            href={`/dentist/patients/${p.appointmentId}`}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-bold transition-all ${
+              isActive
+                ? "bg-primary text-white hover:bg-red-600 shadow-sm shadow-primary/25"
+                : isDone
+                  ? "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                  : "bg-red-50 text-primary border border-primary/20 hover:bg-primary hover:text-white"
+            }`}
+          >
+            {isActive ? "Tiếp tục khám" : isDone ? "Xem hồ sơ" : "Chi tiết"}
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+            </svg>
+          </Link>
+        </div>
       </div>
     </div>
   );
 }
 
 function ShiftSection({ label, icon, patients, emptyMsg }: {
-  label: string; icon: string; patients: Patient[]; emptyMsg: string;
+  label: string; icon: string; patients: DentistPatientDto[]; emptyMsg: string;
 }) {
   if (patients.length === 0) return null;
   return (
@@ -129,7 +160,7 @@ function ShiftSection({ label, icon, patients, emptyMsg }: {
         <div className="flex-1 h-px bg-slate-200" />
       </div>
       <div className="flex flex-col gap-2.5">
-        {patients.map((p, idx) => <PatientRow key={p.id} p={p} idx={idx} />)}
+        {patients.map((p, idx) => <PatientRow key={p.appointmentId} p={p} idx={idx} />)}
       </div>
     </div>
   );
@@ -137,26 +168,66 @@ function ShiftSection({ label, icon, patients, emptyMsg }: {
 
 export default function DentistPatientsPage() {
   useRequireDentist();
-  const [search, setSearch]           = useState("");
+
+  const [response, setResponse] = useState<DentistPatientsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [shiftFilter, setShiftFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [shiftFilter, setShiftFilter]   = useState("all");
 
-  const filtered = useMemo(() => MOCK_PATIENTS.filter((p) => {
-    const q = search.toLowerCase();
-    const matchSearch = q === "" || p.name.toLowerCase().includes(q) || p.reason.toLowerCase().includes(q) || p.phone.includes(q);
-    const matchStatus = statusFilter === "all" || p.status === statusFilter;
-    const matchShift  = shiftFilter  === "all" || p.shift  === shiftFilter;
-    return matchSearch && matchStatus && matchShift;
-  }), [search, statusFilter, shiftFilter]);
+  const [selectedDate, setSelectedDate] = useState(todayIso());
 
-  const total    = MOCK_PATIENTS.length;
-  const done     = MOCK_PATIENTS.filter((p) => p.status === "done").length;
-  const active   = MOCK_PATIENTS.filter((p) => p.status === "in_progress").length;
-  const waiting  = MOCK_PATIENTS.filter((p) => p.status === "waiting").length;
-  const progress = Math.round((done / total) * 100);
+  const dateLabel = useMemo(
+    () => new Date(selectedDate + "T00:00:00").toLocaleDateString("vi-VN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }),
+    [selectedDate]
+  );
 
-  const morning   = filtered.filter((p) => p.shift === "morning");
-  const afternoon = filtered.filter((p) => p.shift === "afternoon");
+  const loadPatients = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await getDentistPatientsApi(selectedDate);
+      setResponse(data);
+      setError(null);
+    } catch {
+      setError("Không thể tải danh sách bệnh nhân");
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedDate]);
+
+  useEffect(() => {
+    void loadPatients();
+    const channel = supabase
+      .channel("dentist-patients-page")
+      .on("postgres_changes", { event: "*", schema: "public", table: "Appointments" }, () => {
+        void loadPatients();
+      })
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [loadPatients]);
+
+  const patients = response?.patients ?? [];
+
+  const filtered = useMemo(() => {
+    const filter = STATUS_FILTERS.find(f => f.key === statusFilter)!;
+    return patients.filter((p) => {
+      const q = search.toLowerCase();
+      const matchSearch = q === "" || p.patientName.toLowerCase().includes(q) || (p.symptoms ?? "").toLowerCase().includes(q) || (p.phone ?? "").includes(q);
+      const status = STATUS_MAP[p.status] ?? "waiting";
+      const matchStatus = filter.statuses.includes(status);
+      const shift = new Date(p.appointmentDate).getHours() < 12 ? "morning" : "afternoon";
+      const matchShift = shiftFilter === "all" || shift === shiftFilter;
+      return matchSearch && matchStatus && matchShift;
+    });
+  }, [patients, search, shiftFilter, statusFilter]);
+
+  const waiting = patients.filter(p => (STATUS_MAP[p.status] ?? "waiting") === "waiting").length;
+  const active = patients.filter(p => (STATUS_MAP[p.status] ?? "waiting") === "in_progress").length;
+  const done = patients.filter(p => (STATUS_MAP[p.status] ?? "waiting") === "done").length;
+
+  const morning = filtered.filter(p => new Date(p.appointmentDate).getHours() < 12);
+  const afternoon = filtered.filter(p => new Date(p.appointmentDate).getHours() >= 12);
 
   const selectCls = "px-4 py-2.5 text-[13px] bg-white border border-slate-200 rounded-xl focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-semibold text-slate-600 appearance-none cursor-pointer pr-8";
 
@@ -166,42 +237,34 @@ export default function DentistPatientsPage() {
 
       <main className="flex-1 flex flex-col min-w-0">
         <DentistPageHeader
-          title="Bệnh Nhân Hôm Nay"
-          subtitle="Thứ Sáu, 12 tháng 6 năm 2026"
+          title="Bệnh Nhân"
+          subtitle={dateLabel}
           right={
             <div className="flex items-center gap-2 text-[12.5px] font-bold">
               <span className="px-2.5 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl">{waiting} chờ</span>
               <span className="px-2.5 py-1.5 bg-sky-50 text-sky-700 border border-sky-200 rounded-xl">{active} đang khám</span>
-              <span className="px-2.5 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl">{done} xong</span>
+              <span className="px-2.5 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl">{done} hoàn thành</span>
+              <div className="flex items-center gap-1.5 pl-1">
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={e => setSelectedDate(e.target.value || todayIso())}
+                  className="px-3 py-1.5 text-[12.5px] font-bold bg-white border border-slate-200 rounded-xl text-slate-700 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none cursor-pointer"
+                />
+                {selectedDate !== todayIso() && (
+                  <button onClick={() => setSelectedDate(todayIso())}
+                    className="px-2.5 py-1.5 rounded-xl border border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 transition-all cursor-pointer">
+                    Hôm nay
+                  </button>
+                )}
+              </div>
             </div>
           }
         />
 
         <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-5">
 
-          {/* Progress bar */}
-          <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm px-6 py-4 flex items-center gap-5">
-            <div className="flex flex-col gap-1 shrink-0">
-              <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Tiến độ ca làm</span>
-              <span className="text-[24px] font-black text-slate-900 leading-none">{done}<span className="text-[14px] text-slate-400 font-bold">/{total}</span></span>
-            </div>
-            <div className="flex-1 flex flex-col gap-1.5">
-              <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-primary to-red-400 rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
-              </div>
-              <div className="flex items-center gap-4 text-[11.5px] font-semibold">
-                <span className="flex items-center gap-1 text-emerald-600"><span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />{done} hoàn thành</span>
-                <span className="flex items-center gap-1 text-sky-600"><span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse inline-block" />{active} đang khám</span>
-                <span className="flex items-center gap-1 text-amber-600"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />{waiting} đang chờ</span>
-              </div>
-            </div>
-            <div className="text-right shrink-0">
-              <span className="text-[28px] font-black text-slate-800 leading-none">{progress}%</span>
-              <div className="text-[11px] font-bold text-slate-400 mt-0.5">hoàn thành</div>
-            </div>
-          </div>
-
-          {/* Search + Filter */}
+          {/* Search + Shift Filter */}
           <div className="bg-white px-5 py-4 rounded-2xl border border-slate-200/70 shadow-sm flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
               <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-slate-400">
@@ -210,15 +273,6 @@ export default function DentistPatientsPage() {
               <input type="text" placeholder="Tìm tên, lý do khám, số điện thoại..."
                 value={search} onChange={(e) => setSearch(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 text-[13.5px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-semibold text-slate-700 placeholder:text-slate-400" />
-            </div>
-            <div className="relative">
-              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={selectCls}>
-                <option value="all">Tất cả trạng thái</option>
-                <option value="waiting">Đang chờ</option>
-                <option value="in_progress">Đang khám</option>
-                <option value="done">Hoàn thành</option>
-              </select>
-              <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400"><svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg></span>
             </div>
             <div className="relative">
               <select value={shiftFilter} onChange={(e) => setShiftFilter(e.target.value)} className={selectCls}>
@@ -230,8 +284,54 @@ export default function DentistPatientsPage() {
             </div>
           </div>
 
+          {/* Status Filter Buttons */}
+          <div className="flex gap-2">
+            {STATUS_FILTERS.map((filter) => {
+              const count = patients.filter(p => {
+                const status = STATUS_MAP[p.status] ?? "waiting";
+                return filter.statuses.includes(status);
+              }).length;
+              const isActive = statusFilter === filter.key;
+              return (
+                <button
+                  key={filter.key}
+                  onClick={() => setStatusFilter(filter.key)}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-bold transition-all ${
+                    isActive
+                      ? `${filter.color} border shadow-sm`
+                      : "bg-white text-slate-500 border border-slate-200 hover:border-slate-300"
+                  }`}
+                >
+                  {filter.label}
+                  <span className={`px-2 py-0.5 rounded-lg text-[11px] ${
+                    isActive ? "bg-white/50" : "bg-slate-100"
+                  }`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Loading state */}
+          {loading && (
+            <div className="flex items-center justify-center py-20">
+              <div className="w-8 h-8 border-3 border-primary/20 border-t-primary rounded-full animate-spin" />
+            </div>
+          )}
+
+          {/* Error state */}
+          {error && !loading && (
+            <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm flex flex-col items-center gap-3 py-16">
+              <p className="text-[14px] font-semibold text-red-500">{error}</p>
+              <button onClick={() => void loadPatients()} className="px-4 py-2 text-[13px] font-bold bg-primary text-white rounded-xl cursor-pointer">
+                Thử lại
+              </button>
+            </div>
+          )}
+
           {/* Patient sections */}
-          {filtered.length > 0 ? (
+          {!loading && !error && filtered.length > 0 ? (
             <div className="flex flex-col gap-7">
               <ShiftSection
                 label="Ca sáng"
@@ -246,7 +346,7 @@ export default function DentistPatientsPage() {
                 emptyMsg="Không có bệnh nhân ca chiều"
               />
             </div>
-          ) : (
+          ) : !loading && !error && (
             <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm flex flex-col items-center gap-3 py-20">
               <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center">
                 <svg className="w-7 h-7 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>

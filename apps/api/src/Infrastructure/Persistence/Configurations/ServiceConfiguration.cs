@@ -23,5 +23,8 @@ public class ServiceConfiguration : IEntityTypeConfiguration<Service>
 
         builder.Property(s => s.ImageUrl)
             .HasMaxLength(500);
+
+        builder.Property(s => s.IconUrl)
+            .HasMaxLength(500);
     }
 }

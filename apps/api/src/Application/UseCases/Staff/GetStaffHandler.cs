@@ -1,4 +1,5 @@
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 
 namespace DentalClinic.API.Application.UseCases.Staff;
@@ -37,7 +38,12 @@ public record StaffItemDto(
     string? CertificateIssuedBy,
     string? Education,
     string? Bio,
-    string? Position);
+    string? Position,
+    string? EmploymentType,
+    decimal? BaseSalary,
+    string? SalaryUnit,
+    decimal? LeaveAccrued,
+    decimal? Allowance);
 
 public record StaffStatsDto(int TotalEmployees, int TotalDentists, int TotalDoctors);
 
@@ -68,13 +74,44 @@ public class GetStaffHandler(IUserRepository userRepository)
             Statistics: new StaffStatsDto(stats.TotalEmployees, stats.TotalDentists, stats.TotalDoctors));
     }
 
-    internal static StaffItemDto ToDto(User u) => new(
-        u.Id, u.Username ?? "", u.Email, u.Role,
-        u.FullName, u.PhoneNumber, u.IsActive,
-        u.EmployeeId, u.Department, u.EmploymentStatus,
-        u.ProfilePictureUrl, u.ProfessionalNotes, u.CreatedAt,
-        u.Specialty, u.LicenseNumber, u.YearsOfExperience, u.HasAccount,
-        u.Gender, u.DateOfBirth, u.Address,
-        u.StartDate, u.ServicesHandled, u.CertificateIssuedDate,
-        u.CertificateIssuedBy, u.Education, u.Bio, u.Position);
+    /// <summary>Get a single staff member by ID.</summary>
+    public async Task<StaffItemDto> GetByIdAsync(Guid id, CancellationToken ct = default)
+    {
+        var user = await userRepository.GetByIdAsync(id, ct)
+            ?? throw new NotFoundException($"Không tìm thấy nhân viên với ID '{id}'.");
+
+        return ToDto(user);
+    }
+
+    public static StaffItemDto ToDto(User u)
+    {
+        if (u.Role == "Dentist" || u.Role == "Doctor")
+        {
+            var d = u.Dentist;
+            return new StaffItemDto(
+                u.Id, u.Username ?? "", u.Email ?? "", u.Role,
+                u.FullName, u.PhoneNumber, u.IsActive,
+                d?.EmployeeId, d?.Department, d?.EmploymentStatus,
+                d?.ProfilePictureUrl, null, u.CreatedAt,
+                d?.Specialization, d?.LicenseNumber, d?.ExperienceYears, u.HasAccount,
+                u.Gender, d?.DateOfBirth, d?.Address,
+                d?.StartDate, null, d?.CertificateIssuedDate,
+                d?.CertificateIssuedBy, d?.Education, d?.Biography, d?.Position,
+                d?.EmploymentType, d?.BaseSalary, d?.SalaryUnit, d?.LeaveAccrued, d?.Allowance);
+        }
+        else
+        {
+            var s = u.Staff;
+            return new StaffItemDto(
+                u.Id, u.Username ?? "", u.Email ?? "", u.Role,
+                u.FullName, u.PhoneNumber, u.IsActive,
+                s?.EmployeeId, s?.Department, s?.EmploymentStatus,
+                s?.ProfilePictureUrl, null, u.CreatedAt,
+                null, null, null, u.HasAccount,
+                u.Gender, s?.DateOfBirth, s?.Address,
+                s?.StartDate, null, null,
+                null, null, null, s?.Position,
+                s?.EmploymentType, s?.BaseSalary, s?.SalaryUnit, s?.LeaveAccrued, s?.Allowance);
+        }
+    }
 }
