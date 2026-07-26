@@ -35,7 +35,7 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
     <aside className="w-72 bg-white border-r border-slate-200 p-6 flex flex-col gap-6 shrink-0 sticky top-0 h-screen justify-between z-30">
       <div className="flex flex-col gap-6 flex-1 min-h-0">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-3 px-2 py-2 cursor-pointer select-none">
+        <Link href="/admin" className="flex items-center gap-3 px-2 py-2 cursor-pointer select-none">
           <span className="text-3xl text-primary shrink-0 animate-pulse">🦷</span>
           <div className="flex flex-col">
             <span className="text-[12px] font-black tracking-widest text-primary uppercase leading-none mb-1">SơnGiang</span>
@@ -49,7 +49,7 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
         <nav className="flex flex-col gap-1 overflow-y-auto pr-1 flex-1">
           {/* Tổng quan */}
           <Link
-            href="/"
+            href="/admin"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-bold transition-all ${activeMenu === "overview"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"

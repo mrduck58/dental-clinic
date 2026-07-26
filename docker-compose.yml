@@ -62,9 +62,13 @@ services:
       context: ./apps/clinic_website
       dockerfile: Dockerfile
       args:
-        # apps/clinic_website/src/lib/api.ts tự ghép "${API_URL}${path}" (path KHÔNG có
-        # tiền tố /api) — nên base URL truyền vào đây phải có sẵn "/api".
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost}/api
+        # QUAN TRỌNG: toàn bộ lib/api.ts của clinic_website chỉ được gọi từ Server
+        # Component (chạy phía server, bên TRONG container) — không có component phía
+        # trình duyệt nào dùng biến này. Vì vậy phải trỏ vào tên service Docker nội bộ
+        # ("api", cổng 8080 — đúng như khai báo ASPNETCORE_URLS ở service api bên trên),
+        # KHÔNG dùng "localhost" (sẽ trỏ vào chính container clinic_website, không phải
+        # container api, gây lỗi "fetch failed/ECONNREFUSED" dù nginx/docker vẫn chạy tốt).
+        NEXT_PUBLIC_API_URL: http://api:8080/api
         NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
     container_name: dental_clinic_website
@@ -87,7 +91,6 @@ services:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost}
         NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-        NEXT_BASE_PATH: /admin
     container_name: dental_admin_website
     restart: unless-stopped
     expose:
