@@ -39,8 +39,18 @@ services:
       - PayOSSettings__ApiKey=${PAYOS_API_KEY}
       - PayOSSettings__ChecksumKey=${PAYOS_CHECKSUM_KEY}
       - GoogleAuthSettings__ClientId=${GOOGLE_CLIENT_ID}
+      - GeminiSettings__ApiKey=${GEMINI_API_KEY}
+    volumes:
+      # Lưu file upload (icon dịch vụ, ảnh đại diện...) ra ngoài container —
+      # không mất khi container bị recreate/rebuild.
+      - api_uploads:/app/wwwroot/uploads
     expose:
       - "8080"
+    ports:
+      # Lộ thêm ra cổng 5239 trên host — giữ nguyên ApiConstants.baseUrl (mobile app) và
+      # lệnh "adb reverse tcp:5239 tcp:5239" khi test mobile qua USB, dù API chạy bằng
+      # Docker hay tự `dotnet run` trực tiếp đều dùng chung 1 cổng quen thuộc.
+      - "5239:8080"
     networks:
       - dental_network
 
@@ -52,7 +62,9 @@ services:
       context: ./apps/clinic_website
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost/api}
+        # apps/clinic_website/src/lib/api.ts tự ghép "${API_URL}${path}" (path KHÔNG có
+        # tiền tố /api) — nên base URL truyền vào đây phải có sẵn "/api".
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost}/api
         NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
     container_name: dental_clinic_website
@@ -70,7 +82,9 @@ services:
       context: ./apps/admin_website
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost/api}
+        # apps/admin_website/src/lib/apiClient.ts tự ghép "${API_URL}/api/xxx" mỗi lần gọi
+        # — nên base URL truyền vào đây KHÔNG được có sẵn "/api" (khác clinic_website).
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost}
         NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
         NEXT_BASE_PATH: /admin
@@ -84,3 +98,6 @@ services:
 networks:
   dental_network:
     driver: bridge
+
+volumes:
+  api_uploads:

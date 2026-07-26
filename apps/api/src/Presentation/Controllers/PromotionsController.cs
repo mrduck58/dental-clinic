@@ -39,7 +39,7 @@ public class PromotionsController(
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdatePromotionRequest req, CancellationToken ct)
     {
         var ok = await update.HandleAsync(id, req, ct);
-        return ok ? NoContent() : NotFound();
+        return ok ? Ok(new { message = "Đã cập nhật khuyến mãi." }) : NotFound();
     }
 
     [HttpDelete("{id:guid}")]
@@ -47,7 +47,7 @@ public class PromotionsController(
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         var ok = await delete.HandleAsync(id, ct);
-        return ok ? NoContent() : NotFound();
+        return ok ? Ok(new { message = "Đã xóa khuyến mãi." }) : NotFound();
     }
 
     [HttpPatch("{id:guid}/status")]

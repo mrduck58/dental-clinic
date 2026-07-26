@@ -115,7 +115,7 @@ const STATS_LABELS: Record<DashboardRange, { appointments: { name: string; desc:
 };
 
 export default function Dashboard() {
-  useRequireAdmin();
+  const authorized = useRequireAdmin();
 
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [range, setRange] = useState<DashboardRange>("week");
@@ -191,6 +191,16 @@ export default function Dashboard() {
       return { name: item.serviceName ?? "Dịch vụ khác", value: item.percentage, stroke, offset };
     });
   }, [distribution]);
+
+  // Chưa xác nhận phiên đăng nhập hợp lệ — không render dashboard (tránh chớp nội dung
+  // được bảo vệ trước khi useRequireAdmin kịp điều hướng sang /auth/login).
+  if (!authorized) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="w-8 h-8 border-3 border-primary/20 border-t-primary rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
