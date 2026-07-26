@@ -99,6 +99,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<ChangePasswordHandler>();
         services.AddScoped<CreateAccountHandler>();
         services.AddScoped<GetAccountsHandler>();
+        services.AddScoped<ToggleAccountStatusHandler>();
         services.AddScoped<ForgotPasswordHandler>();
         services.AddScoped<ResetPasswordHandler>();
         services.AddScoped<GoogleLoginHandler>();

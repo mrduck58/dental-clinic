@@ -1,0 +1,23 @@
+using DentalClinic.API.Domain.Exceptions;
+using DentalClinic.API.Domain.Interfaces.Repositories;
+
+namespace DentalClinic.API.Application.UseCases.Auth;
+
+/// <summary>Bật/tắt quyền đăng nhập của 1 tài khoản (trang Tài khoản &amp; Phân quyền — Admin/Owner).
+/// Chỉ đổi <see cref="Domain.Entities.User.IsActive"/> (quyền đăng nhập hệ thống), KHÔNG đụng tới
+/// trạng thái nhân sự (Staff.EmploymentStatus) — 2 khái niệm khác nhau.</summary>
+public class ToggleAccountStatusHandler(IUserRepository userRepository)
+{
+    public async Task<AccountDto> HandleAsync(Guid id, CancellationToken ct = default)
+    {
+        var user = await userRepository.GetByIdAsync(id, ct)
+            ?? throw new NotFoundException($"Không tìm thấy tài khoản với ID: {id}");
+
+        user.SetActive(!user.IsActive);
+        await userRepository.UpdateAsync(user, ct);
+
+        return new AccountDto(
+            user.Id, user.Username!, user.FullName, user.Email,
+            user.PhoneNumber, user.Role, user.IsActive, user.CreatedAt);
+    }
+}

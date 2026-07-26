@@ -68,7 +68,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
         ),
       });
 
-      final response = await ApiClient().post('/files/upload', formData);
+      final token = await _auth.getToken();
+      final response = await ApiClient().post('/files/upload', formData, token: token);
       final url = response.data['url'] as String;
 
       setState(() {

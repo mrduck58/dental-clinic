@@ -199,6 +199,19 @@ export async function getAccountsApi(): Promise<AccountDto[]> {
   return res.json() as Promise<AccountDto[]>;
 }
 
+export async function toggleAccountStatusApi(id: string): Promise<AccountDto> {
+  const res = await fetch(`${API_URL}/api/auth/accounts/${id}/status`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể cập nhật trạng thái tài khoản");
+  }
+  return res.json() as Promise<AccountDto>;
+}
+
 // ── Staff types & endpoints ──────────────────────────────────────────────────
 
 export interface StaffDto {

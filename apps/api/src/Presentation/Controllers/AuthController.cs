@@ -19,6 +19,7 @@ public class AuthController(
     ChangePasswordHandler changePasswordHandler,
     CreateAccountHandler createAccountHandler,
     GetAccountsHandler getAccountsHandler,
+    ToggleAccountStatusHandler toggleAccountStatusHandler,
     ForgotPasswordHandler forgotPasswordHandler,
     ResetPasswordHandler resetPasswordHandler,
     GoogleLoginHandler googleLoginHandler,
@@ -192,6 +193,15 @@ public class AuthController(
     public async Task<IActionResult> GetAccounts(CancellationToken cancellationToken)
     {
         var result = await getAccountsHandler.HandleAsync(cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>PATCH api/auth/accounts/{id}/status — Bật/tắt quyền đăng nhập của tài khoản</summary>
+    [HttpPatch("accounts/{id:guid}/status")]
+    [Authorize(Roles = "Admin,Owner")]
+    public async Task<IActionResult> ToggleAccountStatus(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await toggleAccountStatusHandler.HandleAsync(id, cancellationToken);
         return Ok(result);
     }
 

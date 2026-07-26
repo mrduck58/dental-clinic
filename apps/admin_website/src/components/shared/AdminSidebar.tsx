@@ -15,10 +15,14 @@ interface SidebarProps {
   activeMenu: string;
 }
 
+const USER_SUBMENU_KEYS = ["permissions-users", "permissions-roles"];
+
 export default function AdminSidebar({ activeMenu }: SidebarProps) {
   const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const isUsersGroupActive = USER_SUBMENU_KEYS.includes(activeMenu);
+  const [usersMenuOpen, setUsersMenuOpen] = useState(isUsersGroupActive);
 
   useEffect(() => { setUser(getUser()); }, []);
 
@@ -62,6 +66,63 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
             Tổng quan
           </Link>
 
+          {/* Nhóm: Quản lý người dùng */}
+          <div className="px-4 pt-3 pb-1 text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
+            Quản lý người dùng
+          </div>
+
+          {/* Tài khoản (mở rộng: Người dùng / Vai trò) */}
+          <button
+            onClick={() => setUsersMenuOpen((v) => !v)}
+            className={`flex items-center justify-between gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all cursor-pointer ${isUsersGroupActive
+                ? "bg-primary text-white shadow-md shadow-primary/25"
+                : "text-slate-500 hover:bg-red-50 hover:text-primary"
+              }`}
+          >
+            <span className="flex items-center gap-3.5">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="24" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.57-.598-3.751A11.956 11.956 0 0112 2.714z" />
+              </svg>
+              Tài khoản
+            </span>
+            <svg
+              className={`w-4 h-4 shrink-0 transition-transform duration-200 ${usersMenuOpen ? "rotate-180" : ""}`}
+              fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+            </svg>
+          </button>
+
+          {usersMenuOpen && (
+            <div className="flex flex-col gap-1 pl-4">
+              <Link
+                href="/admin/permissions"
+                className={`flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-[13.5px] font-semibold transition-all ${activeMenu === "permissions-users"
+                    ? "bg-red-50 text-primary"
+                    : "text-slate-500 hover:bg-red-50 hover:text-primary"
+                  }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" />
+                Người dùng
+              </Link>
+              <Link
+                href="/admin/permissions/roles"
+                className={`flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-[13.5px] font-semibold transition-all ${activeMenu === "permissions-roles"
+                    ? "bg-red-50 text-primary"
+                    : "text-slate-500 hover:bg-red-50 hover:text-primary"
+                  }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" />
+                Vai trò
+              </Link>
+            </div>
+          )}
+
+          {/* Nhóm: Danh mục */}
+          <div className="px-4 pt-3 pb-1 text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
+            Danh mục
+          </div>
+
           {/* Quản lí dịch vụ */}
           <Link
             href="/admin/services"
@@ -73,7 +134,7 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.83-5.83m0 0a2.95 2.95 0 11-4.174-4.172 2.95 2.95 0 014.174 4.172zm-7.42 7.42l9.39-9.39" />
             </svg>
-            Quản lí dịch vụ
+            Dịch vụ
           </Link>
 
           {/* Quản lí thuốc */}
@@ -88,7 +149,7 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 9.75h.005v.005h-.005v-.005zm0 2.25h.005v.005h-.005v-.005zm-2.25.005h.005v.005h-.005v-.005zm0 2.25h.005v.005h-.005v-.005zm2.25-2.25h.75v.75h-.75v-.75zm-.75 0v.75h.75v-.75h-.75zm5.25 0v.75h.75v-.75h-.75zm-.75 0h.75v.75h-.75v-.75zm-.75 0h.005v.005h-.005v-.005zm-.75 0h.005v.005h-.005v-.005zm.75-2.25h.005v.005h-.005v-.005zm0 2.25h.005v.005h-.005v-.005zm0 2.25h.75v.75h-.75v-.75zm-.75 0v.75h.75v-.75h-.75z" />
               <circle cx="12" cy="12" r="8" strokeWidth="1.5" />
             </svg>
-            Quản lí thuốc
+            Thuốc
           </Link>
 
           {/* Quản lí phòng */}
@@ -102,22 +163,13 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3a1.5 1.5 0 011.5-1.5h3a1.5 1.5 0 011.5 1.5v3m-9-10.5h.75m-.75 3h.75m-.75 3h.75m9-6h.75m-.75 3h.75m-.75 3h.75" />
             </svg>
-            Quản lí phòng
+            Phòng khám
           </Link>
 
-          {/* Tài khoản và phân quyền */}
-          <Link
-            href="/admin/permissions"
-            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "permissions"
-                ? "bg-primary text-white shadow-md shadow-primary/25"
-                : "text-slate-500 hover:bg-red-50 hover:text-primary"
-              }`}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="24" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.57-.598-3.751A11.956 11.956 0 0112 2.714z" />
-            </svg>
-            Tài khoản
-          </Link>
+          {/* Nhóm: Hệ thống */}
+          <div className="px-4 pt-3 pb-1 text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
+            Hệ thống
+          </div>
 
           {/* Thống kê AI */}
           <Link
@@ -130,10 +182,10 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
             </svg>
-            Thống kê AI
+            Phân tích AI
           </Link>
 
-          {/* Lịch sử hoạt động */}
+          {/* Nhật ký hệ thống */}
           <Link
             href="/admin/activity-logs"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "history"
@@ -144,7 +196,7 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            Lịch sử hoạt động
+            Nhật ký hệ thống
           </Link>
 
           {/* Thông báo */}
