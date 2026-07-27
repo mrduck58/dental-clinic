@@ -33,6 +33,11 @@ services:
       - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__DefaultConnection=${SUPABASE_DB_URL}
       - JwtSettings__Secret=${JWT_SECRET}
+      # Issuer/Audience are only defined in appsettings.Development.json, which is skipped when
+      # ASPNETCORE_ENVIRONMENT=Production — without these, tokens get signed with no iss/aud and
+      # every subsequent authenticated request fails with 401 "audience invalid".
+      - JwtSettings__Issuer=DentalClinicAPI
+      - JwtSettings__Audience=DentalClinicClients
       - Supabase__Url=${SUPABASE_URL}
       - Supabase__AnonKey=${SUPABASE_ANON_KEY}
       - PayOSSettings__ClientId=${PAYOS_CLIENT_ID}

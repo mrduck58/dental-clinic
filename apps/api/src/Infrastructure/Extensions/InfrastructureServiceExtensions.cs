@@ -43,7 +43,12 @@ public static class InfrastructureServiceExtensions
                    .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning)));
 
         // ── Settings ────────────────────────────────────────────────────────
-        services.Configure<JwtSettings>(configuration.GetSection("JwtSettings"));
+        // JwtSettings bound once as a fixed singleton instance (not via IOptions<T>): IOptions<T> is
+        // invalidated and re-bound whenever IConfiguration's reload token fires (appsettings.json is
+        // watched with reloadOnChange:true by default), which let JwtService's signing-side Issuer/
+        // Audience drift out of sync with the validation-side values captured once in Program.cs —
+        // causing tokens to intermittently be signed without iss/aud and fail audience validation.
+        services.AddSingleton(configuration.GetSection("JwtSettings").Get<JwtSettings>() ?? new JwtSettings());
         services.Configure<EmailSettings>(configuration.GetSection("EmailSettings"));
         services.Configure<PayOSSettings>(configuration.GetSection("PayOSSettings"));
         services.Configure<GeminiSettings>(configuration.GetSection("GeminiSettings"));
