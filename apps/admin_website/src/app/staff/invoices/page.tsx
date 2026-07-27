@@ -24,7 +24,21 @@ import {
 
 /* ─── types ─────────────────────────────────────────────── */
 
-interface Procedure { name: string; qty: number; price: number; }
+interface Procedure {
+  name: string; qty: number; price: number; treatmentPlanId?: string | null;
+  // Thanh toán theo từng dòng: "full" = thu toàn bộ dòng; "deposit" = đặt cọc theo % (`depositPct`).
+  payType?: "full" | "deposit";
+  depositPct?: number;
+}
+
+// % cọc hợp lệ (0, 100].
+const clampPct = (p: number) => Math.min(100, Math.max(0, p));
+
+// Số tiền thu ngay của một dòng dịch vụ (đặt cọc = thành tiền × %/100, làm tròn).
+const lineCollected = (it: Procedure) =>
+  it.payType === "deposit"
+    ? Math.round((it.qty * it.price) * clampPct(it.depositPct ?? 0) / 100)
+    : it.qty * it.price;
 
 interface TreatmentPlan {
   id: string; patientName: string; patientPhone: string; gender: "Nam" | "Nữ";
@@ -80,7 +94,7 @@ function mapPlan(b: BillablePlanDto): TreatmentPlan {
     dentist: b.dentistName,
     date: fmtDate(b.appointmentDate),
     diagnosis: b.diagnosis || "Chưa có chẩn đoán",
-    procedures: b.items.map(i => ({ name: i.name, qty: i.quantity, price: i.unitPrice })),
+    procedures: b.items.map(i => ({ name: i.name, qty: i.quantity, price: i.unitPrice, treatmentPlanId: i.treatmentPlanId })),
     outstandingInvoiceId: b.outstandingInvoiceId,
     sourceInvoiceNumber: b.sourceInvoiceNumber,
     treatmentPlanId: b.treatmentPlanId,
@@ -103,7 +117,7 @@ function mapInvoice(inv: InvoiceDto): Invoice {
     gender: toGender(inv.gender),
     dentist: inv.dentistName,
     date: fmtDate(inv.appointmentDate),
-    items: inv.items.map(i => ({ name: i.name, qty: i.quantity, price: i.unitPrice })),
+    items: inv.items.map(i => ({ name: i.name, qty: i.quantity, price: i.unitPrice, treatmentPlanId: i.treatmentPlanId })),
     subtotal: inv.subtotal,
     discount: inv.discount,
     finalTotal: inv.totalAmount,
@@ -167,16 +181,14 @@ function PlansTab({ plans, onIssued }: {
   const [items,    setItems]    = useState<Procedure[]>([]);
   const [discount, setDiscount] = useState(0);
   const [note,     setNote]     = useState("");
-  const [payType,  setPayType]  = useState<PayType>("full");
-  const [deposit,  setDeposit]  = useState(0);
   const [installAmount, setInstallAmount] = useState(0);
   const [method,   setMethod]   = useState<PayMethod | null>(null);
   const [saved,    setSaved]    = useState(false);
 
   const selectPlan = (p: TreatmentPlan) => {
     setSelected(p);
-    setItems(p.procedures.map(pr => ({ ...pr })));
-    setDiscount(0); setNote(""); setPayType("full"); setDeposit(0);
+    setItems(p.procedures.map(pr => ({ ...pr, payType: "full" as const, depositPct: 50 })));
+    setDiscount(0); setNote("");
     setInstallAmount(p.planRemaining ?? 0); setMethod(null); setSaved(false);
   };
 
@@ -186,25 +198,36 @@ function PlansTab({ plans, onIssued }: {
   const removeItem = (i: number) =>
     setItems(prev => prev.filter((_, idx) => idx !== i));
 
+  const setItemPay = (i: number, payType: "full" | "deposit") =>
+    setItems(prev => prev.map((it, idx) => idx === i ? { ...it, payType, depositPct: payType === "deposit" && !it.depositPct ? 50 : it.depositPct } : it));
+
+  const setItemDepositPct = (i: number, pct: number) =>
+    setItems(prev => prev.map((it, idx) => idx === i ? { ...it, depositPct: pct } : it));
+
   // Mục "thu phần còn lại" của hóa đơn đặt cọc → chỉ thanh toán toàn bộ phần còn lại.
   const isRemaining = !!selected?.outstandingInvoiceId;
-  // Mục "đợt thu" của liệu trình điều trị → nhập số tiền đợt này.
+  // Mục "đợt thu" của liệu trình điều trị (dữ liệu cũ) → nhập số tiền đợt này.
   const isInstallment = !!selected?.treatmentPlanId;
   const planRemaining = selected?.planRemaining ?? 0;
 
   const subtotal   = sum(items);
   const finalTotal = Math.max(0, subtotal - discount);
 
-  // Số tiền thu trên hóa đơn này + kiểm tra hợp lệ khi đặt cọc
-  const effType    = isRemaining ? "full" : payType;
-  const payAmount  = effType === "deposit" ? deposit : finalTotal;
-  const depositOk  = effType === "full" || (deposit > 0 && deposit <= finalTotal);
+  // Thu ngay = tổng số thu của từng dòng (toàn bộ / đặt cọc theo dòng).
+  const collectedTotal = items.reduce((s, it) => s + lineCollected(it), 0);
+  const perLineOk = items.every(it => it.payType !== "deposit" || ((it.depositPct ?? 0) > 0 && (it.depositPct ?? 0) <= 100));
+
   const installOk  = !isInstallment || (installAmount > 0 && installAmount <= planRemaining);
+  const canIssue   = !!method && (
+    isRemaining ? true :
+    isInstallment ? installOk :
+    (items.length > 0 && perLineOk && collectedTotal > 0)
+  );
 
   const [issuing, setIssuing] = useState(false);
 
   const handleIssue = async () => {
-    if (!selected || !method || !depositOk || !installOk) return;
+    if (!selected || !canIssue) return;
     const inv: Invoice = isInstallment
       ? {
           id: selected.id,
@@ -234,9 +257,9 @@ function PlansTab({ plans, onIssued }: {
           date: selected.date,
           items: [...items],
           subtotal, discount, finalTotal,
-          paymentType: effType,
-          depositAmount: payAmount,
-          remaining: Math.max(0, finalTotal - payAmount),
+          paymentType: collectedTotal < finalTotal ? "deposit" : "full",
+          depositAmount: collectedTotal,
+          remaining: Math.max(0, finalTotal - collectedTotal),
           paymentMethod: method,
           status: "pending",
           note,
@@ -397,6 +420,7 @@ function PlansTab({ plans, onIssued }: {
                         <th className="px-3 py-2.5 text-center font-extrabold text-slate-400 text-[11px] uppercase tracking-wider w-24">Số lượng</th>
                         <th className="px-3 py-2.5 text-right font-extrabold text-slate-400 text-[11px] uppercase tracking-wider w-32">Đơn giá</th>
                         <th className="px-3 py-2.5 text-right font-extrabold text-slate-400 text-[11px] uppercase tracking-wider w-32">Thành tiền</th>
+                        <th className="px-3 py-2.5 text-center font-extrabold text-slate-400 text-[11px] uppercase tracking-wider w-52">Thanh toán</th>
                         <th className="w-10" />
                       </tr>
                     </thead>
@@ -413,7 +437,30 @@ function PlansTab({ plans, onIssued }: {
                           </td>
                           <td className="px-3 py-3 text-right font-semibold text-slate-500 font-mono text-[12.5px]">{fmt(it.price)}</td>
                           <td className="px-3 py-3 text-right font-black text-slate-800 font-mono">{fmt(it.qty * it.price)}</td>
-                          <td className="px-2 py-3 text-center">
+                          <td className="px-3 py-2.5">
+                            <div className="flex flex-col gap-1.5 items-center">
+                              <div className="flex gap-1 w-full">
+                                <button onClick={() => setItemPay(i, "full")}
+                                  className={`flex-1 px-2 py-1.5 rounded-lg text-[11.5px] font-bold border transition-all cursor-pointer ${it.payType !== "deposit" ? "bg-primary/10 border-primary text-primary" : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"}`}>
+                                  Toàn bộ
+                                </button>
+                                <button onClick={() => setItemPay(i, "deposit")}
+                                  className={`flex-1 px-2 py-1.5 rounded-lg text-[11.5px] font-bold border transition-all cursor-pointer ${it.payType === "deposit" ? "bg-amber-50 border-amber-400 text-amber-700" : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"}`}>
+                                  Đặt cọc
+                                </button>
+                              </div>
+                              {it.payType === "deposit" && (
+                                <div className="relative w-20">
+                                  <input type="text" inputMode="numeric" placeholder="%"
+                                    value={it.depositPct ?? ""}
+                                    onChange={e => setItemDepositPct(i, clampPct(Number(e.target.value.replace(/[^\d]/g, ""))))}
+                                    className="w-full pl-2.5 pr-5 py-1.5 text-[12px] text-right font-mono font-bold bg-amber-50/60 border border-amber-200 rounded-lg focus:outline-none focus:border-amber-400" />
+                                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-bold text-amber-500">%</span>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-2 py-3 text-center align-top">
                             <button onClick={() => removeItem(i)} className="w-6 h-6 rounded-lg hover:bg-red-50 text-slate-300 hover:text-primary cursor-pointer flex items-center justify-center transition-colors">
                               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                             </button>
@@ -449,63 +496,17 @@ function PlansTab({ plans, onIssued }: {
                     <span className="text-[13.5px] font-extrabold text-slate-700 uppercase tracking-wider">Tổng cộng</span>
                     <span className="text-[22px] font-black text-primary font-mono leading-none">{fmt(finalTotal)}</span>
                   </div>
+                  <div className="flex items-center justify-between w-full text-[13px] font-semibold text-slate-500 mt-1">
+                    <span>Thu ngay</span><span className="font-mono text-emerald-700 font-black">{fmt(collectedTotal)}</span>
+                  </div>
+                  {collectedTotal < finalTotal && (
+                    <div className="flex items-center justify-between w-full text-[13px] font-semibold text-amber-600">
+                      <span>Còn nợ</span><span className="font-mono">{fmt(Math.max(0, finalTotal - collectedTotal))}</span>
+                    </div>
+                  )}
                 </div>
               </div>
               </>)}
-
-              {/* Payment type (ẩn khi thu phần còn lại / đợt thu liệu trình) */}
-              {!isRemaining && !isInstallment && (
-              <div className="flex flex-col gap-3">
-                <span className={labelCls}>Loại thanh toán</span>
-                <div className="grid grid-cols-2 gap-3">
-                  {([
-                    { key: "full",    label: "Thanh toán toàn bộ", desc: "Thu đủ tổng tiền điều trị",
-                      icon: "M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" },
-                    { key: "deposit", label: "Đặt cọc",            desc: "Thu trước một phần, còn lại trả sau",
-                      icon: "M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" },
-                  ] as { key: PayType; label: string; desc: string; icon: string }[]).map(t => {
-                    const active = payType === t.key;
-                    return (
-                      <button key={t.key} onClick={() => { setPayType(t.key); if (t.key === "full") setDeposit(0); }}
-                        className={`flex items-start gap-3 px-4 py-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer ${
-                          active ? "bg-primary/5 border-primary shadow-sm" : "bg-white border-slate-200 hover:border-slate-300"
-                        }`}>
-                        <svg className={`w-6 h-6 shrink-0 mt-0.5 transition-colors ${active ? "text-primary" : "text-slate-400"}`} fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d={t.icon} />
-                        </svg>
-                        <div>
-                          <div className={`text-[13.5px] font-black transition-colors ${active ? "text-primary" : "text-slate-700"}`}>{t.label}</div>
-                          <div className="text-[11.5px] font-semibold text-slate-400 mt-0.5">{t.desc}</div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {payType === "deposit" && (
-                  <div className="flex flex-wrap items-end gap-6 px-4 py-4 bg-amber-50/60 border border-amber-200 rounded-xl">
-                    <div className="flex flex-col gap-1.5 w-56">
-                      <label className={labelCls}>Số tiền đặt cọc (₫)</label>
-                      <input type="text" inputMode="numeric" value={fmtMoneyInput(deposit)}
-                        onChange={e => setDeposit(parseMoneyInput(e.target.value))}
-                        placeholder="0"
-                        className={inputCls} />
-                    </div>
-                    <div className="flex flex-col items-end gap-1.5 ml-auto">
-                      <div className="flex items-center justify-between gap-6 w-full text-[13px] font-semibold text-slate-500">
-                        <span>Cọc trước</span><span className="font-mono text-amber-700 font-black">{fmt(payAmount)}</span>
-                      </div>
-                      <div className="flex items-center justify-between gap-6 w-full text-[13px] font-semibold text-slate-500">
-                        <span>Còn lại</span><span className="font-mono">{fmt(Math.max(0, finalTotal - payAmount))}</span>
-                      </div>
-                    </div>
-                    {deposit > finalTotal && (
-                      <p className="w-full text-[12px] font-bold text-red-600">Số tiền đặt cọc không được vượt quá tổng tiền.</p>
-                    )}
-                  </div>
-                )}
-              </div>
-              )}
 
               {/* Payment method */}
               <div className="flex flex-col gap-3">
@@ -554,7 +555,7 @@ function PlansTab({ plans, onIssued }: {
 
               {/* Submit */}
               <div className="flex items-center gap-4 pt-1 border-t border-slate-100">
-                <button onClick={handleIssue} disabled={!method || (!isInstallment && items.length === 0) || !depositOk || !installOk || issuing}
+                <button onClick={handleIssue} disabled={!canIssue || issuing}
                   className="flex items-center gap-2 px-7 py-3 bg-primary hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-[14px] font-black cursor-pointer transition-all shadow-sm shadow-primary/20">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m.75 12l3 3m0 0l3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
                   {issuing ? "Đang xuất..." : "Xuất hóa đơn"}
@@ -1068,7 +1069,7 @@ export default function InvoicesPage() {
     try {
       await issueInvoiceApi({
         appointmentId: inv.planId!,
-        items: inv.items.map(i => ({ name: i.name, quantity: i.qty, unitPrice: i.price })),
+        items: inv.items.map(i => ({ name: i.name, quantity: i.qty, unitPrice: i.price, treatmentPlanId: i.treatmentPlanId ?? undefined, amountCollected: lineCollected(i) })),
         discount: inv.discount,
         paymentMethod: inv.paymentMethod ?? "cash",
         paymentType: inv.paymentType,

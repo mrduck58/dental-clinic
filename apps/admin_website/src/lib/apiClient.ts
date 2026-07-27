@@ -2745,6 +2745,7 @@ export interface InvoiceItemDto {
   quantity: number;
   unitPrice: number;
   lineTotal: number;
+  treatmentPlanId?: string | null; // liệu trình mà dòng này thu tiền cho
 }
 
 export interface BillablePlanDto {
@@ -2798,6 +2799,8 @@ export interface IssueInvoiceItemRequest {
   name: string;
   quantity: number;
   unitPrice: number;
+  treatmentPlanId?: string | null;
+  amountCollected?: number | null; // số thu ngay của dòng (toàn bộ hoặc cọc theo dòng)
 }
 
 export interface IssueInvoiceRequest {
