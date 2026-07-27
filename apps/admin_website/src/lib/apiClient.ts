@@ -1227,6 +1227,39 @@ export async function markMaterialRequestDoneApi(id: string): Promise<void> {
   }
 }
 
+// ── Yêu cầu vật tư (bác sĩ tạo từ buổi khám) ─────────────────────────────────
+export interface CreateMaterialRequestRequest {
+  appointmentId: string;
+  content: string;
+}
+
+export async function createMaterialRequestApi(request: CreateMaterialRequestRequest): Promise<MaterialRequestDto> {
+  const res = await fetch(`${API_URL}/api/inventory/material-requests`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(request),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Gửi yêu cầu vật tư thất bại");
+  }
+  return res.json() as Promise<MaterialRequestDto>;
+}
+
+export async function getMaterialRequestsByPatientApi(patientId: string, patientName?: string): Promise<MaterialRequestDto[]> {
+  const nameQs = patientName ? `&name=${encodeURIComponent(patientName)}` : "";
+  const res = await fetch(`${API_URL}/api/inventory/material-requests/by-patient?patientId=${encodeURIComponent(patientId)}${nameQs}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải yêu cầu vật tư");
+  }
+  return res.json() as Promise<MaterialRequestDto[]>;
+}
+
 // ── Room types ─────────────────────────────────────────────────────────────
 
 export interface RoomDto {
