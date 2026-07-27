@@ -16,6 +16,7 @@ interface SidebarProps {
 }
 
 const USER_SUBMENU_KEYS = ["permissions-users", "permissions-roles"];
+const LOGS_SUBMENU_KEYS = ["history-audit", "history-login", "history-system"];
 
 export default function AdminSidebar({ activeMenu }: SidebarProps) {
   const router = useRouter();
@@ -23,6 +24,8 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const isUsersGroupActive = USER_SUBMENU_KEYS.includes(activeMenu);
   const [usersMenuOpen, setUsersMenuOpen] = useState(isUsersGroupActive);
+  const isLogsGroupActive = LOGS_SUBMENU_KEYS.includes(activeMenu);
+  const [logsMenuOpen, setLogsMenuOpen] = useState(isLogsGroupActive);
 
   useEffect(() => { setUser(getUser()); }, []);
 
@@ -43,7 +46,7 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
           <span className="text-3xl text-primary shrink-0 animate-pulse">🦷</span>
           <div className="flex flex-col">
             <span className="text-[12px] font-black tracking-widest text-primary uppercase leading-none mb-1">SơnGiang</span>
-            <span className="font-extrabold text-xl tracking-tight text-slate-900 leading-none">
+            <span className="font-extrabold text-lg tracking-tight text-slate-900 leading-none">
               Dental<span className="text-primary font-bold">Clinic</span>
             </span>
           </div>
@@ -54,7 +57,7 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
           {/* Tổng quan */}
           <Link
             href="/admin"
-            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-bold transition-all ${activeMenu === "overview"
+            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-bold text-[13px] transition-all ${activeMenu === "overview"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
               }`}
@@ -67,14 +70,14 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
           </Link>
 
           {/* Nhóm: Quản lý người dùng */}
-          <div className="px-4 pt-3 pb-1 text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
+          <div className="px-4 pt-3 pb-1 text-[10.5px] font-extrabold text-slate-400 uppercase tracking-wider">
             Quản lý người dùng
           </div>
 
           {/* Tài khoản (mở rộng: Người dùng / Vai trò) */}
           <button
             onClick={() => setUsersMenuOpen((v) => !v)}
-            className={`flex items-center justify-between gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all cursor-pointer ${isUsersGroupActive
+            className={`flex items-center justify-between gap-3.5 px-4 py-3 rounded-xl font-semibold text-[13px] transition-all cursor-pointer ${isUsersGroupActive
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
               }`}
@@ -97,7 +100,7 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
             <div className="flex flex-col gap-1 pl-4">
               <Link
                 href="/admin/permissions"
-                className={`flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-[13.5px] font-semibold transition-all ${activeMenu === "permissions-users"
+                className={`flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-[12.5px] font-semibold transition-all ${activeMenu === "permissions-users"
                     ? "bg-red-50 text-primary"
                     : "text-slate-500 hover:bg-red-50 hover:text-primary"
                   }`}
@@ -107,7 +110,7 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
               </Link>
               <Link
                 href="/admin/permissions/roles"
-                className={`flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-[13.5px] font-semibold transition-all ${activeMenu === "permissions-roles"
+                className={`flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-[12.5px] font-semibold transition-all ${activeMenu === "permissions-roles"
                     ? "bg-red-50 text-primary"
                     : "text-slate-500 hover:bg-red-50 hover:text-primary"
                   }`}
@@ -119,14 +122,14 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
           )}
 
           {/* Nhóm: Danh mục */}
-          <div className="px-4 pt-3 pb-1 text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
+          <div className="px-4 pt-3 pb-1 text-[10.5px] font-extrabold text-slate-400 uppercase tracking-wider">
             Danh mục
           </div>
 
           {/* Quản lí dịch vụ */}
           <Link
             href="/admin/services"
-            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "services"
+            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold text-[13px] transition-all ${activeMenu === "services"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
               }`}
@@ -140,7 +143,7 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
           {/* Quản lí thuốc */}
           <Link
             href="/admin/medicines"
-            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "medicines"
+            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold text-[13px] transition-all ${activeMenu === "medicines"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
               }`}
@@ -155,7 +158,7 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
           {/* Quản lí phòng */}
           <Link
             href="/admin/rooms"
-            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "rooms"
+            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold text-[13px] transition-all ${activeMenu === "rooms"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
               }`}
@@ -167,14 +170,14 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
           </Link>
 
           {/* Nhóm: Hệ thống */}
-          <div className="px-4 pt-3 pb-1 text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
+          <div className="px-4 pt-3 pb-1 text-[10.5px] font-extrabold text-slate-400 uppercase tracking-wider">
             Hệ thống
           </div>
 
           {/* Thống kê AI */}
           <Link
             href="/admin/ai-analytics"
-            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "ai-analytics"
+            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold text-[13px] transition-all ${activeMenu === "ai-analytics"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
               }`}
@@ -185,24 +188,67 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
             Phân tích AI
           </Link>
 
-          {/* Nhật ký hệ thống */}
-          <Link
-            href="/admin/activity-logs"
-            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "history"
+          {/* Nhật ký hệ thống (mở rộng: Audit Log / Đăng nhập / System Log) */}
+          <button
+            onClick={() => setLogsMenuOpen((v) => !v)}
+            className={`flex items-center justify-between gap-3.5 px-4 py-3 rounded-xl font-semibold text-[13px] transition-all cursor-pointer ${isLogsGroupActive
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
               }`}
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <span className="flex items-center gap-3.5">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Nhật ký
+            </span>
+            <svg
+              className={`w-4 h-4 shrink-0 transition-transform duration-200 ${logsMenuOpen ? "rotate-180" : ""}`}
+              fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
             </svg>
-            Nhật ký hệ thống
-          </Link>
+          </button>
+
+          {logsMenuOpen && (
+            <div className="flex flex-col gap-1 pl-4">
+              <Link
+                href="/admin/activity-logs"
+                className={`flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-[12.5px] font-semibold transition-all ${activeMenu === "history-audit"
+                    ? "bg-red-50 text-primary"
+                    : "text-slate-500 hover:bg-red-50 hover:text-primary"
+                  }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" />
+                Audit Log
+              </Link>
+              <Link
+                href="/admin/activity-logs/login-history"
+                className={`flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-[12.5px] font-semibold transition-all ${activeMenu === "history-login"
+                    ? "bg-red-50 text-primary"
+                    : "text-slate-500 hover:bg-red-50 hover:text-primary"
+                  }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" />
+                Đăng nhập
+              </Link>
+              <Link
+                href="/admin/activity-logs/system-log"
+                className={`flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-[12.5px] font-semibold transition-all ${activeMenu === "history-system"
+                    ? "bg-red-50 text-primary"
+                    : "text-slate-500 hover:bg-red-50 hover:text-primary"
+                  }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" />
+                System Log
+              </Link>
+            </div>
+          )}
 
           {/* Thông báo */}
           <Link
             href="/admin/notifications"
-            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold transition-all ${activeMenu === "notifications"
+            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold text-[13px] transition-all ${activeMenu === "notifications"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50 hover:text-primary"
               }`}
@@ -224,7 +270,7 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
               <Link
                 href="/admin/profile?tab=personal"
                 onClick={() => setDropdownOpen(false)}
-                className="flex items-center gap-2.5 px-3.5 py-2.5 text-[13.5px] font-bold text-slate-700 hover:text-primary hover:bg-red-50/40 rounded-lg transition-all"
+                className="flex items-center gap-2.5 px-3.5 py-2.5 text-[12.5px] font-bold text-slate-700 hover:text-primary hover:bg-red-50/40 rounded-lg transition-all"
               >
                 <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
@@ -234,7 +280,7 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
               <Link
                 href="/admin/profile?tab=password"
                 onClick={() => setDropdownOpen(false)}
-                className="flex items-center gap-2.5 px-3.5 py-2.5 text-[13.5px] font-bold text-slate-700 hover:text-primary hover:bg-red-50/40 rounded-lg transition-all"
+                className="flex items-center gap-2.5 px-3.5 py-2.5 text-[12.5px] font-bold text-slate-700 hover:text-primary hover:bg-red-50/40 rounded-lg transition-all"
               >
                 <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
@@ -244,7 +290,7 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
               <Link
                 href="/admin/profile?tab=activities"
                 onClick={() => setDropdownOpen(false)}
-                className="flex items-center gap-2.5 px-3.5 py-2.5 text-[13.5px] font-bold text-slate-700 hover:text-primary hover:bg-red-50/40 rounded-lg transition-all"
+                className="flex items-center gap-2.5 px-3.5 py-2.5 text-[12.5px] font-bold text-slate-700 hover:text-primary hover:bg-red-50/40 rounded-lg transition-all"
               >
                 <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -271,10 +317,10 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
               </div>
             )}
             <div className="min-w-0 flex-1">
-              <div className="text-[14px] font-bold text-slate-900 leading-tight truncate">
+              <div className="text-[13px] font-bold text-slate-900 leading-tight truncate">
                 {user?.fullName ?? user?.username ?? "..."}
               </div>
-              <div className="text-[12px] font-semibold text-slate-400 mt-0.5">
+              <div className="text-[11px] font-semibold text-slate-400 mt-0.5">
                 {ROLE_LABEL[user?.role ?? ""] ?? user?.role ?? ""}
               </div>
             </div>
@@ -293,7 +339,7 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
 
         <button
           onClick={handleLogout}
-          className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl text-[13px] font-bold text-slate-500 hover:text-primary hover:bg-red-50 border border-slate-100 hover:border-primary/20 transition-all cursor-pointer"
+          className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl text-[12px] font-bold text-slate-500 hover:text-primary hover:bg-red-50 border border-slate-100 hover:border-primary/20 transition-all cursor-pointer"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
