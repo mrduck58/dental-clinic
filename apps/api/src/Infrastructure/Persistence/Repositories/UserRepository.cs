@@ -23,6 +23,12 @@ public class UserRepository(AppDbContext db) : IUserRepository
     public async Task<bool> ExistsByEmailAsync(string email, CancellationToken ct = default) =>
         await db.Users.AnyAsync(u => u.Email == email, ct);
 
+    public async Task<AccountStatusResult?> GetAccountStatusAsync(Guid id, CancellationToken ct = default) =>
+        await db.Users
+            .Where(u => u.Id == id)
+            .Select(u => new AccountStatusResult(u.IsActive, u.Role))
+            .FirstOrDefaultAsync(ct);
+
     public async Task<bool> ExistsByUsernameAsync(string username, CancellationToken ct = default) =>
         await db.Users.AnyAsync(u => u.Username == username, ct);
 

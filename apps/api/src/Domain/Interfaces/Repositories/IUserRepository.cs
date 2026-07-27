@@ -17,6 +17,11 @@ public interface IUserRepository
         int page, int pageSize, CancellationToken ct = default);
     Task<StaffStatsResult> GetStaffStatsAsync(CancellationToken ct = default);
     Task<IReadOnlyList<Guid>> GetUserIdsByRoleAsync(string role, CancellationToken ct = default);
+
+    /// <summary>Lightweight lookup (no navigation-property joins) for per-request account-status checks.</summary>
+    Task<AccountStatusResult?> GetAccountStatusAsync(Guid id, CancellationToken ct = default);
 }
+
+public record AccountStatusResult(bool IsActive, string Role);
 
 public record StaffStatsResult(int TotalEmployees, int TotalDentists, int TotalDoctors);
