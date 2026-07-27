@@ -17,8 +17,15 @@ public class InvoiceItemConfiguration : IEntityTypeConfiguration<InvoiceItem>
             .IsRequired();
 
         builder.Property(i => i.UnitPrice).HasPrecision(18, 2);
+        builder.Property(i => i.AmountCollected).HasPrecision(18, 2);
 
-        // LineTotal là thuộc tính tính toán, không ánh xạ xuống DB.
+        // Liệu trình mà dòng thu tiền cho — cột thường (không FK) để migration đơn giản,
+        // handler tự đối chiếu theo giá trị.
+        builder.Property(i => i.TreatmentPlanId);
+        builder.HasIndex(i => i.TreatmentPlanId);
+
+        // Thuộc tính tính toán, không ánh xạ xuống DB.
         builder.Ignore(i => i.LineTotal);
+        builder.Ignore(i => i.LineRemaining);
     }
 }

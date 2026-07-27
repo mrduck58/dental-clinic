@@ -45,11 +45,9 @@ public class Invoice
     public static Invoice Issue(
         Guid appointmentId,
         string invoiceNumber,
-        IEnumerable<(string Name, int Quantity, decimal UnitPrice)> items,
+        IEnumerable<(string Name, int Quantity, decimal UnitPrice, Guid? TreatmentPlanId, decimal? AmountCollected)> items,
         decimal discount,
         PaymentMethod paymentMethod,
-        PaymentType paymentType,
-        decimal depositAmount,
         string? notes = null)
     {
         var invoice = new Invoice
@@ -59,22 +57,21 @@ public class Invoice
             AppointmentId = appointmentId,
             Status = PaymentStatus.Unpaid,
             PaymentMethod = paymentMethod,
-            PaymentType = paymentType,
             Notes = notes,
             CreatedAt = DateTimeOffset.UtcNow
         };
 
         foreach (var item in items)
-            invoice.Items.Add(InvoiceItem.Create(invoice.Id, item.Name, item.Quantity, item.UnitPrice));
+            invoice.Items.Add(InvoiceItem.Create(invoice.Id, item.Name, item.Quantity, item.UnitPrice, item.TreatmentPlanId, item.AmountCollected));
 
         invoice.Subtotal = invoice.Items.Sum(i => i.LineTotal);
         invoice.Discount = discount < 0 ? 0 : discount;
         invoice.TotalAmount = Math.Max(0, invoice.Subtotal - invoice.Discount);
 
-        // Số tiền thu trên hóa đơn: bằng tổng nếu thanh toán toàn bộ, hoặc số đặt cọc (giới hạn trong [0, tổng]).
-        invoice.DepositAmount = paymentType == PaymentType.Deposit
-            ? Math.Clamp(depositAmount, 0, invoice.TotalAmount)
-            : invoice.TotalAmount;
+        // Số tiền thu ngay = tổng thu của từng dòng (thanh toán toàn bộ hoặc đặt cọc theo từng dịch vụ).
+        var collected = invoice.Items.Sum(i => i.AmountCollected);
+        invoice.DepositAmount = Math.Clamp(collected, 0, invoice.TotalAmount);
+        invoice.PaymentType = invoice.DepositAmount < invoice.TotalAmount ? PaymentType.Deposit : PaymentType.Full;
 
         return invoice;
     }
