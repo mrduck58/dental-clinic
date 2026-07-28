@@ -8,6 +8,7 @@ class PatientInfo {
   final String? dob;
   final String gender;
   final String? patientCode;
+  final String? avatarUrl;
 
   const PatientInfo({
     required this.id,
@@ -17,6 +18,7 @@ class PatientInfo {
     this.dob,
     this.gender = 'Nam',
     this.patientCode,
+    this.avatarUrl,
   });
 }
 

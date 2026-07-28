@@ -22,11 +22,11 @@ public class GetDentistDetailHandler(AppDbContext dbContext)
         var dentist = await dbContext.Dentists
             .AsNoTracking()
             .Include(d => d.User)
-            .FirstOrDefaultAsync(d => d.Id == dentistId, ct);
+            .FirstOrDefaultAsync(d => d.Id == dentistId || d.UserId == dentistId, ct);
         if (dentist is null) return null;
 
         var patientCount = await dbContext.Appointments
-            .Where(a => a.DentistId == dentistId &&
+            .Where(a => a.DentistId == dentist.Id &&
                         (a.Status == AppointmentStatus.Completed || a.Status == AppointmentStatus.PendingPayment))
             .Select(a => a.PatientId)
             .Distinct()

@@ -92,7 +92,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
       dateOfBirth: _dob!,
       gender: _gender,
       phoneNumber: _phoneCtrl.text.trim().isNotEmpty ? _phoneCtrl.text.trim() : null,
-      profilePictureUrl: 'assets/images/bac_si_4.png', // Default female avatar or placeholder
+      profilePictureUrl: null,
     );
 
     try {

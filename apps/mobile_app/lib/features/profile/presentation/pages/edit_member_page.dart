@@ -217,8 +217,8 @@ class _EditMemberPageState extends State<EditMemberPage> {
             padding: const EdgeInsets.only(right: 16.0),
             child: CircleAvatar(
               radius: 18,
-              backgroundColor: const Color(0xFFE2E8F0),
-              backgroundImage: const AssetImage('assets/images/bac_si_1.png'),
+              backgroundColor: AppColors.primaryLight,
+              child: const Icon(Iconsax.user, color: AppColors.primary, size: 18),
             ),
           ),
         ],
@@ -244,11 +244,13 @@ class _EditMemberPageState extends State<EditMemberPage> {
                     height: 120,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
+                      color: AppColors.primaryLight,
                       border: Border.all(color: context.divider, width: 3),
-                      image: DecorationImage(
-                        image: AssetImage(widget.member.profilePictureUrl ?? 'assets/images/bac_si_4.png'),
-                        fit: BoxFit.cover,
-                      ),
+                    ),
+                    child: ClipOval(
+                      child: widget.member.profilePictureUrl != null && widget.member.profilePictureUrl!.startsWith('http')
+                          ? Image.network(widget.member.profilePictureUrl!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Iconsax.user, color: AppColors.primary, size: 48))
+                          : const Icon(Iconsax.user, color: AppColors.primary, size: 48),
                     ),
                   ),
                   Positioned(

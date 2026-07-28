@@ -55,34 +55,89 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
         _isLoading = false;
       });
 
-      final reviewResults = await Future.wait(
-        doctors.map((d) => ReviewService().getReviewsForDentist(d.id)),
-      );
-      if (!mounted) return;
-      setState(() {
-        for (var i = 0; i < doctors.length; i++) {
-          _reviewsByDentist[doctors[i].id] = reviewResults[i];
+      try {
+        final reviewResults = await Future.wait(
+          doctors.map((d) async {
+            try {
+              return await ReviewService().getReviewsForDentist(d.id);
+            } catch (_) {
+              return null;
+            }
+          }),
+        );
+        if (mounted) {
+          setState(() {
+            for (var i = 0; i < doctors.length; i++) {
+              if (reviewResults[i] != null) {
+                _reviewsByDentist[doctors[i].id] = reviewResults[i]!;
+              }
+            }
+          });
         }
-      });
+      } catch (_) {}
     } catch (_) {
       setState(() => _isLoading = false);
     }
   }
 
+  String _selectedSpecialty = 'Tất cả';
+
+  String _removeDiacritics(String str) {
+    const vietnamese = [
+      'aàáạảãâầấậẩẫăằắặẳẵ', 'AÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴ',
+      'eèéẹẻẽêềếệểễ', 'EÈÉẸẺẼÊỀẾỆỂỄ',
+      'iìíịỉĩ', 'IÌÍỊỈĨ',
+      'oòóọỏõôồốộổỗơờớợởỡ', 'OÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠ',
+      'uùúụủũưừứựửữ', 'UÙÚỤỦŨƯỪỨỰỬỮ',
+      'yỳýỵỷỹ', 'YỲÝỴỶỸ',
+      'dđ', 'DĐ'
+    ];
+    var result = str;
+    for (var element in vietnamese) {
+      for (var i = 1; i < element.length; i++) {
+        result = result.replaceAll(element[i], element[0]);
+      }
+    }
+    return result.toLowerCase();
+  }
+
+  List<String> get _specialties {
+    final set = <String>{};
+    for (final d in _doctors) {
+      if (d.specialty != null && d.specialty!.isNotEmpty) {
+        set.add(d.specialty!);
+      }
+    }
+    return ['Tất cả', ...set];
+  }
+
   List<DoctorModel> get _filteredDoctors {
-    if (_searchQuery.trim().isEmpty) return _doctors;
-    final q = _searchQuery.toLowerCase();
-    return _doctors.where((d) =>
-        d.fullName.toLowerCase().contains(q) ||
-        (d.specialty != null && d.specialty!.toLowerCase().contains(q))).toList();
+    var list = _doctors;
+    if (_selectedSpecialty != 'Tất cả') {
+      list = list.where((d) => d.specialty == _selectedSpecialty).toList();
+    }
+
+    final query = _searchQuery.trim();
+    if (query.isEmpty) return list;
+
+    final qNorm = _removeDiacritics(query);
+    return list.where((d) {
+      final nameNorm = _removeDiacritics(d.fullName);
+      final specNorm = _removeDiacritics(d.specialty ?? '');
+      return nameNorm.contains(qNorm) || specNorm.contains(qNorm);
+    }).toList();
   }
 
   List<ServiceModel> get _filteredServices {
-    if (_searchQuery.trim().isEmpty) return _services;
-    final q = _searchQuery.toLowerCase();
-    return _services.where((s) =>
-        s.name.toLowerCase().contains(q) ||
-        s.description.toLowerCase().contains(q)).toList();
+    final query = _searchQuery.trim();
+    if (query.isEmpty) return _services;
+
+    final qNorm = _removeDiacritics(query);
+    return _services.where((s) {
+      final nameNorm = _removeDiacritics(s.name);
+      final descNorm = _removeDiacritics(s.description);
+      return nameNorm.contains(qNorm) || descNorm.contains(qNorm);
+    }).toList();
   }
 
   @override
@@ -203,111 +258,163 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
 
   Widget _buildDentistList(bool isVi) {
     final list = _filteredDoctors;
-    if (list.isEmpty) {
-      return _buildEmptyState(isVi ? 'Không tìm thấy nha sĩ nào phù hợp.' : 'No dentists matching your search.');
-    }
+    final specialties = _specialties;
 
-    return ListView.separated(
-      padding: const EdgeInsets.all(20),
-      itemCount: list.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 16),
-      itemBuilder: (context, i) {
-        final doc = list[i];
-        final reviewsResult = _reviewsByDentist[doc.id];
-        final avgRating = reviewsResult?.averageRating ?? 0;
-        final reviewsCount = reviewsResult?.reviewCount ?? 0;
-        final specialty = doc.specialty ?? (isVi ? 'Nha sĩ tổng quát' : 'General Dentist');
-        final expYears = doc.yearsOfExperience ?? 10;
-
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: context.card,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: context.divider),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: context.isDark ? 0.15 : 0.04),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
+    return Column(
+      children: [
+        if (specialties.length > 2)
+          Container(
+            height: 48,
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: ListView.separated(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              scrollDirection: Axis.horizontal,
+              itemCount: specialties.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (context, idx) {
+                final spec = specialties[idx];
+                final isSelected = _selectedSpecialty == spec;
+                final label = (spec == 'Tất cả' && !isVi) ? 'All' : spec;
+                return ChoiceChip(
+                  label: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                      color: isSelected ? Colors.white : context.textPrimary,
+                    ),
+                  ),
+                  selected: isSelected,
+                  selectedColor: AppColors.primary,
+                  backgroundColor: context.card,
+                  side: BorderSide(
+                    color: isSelected ? AppColors.primary : context.divider,
+                  ),
+                  onSelected: (val) {
+                    if (val) {
+                      setState(() {
+                        _selectedSpecialty = spec;
+                      });
+                    }
+                  },
+                );
+              },
+            ),
           ),
-          child: Row(
-            children: [
-              // Avatar
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Container(
-                  width: 72,
-                  height: 72,
-                  color: context.isDark ? AppColors.primary.withValues(alpha: 0.15) : AppColors.primaryLight,
-                  child: doc.profilePictureUrl != null
-                      ? Image.network(
-                          doc.profilePictureUrl!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Icon(Iconsax.user, color: AppColors.primary, size: 30),
-                        )
-                      : Icon(Iconsax.user, color: AppColors.primary, size: 30),
-                ),
-              ),
-              const SizedBox(width: 16),
-              // Content
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      doc.fullName,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        color: context.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      specialty,
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        color: context.textSecondary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '$expYears ${isVi ? 'năm kinh nghiệm' : 'years of experience'}',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: context.textMuted,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        const Icon(Icons.star_rounded, color: Colors.amber, size: 16),
-                        const SizedBox(width: 4),
-                        Text(
-                          '$avgRating ($reviewsCount ${isVi ? 'đánh giá' : 'reviews'})',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: context.textSecondary,
+        Expanded(
+          child: list.isEmpty
+              ? _buildEmptyState(isVi ? 'Không tìm thấy nha sĩ nào phù hợp.' : 'No dentists matching your search.')
+              : ListView.separated(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: list.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 12),
+                  itemBuilder: (context, i) {
+                    final doc = list[i];
+                    final reviewsResult = _reviewsByDentist[doc.id];
+                    final avgRating = reviewsResult?.averageRating ?? 0;
+                    final reviewsCount = reviewsResult?.reviewCount ?? 0;
+                    final specialty = doc.specialty ?? (isVi ? 'Nha sĩ tổng quát' : 'General Dentist');
+                    final expYears = doc.yearsOfExperience ?? 10;
+
+                    return Material(
+                      color: context.card,
+                      borderRadius: BorderRadius.circular(18),
+                      elevation: 1,
+                      shadowColor: Colors.black.withValues(alpha: 0.05),
+                      child: InkWell(
+                        onTap: () => context.push(AppRoutes.dentistProfile, extra: doc),
+                        borderRadius: BorderRadius.circular(18),
+                        child: Padding(
+                          padding: const EdgeInsets.all(14),
+                          child: Row(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(16),
+                                child: Container(
+                                  width: 72,
+                                  height: 72,
+                                  color: context.isDark
+                                      ? AppColors.primary.withValues(alpha: 0.15)
+                                      : AppColors.primaryLight,
+                                  child: doc.profilePictureUrl != null && doc.profilePictureUrl!.isNotEmpty
+                                      ? Image.network(
+                                          doc.profilePictureUrl!,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, __, ___) => Icon(Iconsax.user, color: AppColors.primary, size: 30),
+                                        )
+                                      : Icon(Iconsax.user, color: AppColors.primary, size: 30),
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      doc.fullName,
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w800,
+                                        color: context.textPrimary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primary.withValues(alpha: 0.08),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        specialty,
+                                        style: const TextStyle(
+                                          fontSize: 11.5,
+                                          color: AppColors.primary,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Row(
+                                      children: [
+                                        const Icon(Icons.star_rounded, color: Colors.amber, size: 16),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          '$avgRating ($reviewsCount ${isVi ? 'đánh giá' : 'reviews'})',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                            color: context.textSecondary,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Text(
+                                          '$expYears ${isVi ? 'năm KN' : 'yrs exp'}',
+                                          style: TextStyle(
+                                            fontSize: 11.5,
+                                            color: context.textMuted,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Icon(
+                                Iconsax.arrow_right_3,
+                                color: context.textMuted,
+                                size: 18,
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
-                  ],
+                      ),
+                    );
+                  },
                 ),
-              ),
-              IconButton(
-                icon: const Icon(Iconsax.arrow_right_3, color: AppColors.primary, size: 20),
-                onPressed: () => context.push(AppRoutes.dentistProfile, extra: doc),
-              ),
-            ],
-          ),
-        );
-      },
+        ),
+      ],
     );
   }
 

@@ -39,6 +39,20 @@ class BookingService {
         .toList();
   }
 
+  /// Lấy danh sách các ngày làm việc (có slot) của bác sĩ trong tháng.
+  Future<Set<String>> getWorkingDatesForDentist(String dentistId, int year, int month) async {
+    try {
+      final res = await _client.get(
+        '/api/dentists/$dentistId/working-dates',
+        queryParameters: {'year': year, 'month': month},
+      );
+      if (res.data is List) {
+        return (res.data as List<dynamic>).map((e) => e.toString()).toSet();
+      }
+    } catch (_) {}
+    return {};
+  }
+
   /// Lấy danh sách lịch hẹn của bệnh nhân hiện tại.
   Future<List<MyAppointmentItem>> getMyAppointments() async {
     final token = await _auth.getToken();

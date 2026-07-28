@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/auth/data/auth_service.dart';
 import 'package:mobile_app/features/home/data/home_service.dart';
+import 'package:mobile_app/features/home/data/models/doctor_model.dart';
 import 'package:mobile_app/features/home/data/models/post_model.dart';
 import 'package:mobile_app/features/home/data/models/service_model.dart';
 import 'package:mobile_app/features/booking/data/booking_service.dart';
@@ -29,6 +31,7 @@ class _HomePageState extends State<HomePage> {
   final _auth = AuthService();
 
   List<ServiceModel> _services = [];
+  List<DoctorModel> _dentists = [];
   List<PostModel> _posts = [];
   String _userName = '';
   String? _avatarUrl;
@@ -52,6 +55,7 @@ class _HomePageState extends State<HomePage> {
       token != null
           ? BookingService().getMyAppointments().catchError((_) => <MyAppointmentItem>[])
           : Future.value(<MyAppointmentItem>[]),
+      _homeService.getDentists().catchError((_) => <DoctorModel>[]),
     ]);
     if (!mounted) return;
 
@@ -78,6 +82,7 @@ class _HomePageState extends State<HomePage> {
       _userName = (results[2] as String?) ?? '';
       _avatarUrl = results[3] as String?;
       _upcomingAppointment = nearestUpcoming;
+      _dentists = List<DoctorModel>.from(results[5] as List);
       _isLoading = false;
     });
 
@@ -98,6 +103,7 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     final bottomPad = MediaQuery.of(context).padding.bottom + 16;
     return ColoredBox(
       color: context.bg,
@@ -130,7 +136,109 @@ class _HomePageState extends State<HomePage> {
                           )),
                 const SizedBox(height: 26),
 
-                 // Dịch vụ nổi bật
+                // Đội ngũ nha sĩ (Hiện 5 nha sĩ)
+                HomeSectionHeader(
+                  title: isVi ? 'Đội ngũ nha sĩ' : 'Our Dentists',
+                  onSeeAll: () => context.push(AppRoutes.dentistsList),
+                ),
+                const SizedBox(height: 14),
+                _isLoading
+                    ? const _LoadingColumn()
+                    : _dentists.isEmpty
+                        ? _EmptySection(message: isVi ? 'Chưa có thông tin nha sĩ.' : 'No dentists available.')
+                        : SizedBox(
+                            height: 135,
+                            child: ListView.separated(
+                              scrollDirection: Axis.horizontal,
+                              clipBehavior: Clip.none,
+                              itemCount: _dentists.take(5).length,
+                              separatorBuilder: (_, __) => const SizedBox(width: 12),
+                              itemBuilder: (context, i) {
+                                final doc = _dentists[i];
+                                final specialty = doc.specialty ?? (isVi ? 'Nha sĩ tổng quát' : 'General Dentist');
+                                return GestureDetector(
+                                  onTap: () => context.push(AppRoutes.dentistProfile, extra: doc),
+                                  child: Container(
+                                    width: 220,
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: context.card,
+                                      borderRadius: BorderRadius.circular(18),
+                                      border: Border.all(color: context.divider),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(alpha: context.isDark ? 0.15 : 0.04),
+                                          blurRadius: 10,
+                                          offset: const Offset(0, 4),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        ClipRRect(
+                                          borderRadius: BorderRadius.circular(14),
+                                          child: Container(
+                                            width: 60,
+                                            height: 80,
+                                            color: context.isDark ? AppColors.primary.withValues(alpha: 0.15) : AppColors.primaryLight,
+                                            child: doc.profilePictureUrl != null && doc.profilePictureUrl!.isNotEmpty
+                                                ? Image.network(
+                                                    doc.profilePictureUrl!,
+                                                    fit: BoxFit.cover,
+                                                    errorBuilder: (_, __, ___) => Icon(Iconsax.user, color: AppColors.primary, size: 28),
+                                                  )
+                                                : Icon(Iconsax.user, color: AppColors.primary, size: 28),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                doc.fullName,
+                                                style: TextStyle(
+                                                  fontSize: 13.5,
+                                                  fontWeight: FontWeight.w800,
+                                                  color: context.textPrimary,
+                                                ),
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                specialty,
+                                                style: const TextStyle(
+                                                  fontSize: 11,
+                                                  color: AppColors.primary,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                              const SizedBox(height: 6),
+                                              if (doc.yearsOfExperience != null)
+                                                Text(
+                                                  '${doc.yearsOfExperience} ${isVi ? 'năm KN' : 'yrs exp'}',
+                                                  style: TextStyle(
+                                                    fontSize: 10.5,
+                                                    color: context.textMuted,
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                const SizedBox(height: 26),
+
+                // Dịch vụ nổi bật
                 HomeSectionHeader(
                   title: context.l10n('our_services'),
                   onSeeAll: () => context.push(AppRoutes.servicesList),
@@ -305,8 +413,67 @@ class _EmptySection extends StatelessWidget {
   }
 }
 
-class _QuickAccessPanel extends StatelessWidget {
+class _QuickAccessOption {
+  final String id;
+  final String label;
+  final String fullLabel;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _QuickAccessOption({
+    required this.id,
+    required this.label,
+    required this.fullLabel,
+    required this.icon,
+    required this.onTap,
+  });
+}
+
+class _QuickAccessPanel extends StatefulWidget {
   const _QuickAccessPanel();
+
+  @override
+  State<_QuickAccessPanel> createState() => _QuickAccessPanelState();
+}
+
+class _QuickAccessPanelState extends State<_QuickAccessPanel> {
+  static const String _prefKey = 'quick_access_selected_ids';
+  static const List<String> _defaultIds = [
+    'dental_ai',
+    'reminders',
+    'records',
+    'queue',
+  ];
+
+  List<String> _selectedIds = List.from(_defaultIds);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSelectedIds();
+  }
+
+  Future<void> _loadSelectedIds() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getStringList(_prefKey);
+    if (saved != null && saved.length == 4) {
+      if (mounted) {
+        setState(() {
+          _selectedIds = saved;
+        });
+      }
+    }
+  }
+
+  Future<void> _saveSelectedIds(List<String> ids) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_prefKey, ids);
+    if (mounted) {
+      setState(() {
+        _selectedIds = List.from(ids);
+      });
+    }
+  }
 
   /// Chatbot AI yêu cầu đăng nhập — kiểm tra token trước khi vào, vì router
   /// hiện không có redirect guard chung cho các route cần xác thực.
@@ -316,19 +483,300 @@ class _QuickAccessPanel extends StatelessWidget {
     context.push(token == null ? AppRoutes.login : AppRoutes.chat);
   }
 
+  Map<String, _QuickAccessOption> _getOptions(BuildContext context) {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
+    return {
+      'dental_ai': _QuickAccessOption(
+        id: 'dental_ai',
+        label: 'DENTAL AI',
+        fullLabel: isVi ? 'Dental AI (Chatbot tư vấn)' : 'Dental AI Assistant',
+        icon: Icons.smart_toy_rounded,
+        onTap: () => _openChatbot(context),
+      ),
+      'reminders': _QuickAccessOption(
+        id: 'reminders',
+        label: isVi ? 'NHẮC NHỞ' : 'REMINDER',
+        fullLabel: isVi ? 'Nhắc nhở uống thuốc / tái khám' : 'Medication & Follow-up Reminders',
+        icon: Iconsax.notification,
+        onTap: () => context.push(AppRoutes.reminders),
+      ),
+      'records': _QuickAccessOption(
+        id: 'records',
+        label: isVi ? 'HỒ SƠ Y TẾ' : 'RECORDS',
+        fullLabel: isVi ? 'Hồ sơ y tế' : 'Medical Records',
+        icon: Iconsax.folder,
+        onTap: () => context.push(AppRoutes.medicalHistory),
+      ),
+      'queue': _QuickAccessOption(
+        id: 'queue',
+        label: isVi ? 'HÀNG CHỜ' : 'QUEUE',
+        fullLabel: isVi ? 'Hàng chờ trực tuyến' : 'Live Queue',
+        icon: Iconsax.timer,
+        onTap: () => context.push(AppRoutes.queue),
+      ),
+      'history': _QuickAccessOption(
+        id: 'history',
+        label: isVi ? 'LỊCH SỬ KHÁM' : 'HISTORY',
+        fullLabel: isVi ? 'Lịch sử khám bệnh' : 'Examination History',
+        icon: Iconsax.clock,
+        onTap: () => context.push(AppRoutes.medicalHistory),
+      ),
+      'family': _QuickAccessOption(
+        id: 'family',
+        label: isVi ? 'THÀNH VIÊN' : 'FAMILY',
+        fullLabel: isVi ? 'Thành viên gia đình' : 'Family Members',
+        icon: Iconsax.profile_2user,
+        onTap: () => context.push(AppRoutes.familyMembers),
+      ),
+      'payment': _QuickAccessOption(
+        id: 'payment',
+        label: isVi ? 'THANH TOÁN' : 'PAYMENTS',
+        fullLabel: isVi ? 'Thanh toán & Công nợ' : 'Payments & Invoices',
+        icon: Iconsax.card,
+        onTap: () => context.push(AppRoutes.paymentHistory),
+      ),
+    };
+  }
+
+  void _showEditModal(BuildContext context) {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
+    final optionsMap = _getOptions(context);
+    final allOptions = optionsMap.values.toList();
+    List<String> tempSelected = List.from(_selectedIds);
+
+    showDialog(
+      context: context,
+      useRootNavigator: true,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (modalContext, setModalState) {
+            return Dialog(
+              backgroundColor: modalContext.card,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+              insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              child: Container(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(modalContext).size.height * 0.7,
+                  maxWidth: 400,
+                ),
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          isVi ? 'Tùy chỉnh Truy cập nhanh' : 'Customize Quick Access',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: modalContext.textPrimary,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          icon: const Icon(Icons.close),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      isVi
+                          ? 'Chọn 4 lối tắt hiển thị ở trang chủ (${tempSelected.length}/4)'
+                          : 'Select 4 shortcuts to show on Home (${tempSelected.length}/4)',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: modalContext.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Flexible(
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: allOptions.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
+                        itemBuilder: (context, index) {
+                          final option = allOptions[index];
+                          final isSelected = tempSelected.contains(option.id);
+                          return InkWell(
+                            onTap: () {
+                              setModalState(() {
+                                if (isSelected) {
+                                  if (tempSelected.length > 1) {
+                                    tempSelected.remove(option.id);
+                                  }
+                                } else {
+                                  if (tempSelected.length < 4) {
+                                    tempSelected.add(option.id);
+                                  } else {
+                                    ScaffoldMessenger.of(modalContext).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          isVi
+                                              ? 'Tối đa 4 lối tắt. Vui lòng bỏ chọn 1 cái trước.'
+                                              : 'Maximum 4 shortcuts. Uncheck one first.',
+                                        ),
+                                        duration: const Duration(seconds: 1),
+                                      ),
+                                    );
+                                  }
+                                }
+                              });
+                            },
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? AppColors.primary.withValues(alpha: 0.08)
+                                    : modalContext.bg,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? AppColors.primary
+                                      : modalContext.divider,
+                                  width: isSelected ? 1.5 : 1.0,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    option.icon,
+                                    color: isSelected ? AppColors.primary : modalContext.textSecondary,
+                                    size: 22,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      option.fullLabel,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                        color: modalContext.textPrimary,
+                                      ),
+                                    ),
+                                  ),
+                                  Icon(
+                                    isSelected
+                                        ? Icons.check_circle_rounded
+                                        : Icons.radio_button_unchecked,
+                                    color: isSelected ? AppColors.primary : modalContext.textMuted,
+                                    size: 20,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: tempSelected.length == 4
+                            ? () {
+                                _saveSelectedIds(tempSelected);
+                                Navigator.pop(ctx);
+                              }
+                            : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Text(
+                          isVi ? 'Lưu thay đổi' : 'Save Changes',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
+    final optionsMap = _getOptions(context);
+
+    final activeItems = _selectedIds
+        .map((id) => optionsMap[id])
+        .whereType<_QuickAccessOption>()
+        .toList();
+
+    while (activeItems.length < 4) {
+      for (final opt in optionsMap.values) {
+        if (!activeItems.contains(opt)) {
+          activeItems.add(opt);
+          if (activeItems.length == 4) break;
+        }
+      }
+    }
+
+    final item0 = activeItems[0];
+    final item1 = activeItems[1];
+    final item2 = activeItems[2];
+    final item3 = activeItems[3];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          isVi ? 'Truy cập nhanh' : 'Quick Access',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w800,
-            color: context.textPrimary,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              isVi ? 'Truy cập nhanh' : 'Quick Access',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: context.textPrimary,
+              ),
+            ),
+            InkWell(
+              onTap: () => _showEditModal(context),
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Row(
+                  children: [
+                    Icon(
+                      Iconsax.edit_2,
+                      size: 14,
+                      color: AppColors.primary,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      isVi ? 'Chỉnh sửa' : 'Edit',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 12),
         Row(
@@ -395,16 +843,16 @@ class _QuickAccessPanel extends StatelessWidget {
                         children: [
                           _buildSmallCard(
                             context,
-                            icon: Icons.smart_toy_rounded,
-                            label: 'DENTAL AI',
-                            onTap: () => _openChatbot(context),
+                            icon: item0.icon,
+                            label: item0.label,
+                            onTap: () => item0.onTap(),
                           ),
                           const SizedBox(width: 12),
                           _buildSmallCard(
                             context,
-                            icon: Iconsax.notification,
-                            label: isVi ? 'NHẮC NHỞ' : 'REMINDER',
-                            onTap: () => context.push(AppRoutes.reminders),
+                            icon: item1.icon,
+                            label: item1.label,
+                            onTap: () => item1.onTap(),
                           ),
                         ],
                       ),
@@ -415,16 +863,16 @@ class _QuickAccessPanel extends StatelessWidget {
                         children: [
                           _buildSmallCard(
                             context,
-                            icon: Iconsax.folder,
-                            label: isVi ? 'HỒ SƠ' : 'RECORDS',
-                            onTap: () => context.push(AppRoutes.medicalHistory),
+                            icon: item2.icon,
+                            label: item2.label,
+                            onTap: () => item2.onTap(),
                           ),
                           const SizedBox(width: 12),
                           _buildSmallCard(
                             context,
-                            icon: Iconsax.timer,
-                            label: isVi ? 'HÀNG CHỜ' : 'QUEUE',
-                            onTap: () => context.push(AppRoutes.queue),
+                            icon: item3.icon,
+                            label: item3.label,
+                            onTap: () => item3.onTap(),
                           ),
                         ],
                       ),

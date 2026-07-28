@@ -35,6 +35,19 @@ public class DentistsController(
         return Ok(result);
     }
 
+    /// <summary>GET api/dentists/{id}/working-dates?year=2026&month=7 — Các ngày làm việc có slot của nha sĩ trong tháng</summary>
+    [HttpGet("{id:guid}/working-dates")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetWorkingDates(
+        Guid id,
+        [FromQuery] int year,
+        [FromQuery] int month,
+        CancellationToken cancellationToken)
+    {
+        var dates = await getDentistSlotsHandler.GetWorkingDatesForDentistAsync(id, year, month, cancellationToken);
+        return Ok(dates);
+    }
+
     /// <summary>GET api/dentists/{id} — Chi tiết hồ sơ nha sĩ (bio, kinh nghiệm, số bệnh nhân đã khám thật)</summary>
     [HttpGet("{id:guid}")]
     [AllowAnonymous]

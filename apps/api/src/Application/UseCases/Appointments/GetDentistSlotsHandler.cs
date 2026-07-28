@@ -104,4 +104,45 @@ public class GetDentistSlotsHandler(AppDbContext dbContext, IAppointmentReposito
                 slots);
         });
     }
+
+    public async Task<IEnumerable<string>> GetWorkingDatesForDentistAsync(
+        Guid dentistId,
+        int year,
+        int month,
+        CancellationToken ct = default)
+    {
+        var dentist = await dbContext.Dentists
+            .Include(d => d.User)
+            .FirstOrDefaultAsync(d => d.Id == dentistId || d.UserId == dentistId, ct);
+        if (dentist == null) return Enumerable.Empty<string>();
+
+        var fullName = dentist.FullName;
+        var startDate = new DateOnly(year, month, 1);
+        var endDate = startDate.AddMonths(1).AddDays(-1);
+
+        var schedules = await dbContext.WorkSchedules
+            .AsNoTracking()
+            .Where(ws => ws.Date >= startDate && ws.Date <= endDate)
+            .ToListAsync(ct);
+
+        var datesWithSchedules = schedules
+            .Where(ws => ws.Type == "dentist" && string.Equals(ws.StaffName, fullName, StringComparison.OrdinalIgnoreCase) && !ws.IsHoliday)
+            .Select(ws => ws.Date)
+            .ToHashSet();
+
+        if (datesWithSchedules.Count > 0)
+        {
+            return datesWithSchedules.Select(d => d.ToString("yyyy-MM-dd")).OrderBy(d => d);
+        }
+
+        var result = new List<string>();
+        for (var d = startDate; d <= endDate; d = d.AddDays(1))
+        {
+            if (d.DayOfWeek != DayOfWeek.Sunday)
+            {
+                result.Add(d.ToString("yyyy-MM-dd"));
+            }
+        }
+        return result;
+    }
 }
