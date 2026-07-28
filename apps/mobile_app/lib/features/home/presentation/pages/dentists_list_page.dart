@@ -73,14 +73,34 @@ class _DentistsListPageState extends State<DentistsListPage> {
     }
   }
 
+  String _removeVietnameseDiacritics(String str) {
+    const vietnamese = [
+      'aàáạảãâầấậẩẫăằắặẳẵ', 'AÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴ',
+      'eèéẹẻẽêềếệểễ', 'EÈÉẸẺẼÊỀẾỆỂỄ',
+      'iìíịỉĩ', 'IÌÍỊỈĨ',
+      'oòóọỏõôồốộổỗơờớợởỡ', 'OÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠ',
+      'uùúụủũưừứựửữ', 'UÙÚỤỦŨƯỪỨỰỬỮ',
+      'yỳýỵỷỹ', 'YỲÝỴỶỸ',
+      'dđ', 'DĐ'
+    ];
+    var result = str;
+    for (var element in vietnamese) {
+      for (var i = 1; i < element.length; i++) {
+        result = result.replaceAll(element[i], element[0]);
+      }
+    }
+    return result.toLowerCase();
+  }
+
   void _filterDentists() {
     if (_searchQuery.trim().isEmpty) {
       _filteredDentists = _dentists;
     } else {
-      final q = _searchQuery.toLowerCase();
+      final qNorm = _removeVietnameseDiacritics(_searchQuery.trim());
       _filteredDentists = _dentists.where((d) {
-        return d.fullName.toLowerCase().contains(q) ||
-            (d.specialty ?? '').toLowerCase().contains(q);
+        final nameNorm = _removeVietnameseDiacritics(d.fullName);
+        final specNorm = _removeVietnameseDiacritics(d.specialty ?? '');
+        return nameNorm.contains(qNorm) || specNorm.contains(qNorm);
       }).toList();
     }
   }
@@ -179,116 +199,111 @@ class _DentistsListPageState extends State<DentistsListPage> {
                       final specialty = doc.specialty ?? (isVi ? 'Nha sĩ tổng quát' : 'General Dentist');
                       return Container(
                         margin: const EdgeInsets.only(bottom: 16),
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
+                        child: Material(
                           color: context.card,
                           borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: context.divider),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: context.isDark ? 0.15 : 0.04),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            // Avatar — viền màu sky nhẹ để tách khỏi nền, thay vì chỉ 1 khối phẳng
-                            Container(
-                              padding: const EdgeInsets.all(2),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(color: AppColors.secondary.withValues(alpha: context.isDark ? 0.35 : 0.25), width: 1.5),
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(15),
-                                child: Container(
-                                  width: 68,
-                                  height: 68,
-                                  color: context.isDark ? AppColors.primary.withValues(alpha: 0.15) : AppColors.primaryLight,
-                                  child: doc.profilePictureUrl != null
-                                      ? Image.network(
-                                          doc.profilePictureUrl!,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (_, __, ___) => Icon(Iconsax.user, color: AppColors.primary, size: 28),
-                                        )
-                                      : Icon(Iconsax.user, color: AppColors.primary, size: 28),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-
-                            // Dentist Details
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                          elevation: 1,
+                          shadowColor: Colors.black.withValues(alpha: 0.05),
+                          child: InkWell(
+                            onTap: () => context.push(AppRoutes.dentistProfile, extra: doc),
+                            borderRadius: BorderRadius.circular(18),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Row(
                                 children: [
-                                  Text(
-                                    doc.fullName,
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w800,
-                                      color: context.textPrimary,
+                                  // Avatar
+                                  Container(
+                                    padding: const EdgeInsets.all(2),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(18),
+                                      border: Border.all(color: AppColors.secondary.withValues(alpha: context.isDark ? 0.35 : 0.25), width: 1.5),
+                                    ),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(15),
+                                      child: Container(
+                                        width: 68,
+                                        height: 68,
+                                        color: context.isDark ? AppColors.primary.withValues(alpha: 0.15) : AppColors.primaryLight,
+                                        child: doc.profilePictureUrl != null
+                                            ? Image.network(
+                                                doc.profilePictureUrl!,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (_, __, ___) => Icon(Iconsax.user, color: AppColors.primary, size: 28),
+                                              )
+                                            : Icon(Iconsax.user, color: AppColors.primary, size: 28),
+                                      ),
                                     ),
                                   ),
-                                  const SizedBox(height: 6),
-                                  Wrap(
-                                    crossAxisAlignment: WrapCrossAlignment.center,
-                                    spacing: 6,
-                                    runSpacing: 4,
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                        decoration: BoxDecoration(
-                                          color: AppColors.secondary.withValues(alpha: context.isDark ? 0.2 : 0.1),
-                                          borderRadius: BorderRadius.circular(6),
-                                        ),
-                                        child: Text(
-                                          specialty,
-                                          style: const TextStyle(
-                                            fontSize: 11,
-                                            color: AppColors.secondary,
-                                            fontWeight: FontWeight.w700,
+                                  const SizedBox(width: 16),
+
+                                  // Dentist Details
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          doc.fullName,
+                                          style: TextStyle(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w800,
+                                            color: context.textPrimary,
                                           ),
                                         ),
-                                      ),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                        decoration: BoxDecoration(
-                                          color: AppColors.accent.withValues(alpha: context.isDark ? 0.2 : 0.12),
-                                          borderRadius: BorderRadius.circular(6),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
+                                        const SizedBox(height: 6),
+                                        Wrap(
+                                          crossAxisAlignment: WrapCrossAlignment.center,
+                                          spacing: 6,
+                                          runSpacing: 4,
                                           children: [
-                                            const Icon(Icons.star_rounded, color: AppColors.accent, size: 13),
-                                            const SizedBox(width: 2),
-                                            Text(
-                                              '$avgRating ($reviewsCount)',
-                                              style: const TextStyle(
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.w800,
-                                                color: AppColors.accent,
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.secondary.withValues(alpha: context.isDark ? 0.2 : 0.1),
+                                                borderRadius: BorderRadius.circular(6),
+                                              ),
+                                              child: Text(
+                                                specialty,
+                                                style: const TextStyle(
+                                                  fontSize: 11,
+                                                  color: AppColors.secondary,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                            ),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.accent.withValues(alpha: context.isDark ? 0.2 : 0.12),
+                                                borderRadius: BorderRadius.circular(6),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  const Icon(Icons.star_rounded, color: AppColors.accent, size: 13),
+                                                  const SizedBox(width: 2),
+                                                  Text(
+                                                    '$avgRating ($reviewsCount)',
+                                                    style: const TextStyle(
+                                                      fontSize: 11,
+                                                      fontWeight: FontWeight.w800,
+                                                      color: AppColors.accent,
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
                                             ),
                                           ],
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
+
+                                  // Navigation arrow
+                                  Icon(Iconsax.arrow_right_3, color: AppColors.primary, size: 20),
                                 ],
                               ),
                             ),
-
-                            // Navigation arrow
-                            IconButton(
-                              icon: const Icon(Iconsax.arrow_right_3, color: AppColors.primary, size: 20),
-                              onPressed: () {
-                                context.push(AppRoutes.dentistProfile, extra: doc);
-                              },
-                            ),
-                          ],
+                          ),
                         ),
                       );
                     },

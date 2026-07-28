@@ -30,7 +30,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   String? _avatarUrl;
 
-  ImageProvider _getAvatarProvider() {
+  ImageProvider? _getAvatarProvider() {
     if (_avatarUrl != null && _avatarUrl!.isNotEmpty) {
       if (_avatarUrl!.startsWith('http')) {
         return NetworkImage(_avatarUrl!);
@@ -38,7 +38,7 @@ class _ProfilePageState extends State<ProfilePage> {
       final baseUrlHost = ApiConstants.baseUrl.replaceAll('/api', '');
       return NetworkImage('$baseUrlHost$_avatarUrl');
     }
-    return const AssetImage('assets/images/bac_si_1.png');
+    return null;
   }
 
   Future<void> _loadUserInfo() async {

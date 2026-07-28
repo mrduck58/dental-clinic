@@ -38,7 +38,17 @@ class _SelectDoctorPageState extends State<SelectDoctorPage> {
   Future<void> _load() async {
     try {
       final list = await _service.getDoctorsWithSlots(widget.draft.date!);
-      if (mounted) setState(() { _doctors = list; _loading = false; });
+      if (mounted) {
+        final selectedDocId = widget.draft.doctor?.id ?? widget.draft.preferredDentistId;
+        List<ApiDoctorWithSlots> filtered = list;
+        if (selectedDocId != null) {
+          final matched = list.where((d) => d.dentistId == selectedDocId).toList();
+          if (matched.isNotEmpty) {
+            filtered = matched;
+          }
+        }
+        setState(() { _doctors = filtered; _loading = false; });
+      }
     } catch (e) {
       if (mounted) setState(() { _error = 'Không thể tải thông tin bác sĩ.'; _loading = false; });
     }

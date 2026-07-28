@@ -86,6 +86,18 @@ public class CreateAppointmentHandler(
 
         var code = $"DK{cmd.AppointmentDate:yyyyMMdd}{appointment.Id.ToString("N")[..6].ToUpper()}";
 
+        var vnTime = cmd.AppointmentDate.UtcDateTime.AddHours(7);
+
+        // Thông báo cho tài khoản bệnh nhân đặt lịch
+        await notificationService.CreateAsync(new CreateNotificationRequest(
+            UserId: cmd.UserId,
+            Type: NotificationType.Appointment,
+            Priority: NotificationPriority.Medium,
+            Title: "Đặt lịch hẹn thành công",
+            Body: $"Lịch khám của bạn vào {vnTime:HH:mm dd/MM/yyyy} đã được ghi nhận. Vui lòng chờ phòng khám xác nhận.",
+            RelatedEntityType: "Appointment",
+            RelatedEntityId: appointment.Id.ToString()), ct);
+
         var dentistUserId = await appointmentRepository.GetDentistUserIdAsync(cmd.DentistId, ct);
         if (dentistUserId.HasValue)
         {
@@ -94,7 +106,7 @@ public class CreateAppointmentHandler(
                 Type: NotificationType.Appointment,
                 Priority: NotificationPriority.High,
                 Title: "Lịch hẹn mới",
-                Body: $"Bạn có lịch hẹn mới vào {cmd.AppointmentDate:dd/MM/yyyy HH:mm}.",
+                Body: $"Bạn có lịch hẹn mới vào {vnTime:HH:mm dd/MM/yyyy}.",
                 RelatedEntityType: "Appointment",
                 RelatedEntityId: appointment.Id.ToString()), ct);
         }
@@ -105,7 +117,7 @@ public class CreateAppointmentHandler(
             Type: NotificationType.Appointment,
             Priority: NotificationPriority.High,
             Title: "Đặt lịch mới",
-            Body: $"Có lịch hẹn mới vào {cmd.AppointmentDate:dd/MM/yyyy HH:mm}. Vui lòng xác nhận.",
+            Body: $"Có lịch hẹn mới vào {vnTime:HH:mm dd/MM/yyyy}. Vui lòng xác nhận.",
             RelatedEntityType: "Appointment",
             RelatedEntityId: appointment.Id.ToString());
         await notificationService.CreateForMultipleUsersAsync(staffIds, staffTemplate, ct);

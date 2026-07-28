@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
+import 'package:mobile_app/core/constants/api_constants.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/auth/data/auth_service.dart';
 import 'package:mobile_app/features/booking/data/booking_models.dart';
@@ -45,6 +46,7 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
         phone: profile.phoneNumber,
         dob: _formatDob(profile.dateOfBirth),
         gender: profile.gender ?? 'Nam',
+        avatarUrl: profile.profilePictureUrl,
       );
 
       await FamilyService().loadFromServer();
@@ -56,6 +58,7 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
           phone: m.phoneNumber,
           dob: '${m.dateOfBirth.day.toString().padLeft(2, '0')}/${m.dateOfBirth.month.toString().padLeft(2, '0')}/${m.dateOfBirth.year}',
           gender: m.gender,
+          avatarUrl: m.profilePictureUrl,
         );
       }).toList();
 
@@ -88,9 +91,10 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
     if (initial != null) {
       draft = draft.copyWith(
         service: initial.service,
+        doctor: initial.doctor,
         date: initial.date,
         symptoms: initial.symptoms,
-        preferredDentistId: initial.preferredDentistId,
+        preferredDentistId: initial.preferredDentistId ?? initial.doctor?.id,
       );
     }
 
@@ -105,6 +109,32 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
     } else {
       context.push(AppRoutes.bookingSelectService, extra: draft);
     }
+  }
+
+  Widget _buildInitialsBadge(String name, bool active, {double size = 28, double fontSize = 12}) {
+    final parts = name.trim().split(' ');
+    String initial = 'T';
+    if (parts.isNotEmpty && parts[0].isNotEmpty) {
+      initial = parts.length == 1 ? parts[0][0] : '${parts[0][0]}${parts.last[0]}';
+    }
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: active ? AppColors.primary : AppColors.primaryLight,
+        shape: BoxShape.circle,
+      ),
+      child: Center(
+        child: Text(
+          initial.toUpperCase(),
+          style: TextStyle(
+            color: active ? Colors.white : AppColors.primary,
+            fontWeight: FontWeight.bold,
+            fontSize: fontSize,
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -211,12 +241,16 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
                                     width: active ? 2.5 : 1.5,
                                   ),
                                 ),
-                                child: Icon(
-                                  Iconsax.profile_circle,
-                                  color: active
-                                      ? AppColors.primary
-                                      : context.textSecondary,
-                                  size: 30,
+                                child: ClipOval(
+                                  child: p.avatarUrl != null && p.avatarUrl!.isNotEmpty
+                                      ? Image.network(
+                                          p.avatarUrl!.startsWith('http')
+                                              ? p.avatarUrl!
+                                              : '${ApiConstants.baseUrl.replaceAll('/api', '')}${p.avatarUrl}',
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, __, ___) => _buildInitialsBadge(p.name, active, size: 60, fontSize: 20),
+                                        )
+                                      : _buildInitialsBadge(p.name, active, size: 60, fontSize: 20),
                                 ),
                               ),
                               const SizedBox(height: 5),
@@ -285,6 +319,68 @@ class _PatientCard extends StatelessWidget {
     required this.onTap,
   });
 
+  Widget _buildInitialsBadge(String name, bool active, {double size = 28, double fontSize = 12}) {
+    final parts = name.trim().split(' ');
+    String initial = 'T';
+    if (parts.isNotEmpty && parts[0].isNotEmpty) {
+      initial = parts.length == 1 ? parts[0][0] : '${parts[0][0]}${parts.last[0]}';
+    }
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: active ? AppColors.primary : AppColors.primaryLight,
+        shape: BoxShape.circle,
+      ),
+      child: Center(
+        child: Text(
+          initial.toUpperCase(),
+          style: TextStyle(
+            color: active ? Colors.white : AppColors.primary,
+            fontWeight: FontWeight.bold,
+            fontSize: fontSize,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPatientAvatar(PatientInfo patient, bool selected) {
+    if (patient.avatarUrl != null && patient.avatarUrl!.isNotEmpty) {
+      final avatarUrl = patient.avatarUrl!;
+      if (avatarUrl.startsWith('assets/')) {
+        return Container(
+          width: 28,
+          height: 28,
+          decoration: const BoxDecoration(shape: BoxShape.circle),
+          child: ClipOval(
+            child: Image.asset(
+              avatarUrl,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => _buildInitialsBadge(patient.name, selected, size: 28, fontSize: 11),
+            ),
+          ),
+        );
+      }
+      final url = avatarUrl.startsWith('http')
+          ? avatarUrl
+          : '${ApiConstants.baseUrl.replaceAll('/api', '')}$avatarUrl';
+      return Container(
+        width: 28,
+        height: 28,
+        decoration: const BoxDecoration(shape: BoxShape.circle),
+        child: ClipOval(
+          child: Image.network(
+            url,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _buildInitialsBadge(patient.name, selected, size: 28, fontSize: 11),
+          ),
+        ),
+      );
+    }
+    return _buildInitialsBadge(patient.name, selected, size: 28, fontSize: 11);
+  }
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -312,11 +408,7 @@ class _PatientCard extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
               child: Row(
                 children: [
-                  Icon(
-                    Iconsax.element_4,
-                    size: 18,
-                    color: selected ? AppColors.primary : context.textSecondary,
-                  ),
+                  _buildPatientAvatar(patient, selected),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(

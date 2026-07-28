@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/settings_manager.dart';
+import 'package:mobile_app/core/constants/api_constants.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/auth/data/auth_service.dart';
 import 'package:mobile_app/app/routers.dart';
@@ -49,13 +50,98 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
     return '#DC-99201';
   }
 
+  String? _userAvatarUrl;
+
+  String _getInitials(String name) {
+    final parts = name.trim().split(' ');
+    if (parts.isEmpty || parts[0].isEmpty) return 'T';
+    if (parts.length == 1) return parts[0][0].toUpperCase();
+    return '${parts[0][0]}${parts.last[0]}'.toUpperCase();
+  }
+
+  Widget _buildAvatarCircle(String? avatarUrl, {required double size, required bool isSelected, String? name}) {
+    final initials = _getInitials(name ?? 'Tôi');
+    if (avatarUrl != null && avatarUrl.isNotEmpty) {
+      if (avatarUrl.startsWith('assets/')) {
+        return Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: isSelected ? Border.all(color: AppColors.primary, width: 2) : null,
+          ),
+          child: ClipOval(
+            child: Image.asset(
+              avatarUrl,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => _buildInitialsFallback(size, isSelected, initials),
+            ),
+          ),
+        );
+      }
+      final url = avatarUrl.startsWith('http')
+          ? avatarUrl
+          : '${ApiConstants.baseUrl.replaceAll('/api', '')}$avatarUrl';
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: isSelected ? Border.all(color: AppColors.primary, width: 2) : null,
+        ),
+        child: ClipOval(
+          child: Image.network(
+            url,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _buildInitialsFallback(size, isSelected, initials),
+          ),
+        ),
+      );
+    }
+    return _buildInitialsFallback(size, isSelected, initials);
+  }
+
+  Widget _buildInitialsFallback(double size, bool isSelected, String initials) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: isSelected ? AppColors.primary : AppColors.primaryLight,
+        shape: BoxShape.circle,
+      ),
+      child: Center(
+        child: Text(
+          initials,
+          style: TextStyle(
+            color: isSelected ? Colors.white : AppColors.primary,
+            fontWeight: FontWeight.bold,
+            fontSize: size * 0.4,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeaderAvatarWidget() {
+    return _buildAvatarCircle(
+      _selectedMember?.profilePictureUrl ?? _userAvatarUrl,
+      size: 36,
+      isSelected: true,
+      name: _selectedMember?.fullName ?? _ownerName,
+    );
+  }
+
   Future<void> _loadUserInfo() async {
     try {
       final p = await _auth.getMyProfile();
+      final cachedAvatar = await _auth.getUserAvatar();
       await _familyService.loadFromServer();
       setState(() {
         _ownerName = p.fullName.isNotEmpty ? p.fullName : 'Alex Johnson';
         _ownerPatientId = _getPatientId(p.id);
+        _userAvatarUrl = (p.profilePictureUrl != null && p.profilePictureUrl!.isNotEmpty)
+            ? p.profilePictureUrl
+            : cachedAvatar;
 
         _userName = _ownerName;
         _patientId = _ownerPatientId;
@@ -64,13 +150,17 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
         _isLoading = false;
       });
     } catch (_) {
+      final cachedAvatar = await _auth.getUserAvatar();
       try {
         await _familyService.loadFromServer();
       } catch (_) {}
-      setState(() {
-        _familyMembers = _familyService.getMembers();
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _userAvatarUrl = cachedAvatar;
+          _familyMembers = _familyService.getMembers();
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -205,11 +295,7 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
-            child: CircleAvatar(
-              radius: 18,
-              backgroundColor: const Color(0xFFE2E8F0),
-              backgroundImage: const AssetImage('assets/images/bac_si_1.png'),
-            ),
+            child: _buildHeaderAvatarWidget(),
           ),
         ],
         bottom: PreferredSize(
@@ -250,18 +336,11 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
                       ),
                       child: Row(
                         children: [
-                          Container(
-                            width: 44,
-                            height: 44,
-                            decoration: const BoxDecoration(
-                              color: AppColors.primaryLight,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              _selectedMember == null ? Iconsax.user : Iconsax.profile_circle,
-                              color: AppColors.primary,
-                              size: 22,
-                            ),
+                          _buildAvatarCircle(
+                            _selectedMember?.profilePictureUrl ?? _userAvatarUrl,
+                            size: 44,
+                            isSelected: true,
+                            name: _selectedMember?.fullName ?? _ownerName,
                           ),
                           const SizedBox(width: 14),
                           Expanded(
@@ -320,18 +399,11 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
                       child: Column(
                         children: [
                           ListTile(
-                            leading: Container(
-                              width: 36,
-                              height: 36,
-                              decoration: BoxDecoration(
-                                color: _selectedMember == null ? AppColors.primary : context.divider,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                Iconsax.user,
-                                color: _selectedMember == null ? Colors.white : context.textSecondary,
-                                size: 18,
-                              ),
+                            leading: _buildAvatarCircle(
+                              _userAvatarUrl,
+                              size: 36,
+                              isSelected: _selectedMember == null,
+                              name: _ownerName,
                             ),
                             title: Text(
                               _ownerName,
@@ -368,18 +440,11 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
                             return Column(
                               children: [
                                 ListTile(
-                                  leading: Container(
-                                    width: 36,
-                                    height: 36,
-                                    decoration: BoxDecoration(
-                                      color: isSelected ? AppColors.primary : context.divider,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: Icon(
-                                      Iconsax.profile_circle,
-                                      color: isSelected ? Colors.white : context.textSecondary,
-                                      size: 18,
-                                    ),
+                                  leading: _buildAvatarCircle(
+                                    member.profilePictureUrl,
+                                    size: 36,
+                                    isSelected: isSelected,
+                                    name: member.fullName,
                                   ),
                                   title: Text(
                                     member.fullName,
@@ -817,7 +882,9 @@ class _MedicalEditDialogState extends State<_MedicalEditDialog> {
                                 decoration: InputDecoration(
                                   labelText: widget.type == 'allergies'
                                       ? (widget.isVi ? 'Mức độ (CAO/NHẸ)' : 'Level')
-                                      : (widget.isVi ? 'Mô tả / Liều lượng' : 'Detail / Dosage'),
+                                      : widget.type == 'chronic'
+                                          ? (widget.isVi ? 'Ghi chú / Mô tả' : 'Note / Description')
+                                          : (widget.isVi ? 'Liều lượng / Cách dùng' : 'Dosage / Usage'),
                                   isDense: true,
                                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                                 ),
