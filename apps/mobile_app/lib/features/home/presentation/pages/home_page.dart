@@ -496,7 +496,7 @@ class _QuickAccessPanelState extends State<_QuickAccessPanel> {
       'reminders': _QuickAccessOption(
         id: 'reminders',
         label: isVi ? 'NHẮC NHỞ' : 'REMINDER',
-        fullLabel: isVi ? 'Nhắc nhở uống thuốc / tái khám' : 'Medication & Follow-up Reminders',
+        fullLabel: isVi ? 'Nhắc nhở y tế & lịch khám' : 'Medication & Booking Reminders',
         icon: Iconsax.notification,
         onTap: () => context.push(AppRoutes.reminders),
       ),

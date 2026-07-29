@@ -36,15 +36,19 @@ public class DentistsController(
     }
 
     /// <summary>GET api/dentists/{id}/working-dates?year=2026&month=7 — Các ngày làm việc có slot của nha sĩ trong tháng</summary>
-    [HttpGet("{id:guid}/working-dates")]
+    [HttpGet("{id}/working-dates")]
     [AllowAnonymous]
     public async Task<IActionResult> GetWorkingDates(
-        Guid id,
+        string id,
         [FromQuery] int year,
         [FromQuery] int month,
         CancellationToken cancellationToken)
     {
-        var dates = await getDentistSlotsHandler.GetWorkingDatesForDentistAsync(id, year, month, cancellationToken);
+        if (!Guid.TryParse(id, out var dentistGuid))
+        {
+            return Ok(Enumerable.Empty<string>());
+        }
+        var dates = await getDentistSlotsHandler.GetWorkingDatesForDentistAsync(dentistGuid, year, month, cancellationToken);
         return Ok(dates);
     }
 

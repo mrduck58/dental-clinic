@@ -81,12 +81,13 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
   bool _isAvailable(DateTime d) {
     if (_isPast(d)) return false;
     final docId = widget.draft.doctor?.id ?? widget.draft.preferredDentistId;
-    if (docId == null) return true;
-    if (_workingDates.isEmpty && !_loadingWorkingDates) {
-      return d.weekday != DateTime.sunday;
+    if (docId == null) return d.weekday != DateTime.sunday;
+    if (_loadingWorkingDates) return false;
+    if (_workingDates.isNotEmpty) {
+      final dateStr = '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+      return _workingDates.contains(dateStr);
     }
-    final dateStr = '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-    return _workingDates.contains(dateStr);
+    return d.weekday != DateTime.sunday;
   }
   bool _isSelected(DateTime d) =>
       _selected != null &&
@@ -172,7 +173,11 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            widget.draft.doctor!.name,
+                            widget.draft.doctor!.fullName.toLowerCase().startsWith('bs') ||
+                                    widget.draft.doctor!.fullName.toLowerCase().startsWith('bác sĩ') ||
+                                    widget.draft.doctor!.fullName.toLowerCase().startsWith('dr')
+                                ? widget.draft.doctor!.fullName
+                                : 'BS. ${widget.draft.doctor!.fullName}',
                             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: context.textPrimary),
                           ),
                         ],
