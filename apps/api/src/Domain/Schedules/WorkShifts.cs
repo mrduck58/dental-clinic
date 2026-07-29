@@ -66,16 +66,21 @@ public static class WorkShifts
     /// </summary>
     private static bool ShiftCovers(string shift, int minutesOfDay)
     {
+        if (string.IsNullOrWhiteSpace(shift))
+            return (minutesOfDay >= 8 * 60 && minutesOfDay < NoonMinutes) || (minutesOfDay >= 13 * 60 + 30 && minutesOfDay < 17 * 60 + 30);
+
         if (ByCode.TryGetValue(shift, out var def))
             return minutesOfDay >= def.StartMinutes && minutesOfDay < def.EndMinutes;
 
-        // Tương thích dữ liệu cũ
-        if (shift.Equals("morning", StringComparison.OrdinalIgnoreCase))
-            return minutesOfDay < NoonMinutes;
-        if (shift.Equals("afternoon", StringComparison.OrdinalIgnoreCase))
-            return minutesOfDay >= NoonMinutes;
+        var s = shift.Trim().ToLower();
+        if (s == "morning" || s == "sáng" || s == "ca sáng")
+            return minutesOfDay >= 8 * 60 && minutesOfDay < NoonMinutes;
+        if (s == "afternoon" || s == "chiều" || s == "ca chiều")
+            return minutesOfDay >= 13 * 60 + 30 && minutesOfDay < 17 * 60 + 30;
+        if (s == "fulltime" || s == "full time" || s == "cả ngày" || s == "tất cả" || s == "toàn thời gian")
+            return (minutesOfDay >= 8 * 60 && minutesOfDay < NoonMinutes) || (minutesOfDay >= 13 * 60 + 30 && minutesOfDay < 17 * 60 + 30);
 
-        return false;
+        return (minutesOfDay >= 8 * 60 && minutesOfDay < NoonMinutes) || (minutesOfDay >= 13 * 60 + 30 && minutesOfDay < 17 * 60 + 30);
     }
 
     /// <summary>

@@ -42,10 +42,7 @@ class _SelectDoctorPageState extends State<SelectDoctorPage> {
         final selectedDocId = widget.draft.doctor?.id ?? widget.draft.preferredDentistId;
         List<ApiDoctorWithSlots> filtered = list;
         if (selectedDocId != null) {
-          final matched = list.where((d) => d.dentistId == selectedDocId).toList();
-          if (matched.isNotEmpty) {
-            filtered = matched;
-          }
+          filtered = list.where((d) => d.dentistId == selectedDocId).toList();
         }
         setState(() { _doctors = filtered; _loading = false; });
       }
@@ -143,26 +140,76 @@ class _SelectDoctorPageState extends State<SelectDoctorPage> {
                     ),
 
                     // ── Doctor cards ──────────────────────────────────────
-                    SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (_, i) => _DoctorSlotCard(
-                          doctor: _doctors[i],
-                          date: date,
-                          dayLabel: _dayLabel(date, isVi),
-                          isPreferred: widget.draft.preferredDentistId != null &&
-                              _doctors[i].dentistId == widget.draft.preferredDentistId,
-                          onSlotSelected: (slot) {
-                            final doctorInfo = _doctors[i].toDoctorInfo();
-                            final draft2 = widget.draft.copyWith(
-                              doctor: doctorInfo,
-                              timeSlot: slot.toTimeSlot(),
-                            );
-                            context.push(AppRoutes.bookingReview, extra: draft2);
-                          },
+                    if (_doctors.isEmpty)
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: Center(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: const BoxDecoration(
+                                    color: AppColors.primaryLight,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Iconsax.calendar_remove, size: 44, color: AppColors.primary),
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  widget.draft.doctor != null
+                                      ? (isVi
+                                          ? 'Bác sĩ ${widget.draft.doctor!.fullName.replaceAll(RegExp(r"^(Bác sĩ|BS|Bs|Dr)\.?\s*", caseSensitive: false), "").trim()} không có lịch khám trống vào ngày này'
+                                          : 'Doctor ${widget.draft.doctor!.fullName.replaceAll(RegExp(r"^(Bác sĩ|BS|Bs|Dr)\.?\s*", caseSensitive: false), "").trim()} has no available slots on this date')
+                                      : (isVi
+                                          ? 'Không có bác sĩ nào có lịch khám trống vào ngày này'
+                                          : 'No doctors available on this date'),
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: context.textPrimary,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  isVi
+                                      ? 'Vui lòng quay lại chọn ngày khác để tiếp tục đặt lịch.'
+                                      : 'Please go back and select another date.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: context.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                        childCount: _doctors.length,
+                      )
+                    else
+                      SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (_, i) => _DoctorSlotCard(
+                            doctor: _doctors[i],
+                            date: date,
+                            dayLabel: _dayLabel(date, isVi),
+                            isPreferred: widget.draft.preferredDentistId != null &&
+                                _doctors[i].dentistId == widget.draft.preferredDentistId,
+                            onSlotSelected: (slot) {
+                              final doctorInfo = _doctors[i].toDoctorInfo();
+                              final draft2 = widget.draft.copyWith(
+                                doctor: doctorInfo,
+                                timeSlot: slot.toTimeSlot(),
+                              );
+                              context.push(AppRoutes.bookingReview, extra: draft2);
+                            },
+                          ),
+                          childCount: _doctors.length,
+                        ),
                       ),
-                    ),
                     const SliverToBoxAdapter(child: SizedBox(height: 24)),
                   ],
                 ),
