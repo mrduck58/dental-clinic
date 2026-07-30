@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using DentalClinic.API.Application.DTOs.Auth;
 using DentalClinic.API.Application.UseCases.Auth;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -9,22 +10,7 @@ namespace DentalClinic.API.Presentation.Controllers;
 
 [ApiController]
 [Route("api/auth")]
-public class AuthController(
-    LoginHandler loginHandler,
-    RegisterHandler registerHandler,
-    VerifyOtpHandler verifyOtpHandler,
-    ResendOtpHandler resendOtpHandler,
-    FillProfileHandler fillProfileHandler,
-    GetMyProfileHandler getMyProfileHandler,
-    ChangePasswordHandler changePasswordHandler,
-    CreateAccountHandler createAccountHandler,
-    GetAccountsHandler getAccountsHandler,
-    ToggleAccountStatusHandler toggleAccountStatusHandler,
-    ForgotPasswordHandler forgotPasswordHandler,
-    ResetPasswordHandler resetPasswordHandler,
-    GoogleLoginHandler googleLoginHandler,
-    ForgotPasswordOtpHandler forgotPasswordOtpHandler,
-    VerifyPasswordResetOtpHandler verifyPasswordResetOtpHandler) : ControllerBase
+public class AuthController(ISender sender) : ControllerBase
 {
     /// <summary>POST api/auth/login — Bệnh nhân đăng nhập từ app di động (role: Patient)</summary>
     [HttpPost("login")]
@@ -34,7 +20,7 @@ public class AuthController(
         CancellationToken cancellationToken)
     {
         var ip = GetClientIp();
-        var result = await loginHandler.HandleAsync(
+        var result = await sender.Send(
             new LoginCommand(request.Email, request.Password, AllowedRoles: ["Patient"], IpAddress: ip),
             cancellationToken);
 
@@ -49,7 +35,7 @@ public class AuthController(
         CancellationToken cancellationToken)
     {
         var ip = GetClientIp();
-        var result = await loginHandler.HandleAsync(
+        var result = await sender.Send(
             new LoginCommand(request.Email, request.Password, AllowedRoles: ["Admin", "Dentist", "Staff", "Owner"], IpAddress: ip),
             cancellationToken);
 
@@ -63,7 +49,7 @@ public class AuthController(
         [FromBody] RegisterRequestDto request,
         CancellationToken cancellationToken)
     {
-        var result = await registerHandler.HandleAsync(
+        var result = await sender.Send(
             new RegisterCommand(request.Email, request.Password),
             cancellationToken);
 
@@ -77,7 +63,7 @@ public class AuthController(
         [FromBody] VerifyOtpRequestDto request,
         CancellationToken cancellationToken)
     {
-        var result = await verifyOtpHandler.HandleAsync(
+        var result = await sender.Send(
             new VerifyOtpCommand(request.Email, request.Code),
             cancellationToken);
 
@@ -91,7 +77,7 @@ public class AuthController(
         [FromBody] ResendOtpRequestDto request,
         CancellationToken cancellationToken)
     {
-        await resendOtpHandler.HandleAsync(
+        await sender.Send(
             new ResendOtpCommand(request.Email),
             cancellationToken);
 
@@ -108,7 +94,7 @@ public class AuthController(
             ?? throw new UnauthorizedAccessException("Không thể xác thực người dùng.");
 
         var userId = Guid.Parse(userIdString);
-        var result = await getMyProfileHandler.HandleAsync(userId, cancellationToken);
+        var result = await sender.Send(new GetMyProfileQuery(userId), cancellationToken);
         return Ok(result);
     }
 
@@ -125,7 +111,7 @@ public class AuthController(
 
         var userId = Guid.Parse(userIdString);
 
-        await fillProfileHandler.HandleAsync(
+        await sender.Send(
             new FillProfileCommand(
                 userId,
                 request.FirstName,
@@ -158,7 +144,7 @@ public class AuthController(
 
         var userId = Guid.Parse(userIdString);
 
-        await changePasswordHandler.HandleAsync(
+        await sender.Send(
             new ChangePasswordCommand(userId, request.CurrentPassword, request.NewPassword),
             cancellationToken);
 
@@ -180,7 +166,7 @@ public class AuthController(
         [FromBody] CreateAccountRequestDto request,
         CancellationToken cancellationToken)
     {
-        var result = await createAccountHandler.HandleAsync(
+        var result = await sender.Send(
             new CreateAccountCommand(request.FullName, request.Email, request.PhoneNumber, request.Role),
             cancellationToken);
 
@@ -192,16 +178,7 @@ public class AuthController(
     [Authorize(Roles = "Admin,Owner")]
     public async Task<IActionResult> GetAccounts(CancellationToken cancellationToken)
     {
-        var result = await getAccountsHandler.HandleAsync(cancellationToken);
-        return Ok(result);
-    }
-
-    /// <summary>PATCH api/auth/accounts/{id}/status — Bật/tắt quyền đăng nhập của tài khoản</summary>
-    [HttpPatch("accounts/{id:guid}/status")]
-    [Authorize(Roles = "Admin,Owner")]
-    public async Task<IActionResult> ToggleAccountStatus(Guid id, CancellationToken cancellationToken)
-    {
-        var result = await toggleAccountStatusHandler.HandleAsync(id, cancellationToken);
+        var result = await sender.Send(new GetAccountsQuery(), cancellationToken);
         return Ok(result);
     }
 
@@ -212,7 +189,7 @@ public class AuthController(
         [FromBody] ForgotPasswordRequestDto request,
         CancellationToken cancellationToken)
     {
-        await forgotPasswordHandler.HandleAsync(
+        await sender.Send(
             new ForgotPasswordCommand(request.Email),
             cancellationToken);
 
@@ -226,7 +203,7 @@ public class AuthController(
         [FromBody] ResetPasswordRequestDto request,
         CancellationToken cancellationToken)
     {
-        await resetPasswordHandler.HandleAsync(
+        await sender.Send(
             new ResetPasswordCommand(request.Email, request.Token, request.NewPassword),
             cancellationToken);
 
@@ -240,7 +217,7 @@ public class AuthController(
         [FromBody] GoogleLoginRequestDto request,
         CancellationToken cancellationToken)
     {
-        var result = await googleLoginHandler.HandleAsync(
+        var result = await sender.Send(
             new GoogleLoginCommand(request.IdToken),
             cancellationToken);
 
@@ -254,7 +231,7 @@ public class AuthController(
         [FromBody] ForgotPasswordOtpRequestDto request,
         CancellationToken cancellationToken)
     {
-        await forgotPasswordOtpHandler.HandleAsync(
+        await sender.Send(
             new ForgotPasswordOtpCommand(request.Email),
             cancellationToken);
 
@@ -268,7 +245,7 @@ public class AuthController(
         [FromBody] VerifyResetOtpRequestDto request,
         CancellationToken cancellationToken)
     {
-        var result = await verifyPasswordResetOtpHandler.HandleAsync(
+        var result = await sender.Send(
             new VerifyPasswordResetOtpCommand(request.Email, request.Code),
             cancellationToken);
 

@@ -40,7 +40,7 @@ public class ForgotPasswordOtpHandlerTests
     {
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns((User?)null);
 
-        Func<Task> act = () => _handler.HandleAsync(new ForgotPasswordOtpCommand("notfound@test.com"));
+        Func<Task> act = () => _handler.Handle(new ForgotPasswordOtpCommand("notfound@test.com"), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
         await _emailService.DidNotReceive().SendPasswordResetOtpAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
@@ -53,7 +53,7 @@ public class ForgotPasswordOtpHandlerTests
         var staff = User.Create("staff1", "staff@test.com", BCrypt.Net.BCrypt.HashPassword("pass"), "Staff");
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(staff);
 
-        Func<Task> act = () => _handler.HandleAsync(new ForgotPasswordOtpCommand("staff@test.com"));
+        Func<Task> act = () => _handler.Handle(new ForgotPasswordOtpCommand("staff@test.com"), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -65,7 +65,7 @@ public class ForgotPasswordOtpHandlerTests
         var patient = CreatePatient("inactive@test.com", isActive: false);
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(patient);
 
-        Func<Task> act = () => _handler.HandleAsync(new ForgotPasswordOtpCommand("inactive@test.com"));
+        Func<Task> act = () => _handler.Handle(new ForgotPasswordOtpCommand("inactive@test.com"), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -77,7 +77,7 @@ public class ForgotPasswordOtpHandlerTests
         var patient = CreatePatient("patient@test.com");
         _userRepo.GetByEmailAsync("patient@test.com", Arg.Any<CancellationToken>()).Returns(patient);
 
-        await _handler.HandleAsync(new ForgotPasswordOtpCommand("patient@test.com"));
+        await _handler.Handle(new ForgotPasswordOtpCommand("patient@test.com"), CancellationToken.None);
 
         await _otpRepo.Received(1).InvalidateAllAsync("patient@test.com", OtpPurpose.PasswordReset, Arg.Any<CancellationToken>());
         await _otpRepo.Received(1).AddAsync(Arg.Any<OtpCode>(), Arg.Any<CancellationToken>());
@@ -91,7 +91,7 @@ public class ForgotPasswordOtpHandlerTests
         var patient = CreatePatient("patient@test.com");
         _userRepo.GetByEmailAsync("patient@test.com", Arg.Any<CancellationToken>()).Returns(patient);
 
-        await _handler.HandleAsync(new ForgotPasswordOtpCommand("  Patient@Test.COM  "));
+        await _handler.Handle(new ForgotPasswordOtpCommand("  Patient@Test.COM  "), CancellationToken.None);
 
         await _userRepo.Received(1).GetByEmailAsync("patient@test.com", Arg.Any<CancellationToken>());
     }
@@ -105,7 +105,7 @@ public class ForgotPasswordOtpHandlerTests
         OtpCode? capturedOtp = null;
         await _otpRepo.AddAsync(Arg.Do<OtpCode>(o => capturedOtp = o), Arg.Any<CancellationToken>());
 
-        await _handler.HandleAsync(new ForgotPasswordOtpCommand("patient@test.com"));
+        await _handler.Handle(new ForgotPasswordOtpCommand("patient@test.com"), CancellationToken.None);
 
         capturedOtp.Should().NotBeNull();
         capturedOtp!.Email.Should().Be("patient@test.com");
@@ -119,7 +119,7 @@ public class ForgotPasswordOtpHandlerTests
     {
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns((User?)null);
 
-        Func<Task> act = () => _handler.HandleAsync(new ForgotPasswordOtpCommand("notfound@test.com"));
+        Func<Task> act = () => _handler.Handle(new ForgotPasswordOtpCommand("notfound@test.com"), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
         await _otpRepo.DidNotReceive().InvalidateAllAsync(Arg.Any<string>(), Arg.Any<OtpPurpose>(), Arg.Any<CancellationToken>());

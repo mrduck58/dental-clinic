@@ -4,17 +4,18 @@ using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Auth;
 
-public record RegisterCommand(string Email, string Password);
+public record RegisterCommand(string Email, string Password) : IRequest<RegisterResponseDto>;
 
 public class RegisterHandler(
     IUserRepository userRepository,
     IOtpRepository otpRepository,
-    IEmailService emailService)
+    IEmailService emailService) : IRequestHandler<RegisterCommand, RegisterResponseDto>
 {
-    public async Task<RegisterResponseDto> HandleAsync(RegisterCommand command, CancellationToken ct = default)
+    public async Task<RegisterResponseDto> Handle(RegisterCommand command, CancellationToken ct)
     {
         if (await userRepository.ExistsByEmailAsync(command.Email, ct))
             throw new ConflictException("Email này đã được đăng ký. Vui lòng dùng email khác.");

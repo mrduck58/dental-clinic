@@ -40,7 +40,7 @@ public class ResendOtpHandlerTests
     {
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns((User?)null);
 
-        Func<Task> act = () => _handler.HandleAsync(new ResendOtpCommand("notfound@test.com"));
+        Func<Task> act = () => _handler.Handle(new ResendOtpCommand("notfound@test.com"), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -52,7 +52,7 @@ public class ResendOtpHandlerTests
         var activeUser = User.Create("patient1", "active@test.com", BCrypt.Net.BCrypt.HashPassword("pass"), "Patient");
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(activeUser);
 
-        Func<Task> act = () => _handler.HandleAsync(new ResendOtpCommand("active@test.com"));
+        Func<Task> act = () => _handler.Handle(new ResendOtpCommand("active@test.com"), CancellationToken.None);
 
         await act.Should().ThrowAsync<ConflictException>();
     }
@@ -65,7 +65,7 @@ public class ResendOtpHandlerTests
         staff.SetActive(false);
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(staff);
 
-        Func<Task> act = () => _handler.HandleAsync(new ResendOtpCommand("staff@test.com"));
+        Func<Task> act = () => _handler.Handle(new ResendOtpCommand("staff@test.com"), CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
     }
@@ -77,7 +77,7 @@ public class ResendOtpHandlerTests
         var patient = CreateInactivePatient("patient@test.com");
         _userRepo.GetByEmailAsync("patient@test.com", Arg.Any<CancellationToken>()).Returns(patient);
 
-        await _handler.HandleAsync(new ResendOtpCommand("patient@test.com"));
+        await _handler.Handle(new ResendOtpCommand("patient@test.com"), CancellationToken.None);
 
         await _otpRepo.Received(1).InvalidateAllAsync("patient@test.com", OtpPurpose.Registration, Arg.Any<CancellationToken>());
         await _otpRepo.Received(1).AddAsync(Arg.Any<OtpCode>(), Arg.Any<CancellationToken>());

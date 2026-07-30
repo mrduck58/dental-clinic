@@ -39,7 +39,7 @@ public class LoginHandlerTests
         _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
         _jwtService.GenerateToken(user).Returns("jwt-token");
 
-        var result = await _handler.HandleAsync(new LoginCommand(user.Email, "pass123"));
+        var result = await _handler.Handle(new LoginCommand(user.Email, "pass123"), CancellationToken.None);
 
         result.AccessToken.Should().Be("jwt-token");
     }
@@ -55,7 +55,7 @@ public class LoginHandlerTests
         _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
         _jwtService.GenerateToken(user).Returns("token");
 
-        var result = await _handler.HandleAsync(new LoginCommand(user.Email, "pass123"));
+        var result = await _handler.Handle(new LoginCommand(user.Email, "pass123"), CancellationToken.None);
 
         result.User.Email.Should().Be(user.Email);
         result.User.Role.Should().Be("Staff");
@@ -73,7 +73,7 @@ public class LoginHandlerTests
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(user);
         _jwtService.GenerateToken(Arg.Any<User>()).Returns("token");
 
-        var result = await _handler.HandleAsync(new LoginCommand(user.Email, "pass"));
+        var result = await _handler.Handle(new LoginCommand(user.Email, "pass"), CancellationToken.None);
 
         result.ExpiresIn.Should().Be(900); // 15 * 60
     }
@@ -89,7 +89,7 @@ public class LoginHandlerTests
         _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
         _jwtService.GenerateToken(Arg.Any<User>()).Returns("token");
 
-        await _handler.HandleAsync(new LoginCommand(user.Email, "pass123"));
+        await _handler.Handle(new LoginCommand(user.Email, "pass123"), CancellationToken.None);
 
         _jwtService.Received(1).GenerateToken(user);
     }
@@ -105,7 +105,7 @@ public class LoginHandlerTests
         _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
         _jwtService.GenerateToken(Arg.Any<User>()).Returns("token");
 
-        await _handler.HandleAsync(new LoginCommand(user.Email, "pass123"));
+        await _handler.Handle(new LoginCommand(user.Email, "pass123"), CancellationToken.None);
 
         await _activityLog.Received(1).LogAsync(
             user.Id,
@@ -130,7 +130,7 @@ public class LoginHandlerTests
         var user = CreateActiveUserWithPassword("correctpass");
         _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
 
-        Assert.CatchAsync(() => _handler.HandleAsync(new LoginCommand(user.Email, "wrongpass")));
+        Assert.CatchAsync(() => _handler.Handle(new LoginCommand(user.Email, "wrongpass"), CancellationToken.None));
 
         await _activityLog.Received(1).LogAsync(
             null,
@@ -156,7 +156,7 @@ public class LoginHandlerTests
         user.SetActive(false);
         _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
 
-        Assert.CatchAsync(() => _handler.HandleAsync(new LoginCommand(user.Email, "pass123")));
+        Assert.CatchAsync(() => _handler.Handle(new LoginCommand(user.Email, "pass123"), CancellationToken.None));
 
         await _activityLog.Received(1).LogAsync(
             user.Id,
@@ -184,8 +184,8 @@ public class LoginHandlerTests
         _userRepo.GetByEmailAsync(staff.Email, Arg.Any<CancellationToken>()).Returns(staff);
         _jwtService.GenerateToken(Arg.Any<User>()).Returns("jwt-token");
 
-        var result = await _handler.HandleAsync(
-            new LoginCommand(staff.Email, "pass123", AllowedRoles: ["Admin", "Dentist", "Staff"]));
+        var result = await _handler.Handle(
+            new LoginCommand(staff.Email, "pass123", AllowedRoles: ["Admin", "Dentist", "Staff"]), CancellationToken.None);
 
         result.AccessToken.Should().Be("jwt-token");
     }
@@ -201,8 +201,8 @@ public class LoginHandlerTests
         _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
         _jwtService.GenerateToken(Arg.Any<User>()).Returns("jwt-token");
 
-        var result = await _handler.HandleAsync(
-            new LoginCommand(user.Email, "pass123", AllowedRoles: []));
+        var result = await _handler.Handle(
+            new LoginCommand(user.Email, "pass123", AllowedRoles: []), CancellationToken.None);
 
         result.AccessToken.Should().Be("jwt-token");
     }
@@ -219,7 +219,7 @@ public class LoginHandlerTests
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns((User?)null);
 
-        Func<Task> act = () => _handler.HandleAsync(new LoginCommand("notfound@test.com", "pass"));
+        Func<Task> act = () => _handler.Handle(new LoginCommand("notfound@test.com", "pass"), CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
     }
@@ -235,7 +235,7 @@ public class LoginHandlerTests
         user.SetActive(false);
         _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
 
-        Func<Task> act = () => _handler.HandleAsync(new LoginCommand(user.Email, "pass123"));
+        Func<Task> act = () => _handler.Handle(new LoginCommand(user.Email, "pass123"), CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>()
             .WithMessage("*vô hiệu hóa*");
@@ -252,7 +252,7 @@ public class LoginHandlerTests
         user.SetActive(false);
         _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
 
-        Assert.CatchAsync(() => _handler.HandleAsync(new LoginCommand(user.Email, "pass123")));
+        Assert.CatchAsync(() => _handler.Handle(new LoginCommand(user.Email, "pass123"), CancellationToken.None));
 
         _jwtService.DidNotReceive().GenerateToken(Arg.Any<User>());
     }
@@ -267,7 +267,7 @@ public class LoginHandlerTests
         var user = CreateActiveUserWithPassword("correctpass");
         _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
 
-        Func<Task> act = () => _handler.HandleAsync(new LoginCommand(user.Email, "wrongpass"));
+        Func<Task> act = () => _handler.Handle(new LoginCommand(user.Email, "wrongpass"), CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
     }
@@ -282,7 +282,7 @@ public class LoginHandlerTests
         var user = User.CreateEmployee("emp@test.com", "Staff");
         _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
 
-        Func<Task> act = () => _handler.HandleAsync(new LoginCommand(user.Email, "anypass"));
+        Func<Task> act = () => _handler.Handle(new LoginCommand(user.Email, "anypass"), CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
     }
@@ -300,8 +300,8 @@ public class LoginHandlerTests
         _userRepo.GetByEmailAsync(patient.Email, Arg.Any<CancellationToken>()).Returns(patient);
         _jwtService.GenerateToken(Arg.Any<User>()).Returns("token");
 
-        Func<Task> act = () => _handler.HandleAsync(
-            new LoginCommand(patient.Email, "pass123", AllowedRoles: ["Admin", "Dentist", "Staff"]));
+        Func<Task> act = () => _handler.Handle(
+            new LoginCommand(patient.Email, "pass123", AllowedRoles: ["Admin", "Dentist", "Staff"]), CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
     }
@@ -317,8 +317,8 @@ public class LoginHandlerTests
         _userRepo.GetByEmailAsync(staff.Email, Arg.Any<CancellationToken>()).Returns(staff);
         _jwtService.GenerateToken(Arg.Any<User>()).Returns("token");
 
-        Func<Task> act = () => _handler.HandleAsync(
-            new LoginCommand(staff.Email, "pass123", AllowedRoles: ["Patient"]));
+        Func<Task> act = () => _handler.Handle(
+            new LoginCommand(staff.Email, "pass123", AllowedRoles: ["Patient"]), CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
     }
@@ -334,7 +334,7 @@ public class LoginHandlerTests
         patient.SetActive(false);
         _userRepo.GetByEmailAsync(patient.Email, Arg.Any<CancellationToken>()).Returns(patient);
 
-        Func<Task> act = () => _handler.HandleAsync(new LoginCommand(patient.Email, "pass123"));
+        Func<Task> act = () => _handler.Handle(new LoginCommand(patient.Email, "pass123"), CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>()
             .WithMessage("*xác thực*");

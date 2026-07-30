@@ -3,17 +3,18 @@ using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Auth;
 
-public record VerifyOtpCommand(string Email, string Code);
+public record VerifyOtpCommand(string Email, string Code) : IRequest<VerifyOtpResponseDto>;
 
 public class VerifyOtpHandler(
     IUserRepository userRepository,
     IOtpRepository otpRepository,
-    IJwtService jwtService)
+    IJwtService jwtService) : IRequestHandler<VerifyOtpCommand, VerifyOtpResponseDto>
 {
-    public async Task<VerifyOtpResponseDto> HandleAsync(VerifyOtpCommand command, CancellationToken ct = default)
+    public async Task<VerifyOtpResponseDto> Handle(VerifyOtpCommand command, CancellationToken ct)
     {
         var otp = await otpRepository.GetLatestValidAsync(command.Email, OtpPurpose.Registration, ct)
             ?? throw new UnauthorizedAccessException("Mã OTP không hợp lệ hoặc đã hết hạn.");

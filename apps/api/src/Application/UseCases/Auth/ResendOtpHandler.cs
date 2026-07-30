@@ -3,17 +3,18 @@ using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Auth;
 
-public record ResendOtpCommand(string Email);
+public record ResendOtpCommand(string Email) : IRequest;
 
 public class ResendOtpHandler(
     IUserRepository userRepository,
     IOtpRepository otpRepository,
-    IEmailService emailService)
+    IEmailService emailService) : IRequestHandler<ResendOtpCommand>
 {
-    public async Task HandleAsync(ResendOtpCommand command, CancellationToken ct = default)
+    public async Task Handle(ResendOtpCommand command, CancellationToken ct)
     {
         var user = await userRepository.GetByEmailAsync(command.Email, ct)
             ?? throw new NotFoundException("Email không tồn tại trong hệ thống.");

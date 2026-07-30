@@ -2,17 +2,18 @@ using System.Security.Cryptography;
 using DentalClinic.API.Application.DTOs.Auth;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Auth;
 
-public record VerifyPasswordResetOtpCommand(string Email, string Code);
+public record VerifyPasswordResetOtpCommand(string Email, string Code) : IRequest<VerifyResetOtpResponseDto>;
 
 /// <summary>Xác thực OTP quên mật khẩu; nếu đúng, cấp một reset token ngắn hạn để dùng ở bước đặt mật khẩu mới (tái sử dụng /api/auth/reset-password).</summary>
 public class VerifyPasswordResetOtpHandler(
     IUserRepository userRepository,
-    IOtpRepository otpRepository)
+    IOtpRepository otpRepository) : IRequestHandler<VerifyPasswordResetOtpCommand, VerifyResetOtpResponseDto>
 {
-    public async Task<VerifyResetOtpResponseDto> HandleAsync(VerifyPasswordResetOtpCommand command, CancellationToken ct = default)
+    public async Task<VerifyResetOtpResponseDto> Handle(VerifyPasswordResetOtpCommand command, CancellationToken ct)
     {
         var email = command.Email.Trim().ToLower();
 
