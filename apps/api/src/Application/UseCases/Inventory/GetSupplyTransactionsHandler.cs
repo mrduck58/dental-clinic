@@ -15,6 +15,7 @@ public class GetSupplyTransactionsHandler(ISupplyTransactionRepository repositor
             t.SupplyItem.Name,
             t.Type,
             t.Quantity,
+            t.UnitPrice,
             t.Note,
             t.CreatedBy,
             t.CreatedAt));

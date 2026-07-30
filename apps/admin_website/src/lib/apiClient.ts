@@ -1072,6 +1072,8 @@ export interface SupplyItemDto {
   quantity: number;
   minQuantity: number;
   isLow: boolean;
+  orderType: "standard" | "custom";
+  price: number | null;
   createdAt: string;
   updatedAt: string | null;
 }
@@ -1082,6 +1084,7 @@ export interface SupplyTransactionDto {
   itemName: string;
   type: "import" | "export";
   quantity: number;
+  unitPrice: number | null;
   note: string | null;
   createdBy: string;
   createdAt: string;
@@ -1094,6 +1097,8 @@ export interface CreateSupplyItemRequest {
   unit: string;
   quantity: number;
   minQuantity: number;
+  orderType?: "standard" | "custom";
+  price?: number;
 }
 
 export interface CreateSupplyTransactionRequest {
@@ -1172,6 +1177,8 @@ export interface StockImportRequest {
   category: string;
   quantity: number;
   note?: string;
+  unitPrice?: number;
+  orderType?: "standard" | "custom";
 }
 
 export async function stockImportApi(data: StockImportRequest): Promise<SupplyTransactionDto> {

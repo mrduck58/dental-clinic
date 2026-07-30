@@ -25,5 +25,5 @@ public class GetSupplyItemsHandler(ISupplyItemRepository repository)
     }
 
     internal static SupplyItemDto ToDto(Domain.Entities.SupplyItem i) =>
-        new(i.Id, i.Code, i.Name, i.Category, i.Unit, i.Quantity, i.MinQuantity, i.Quantity <= i.MinQuantity, i.CreatedAt, i.UpdatedAt);
+        new(i.Id, i.Code, i.Name, i.Category, i.Unit, i.Quantity, i.MinQuantity, i.Quantity <= i.MinQuantity, i.OrderType, i.Price, i.CreatedAt, i.UpdatedAt);
 }

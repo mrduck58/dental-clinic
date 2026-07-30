@@ -23,6 +23,15 @@ const SUPPLY_UNITS = ["Cái", "Hộp", "Tuýp", "Cuộn", "Chai", "Gói", "Bộ"
 const CATEGORIES = ["Tất cả", "Bảo hộ", "Dụng cụ", "Vật liệu", "Tiêu hao", "Thuốc"];
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
 
+// "standard" = vật dụng thường ngày (găng tay, khẩu trang...); "custom" = hàng đặt riêng cho bệnh nhân
+// (răng sứ, hàm tháo lắp...) — vẫn cùng cơ chế tồn kho/nhập-xuất, chỉ khác tab hiển thị.
+const ORDER_TYPES: { value: "standard" | "custom"; label: string }[] = [
+  { value: "standard", label: "Vật dụng thường ngày" },
+  { value: "custom",   label: "Đặt riêng cho bệnh nhân" },
+];
+
+const fmt = (n: number) => n.toLocaleString("vi-VN") + "₫";
+
 // ── Pagination ─────────────────────────────────────────────────────────────
 
 function Pagination({ page, total, pageSize, onChange }: {
@@ -92,6 +101,7 @@ export default function InventoryPage() {
   const [loadingReqs,   setLoadingReqs]   = useState(false);
   const [fulfilling,    setFulfilling]    = useState<MaterialRequestDto | null>(null);
   const [cat,           setCat]           = useState("Tất cả");
+  const [orderTypeTab,  setOrderTypeTab]  = useState<"standard" | "custom">("standard");
   const [search,        setSearch]        = useState("");
   const [items,         setItems]         = useState<SupplyItemDto[]>([]);
   const [log,           setLog]           = useState<SupplyTransactionDto[]>([]);
@@ -105,15 +115,19 @@ export default function InventoryPage() {
   const [txItemSearch,   setTxItemSearch]   = useState(""); // text input for import
   const [txUnit,         setTxUnit]         = useState("Cái");
   const [txCategory,     setTxCategory]     = useState(ITEM_CATEGORIES[0]);
+  const [txOrderType,    setTxOrderType]    = useState<"standard" | "custom">("standard");
   const [txQtyStr,       setTxQtyStr]       = useState("");
+  const [txPriceStr,     setTxPriceStr]     = useState("");
   const [txNote,         setTxNote]         = useState("");
-  const [txErrors,       setTxErrors]       = useState<{ name?: string; unit?: string; qty?: string }>({});
+  const [txErrors,       setTxErrors]       = useState<{ name?: string; unit?: string; qty?: string; price?: string }>({});
   const [submitting,     setSubmitting]     = useState(false);
   const [saved,          setSaved]          = useState(false);
 
   // modal thêm vật tư
   const [showAddModal,   setShowAddModal]   = useState(false);
-  const [addForm,        setAddForm]        = useState({ code: "", name: "", category: ITEM_CATEGORIES[0], unit: "", quantity: 0, minQuantity: 0 });
+  const [addForm,        setAddForm]        = useState<{
+    code: string; name: string; category: string; unit: string; quantity: number; minQuantity: number; orderType: "standard" | "custom"; priceStr: string;
+  }>({ code: "", name: "", category: ITEM_CATEGORIES[0], unit: "", quantity: 0, minQuantity: 0, orderType: "standard", priceStr: "" });
   const [addSubmitting,  setAddSubmitting]  = useState(false);
   const [addError,       setAddError]       = useState<string | null>(null);
 
@@ -186,29 +200,30 @@ export default function InventoryPage() {
 
   // Filter stock
   const filteredStock = items.filter(s => {
+    const matchOrderType = s.orderType === orderTypeTab;
     const matchCat    = cat === "Tất cả" || s.category === cat;
     const matchSearch = !search || s.name.toLowerCase().includes(search.toLowerCase());
-    return matchCat && matchSearch;
+    return matchOrderType && matchCat && matchSearch;
   });
 
-  useEffect(() => { setStockPage(1); }, [search, cat, stockPageSize]);
+  useEffect(() => { setStockPage(1); }, [search, cat, orderTypeTab, stockPageSize]);
 
   const pagedStock = filteredStock.slice((stockPage - 1) * stockPageSize, stockPage * stockPageSize);
   const pagedLog   = log.slice((logPage - 1) * logPageSize, logPage * logPageSize);
-
-  const lowStock = items.filter(s => s.isLow);
 
   const handleTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const txQty = Number(txQtyStr);
+    const txPrice = txPriceStr ? Number(txPriceStr) : undefined;
 
     // ── Nhập kho: dùng endpoint mới (tự tạo hoặc cộng vào vật tư đã có) ──
     if (txType === "import") {
-      const errors: { name?: string; unit?: string; qty?: string } = {};
+      const errors: { name?: string; unit?: string; qty?: string; price?: string } = {};
       if (!txItemSearch.trim()) errors.name = "Vui lòng nhập tên vật tư.";
       if (!txUnit) errors.unit = "Vui lòng chọn đơn vị.";
       if (!txQtyStr || txQty <= 0) errors.qty = "Số lượng phải lớn hơn 0.";
+      if (txPriceStr && (Number.isNaN(txPrice) || (txPrice ?? 0) < 0)) errors.price = "Đơn giá không hợp lệ.";
 
       if (Object.keys(errors).length > 0) {
         setTxErrors(errors);
@@ -224,6 +239,8 @@ export default function InventoryPage() {
           category: txCategory,
           quantity: txQty,
           note: txNote || undefined,
+          unitPrice: txPrice,
+          orderType: txOrderType,
         });
         // Nếu vật tư đã có → cập nhật local state; nếu mới → refetch
         const existingItem = items.find(it => it.id === tx.supplyItemId);
@@ -241,7 +258,7 @@ export default function InventoryPage() {
         setSaved(true);
         setTimeout(() => {
           setSaved(false);
-          setTxQtyStr(""); setTxNote(""); setTxItemSearch(""); setTxUnit("Cái"); setTxCategory(ITEM_CATEGORIES[0]);
+          setTxQtyStr(""); setTxPriceStr(""); setTxNote(""); setTxItemSearch(""); setTxUnit("Cái"); setTxCategory(ITEM_CATEGORIES[0]); setTxOrderType("standard");
         }, 2000);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Nhập kho thất bại");
@@ -303,8 +320,11 @@ export default function InventoryPage() {
         unit: addForm.unit.trim(),
         quantity: addForm.quantity,
         minQuantity: addForm.minQuantity,
+        orderType: addForm.orderType,
+        price: addForm.priceStr ? Number(addForm.priceStr) : undefined,
       });
       setItems(prev => [...prev, created]);
+      setOrderTypeTab(created.orderType);
       setShowAddModal(false);
     } catch (e) {
       setAddError(e instanceof Error ? e.message : "Thêm vật tư thất bại");
@@ -331,16 +351,6 @@ export default function InventoryPage() {
             </div>
           )}
 
-          {/* Low-stock alert */}
-          {lowStock.length > 0 && (
-            <div className="flex items-center gap-3 px-5 py-3.5 bg-amber-50 border border-amber-200 rounded-2xl">
-              <svg className="w-5 h-5 text-amber-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
-              <span className="text-[13.5px] font-bold text-amber-800">
-                {lowStock.length} mặt hàng sắp hết: {lowStock.map(s => s.name).join(", ")}
-              </span>
-            </div>
-          )}
-
           {/* Tabs */}
           <div className="flex gap-2">
             {([
@@ -364,6 +374,23 @@ export default function InventoryPage() {
           {/* ── Tab: Tồn kho ── */}
           {tab === "stock" && (
             <>
+              {/* Sub-tab: vật dụng thường ngày vs hàng đặt riêng cho bệnh nhân */}
+              <div className="flex gap-2">
+                {ORDER_TYPES.map(ot => {
+                  const count = items.filter(i => i.orderType === ot.value).length;
+                  const active = orderTypeTab === ot.value;
+                  return (
+                    <button key={ot.value} onClick={() => setOrderTypeTab(ot.value)}
+                      className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-[12.5px] font-bold transition-all cursor-pointer border ${
+                        active ? "bg-slate-800 text-white border-slate-800" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
+                      }`}>
+                      {ot.label}
+                      <span className={`px-1.5 py-0.5 rounded-full text-[10.5px] font-black leading-none ${active ? "bg-white/25 text-white" : "bg-slate-100 text-slate-500"}`}>{count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
               <div className="bg-white px-5 py-4 rounded-2xl border border-slate-200/70 shadow-sm flex flex-col gap-3">
                 <div className="flex flex-col sm:flex-row gap-3 items-center">
                   <div className="relative flex-1">
@@ -406,36 +433,24 @@ export default function InventoryPage() {
                       <th className="px-5 py-3 text-left font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Danh mục</th>
                       <th className="px-5 py-3 text-left font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Đơn vị</th>
                       <th className="px-5 py-3 text-right font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Tồn kho</th>
-                      <th className="px-5 py-3 text-right font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Tối thiểu</th>
-                      <th className="px-5 py-3 text-left font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Trạng thái</th>
+                      <th className="px-5 py-3 text-right font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Giá</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {loadingItems ? (
-                      <tr><td colSpan={7} className="px-5 py-10 text-center text-[13px] text-slate-400 font-semibold">Đang tải...</td></tr>
+                      <tr><td colSpan={6} className="px-5 py-10 text-center text-[13px] text-slate-400 font-semibold">Đang tải...</td></tr>
                     ) : pagedStock.length === 0 ? (
-                      <tr><td colSpan={7} className="px-5 py-10 text-center text-[13px] text-slate-400 font-semibold">
+                      <tr><td colSpan={6} className="px-5 py-10 text-center text-[13px] text-slate-400 font-semibold">
                         {items.length === 0 ? "Chưa có vật tư nào trong kho." : "Không tìm thấy vật tư nào."}
                       </td></tr>
                     ) : pagedStock.map(s => (
-                      <tr key={s.id} className={`transition-colors ${s.isLow ? "bg-amber-50/30 hover:bg-amber-50/50" : "hover:bg-slate-50/50"}`}>
+                      <tr key={s.id} className="hover:bg-slate-50/50 transition-colors">
                         <td className="px-5 py-3.5 font-mono text-[12px] font-black text-slate-400">{s.code}</td>
                         <td className="px-5 py-3.5 font-bold text-slate-900">{s.name}</td>
                         <td className="px-5 py-3.5 text-slate-500 font-semibold">{s.category}</td>
                         <td className="px-5 py-3.5 text-slate-500 font-semibold">{s.unit}</td>
-                        <td className={`px-5 py-3.5 text-right font-black ${s.isLow ? "text-amber-600" : "text-slate-900"}`}>{s.quantity}</td>
-                        <td className="px-5 py-3.5 text-right text-slate-400 font-semibold">{s.minQuantity}</td>
-                        <td className="px-5 py-3.5">
-                          {s.isLow ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-100 rounded-full text-[11.5px] font-black">
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />Sắp hết
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-50 text-green-700 border border-green-100 rounded-full text-[11.5px] font-black">
-                              <span className="w-1.5 h-1.5 rounded-full bg-green-500" />Đủ
-                            </span>
-                          )}
-                        </td>
+                        <td className="px-5 py-3.5 text-right font-black text-slate-900">{s.quantity}</td>
+                        <td className="px-5 py-3.5 text-right font-semibold text-slate-600">{s.price != null ? fmt(s.price) : "—"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -561,6 +576,21 @@ export default function InventoryPage() {
                           </div>
                           <p className="text-[11.5px] text-slate-400 font-semibold">Nếu vật tư đã tồn tại, danh mục trong kho sẽ được giữ nguyên.</p>
                         </div>
+
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">Loại vật tư *</label>
+                          <div className="grid grid-cols-2 gap-2">
+                            {ORDER_TYPES.map(ot => (
+                              <button key={ot.value} type="button" onClick={() => setTxOrderType(ot.value)}
+                                className={`px-3 py-2 rounded-xl border text-[12.5px] font-bold transition-all cursor-pointer ${
+                                  txOrderType === ot.value ? "bg-slate-800 text-white border-slate-800" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
+                                }`}>
+                                {ot.label}
+                              </button>
+                            ))}
+                          </div>
+                          <p className="text-[11.5px] text-slate-400 font-semibold">Nếu vật tư đã tồn tại, loại vật tư trong kho sẽ được giữ nguyên.</p>
+                        </div>
                       </>
                     )}
 
@@ -573,6 +603,23 @@ export default function InventoryPage() {
                         className={`${inputCls} [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${txErrors.qty ? "!border-red-300 focus:!border-red-400 focus:!ring-red-200" : ""}`} />
                       {txErrors.qty && <p className="text-[12px] text-red-500 font-semibold">{txErrors.qty}</p>}
                     </div>
+
+                    {txType === "import" && (
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">Đơn giá (₫)</label>
+                        <input type="number" min={0}
+                          value={txPriceStr}
+                          onChange={e => { setTxPriceStr(e.target.value); setTxErrors(prev => ({ ...prev, price: undefined })); }}
+                          placeholder="Giá nhập / 1 đơn vị — bỏ trống nếu không rõ"
+                          className={`${inputCls} [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${txErrors.price ? "!border-red-300 focus:!border-red-400 focus:!ring-red-200" : ""}`} />
+                        {txErrors.price && <p className="text-[12px] text-red-500 font-semibold">{txErrors.price}</p>}
+                        {txPriceStr && txQtyStr && !Number.isNaN(Number(txPriceStr)) && !Number.isNaN(Number(txQtyStr)) && (
+                          <p className="text-[12px] text-slate-500 font-semibold">
+                            Thành tiền: <span className="font-black text-slate-700">{fmt(Number(txPriceStr) * Number(txQtyStr))}</span>
+                          </p>
+                        )}
+                      </div>
+                    )}
 
                     <div className="flex flex-col gap-1.5">
                       <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">Ghi chú</label>
@@ -653,15 +700,16 @@ export default function InventoryPage() {
                       <th className="px-5 py-3 text-left font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Loại</th>
                       <th className="px-5 py-3 text-left font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Vật tư</th>
                       <th className="px-5 py-3 text-right font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">SL</th>
+                      <th className="px-5 py-3 text-right font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Thành tiền</th>
                       <th className="px-5 py-3 text-left font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Ghi chú</th>
                       <th className="px-5 py-3 text-left font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Ngày · NV</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {loadingLog ? (
-                      <tr><td colSpan={5} className="px-5 py-10 text-center text-[13px] text-slate-400 font-semibold">Đang tải...</td></tr>
+                      <tr><td colSpan={6} className="px-5 py-10 text-center text-[13px] text-slate-400 font-semibold">Đang tải...</td></tr>
                     ) : pagedLog.length === 0 ? (
-                      <tr><td colSpan={5} className="px-5 py-10 text-center text-[13px] text-slate-400 font-semibold">Chưa có giao dịch nào.</td></tr>
+                      <tr><td colSpan={6} className="px-5 py-10 text-center text-[13px] text-slate-400 font-semibold">Chưa có giao dịch nào.</td></tr>
                     ) : pagedLog.map(tx => (
                       <tr key={tx.id} className="hover:bg-slate-50/50 transition-colors">
                         <td className="px-5 py-3.5">
@@ -677,6 +725,9 @@ export default function InventoryPage() {
                           <span className={tx.type === "import" ? "text-green-600" : "text-primary"}>
                             {tx.type === "import" ? "+" : "-"}{tx.quantity}
                           </span>
+                        </td>
+                        <td className="px-5 py-3.5 text-right font-semibold text-slate-600">
+                          {tx.unitPrice != null ? fmt(tx.unitPrice * tx.quantity) : "—"}
                         </td>
                         <td className="px-5 py-3.5 text-slate-500 font-semibold max-w-xs truncate">{tx.note || "—"}</td>
                         <td className="px-5 py-3.5">
@@ -789,6 +840,20 @@ export default function InventoryPage() {
                 </div>
               </div>
 
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[12px] font-extrabold text-slate-500 uppercase tracking-wider">Loại vật tư *</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {ORDER_TYPES.map(ot => (
+                    <button key={ot.value} type="button" onClick={() => setAddForm(f => ({ ...f, orderType: ot.value }))}
+                      className={`px-3 py-2 rounded-xl border text-[12.5px] font-bold transition-all cursor-pointer ${
+                        addForm.orderType === ot.value ? "bg-slate-800 text-white border-slate-800" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
+                      }`}>
+                      {ot.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[12px] font-extrabold text-slate-500 uppercase tracking-wider">Tồn kho ban đầu</label>
@@ -798,6 +863,13 @@ export default function InventoryPage() {
                   <label className="text-[12px] font-extrabold text-slate-500 uppercase tracking-wider">Tối thiểu</label>
                   <input type="number" min={0} value={addForm.minQuantity} onChange={e => setAddForm(f => ({ ...f, minQuantity: Number(e.target.value) }))} className={inputCls} />
                 </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[12px] font-extrabold text-slate-500 uppercase tracking-wider">Giá (₫)</label>
+                <input type="number" min={0} value={addForm.priceStr}
+                  onChange={e => setAddForm(f => ({ ...f, priceStr: e.target.value }))}
+                  placeholder="Bỏ trống nếu chưa rõ giá" className={inputCls} />
               </div>
 
               <div className="flex gap-3 pt-1">
