@@ -64,14 +64,12 @@ public class CreateWalkInAppointmentHandler(AppDbContext dbContext, INotificatio
         {
             patient = await dbContext.Patients
                 .Include(p => p.User)
-                .FirstOrDefaultAsync(p =>
-                    p.PhoneNumber == cmd.PatientPhone ||
-                    (p.User != null && p.User.PhoneNumber == cmd.PatientPhone), ct);
+                .FirstOrDefaultAsync(p => p.User != null && p.User.PhoneNumber == cmd.PatientPhone, ct);
         }
 
         if (patient == null)
         {
-            var placeholderUser = User.CreateEmployee($"walkin-{Guid.NewGuid()}@songiangdental.com", "Patient", cmd.PatientPhone, cmd.PatientName);
+            var placeholderUser = User.CreateEmployee(null, "Patient", cmd.PatientPhone, cmd.PatientName);
             placeholderUser.UpdateGender(cmd.Gender);
             dbContext.Users.Add(placeholderUser);
             patient = Patient.Create(placeholderUser.Id, cmd.DateOfBirth);

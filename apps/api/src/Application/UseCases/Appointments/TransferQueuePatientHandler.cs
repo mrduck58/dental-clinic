@@ -108,9 +108,7 @@ public class TransferQueuePatientHandler(
         var dentists = await dbContext.Dentists.Include(d => d.User).ToListAsync(ct);
 
         return dentists
-            .Where(d => onShiftNames.Contains(d.FullName) &&
-                        string.Equals(d.EmploymentStatus, User.DefaultEmploymentStatus,
-                                      StringComparison.OrdinalIgnoreCase))
+            .Where(d => onShiftNames.Contains(d.FullName) && User.IsEmployedStatus(d.EmploymentStatus))
             .OrderBy(d => d.FullName, StringComparer.CurrentCulture)
             .FirstOrDefault();
     }
@@ -145,7 +143,6 @@ public class TransferQueuePatientHandler(
         return dentists.FirstOrDefault(d =>
             d.Id == dentistId &&
             assignableNames.Contains(d.FullName) &&
-            string.Equals(d.EmploymentStatus, User.DefaultEmploymentStatus,
-                          StringComparison.OrdinalIgnoreCase));
+            User.IsEmployedStatus(d.EmploymentStatus));
     }
 }
