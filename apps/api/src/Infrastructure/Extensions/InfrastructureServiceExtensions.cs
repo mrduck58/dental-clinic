@@ -42,6 +42,11 @@ public static class InfrastructureServiceExtensions
             options.UseNpgsql(configuration.GetConnectionString("DefaultConnection"))
                    .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning)));
 
+        // ── Mediator ────────────────────────────────────────────────────────
+        // Auto-discovers IRequestHandler<> implementations by assembly scan, replacing the need to
+        // manually register each Handler below one by one. Controllers depend on ISender only.
+        services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(InfrastructureServiceExtensions).Assembly));
+
         // ── Settings ────────────────────────────────────────────────────────
         // JwtSettings bound once as a fixed singleton instance (not via IOptions<T>): IOptions<T> is
         // invalidated and re-bound whenever IConfiguration's reload token fires (appsettings.json is
@@ -95,21 +100,8 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IAiChatService, GeminiChatService>();
 
         // ── Use Case Handlers ────────────────────────────────────────────────
-        services.AddScoped<LoginHandler>();
-        services.AddScoped<RegisterHandler>();
-        services.AddScoped<VerifyOtpHandler>();
-        services.AddScoped<ResendOtpHandler>();
-        services.AddScoped<FillProfileHandler>();
-        services.AddScoped<GetMyProfileHandler>();
-        services.AddScoped<ChangePasswordHandler>();
-        services.AddScoped<CreateAccountHandler>();
-        services.AddScoped<GetAccountsHandler>();
+        // Auth handlers now auto-registered by MediatR (implement IRequestHandler<,>).
         services.AddScoped<ToggleAccountStatusHandler>();
-        services.AddScoped<ForgotPasswordHandler>();
-        services.AddScoped<ResetPasswordHandler>();
-        services.AddScoped<GoogleLoginHandler>();
-        services.AddScoped<ForgotPasswordOtpHandler>();
-        services.AddScoped<VerifyPasswordResetOtpHandler>();
 
         services.AddScoped<GetStaffHandler>();
         services.AddScoped<GetDentistsHandler>();
@@ -216,7 +208,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<GetAiAnalyticsHandler>();
 
         services.AddScoped<GetActivityLogsHandler>();
-        services.AddScoped<GetNotificationsHandler>();
+        // GetNotificationsHandler is now auto-registered by MediatR (implements IRequestHandler<,>).
         services.AddScoped<InvoiceHandler>();
         services.AddScoped<PaymentHandler>();
         services.AddScoped<DashboardHandler>();
