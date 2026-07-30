@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
+import 'package:mobile_app/features/booking/data/booking_models.dart';
+import 'package:mobile_app/features/booking/data/booking_service.dart';
 import 'package:mobile_app/features/home/data/medication_reminder_service.dart';
 import 'package:mobile_app/features/home/data/models/medication_reminder_model.dart';
 
@@ -16,6 +19,7 @@ class RemindersPage extends StatefulWidget {
 class _RemindersPageState extends State<RemindersPage> {
   DateTime _selectedDate = DateTime.now();
   List<MedicationReminder> _reminders = [];
+  List<MyAppointmentItem> _appointmentReminders = [];
   final Map<String, bool> _taken = {};
   bool _isLoading = true;
   String? _error;
@@ -34,14 +38,25 @@ class _RemindersPageState extends State<RemindersPage> {
       _error = null;
     });
     try {
-      final reminders = await MedicationReminderService().getReminders(_selectedDate);
+      final medicationFuture = MedicationReminderService().getReminders(_selectedDate);
+      final appointmentsFuture = BookingService().getMyAppointments().catchError((_) => <MyAppointmentItem>[]);
+
+      final reminders = await medicationFuture;
+      final allAppointments = await appointmentsFuture;
+
+      final dayAppointments = allAppointments.where((a) {
+        return _isSameDay(a.parsedDate, _selectedDate) && a.status != 'Cancelled';
+      }).toList();
+
       final takenEntries = await Future.wait(reminders.map((r) async {
         final taken = await ReminderTakenStore.isTaken(r.prescriptionItemId, _selectedDate, r.time);
         return MapEntry(_takenKey(r), taken);
       }));
+
       if (!mounted) return;
       setState(() {
         _reminders = reminders;
+        _appointmentReminders = dayAppointments;
         _taken
           ..clear()
           ..addEntries(takenEntries);
@@ -90,7 +105,7 @@ class _RemindersPageState extends State<RemindersPage> {
           onPressed: () => context.pop(),
         ),
         title: Text(
-          isVi ? 'Nhắc nhở y tế' : 'Medical Reminders',
+          isVi ? 'Nhắc nhở y tế & lịch khám' : 'Medical & Booking Reminders',
           style: TextStyle(
             color: context.textPrimary,
             fontWeight: FontWeight.bold,
@@ -107,7 +122,7 @@ class _RemindersPageState extends State<RemindersPage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        isVi ? 'Không thể tải lịch nhắc thuốc.' : 'Failed to load reminders.',
+                        isVi ? 'Không thể tải lịch nhắc nhở.' : 'Failed to load reminders.',
                         style: TextStyle(color: context.textMuted),
                       ),
                       const SizedBox(height: 12),
@@ -140,18 +155,19 @@ class _RemindersPageState extends State<RemindersPage> {
             _buildDaySelector(isVi),
             const SizedBox(height: 28),
 
+            _buildAppointmentRemindersSection(isVi),
             _buildReminderSection('MORNING', isVi),
             const SizedBox(height: 20),
             _buildReminderSection('AFTERNOON', isVi),
             const SizedBox(height: 20),
             _buildReminderSection('EVENING', isVi),
 
-            if (_reminders.isEmpty)
+            if (_reminders.isEmpty && _appointmentReminders.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 40),
                 child: Center(
                   child: Text(
-                    isVi ? 'Không có thuốc cần uống vào ngày này.' : 'No medications scheduled for this day.',
+                    isVi ? 'Không có thuốc cần uống hoặc lịch khám nào vào ngày này.' : 'No medications or appointments scheduled for this date.',
                     style: TextStyle(color: context.textMuted),
                   ),
                 ),
@@ -415,6 +431,168 @@ class _RemindersPageState extends State<RemindersPage> {
           isVi ? 'ĐÁNH DẤU ĐÃ UỐNG' : 'MARK AS TAKEN',
           style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
         ),
+      ),
+    );
+  }
+
+  Widget _buildAppointmentRemindersSection(bool isVi) {
+    if (_appointmentReminders.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 26,
+                height: 26,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: context.isDark ? 0.25 : 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Iconsax.calendar_tick, size: 14, color: AppColors.primary),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                isVi ? 'LỊCH HẸN KHÁM TRONG NGÀY' : 'BOOKING APPOINTMENTS',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  color: context.textSecondary,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ..._appointmentReminders.map((app) => _buildAppointmentCard(app, isVi)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAppointmentCard(MyAppointmentItem app, bool isVi) {
+    final timeStr = '${app.parsedDate.hour.toString().padLeft(2, '0')}:${app.parsedDate.minute.toString().padLeft(2, '0')}';
+    final doctorName = app.dentistName.toLowerCase().startsWith('bs') ||
+            app.dentistName.toLowerCase().startsWith('bác sĩ') ||
+            app.dentistName.toLowerCase().startsWith('dr')
+        ? app.dentistName
+        : 'BS. ${app.dentistName}';
+
+    final (statusBg, statusText, statusLabel) = switch (app.status) {
+      'Confirmed' => (const Color(0xFFDCFCE7), const Color(0xFF16A34A), isVi ? 'ĐÃ XÁC NHẬN' : 'CONFIRMED'),
+      'CheckedIn' || 'InProgress' => (const Color(0xFFDBEAFE), const Color(0xFF2563EB), isVi ? 'ĐANG KHÁM' : 'IN PROGRESS'),
+      'Completed' => (const Color(0xFFF3E8FF), const Color(0xFF9333EA), isVi ? 'ĐÃ KHÁM' : 'COMPLETED'),
+      _ => (const Color(0xFFFEF3C7), const Color(0xFFD97706), isVi ? 'CHỜ XÁC NHẬN' : 'PENDING'),
+    };
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: context.card,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: AppColors.primaryLight,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(Iconsax.calendar_1, color: AppColors.primary, size: 22),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            doctorName,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: context.textPrimary,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(6)),
+                          child: Text(statusLabel, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: statusText)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      app.serviceName ?? (isVi ? 'Khám nha khoa' : 'Dental Checkup'),
+                      style: TextStyle(fontSize: 13, color: context.textSecondary, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(Iconsax.clock, size: 13, color: context.textMuted),
+                        const SizedBox(width: 4),
+                        Text(
+                          '$timeStr - ${isVi ? "Mã" : "Code"}: #${app.appointmentCode}',
+                          style: TextStyle(fontSize: 12, color: context.textMuted),
+                        ),
+                      ],
+                    ),
+                    if (app.patientName != null && app.patientName!.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        '${isVi ? 'Bệnh nhân' : 'Patient'}: ${app.patientName}',
+                        style: TextStyle(fontSize: 11.5, color: context.textMuted, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Divider(color: context.divider, height: 1),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 38,
+            child: ElevatedButton.icon(
+              onPressed: () => context.push(AppRoutes.appointmentDetails, extra: app),
+              icon: const Icon(Iconsax.eye, size: 16),
+              label: Text(
+                isVi ? 'XEM CHI TIẾT LỊCH HẸN' : 'VIEW APPOINTMENT DETAILS',
+                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

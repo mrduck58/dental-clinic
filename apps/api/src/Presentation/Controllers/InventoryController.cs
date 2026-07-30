@@ -64,7 +64,7 @@ public class InventoryController(
     [HttpGet("material-requests")]
     public async Task<IActionResult> GetMaterialRequests([FromQuery] string? status, CancellationToken ct)
     {
-        var result = await getMaterialRequests.HandleAsync(status, ct);
+        var result = await getMaterialRequests.HandleAsync(status, ct: ct);
         return Ok(result);
     }
 

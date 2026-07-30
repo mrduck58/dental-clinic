@@ -40,7 +40,7 @@ class ServiceModel {
       if (i > 0 && (s.length - i) % 3 == 0) buf.write('.');
       buf.write(s[i]);
     }
-    return 'Từ ${buf.toString()}đ';
+    return '${buf.toString()}đ';
   }
 
   String get durationText {

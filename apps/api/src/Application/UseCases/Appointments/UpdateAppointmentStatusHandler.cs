@@ -18,6 +18,19 @@ public class UpdateAppointmentStatusHandler(
     private static readonly TimeZoneInfo VietnamTz =
         TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
 
+    private async Task<Guid?> GetPatientUserIdAsync(Guid patientId, CancellationToken ct)
+    {
+        if (patientRepository == null) return null;
+        var patient = await patientRepository.GetByIdAsync(patientId, ct);
+        if (patient == null) return null;
+        if (patient.PrimaryPatientId.HasValue)
+        {
+            var primary = await patientRepository.GetByIdAsync(patient.PrimaryPatientId.Value, ct);
+            return primary?.UserId ?? patient.UserId;
+        }
+        return patient.UserId;
+    }
+
     public async Task ConfirmAsync(Guid appointmentId, CancellationToken ct = default)
     {
         var appointment = await appointmentRepository.GetByIdAsync(appointmentId, ct);
@@ -42,6 +55,9 @@ public class UpdateAppointmentStatusHandler(
             targetId: appointmentId.ToString(),
             ct: ct);
 
+        var vnDate = TimeZoneInfo.ConvertTime(appointment.AppointmentDate, VietnamTz);
+
+        // 1. Gửi thông báo cho bác sĩ
         var dentistUserId = await appointmentRepository.GetDentistUserIdAsync(appointment.DentistId, ct);
         if (dentistUserId.HasValue)
         {
@@ -50,7 +66,21 @@ public class UpdateAppointmentStatusHandler(
                 Type: NotificationType.Appointment,
                 Priority: NotificationPriority.Medium,
                 Title: "Lịch hẹn đã xác nhận",
-                Body: $"Lịch hẹn vào {appointment.AppointmentDate:dd/MM/yyyy HH:mm} đã được xác nhận.",
+                Body: $"Lịch hẹn vào {vnDate:HH:mm dd/MM/yyyy} đã được xác nhận.",
+                RelatedEntityType: "Appointment",
+                RelatedEntityId: appointmentId.ToString()), ct);
+        }
+
+        // 2. Gửi thông báo cho bệnh nhân (hoặc chủ tài khoản gia đình)
+        var patientUserId = await GetPatientUserIdAsync(appointment.PatientId, ct);
+        if (patientUserId.HasValue && patientUserId.Value != Guid.Empty)
+        {
+            await notificationService.CreateAsync(new CreateNotificationRequest(
+                UserId: patientUserId.Value,
+                Type: NotificationType.Appointment,
+                Priority: NotificationPriority.High,
+                Title: "Lịch hẹn đã được xác nhận!",
+                Body: $"Lịch hẹn khám nha khoa của bạn vào lúc {vnDate:HH:mm} ngày {vnDate:dd/MM/yyyy} đã được phòng khám xác nhận. Vui lòng đến đúng giờ!",
                 RelatedEntityType: "Appointment",
                 RelatedEntityId: appointmentId.ToString()), ct);
         }
@@ -111,6 +141,8 @@ public class UpdateAppointmentStatusHandler(
             targetId: appointmentId.ToString(),
             ct: ct);
 
+        var vnDate = TimeZoneInfo.ConvertTime(appointment.AppointmentDate, VietnamTz);
+
         var dentistUserId = await appointmentRepository.GetDentistUserIdAsync(appointment.DentistId, ct);
         if (dentistUserId.HasValue)
         {
@@ -119,7 +151,20 @@ public class UpdateAppointmentStatusHandler(
                 Type: NotificationType.Appointment,
                 Priority: NotificationPriority.High,
                 Title: "Lịch hẹn bị hủy",
-                Body: $"Lịch hẹn vào {appointment.AppointmentDate:dd/MM/yyyy HH:mm} đã bị hủy. Lý do: {reason ?? "Không có"}.",
+                Body: $"Lịch hẹn vào {vnDate:HH:mm dd/MM/yyyy} đã bị hủy. Lý do: {reason ?? "Không có"}.",
+                RelatedEntityType: "Appointment",
+                RelatedEntityId: appointmentId.ToString()), ct);
+        }
+
+        var patientUserId = await GetPatientUserIdAsync(appointment.PatientId, ct);
+        if (patientUserId.HasValue && patientUserId.Value != Guid.Empty && patientUserId.Value != currentUser.UserId)
+        {
+            await notificationService.CreateAsync(new CreateNotificationRequest(
+                UserId: patientUserId.Value,
+                Type: NotificationType.Appointment,
+                Priority: NotificationPriority.High,
+                Title: "Lịch hẹn đã bị hủy",
+                Body: $"Lịch hẹn khám vào lúc {vnDate:HH:mm} ngày {vnDate:dd/MM/yyyy} đã bị hủy. Lý do: {reason ?? "Theo yêu cầu"}.",
                 RelatedEntityType: "Appointment",
                 RelatedEntityId: appointmentId.ToString()), ct);
         }
@@ -158,6 +203,8 @@ public class UpdateAppointmentStatusHandler(
             targetId: appointmentId.ToString(),
             ct: ct);
 
+        var vnDate = TimeZoneInfo.ConvertTime(appointment.AppointmentDate, VietnamTz);
+
         var dentistUserId = await appointmentRepository.GetDentistUserIdAsync(appointment.DentistId, ct);
         if (dentistUserId.HasValue)
         {
@@ -166,7 +213,20 @@ public class UpdateAppointmentStatusHandler(
                 Type: NotificationType.Appointment,
                 Priority: NotificationPriority.High,
                 Title: "Bệnh nhân đã check-in",
-                Body: $"Bệnh nhân đã check-in lịch hẹn vào {appointment.AppointmentDate:dd/MM/yyyy HH:mm}.",
+                Body: $"Bệnh nhân đã check-in lịch hẹn vào {vnDate:HH:mm dd/MM/yyyy}.",
+                RelatedEntityType: "Appointment",
+                RelatedEntityId: appointmentId.ToString()), ct);
+        }
+
+        var patientUserId = await GetPatientUserIdAsync(appointment.PatientId, ct);
+        if (patientUserId.HasValue && patientUserId.Value != Guid.Empty)
+        {
+            await notificationService.CreateAsync(new CreateNotificationRequest(
+                UserId: patientUserId.Value,
+                Type: NotificationType.Appointment,
+                Priority: NotificationPriority.Medium,
+                Title: "Check-in thành công",
+                Body: $"Bạn đã check-in thành công cho lịch hẹn lúc {vnDate:HH:mm} ngày {vnDate:dd/MM/yyyy}. Vui lòng chờ đến lượt vào khám.",
                 RelatedEntityType: "Appointment",
                 RelatedEntityId: appointmentId.ToString()), ct);
         }

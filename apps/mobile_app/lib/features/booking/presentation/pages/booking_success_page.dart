@@ -253,8 +253,8 @@ class _BookingSuccessPageState extends State<BookingSuccessPage>
                           Expanded(
                             child: Text(
                               isVi
-                                  ? 'Bạn sẽ nhận thông báo nhắc lịch trước 24 giờ và 1 giờ trước giờ khám.'
-                                  : 'You will receive reminders 24 hours and 1 hour before your appointment.',
+                                  ? 'Bạn sẽ nhận thông báo nhắc lịch vào ngày khám và trước giờ khám 1 tiếng.'
+                                  : 'You will receive reminders on your appointment date and 1 hour before your appointment.',
                               style: const TextStyle(
                                 fontSize: 12,
                                 color: AppColors.secondary,

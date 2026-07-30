@@ -7,12 +7,19 @@ import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/auth/data/auth_service.dart';
 import 'package:mobile_app/features/profile/data/family_member.dart';
 import 'package:mobile_app/features/profile/data/medical_record_service.dart';
+import 'package:mobile_app/core/constants/api_constants.dart';
 
 class _SelectablePatient {
   final String id;
   final String name;
   final String relation;
-  const _SelectablePatient({required this.id, required this.name, required this.relation});
+  final String? profilePictureUrl;
+  const _SelectablePatient({
+    required this.id,
+    required this.name,
+    required this.relation,
+    this.profilePictureUrl,
+  });
 }
 
 class ExamineHistoryPage extends StatefulWidget {
@@ -63,16 +70,26 @@ class _ExamineHistoryPageState extends State<ExamineHistoryPage> {
       final selfEvents = events.where((e) => e.patientRelationship == 'Tôi');
       final selfEvent = selfEvents.isEmpty ? null : selfEvents.first;
       final profile = await AuthService().getMyProfile();
+      final cachedAvatar = await AuthService().getUserAvatar();
+      final myAvatar = (profile.profilePictureUrl != null && profile.profilePictureUrl!.isNotEmpty)
+          ? profile.profilePictureUrl
+          : cachedAvatar;
       await FamilyService().loadFromServer();
       final family = FamilyService().getMembers();
 
       final patients = <_SelectablePatient>[
         _SelectablePatient(
           id: selfEvent?.patientId ?? 'self',
-          name: profile.fullName,
+          name: profile.fullName.isNotEmpty ? profile.fullName : 'Tôi',
           relation: 'Tôi',
+          profilePictureUrl: myAvatar,
         ),
-        ...family.map((m) => _SelectablePatient(id: m.id, name: m.fullName, relation: m.relationship)),
+        ...family.map((m) => _SelectablePatient(
+              id: m.id,
+              name: m.fullName,
+              relation: m.relationship,
+              profilePictureUrl: m.profilePictureUrl,
+            )),
       ];
 
       setState(() {
@@ -108,6 +125,76 @@ class _ExamineHistoryPageState extends State<ExamineHistoryPage> {
       }).toList();
     }
     setState(() => _filteredEvents = events);
+  }
+
+  String _getInitials(String name) {
+    final parts = name.trim().split(' ');
+    if (parts.isEmpty || parts[0].isEmpty) return 'T';
+    if (parts.length == 1) return parts[0][0].toUpperCase();
+    return '${parts[0][0]}${parts.last[0]}'.toUpperCase();
+  }
+
+  Widget _buildAvatarCircle(String? avatarUrl, {required double size, required bool isSelected, String? name}) {
+    final initials = _getInitials(name ?? 'Tôi');
+    if (avatarUrl != null && avatarUrl.isNotEmpty) {
+      if (avatarUrl.startsWith('assets/')) {
+        return Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: isSelected ? Border.all(color: AppColors.primary, width: 2) : null,
+          ),
+          child: ClipOval(
+            child: Image.asset(
+              avatarUrl,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => _buildInitialsFallback(size, isSelected, initials),
+            ),
+          ),
+        );
+      }
+      final url = avatarUrl.startsWith('http')
+          ? avatarUrl
+          : '${ApiConstants.baseUrl.replaceAll('/api', '')}$avatarUrl';
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: isSelected ? Border.all(color: AppColors.primary, width: 2) : null,
+        ),
+        child: ClipOval(
+          child: Image.network(
+            url,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _buildInitialsFallback(size, isSelected, initials),
+          ),
+        ),
+      );
+    }
+    return _buildInitialsFallback(size, isSelected, initials);
+  }
+
+  Widget _buildInitialsFallback(double size, bool isSelected, String initials) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: isSelected ? AppColors.primary : AppColors.primaryLight,
+        shape: BoxShape.circle,
+      ),
+      child: Center(
+        child: Text(
+          initials,
+          style: TextStyle(
+            color: isSelected ? Colors.white : AppColors.primary,
+            fontWeight: FontWeight.bold,
+            fontSize: size * 0.4,
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -188,14 +275,11 @@ class _ExamineHistoryPageState extends State<ExamineHistoryPage> {
                     ),
                     child: Row(
                       children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: AppColors.primaryLight,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Icons.person, color: AppColors.primary, size: 22),
+                        _buildAvatarCircle(
+                          _selectedPatient?.profilePictureUrl,
+                          size: 44,
+                          isSelected: true,
+                          name: _selectedPatient?.name,
                         ),
                         const SizedBox(width: 14),
                         Expanded(
@@ -251,18 +335,11 @@ class _ExamineHistoryPageState extends State<ExamineHistoryPage> {
                         return Column(
                           children: [
                             ListTile(
-                              leading: Container(
-                                width: 34,
-                                height: 34,
-                                decoration: BoxDecoration(
-                                  color: isSelected ? AppColors.primary : context.divider,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  Icons.person,
-                                  color: isSelected ? Colors.white : context.textSecondary,
-                                  size: 18,
-                                ),
+                              leading: _buildAvatarCircle(
+                                p.profilePictureUrl,
+                                size: 36,
+                                isSelected: isSelected,
+                                name: p.name,
                               ),
                               title: Text(
                                 p.name,

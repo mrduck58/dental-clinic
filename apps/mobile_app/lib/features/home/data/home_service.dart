@@ -17,6 +17,7 @@ class HomeService {
     final list = res.data as List<dynamic>;
     return list
         .map((e) => DoctorModel.fromJson(e as Map<String, dynamic>))
+        .where((d) => d.fullName.isNotEmpty)
         .toList();
   }
 

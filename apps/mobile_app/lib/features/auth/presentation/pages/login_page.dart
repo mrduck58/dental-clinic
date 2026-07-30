@@ -198,12 +198,7 @@ class _LoginPageState extends State<LoginPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              AuthBackButton(
-                onTap: () {
-                  if (context.canPop()) context.pop();
-                },
-              ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 16),
               const SizedBox(
                 width: double.infinity,
                 child: Text(

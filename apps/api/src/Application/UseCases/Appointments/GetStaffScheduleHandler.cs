@@ -66,7 +66,10 @@ public class GetStaffScheduleHandler(AppDbContext dbContext)
             .Where(u =>
                 (string.Equals(u.Role, "Dentist", StringComparison.OrdinalIgnoreCase) ||
                  string.Equals(u.Role, "Doctor",  StringComparison.OrdinalIgnoreCase)) &&
-                string.Equals(u.Dentist?.EmploymentStatus ?? "Active", "Active", StringComparison.OrdinalIgnoreCase) &&
+                // EmploymentStatus là cột NOT NULL, dữ liệu cũ/chưa set lưu chuỗi rỗng chứ không
+                // phải null — "?? "Active"" sẽ không bao giờ kích hoạt, nên phải coi rỗng là Active.
+                (string.IsNullOrWhiteSpace(u.Dentist?.EmploymentStatus) ||
+                 string.Equals(u.Dentist!.EmploymentStatus, "Active", StringComparison.OrdinalIgnoreCase)) &&
                 workingToday.ContainsKey(!string.IsNullOrWhiteSpace(u.FullName) ? u.FullName : u.Email))
             .OrderBy(u => u.FullName)
             .ToList();

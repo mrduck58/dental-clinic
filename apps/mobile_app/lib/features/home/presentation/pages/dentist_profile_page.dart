@@ -4,6 +4,7 @@ import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
+import 'package:mobile_app/features/booking/data/booking_models.dart';
 import 'package:mobile_app/features/home/data/home_service.dart';
 import 'package:mobile_app/features/home/data/models/dentist_detail_model.dart';
 import 'package:mobile_app/features/home/data/models/doctor_model.dart';
@@ -349,7 +350,14 @@ class _DentistProfilePageState extends State<DentistProfilePage> {
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: () => context.push(AppRoutes.bookingSelectPatient),
+                  onPressed: () {
+                    final doctorInfo = doc.toDoctorInfo();
+                    final draft = BookingDraft(
+                      doctor: doctorInfo,
+                      preferredDentistId: doc.id,
+                    );
+                    context.push(AppRoutes.bookingSelectPatient, extra: draft);
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     elevation: 0,
