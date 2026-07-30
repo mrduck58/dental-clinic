@@ -536,6 +536,17 @@ public class InvoiceHandler(
 
         invoice.MarkAsPaid(paymentMethod);
 
+        // Đóng mọi giao dịch cổng thanh toán còn Pending của hóa đơn này (nếu có) — hóa đơn vừa được xác nhận
+        // thanh toán (thủ công, qua webhook, hay qua đối soát dự phòng — hàm này dùng chung cho cả 3 đường), các
+        // giao dịch Pending khác chắc chắn sẽ không bao giờ Paid được nữa (CreatePaymentRequestAsync chặn tạo mới
+        // khi hóa đơn đã Paid). Nếu không dọn, dữ liệu sẽ có invoice=Paid nhưng transaction=Pending mãi mãi — gây
+        // nhiễu khi tra soát và tốn lệnh gọi PayOS mỗi lượt poll nếu còn client đang mở màn hình hóa đơn đó.
+        var pendingTxns = await dbContext.PaymentTransactions
+            .Where(t => t.InvoiceId == invoice.Id && t.Status == TransactionStatus.Pending)
+            .ToListAsync(ct);
+        foreach (var t in pendingTxns)
+            t.MarkFailed("Hóa đơn đã được xác nhận thanh toán.", string.Empty);
+
         // Nếu đây là hóa đơn thu phần còn lại → tất toán hóa đơn cọc gốc.
         Invoice? parent = null;
         if (invoice.ParentInvoiceId is Guid parentId)

@@ -8,6 +8,8 @@ using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Infrastructure.Persistence;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using NUnit.Framework;
 
@@ -41,7 +43,9 @@ public class PaymentHandlerTests
         userRepo.GetUserIdsByRoleAsync("Staff", Arg.Any<CancellationToken>()).Returns(new List<Guid>());
         _invoiceHandler = new InvoiceHandler(_db, notificationService, userRepo);
 
-        _handler = new PaymentHandler(_db, _gatewayResolver, _invoiceHandler);
+        var configuration = Substitute.For<IConfiguration>();
+        _handler = new PaymentHandler(
+            _db, _gatewayResolver, _invoiceHandler, configuration, NullLogger<PaymentHandler>.Instance);
     }
 
     [TearDown]
