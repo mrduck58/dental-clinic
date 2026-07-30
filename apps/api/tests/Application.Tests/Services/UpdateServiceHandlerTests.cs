@@ -36,7 +36,7 @@ public class UpdateServiceHandlerTests
         _repo.GetByIdAsync(service.Id, Arg.Any<CancellationToken>()).Returns(service);
         var handler = new UpdateServiceHandler(_repo, _activityLog, _currentUser);
 
-        var result = await handler.HandleAsync(service.Id, new UpdateServiceRequest("Nhổ răng khôn", 300000m, 45, "Mô tả mới", "https://img.jpg"));
+        var result = await handler.HandleAsync(service.Id, new UpdateServiceRequest("Nhổ răng khôn", 300000m, 45, "Mô tả mới", "https://img.jpg", null));
 
         await _repo.Received(1).UpdateAsync(service, Arg.Any<CancellationToken>());
         result.Name.Should().Be("Nhổ răng khôn");
@@ -54,7 +54,7 @@ public class UpdateServiceHandlerTests
         _repo.GetByIdAsync(service.Id, Arg.Any<CancellationToken>()).Returns(service);
         var handler = new UpdateServiceHandler(_repo, _activityLog, _currentUser);
 
-        var result = await handler.HandleAsync(service.Id, new UpdateServiceRequest("Tên mới", 100000m, 30, "Mô tả", null));
+        var result = await handler.HandleAsync(service.Id, new UpdateServiceRequest("Tên mới", 100000m, 30, "Mô tả", null, null));
 
         result.ImageUrl.Should().Be("https://existing.jpg");
     }
@@ -68,7 +68,7 @@ public class UpdateServiceHandlerTests
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Service?)null);
         var handler = new UpdateServiceHandler(_repo, _activityLog, _currentUser);
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid(), new UpdateServiceRequest("Tên", 100m, 30, "Mô tả", null));
+        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid(), new UpdateServiceRequest("Tên", 100m, 30, "Mô tả", null, null));
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -83,7 +83,7 @@ public class UpdateServiceHandlerTests
         _repo.GetByIdAsync(service.Id, Arg.Any<CancellationToken>()).Returns(service);
         var handler = new UpdateServiceHandler(_repo, _activityLog, _currentUser);
 
-        await handler.HandleAsync(service.Id, new UpdateServiceRequest("Nhổ răng khôn", 300000m, 45, "Mô tả mới", null));
+        await handler.HandleAsync(service.Id, new UpdateServiceRequest("Nhổ răng khôn", 300000m, 45, "Mô tả mới", null, null));
 
         await _activityLog.Received(1).LogAsync(
             userId: Arg.Any<Guid?>(),
@@ -109,7 +109,7 @@ public class UpdateServiceHandlerTests
         _repo.GetByIdAsync(service.Id, Arg.Any<CancellationToken>()).Returns(service);
         var handler = new UpdateServiceHandler(_repo, _activityLog, _currentUser);
 
-        var result = await handler.HandleAsync(service.Id, new UpdateServiceRequest("Tên mới", 100000m, 30, "Mô tả", null));
+        var result = await handler.HandleAsync(service.Id, new UpdateServiceRequest("Tên mới", 100000m, 30, "Mô tả", null, null));
 
         result.UpdatedAt.Should().NotBeNull();
     }
