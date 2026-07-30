@@ -1,8 +1,13 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http_parser/http_parser.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:mobile_app/app/settings_manager.dart';
+import 'package:mobile_app/core/constants/api_constants.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
+import 'package:mobile_app/core/network/api_client.dart';
 import 'package:mobile_app/features/profile/data/family_member.dart';
 
 class EditMemberPage extends StatefulWidget {
@@ -22,6 +27,8 @@ class _EditMemberPageState extends State<EditMemberPage> {
   String? _relationship;
   DateTime? _dob;
   late String _gender;
+  String? _profilePictureUrl;
+  bool _isUploadingAvatar = false;
 
   final List<String> _relationshipOptions = [
     'Bố',
@@ -40,6 +47,7 @@ class _EditMemberPageState extends State<EditMemberPage> {
     _relationship = widget.member.relationship;
     _dob = widget.member.dateOfBirth;
     _gender = widget.member.gender;
+    _profilePictureUrl = widget.member.profilePictureUrl;
   }
 
   @override
@@ -47,6 +55,53 @@ class _EditMemberPageState extends State<EditMemberPage> {
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
     super.dispose();
+  }
+
+  ImageProvider? _getAvatarProvider() {
+    if (_profilePictureUrl != null && _profilePictureUrl!.isNotEmpty) {
+      if (_profilePictureUrl!.startsWith('http')) {
+        return NetworkImage(_profilePictureUrl!);
+      }
+      final baseUrlHost = ApiConstants.baseUrl.replaceAll('/api', '');
+      return NetworkImage('$baseUrlHost$_profilePictureUrl');
+    }
+    return null;
+  }
+
+  Future<void> _pickAndUploadAvatar() async {
+    final picker = ImagePicker();
+    try {
+      final file = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 80,
+      );
+      if (file == null) return;
+
+      setState(() => _isUploadingAvatar = true);
+
+      final bytes = await file.readAsBytes();
+      final formData = FormData.fromMap({
+        'file': MultipartFile.fromBytes(
+          bytes,
+          filename: file.name,
+          contentType: MediaType('image', file.name.split('.').last),
+        ),
+      });
+
+      final response = await ApiClient().post('/files/upload', formData);
+      final url = response.data['url'] as String;
+
+      setState(() {
+        _profilePictureUrl = url;
+        _isUploadingAvatar = false;
+      });
+      _showSnackbar('Tải ảnh đại diện lên thành công!');
+    } catch (e) {
+      setState(() => _isUploadingAvatar = false);
+      _showSnackbar('Không thể tải ảnh lên: $e');
+    }
   }
 
   Future<void> _pickDate() async {
@@ -104,7 +159,7 @@ class _EditMemberPageState extends State<EditMemberPage> {
       dateOfBirth: _dob!,
       gender: _gender,
       phoneNumber: _phoneCtrl.text.trim().isNotEmpty ? _phoneCtrl.text.trim() : null,
-      profilePictureUrl: widget.member.profilePictureUrl,
+      profilePictureUrl: _profilePictureUrl,
     );
 
     try {
@@ -237,27 +292,36 @@ class _EditMemberPageState extends State<EditMemberPage> {
           children: [
             // Circular Avatar photo with edit icon
             Center(
-              child: Stack(
-                children: [
-                  Container(
-                    width: 120,
-                    height: 120,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: AppColors.primaryLight,
-                      border: Border.all(color: context.divider, width: 3),
+              child: GestureDetector(
+                onTap: _isUploadingAvatar ? null : _pickAndUploadAvatar,
+                child: Stack(
+                  children: [
+                    Container(
+                      width: 110,
+                      height: 110,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppColors.primaryLight,
+                        border: Border.all(color: AppColors.primary, width: 3),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.15),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: ClipOval(
+                        child: _isUploadingAvatar
+                            ? const Center(child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
+                            : _getAvatarProvider() != null
+                                ? Image(image: _getAvatarProvider()!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Iconsax.user, color: AppColors.primary, size: 48))
+                                : const Icon(Iconsax.user, color: AppColors.primary, size: 48),
+                      ),
                     ),
-                    child: ClipOval(
-                      child: widget.member.profilePictureUrl != null && widget.member.profilePictureUrl!.startsWith('http')
-                          ? Image.network(widget.member.profilePictureUrl!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Iconsax.user, color: AppColors.primary, size: 48))
-                          : const Icon(Iconsax.user, color: AppColors.primary, size: 48),
-                    ),
-                  ),
-                  Positioned(
-                    bottom: 0,
-                    right: 4,
-                    child: GestureDetector(
-                      onTap: () => _showSnackbar(isVi ? 'Tính năng chỉnh sửa ảnh thành viên đang được phát triển.' : 'Edit member photo feature is under development.'),
+                    Positioned(
+                      bottom: 2,
+                      right: 2,
                       child: Container(
                         width: 34,
                         height: 34,
@@ -267,23 +331,23 @@ class _EditMemberPageState extends State<EditMemberPage> {
                           border: Border.all(color: context.card, width: 2),
                         ),
                         child: const Icon(
-                          Icons.edit,
+                          Icons.camera_alt_rounded,
                           color: Colors.white,
-                          size: 16,
+                          size: 18,
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 12),
             Center(
               child: Text(
-                isVi ? 'Cập nhật ảnh thành viên' : 'Update Member Photo',
-                style: TextStyle(
-                  color: context.textSecondary,
-                  fontSize: 14,
+                isVi ? 'Nhấn để đổi ảnh đại diện' : 'Tap to change photo',
+                style: const TextStyle(
+                  color: AppColors.primary,
+                  fontSize: 13,
                   fontWeight: FontWeight.w600,
                 ),
               ),

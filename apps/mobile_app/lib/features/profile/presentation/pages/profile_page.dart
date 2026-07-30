@@ -190,11 +190,6 @@ class _ProfilePageState extends State<ProfilePage> {
                 onTap: () => context.push(AppRoutes.familyMembers),
               ),
               _SettingsTile(
-                icon: Iconsax.card,
-                label: context.l10n('payment_method'),
-                onTap: () => context.go(AppRoutes.payment),
-              ),
-              _SettingsTile(
                 icon: Iconsax.receipt_item,
                 label: context.l10n('payment_history'),
                 onTap: () => context.push(AppRoutes.paymentHistory),
