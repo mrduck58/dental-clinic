@@ -222,6 +222,11 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
   };
 
   const handleChangeStatus = async (plan: TreatmentPlanDto, status: string) => {
+    // Hủy = loại dịch vụ khỏi liệu trình và khỏi tổng chi phí → chặn khi đã xuất hóa đơn.
+    if (status === "Cancelled" && plan.isInvoiced) {
+      showToast("Dịch vụ đã xuất hóa đơn — không thể hủy.", "error");
+      return;
+    }
     try {
       await updateTreatmentPlanApi({
         treatmentPlanId: plan.id,
@@ -240,6 +245,10 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
   };
 
   const handleDeletePlan = async (plan: TreatmentPlanDto) => {
+    if (plan.isInvoiced) {
+      showToast("Dịch vụ đã xuất hóa đơn — không thể xóa khỏi liệu trình.", "error");
+      return;
+    }
     if (!confirm(`Xóa dịch vụ "${plan.serviceName}" khỏi liệu trình?`)) return;
     try {
       await deleteTreatmentPlanApi(plan.id);
@@ -731,17 +740,21 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                             onChange={e => void handleChangeStatus(plan, e.target.value)}
                             className={`text-[11.5px] font-black px-2 py-1.5 rounded-lg border cursor-pointer focus:outline-none ${st.cls}`}
                           >
-                            {Object.entries(PLAN_STATUS).map(([value, cfg]) => (
-                              <option key={value} value={value}>{cfg.label}</option>
-                            ))}
+                            {Object.entries(PLAN_STATUS)
+                              // Dịch vụ đã xuất hóa đơn không được hủy (trừ khi đang ở trạng thái đã hủy sẵn)
+                              .filter(([value]) => value !== "Cancelled" || !plan.isInvoiced || plan.status === "Cancelled")
+                              .map(([value, cfg]) => (
+                                <option key={value} value={value}>{cfg.label}</option>
+                              ))}
                           </select>
                           <span className="text-[13.5px] font-bold text-slate-700 text-right tabular-nums">{fmtMoney(plan.unitPrice)}</span>
                           <span className="text-[13.5px] font-bold text-slate-700 text-right tabular-nums">{plan.quantity}</span>
                           <span className="text-[14px] font-black text-slate-900 text-right tabular-nums">{fmtMoney(plan.totalCost)}</span>
                           <button
                             onClick={() => void handleDeletePlan(plan)}
-                            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50 cursor-pointer"
-                            title="Xóa dịch vụ"
+                            disabled={plan.isInvoiced}
+                            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50 disabled:text-slate-200 disabled:hover:text-slate-200 disabled:hover:bg-transparent disabled:cursor-not-allowed cursor-pointer"
+                            title={plan.isInvoiced ? "Dịch vụ đã xuất hóa đơn — không thể xóa" : "Xóa dịch vụ"}
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
@@ -750,6 +763,14 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                         </div>
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1.5 pl-10 text-[12px] font-semibold text-slate-500">
                           <span>▸ Bác sĩ: {plan.dentistName}</span>
+                          {plan.isInvoiced && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg text-[11px] font-bold">
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                              </svg>
+                              Đã xuất hóa đơn — không thể xóa
+                            </span>
+                          )}
                           {plan.teeth && <span className="text-sky-600">▸ Răng: {plan.teeth}</span>}
                           {plan.warrantyUntil && (
                             <span className="text-emerald-600">🛡 BH đến {fmtWarranty(plan.warrantyUntil)}</span>

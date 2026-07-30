@@ -1963,6 +1963,8 @@ export interface TreatmentPlanDto {
   notes: string | null;
   totalCost: number;
   amountPaid: number;
+  /** Đã xuất hóa đơn → không cho bác sĩ xóa/hủy dịch vụ này khỏi liệu trình. */
+  isInvoiced: boolean;
   stepProgress: StepProgressEntryDto[];
   createdAt: string;
   completedAt: string | null;

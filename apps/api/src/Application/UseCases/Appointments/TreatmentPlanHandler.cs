@@ -72,6 +72,8 @@ public class TreatmentPlanDto
     public string? Notes { get; set; }
     public decimal TotalCost { get; set; }
     public decimal AmountPaid { get; set; }
+    /// <summary>Đã được xuất hóa đơn (hóa đơn chưa hoàn tiền) — bác sĩ không được xóa/hủy liệu trình này nữa.</summary>
+    public bool IsInvoiced { get; set; }
     public List<StepProgressEntryDto> StepProgress { get; set; } = new();
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }
@@ -150,6 +152,13 @@ public class TreatmentPlanHandler(
         {
             if (!Enum.TryParse<TreatmentPlanStatus>(request.Status, ignoreCase: true, out var status))
                 throw new ValidationException("Trạng thái liệu trình không hợp lệ.");
+
+            // Hủy liệu trình = loại nó khỏi liệu trình/tổng chi phí → cũng bị chặn khi đã xuất hóa đơn.
+            if (status == TreatmentPlanStatus.Cancelled
+                && treatmentPlan.Status != TreatmentPlanStatus.Cancelled
+                && await IsInvoicedAsync(treatmentPlan.Id, ct))
+                throw new ValidationException("Dịch vụ này đã được xuất hóa đơn nên không thể hủy. Cần lễ tân hoàn/hủy hóa đơn trước.");
+
             treatmentPlan.SetStatus(status);
         }
 
@@ -164,9 +173,8 @@ public class TreatmentPlanHandler(
             .FirstOrDefaultAsync(tp => tp.Id == treatmentPlanId, ct)
             ?? throw new NotFoundException("Không tìm thấy liệu trình điều trị.");
 
-        var hasInvoices = await dbContext.Invoices.AnyAsync(i => i.TreatmentPlanId == treatmentPlanId, ct);
-        if (hasInvoices)
-            throw new ValidationException("Không thể xóa liệu trình đã có hóa đơn thu tiền.");
+        if (await IsInvoicedAsync(treatmentPlanId, ct))
+            throw new ValidationException("Dịch vụ này đã được xuất hóa đơn nên không thể xóa khỏi liệu trình. Cần lễ tân hoàn/hủy hóa đơn trước.");
 
         dbContext.TreatmentPlans.Remove(treatmentPlan);
         await dbContext.SaveChangesAsync(ct);
@@ -184,13 +192,12 @@ public class TreatmentPlanHandler(
             .ToListAsync(ct);
 
         var planIds = plans.Select(p => p.Id).ToList();
-        var paidMap = await dbContext.Invoices
-            .Where(i => i.TreatmentPlanId != null && planIds.Contains(i.TreatmentPlanId.Value) && i.Status == PaymentStatus.Paid)
-            .GroupBy(i => i.TreatmentPlanId!.Value)
-            .Select(g => new { PlanId = g.Key, Paid = g.Sum(i => i.TotalAmount) })
-            .ToDictionaryAsync(x => x.PlanId, x => x.Paid, ct);
+        var paidMap = await GetAmountPaidMapAsync(planIds, ct);
+        var invoicedIds = await GetInvoicedPlanIdsAsync(planIds, ct);
 
-        return plans.Select(p => ToDto(p, paidMap.GetValueOrDefault(p.Id))).ToList();
+        return plans
+            .Select(p => ToDto(p, paidMap.GetValueOrDefault(p.Id), invoicedIds.Contains(p.Id)))
+            .ToList();
     }
 
     /// <summary>Ghi nhận một bước quy trình đã thực hiện vào nhật ký điều trị của liệu trình.</summary>
@@ -326,7 +333,7 @@ public class TreatmentPlanHandler(
         }
     }
 
-    public static TreatmentPlanDto ToDto(TreatmentPlan tp, decimal amountPaid = 0) => new()
+    public static TreatmentPlanDto ToDto(TreatmentPlan tp, decimal amountPaid = 0, bool isInvoiced = false) => new()
     {
         Id = tp.Id,
         PatientId = tp.PatientId,
@@ -343,6 +350,7 @@ public class TreatmentPlanHandler(
         Notes = tp.Notes,
         TotalCost = tp.TotalCost,
         AmountPaid = amountPaid,
+        IsInvoiced = isInvoiced,
         StepProgress = ParseStepProgress(tp.StepProgressJson),
         CreatedAt = tp.CreatedAt,
         CompletedAt = tp.CompletedAt
@@ -356,13 +364,78 @@ public class TreatmentPlanHandler(
             .Include(tp => tp.Dentist).ThenInclude(d => d.User)
             .FirstAsync(tp => tp.Id == planId, ct);
 
-        return ToDto(plan, await GetAmountPaidAsync(planId, ct));
+        var planIds = new List<Guid> { planId };
+        var paid = (await GetAmountPaidMapAsync(planIds, ct)).GetValueOrDefault(planId, 0m);
+        var isInvoiced = (await GetInvoicedPlanIdsAsync(planIds, ct)).Contains(planId);
+
+        return ToDto(plan, paid, isInvoiced);
     }
 
     private async Task<decimal> GetAmountPaidAsync(Guid treatmentPlanId, CancellationToken ct) =>
-        await dbContext.Invoices
-            .Where(i => i.TreatmentPlanId == treatmentPlanId && i.Status == PaymentStatus.Paid)
-            .SumAsync(i => (decimal?)i.TotalAmount, ct) ?? 0m;
+        (await GetAmountPaidMapAsync(new List<Guid> { treatmentPlanId }, ct)).GetValueOrDefault(treatmentPlanId, 0m);
+
+    /// <summary>
+    /// Số tiền ĐÃ THU theo từng liệu trình. Liệu trình được gắn vào hóa đơn theo 2 cách:
+    /// dòng hóa đơn gắn liệu trình (mô hình hiện tại) và hóa đơn "đợt thu" gắn ở cấp hóa đơn (mô hình cũ).
+    /// </summary>
+    private async Task<Dictionary<Guid, decimal>> GetAmountPaidMapAsync(List<Guid> planIds, CancellationToken ct)
+    {
+        var map = new Dictionary<Guid, decimal>();
+        if (planIds.Count == 0) return map;
+
+        var lineRows = await dbContext.InvoiceItems
+            .Where(it => it.TreatmentPlanId != null && planIds.Contains(it.TreatmentPlanId.Value)
+                         && it.Invoice.Status == PaymentStatus.Paid)
+            .Select(it => new
+            {
+                PlanId = it.TreatmentPlanId!.Value,
+                Line = it.Quantity * it.UnitPrice,
+                it.AmountCollected,
+                it.Invoice.IsSettled
+            })
+            .ToListAsync(ct);
+        foreach (var r in lineRows)
+            map[r.PlanId] = map.GetValueOrDefault(r.PlanId, 0m) + (r.IsSettled ? r.Line : r.AmountCollected);
+
+        var headerRows = await dbContext.Invoices
+            .Where(i => i.TreatmentPlanId != null && planIds.Contains(i.TreatmentPlanId.Value)
+                        && i.Status == PaymentStatus.Paid)
+            .GroupBy(i => i.TreatmentPlanId!.Value)
+            .Select(g => new { PlanId = g.Key, Sum = g.Sum(x => x.DepositAmount) })
+            .ToListAsync(ct);
+        foreach (var h in headerRows)
+            map[h.PlanId] = map.GetValueOrDefault(h.PlanId, 0m) + h.Sum;
+
+        return map;
+    }
+
+    /// <summary>
+    /// Các liệu trình đã được xuất hóa đơn (hóa đơn chưa hoàn tiền) — kể cả hóa đơn chưa thanh toán,
+    /// vì hóa đơn đã phát hành thì không được sửa danh mục dịch vụ nữa.
+    /// </summary>
+    private async Task<HashSet<Guid>> GetInvoicedPlanIdsAsync(List<Guid> planIds, CancellationToken ct)
+    {
+        if (planIds.Count == 0) return new HashSet<Guid>();
+
+        var byLine = await dbContext.InvoiceItems
+            .Where(it => it.TreatmentPlanId != null && planIds.Contains(it.TreatmentPlanId.Value)
+                         && it.Invoice.Status != PaymentStatus.Refunded)
+            .Select(it => it.TreatmentPlanId!.Value)
+            .Distinct()
+            .ToListAsync(ct);
+
+        var byHeader = await dbContext.Invoices
+            .Where(i => i.TreatmentPlanId != null && planIds.Contains(i.TreatmentPlanId.Value)
+                        && i.Status != PaymentStatus.Refunded)
+            .Select(i => i.TreatmentPlanId!.Value)
+            .Distinct()
+            .ToListAsync(ct);
+
+        return byLine.Concat(byHeader).ToHashSet();
+    }
+
+    private async Task<bool> IsInvoicedAsync(Guid treatmentPlanId, CancellationToken ct) =>
+        (await GetInvoicedPlanIdsAsync(new List<Guid> { treatmentPlanId }, ct)).Count > 0;
 
     private static string? NormalizeText(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
