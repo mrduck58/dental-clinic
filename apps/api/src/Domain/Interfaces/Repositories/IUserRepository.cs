@@ -11,7 +11,6 @@ public interface IUserRepository
     Task AddAsync(User user, CancellationToken ct = default);
     Task UpdateAsync(User user, CancellationToken ct = default);
     Task<IEnumerable<User>> GetAllAsync(CancellationToken ct = default);
-    Task<IEnumerable<User>> GetEmployeesWithoutAccountAsync(CancellationToken ct = default);
     Task<(IReadOnlyList<User> Items, int TotalCount)> GetStaffPagedAsync(
         string? search, string? role, string? status,
         int page, int pageSize, CancellationToken ct = default);

@@ -51,14 +51,6 @@ public class UserRepository(AppDbContext db) : IUserRepository
             .Include(u => u.Patient)
             .OrderBy(u => u.CreatedAt).ToListAsync(ct);
 
-    public async Task<IEnumerable<User>> GetEmployeesWithoutAccountAsync(CancellationToken ct = default) =>
-        await db.Users
-            .Include(u => u.Staff)
-            .Include(u => u.Dentist)
-            .Where(u => u.Role != "Patient" && u.PasswordHash == null)
-            .OrderBy(u => u.CreatedAt)
-            .ToListAsync(ct);
-
     public async Task<(IReadOnlyList<User> Items, int TotalCount)> GetStaffPagedAsync(
         string? search, string? role, string? status,
         int page, int pageSize, CancellationToken ct = default)
