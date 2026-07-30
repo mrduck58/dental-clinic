@@ -92,9 +92,7 @@ public class GetWaitingQueueHandler(AppDbContext dbContext)
             .ToListAsync(ct);
 
         var dentistsToShow = activeDentists
-            .Where(d => schedulesByName.ContainsKey(d.FullName) &&
-                        string.Equals(d.EmploymentStatus, User.DefaultEmploymentStatus,
-                                      StringComparison.OrdinalIgnoreCase))
+            .Where(d => schedulesByName.ContainsKey(d.FullName) && User.IsEmployedStatus(d.EmploymentStatus))
             .ToList();
 
         // Dự phòng: bác sĩ có bệnh nhân đã check-in nhưng không có ca trong bảng lịch làm việc
@@ -112,6 +110,10 @@ public class GetWaitingQueueHandler(AppDbContext dbContext)
         {
             var schedules = schedulesByName.GetValueOrDefault(dentist.FullName, []);
             var color = GetDentistColor(dentist.FullName);
+            // Bác sĩ vào danh sách qua nhánh dự phòng bên trên KHÔNG qua bộ lọc trạng thái làm việc.
+            // Phải kiểm lại ở đây, nếu không hàng đợi sẽ báo họ "đang trực" và cho lễ tân thả bệnh
+            // nhân vào, trong khi TransferQueuePatientHandler luôn từ chối vì họ đã nghỉ.
+            var isEmployed = User.IsEmployedStatus(dentist.EmploymentStatus);
 
             if (schedules.Count == 0)
             {
@@ -126,10 +128,10 @@ public class GetWaitingQueueHandler(AppDbContext dbContext)
                     .Select(ws => WorkShifts.LabelOf(ws.Shift) ?? WorkShifts.PeriodOf(ws.Shift))
                     .ToList();
 
-                var onShiftNow = isToday && byRoom.Any(ws => CoversNow(ws, nowVietnam));
+                var onShiftNow = isToday && isEmployed && byRoom.Any(ws => CoversNow(ws, nowVietnam));
                 // "Sắp vào ca": chỉ tính khi bác sĩ CHƯA trực ngay bây giờ nhưng có ca bắt đầu trong
                 // cửa sổ giao ca — để lễ tân giao trước bệnh nhân cho người sắp tới.
-                var onShiftSoon = isToday && !onShiftNow && byRoom.Any(ws =>
+                var onShiftSoon = isToday && isEmployed && !onShiftNow && byRoom.Any(ws =>
                     WorkShifts.StartsWithinMinutes(ws.Shift, nowMinutes, WorkShifts.ShiftHandoverWindowMinutes));
 
                 AddDentist(dentistsByRoom, byRoom.Key, new QueueDentistDto(dentist.Id, dentist.FullName, color, shifts, onShiftNow, onShiftSoon));
