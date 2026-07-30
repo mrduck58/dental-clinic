@@ -545,7 +545,7 @@ public class InvoiceHandler(
             .Where(t => t.InvoiceId == invoice.Id && t.Status == TransactionStatus.Pending)
             .ToListAsync(ct);
         foreach (var t in pendingTxns)
-            t.MarkFailed("Hóa đơn đã được xác nhận thanh toán.", string.Empty);
+            t.MarkFailed("Hóa đơn đã được xác nhận thanh toán.", null);
 
         // Nếu đây là hóa đơn thu phần còn lại → tất toán hóa đơn cọc gốc.
         Invoice? parent = null;

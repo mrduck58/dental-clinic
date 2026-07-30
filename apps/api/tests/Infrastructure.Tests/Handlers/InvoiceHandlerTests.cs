@@ -205,6 +205,30 @@ public class InvoiceHandlerTests
             Arg.Is<IEnumerable<Guid>>(ids => ids.Contains(staffUserId)), Arg.Any<CreateNotificationRequest>(), Arg.Any<CancellationToken>());
     }
 
+    /// <summary>
+    /// Tái hiện báo cáo lỗi 500 "Đã xảy ra lỗi hệ thống." khi bấm "Xác nhận thủ công" cho hóa đơn đang chờ thanh
+    /// toán online (đã có sẵn 1 giao dịch PayOS Pending do admin_website tự tạo QR khi mở hóa đơn) — xác nhận
+    /// ApplyPaymentConfirmedAsync có tự đóng giao dịch Pending đó mà không throw.
+    /// </summary>
+    [Test]
+    public async Task ConfirmPaymentAsync_InvoiceHasPendingPaymentTransaction_MarksPaidAndClosesTransaction()
+    {
+        var (appointment, _, _) = await SeedPendingPaymentAppointmentAsync();
+        var request = MakeIssueRequest(appointment.Id) with { PaymentMethod = "app" };
+        var invoice = await _handler.IssueAsync(request);
+
+        var txn = PaymentTransaction.Create(
+            invoice.Id, PaymentGateway.PayOS, "ORDER123", invoice.DepositAmount,
+            "https://pay.example/checkout", "00020101...", "{}", DateTimeOffset.UtcNow.AddMinutes(15));
+        _db.PaymentTransactions.Add(txn);
+        await _db.SaveChangesAsync();
+
+        var result = await _handler.ConfirmPaymentAsync(invoice.Id, new ConfirmPaymentRequest(null));
+
+        result.Status.Should().Be(PaymentStatus.Paid.ToString());
+        (await _db.PaymentTransactions.SingleAsync(t => t.Id == txn.Id)).Status.Should().Be(TransactionStatus.Failed);
+    }
+
     /// <summary>Bắt đầu thu phần còn lại cho hóa đơn không có công nợ phải bị từ chối.</summary>
     [Test]
     public async Task CollectRemainingAsync_NoRemainingDebt_ThrowsValidationException()

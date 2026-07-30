@@ -63,7 +63,7 @@ public class PaymentTransaction
         Status is TransactionStatus.Success or TransactionStatus.Failed
             or TransactionStatus.Cancelled or TransactionStatus.Expired;
 
-    public void MarkSuccess(string? gatewayTransactionId, string rawWebhookPayload)
+    public void MarkSuccess(string? gatewayTransactionId, string? rawWebhookPayload)
     {
         if (IsTerminal) return;
         Status = TransactionStatus.Success;
@@ -72,7 +72,7 @@ public class PaymentTransaction
         CompletedAt = DateTimeOffset.UtcNow;
     }
 
-    public void MarkFailed(string reason, string rawWebhookPayload)
+    public void MarkFailed(string reason, string? rawWebhookPayload)
     {
         if (IsTerminal) return;
         Status = TransactionStatus.Failed;
@@ -81,7 +81,7 @@ public class PaymentTransaction
         CompletedAt = DateTimeOffset.UtcNow;
     }
 
-    public void MarkCancelled(string rawWebhookPayload)
+    public void MarkCancelled(string? rawWebhookPayload)
     {
         if (IsTerminal) return;
         Status = TransactionStatus.Cancelled;
