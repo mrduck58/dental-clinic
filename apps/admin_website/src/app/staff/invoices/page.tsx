@@ -508,39 +508,44 @@ function PlansTab({ plans, onIssued }: {
               </div>
               </>)}
 
-              {/* Payment method */}
+              {/* Payment method — chỉ 2 lựa chọn thật: tiền mặt (thu tay) hoặc trực tuyến (QR/App PayOS thật).
+                  "Chuyển khoản" và "Thanh toán App" trước đây dẫn tới cùng 1 luồng backend hệt nhau nên gộp lại
+                  làm 1 để khỏi gây hiểu lầm là 2 kênh khác nhau — nội bộ vẫn lưu paymentMethod="transfer". */}
               <div className="flex flex-col gap-3">
                 <span className={labelCls}>Phương thức thanh toán</span>
-                <div className="grid grid-cols-3 gap-3">
-                  {(Object.keys(PAY_CFG) as PayMethod[]).map(m => {
-                    const cfg    = PAY_CFG[m];
-                    const active = method === m;
-                    return (
-                      <button key={m} onClick={() => setMethod(m)}
-                        className={`flex flex-col items-center gap-2.5 px-4 py-5 rounded-2xl border-2 transition-all cursor-pointer ${
-                          active
-                            ? `${cfg.bg} ${cfg.border} shadow-sm`
-                            : "bg-white border-slate-200 hover:border-slate-300"
-                        }`}>
-                        <svg className={`w-7 h-7 transition-colors ${active ? cfg.color : "text-slate-400"}`} fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d={cfg.icon} />
-                        </svg>
-                        <span className={`text-[13px] font-black transition-colors ${active ? cfg.color : "text-slate-500"}`}>{cfg.label}</span>
-                        {active && <span className={`w-1.5 h-1.5 rounded-full ${cfg.bg.replace("bg-","bg-").replace("50","500")}`} style={{ backgroundColor: "currentColor" }} />}
-                      </button>
-                    );
-                  })}
+                <div className="grid grid-cols-2 gap-3">
+                  <button onClick={() => setMethod("cash")}
+                    className={`flex flex-col items-center gap-2.5 px-4 py-5 rounded-2xl border-2 transition-all cursor-pointer ${
+                      method === "cash" ? `${PAY_CFG.cash.bg} ${PAY_CFG.cash.border} shadow-sm` : "bg-white border-slate-200 hover:border-slate-300"
+                    }`}>
+                    <svg className={`w-7 h-7 transition-colors ${method === "cash" ? PAY_CFG.cash.color : "text-slate-400"}`} fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d={PAY_CFG.cash.icon} />
+                    </svg>
+                    <span className={`text-[13px] font-black transition-colors ${method === "cash" ? PAY_CFG.cash.color : "text-slate-500"}`}>Tiền mặt</span>
+                  </button>
+                  <button onClick={() => setMethod("transfer")}
+                    className={`flex flex-col items-center gap-2.5 px-4 py-5 rounded-2xl border-2 transition-all cursor-pointer ${
+                      method === "transfer" ? "bg-indigo-50 border-indigo-200 shadow-sm" : "bg-white border-slate-200 hover:border-slate-300"
+                    }`}>
+                    <svg className={`w-7 h-7 transition-colors ${method === "transfer" ? "text-indigo-600" : "text-slate-400"}`} viewBox="0 0 24 24" fill="none">
+                      <rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="1.5" />
+                      <rect x="5.5" y="5.5" width="2" height="2" fill="currentColor" />
+                      <rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="1.5" />
+                      <rect x="16.5" y="5.5" width="2" height="2" fill="currentColor" />
+                      <rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="1.5" />
+                      <rect x="5.5" y="16.5" width="2" height="2" fill="currentColor" />
+                      <rect x="14" y="14" width="3" height="3" fill="currentColor" />
+                      <rect x="18" y="14" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.5" />
+                      <rect x="14" y="18" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.5" />
+                      <rect x="18" y="18" width="3" height="3" fill="currentColor" />
+                    </svg>
+                    <span className={`text-[13px] font-black transition-colors ${method === "transfer" ? "text-indigo-600" : "text-slate-500"}`}>Thanh toán online</span>
+                  </button>
                 </div>
-                {method === "app" && (
+                {method === "transfer" && (
                   <div className="flex items-center gap-2 px-4 py-2.5 bg-indigo-50 border border-indigo-100 rounded-xl text-[12.5px] font-semibold text-indigo-700">
                     <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg>
-                    Bệnh nhân thanh toán qua ứng dụng. Trạng thái sẽ tự động cập nhật khi cổng thanh toán xác nhận.
-                  </div>
-                )}
-                {method === "transfer" && (
-                  <div className="flex items-center gap-2 px-4 py-2.5 bg-sky-50 border border-sky-100 rounded-xl text-[12.5px] font-semibold text-sky-700">
-                    <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg>
-                    Hệ thống sẽ tự tạo mã QR chuyển khoản (VietQR). Hóa đơn tự chuyển sang &quot;Đã thanh toán&quot; khi nhận được tiền.
+                    Hệ thống sẽ tự tạo mã QR/link thanh toán thật. Bệnh nhân có thể quét mã tại quầy hoặc tự thanh toán từ app của họ — hóa đơn tự chuyển &quot;Đã thanh toán&quot; khi nhận được tiền.
                   </div>
                 )}
               </div>
