@@ -49,6 +49,6 @@ public class CreateSupplyTransactionHandler(AppDbContext db, IActivityLogService
             targetId: tx.Id.ToString(),
             ct: ct);
 
-        return new SupplyTransactionDto(tx.Id, item.Id, item.Name, tx.Type, tx.Quantity, tx.Note, tx.CreatedBy, tx.CreatedAt);
+        return new SupplyTransactionDto(tx.Id, item.Id, item.Name, tx.Type, tx.Quantity, tx.UnitPrice, tx.Note, tx.CreatedBy, tx.CreatedAt);
     }
 }
