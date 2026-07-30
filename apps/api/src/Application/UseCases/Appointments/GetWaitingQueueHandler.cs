@@ -92,7 +92,7 @@ public class GetWaitingQueueHandler(AppDbContext dbContext)
             .ToListAsync(ct);
 
         var dentistsToShow = activeDentists
-            .Where(d => schedulesByName.ContainsKey(d.FullName) && User.IsEmployedStatus(d.EmploymentStatus))
+            .Where(d => schedulesByName.ContainsKey(d.FullName) && IsEmployed(d.EmploymentStatus))
             .ToList();
 
         // Dự phòng: bác sĩ có bệnh nhân đã check-in nhưng không có ca trong bảng lịch làm việc
@@ -113,7 +113,7 @@ public class GetWaitingQueueHandler(AppDbContext dbContext)
             // Bác sĩ vào danh sách qua nhánh dự phòng bên trên KHÔNG qua bộ lọc trạng thái làm việc.
             // Phải kiểm lại ở đây, nếu không hàng đợi sẽ báo họ "đang trực" và cho lễ tân thả bệnh
             // nhân vào, trong khi TransferQueuePatientHandler luôn từ chối vì họ đã nghỉ.
-            var isEmployed = User.IsEmployedStatus(dentist.EmploymentStatus);
+            var isEmployed = IsEmployed(dentist.EmploymentStatus);
 
             if (schedules.Count == 0)
             {
@@ -171,6 +171,10 @@ public class GetWaitingQueueHandler(AppDbContext dbContext)
     }
 
     private static string RoomKey(string? room) => string.IsNullOrWhiteSpace(room) ? NoRoomKey : room;
+
+    /// <summary>Bác sĩ còn đang làm việc: EmploymentStatus phải là "Active".</summary>
+    private static bool IsEmployed(string employmentStatus) =>
+        string.Equals(employmentStatus, User.DefaultEmploymentStatus, StringComparison.OrdinalIgnoreCase);
 
     private static bool CoversNow(WorkSchedule schedule, DateTimeOffset nowVietnam)
         => WorkShifts.IsWorkingAt([schedule.Shift], nowVietnam.Hour, nowVietnam.Minute);
