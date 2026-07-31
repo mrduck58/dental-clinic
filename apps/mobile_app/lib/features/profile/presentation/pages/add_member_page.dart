@@ -1,8 +1,13 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http_parser/http_parser.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:mobile_app/app/settings_manager.dart';
+import 'package:mobile_app/core/constants/api_constants.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
+import 'package:mobile_app/core/network/api_client.dart';
 import 'package:mobile_app/features/profile/data/family_member.dart';
 
 class AddMemberPage extends StatefulWidget {
@@ -20,6 +25,8 @@ class _AddMemberPageState extends State<AddMemberPage> {
   String? _relationship;
   DateTime? _dob;
   String _gender = 'Nam'; // Default to Nam (Male)
+  String? _profilePictureUrl;
+  bool _isUploadingAvatar = false;
 
   final List<String> _relationshipOptions = [
     'Bố',
@@ -35,6 +42,109 @@ class _AddMemberPageState extends State<AddMemberPage> {
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
     super.dispose();
+  }
+
+  ImageProvider? _getAvatarProvider() {
+    if (_profilePictureUrl != null && _profilePictureUrl!.isNotEmpty) {
+      if (_profilePictureUrl!.startsWith('http')) {
+        return NetworkImage(_profilePictureUrl!);
+      }
+      final baseUrlHost = ApiConstants.baseUrl.replaceAll('/api', '');
+      return NetworkImage('$baseUrlHost$_profilePictureUrl');
+    }
+    return null;
+  }
+
+  Future<void> _pickAndUploadAvatar() async {
+    final picker = ImagePicker();
+    try {
+      final file = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 80,
+      );
+      if (file == null) return;
+
+      setState(() => _isUploadingAvatar = true);
+
+      final bytes = await file.readAsBytes();
+      final formData = FormData.fromMap({
+        'file': MultipartFile.fromBytes(
+          bytes,
+          filename: file.name,
+          contentType: MediaType('image', file.name.split('.').last),
+        ),
+      });
+
+      final response = await ApiClient().post('/files/upload', formData);
+      final url = response.data['url'] as String;
+
+      setState(() {
+        _profilePictureUrl = url;
+        _isUploadingAvatar = false;
+      });
+      _showSnackbar('Tải ảnh đại diện lên thành công!');
+    } catch (e) {
+      setState(() => _isUploadingAvatar = false);
+      _showSnackbar('Không thể tải ảnh lên: $e');
+    }
+  }
+
+  Widget _buildAvatarPicker(bool isVi) {
+    return Center(
+      child: Column(
+        children: [
+          GestureDetector(
+            onTap: _isUploadingAvatar ? null : _pickAndUploadAvatar,
+            child: Stack(
+              children: [
+                Container(
+                  width: 90,
+                  height: 90,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.primaryLight,
+                    border: Border.all(color: AppColors.primary, width: 2.5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primary.withValues(alpha: 0.15),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: ClipOval(
+                    child: _isUploadingAvatar
+                        ? const Center(child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
+                        : _getAvatarProvider() != null
+                            ? Image(image: _getAvatarProvider()!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Iconsax.user, size: 40, color: AppColors.primary))
+                            : const Icon(Iconsax.user, size: 40, color: AppColors.primary),
+                  ),
+                ),
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: const BoxDecoration(
+                      color: AppColors.primary,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Iconsax.camera, color: Colors.white, size: 16),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            isVi ? 'Tải ảnh đại diện' : 'Upload Profile Picture',
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primary),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _pickDate() async {
@@ -92,7 +202,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
       dateOfBirth: _dob!,
       gender: _gender,
       phoneNumber: _phoneCtrl.text.trim().isNotEmpty ? _phoneCtrl.text.trim() : null,
-      profilePictureUrl: 'assets/images/bac_si_4.png', // Default female avatar or placeholder
+      profilePictureUrl: _profilePictureUrl,
     );
 
     try {
@@ -222,6 +332,9 @@ class _AddMemberPageState extends State<AddMemberPage> {
               ),
             ),
             const SizedBox(height: 28),
+
+            _buildAvatarPicker(isVi),
+            const SizedBox(height: 24),
 
             // Full Name Field
             _buildLabel(context.l10n('fullname')),

@@ -31,7 +31,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   String? _avatarUrl;
 
-  ImageProvider _getAvatarProvider() {
+  ImageProvider? _getAvatarProvider() {
     if (_avatarUrl != null && _avatarUrl!.isNotEmpty) {
       if (_avatarUrl!.startsWith('http')) {
         return NetworkImage(_avatarUrl!);
@@ -39,7 +39,7 @@ class _ProfilePageState extends State<ProfilePage> {
       final baseUrlHost = ApiConstants.baseUrl.replaceAll('/api', '');
       return NetworkImage('$baseUrlHost$_avatarUrl');
     }
-    return const AssetImage('assets/images/bac_si_1.png');
+    return null;
   }
 
   Future<void> _loadUserInfo() async {
@@ -250,11 +250,6 @@ class _ProfilePageState extends State<ProfilePage> {
                 icon: Iconsax.profile_2user,
                 label: context.l10n('family_members'),
                 onTap: () => context.push(AppRoutes.familyMembers),
-              ),
-              _SettingsTile(
-                icon: Iconsax.card,
-                label: context.l10n('payment_method'),
-                onTap: () => context.go(AppRoutes.payment),
               ),
               _SettingsTile(
                 icon: Iconsax.receipt_item,

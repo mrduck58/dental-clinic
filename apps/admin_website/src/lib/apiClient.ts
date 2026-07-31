@@ -1085,6 +1085,8 @@ export interface SupplyItemDto {
   quantity: number;
   minQuantity: number;
   isLow: boolean;
+  orderType: "standard" | "custom";
+  price: number | null;
   createdAt: string;
   updatedAt: string | null;
 }
@@ -1095,6 +1097,7 @@ export interface SupplyTransactionDto {
   itemName: string;
   type: "import" | "export";
   quantity: number;
+  unitPrice: number | null;
   note: string | null;
   createdBy: string;
   createdAt: string;
@@ -1107,6 +1110,8 @@ export interface CreateSupplyItemRequest {
   unit: string;
   quantity: number;
   minQuantity: number;
+  orderType?: "standard" | "custom";
+  price?: number;
 }
 
 export interface CreateSupplyTransactionRequest {
@@ -1185,6 +1190,8 @@ export interface StockImportRequest {
   category: string;
   quantity: number;
   note?: string;
+  unitPrice?: number;
+  orderType?: "standard" | "custom";
 }
 
 export async function stockImportApi(data: StockImportRequest): Promise<SupplyTransactionDto> {
@@ -1238,6 +1245,39 @@ export async function markMaterialRequestDoneApi(id: string): Promise<void> {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { title?: string }).title ?? "Cập nhật yêu cầu vật tư thất bại");
   }
+}
+
+// ── Yêu cầu vật tư (bác sĩ tạo từ buổi khám) ─────────────────────────────────
+export interface CreateMaterialRequestRequest {
+  appointmentId: string;
+  content: string;
+}
+
+export async function createMaterialRequestApi(request: CreateMaterialRequestRequest): Promise<MaterialRequestDto> {
+  const res = await fetch(`${API_URL}/api/inventory/material-requests`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(request),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Gửi yêu cầu vật tư thất bại");
+  }
+  return res.json() as Promise<MaterialRequestDto>;
+}
+
+export async function getMaterialRequestsByPatientApi(patientId: string, patientName?: string): Promise<MaterialRequestDto[]> {
+  const nameQs = patientName ? `&name=${encodeURIComponent(patientName)}` : "";
+  const res = await fetch(`${API_URL}/api/inventory/material-requests/by-patient?patientId=${encodeURIComponent(patientId)}${nameQs}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải yêu cầu vật tư");
+  }
+  return res.json() as Promise<MaterialRequestDto[]>;
 }
 
 // ── Room types ─────────────────────────────────────────────────────────────
@@ -1943,6 +1983,8 @@ export interface TreatmentPlanDto {
   notes: string | null;
   totalCost: number;
   amountPaid: number;
+  /** Đã xuất hóa đơn → không cho bác sĩ xóa/hủy dịch vụ này khỏi liệu trình. */
+  isInvoiced: boolean;
   stepProgress: StepProgressEntryDto[];
   createdAt: string;
   completedAt: string | null;
@@ -2758,6 +2800,7 @@ export interface InvoiceItemDto {
   quantity: number;
   unitPrice: number;
   lineTotal: number;
+  treatmentPlanId?: string | null; // liệu trình mà dòng này thu tiền cho
 }
 
 export interface BillablePlanDto {
@@ -2811,6 +2854,8 @@ export interface IssueInvoiceItemRequest {
   name: string;
   quantity: number;
   unitPrice: number;
+  treatmentPlanId?: string | null;
+  amountCollected?: number | null; // số thu ngay của dòng (toàn bộ hoặc cọc theo dòng)
 }
 
 export interface IssueInvoiceRequest {

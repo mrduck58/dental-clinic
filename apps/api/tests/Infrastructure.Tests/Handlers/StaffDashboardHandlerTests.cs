@@ -119,8 +119,8 @@ public class StaffDashboardHandlerTests
         _db.Appointments.AddRange(appt1, appt2);
         await _db.SaveChangesAsync();
 
-        var unpaid = Invoice.Issue(appt1.Id, "INV001", [("Khám", 1, 200_000m)], 0, PaymentMethod.Cash, PaymentType.Full, 200_000m);
-        var paid = Invoice.Issue(appt2.Id, "INV002", [("Khám", 1, 300_000m)], 0, PaymentMethod.Cash, PaymentType.Full, 300_000m);
+        var unpaid = Invoice.Issue(appt1.Id, "INV001", [("Khám", 1, 200_000m, null, 200_000m)], 0, PaymentMethod.Cash);
+        var paid = Invoice.Issue(appt2.Id, "INV002", [("Khám", 1, 300_000m, null, 300_000m)], 0, PaymentMethod.Cash);
         paid.MarkAsPaid(PaymentMethod.Cash);
         _db.Invoices.AddRange(unpaid, paid);
         await _db.SaveChangesAsync();
@@ -276,8 +276,8 @@ public class StaffDashboardHandlerTests
         _db.Appointments.AddRange(appt1, appt2);
         await _db.SaveChangesAsync();
 
-        var unpaid = Invoice.Issue(appt1.Id, "INV001", [("Trám răng số 6", 1, 350_000m)], 0, PaymentMethod.Cash, PaymentType.Full, 350_000m);
-        var paid = Invoice.Issue(appt2.Id, "INV002", [("Lấy cao răng", 1, 200_000m)], 0, PaymentMethod.Cash, PaymentType.Full, 200_000m);
+        var unpaid = Invoice.Issue(appt1.Id, "INV001", [("Trám răng số 6", 1, 350_000m, null, 350_000m)], 0, PaymentMethod.Cash);
+        var paid = Invoice.Issue(appt2.Id, "INV002", [("Lấy cao răng", 1, 200_000m, null, 200_000m)], 0, PaymentMethod.Cash);
         paid.MarkAsPaid(PaymentMethod.Cash);
         _db.Invoices.AddRange(unpaid, paid);
         await _db.SaveChangesAsync();
@@ -296,7 +296,7 @@ public class StaffDashboardHandlerTests
         _db.Appointments.Add(appt);
         await _db.SaveChangesAsync();
 
-        var invoice = Invoice.Issue(appt.Id, "INV001", [("Trám răng số 6", 1, 350_000m)], 0, PaymentMethod.Cash, PaymentType.Full, 350_000m);
+        var invoice = Invoice.Issue(appt.Id, "INV001", [("Trám răng số 6", 1, 350_000m, null, 350_000m)], 0, PaymentMethod.Cash);
         _db.Invoices.Add(invoice);
         await _db.SaveChangesAsync();
 
@@ -316,8 +316,8 @@ public class StaffDashboardHandlerTests
         _db.Appointments.AddRange(appt1, appt2);
         await _db.SaveChangesAsync();
 
-        var older = Invoice.Issue(appt1.Id, "INV001", [("A", 1, 100_000m)], 0, PaymentMethod.Cash, PaymentType.Full, 100_000m);
-        var newer = Invoice.Issue(appt2.Id, "INV002", [("B", 1, 100_000m)], 0, PaymentMethod.Cash, PaymentType.Full, 100_000m);
+        var older = Invoice.Issue(appt1.Id, "INV001", [("A", 1, 100_000m, null, 100_000m)], 0, PaymentMethod.Cash);
+        var newer = Invoice.Issue(appt2.Id, "INV002", [("B", 1, 100_000m, null, 100_000m)], 0, PaymentMethod.Cash);
         typeof(Invoice).GetProperty("CreatedAt")!.SetValue(older, DateTimeOffset.UtcNow.AddHours(-2));
         typeof(Invoice).GetProperty("CreatedAt")!.SetValue(newer, DateTimeOffset.UtcNow);
         _db.Invoices.AddRange(newer, older);
@@ -337,7 +337,7 @@ public class StaffDashboardHandlerTests
             var appt = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
             _db.Appointments.Add(appt);
             await _db.SaveChangesAsync();
-            _db.Invoices.Add(Invoice.Issue(appt.Id, $"INV00{i}", [("A", 1, 100_000m)], 0, PaymentMethod.Cash, PaymentType.Full, 100_000m));
+            _db.Invoices.Add(Invoice.Issue(appt.Id, $"INV00{i}", [("A", 1, 100_000m, null, 100_000m)], 0, PaymentMethod.Cash));
         }
         await _db.SaveChangesAsync();
 
@@ -364,7 +364,7 @@ public class StaffDashboardHandlerTests
         _db.Appointments.Add(appt);
         await _db.SaveChangesAsync();
 
-        var invoice = Invoice.Issue(appt.Id, "INV001", [], 0, PaymentMethod.Cash, PaymentType.Full, 0m);
+        var invoice = Invoice.Issue(appt.Id, "INV001", [], 0, PaymentMethod.Cash);
         _db.Invoices.Add(invoice);
         await _db.SaveChangesAsync();
 
@@ -383,7 +383,7 @@ public class StaffDashboardHandlerTests
             var appt = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
             _db.Appointments.Add(appt);
             await _db.SaveChangesAsync();
-            _db.Invoices.Add(Invoice.Issue(appt.Id, $"INV00{i}", [("A", 1, 100_000m)], 0, PaymentMethod.Cash, PaymentType.Full, 100_000m));
+            _db.Invoices.Add(Invoice.Issue(appt.Id, $"INV00{i}", [("A", 1, 100_000m, null, 100_000m)], 0, PaymentMethod.Cash));
         }
         await _db.SaveChangesAsync();
 
@@ -400,7 +400,7 @@ public class StaffDashboardHandlerTests
         var appt = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
         _db.Appointments.Add(appt);
         await _db.SaveChangesAsync();
-        _db.Invoices.Add(Invoice.Issue(appt.Id, "INV001", [("A", 1, 100_000m)], 0, PaymentMethod.Cash, PaymentType.Full, 100_000m));
+        _db.Invoices.Add(Invoice.Issue(appt.Id, "INV001", [("A", 1, 100_000m, null, 100_000m)], 0, PaymentMethod.Cash));
         await _db.SaveChangesAsync();
 
         var result = await _handler.GetPendingInvoicesAsync(200);

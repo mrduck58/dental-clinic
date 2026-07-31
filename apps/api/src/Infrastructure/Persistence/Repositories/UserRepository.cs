@@ -84,9 +84,16 @@ public class UserRepository(AppDbContext db) : IUserRepository
 
         if (!string.IsNullOrWhiteSpace(status))
         {
-            query = query.Where(u => 
-                (u.Staff != null && u.Staff.EmploymentStatus == status) ||
-                (u.Dentist != null && u.Dentist.EmploymentStatus == status));
+            // EmploymentStatus là cột NOT NULL; nhân sự chưa từng được set lưu chuỗi rỗng
+            // chứ không phải null, và mặc định phải được coi là "Active" (giống các nơi khác
+            // trong hệ thống dùng "?? Active"). Nếu không, lọc status=Active sẽ luôn ra rỗng.
+            query = string.Equals(status, "Active", StringComparison.OrdinalIgnoreCase)
+                ? query.Where(u =>
+                    (u.Staff != null && (string.IsNullOrEmpty(u.Staff.EmploymentStatus) || u.Staff.EmploymentStatus == status)) ||
+                    (u.Dentist != null && (string.IsNullOrEmpty(u.Dentist.EmploymentStatus) || u.Dentist.EmploymentStatus == status)))
+                : query.Where(u =>
+                    (u.Staff != null && u.Staff.EmploymentStatus == status) ||
+                    (u.Dentist != null && u.Dentist.EmploymentStatus == status));
         }
 
         var total = await query.CountAsync(ct);

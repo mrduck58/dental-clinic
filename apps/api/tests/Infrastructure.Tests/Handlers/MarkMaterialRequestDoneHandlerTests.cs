@@ -40,7 +40,7 @@ public class MarkMaterialRequestDoneHandlerTests
     [Test]
     public async Task HandleAsync_ValidRequest_MarksAsDoneWithHandlerInfo()
     {
-        var request = MaterialRequest.Create(Guid.NewGuid(), "Niềng răng", "Bệnh nhân A", "BS X", "Cần thêm khay niềng");
+        var request = MaterialRequest.Create("Niềng răng", "Bệnh nhân A", "BS X", "Cần thêm khay niềng");
         _db.MaterialRequests.Add(request);
         await _db.SaveChangesAsync();
 
@@ -57,7 +57,7 @@ public class MarkMaterialRequestDoneHandlerTests
     [Test]
     public async Task HandleAsync_AlreadyDoneRequest_OverwritesHandledByWithLatestValue()
     {
-        var request = MaterialRequest.Create(Guid.NewGuid(), "Niềng răng", "Bệnh nhân A", "BS X", "Cần thêm khay niềng");
+        var request = MaterialRequest.Create("Niềng răng", "Bệnh nhân A", "BS X", "Cần thêm khay niềng");
         request.MarkDone("staff1");
         _db.MaterialRequests.Add(request);
         await _db.SaveChangesAsync();

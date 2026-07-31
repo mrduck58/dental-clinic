@@ -18,15 +18,66 @@ public class MaterialRequestDto
     public string? HandledBy { get; set; }
 }
 
+public record CreateMaterialRequestRequest(Guid AppointmentId, string Content);
+
+/// <summary>Bác sĩ gửi yêu cầu vật tư từ buổi khám → sang trang nhập–xuất vật tư của staff.</summary>
+public class CreateMaterialRequestHandler(AppDbContext dbContext)
+{
+    public async Task<MaterialRequestDto> HandleAsync(CreateMaterialRequestRequest request, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.Content))
+            throw new ValidationException("Nội dung yêu cầu vật tư không được để trống.");
+
+        var appt = await dbContext.Appointments
+            .AsNoTracking()
+            .Include(a => a.Patient)
+            .Include(a => a.Dentist)
+            .Include(a => a.Service)
+            .FirstOrDefaultAsync(a => a.Id == request.AppointmentId, ct)
+            ?? throw new NotFoundException("Không tìm thấy lịch hẹn.");
+
+        var mr = MaterialRequest.Create(
+            courseName: appt.Service?.Name ?? "Khám tổng quát",
+            patientName: appt.Patient.FullName,
+            dentistName: appt.Dentist.FullName,
+            content: request.Content.Trim(),
+            courseId: appt.PatientId); // dùng CourseId (cột cũ, không còn dùng cho course) để lưu PatientId
+
+        dbContext.MaterialRequests.Add(mr);
+        await dbContext.SaveChangesAsync(ct);
+
+        return new MaterialRequestDto
+        {
+            Id = mr.Id,
+            CourseName = mr.CourseName,
+            PatientName = mr.PatientName,
+            DentistName = mr.DentistName,
+            Content = mr.Content,
+            Status = mr.Status.ToString(),
+            CreatedAt = mr.CreatedAt
+        };
+    }
+}
+
 /// <summary>Danh sách yêu cầu vật tư từ bác sĩ (cho trang nhập–xuất vật tư của staff).</summary>
 public class GetMaterialRequestsHandler(AppDbContext dbContext)
 {
-    public async Task<List<MaterialRequestDto>> HandleAsync(string? status, CancellationToken ct = default)
+    public async Task<List<MaterialRequestDto>> HandleAsync(string? status, Guid? patientId = null, string? patientName = null, CancellationToken ct = default)
     {
         var query = dbContext.MaterialRequests.AsNoTracking().AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<MaterialRequestStatus>(status, true, out var st))
             query = query.Where(m => m.Status == st);
+
+        // Lọc theo bệnh nhân: khớp PatientId (lưu ở CourseId) HOẶC tên (bao gồm dữ liệu cũ chưa có id).
+        var hasId = patientId is Guid;
+        var hasName = !string.IsNullOrWhiteSpace(patientName);
+        if (hasId && hasName)
+            query = query.Where(m => m.CourseId == patientId || m.PatientName == patientName);
+        else if (hasId)
+            query = query.Where(m => m.CourseId == patientId);
+        else if (hasName)
+            query = query.Where(m => m.PatientName == patientName);
 
         var rows = await query
             .OrderByDescending(m => m.CreatedAt)

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import StaffSidebar from "../../../components/shared/StaffSidebar";
 import StaffPageHeader from "../../../components/shared/StaffPageHeader";
 import { useRequireStaff } from "../../../hooks/useRequireStaff";
@@ -38,6 +38,46 @@ const fmtWait = (mins: number) => {
 };
 
 type DragState = { appointmentId: string; fromRoom: string | null } | null;
+
+// Hai hàm dưới cập nhật hàng đợi NGAY trên client để thao tác phản hồi tức thì, thay vì đợi
+// hai lượt gọi mạng (ghi + tải lại) mới thấy kết quả. Backend vẫn là nơi chốt: sai thì trả về
+// nguyên trạng, còn giá trị nào chỉ backend tính được thì tải lại ngầm để chỉnh sau.
+
+/// Đổi chỗ hai bệnh nhân cạnh nhau. Backend chỉ hoán vị trí hiển thị (QueueOrder) và giữ nguyên
+/// số thứ tự của mỗi người, nên kết quả cục bộ trùng khớp hoàn toàn — không cần tải lại.
+const swapPatientsLocally = (
+  data: WaitingQueueResponse, aId: string, bId: string,
+): WaitingQueueResponse => ({
+  ...data,
+  rooms: data.rooms.map(room => {
+    const ia = room.patients.findIndex(p => p.appointmentId === aId);
+    const ib = room.patients.findIndex(p => p.appointmentId === bId);
+    if (ia < 0 || ib < 0) return room;
+    const patients = [...room.patients];
+    [patients[ia], patients[ib]] = [patients[ib], patients[ia]];
+    return { ...room, patients };
+  }),
+});
+
+/// Chuyển bệnh nhân sang phòng khác: rời phòng cũ, xuống CUỐI phòng mới (người đang khám vẫn
+/// đứng đầu vì backend xếp theo trạng thái trước). Số thứ tự mới do backend đánh nên giữ tạm
+/// số cũ, lượt tải lại ngầm ngay sau đó sẽ chỉnh đúng.
+const movePatientLocally = (
+  data: WaitingQueueResponse, appointmentId: string, toRoom: string, dentistName?: string,
+): WaitingQueueResponse => {
+  const found = data.rooms.flatMap(r => r.patients).find(p => p.appointmentId === appointmentId);
+  if (!found) return data;
+  const moved = { ...found, dentistName: dentistName ?? found.dentistName };
+  return {
+    ...data,
+    rooms: data.rooms.map(room => {
+      const without = room.patients.filter(p => p.appointmentId !== appointmentId);
+      return room.roomName === toRoom
+        ? { ...room, patients: [...without, moved] }
+        : { ...room, patients: without };
+    }),
+  };
+};
 
 function RoomQueueCard({ room, canDrag, drag, onDragStart, onDragEnd, onDrop, onReorder, transferringId, reorderingId }: {
   room: RoomQueueDto;
@@ -295,37 +335,67 @@ export default function QueuePage() {
   // với hàng đợi của hôm nay; ngày quá khứ không có khái niệm "đang trong ca".
   const isToday = selectedDate === queueTodayIso();
 
-  const loadQueue = useCallback(async () => {
+  const inFlight = useRef(false);
+
+  // silent = cập nhật tại chỗ, không thay cả bảng bằng spinner. Chỉ lần tải đầu và khi đổi
+  // ngày mới cần spinner; các lần làm mới sau một thao tác hoặc theo định kỳ thì không, nếu
+  // không mỗi lần chuyển phòng bảng lại nháy trắng như đang tải lại từ đầu.
+  const loadQueue = useCallback(async (silent = false) => {
+    inFlight.current = true;
+    if (!silent) setLoading(true);
     try {
-      setLoading(true);
       const data = await getWaitingQueueApi(selectedDate);
       setQueueData(data);
       setError(null);
     } catch {
       setError("Không thể tải hàng đợi");
     } finally {
-      setLoading(false);
+      inFlight.current = false;
+      if (!silent) setLoading(false);
     }
   }, [selectedDate]);
+
+  // Làm mới do nền kích hoạt (realtime, poll định kỳ). Bỏ qua nếu đang có lượt tải chạy dở:
+  // sau khi tự chuyển phòng, realtime bắn thêm một event cho đúng thay đổi đó — gọi API lần
+  // hai là vô ích. Lượt tải mình chủ động gọi thì luôn chạy, không bị bỏ qua.
+  const refreshInBackground = useCallback(() => {
+    if (inFlight.current) return;
+    void loadQueue(true);
+  }, [loadQueue]);
 
   useEffect(() => {
     void loadQueue();
     const channel = supabase
       .channel("staff-queue-page")
       .on("postgres_changes", { event: "*", schema: "public", table: "Appointments" }, () => {
-        void loadQueue();
+        refreshInBackground();
       })
       .subscribe();
-    return () => { void supabase.removeChannel(channel); };
-  }, [loadQueue]);
+    // Trạng thái "đang trực"/"sắp vào ca" của từng phòng đổi theo giờ, không theo thay đổi
+    // lịch hẹn — nếu không có ai đụng vào Appointments trong lúc trang mở lâu, dữ liệu ca trực
+    // sẽ cũ dần và cho phép kéo-thả vào phòng đã hết bác sĩ trực (backend sẽ từ chối lúc thả).
+    // Poll định kỳ để giữ nó luôn khớp với giờ thực tế.
+    const shiftPoll = setInterval(refreshInBackground, 60_000);
+    return () => { void supabase.removeChannel(channel); clearInterval(shiftPoll); };
+  }, [loadQueue, refreshInBackground]);
 
   const doTransfer = async (appointmentId: string, roomName: string, dentistId?: string) => {
     setTransferringId(appointmentId);
+    const snapshot = queueData;
+    const dentistName = queueData?.rooms
+      .find(r => r.roomName === roomName)?.dentists
+      .find(d => d.dentistId === dentistId)?.dentistName;
+    setQueueData(prev => prev && movePatientLocally(prev, appointmentId, roomName, dentistName));
     try {
       await transferQueuePatientApi(appointmentId, roomName, dentistId);
-      await loadQueue();
+      // Số thứ tự ở phòng mới do backend đánh — tải lại ngầm để chỉnh, bảng không nháy.
+      await loadQueue(true);
     } catch (e) {
       alert(e instanceof Error ? e.message : "Không thể chuyển bệnh nhân sang phòng khác");
+      // Backend là nơi chốt bác sĩ nào nhận được bệnh nhân. Bị từ chối thì trả về nguyên trạng
+      // rồi tải lại, để UI thôi cho phép thả vào phòng đó và lễ tân không thử lại vô ích.
+      setQueueData(snapshot);
+      await loadQueue(true);
     } finally {
       setTransferringId(null);
     }
@@ -360,11 +430,14 @@ export default function QueuePage() {
 
   const handleReorder = async (appointmentId: string, swapWithAppointmentId: string) => {
     setReorderingId(appointmentId);
+    const snapshot = queueData;
+    setQueueData(prev => prev && swapPatientsLocally(prev, appointmentId, swapWithAppointmentId));
     try {
+      // Kết quả cục bộ khớp hoàn toàn với backend nên KHÔNG tải lại — tiết kiệm hẳn một lượt GET.
       await reorderQueuePatientApi(appointmentId, swapWithAppointmentId);
-      await loadQueue();
     } catch (e) {
       alert(e instanceof Error ? e.message : "Không thể đổi thứ tự hàng đợi");
+      setQueueData(snapshot);
     } finally {
       setReorderingId(null);
     }
@@ -423,7 +496,7 @@ export default function QueuePage() {
           ) : error ? (
             <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm flex flex-col items-center gap-3 py-16">
               <p className="text-[14px] font-semibold text-red-500">{error}</p>
-              <button onClick={loadQueue} className="px-4 py-2 text-[13px] font-bold bg-primary text-white rounded-xl cursor-pointer">
+              <button onClick={() => void loadQueue()} className="px-4 py-2 text-[13px] font-bold bg-primary text-white rounded-xl cursor-pointer">
                 Thử lại
               </button>
             </div>

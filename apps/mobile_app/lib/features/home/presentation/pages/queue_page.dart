@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/settings_manager.dart';
+import 'package:mobile_app/core/constants/api_constants.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/auth/data/auth_service.dart';
 import 'package:mobile_app/features/profile/data/family_member.dart';
@@ -276,7 +277,9 @@ class _QueuePageState extends State<QueuePage> {
                                   ? (avatar.startsWith('assets/')
                                       ? Image.asset(avatar, fit: BoxFit.cover)
                                       : Image.network(
-                                          avatar,
+                                          avatar.startsWith('http')
+                                              ? avatar
+                                              : '${ApiConstants.baseUrl.replaceAll('/api', '')}$avatar',
                                           fit: BoxFit.cover,
                                           errorBuilder: (_, __, ___) => _buildFallbackAvatar(isSelected),
                                         ))

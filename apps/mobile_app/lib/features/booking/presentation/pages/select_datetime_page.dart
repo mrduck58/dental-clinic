@@ -7,6 +7,8 @@ import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/booking/data/booking_models.dart';
 import 'package:mobile_app/features/booking/presentation/widgets/booking_widgets.dart';
 
+import 'package:mobile_app/features/booking/data/booking_service.dart';
+
 class SelectDatetimePage extends StatefulWidget {
   final BookingDraft draft;
   const SelectDatetimePage({super.key, required this.draft});
@@ -18,6 +20,8 @@ class SelectDatetimePage extends StatefulWidget {
 class _SelectDatetimePageState extends State<SelectDatetimePage> {
   late DateTime _month;
   DateTime? _selected;
+  Set<String> _workingDates = {};
+  bool _loadingWorkingDates = false;
 
   static const _headersVi = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
   static const _headersEn = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
@@ -36,14 +40,33 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
   @override
   void initState() {
     super.initState();
-    // Nếu chatbot AI đã trích xuất được ngày mong muốn, hiển thị sẵn tháng/ngày đó
-    // thay vì luôn mở ở tháng hiện tại.
     final initialDate = widget.draft.date;
     final now = DateTime.now();
     _month = initialDate != null
         ? DateTime(initialDate.year, initialDate.month)
         : DateTime(now.year, now.month);
     _selected = initialDate;
+    _loadWorkingDates();
+  }
+
+  Future<void> _loadWorkingDates() async {
+    final docId = widget.draft.doctor?.id ?? widget.draft.preferredDentistId;
+    if (docId == null) return;
+    setState(() => _loadingWorkingDates = true);
+    final dates = await BookingService().getWorkingDatesForDentist(docId, _month.year, _month.month);
+    if (mounted) {
+      setState(() {
+        _workingDates = dates;
+        _loadingWorkingDates = false;
+      });
+    }
+  }
+
+  void _changeMonth(int delta) {
+    setState(() {
+      _month = DateTime(_month.year, _month.month + delta);
+    });
+    _loadWorkingDates();
   }
 
   bool _isPast(DateTime d) {
@@ -54,7 +77,18 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
     final now = DateTime.now();
     return d.year == now.year && d.month == now.month && d.day == now.day;
   }
-  bool _isAvailable(DateTime d) => !_isPast(d);
+
+  bool _isAvailable(DateTime d) {
+    if (_isPast(d)) return false;
+    final docId = widget.draft.doctor?.id ?? widget.draft.preferredDentistId;
+    if (docId == null) return d.weekday != DateTime.sunday;
+    if (_loadingWorkingDates) return false;
+    if (_workingDates.isNotEmpty) {
+      final dateStr = '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+      return _workingDates.contains(dateStr);
+    }
+    return d.weekday != DateTime.sunday;
+  }
   bool _isSelected(DateTime d) =>
       _selected != null &&
       d.year == _selected!.year &&
@@ -102,14 +136,65 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
           children: [
             const SizedBox(height: 16),
 
+            if (widget.draft.doctor != null) ...[
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: context.isDark ? 0.2 : 0.08),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        color: AppColors.primaryLight,
+                        child: widget.draft.doctor!.avatarUrl != null && widget.draft.doctor!.avatarUrl!.isNotEmpty
+                            ? Image.network(
+                                widget.draft.doctor!.avatarUrl!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => const Icon(Iconsax.user, color: AppColors.primary, size: 20),
+                              )
+                            : const Icon(Iconsax.user, color: AppColors.primary, size: 20),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            isVi ? 'Đang chọn lịch cho Nha sĩ:' : 'Selected Dentist:',
+                            style: TextStyle(fontSize: 11, color: context.textMuted),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            widget.draft.doctor!.fullName.toLowerCase().startsWith('bs') ||
+                                    widget.draft.doctor!.fullName.toLowerCase().startsWith('bác sĩ') ||
+                                    widget.draft.doctor!.fullName.toLowerCase().startsWith('dr')
+                                ? widget.draft.doctor!.fullName
+                                : 'BS. ${widget.draft.doctor!.fullName}',
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: context.textPrimary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
             // ── Month navigation ─────────────────────────────────────────────
             Row(
               children: [
                 _NavBtn(
                   icon: Iconsax.arrow_left_2,
                   enabled: _canGoPrev,
-                  onTap: () => setState(() =>
-                      _month = DateTime(_month.year, _month.month - 1)),
+                  onTap: () => _changeMonth(-1),
                 ),
                 Expanded(
                   child: Text(
@@ -124,8 +209,7 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
                 ),
                 _NavBtn(
                   icon: Iconsax.arrow_right_2,
-                  onTap: () => setState(() =>
-                      _month = DateTime(_month.year, _month.month + 1)),
+                  onTap: () => _changeMonth(1),
                 ),
               ],
             ),

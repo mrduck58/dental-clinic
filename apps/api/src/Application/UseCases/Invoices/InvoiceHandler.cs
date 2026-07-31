@@ -12,7 +12,7 @@ namespace DentalClinic.API.Application.UseCases.Invoices;
 #region DTOs & Requests
 
 /// <summary>Một dòng dịch vụ trên hóa đơn (hoặc gợi ý từ liệu trình).</summary>
-public record InvoiceItemDto(string Name, int Quantity, decimal UnitPrice)
+public record InvoiceItemDto(string Name, int Quantity, decimal UnitPrice, Guid? TreatmentPlanId = null)
 {
     public decimal LineTotal => Quantity * UnitPrice;
 }
@@ -92,7 +92,7 @@ public class InvoiceDto
     public bool CollectingRemaining { get; set; }  // đang trong quy trình thu phần còn lại
 }
 
-public record IssueInvoiceItemRequest(string Name, int Quantity, decimal UnitPrice);
+public record IssueInvoiceItemRequest(string Name, int Quantity, decimal UnitPrice, Guid? TreatmentPlanId = null, decimal? AmountCollected = null);
 
 public record IssueInvoiceRequest(
     Guid AppointmentId,
@@ -120,85 +120,96 @@ public class InvoiceHandler(
     /// </summary>
     public async Task<List<BillablePlanDto>> GetBillablePlansAsync(CancellationToken ct = default)
     {
-        // 1) Lịch hẹn đã kết thúc điều trị, chưa có hóa đơn cho buổi này.
+        // 1) Buổi đã kết thúc điều trị — cho phép xuất NHIỀU hóa đơn/buổi (mỗi dịch vụ một hóa đơn,
+        // kiểu thanh toán riêng), nên KHÔNG lọc "buổi chưa có hóa đơn".
         var appointments = await dbContext.Appointments
             .AsNoTracking()
             .Include(a => a.Patient).ThenInclude(p => p.User)
             .Include(a => a.Dentist).ThenInclude(d => d.User)
             .Include(a => a.Diagnoses)
-            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Service)
-            .Where(a => a.Status == AppointmentStatus.PendingPayment && !a.Invoices.Any())
+            .Where(a => a.Status == AppointmentStatus.PendingPayment)
             .OrderBy(a => a.AppointmentDate)
             .ToListAsync(ct);
 
-        // Liệu trình đang điều trị còn nợ của các bệnh nhân liên quan (cho buổi tái khám không có chỉ định mới).
         var patientIds = appointments.Select(a => a.PatientId).Distinct().ToList();
-        var outstandingPlans = patientIds.Count == 0
+
+        // Tất cả liệu trình (chưa hủy) của các bệnh nhân liên quan — KHÔNG lọc theo trạng thái lâm sàng:
+        // một dịch vụ chưa thu đủ tiền vẫn phải xuất hóa đơn dù bác sĩ đã đánh dấu "Hoàn thành".
+        var allPlans = patientIds.Count == 0
             ? new List<TreatmentPlan>()
             : await dbContext.TreatmentPlans
                 .AsNoTracking()
                 .Include(tp => tp.Service)
-                .Where(tp => patientIds.Contains(tp.PatientId) && tp.Status == TreatmentPlanStatus.InProgress)
+                .Where(tp => patientIds.Contains(tp.PatientId) && tp.Status != TreatmentPlanStatus.Cancelled)
                 .ToListAsync(ct);
-        var paidByPlan = await GetPlanPaidMapAsync(outstandingPlans.Select(p => p.Id).ToList(), ct);
+        var planIds = allPlans.Select(p => p.Id).ToList();
+        var billedByPlan = await GetPlanBilledMapAsync(planIds, ct); // đã gắn vào hóa đơn (tránh xuất trùng)
+        var paidByPlan = await GetPlanPaidMapAsync(planIds, ct);     // đã thu (hiển thị)
+
+        // Bản đồ cha-con để gom liệu trình theo ĐÚNG chuỗi tái khám của mỗi buổi.
+        var parentById = patientIds.Count == 0
+            ? new Dictionary<Guid, Guid?>()
+            : (await dbContext.Appointments
+                .AsNoTracking()
+                .Where(a => patientIds.Contains(a.PatientId))
+                .Select(a => new { a.Id, a.FollowUpFromAppointmentId })
+                .ToListAsync(ct))
+                .ToDictionary(a => a.Id, a => a.FollowUpFromAppointmentId);
+
+        HashSet<Guid> ChainOf(Guid id)
+        {
+            var chain = new HashSet<Guid>();
+            Guid? cursor = id;
+            while (cursor is Guid c && chain.Add(c))
+                cursor = parentById.TryGetValue(c, out var next) ? next : null;
+            return chain;
+        }
+
+        // Gán mỗi dịch vụ chưa xuất hóa đơn hết cho buổi PendingPayment MỚI NHẤT trong chuỗi của nó,
+        // rồi gom các dịch vụ theo buổi → mỗi buổi MỘT thẻ (nhiều dòng, chọn thanh toán theo từng dòng).
+        var byHost = new Dictionary<Guid, List<TreatmentPlan>>();
+        foreach (var plan in allPlans.OrderBy(p => p.CreatedAt))
+        {
+            if (plan.AppointmentId is not Guid planApptId) continue;
+            if (plan.TotalCost - billedByPlan.GetValueOrDefault(plan.Id, 0m) <= 0) continue;
+
+            Appointment? host = null;
+            foreach (var a in appointments)
+                if (a.PatientId == plan.PatientId && ChainOf(a.Id).Contains(planApptId)
+                    && (host == null || a.AppointmentDate > host.AppointmentDate))
+                    host = a;
+            if (host == null) continue;
+
+            if (!byHost.TryGetValue(host.Id, out var list)) byHost[host.Id] = list = new List<TreatmentPlan>();
+            list.Add(plan);
+        }
 
         var result = new List<BillablePlanDto>();
         foreach (var a in appointments)
         {
-            var ownPlans = a.TreatmentPlans
-                .Where(tp => tp.Status != TreatmentPlanStatus.Cancelled)
-                .OrderBy(tp => tp.CreatedAt)
-                .ToList();
-
-            if (ownPlans.Count > 0)
+            if (!byHost.TryGetValue(a.Id, out var plans)) continue;
+            var items = plans.Select(p =>
             {
-                var items = ownPlans
-                    .Select(tp => new InvoiceItemDto(BuildPlanName(tp), tp.Quantity, tp.UnitPrice))
-                    .ToList();
+                var billed = billedByPlan.GetValueOrDefault(p.Id, 0m);
+                var toBill = p.TotalCost - billed;
+                return billed <= 0
+                    ? new InvoiceItemDto(BuildPlanName(p), p.Quantity, p.UnitPrice, p.Id)
+                    : new InvoiceItemDto($"{BuildPlanName(p)} (còn lại)", 1, toBill, p.Id);
+            }).ToList();
 
-                result.Add(new BillablePlanDto
-                {
-                    AppointmentId = a.Id,
-                    AppointmentCode = BuildAppointmentCode(a),
-                    PatientName = a.Patient.FullName,
-                    PatientPhone = a.Patient.User?.PhoneNumber,
-                    Gender = a.Patient.Gender,
-                    DentistName = a.Dentist.FullName,
-                    AppointmentDate = a.AppointmentDate,
-                    Diagnosis = string.Join("; ", a.Diagnoses.Select(d => d.Description)),
-                    Items = items,
-                    SuggestedTotal = items.Sum(i => i.LineTotal)
-                });
-                continue;
-            }
-
-            // Buổi hẹn không có chỉ định mới → gợi ý thu đợt cho các liệu trình còn nợ của bệnh nhân.
-            foreach (var plan in outstandingPlans.Where(p => p.PatientId == a.PatientId))
+            result.Add(new BillablePlanDto
             {
-                var paid = paidByPlan.GetValueOrDefault(plan.Id, 0m);
-                var remaining = Math.Max(0, plan.TotalCost - paid);
-                if (remaining <= 0) continue;
-
-                var planName = BuildPlanName(plan);
-                result.Add(new BillablePlanDto
-                {
-                    AppointmentId = a.Id,
-                    AppointmentCode = BuildAppointmentCode(a),
-                    PatientName = a.Patient.FullName,
-                    PatientPhone = a.Patient.User?.PhoneNumber,
-                    Gender = a.Patient.Gender,
-                    DentistName = a.Dentist.FullName,
-                    AppointmentDate = a.AppointmentDate,
-                    Diagnosis = $"Liệu trình điều trị: {planName}",
-                    Items = new List<InvoiceItemDto> { new($"Đợt thu - {planName}", 1, remaining) },
-                    SuggestedTotal = remaining,
-                    TreatmentPlanId = plan.Id,
-                    PlanName = planName,
-                    PlanTotal = plan.TotalCost,
-                    PlanAmountPaid = paid,
-                    PlanRemaining = remaining
-                });
-            }
+                AppointmentId = a.Id,
+                AppointmentCode = BuildAppointmentCode(a),
+                PatientName = a.Patient.FullName,
+                PatientPhone = a.Patient.User?.PhoneNumber,
+                Gender = a.Patient.Gender,
+                DentistName = a.Dentist.FullName,
+                AppointmentDate = a.AppointmentDate,
+                Diagnosis = string.Join("; ", a.Diagnoses.Select(d => d.Description)),
+                Items = items,
+                SuggestedTotal = items.Sum(i => i.LineTotal)
+            });
         }
 
         // 2) Hóa đơn đặt cọc đang được yêu cầu thu phần còn lại (chưa tạo hóa đơn con).
@@ -254,32 +265,46 @@ public class InvoiceHandler(
         if (appointment.Status != AppointmentStatus.PendingPayment)
             throw new ValidationException("Chỉ có thể xuất hóa đơn cho lịch hẹn đã kết thúc điều trị (chờ thanh toán).");
 
-        if (appointment.Invoices.Any())
-            throw new ConflictException("Lịch hẹn này đã có hóa đơn.");
-
         if (request.Items == null || request.Items.Count == 0)
             throw new ValidationException("Hóa đơn phải có ít nhất một dịch vụ.");
 
+        // Cho phép nhiều hóa đơn/buổi, nhưng chặn xuất vượt tổng tiền của mỗi liệu trình
+        // (tránh xuất trùng dịch vụ đã có hóa đơn trước đó).
+        var lineByPlan = request.Items
+            .Where(i => i.TreatmentPlanId != null)
+            .GroupBy(i => i.TreatmentPlanId!.Value)
+            .ToDictionary(g => g.Key, g => g.Sum(i => (i.Quantity < 1 ? 1 : i.Quantity) * i.UnitPrice));
+        if (lineByPlan.Count > 0)
+        {
+            var billedMap = await GetPlanBilledMapAsync(lineByPlan.Keys.ToList(), ct);
+            var plans = await dbContext.TreatmentPlans
+                .Where(tp => lineByPlan.Keys.Contains(tp.Id))
+                .Select(tp => new { tp.Id, tp.UnitPrice, tp.Quantity })
+                .ToListAsync(ct);
+            foreach (var p in plans)
+            {
+                var total = p.UnitPrice * Math.Max(1, p.Quantity);
+                var remainingToBill = total - billedMap.GetValueOrDefault(p.Id, 0m);
+                if (lineByPlan[p.Id] > remainingToBill + 1m)
+                    throw new ValidationException("Số tiền xuất hóa đơn vượt quá phần chưa xuất của dịch vụ.");
+            }
+        }
+
         var paymentMethod = ParsePaymentMethod(request.PaymentMethod);
-        var paymentType = ParsePaymentType(request.PaymentType);
 
-        var subtotal = request.Items.Sum(i => (i.Quantity < 1 ? 1 : i.Quantity) * i.UnitPrice);
-        var total = Math.Max(0, subtotal - (request.Discount < 0 ? 0 : request.Discount));
-
-        if (paymentType == PaymentType.Deposit && (request.DepositAmount <= 0 || request.DepositAmount > total))
-            throw new ValidationException("Số tiền đặt cọc phải lớn hơn 0 và không vượt quá tổng tiền.");
-
+        // Thu ngay của mỗi dòng: mặc định = thành tiền (thu toàn bộ); nếu đặt cọc thì là số cọc của dòng.
         var invoiceNumber = await GenerateInvoiceNumberAsync(ct);
 
         var invoice = Invoice.Issue(
             appointment.Id,
             invoiceNumber,
-            request.Items.Select(i => (i.Name, i.Quantity, i.UnitPrice)),
+            request.Items.Select(i => (i.Name, i.Quantity, i.UnitPrice, i.TreatmentPlanId, i.AmountCollected)),
             request.Discount,
             paymentMethod,
-            paymentType,
-            request.DepositAmount,
             request.Notes);
+
+        if (invoice.DepositAmount <= 0)
+            throw new ValidationException("Số tiền thu phải lớn hơn 0.");
 
         dbContext.Invoices.Add(invoice);
         await dbContext.SaveChangesAsync(ct);
@@ -469,7 +494,10 @@ public class InvoiceHandler(
                     CreatedAt = p.CreatedAt
                 };
             })
-            .Where(dto => dto.RemainingAmount > 0)
+            // Chỉ tính là công nợ khi ĐÃ thu một phần mà còn thiếu (trả góp dở dang).
+            // Liệu trình chưa thu đồng nào chỉ là "đang điều trị", chưa phải nợ — sẽ xuất
+            // hóa đơn ở tab "Liệu trình → Hóa đơn" của buổi tương ứng.
+            .Where(dto => dto.AmountPaid > 0 && dto.RemainingAmount > 0)
             .ToList();
     }
 
@@ -508,29 +536,82 @@ public class InvoiceHandler(
 
         invoice.MarkAsPaid(paymentMethod);
 
-        // Nếu đây là hóa đơn thu phần còn lại → tất toán hóa đơn gốc.
+        // Đóng mọi giao dịch cổng thanh toán còn Pending của hóa đơn này (nếu có) — hóa đơn vừa được xác nhận
+        // thanh toán (thủ công, qua webhook, hay qua đối soát dự phòng — hàm này dùng chung cho cả 3 đường), các
+        // giao dịch Pending khác chắc chắn sẽ không bao giờ Paid được nữa (CreatePaymentRequestAsync chặn tạo mới
+        // khi hóa đơn đã Paid). Nếu không dọn, dữ liệu sẽ có invoice=Paid nhưng transaction=Pending mãi mãi — gây
+        // nhiễu khi tra soát và tốn lệnh gọi PayOS mỗi lượt poll nếu còn client đang mở màn hình hóa đơn đó.
+        var pendingTxns = await dbContext.PaymentTransactions
+            .Where(t => t.InvoiceId == invoice.Id && t.Status == TransactionStatus.Pending)
+            .ToListAsync(ct);
+        foreach (var t in pendingTxns)
+            t.MarkFailed("Hóa đơn đã được xác nhận thanh toán.", null);
+
+        // Nếu đây là hóa đơn thu phần còn lại → tất toán hóa đơn cọc gốc.
+        Invoice? parent = null;
         if (invoice.ParentInvoiceId is Guid parentId)
         {
-            var parent = await dbContext.Invoices.FirstOrDefaultAsync(i => i.Id == parentId, ct);
+            parent = await dbContext.Invoices.FirstOrDefaultAsync(i => i.Id == parentId, ct);
             parent?.Settle();
         }
 
-        // Nếu đây là đợt thu của liệu trình điều trị → kiểm tra đã thu đủ chưa.
-        if (invoice.TreatmentPlanId is Guid treatmentPlanId)
+        // Credit công nợ cho từng liệu trình theo SỐ THU CỦA TỪNG DÒNG.
+        // - Hóa đơn thường: mỗi dòng credit đúng AmountCollected của nó (toàn bộ hoặc cọc của dòng).
+        // - Hóa đơn thu phần còn lại: lấy dòng của hóa đơn cọc gốc, credit nốt phần còn nợ của từng dòng.
+        var creditSource = parent ?? invoice;
+        var creditRemaining = parent != null; // true → thu nốt phần còn lại của các dòng gốc
+
+        var lines = await dbContext.InvoiceItems
+            .Where(it => it.InvoiceId == creditSource.Id && it.TreatmentPlanId != null)
+            .Select(it => new
+            {
+                PlanId = it.TreatmentPlanId!.Value,
+                Collected = it.AmountCollected,
+                Line = it.Quantity * it.UnitPrice
+            })
+            .ToListAsync(ct);
+
+        var creditByPlan = new Dictionary<Guid, decimal>();
+        foreach (var l in lines)
         {
-            var plan = await dbContext.TreatmentPlans.FirstOrDefaultAsync(tp => tp.Id == treatmentPlanId, ct);
+            var credit = creditRemaining ? Math.Max(0, l.Line - l.Collected) : l.Collected;
+            creditByPlan[l.PlanId] = creditByPlan.GetValueOrDefault(l.PlanId, 0m) + credit;
+        }
+        // Tương thích ngược: hóa đơn "đợt thu" cũ gắn liệu trình ở cấp hóa đơn.
+        if ((parent?.TreatmentPlanId ?? invoice.TreatmentPlanId) is Guid headerPlanId)
+        {
+            var headerCredit = creditRemaining ? (parent?.RemainingAmount ?? 0m) : invoice.DepositAmount;
+            creditByPlan[headerPlanId] = creditByPlan.GetValueOrDefault(headerPlanId, 0m) + headerCredit;
+        }
+
+        foreach (var (pid, thisCredit) in creditByPlan)
+        {
+            var plan = await dbContext.TreatmentPlans.FirstOrDefaultAsync(tp => tp.Id == pid, ct);
             if (plan != null && plan.Status == TreatmentPlanStatus.InProgress)
             {
-                // GetPlanPaidAsync đọc từ DB (chưa gồm hóa đơn hiện tại) → cộng thêm số của đợt này.
-                var paidBefore = await GetPlanPaidAsync(treatmentPlanId, ct);
-                if (paidBefore + invoice.TotalAmount >= plan.TotalCost)
+                // GetPlanPaidAsync đọc từ DB (chưa gồm thay đổi lần này) → cộng thêm số vừa thu.
+                var paidBefore = await GetPlanPaidAsync(pid, ct);
+                if (paidBefore + thisCredit >= plan.TotalCost - 1m) // dung sai làm tròn
                     plan.SetStatus(TreatmentPlanStatus.Completed);
             }
         }
 
-        // Hoàn tất lịch hẹn sau khi thanh toán xong.
+        // Hoàn tất lịch hẹn CHỈ khi mọi dịch vụ trong chuỗi đã xuất hóa đơn hết
+        // (cho phép còn dịch vụ khác của buổi chưa xuất → giữ buổi ở "chờ thanh toán").
         if (invoice.Appointment.Status == AppointmentStatus.PendingPayment)
-            invoice.Appointment.Complete();
+        {
+            var chain = await GetChainAsync(invoice.AppointmentId, ct);
+            var chainPlans = await dbContext.TreatmentPlans
+                .Where(tp => tp.AppointmentId != null && chain.Contains(tp.AppointmentId.Value)
+                             && tp.Status != TreatmentPlanStatus.Cancelled)
+                .Select(tp => new { tp.Id, tp.UnitPrice, tp.Quantity })
+                .ToListAsync(ct);
+            var billedMap = await GetPlanBilledMapAsync(chainPlans.Select(p => p.Id).ToList(), ct);
+            var anyUnbilled = chainPlans.Any(p =>
+                (p.UnitPrice * Math.Max(1, p.Quantity)) - billedMap.GetValueOrDefault(p.Id, 0m) > 1m);
+            if (!anyUnbilled)
+                invoice.Appointment.Complete();
+        }
 
         await NotifyPaymentConfirmedAsync(invoice, paymentMethod, ct);
     }
@@ -642,20 +723,90 @@ public class InvoiceHandler(
 
     /// <summary>Tổng số tiền đã thu (Paid) của một liệu trình.</summary>
     private async Task<decimal> GetPlanPaidAsync(Guid treatmentPlanId, CancellationToken ct) =>
-        await dbContext.Invoices
-            .Where(i => i.TreatmentPlanId == treatmentPlanId && i.Status == PaymentStatus.Paid)
-            .SumAsync(i => (decimal?)i.TotalAmount, ct) ?? 0m;
+        (await GetPlanPaidMapAsync(new List<Guid> { treatmentPlanId }, ct)).GetValueOrDefault(treatmentPlanId, 0m);
 
-    /// <summary>Map số tiền đã thu theo từng liệu trình.</summary>
+    /// <summary>
+    /// Map số tiền ĐÃ THU theo từng liệu trình. Mỗi dòng hóa đơn đã Paid credit đúng số thu của dòng
+    /// (AmountCollected); nếu hóa đơn cọc đã tất toán thì credit trọn thành tiền dòng.
+    /// Cũng gộp các hóa đơn "đợt thu" cũ (gắn liệu trình ở cấp hóa đơn).
+    /// </summary>
     private async Task<Dictionary<Guid, decimal>> GetPlanPaidMapAsync(List<Guid> planIds, CancellationToken ct)
     {
-        if (planIds.Count == 0) return new Dictionary<Guid, decimal>();
-        var rows = await dbContext.Invoices
-            .Where(i => i.TreatmentPlanId != null && planIds.Contains(i.TreatmentPlanId.Value) && i.Status == PaymentStatus.Paid)
-            .GroupBy(i => i.TreatmentPlanId!.Value)
-            .Select(g => new { PlanId = g.Key, Paid = g.Sum(x => x.TotalAmount) })
+        var map = new Dictionary<Guid, decimal>();
+        if (planIds.Count == 0) return map;
+
+        // Mô hình mới: dòng hóa đơn gắn TreatmentPlanId, credit theo số thu của từng dòng.
+        var lineRows = await dbContext.InvoiceItems
+            .Where(it => it.TreatmentPlanId != null && planIds.Contains(it.TreatmentPlanId.Value)
+                         && it.Invoice.Status == PaymentStatus.Paid)
+            .Select(it => new
+            {
+                PlanId = it.TreatmentPlanId!.Value,
+                Line = it.Quantity * it.UnitPrice,
+                it.AmountCollected,
+                it.Invoice.IsSettled
+            })
             .ToListAsync(ct);
-        return rows.ToDictionary(x => x.PlanId, x => x.Paid);
+        foreach (var r in lineRows)
+        {
+            var credit = r.IsSettled ? r.Line : r.AmountCollected;
+            map[r.PlanId] = map.GetValueOrDefault(r.PlanId, 0m) + credit;
+        }
+
+        // Mô hình cũ: hóa đơn "đợt thu" gắn liệu trình ở cấp hóa đơn.
+        var headerRows = await dbContext.Invoices
+            .Where(i => i.TreatmentPlanId != null && planIds.Contains(i.TreatmentPlanId.Value)
+                        && i.Status == PaymentStatus.Paid)
+            .GroupBy(i => i.TreatmentPlanId!.Value)
+            .Select(g => new { PlanId = g.Key, Sum = g.Sum(x => x.DepositAmount) })
+            .ToListAsync(ct);
+        foreach (var h in headerRows)
+            map[h.PlanId] = map.GetValueOrDefault(h.PlanId, 0m) + h.Sum;
+
+        return map;
+    }
+
+    /// <summary>
+    /// Map số tiền ĐÃ GẮN vào hóa đơn (chưa hủy) theo từng liệu trình — để không xuất hóa đơn trùng.
+    /// Gồm dòng hóa đơn gắn liệu trình (mô hình mới) và hóa đơn "đợt thu" cũ (gắn ở cấp hóa đơn).
+    /// </summary>
+    private async Task<Dictionary<Guid, decimal>> GetPlanBilledMapAsync(List<Guid> planIds, CancellationToken ct)
+    {
+        var map = new Dictionary<Guid, decimal>();
+        if (planIds.Count == 0) return map;
+
+        var byLine = await dbContext.InvoiceItems
+            .Where(it => it.TreatmentPlanId != null && planIds.Contains(it.TreatmentPlanId.Value)
+                         && it.Invoice.Status != PaymentStatus.Refunded)
+            .GroupBy(it => it.TreatmentPlanId!.Value)
+            .Select(g => new { PlanId = g.Key, Sum = g.Sum(it => it.Quantity * it.UnitPrice) })
+            .ToListAsync(ct);
+        foreach (var r in byLine)
+            map[r.PlanId] = map.GetValueOrDefault(r.PlanId, 0m) + r.Sum;
+
+        var byHeader = await dbContext.Invoices
+            .Where(i => i.TreatmentPlanId != null && planIds.Contains(i.TreatmentPlanId.Value)
+                        && i.Status != PaymentStatus.Refunded)
+            .GroupBy(i => i.TreatmentPlanId!.Value)
+            .Select(g => new { PlanId = g.Key, Sum = g.Sum(x => x.TotalAmount) })
+            .ToListAsync(ct);
+        foreach (var h in byHeader)
+            map[h.PlanId] = map.GetValueOrDefault(h.PlanId, 0m) + h.Sum;
+
+        return map;
+    }
+
+    /// <summary>Chuỗi tái khám của một buổi hẹn: chính nó + các buổi gốc phía trên (đi ngược FollowUpFromAppointmentId).</summary>
+    private async Task<HashSet<Guid>> GetChainAsync(Guid appointmentId, CancellationToken ct)
+    {
+        var chain = new HashSet<Guid>();
+        Guid? cursor = appointmentId;
+        while (cursor is Guid c && chain.Add(c))
+            cursor = await dbContext.Appointments
+                .Where(a => a.Id == c)
+                .Select(a => a.FollowUpFromAppointmentId)
+                .FirstOrDefaultAsync(ct);
+        return chain;
     }
 
     /// <summary>Tên hiển thị của một liệu trình: tên dịch vụ + răng điều trị (nếu có).</summary>
@@ -676,7 +827,7 @@ public class InvoiceHandler(
             DentistName = appointment.Dentist.FullName,
             AppointmentDate = appointment.AppointmentDate,
             Items = invoice.Items
-                .Select(i => new InvoiceItemDto(i.Name, i.Quantity, i.UnitPrice))
+                .Select(i => new InvoiceItemDto(i.Name, i.Quantity, i.UnitPrice, i.TreatmentPlanId))
                 .ToList(),
             Subtotal = invoice.Subtotal,
             Discount = invoice.Discount,

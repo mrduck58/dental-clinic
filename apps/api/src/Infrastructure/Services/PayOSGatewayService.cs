@@ -22,8 +22,10 @@ namespace DentalClinic.API.Infrastructure.Services;
 ///   PayOSGatewayService), tạo được checkoutUrl/qrCode thật, PayOS trả code "00"/"success".
 /// - VerifyAndParseWebhookAsync: thuật toán (HMAC-SHA256, ký trên TẤT CẢ field của "data" sắp theo alphabet,
 ///   null→"") đã đối chiếu với mẫu code chính thức tại https://payos.vn/docs/tich-hop-webhook/kiem-tra-du-lieu-voi-signature/,
-///   nhưng CHƯA test được với webhook thật từ PayOS (cần cấu hình webhook URL public — qua ngrok khi dev local —
-///   trên dashboard PayOS rồi thực hiện một thanh toán thật để xác nhận).
+///   nhưng CHƯA test được với webhook thật từ PayOS (cần cấu hình webhook URL public trên dashboard PayOS —
+///   qua ngrok khi dev local — rồi thực hiện một thanh toán thật để xác nhận). PaymentHandler.GetStatusAsync có
+///   cơ chế đối soát dự phòng (tự hỏi lại PayOS qua GetTransactionStatusAsync khi giao dịch còn Pending) để
+///   hóa đơn không bị kẹt vĩnh viễn nếu webhook chưa được cấu hình đúng hoặc bị từ chối.
 /// </summary>
 public class PayOSGatewayService(
     HttpClient httpClient,
@@ -45,14 +47,20 @@ public class PayOSGatewayService(
         var amount = (long)Math.Round(request.Amount, MidpointRounding.AwayFromZero);
         var description = Truncate(request.Description, 25); // PayOS giới hạn description ~25 ký tự
 
+        // request.ReturnUrl/CancelUrl phải là URL của app (nơi người dùng được đưa về sau khi thanh toán), KHÔNG
+        // được fallback về _settings.BaseUrl — đó là base URL của PayOS API (dùng cho HttpClient), không phải
+        // của app; PaymentHandler luôn truyền giá trị thật nên đây chỉ là chốt chặn phòng lỗi gọi sai.
+        if (string.IsNullOrWhiteSpace(request.ReturnUrl) || string.IsNullOrWhiteSpace(request.CancelUrl))
+            throw new ValidationException("Thiếu returnUrl/cancelUrl khi tạo yêu cầu thanh toán PayOS.");
+
         var payload = new PayOSCreateRequest
         {
             OrderCode = orderCode,
             Amount = amount,
             Description = description,
             BuyerName = request.BuyerName,
-            CancelUrl = request.CancelUrl ?? _settings.BaseUrl,
-            ReturnUrl = request.ReturnUrl ?? _settings.BaseUrl,
+            CancelUrl = request.CancelUrl,
+            ReturnUrl = request.ReturnUrl,
         };
         payload.Signature = ComputeCreateSignature(orderCode, amount, description, payload.CancelUrl, payload.ReturnUrl);
 
@@ -151,11 +159,23 @@ public class PayOSGatewayService(
         httpRequest.Headers.Add("x-api-key", _settings.ApiKey);
 
         using var response = await httpClient.SendAsync(httpRequest, ct);
-        if (!response.IsSuccessStatusCode) return null;
-
         var rawBody = await response.Content.ReadAsStringAsync(ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            logger.LogWarning(
+                "PayOS get-transaction-status thất bại cho orderCode={OrderCode} ({StatusCode}): {Body}",
+                gatewayOrderCode, response.StatusCode, rawBody);
+            return null;
+        }
+
         var parsed = JsonSerializer.Deserialize<PayOSEnvelope<PayOSStatusResponseData>>(rawBody, JsonOpts);
-        if (parsed?.Data is null) return null;
+        if (parsed?.Data is null)
+        {
+            logger.LogWarning(
+                "PayOS get-transaction-status trả về phản hồi không có data cho orderCode={OrderCode}: {Body}",
+                gatewayOrderCode, rawBody);
+            return null;
+        }
 
         var isSuccess = string.Equals(parsed.Data.Status, "PAID", StringComparison.OrdinalIgnoreCase);
         return new WebhookVerificationResult(

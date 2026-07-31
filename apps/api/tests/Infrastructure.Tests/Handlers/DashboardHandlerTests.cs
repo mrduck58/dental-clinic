@@ -133,11 +133,11 @@ public class DashboardHandlerTests
         _db.Appointments.AddRange(appt1, appt2);
         await _db.SaveChangesAsync();
 
-        var paidInvoice = Invoice.Issue(appt1.Id, "INV001", [("Khám tổng quát", 1, 500_000m)], 0, PaymentMethod.Cash, PaymentType.Full, 500_000m);
+        var paidInvoice = Invoice.Issue(appt1.Id, "INV001", [("Khám tổng quát", 1, 500_000m, null, 500_000m)], 0, PaymentMethod.Cash);
         paidInvoice.MarkAsPaid(PaymentMethod.Cash);
         typeof(Invoice).GetProperty("PaymentDate")!.SetValue(paidInvoice, DateTimeOffset.UtcNow);
 
-        var unpaidInvoice = Invoice.Issue(appt2.Id, "INV002", [("Khám tổng quát", 1, 300_000m)], 0, PaymentMethod.Cash, PaymentType.Full, 300_000m);
+        var unpaidInvoice = Invoice.Issue(appt2.Id, "INV002", [("Khám tổng quát", 1, 300_000m, null, 300_000m)], 0, PaymentMethod.Cash);
 
         _db.Invoices.AddRange(paidInvoice, unpaidInvoice);
         await _db.SaveChangesAsync();

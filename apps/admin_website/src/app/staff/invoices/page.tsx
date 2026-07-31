@@ -24,7 +24,21 @@ import {
 
 /* ─── types ─────────────────────────────────────────────── */
 
-interface Procedure { name: string; qty: number; price: number; }
+interface Procedure {
+  name: string; qty: number; price: number; treatmentPlanId?: string | null;
+  // Thanh toán theo từng dòng: "full" = thu toàn bộ dòng; "deposit" = đặt cọc theo % (`depositPct`).
+  payType?: "full" | "deposit";
+  depositPct?: number;
+}
+
+// % cọc hợp lệ (0, 100].
+const clampPct = (p: number) => Math.min(100, Math.max(0, p));
+
+// Số tiền thu ngay của một dòng dịch vụ (đặt cọc = thành tiền × %/100, làm tròn).
+const lineCollected = (it: Procedure) =>
+  it.payType === "deposit"
+    ? Math.round((it.qty * it.price) * clampPct(it.depositPct ?? 0) / 100)
+    : it.qty * it.price;
 
 interface TreatmentPlan {
   id: string; patientName: string; patientPhone: string; gender: "Nam" | "Nữ";
@@ -80,7 +94,7 @@ function mapPlan(b: BillablePlanDto): TreatmentPlan {
     dentist: b.dentistName,
     date: fmtDate(b.appointmentDate),
     diagnosis: b.diagnosis || "Chưa có chẩn đoán",
-    procedures: b.items.map(i => ({ name: i.name, qty: i.quantity, price: i.unitPrice })),
+    procedures: b.items.map(i => ({ name: i.name, qty: i.quantity, price: i.unitPrice, treatmentPlanId: i.treatmentPlanId })),
     outstandingInvoiceId: b.outstandingInvoiceId,
     sourceInvoiceNumber: b.sourceInvoiceNumber,
     treatmentPlanId: b.treatmentPlanId,
@@ -103,7 +117,7 @@ function mapInvoice(inv: InvoiceDto): Invoice {
     gender: toGender(inv.gender),
     dentist: inv.dentistName,
     date: fmtDate(inv.appointmentDate),
-    items: inv.items.map(i => ({ name: i.name, qty: i.quantity, price: i.unitPrice })),
+    items: inv.items.map(i => ({ name: i.name, qty: i.quantity, price: i.unitPrice, treatmentPlanId: i.treatmentPlanId })),
     subtotal: inv.subtotal,
     discount: inv.discount,
     finalTotal: inv.totalAmount,
@@ -167,16 +181,14 @@ function PlansTab({ plans, onIssued }: {
   const [items,    setItems]    = useState<Procedure[]>([]);
   const [discount, setDiscount] = useState(0);
   const [note,     setNote]     = useState("");
-  const [payType,  setPayType]  = useState<PayType>("full");
-  const [deposit,  setDeposit]  = useState(0);
   const [installAmount, setInstallAmount] = useState(0);
   const [method,   setMethod]   = useState<PayMethod | null>(null);
   const [saved,    setSaved]    = useState(false);
 
   const selectPlan = (p: TreatmentPlan) => {
     setSelected(p);
-    setItems(p.procedures.map(pr => ({ ...pr })));
-    setDiscount(0); setNote(""); setPayType("full"); setDeposit(0);
+    setItems(p.procedures.map(pr => ({ ...pr, payType: "full" as const, depositPct: 50 })));
+    setDiscount(0); setNote("");
     setInstallAmount(p.planRemaining ?? 0); setMethod(null); setSaved(false);
   };
 
@@ -186,25 +198,36 @@ function PlansTab({ plans, onIssued }: {
   const removeItem = (i: number) =>
     setItems(prev => prev.filter((_, idx) => idx !== i));
 
+  const setItemPay = (i: number, payType: "full" | "deposit") =>
+    setItems(prev => prev.map((it, idx) => idx === i ? { ...it, payType, depositPct: payType === "deposit" && !it.depositPct ? 50 : it.depositPct } : it));
+
+  const setItemDepositPct = (i: number, pct: number) =>
+    setItems(prev => prev.map((it, idx) => idx === i ? { ...it, depositPct: pct } : it));
+
   // Mục "thu phần còn lại" của hóa đơn đặt cọc → chỉ thanh toán toàn bộ phần còn lại.
   const isRemaining = !!selected?.outstandingInvoiceId;
-  // Mục "đợt thu" của liệu trình điều trị → nhập số tiền đợt này.
+  // Mục "đợt thu" của liệu trình điều trị (dữ liệu cũ) → nhập số tiền đợt này.
   const isInstallment = !!selected?.treatmentPlanId;
   const planRemaining = selected?.planRemaining ?? 0;
 
   const subtotal   = sum(items);
   const finalTotal = Math.max(0, subtotal - discount);
 
-  // Số tiền thu trên hóa đơn này + kiểm tra hợp lệ khi đặt cọc
-  const effType    = isRemaining ? "full" : payType;
-  const payAmount  = effType === "deposit" ? deposit : finalTotal;
-  const depositOk  = effType === "full" || (deposit > 0 && deposit <= finalTotal);
+  // Thu ngay = tổng số thu của từng dòng (toàn bộ / đặt cọc theo dòng).
+  const collectedTotal = items.reduce((s, it) => s + lineCollected(it), 0);
+  const perLineOk = items.every(it => it.payType !== "deposit" || ((it.depositPct ?? 0) > 0 && (it.depositPct ?? 0) <= 100));
+
   const installOk  = !isInstallment || (installAmount > 0 && installAmount <= planRemaining);
+  const canIssue   = !!method && (
+    isRemaining ? true :
+    isInstallment ? installOk :
+    (items.length > 0 && perLineOk && collectedTotal > 0)
+  );
 
   const [issuing, setIssuing] = useState(false);
 
   const handleIssue = async () => {
-    if (!selected || !method || !depositOk || !installOk) return;
+    if (!selected || !canIssue) return;
     const inv: Invoice = isInstallment
       ? {
           id: selected.id,
@@ -234,9 +257,9 @@ function PlansTab({ plans, onIssued }: {
           date: selected.date,
           items: [...items],
           subtotal, discount, finalTotal,
-          paymentType: effType,
-          depositAmount: payAmount,
-          remaining: Math.max(0, finalTotal - payAmount),
+          paymentType: collectedTotal < finalTotal ? "deposit" : "full",
+          depositAmount: collectedTotal,
+          remaining: Math.max(0, finalTotal - collectedTotal),
           paymentMethod: method,
           status: "pending",
           note,
@@ -397,6 +420,7 @@ function PlansTab({ plans, onIssued }: {
                         <th className="px-3 py-2.5 text-center font-extrabold text-slate-400 text-[11px] uppercase tracking-wider w-24">Số lượng</th>
                         <th className="px-3 py-2.5 text-right font-extrabold text-slate-400 text-[11px] uppercase tracking-wider w-32">Đơn giá</th>
                         <th className="px-3 py-2.5 text-right font-extrabold text-slate-400 text-[11px] uppercase tracking-wider w-32">Thành tiền</th>
+                        <th className="px-3 py-2.5 text-center font-extrabold text-slate-400 text-[11px] uppercase tracking-wider w-52">Thanh toán</th>
                         <th className="w-10" />
                       </tr>
                     </thead>
@@ -413,7 +437,30 @@ function PlansTab({ plans, onIssued }: {
                           </td>
                           <td className="px-3 py-3 text-right font-semibold text-slate-500 font-mono text-[12.5px]">{fmt(it.price)}</td>
                           <td className="px-3 py-3 text-right font-black text-slate-800 font-mono">{fmt(it.qty * it.price)}</td>
-                          <td className="px-2 py-3 text-center">
+                          <td className="px-3 py-2.5">
+                            <div className="flex flex-col gap-1.5 items-center">
+                              <div className="flex gap-1 w-full">
+                                <button onClick={() => setItemPay(i, "full")}
+                                  className={`flex-1 px-2 py-1.5 rounded-lg text-[11.5px] font-bold border transition-all cursor-pointer ${it.payType !== "deposit" ? "bg-primary/10 border-primary text-primary" : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"}`}>
+                                  Toàn bộ
+                                </button>
+                                <button onClick={() => setItemPay(i, "deposit")}
+                                  className={`flex-1 px-2 py-1.5 rounded-lg text-[11.5px] font-bold border transition-all cursor-pointer ${it.payType === "deposit" ? "bg-amber-50 border-amber-400 text-amber-700" : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"}`}>
+                                  Đặt cọc
+                                </button>
+                              </div>
+                              {it.payType === "deposit" && (
+                                <div className="relative w-20">
+                                  <input type="text" inputMode="numeric" placeholder="%"
+                                    value={it.depositPct ?? ""}
+                                    onChange={e => setItemDepositPct(i, clampPct(Number(e.target.value.replace(/[^\d]/g, ""))))}
+                                    className="w-full pl-2.5 pr-5 py-1.5 text-[12px] text-right font-mono font-bold bg-amber-50/60 border border-amber-200 rounded-lg focus:outline-none focus:border-amber-400" />
+                                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-bold text-amber-500">%</span>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-2 py-3 text-center align-top">
                             <button onClick={() => removeItem(i)} className="w-6 h-6 rounded-lg hover:bg-red-50 text-slate-300 hover:text-primary cursor-pointer flex items-center justify-center transition-colors">
                               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                             </button>
@@ -449,97 +496,56 @@ function PlansTab({ plans, onIssued }: {
                     <span className="text-[13.5px] font-extrabold text-slate-700 uppercase tracking-wider">Tổng cộng</span>
                     <span className="text-[22px] font-black text-primary font-mono leading-none">{fmt(finalTotal)}</span>
                   </div>
+                  <div className="flex items-center justify-between w-full text-[13px] font-semibold text-slate-500 mt-1">
+                    <span>Thu ngay</span><span className="font-mono text-emerald-700 font-black">{fmt(collectedTotal)}</span>
+                  </div>
+                  {collectedTotal < finalTotal && (
+                    <div className="flex items-center justify-between w-full text-[13px] font-semibold text-amber-600">
+                      <span>Còn nợ</span><span className="font-mono">{fmt(Math.max(0, finalTotal - collectedTotal))}</span>
+                    </div>
+                  )}
                 </div>
               </div>
               </>)}
 
-              {/* Payment type (ẩn khi thu phần còn lại / đợt thu liệu trình) */}
-              {!isRemaining && !isInstallment && (
-              <div className="flex flex-col gap-3">
-                <span className={labelCls}>Loại thanh toán</span>
-                <div className="grid grid-cols-2 gap-3">
-                  {([
-                    { key: "full",    label: "Thanh toán toàn bộ", desc: "Thu đủ tổng tiền điều trị",
-                      icon: "M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" },
-                    { key: "deposit", label: "Đặt cọc",            desc: "Thu trước một phần, còn lại trả sau",
-                      icon: "M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" },
-                  ] as { key: PayType; label: string; desc: string; icon: string }[]).map(t => {
-                    const active = payType === t.key;
-                    return (
-                      <button key={t.key} onClick={() => { setPayType(t.key); if (t.key === "full") setDeposit(0); }}
-                        className={`flex items-start gap-3 px-4 py-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer ${
-                          active ? "bg-primary/5 border-primary shadow-sm" : "bg-white border-slate-200 hover:border-slate-300"
-                        }`}>
-                        <svg className={`w-6 h-6 shrink-0 mt-0.5 transition-colors ${active ? "text-primary" : "text-slate-400"}`} fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d={t.icon} />
-                        </svg>
-                        <div>
-                          <div className={`text-[13.5px] font-black transition-colors ${active ? "text-primary" : "text-slate-700"}`}>{t.label}</div>
-                          <div className="text-[11.5px] font-semibold text-slate-400 mt-0.5">{t.desc}</div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {payType === "deposit" && (
-                  <div className="flex flex-wrap items-end gap-6 px-4 py-4 bg-amber-50/60 border border-amber-200 rounded-xl">
-                    <div className="flex flex-col gap-1.5 w-56">
-                      <label className={labelCls}>Số tiền đặt cọc (₫)</label>
-                      <input type="text" inputMode="numeric" value={fmtMoneyInput(deposit)}
-                        onChange={e => setDeposit(parseMoneyInput(e.target.value))}
-                        placeholder="0"
-                        className={inputCls} />
-                    </div>
-                    <div className="flex flex-col items-end gap-1.5 ml-auto">
-                      <div className="flex items-center justify-between gap-6 w-full text-[13px] font-semibold text-slate-500">
-                        <span>Cọc trước</span><span className="font-mono text-amber-700 font-black">{fmt(payAmount)}</span>
-                      </div>
-                      <div className="flex items-center justify-between gap-6 w-full text-[13px] font-semibold text-slate-500">
-                        <span>Còn lại</span><span className="font-mono">{fmt(Math.max(0, finalTotal - payAmount))}</span>
-                      </div>
-                    </div>
-                    {deposit > finalTotal && (
-                      <p className="w-full text-[12px] font-bold text-red-600">Số tiền đặt cọc không được vượt quá tổng tiền.</p>
-                    )}
-                  </div>
-                )}
-              </div>
-              )}
-
-              {/* Payment method */}
+              {/* Payment method — chỉ 2 lựa chọn thật: tiền mặt (thu tay) hoặc trực tuyến (QR/App PayOS thật).
+                  "Chuyển khoản" và "Thanh toán App" trước đây dẫn tới cùng 1 luồng backend hệt nhau nên gộp lại
+                  làm 1 để khỏi gây hiểu lầm là 2 kênh khác nhau — nội bộ vẫn lưu paymentMethod="transfer". */}
               <div className="flex flex-col gap-3">
                 <span className={labelCls}>Phương thức thanh toán</span>
-                <div className="grid grid-cols-3 gap-3">
-                  {(Object.keys(PAY_CFG) as PayMethod[]).map(m => {
-                    const cfg    = PAY_CFG[m];
-                    const active = method === m;
-                    return (
-                      <button key={m} onClick={() => setMethod(m)}
-                        className={`flex flex-col items-center gap-2.5 px-4 py-5 rounded-2xl border-2 transition-all cursor-pointer ${
-                          active
-                            ? `${cfg.bg} ${cfg.border} shadow-sm`
-                            : "bg-white border-slate-200 hover:border-slate-300"
-                        }`}>
-                        <svg className={`w-7 h-7 transition-colors ${active ? cfg.color : "text-slate-400"}`} fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d={cfg.icon} />
-                        </svg>
-                        <span className={`text-[13px] font-black transition-colors ${active ? cfg.color : "text-slate-500"}`}>{cfg.label}</span>
-                        {active && <span className={`w-1.5 h-1.5 rounded-full ${cfg.bg.replace("bg-","bg-").replace("50","500")}`} style={{ backgroundColor: "currentColor" }} />}
-                      </button>
-                    );
-                  })}
+                <div className="grid grid-cols-2 gap-3">
+                  <button onClick={() => setMethod("cash")}
+                    className={`flex flex-col items-center gap-2.5 px-4 py-5 rounded-2xl border-2 transition-all cursor-pointer ${
+                      method === "cash" ? `${PAY_CFG.cash.bg} ${PAY_CFG.cash.border} shadow-sm` : "bg-white border-slate-200 hover:border-slate-300"
+                    }`}>
+                    <svg className={`w-7 h-7 transition-colors ${method === "cash" ? PAY_CFG.cash.color : "text-slate-400"}`} fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d={PAY_CFG.cash.icon} />
+                    </svg>
+                    <span className={`text-[13px] font-black transition-colors ${method === "cash" ? PAY_CFG.cash.color : "text-slate-500"}`}>Tiền mặt</span>
+                  </button>
+                  <button onClick={() => setMethod("transfer")}
+                    className={`flex flex-col items-center gap-2.5 px-4 py-5 rounded-2xl border-2 transition-all cursor-pointer ${
+                      method === "transfer" ? "bg-indigo-50 border-indigo-200 shadow-sm" : "bg-white border-slate-200 hover:border-slate-300"
+                    }`}>
+                    <svg className={`w-7 h-7 transition-colors ${method === "transfer" ? "text-indigo-600" : "text-slate-400"}`} viewBox="0 0 24 24" fill="none">
+                      <rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="1.5" />
+                      <rect x="5.5" y="5.5" width="2" height="2" fill="currentColor" />
+                      <rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="1.5" />
+                      <rect x="16.5" y="5.5" width="2" height="2" fill="currentColor" />
+                      <rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="1.5" />
+                      <rect x="5.5" y="16.5" width="2" height="2" fill="currentColor" />
+                      <rect x="14" y="14" width="3" height="3" fill="currentColor" />
+                      <rect x="18" y="14" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.5" />
+                      <rect x="14" y="18" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.5" />
+                      <rect x="18" y="18" width="3" height="3" fill="currentColor" />
+                    </svg>
+                    <span className={`text-[13px] font-black transition-colors ${method === "transfer" ? "text-indigo-600" : "text-slate-500"}`}>Thanh toán online</span>
+                  </button>
                 </div>
-                {method === "app" && (
+                {method === "transfer" && (
                   <div className="flex items-center gap-2 px-4 py-2.5 bg-indigo-50 border border-indigo-100 rounded-xl text-[12.5px] font-semibold text-indigo-700">
                     <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg>
-                    Bệnh nhân thanh toán qua ứng dụng. Trạng thái sẽ tự động cập nhật khi cổng thanh toán xác nhận.
-                  </div>
-                )}
-                {method === "transfer" && (
-                  <div className="flex items-center gap-2 px-4 py-2.5 bg-sky-50 border border-sky-100 rounded-xl text-[12.5px] font-semibold text-sky-700">
-                    <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg>
-                    Hệ thống sẽ tự tạo mã QR chuyển khoản (VietQR). Hóa đơn tự chuyển sang &quot;Đã thanh toán&quot; khi nhận được tiền.
+                    Hệ thống sẽ tự tạo mã QR/link thanh toán thật. Bệnh nhân có thể quét mã tại quầy hoặc tự thanh toán từ app của họ — hóa đơn tự chuyển &quot;Đã thanh toán&quot; khi nhận được tiền.
                   </div>
                 )}
               </div>
@@ -554,7 +560,7 @@ function PlansTab({ plans, onIssued }: {
 
               {/* Submit */}
               <div className="flex items-center gap-4 pt-1 border-t border-slate-100">
-                <button onClick={handleIssue} disabled={!method || (!isInstallment && items.length === 0) || !depositOk || !installOk || issuing}
+                <button onClick={handleIssue} disabled={!canIssue || issuing}
                   className="flex items-center gap-2 px-7 py-3 bg-primary hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-[14px] font-black cursor-pointer transition-all shadow-sm shadow-primary/20">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m.75 12l3 3m0 0l3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
                   {issuing ? "Đang xuất..." : "Xuất hóa đơn"}
@@ -571,75 +577,199 @@ function PlansTab({ plans, onIssued }: {
 
 /* ─── Payment status panel (chuyển khoản QR / chờ thanh toán App) ───────── */
 
-function PaymentStatusPanel({ invoice, onManualConfirm, onAutoConfirmed }: {
-  invoice: Invoice;
-  onManualConfirm: () => void;
-  onAutoConfirmed: () => void;
-}) {
+// Cache các request tạo-yêu-cầu-thanh-toán đang chạy dở, theo invoiceId — đặt ở module scope (ngoài component).
+// React StrictMode (dev) mount → unmount → mount lại component gần như ngay lập tức trước khi request đầu tiên kịp
+// trả lời; nếu không cache, lần mount thứ 2 sẽ gọi API lần nữa trong khi lần 1 vẫn đang chạy → tạo trùng giao dịch.
+// Dùng chung 1 Promise (thay vì chặn hẳn) để lần mount sau vẫn nhận được đúng kết quả của lần gọi đầu.
+const paymentRequestCache = new Map<string, ReturnType<typeof createPaymentRequestApi>>();
+
+interface PaymentRequestState {
+  txn: PaymentTransactionDto | null;
+  creating: boolean;
+  err: string | null;
+  // Giao dịch hiện tại đã bị hủy/hết hạn bên cổng thanh toán (phát hiện qua poll đối soát) — PayOS thường
+  // KHÔNG gửi webhook cho trường hợp này nên phải tự dò; cần tạo yêu cầu thanh toán MỚI để thử lại.
+  txnCancelled: boolean;
+  retry: () => void;
+}
+
+// Quản lý vòng đời "yêu cầu thanh toán online" của 1 hóa đơn (tạo link/QR, poll trạng thái, phát hiện hủy) —
+// tách thành hook dùng chung để nút xem QR (đặt ở đầu card) và thanh trạng thái/nút xác nhận (đặt ở cuối card)
+// cùng đọc chung 1 nguồn state, dù nằm ở 2 vị trí khác nhau trong DOM.
+// `active` do component cha quyết định — hóa đơn được xuất sẵn với PaymentMethod=Transfer/App, HOẶC staff bấm
+// "Tạo yêu cầu thanh toán online" cho một hóa đơn bất kỳ — backend không phân biệt 2 trường hợp này, dùng chung
+// 1 API tạo yêu cầu duy nhất (không phụ thuộc PaymentMethod hiện tại của hóa đơn).
+function usePaymentRequest(invoice: Invoice, active: boolean, onAutoConfirmed: () => void): PaymentRequestState {
   const [txn, setTxn] = useState<PaymentTransactionDto | null>(null);
   const [creating, setCreating] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [txnCancelled, setTxnCancelled] = useState(false);
 
-  const isTransfer = invoice.paymentMethod === "transfer";
-
-  // Tạo yêu cầu thanh toán (link/QR) qua PayOS khi mở hóa đơn này lần đầu.
-  useEffect(() => {
-    if (!isTransfer) return;
-    let cancelled = false;
+  const requestPayment = useCallback(() => {
     setCreating(true);
-    createPaymentRequestApi(invoice.id)
+    setErr(null);
+
+    let promise = paymentRequestCache.get(invoice.id);
+    if (!promise) {
+      promise = createPaymentRequestApi(invoice.id);
+      paymentRequestCache.set(invoice.id, promise);
+      promise.finally(() => paymentRequestCache.delete(invoice.id));
+    }
+
+    let cancelled = false;
+    promise
       .then(t => { if (!cancelled) setTxn(t); })
       .catch(e => { if (!cancelled) setErr(e instanceof Error ? e.message : "Không thể tạo yêu cầu thanh toán"); })
       .finally(() => { if (!cancelled) setCreating(false); });
     return () => { cancelled = true; };
-  }, [invoice.id, isTransfer]);
+  }, [invoice.id]);
 
-  // Poll trạng thái — tự động chuyển sang "Đã thanh toán" khi cổng thanh toán xác nhận qua webhook.
+  // Tạo yêu cầu thanh toán (link/QR) qua PayOS khi hóa đơn này chuyển sang trạng thái chờ thanh toán online.
   useEffect(() => {
+    if (!active) return;
+    return requestPayment();
+  }, [active, requestPayment]);
+
+  // Poll trạng thái — tự động chuyển sang "Đã thanh toán" khi cổng thanh toán xác nhận qua webhook (hoặc qua đối
+  // soát dự phòng phía backend nếu webhook chưa tới kịp); đồng thời phát hiện khi giao dịch bị hủy/hết hạn.
+  useEffect(() => {
+    if (!active) return;
     const interval = setInterval(async () => {
       try {
         const status = await getPaymentStatusApi(invoice.id);
-        if (status.invoiceStatus === "Paid") onAutoConfirmed();
+        if (status.invoiceStatus === "Paid") { onAutoConfirmed(); return; }
+        if (status.latestTransaction?.status === "Failed") setTxnCancelled(true);
       } catch {
         // Bỏ qua lỗi polling — không làm gián đoạn UI, sẽ thử lại ở lượt kế tiếp.
       }
     }, 4000);
     return () => clearInterval(interval);
-  }, [invoice.id, onAutoConfirmed]);
+  }, [invoice.id, active, onAutoConfirmed]);
+
+  const retry = () => {
+    setTxnCancelled(false);
+    setTxn(null);
+    requestPayment();
+  };
+
+  return { txn, creating, err, txnCancelled, retry };
+}
+
+function PaymentStatusPanel({ payment, onManualConfirm }: {
+  payment: PaymentRequestState;
+  onManualConfirm: () => void;
+}) {
+  const { creating, txnCancelled, retry } = payment;
 
   return (
-    <div className="flex flex-col gap-4 px-5 py-4 bg-indigo-50 border border-indigo-200 rounded-xl">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+    <div className={`flex items-center justify-between gap-4 px-5 py-4 rounded-xl border ${
+      txnCancelled ? "bg-rose-50 border-rose-200" : "bg-indigo-50 border-indigo-200"
+    }`}>
+      <div className="flex items-center gap-3 min-w-0">
+        {txnCancelled ? (
+          <svg className="w-5 h-5 shrink-0 text-rose-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+          </svg>
+        ) : (
           <div className="relative flex h-3 w-3 shrink-0">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75" />
             <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500" />
           </div>
-          <div>
-            <p className="text-[13.5px] font-black text-indigo-800">
-              {isTransfer ? "Đang chờ chuyển khoản" : "Đang chờ thanh toán qua App"}
-            </p>
-            <p className="text-[12px] font-semibold text-indigo-600 mt-0.5">
-              Trạng thái tự động cập nhật khi nhận được thanh toán
-            </p>
+        )}
+        <div className="min-w-0">
+          <p className={`text-[13.5px] font-black ${txnCancelled ? "text-rose-800" : "text-indigo-800"}`}>
+            {txnCancelled ? "Giao dịch đã bị hủy hoặc hết hạn" : "Đang chờ thanh toán trực tuyến"}
+          </p>
+          <p className={`text-[12px] font-semibold mt-0.5 ${txnCancelled ? "text-rose-600" : "text-indigo-600"}`}>
+            {txnCancelled
+              ? "Bấm tạo lại để lấy mã QR / link thanh toán mới"
+              : "Bệnh nhân có thể quét mã QR tại quầy hoặc tự thanh toán từ app — trạng thái tự động cập nhật khi nhận được tiền"}
+          </p>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        {txnCancelled ? (
+          <button onClick={retry} disabled={creating}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-rose-300 hover:border-rose-400 text-rose-700 rounded-xl text-[12.5px] font-black cursor-pointer transition-all whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed">
+            {creating ? "Đang tạo..." : "Tạo lại yêu cầu thanh toán"}
+          </button>
+        ) : (
+          <button onClick={onManualConfirm}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-indigo-300 hover:border-indigo-400 text-indigo-700 rounded-xl text-[12.5px] font-black cursor-pointer transition-all whitespace-nowrap">
+            Xác nhận thủ công
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Popup xác nhận trước khi đánh dấu thủ công đã thanh toán ───────────── */
+
+function ConfirmManualPaymentModal({ invoice, onConfirm, onClose }: {
+  invoice: Invoice;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-xl border border-slate-200/70 w-full max-w-sm overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="px-6 py-5 border-b border-slate-100">
+          <div className="text-[15px] font-black text-slate-900">Xác nhận thanh toán thủ công?</div>
+          <div className="mt-1.5 text-[12.5px] text-slate-500 font-semibold leading-relaxed">
+            Hóa đơn của <span className="font-black text-slate-700">{invoice.patientName}</span> ({fmt(invoice.depositAmount)}) sẽ được đánh dấu <span className="font-black text-emerald-700">đã thanh toán</span> ngay, không thông qua xác nhận từ cổng thanh toán. Chỉ bấm khi bạn đã chắc chắn nhận được tiền.
           </div>
         </div>
-        <button onClick={onManualConfirm}
-          className="flex items-center gap-2 px-4 py-2 bg-white border border-indigo-300 hover:border-indigo-400 text-indigo-700 rounded-xl text-[12.5px] font-black cursor-pointer transition-all whitespace-nowrap">
-          Xác nhận thủ công
-        </button>
+        <div className="flex gap-2 p-4">
+          <button onClick={onClose}
+            className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-[13px] hover:bg-slate-50 cursor-pointer transition-all">
+            Hủy
+          </button>
+          <button onClick={onConfirm}
+            className="flex-1 px-4 py-2.5 rounded-xl bg-primary hover:bg-red-600 text-white font-bold text-[13px] cursor-pointer transition-all">
+            Xác nhận đã nhận tiền
+          </button>
+        </div>
       </div>
+    </div>
+  );
+}
 
-      {isTransfer && (
-        <div className="flex flex-col items-center gap-3 rounded-xl border border-indigo-100 bg-white px-6 py-6">
-          {creating ? (
-            <div className="flex items-center justify-center py-10">
-              <div className="w-6 h-6 border-2 border-indigo-200 border-t-indigo-500 rounded-full animate-spin" />
+/* ─── Popup mã QR chuyển khoản của 1 hóa đơn ─────────────────────────────── */
+
+function PaymentQrModal({ invoice, txn, err, onClose }: {
+  invoice: Invoice;
+  txn: PaymentTransactionDto | null;
+  err: string | null;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-xl border border-slate-200/70 w-full max-w-sm overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-slate-100">
+          <div className="min-w-0">
+            <div className="text-[15px] font-black text-slate-900">Mã QR chuyển khoản</div>
+            <div className="mt-1 text-[12.5px] text-slate-500 font-semibold truncate">
+              {invoice.patientName}{invoice.planId ? ` · Từ ${invoice.planId}` : ""}
             </div>
-          ) : txn?.qrCode ? (
+          </div>
+          <button onClick={onClose}
+            className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 cursor-pointer transition-all">
+            <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+
+        <div className="flex flex-col items-center gap-3 px-6 py-6">
+          {txn?.qrCode ? (
             <>
-              <QRCodeSVG value={txn.qrCode} size={200} marginSize={2} />
-              <p className="text-[13px] font-black text-slate-800">{fmt(invoice.depositAmount)}</p>
+              <QRCodeSVG value={txn.qrCode} size={220} marginSize={2} />
+              <p className="text-[15px] font-black text-slate-800">{fmt(invoice.depositAmount)}</p>
               <p className="text-[11.5px] font-semibold text-slate-400 text-center">
                 Quét mã bằng app ngân hàng bất kỳ để chuyển khoản
               </p>
@@ -656,7 +786,7 @@ function PaymentStatusPanel({ invoice, onManualConfirm, onAutoConfirmed }: {
             </p>
           )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -666,7 +796,7 @@ function PaymentStatusPanel({ invoice, onManualConfirm, onAutoConfirmed }: {
 function PendingTab({ invoices, onPaid, onAutoConfirmed }: {
   invoices: Invoice[];
   onPaid: (id: string, method: PayMethod | null) => void;
-  onAutoConfirmed: () => void;
+  onAutoConfirmed: (invoice: Invoice) => void;
 }) {
   const [methodEdit, setMethodEdit] = useState<Record<string, PayMethod>>({});
 
@@ -686,112 +816,199 @@ function PendingTab({ invoices, onPaid, onAutoConfirmed }: {
 
   return (
     <div className="flex flex-col gap-4">
-      {invoices.map(inv => {
-        const m   = getMethod(inv);
-        const isAwaitingPayment = inv.status === "awaiting_payment";
+      {invoices.map(inv => (
+        <PendingInvoiceRow
+          key={inv.id}
+          inv={inv}
+          method={getMethod(inv)}
+          onMethodChange={pm => setMethodEdit(prev => ({ ...prev, [inv.id]: pm }))}
+          onPaid={onPaid}
+          onAutoConfirmed={onAutoConfirmed}
+        />
+      ))}
+    </div>
+  );
+}
 
-        return (
-          <div key={inv.id} className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${
-            isAwaitingPayment ? "border-indigo-200 shadow-indigo-50" : "border-slate-200/70"
-          }`}>
-            <div className="flex items-center gap-5 px-7 py-5">
-              {/* Avatar */}
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-[13px] border shrink-0 ${
-                inv.gender === "Nữ" ? "bg-rose-50 text-rose-600 border-rose-100" : "bg-sky-50 text-sky-700 border-sky-100"
-              }`}>
-                {inv.patientName.trim().split(/\s+/).slice(-2).map(w => w[0]).join("").toUpperCase()}
+function PendingInvoiceRow({ inv, method, onMethodChange, onPaid, onAutoConfirmed }: {
+  inv: Invoice;
+  method: PayMethod | null;
+  onMethodChange: (pm: PayMethod) => void;
+  onPaid: (id: string, method: PayMethod | null) => void;
+  onAutoConfirmed: (invoice: Invoice) => void;
+}) {
+  // Hóa đơn được xuất sẵn với PaymentMethod=Transfer/App (awaiting_payment), HOẶC staff bấm "Tạo yêu cầu thanh
+  // toán online" ngay tại đây cho một hóa đơn bất kỳ — cả 2 đều dùng chung 1 luồng tạo QR/link + poll thật.
+  const [onlineRequested, setOnlineRequested] = useState(false);
+  const isPaymentActive = inv.status === "awaiting_payment" || onlineRequested;
+  const handleAutoConfirmed = useCallback(() => onAutoConfirmed(inv), [onAutoConfirmed, inv]);
+  const payment = usePaymentRequest(inv, isPaymentActive, handleAutoConfirmed);
+  const [showQr, setShowQr] = useState(false);
+  // method=null → "Xác nhận thủ công" chung; method cụ thể → xác nhận từ selector cash/transfer.
+  const [confirmDialog, setConfirmDialog] = useState<{ method: PayMethod | null } | null>(null);
+
+  return (
+    <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${
+      isPaymentActive ? "border-indigo-200 shadow-indigo-50" : "border-slate-200/70"
+    }`}>
+      <div className="flex items-center gap-5 px-7 py-5">
+        {/* Avatar */}
+        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-[13px] border shrink-0 ${
+          inv.gender === "Nữ" ? "bg-rose-50 text-rose-600 border-rose-100" : "bg-sky-50 text-sky-700 border-sky-100"
+        }`}>
+          {inv.patientName.trim().split(/\s+/).slice(-2).map(w => w[0]).join("").toUpperCase()}
+        </div>
+
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <span className="text-[15px] font-black text-slate-900">{inv.patientName}</span>
+            <span className="text-[12px] font-mono text-slate-400">{inv.patientPhone}</span>
+            <span className={`text-[11.5px] font-black px-2 py-0.5 rounded-lg border ${DENTIST_COLOR[inv.dentist] ?? "bg-slate-50 text-slate-600 border-slate-200"}`}>{inv.dentist}</span>
+            {inv.planId && (
+              <span className="text-[11.5px] font-bold text-slate-400 px-2 py-0.5 bg-slate-50 border border-slate-100 rounded-lg">Từ {inv.planId}</span>
+            )}
+          </div>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {inv.items.map((it, i) => (
+              <span key={i} className="text-[12px] font-semibold text-slate-500 px-2 py-0.5 bg-slate-50 border border-slate-100 rounded-lg">
+                {it.qty > 1 ? `${it.qty}× ` : ""}{it.name}
+              </span>
+            ))}
+          </div>
+          {inv.note && <p className="mt-1.5 text-[12px] font-semibold text-amber-700">{inv.note}</p>}
+        </div>
+
+        {/* Total */}
+        <div className="text-right shrink-0 ml-4">
+          {inv.paymentType === "deposit" ? (
+            <>
+              <div className="flex items-center justify-end gap-1.5">
+                <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-700 uppercase tracking-wide">Đặt cọc</span>
+                <span className="text-[11px] font-semibold text-slate-400">/ {fmt(inv.finalTotal)}</span>
               </div>
+              <div className="text-[24px] font-black text-slate-900 font-mono leading-none mt-0.5">{fmt(inv.depositAmount)}</div>
+              <div className="text-[12px] font-semibold text-orange-600 mt-0.5">Còn lại {fmt(inv.remaining)}</div>
+            </>
+          ) : (
+            <>
+              {inv.discount > 0 && (
+                <div className="text-[12px] font-semibold text-slate-400 line-through font-mono">{fmt(inv.subtotal)}</div>
+              )}
+              <div className="text-[24px] font-black text-slate-900 font-mono leading-none">{fmt(inv.finalTotal)}</div>
+              {inv.discount > 0 && (
+                <div className="text-[12px] font-semibold text-emerald-600 mt-0.5">Đã giảm {fmt(inv.discount)}</div>
+              )}
+            </>
+          )}
+        </div>
 
-              {/* Info */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2.5 flex-wrap">
-                  <span className="text-[15px] font-black text-slate-900">{inv.patientName}</span>
-                  <span className="text-[12px] font-mono text-slate-400">{inv.patientPhone}</span>
-                  <span className={`text-[11.5px] font-black px-2 py-0.5 rounded-lg border ${DENTIST_COLOR[inv.dentist] ?? "bg-slate-50 text-slate-600 border-slate-200"}`}>{inv.dentist}</span>
-                  {inv.planId && (
-                    <span className="text-[11.5px] font-bold text-slate-400 px-2 py-0.5 bg-slate-50 border border-slate-100 rounded-lg">Từ {inv.planId}</span>
-                  )}
-                </div>
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  {inv.items.map((it, i) => (
-                    <span key={i} className="text-[12px] font-semibold text-slate-500 px-2 py-0.5 bg-slate-50 border border-slate-100 rounded-lg">
-                      {it.qty > 1 ? `${it.qty}× ` : ""}{it.name}
-                    </span>
-                  ))}
-                </div>
-                {inv.note && <p className="mt-1.5 text-[12px] font-semibold text-amber-700">{inv.note}</p>}
-              </div>
+        {/* Nút xem mã QR — đặt ở đầu card (header), tách xa nút "Xác nhận thủ công" ở cuối card bên dưới
+            để tránh bấm nhầm giữa 2 thao tác có hậu quả khác nhau hẳn. */}
+        {isPaymentActive && !payment.txnCancelled && (
+          <button onClick={() => setShowQr(true)} disabled={payment.creating || !payment.txn?.qrCode}
+            title="Xem mã QR chuyển khoản"
+            className="flex items-center justify-center w-10 h-10 bg-indigo-50 border border-indigo-200 hover:border-indigo-400 text-indigo-600 rounded-xl cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed shrink-0">
+            {payment.creating ? (
+              <div className="w-4 h-4 border-2 border-indigo-200 border-t-indigo-500 rounded-full animate-spin" />
+            ) : (
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
+                <rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="1.5" />
+                <rect x="5.5" y="5.5" width="2" height="2" fill="currentColor" />
+                <rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="1.5" />
+                <rect x="16.5" y="5.5" width="2" height="2" fill="currentColor" />
+                <rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="1.5" />
+                <rect x="5.5" y="16.5" width="2" height="2" fill="currentColor" />
+                <rect x="14" y="14" width="3" height="3" fill="currentColor" />
+                <rect x="18" y="14" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.5" />
+                <rect x="14" y="18" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.5" />
+                <rect x="18" y="18" width="3" height="3" fill="currentColor" />
+              </svg>
+            )}
+          </button>
+        )}
+      </div>
 
-              {/* Total */}
-              <div className="text-right shrink-0 ml-4">
-                {inv.paymentType === "deposit" ? (
-                  <>
-                    <div className="flex items-center justify-end gap-1.5">
-                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-700 uppercase tracking-wide">Đặt cọc</span>
-                      <span className="text-[11px] font-semibold text-slate-400">/ {fmt(inv.finalTotal)}</span>
-                    </div>
-                    <div className="text-[24px] font-black text-slate-900 font-mono leading-none mt-0.5">{fmt(inv.depositAmount)}</div>
-                    <div className="text-[12px] font-semibold text-orange-600 mt-0.5">Còn lại {fmt(inv.remaining)}</div>
-                  </>
-                ) : (
-                  <>
-                    {inv.discount > 0 && (
-                      <div className="text-[12px] font-semibold text-slate-400 line-through font-mono">{fmt(inv.subtotal)}</div>
-                    )}
-                    <div className="text-[24px] font-black text-slate-900 font-mono leading-none">{fmt(inv.finalTotal)}</div>
-                    {inv.discount > 0 && (
-                      <div className="text-[12px] font-semibold text-emerald-600 mt-0.5">Đã giảm {fmt(inv.discount)}</div>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Payment section */}
-            <div className="px-7 pb-5">
-              {isAwaitingPayment ? (
-                <PaymentStatusPanel
-                  invoice={inv}
-                  onManualConfirm={() => onPaid(inv.id, null)}
-                  onAutoConfirmed={onAutoConfirmed}
-                />
-              ) : (
-                <div className="flex items-center gap-3 flex-wrap">
-                  <span className={`${labelCls} shrink-0`}>Thanh toán qua:</span>
-                  <div className="flex gap-2 flex-wrap flex-1">
-                    {(Object.keys(PAY_CFG) as PayMethod[]).map(pm => {
-                      const pcfg   = PAY_CFG[pm];
-                      const active = m === pm;
-                      return (
-                        <button key={pm} onClick={() => setMethodEdit(prev => ({ ...prev, [inv.id]: pm }))}
-                          className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-[13px] font-bold cursor-pointer transition-all ${
-                            active ? `${pcfg.bg} ${pcfg.border} ${pcfg.color} shadow-sm` : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
-                          }`}>
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d={pcfg.icon} />
-                          </svg>
-                          {pcfg.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {m && (
-                    <button onClick={() => onPaid(inv.id, m)}
-                      className={`flex items-center gap-2 px-5 py-2.5 text-white rounded-xl text-[13px] font-black cursor-pointer transition-all shadow-sm whitespace-nowrap ${
-                        m === "cash"     ? "bg-emerald-500 hover:bg-emerald-600 shadow-emerald-200" :
-                        m === "transfer" ? "bg-sky-500 hover:bg-sky-600 shadow-sky-200" :
-                                           "bg-indigo-500 hover:bg-indigo-600 shadow-indigo-200"
+      {/* Payment section */}
+      <div className="px-7 pb-5">
+        {isPaymentActive ? (
+          <PaymentStatusPanel payment={payment} onManualConfirm={() => setConfirmDialog({ method: null })} />
+        ) : (
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className={`${labelCls} shrink-0`}>Đã nhận tiền qua:</span>
+              <div className="flex gap-2 flex-wrap flex-1">
+                {(["cash", "transfer"] as PayMethod[]).map(pm => {
+                  const pcfg   = PAY_CFG[pm];
+                  const active = method === pm;
+                  return (
+                    <button key={pm} onClick={() => onMethodChange(pm)}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-[13px] font-bold cursor-pointer transition-all ${
+                        active ? `${pcfg.bg} ${pcfg.border} ${pcfg.color} shadow-sm` : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
                       }`}>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
-                      {m === "cash" ? "Đã nhận tiền mặt" : m === "transfer" ? "Đã nhận chuyển khoản" : "Gửi yêu cầu lên App"}
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d={pcfg.icon} />
+                      </svg>
+                      {pcfg.label}
                     </button>
-                  )}
-                </div>
+                  );
+                })}
+              </div>
+              {method && (
+                <button onClick={() => setConfirmDialog({ method })}
+                  className={`flex items-center gap-2 px-5 py-2.5 text-white rounded-xl text-[13px] font-black cursor-pointer transition-all shadow-sm whitespace-nowrap ${
+                    method === "cash" ? "bg-emerald-500 hover:bg-emerald-600 shadow-emerald-200" : "bg-sky-500 hover:bg-sky-600 shadow-sky-200"
+                  }`}>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                  {method === "cash" ? "Đã nhận tiền mặt" : "Đã nhận chuyển khoản"}
+                </button>
               )}
             </div>
+
+            <div className="flex items-center gap-3">
+              <div className="h-px flex-1 bg-slate-100" />
+              <span className="text-[10.5px] font-black text-slate-300 uppercase tracking-wider">hoặc</span>
+              <div className="h-px flex-1 bg-slate-100" />
+            </div>
+
+            {/* Bệnh nhân đã được thông báo & có thể tự thanh toán từ app của họ ngay từ lúc hóa đơn được xuất —
+                nút này chỉ để staff chủ động tạo QR/link thật (vd. đưa bệnh nhân quét tại quầy), không bắt buộc. */}
+            <button onClick={() => setOnlineRequested(true)}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-700 text-[13px] font-black cursor-pointer hover:border-indigo-400 transition-all">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+                <rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="1.5" />
+                <rect x="5.5" y="5.5" width="2" height="2" fill="currentColor" />
+                <rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="1.5" />
+                <rect x="16.5" y="5.5" width="2" height="2" fill="currentColor" />
+                <rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="1.5" />
+                <rect x="5.5" y="16.5" width="2" height="2" fill="currentColor" />
+                <rect x="14" y="14" width="3" height="3" fill="currentColor" />
+                <rect x="18" y="14" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.5" />
+                <rect x="14" y="18" width="3" height="3" rx="0.5" stroke="currentColor" strokeWidth="1.5" />
+                <rect x="18" y="18" width="3" height="3" fill="currentColor" />
+              </svg>
+              Tạo yêu cầu thanh toán online (QR / App)
+            </button>
           </div>
-        );
-      })}
+        )}
+      </div>
+
+      {showQr && (
+        <PaymentQrModal
+          invoice={inv}
+          txn={payment.txn}
+          err={payment.err}
+          onClose={() => setShowQr(false)}
+        />
+      )}
+
+      {confirmDialog && (
+        <ConfirmManualPaymentModal
+          invoice={inv}
+          onConfirm={() => { const m = confirmDialog.method; setConfirmDialog(null); onPaid(inv.id, m); }}
+          onClose={() => setConfirmDialog(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1031,6 +1248,12 @@ export default function InvoicesPage() {
   const [outstandingPlans, setOutstandingPlans] = useState<OutstandingPlanDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState<string | null>(null);
+  const [toast,   setToast]   = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
+
+  const showToast = (message: string, type: "success" | "error" | "info" = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
 
   // Bộ lọc theo ngày — mặc định là hôm nay; "" = tất cả các ngày
   const [filterDate, setFilterDate] = useState<string>(todayIso());
@@ -1063,12 +1286,19 @@ export default function InvoicesPage() {
       .finally(() => setLoading(false));
   }, [reload]);
 
+  // Cổng thanh toán tự xác nhận thành công (qua webhook/đối soát) trong lúc màn hình staff đang mở — báo cho
+  // nhân viên biết bằng toast, vì hóa đơn sẽ lặng lẽ biến mất khỏi tab "Chờ thanh toán" ngay sau reload().
+  const handleAutoConfirmed = (inv: Invoice) => {
+    showToast(`Đã nhận thanh toán từ ${inv.patientName} — ${fmt(inv.depositAmount)}`, "success");
+    reload();
+  };
+
   // Xuất hóa đơn từ liệu trình (planId chính là appointmentId)
   const handleIssued = async (inv: Invoice): Promise<boolean> => {
     try {
       await issueInvoiceApi({
         appointmentId: inv.planId!,
-        items: inv.items.map(i => ({ name: i.name, quantity: i.qty, unitPrice: i.price })),
+        items: inv.items.map(i => ({ name: i.name, quantity: i.qty, unitPrice: i.price, treatmentPlanId: i.treatmentPlanId ?? undefined, amountCollected: lineCollected(i) })),
         discount: inv.discount,
         paymentMethod: inv.paymentMethod ?? "cash",
         paymentType: inv.paymentType,
@@ -1091,7 +1321,10 @@ export default function InvoicesPage() {
       await confirmInvoicePaymentApi(id, method ?? undefined);
       await reload();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Xác nhận thanh toán thất bại");
+      // Lỗi thường gặp nhất ở đây là bấm xác nhận liên tiếp (hóa đơn đã được request trước đó xử lý xong) —
+      // dùng toast tự ẩn thay vì banner đỏ cố định, đỡ gây cảm giác như một lỗi nghiêm trọng cần xử lý.
+      showToast(e instanceof Error ? e.message : "Xác nhận thanh toán thất bại", "info");
+      await reload(); // đồng bộ lại UI với trạng thái thật (hóa đơn đã Paid từ lần bấm trước) thay vì đứng yên
     }
   };
 
@@ -1208,13 +1441,24 @@ export default function InvoicesPage() {
           ) : (
             <>
               {tab === "plans"       && <PlansTab       plans={fPlans}        onIssued={handleIssued} />}
-              {tab === "pending"     && <PendingTab     invoices={fPending}    onPaid={handlePaid}    onAutoConfirmed={reload} />}
+              {tab === "pending"     && <PendingTab     invoices={fPending}    onPaid={handlePaid}    onAutoConfirmed={handleAutoConfirmed} />}
               {tab === "outstanding" && <OutstandingTab invoices={outstanding} plans={outstandingPlans} onCollect={handleCollectRemaining} />}
               {tab === "history"     && <HistoryTab     paid={fPaid}                                  />}
             </>
           )}
         </div>
       </main>
+
+      {toast && (
+        <div className={`fixed top-6 right-6 z-[9999] px-5 py-3.5 rounded-xl shadow-xl flex items-center gap-3 border font-bold text-[14.5px] max-w-md ${
+          toast.type === "success" ? "bg-emerald-900 text-white border-emerald-800"
+          : toast.type === "error" ? "bg-red-900 text-white border-red-800"
+          : "bg-slate-900 text-white border-slate-800"
+        }`}>
+          <span className="text-lg">{toast.type === "success" ? "✓" : toast.type === "error" ? "⚠" : "ℹ"}</span>
+          <span>{toast.message}</span>
+        </div>
+      )}
     </div>
   );
 }

@@ -25,7 +25,7 @@ public class MaterialRequest
 
     private MaterialRequest() { }
 
-    public static MaterialRequest Create(Guid courseId, string courseName, string patientName, string dentistName, string content)
+    public static MaterialRequest Create(string courseName, string patientName, string dentistName, string content, Guid? courseId = null)
         => new()
         {
             Id = Guid.NewGuid(),

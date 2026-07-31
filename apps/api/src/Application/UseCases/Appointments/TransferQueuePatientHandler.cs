@@ -108,9 +108,7 @@ public class TransferQueuePatientHandler(
         var dentists = await dbContext.Dentists.Include(d => d.User).ToListAsync(ct);
 
         return dentists
-            .Where(d => onShiftNames.Contains(d.FullName) &&
-                        string.Equals(d.EmploymentStatus, User.DefaultEmploymentStatus,
-                                      StringComparison.OrdinalIgnoreCase))
+            .Where(d => onShiftNames.Contains(d.FullName) && IsEmployed(d.EmploymentStatus))
             .OrderBy(d => d.FullName, StringComparer.CurrentCulture)
             .FirstOrDefault();
     }
@@ -145,7 +143,10 @@ public class TransferQueuePatientHandler(
         return dentists.FirstOrDefault(d =>
             d.Id == dentistId &&
             assignableNames.Contains(d.FullName) &&
-            string.Equals(d.EmploymentStatus, User.DefaultEmploymentStatus,
-                          StringComparison.OrdinalIgnoreCase));
+            IsEmployed(d.EmploymentStatus));
     }
+
+    /// <summary>Bác sĩ còn đang làm việc: EmploymentStatus phải là "Active".</summary>
+    private static bool IsEmployed(string employmentStatus) =>
+        string.Equals(employmentStatus, User.DefaultEmploymentStatus, StringComparison.OrdinalIgnoreCase);
 }

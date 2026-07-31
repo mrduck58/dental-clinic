@@ -8,6 +8,8 @@ using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Infrastructure.Persistence;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using NUnit.Framework;
 
@@ -41,7 +43,9 @@ public class PaymentHandlerTests
         userRepo.GetUserIdsByRoleAsync("Staff", Arg.Any<CancellationToken>()).Returns(new List<Guid>());
         _invoiceHandler = new InvoiceHandler(_db, notificationService, userRepo);
 
-        _handler = new PaymentHandler(_db, _gatewayResolver, _invoiceHandler);
+        var configuration = Substitute.For<IConfiguration>();
+        _handler = new PaymentHandler(
+            _db, _gatewayResolver, _invoiceHandler, configuration, NullLogger<PaymentHandler>.Instance);
     }
 
     [TearDown]
@@ -64,7 +68,7 @@ public class PaymentHandlerTests
 
         var invoice = Invoice.Issue(
             appointment.Id, "INV001",
-            new[] { ("Trám răng", 1, depositAmount) }, 0, PaymentMethod.OnlinePayment, PaymentType.Full, depositAmount);
+            new[] { ("Trám răng", 1, depositAmount, (Guid?)null, (decimal?)depositAmount) }, 0, PaymentMethod.OnlinePayment);
         _db.Invoices.Add(invoice);
         await _db.SaveChangesAsync();
         return invoice;
@@ -163,6 +167,35 @@ public class PaymentHandlerTests
         await _handler.HandleWebhookAsync(PaymentGateway.PayOS, "{}", EmptyHeaders);
 
         (await _db.PaymentTransactions.SingleAsync(t => t.Id == tx.Id)).GatewayTransactionId.Should().Be("gw-1"); // không bị ghi đè
+    }
+
+    /// <summary>
+    /// TC-Sy-03: Sau khi hóa đơn đặt cọc đã Paid, PayOS gửi lại (duplicate delivery) ĐÚNG payload webhook cũ —
+    /// phải được bỏ qua êm, không xử lý lại lần 2, không ném lỗi, không ghi đè dữ liệu giao dịch gốc.
+    /// </summary>
+    [Test]
+    public async Task HandleWebhookAsync_ReplaySamePayloadAfterInvoiceAlreadyPaid_IsIdempotent()
+    {
+        var invoice = await SeedUnpaidInvoiceAsync(depositAmount: 500_000m);
+        var tx = PaymentTransaction.Create(invoice.Id, PaymentGateway.PayOS, "ORDER-REPLAY", 500_000m, null, null, null, null);
+        _db.PaymentTransactions.Add(tx);
+        await _db.SaveChangesAsync();
+        const string rawPayload = "{\"data\":{\"orderCode\":\"ORDER-REPLAY\"}}";
+        _gatewayService.VerifyAndParseWebhookAsync(rawPayload, Arg.Any<IReadOnlyDictionary<string, string>>(), Arg.Any<CancellationToken>())
+            .Returns(new WebhookVerificationResult(true, true, "ORDER-REPLAY", "gw-original", 500_000m, rawPayload, null));
+
+        // Webhook lần 1 (thật): đánh dấu Paid như bình thường.
+        await _handler.HandleWebhookAsync(PaymentGateway.PayOS, rawPayload, EmptyHeaders);
+        (await _db.Invoices.SingleAsync(i => i.Id == invoice.Id)).Status.Should().Be(PaymentStatus.Paid);
+
+        // PayOS gửi lại đúng payload cũ (duplicate delivery) — không được throw, không xử lý lại.
+        Func<Task> replay = () => _handler.HandleWebhookAsync(PaymentGateway.PayOS, rawPayload, EmptyHeaders);
+        await replay.Should().NotThrowAsync();
+
+        (await _db.Invoices.SingleAsync(i => i.Id == invoice.Id)).Status.Should().Be(PaymentStatus.Paid);
+        var finalTxn = await _db.PaymentTransactions.SingleAsync(t => t.Id == tx.Id);
+        finalTxn.Status.Should().Be(TransactionStatus.Success);
+        finalTxn.GatewayTransactionId.Should().Be("gw-original"); // không bị xử lý/ghi đè lại ở lần webhook thứ 2
     }
 
     /// <summary>Số tiền webhook báo lệch quá nhiều so với giao dịch phải bị đánh dấu Failed, không tự động Paid.</summary>

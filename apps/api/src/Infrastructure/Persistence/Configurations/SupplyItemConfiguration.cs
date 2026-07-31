@@ -29,6 +29,14 @@ public class SupplyItemConfiguration : IEntityTypeConfiguration<SupplyItem>
             .IsRequired()
             .HasMaxLength(50);
 
+        builder.Property(s => s.OrderType)
+            .IsRequired()
+            .HasMaxLength(20)
+            .HasDefaultValue("standard");
+
+        builder.Property(s => s.Price)
+            .HasPrecision(18, 2);
+
         builder.Property(s => s.IsActive)
             .HasDefaultValue(true);
 

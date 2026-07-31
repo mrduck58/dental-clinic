@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
+import 'package:mobile_app/core/constants/api_constants.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/booking/data/booking_service.dart';
 import 'package:mobile_app/features/profile/data/family_member.dart';
@@ -21,6 +22,14 @@ class _FamilyMembersPageState extends State<FamilyMembersPage> {
   final Map<String, DateTime> _lastVisitByPatientId = {};
 
   static const _visitedStatuses = {'Completed', 'PendingPayment'};
+
+  String? _resolveAvatarUrl(String? url) {
+    if (url == null || url.trim().isEmpty) return null;
+    final trimmed = url.trim();
+    if (trimmed.startsWith('http')) return trimmed;
+    final baseUrlHost = ApiConstants.baseUrl.replaceAll('/api', '');
+    return '$baseUrlHost$trimmed';
+  }
 
   @override
   void initState() {
@@ -160,11 +169,17 @@ class _FamilyMembersPageState extends State<FamilyMembersPage> {
                           height: 54,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
+                            color: AppColors.primaryLight,
                             border: Border.all(color: AppColors.primary, width: 2),
-                            image: DecorationImage(
-                              image: AssetImage(member.profilePictureUrl ?? 'assets/images/bac_si_4.png'),
-                              fit: BoxFit.cover,
-                            ),
+                          ),
+                          child: ClipOval(
+                            child: _resolveAvatarUrl(member.profilePictureUrl) != null
+                                ? Image.network(
+                                    _resolveAvatarUrl(member.profilePictureUrl)!,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => const Icon(Iconsax.user, color: AppColors.primary, size: 24),
+                                  )
+                                : const Icon(Iconsax.user, color: AppColors.primary, size: 24),
                           ),
                         ),
                         const SizedBox(width: 14),
@@ -266,7 +281,7 @@ class _FamilyMembersPageState extends State<FamilyMembersPage> {
                         Expanded(
                           child: GestureDetector(
                             onTap: () {
-                              context.push(
+                              context.go(
                                 AppRoutes.appointments,
                                 extra: {
                                   'patientId': member.id,

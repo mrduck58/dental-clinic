@@ -14,6 +14,9 @@ public class SupplyTransactionConfiguration : IEntityTypeConfiguration<SupplyTra
             .IsRequired()
             .HasMaxLength(10);
 
+        builder.Property(t => t.UnitPrice)
+            .HasPrecision(18, 2);
+
         builder.Property(t => t.Note)
             .HasMaxLength(500);
 

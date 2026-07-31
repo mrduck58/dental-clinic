@@ -35,7 +35,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
   final List<String> _genderOptions = ['Nam', 'Nữ', 'Khác'];
   String? _avatarUrl;
 
-  ImageProvider _getAvatarProvider() {
+  ImageProvider? _getAvatarProvider() {
     if (_avatarUrl != null && _avatarUrl!.isNotEmpty) {
       if (_avatarUrl!.startsWith('http')) {
         return NetworkImage(_avatarUrl!);
@@ -43,7 +43,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       final baseUrlHost = ApiConstants.baseUrl.replaceAll('/api', '');
       return NetworkImage('$baseUrlHost$_avatarUrl');
     }
-    return const AssetImage('assets/images/bac_si_1.png');
+    return null;
   }
 
   Future<void> _pickAndUploadAvatar() async {
@@ -272,8 +272,11 @@ class _EditProfilePageState extends State<EditProfilePage> {
             padding: const EdgeInsets.only(right: 16.0),
             child: CircleAvatar(
               radius: 18,
-              backgroundColor: context.divider,
+              backgroundColor: AppColors.primaryLight,
               backgroundImage: _getAvatarProvider(),
+              child: _avatarUrl == null || _avatarUrl!.isEmpty
+                  ? const Icon(Iconsax.user, color: AppColors.primary, size: 18)
+                  : null,
             ),
           ),
         ],
@@ -309,11 +312,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
                               height: 120,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
+                                color: AppColors.primaryLight,
                                 border: Border.all(color: context.divider, width: 3),
-                                image: DecorationImage(
-                                  image: _getAvatarProvider(),
-                                  fit: BoxFit.cover,
-                                ),
+                              ),
+                              child: ClipOval(
+                                child: _avatarUrl != null && _avatarUrl!.isNotEmpty
+                                    ? Image(image: _getAvatarProvider()!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Iconsax.user, color: AppColors.primary, size: 48))
+                                    : const Icon(Iconsax.user, color: AppColors.primary, size: 48),
                               ),
                             ),
                             if (_isSaving)

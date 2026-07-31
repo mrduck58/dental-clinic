@@ -8,6 +8,7 @@ import 'package:mobile_app/features/booking/data/booking_models.dart';
 import 'package:mobile_app/features/booking/data/booking_service.dart';
 import 'package:mobile_app/features/auth/data/auth_service.dart';
 import 'package:mobile_app/features/profile/data/family_member.dart';
+import 'package:mobile_app/core/constants/api_constants.dart';
 
 class AppointmentListScreen extends StatefulWidget {
   final String? filterPatientId;
@@ -37,11 +38,30 @@ class _AppointmentListScreenState extends State<AppointmentListScreen> {
 
     // Initialize with default values first so we don't have an empty list
     _filterOptions = [
-      PatientInfo(id: 'self', name: isVi ? 'Tôi' : 'Self', relationship: isVi ? 'Tôi' : 'Self'),
+      PatientInfo(
+        id: _filterPatientId ?? 'self',
+        name: _filterPatientName ?? (isVi ? 'Tôi' : 'Self'),
+        relationship: _filterPatientId == 'self' ? (isVi ? 'Tôi' : 'Self') : (isVi ? 'Thành viên gia đình' : 'Family Member'),
+      ),
     ];
 
     _load();
     _loadFilterOptions();
+  }
+
+  @override
+  void didUpdateWidget(covariant AppointmentListScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.filterPatientId != oldWidget.filterPatientId ||
+        widget.filterPatientName != oldWidget.filterPatientName) {
+      final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
+      setState(() {
+        _filterPatientId = widget.filterPatientId ?? 'self';
+        _filterPatientName = widget.filterPatientName ?? (isVi ? 'Tôi' : 'Self');
+      });
+      _load();
+      _loadFilterOptions();
+    }
   }
 
   Future<void> _loadFilterOptions() async {
@@ -49,10 +69,16 @@ class _AppointmentListScreenState extends State<AppointmentListScreen> {
     try {
       final auth = AuthService();
       String myName = isVi ? 'Tôi' : 'Self';
+      String? myAvatar;
       try {
         final profile = await auth.getMyProfile();
+        final cachedAvatar = await auth.getUserAvatar();
+        myAvatar = (profile.profilePictureUrl != null && profile.profilePictureUrl!.isNotEmpty)
+            ? profile.profilePictureUrl
+            : cachedAvatar;
         if (profile.fullName.isNotEmpty) myName = profile.fullName;
       } catch (_) {
+        myAvatar = await auth.getUserAvatar();
         final localName = await auth.getUserName();
         if (localName != null && localName.isNotEmpty) myName = localName;
       }
@@ -61,11 +87,12 @@ class _AppointmentListScreenState extends State<AppointmentListScreen> {
       final family = FamilyService().getMembers();
 
       final list = [
-        PatientInfo(id: 'self', name: myName, relationship: isVi ? 'Tôi' : 'Self'),
+        PatientInfo(id: 'self', name: myName, relationship: isVi ? 'Tôi' : 'Self', avatarUrl: myAvatar),
         ...family.map((m) => PatientInfo(
               id: m.id,
               name: m.fullName,
               relationship: m.relationship,
+              avatarUrl: m.profilePictureUrl,
             )),
       ];
 
@@ -74,6 +101,14 @@ class _AppointmentListScreenState extends State<AppointmentListScreen> {
           _filterOptions = list;
           if (_filterPatientId == 'self') {
             _filterPatientName = myName;
+          } else {
+            final match = list.firstWhere(
+              (opt) => opt.id == _filterPatientId,
+              orElse: () => PatientInfo(id: '', name: '', relationship: ''),
+            );
+            if (match.name.isNotEmpty) {
+              _filterPatientName = match.name;
+            }
           }
         });
       }
@@ -87,13 +122,18 @@ class _AppointmentListScreenState extends State<AppointmentListScreen> {
       if (_filterPatientId != null) {
         if (_filterPatientId == 'self') {
           list = list.where((item) => 
+            item.patientId == null ||
+            item.patientId == 'self' ||
             item.patientRelationship == null || 
             item.patientRelationship!.isEmpty || 
             item.patientRelationship == 'Tôi' || 
             item.patientRelationship == 'Self'
           ).toList();
         } else {
-          list = list.where((item) => item.patientId == _filterPatientId).toList();
+          list = list.where((item) => 
+            item.patientId == _filterPatientId ||
+            (_filterPatientName != null && _filterPatientName!.isNotEmpty && item.patientName == _filterPatientName)
+          ).toList();
         }
       }
       if (mounted) setState(() { _items = list; _loading = false; });
@@ -109,10 +149,84 @@ class _AppointmentListScreenState extends State<AppointmentListScreen> {
     }
   }
 
+  String _getInitials(String name) {
+    final parts = name.trim().split(' ');
+    if (parts.isEmpty || parts[0].isEmpty) return 'T';
+    if (parts.length == 1) return parts[0][0].toUpperCase();
+    return '${parts[0][0]}${parts.last[0]}'.toUpperCase();
+  }
+
+  Widget _buildAvatarCircle(String? avatarUrl, {required double size, required bool isSelected, String? name}) {
+    final initials = _getInitials(name ?? 'Tôi');
+    if (avatarUrl != null && avatarUrl.isNotEmpty) {
+      if (avatarUrl.startsWith('assets/')) {
+        return Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: isSelected ? Border.all(color: AppColors.primary, width: 2) : null,
+          ),
+          child: ClipOval(
+            child: Image.asset(
+              avatarUrl,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => _buildInitialsFallback(size, isSelected, initials),
+            ),
+          ),
+        );
+      }
+      final url = avatarUrl.startsWith('http')
+          ? avatarUrl
+          : '${ApiConstants.baseUrl.replaceAll('/api', '')}$avatarUrl';
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: isSelected ? Border.all(color: AppColors.primary, width: 2) : null,
+        ),
+        child: ClipOval(
+          child: Image.network(
+            url,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _buildInitialsFallback(size, isSelected, initials),
+          ),
+        ),
+      );
+    }
+    return _buildInitialsFallback(size, isSelected, initials);
+  }
+
+  Widget _buildInitialsFallback(double size, bool isSelected, String initials) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: isSelected ? AppColors.primary : AppColors.primaryLight,
+        shape: BoxShape.circle,
+      ),
+      child: Center(
+        child: Text(
+          initials,
+          style: TextStyle(
+            color: isSelected ? Colors.white : AppColors.primary,
+            fontWeight: FontWeight.bold,
+            fontSize: size * 0.4,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildMemberDropdown(bool isVi) {
     final selectedOption = _filterOptions.firstWhere(
       (opt) => _filterPatientId == opt.id,
-      orElse: () => PatientInfo(id: 'self', name: isVi ? 'Tôi' : 'Self', relationship: isVi ? 'Tôi' : 'Self'),
+      orElse: () => PatientInfo(
+        id: _filterPatientId ?? 'self',
+        name: _filterPatientName ?? (_filterPatientId == 'self' ? (isVi ? 'Tôi' : 'Self') : 'Thành viên'),
+        relationship: isVi ? 'Thành viên gia đình' : 'Family Member',
+      ),
     );
 
     return Padding(
@@ -141,18 +255,11 @@ class _AppointmentListScreenState extends State<AppointmentListScreen> {
               ),
               child: Row(
                 children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: const BoxDecoration(
-                      color: AppColors.primaryLight,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      selectedOption.id == 'self' ? Iconsax.user : Iconsax.profile_circle,
-                      color: AppColors.primary,
-                      size: 22,
-                    ),
+                  _buildAvatarCircle(
+                    selectedOption.avatarUrl,
+                    size: 44,
+                    isSelected: true,
+                    name: selectedOption.name,
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -208,18 +315,11 @@ class _AppointmentListScreenState extends State<AppointmentListScreen> {
                   return Column(
                     children: [
                       ListTile(
-                        leading: Container(
-                          width: 34,
-                          height: 34,
-                          decoration: BoxDecoration(
-                            color: isSelected ? AppColors.primary : context.divider,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            opt.id == 'self' ? Iconsax.user : Iconsax.profile_circle,
-                            color: isSelected ? Colors.white : context.textSecondary,
-                            size: 18,
-                          ),
+                        leading: _buildAvatarCircle(
+                          opt.avatarUrl,
+                          size: 36,
+                          isSelected: isSelected,
+                          name: opt.name,
                         ),
                         title: Text(
                           opt.name,

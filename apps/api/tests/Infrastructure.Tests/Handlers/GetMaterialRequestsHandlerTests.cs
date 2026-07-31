@@ -30,8 +30,8 @@ public class GetMaterialRequestsHandlerTests
     [Test]
     public async Task HandleAsync_NoStatusFilter_ReturnsAllOrderedByNewestFirst()
     {
-        var older = MaterialRequest.Create(Guid.NewGuid(), "Niềng răng", "Bệnh nhân A", "BS X", "Cần thêm khay niềng");
-        var newer = MaterialRequest.Create(Guid.NewGuid(), "Trồng Implant", "Bệnh nhân B", "BS Y", "Cần trụ implant");
+        var older = MaterialRequest.Create("Niềng răng", "Bệnh nhân A", "BS X", "Cần thêm khay niềng");
+        var newer = MaterialRequest.Create("Trồng Implant", "Bệnh nhân B", "BS Y", "Cần trụ implant");
         _db.MaterialRequests.AddRange(older, newer);
         await _db.SaveChangesAsync();
 
@@ -45,8 +45,8 @@ public class GetMaterialRequestsHandlerTests
     [Test]
     public async Task HandleAsync_FilterByDoneStatus_ReturnsOnlyDoneRequests()
     {
-        var pending = MaterialRequest.Create(Guid.NewGuid(), "Niềng răng", "Bệnh nhân A", "BS X", "Yêu cầu 1");
-        var done = MaterialRequest.Create(Guid.NewGuid(), "Trồng Implant", "Bệnh nhân B", "BS Y", "Yêu cầu 2");
+        var pending = MaterialRequest.Create("Niềng răng", "Bệnh nhân A", "BS X", "Yêu cầu 1");
+        var done = MaterialRequest.Create("Trồng Implant", "Bệnh nhân B", "BS Y", "Yêu cầu 2");
         done.MarkDone("staff1");
         _db.MaterialRequests.AddRange(pending, done);
         await _db.SaveChangesAsync();
@@ -60,7 +60,7 @@ public class GetMaterialRequestsHandlerTests
     [Test]
     public async Task HandleAsync_InvalidStatusValue_IgnoresFilterAndReturnsAll()
     {
-        var request = MaterialRequest.Create(Guid.NewGuid(), "Niềng răng", "Bệnh nhân A", "BS X", "Yêu cầu 1");
+        var request = MaterialRequest.Create("Niềng răng", "Bệnh nhân A", "BS X", "Yêu cầu 1");
         _db.MaterialRequests.Add(request);
         await _db.SaveChangesAsync();
 
@@ -73,8 +73,8 @@ public class GetMaterialRequestsHandlerTests
     [Test]
     public async Task HandleAsync_FilterByPendingStatus_ReturnsOnlyPendingRequests()
     {
-        var pending = MaterialRequest.Create(Guid.NewGuid(), "Niềng răng", "Bệnh nhân A", "BS X", "Yêu cầu 1");
-        var done = MaterialRequest.Create(Guid.NewGuid(), "Trồng Implant", "Bệnh nhân B", "BS Y", "Yêu cầu 2");
+        var pending = MaterialRequest.Create("Niềng răng", "Bệnh nhân A", "BS X", "Yêu cầu 1");
+        var done = MaterialRequest.Create("Trồng Implant", "Bệnh nhân B", "BS Y", "Yêu cầu 2");
         done.MarkDone("staff1");
         _db.MaterialRequests.AddRange(pending, done);
         await _db.SaveChangesAsync();
@@ -88,8 +88,8 @@ public class GetMaterialRequestsHandlerTests
     [Test]
     public async Task HandleAsync_StatusFilterLowerCase_MatchesEnumCaseInsensitively()
     {
-        var pending = MaterialRequest.Create(Guid.NewGuid(), "Niềng răng", "Bệnh nhân A", "BS X", "Yêu cầu 1");
-        var done = MaterialRequest.Create(Guid.NewGuid(), "Trồng Implant", "Bệnh nhân B", "BS Y", "Yêu cầu 2");
+        var pending = MaterialRequest.Create("Niềng răng", "Bệnh nhân A", "BS X", "Yêu cầu 1");
+        var done = MaterialRequest.Create("Trồng Implant", "Bệnh nhân B", "BS Y", "Yêu cầu 2");
         done.MarkDone("staff1");
         _db.MaterialRequests.AddRange(pending, done);
         await _db.SaveChangesAsync();
@@ -103,8 +103,8 @@ public class GetMaterialRequestsHandlerTests
     [Test]
     public async Task HandleAsync_WhitespaceStatusFilter_IgnoresFilterAndReturnsAll()
     {
-        var pending = MaterialRequest.Create(Guid.NewGuid(), "Niềng răng", "Bệnh nhân A", "BS X", "Yêu cầu 1");
-        var done = MaterialRequest.Create(Guid.NewGuid(), "Trồng Implant", "Bệnh nhân B", "BS Y", "Yêu cầu 2");
+        var pending = MaterialRequest.Create("Niềng răng", "Bệnh nhân A", "BS X", "Yêu cầu 1");
+        var done = MaterialRequest.Create("Trồng Implant", "Bệnh nhân B", "BS Y", "Yêu cầu 2");
         done.MarkDone("staff1");
         _db.MaterialRequests.AddRange(pending, done);
         await _db.SaveChangesAsync();
