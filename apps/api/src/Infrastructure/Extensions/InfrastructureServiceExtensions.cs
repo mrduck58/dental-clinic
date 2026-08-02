@@ -1,23 +1,9 @@
-using DentalClinic.API.Application.UseCases.ActivityLogs;
-using DentalClinic.API.Application.UseCases.AiAnalytics;
-using DentalClinic.API.Application.UseCases.Chat;
-using DentalClinic.API.Application.UseCases.Dashboard;
-using DentalClinic.API.Application.UseCases.StaffDashboard;
-using DentalClinic.API.Application.UseCases.Notifications;
-using DentalClinic.API.Application.UseCases.Appointments;
-using DentalClinic.API.Application.UseCases.Inventory;
-using DentalClinic.API.Application.UseCases.Auth;
-using DentalClinic.API.Application.UseCases.ClinicInfo;
+using DentalClinic.API.Application.UseCases.Booking;
+using DentalClinic.API.Application.UseCases.Dentists;
 using DentalClinic.API.Application.UseCases.Invoices;
+using DentalClinic.API.Application.UseCases.Queue;
+using DentalClinic.API.Application.UseCases.Patients;
 using DentalClinic.API.Application.UseCases.Payments;
-using DentalClinic.API.Application.UseCases.Medicines;
-using DentalClinic.API.Application.UseCases.Feedbacks;
-using DentalClinic.API.Application.UseCases.LeaveRequests;
-using DentalClinic.API.Application.UseCases.Posts;
-using DentalClinic.API.Application.UseCases.Promotions;
-using DentalClinic.API.Application.UseCases.Rooms;
-using DentalClinic.API.Application.UseCases.Schedules;
-using DentalClinic.API.Application.UseCases.Services;
 using DentalClinic.API.Application.UseCases.Staff;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
@@ -63,6 +49,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IAppointmentRepository, AppointmentRepository>();
         services.AddScoped<IPatientRepository, PatientRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IStaffRepository, StaffRepository>();
         services.AddScoped<IOtpRepository, OtpRepository>();
         services.AddScoped<IServiceRepository, ServiceRepository>();
         services.AddScoped<IPostRepository, PostRepository>();
@@ -77,6 +64,17 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IClinicInfoRepository, ClinicInfoRepository>();
         services.AddScoped<IActivityLogRepository, ActivityLogRepository>();
         services.AddScoped<INotificationRepository, NotificationRepository>();
+        services.AddScoped<IChatConversationRepository, ChatConversationRepository>();
+        services.AddScoped<IChatMessageRepository, ChatMessageRepository>();
+        services.AddScoped<IAiUsageLogRepository, AiUsageLogRepository>();
+        services.AddScoped<IMaterialRequestRepository, MaterialRequestRepository>();
+        services.AddScoped<ITreatmentProcedureRepository, TreatmentProcedureRepository>();
+        services.AddScoped<IDentistRepository, DentistRepository>();
+        services.AddScoped<IDentistReviewRepository, DentistReviewRepository>();
+        services.AddScoped<IDiagnosisRepository, DiagnosisRepository>();
+        services.AddScoped<IPrescriptionRepository, PrescriptionRepository>();
+        services.AddScoped<IPrescriptionItemRepository, PrescriptionItemRepository>();
+        services.AddScoped<ITreatmentPlanRepository, TreatmentPlanRepository>();
 
         // ── Services ────────────────────────────────────────────────────────
         services.AddScoped<IJwtService, JwtService>();
@@ -100,120 +98,27 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IAiChatService, GeminiChatService>();
 
         // ── Use Case Handlers ────────────────────────────────────────────────
-        // Auth handlers now auto-registered by MediatR (implement IRequestHandler<,>).
-        services.AddScoped<ToggleAccountStatusHandler>();
-
+        // Auth, Staff, Feedbacks, Posts, Services, Inventory, Medicines, Schedules,
+        // Promotions, LeaveRequests, Rooms, ClinicInfo, Chat, AiAnalytics, ActivityLogs,
+        // Notifications, Patients, StaffDashboard and (từ đợt này) Booking/Queue/ClinicalRecords/
+        // AiAssist/Reminders/DentistDashboard/Dentists handlers are now auto-registered by
+        // MediatR (implement IRequestHandler<,>). Remaining registrations below are for
+        // the "god-handlers" Invoice/Payment/Dashboard — deferred to a later refactor phase.
         services.AddScoped<GetStaffHandler>();
-        services.AddScoped<GetDentistsHandler>();
-        services.AddScoped<GetDentistDetailHandler>();
-        services.AddScoped<CreateStaffHandler>();
-        services.AddScoped<UpdateStaffHandler>();
-        services.AddScoped<ResetStaffPasswordHandler>();
-        services.AddScoped<CreateStaffAccountHandler>();
+        services.AddScoped<PatientAccessHelper>();
 
-        services.AddScoped<GetFeedbacksHandler>();
-        services.AddScoped<GetFeedbackByIdHandler>();
-        services.AddScoped<CreateFeedbackHandler>();
-        services.AddScoped<ApproveFeedbackHandler>();
-        services.AddScoped<HideFeedbackHandler>();
-        services.AddScoped<ReplyFeedbackHandler>();
-        services.AddScoped<GenerateFeedbackReplyHandler>();
-
-        services.AddScoped<GetPostsHandler>();
-        services.AddScoped<GetPostByIdHandler>();
-        services.AddScoped<CreatePostHandler>();
-        services.AddScoped<UpdatePostHandler>();
-        services.AddScoped<DeletePostHandler>();
-        services.AddScoped<GenerateMarketingContentHandler>();
-
-        services.AddScoped<GetServicesHandler>();
-        services.AddScoped<GetServiceByIdHandler>();
-        services.AddScoped<CreateServiceHandler>();
-        services.AddScoped<UpdateServiceHandler>();
-        services.AddScoped<DeleteServiceHandler>();
-        services.AddScoped<ToggleServiceStatusHandler>();
-
-        services.AddScoped<GetSupplyItemsHandler>();
-        services.AddScoped<GetSupplyTransactionsHandler>();
-        services.AddScoped<CreateSupplyItemHandler>();
-        services.AddScoped<CreateSupplyTransactionHandler>();
-        services.AddScoped<GetMaterialRequestsHandler>();
-        services.AddScoped<CreateMaterialRequestHandler>();
-        services.AddScoped<MarkMaterialRequestDoneHandler>();
-        services.AddScoped<StockImportHandler>();
-
-        services.AddScoped<GetMedicinesHandler>();
-        services.AddScoped<GetMedicineByIdHandler>();
-        services.AddScoped<CreateMedicineHandler>();
-        services.AddScoped<UpdateMedicineHandler>();
-        services.AddScoped<DeleteMedicineHandler>();
-
-        services.AddScoped<GetWeekScheduleHandler>();
-        services.AddScoped<SaveWeekScheduleHandler>();
-        services.AddScoped<GetMyScheduleHandler>();
-
-        services.AddScoped<GetPromotionsHandler>();
-        services.AddScoped<GetPromotionByIdHandler>();
-        services.AddScoped<CreatePromotionHandler>();
-        services.AddScoped<UpdatePromotionHandler>();
-        services.AddScoped<DeletePromotionHandler>();
-        services.AddScoped<TogglePromotionStatusHandler>();
-
-        services.AddScoped<GetLeaveRequestsHandler>();
-        services.AddScoped<GetMyLeaveRequestsHandler>();
-        services.AddScoped<GetLeaveRequestByIdHandler>();
-        services.AddScoped<CreateLeaveRequestHandler>();
-        services.AddScoped<ApproveLeaveRequestHandler>();
-        services.AddScoped<RejectLeaveRequestHandler>();
-        services.AddScoped<CancelLeaveRequestHandler>();
-      
+        // 3 handler dưới đây ĐÃ là MediatR handler nhưng vẫn cần đăng ký theo KIỂU CỤ THỂ vì đang
+        // được inject trực tiếp (không qua ISender) ở nơi khác:
+        //  - GetDentistSlotsHandler, CreateAppointmentHandler, CancelAppointmentHandler → SendChatMessageHandler
+        //  - GetWaitingQueueHandler → GetPatientQueueHandler (phải dùng đúng thuật toán đánh số hàng đợi)
         services.AddScoped<GetDentistSlotsHandler>();
         services.AddScoped<CreateAppointmentHandler>();
-        services.AddScoped<GetMyAppointmentsHandler>();
-        services.AddScoped<GetAllAppointmentsHandler>();
+        services.AddScoped<CancelAppointmentHandler>();
         services.AddScoped<GetWaitingQueueHandler>();
-        services.AddScoped<GetPatientQueueHandler>();
-        services.AddScoped<TransferQueuePatientHandler>();
-        services.AddScoped<ReorderQueuePatientHandler>();
-        services.AddScoped<GetDentistPatientsHandler>();
-        services.AddScoped<DentistDashboardHandler>();
-        services.AddScoped<UpdateAppointmentStatusHandler>();
-        services.AddScoped<GetExaminationHandler>();
-        services.AddScoped<DiagnosisHandler>();
-        services.AddScoped<TreatmentPlanHandler>();
-        services.AddScoped<TreatmentProcedureHandler>();
-        services.AddScoped<PrescriptionHandler>();
-        services.AddScoped<GetMedicationRemindersHandler>();
-        services.AddScoped<DentistReviewHandler>();
-        services.AddScoped<FollowUpReminderHandler>();
-        services.AddScoped<GetStaffScheduleHandler>();
-        services.AddScoped<CreateWalkInAppointmentHandler>();
-        services.AddScoped<SummarizePatientHistoryHandler>();
-        services.AddScoped<SuggestTreatmentHandler>();
-        services.AddScoped<SuggestPrescriptionHandler>();
 
-        services.AddScoped<GetRoomsHandler>();
-        services.AddScoped<GetRoomByIdHandler>();
-        services.AddScoped<CreateRoomHandler>();
-        services.AddScoped<UpdateRoomHandler>();
-        services.AddScoped<DeleteRoomHandler>();
-        services.AddScoped<ChangeRoomStatusHandler>();
-
-        services.AddScoped<GetClinicInfoHandler>();
-        services.AddScoped<UpdateClinicInfoHandler>();
-
-        services.AddScoped<StartConversationHandler>();
-        services.AddScoped<SendChatMessageHandler>();
-        services.AddScoped<GetMyConversationsHandler>();
-        services.AddScoped<GetConversationMessagesHandler>();
-        services.AddScoped<GetAiAnalyticsHandler>();
-
-        services.AddScoped<GetActivityLogsHandler>();
-        // GetNotificationsHandler is now auto-registered by MediatR (implements IRequestHandler<,>).
-        services.AddScoped<InvoiceHandler>();
-        services.AddScoped<PaymentHandler>();
-        services.AddScoped<DashboardHandler>();
-        services.AddScoped<StaffDashboardHandler>();
+        services.AddScoped<InvoiceQueryHelper>();
+        services.AddScoped<IPaymentConfirmationService, PaymentConfirmationService>();
+        services.AddScoped<DentalClinic.API.Application.UseCases.ClinicalRecords.TreatmentPlanQueryHelper>();
 
         return services;
     }

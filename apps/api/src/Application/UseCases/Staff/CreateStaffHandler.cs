@@ -2,7 +2,7 @@ using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Validators;
-using DentalClinic.API.Infrastructure.Persistence;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Staff;
 
@@ -33,11 +33,12 @@ public record CreateStaffCommand(
     decimal? BaseSalary,
     string? SalaryUnit,
     decimal? LeaveAccrued,
-    decimal? Allowance);
+    decimal? Allowance) : IRequest<StaffItemDto>;
 
-public class CreateStaffHandler(IUserRepository userRepository, AppDbContext dbContext)
+public class CreateStaffHandler(IUserRepository userRepository)
+    : IRequestHandler<CreateStaffCommand, StaffItemDto>
 {
-    public async Task<StaffItemDto> HandleAsync(CreateStaffCommand command, CancellationToken ct = default)
+    public async Task<StaffItemDto> Handle(CreateStaffCommand command, CancellationToken ct)
     {
         // Validate all fields
         StaffValidator.ValidateCreate(

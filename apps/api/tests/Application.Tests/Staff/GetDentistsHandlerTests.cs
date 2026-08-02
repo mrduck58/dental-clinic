@@ -11,6 +11,7 @@ namespace DentalClinic.API.Application.Tests.Staff;
 public class GetDentistsHandlerTests
 {
     private IUserRepository _userRepo = null!;
+    private IDentistRepository _dentistRepo = null!;
     private GetDentistsHandler _handler = null!;
 
     [SetUp]
@@ -21,7 +22,9 @@ public class GetDentistsHandlerTests
             Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
             Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns((new List<User>().AsReadOnly(), 0));
-        _handler = new GetDentistsHandler(_userRepo);
+        _dentistRepo = Substitute.For<IDentistRepository>();
+        _dentistRepo.GetAllWithUserAsync(Arg.Any<CancellationToken>()).Returns(new List<Dentist>());
+        _handler = new GetDentistsHandler(_userRepo, _dentistRepo);
     }
 
     // ── Query behavior ────────────────────────────────────────────────────────
@@ -33,7 +36,7 @@ public class GetDentistsHandlerTests
     [Test]
     public async Task HandleAsync_CallsRepoWithCorrectParameters()
     {
-        await _handler.HandleAsync();
+        await _handler.Handle(new GetDentistsQuery(), CancellationToken.None);
 
         await _userRepo.Received(1).GetStaffPagedAsync(
             null, null, null, 1, 500, Arg.Any<CancellationToken>());
@@ -45,7 +48,7 @@ public class GetDentistsHandlerTests
     [Test]
     public async Task HandleAsync_EmptyRepo_ReturnsEmptyList()
     {
-        var result = await _handler.HandleAsync();
+        var result = await _handler.Handle(new GetDentistsQuery(), CancellationToken.None);
 
         result.Should().BeEmpty();
     }
@@ -66,7 +69,7 @@ public class GetDentistsHandlerTests
 
         SetRepoData(dentist, doctor, staff, admin);
 
-        var result = (await _handler.HandleAsync()).ToList();
+        var result = (await _handler.Handle(new GetDentistsQuery(), CancellationToken.None)).ToList();
 
         result.Should().HaveCount(2);
         result.Select(r => r.Id).Should().BeEquivalentTo(new[] { dentist.Id, doctor.Id });
@@ -80,7 +83,7 @@ public class GetDentistsHandlerTests
     {
         SetRepoData(User.Create("s1", "staff@test.com", "hash", "Staff"));
 
-        var result = await _handler.HandleAsync();
+        var result = await _handler.Handle(new GetDentistsQuery(), CancellationToken.None);
 
         result.Should().BeEmpty();
     }
@@ -93,7 +96,7 @@ public class GetDentistsHandlerTests
     {
         SetRepoData(User.Create("a1", "admin@test.com", "hash", "Admin"));
 
-        var result = await _handler.HandleAsync();
+        var result = await _handler.Handle(new GetDentistsQuery(), CancellationToken.None);
 
         result.Should().BeEmpty();
     }
@@ -110,7 +113,7 @@ public class GetDentistsHandlerTests
             fullName: "Bác sĩ Nguyễn Văn A");
         SetRepoData(dentist);
 
-        var result = (await _handler.HandleAsync()).Single();
+        var result = (await _handler.Handle(new GetDentistsQuery(), CancellationToken.None)).Single();
 
         result.Id.Should().Be(dentist.Id);
         result.FullName.Should().Be("Bác sĩ Nguyễn Văn A");
@@ -126,7 +129,7 @@ public class GetDentistsHandlerTests
         var d2 = User.Create("d2", "d2@test.com", "hash", "Doctor", fullName: "Bác sĩ B");
         SetRepoData(d1, d2);
 
-        var result = (await _handler.HandleAsync()).ToList();
+        var result = (await _handler.Handle(new GetDentistsQuery(), CancellationToken.None)).ToList();
 
         result.Should().HaveCount(2);
         result[0].FullName.Should().Be("Bác sĩ A");

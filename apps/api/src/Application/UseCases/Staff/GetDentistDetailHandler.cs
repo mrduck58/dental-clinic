@@ -1,6 +1,5 @@
-using DentalClinic.API.Domain.Enums;
-using DentalClinic.API.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
+using DentalClinic.API.Domain.Interfaces.Repositories;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Staff;
 
@@ -15,22 +14,19 @@ public record DentistDetailDto(
     string? CertificateIssuedBy,
     int PatientCount);
 
-public class GetDentistDetailHandler(AppDbContext dbContext)
+public record GetDentistDetailQuery(Guid DentistId) : IRequest<DentistDetailDto?>;
+
+public class GetDentistDetailHandler(
+    IDentistRepository dentistRepository,
+    IAppointmentRepository appointmentRepository)
+    : IRequestHandler<GetDentistDetailQuery, DentistDetailDto?>
 {
-    public async Task<DentistDetailDto?> HandleAsync(Guid dentistId, CancellationToken ct = default)
+    public async Task<DentistDetailDto?> Handle(GetDentistDetailQuery request, CancellationToken ct)
     {
-        var dentist = await dbContext.Dentists
-            .AsNoTracking()
-            .Include(d => d.User)
-            .FirstOrDefaultAsync(d => d.Id == dentistId || d.UserId == dentistId, ct);
+        var dentist = await dentistRepository.GetByIdOrUserIdAsync(request.DentistId, ct);
         if (dentist is null) return null;
 
-        var patientCount = await dbContext.Appointments
-            .Where(a => a.DentistId == dentist.Id &&
-                        (a.Status == AppointmentStatus.Completed || a.Status == AppointmentStatus.PendingPayment))
-            .Select(a => a.PatientId)
-            .Distinct()
-            .CountAsync(ct);
+        var patientCount = await appointmentRepository.CountDistinctPatientsWithCompletedVisitAsync(dentist.Id, ct);
 
         return new DentistDetailDto(
             dentist.Id,

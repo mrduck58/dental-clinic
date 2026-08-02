@@ -1,5 +1,5 @@
-using DentalClinic.API.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
+using DentalClinic.API.Domain.Interfaces.Repositories;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.AiAnalytics;
 
@@ -18,17 +18,23 @@ public record AiAnalyticsDto(
     List<AiFeatureUsageDto> UsageByFeature,
     List<AiDailyUsageDto> DailyUsage);
 
+/// <summary><paramref name="RangeDays"/> = null nghĩa là lấy TẤT CẢ dữ liệu từ trước tới nay
+/// (không lọc theo thời gian) — dùng cho tùy chọn "Tất cả" trên UI.</summary>
+public record GetAiAnalyticsQuery(int? RangeDays = 14) : IRequest<AiAnalyticsDto>;
+
 /// <summary>
 /// Tổng hợp số liệu vận hành cho toàn bộ tính năng AI trong hệ thống (chatbot, tóm tắt bệnh án, soạn
 /// nội dung marketing), phục vụ trang thống kê cho Admin. Không hiển thị nội dung hội thoại/prompt —
 /// chỉ số liệu tổng hợp (số lượng, tỷ lệ, thời gian phản hồi) để bảo vệ thông tin bệnh nhân.
 /// </summary>
-public class GetAiAnalyticsHandler(AppDbContext dbContext)
+public class GetAiAnalyticsHandler(
+    IChatConversationRepository chatConversationRepository,
+    IChatMessageRepository chatMessageRepository,
+    IAiUsageLogRepository aiUsageLogRepository) : IRequestHandler<GetAiAnalyticsQuery, AiAnalyticsDto>
 {
-    /// <summary><paramref name="rangeDays"/> = null nghĩa là lấy TẤT CẢ dữ liệu từ trước tới nay
-    /// (không lọc theo thời gian) — dùng cho tùy chọn "Tất cả" trên UI.</summary>
-    public async Task<AiAnalyticsDto> HandleAsync(int? rangeDays = 14, CancellationToken ct = default)
+    public async Task<AiAnalyticsDto> Handle(GetAiAnalyticsQuery request, CancellationToken ct)
     {
+        var rangeDays = request.RangeDays;
         if (rangeDays.HasValue)
         {
             rangeDays = Math.Clamp(rangeDays.Value, 1, 90);
@@ -37,16 +43,13 @@ public class GetAiAnalyticsHandler(AppDbContext dbContext)
             ? DateTimeOffset.UtcNow.AddDays(-rangeDays.Value)
             : DateTimeOffset.MinValue;
 
-        var totalConversations = await dbContext.ChatConversations.CountAsync(c => c.CreatedAt >= since, ct);
+        var totalConversations = await chatConversationRepository.CountCreatedSinceAsync(since, ct);
 
-        var assistantMessages = await dbContext.ChatMessages
-            .Where(m => m.CreatedAt >= since && m.Role == "assistant")
-            .ToListAsync(ct);
-        var totalUserMessages = await dbContext.ChatMessages
-            .CountAsync(m => m.CreatedAt >= since && m.Role == "user", ct);
+        var assistantMessages = await chatMessageRepository.GetAssistantMessagesSinceAsync(since, ct);
+        var totalUserMessages = await chatMessageRepository.CountByRoleSinceAsync("user", since, ct);
         var totalMessages = assistantMessages.Count + totalUserMessages;
 
-        var usageLogs = await dbContext.AiUsageLogs.Where(l => l.CreatedAt >= since).ToListAsync(ct);
+        var usageLogs = await aiUsageLogRepository.GetSinceAsync(since, ct);
 
         var usageByFeature = usageLogs
             .GroupBy(l => l.Feature)

@@ -1,4 +1,5 @@
-using DentalClinic.API.Application.UseCases.Appointments;
+using DentalClinic.API.Application.UseCases.Booking;
+using DentalClinic.API.Application.UseCases.Dentists;
 using DentalClinic.API.Application.UseCases.Chat;
 using DentalClinic.API.Application.UseCases.Staff;
 using DentalClinic.API.Domain.Entities;
@@ -6,6 +7,7 @@ using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -84,17 +86,18 @@ public class SendChatMessageHandlerTests
         currentUserService.UserRole.Returns("Patient");
         currentUserService.UserId.Returns(_userId);
 
-        var getDentistsHandler = new GetDentistsHandler(_userRepo);
+        var getDentistsHandler = new GetDentistsHandler(_userRepo, new DentistRepository(_db));
         var getDentistSlotsHandler = new GetDentistSlotsHandler(_db, _appointmentRepo);
         var createAppointmentHandler = new CreateAppointmentHandler(
             _appointmentRepo, _patientRepo, _userRepo,
             Substitute.For<IServiceRepository>(), Substitute.For<INotificationService>());
-        var updateAppointmentStatusHandler = new UpdateAppointmentStatusHandler(
+        var cancelAppointmentHandler = new CancelAppointmentHandler(
             _appointmentRepo, Substitute.For<IActivityLogService>(), Substitute.For<INotificationService>(),
             currentUserService, _patientRepo);
         _handler = new SendChatMessageHandler(
             _patientRepo, _clinicInfoRepo, getDentistsHandler, getDentistSlotsHandler,
-            createAppointmentHandler, updateAppointmentStatusHandler, _aiChatService, _db,
+            createAppointmentHandler, cancelAppointmentHandler, _aiChatService,
+            new ChatConversationRepository(_db), new ChatMessageRepository(_db), _db,
             NullLogger<SendChatMessageHandler>.Instance);
     }
 
@@ -147,7 +150,8 @@ public class SendChatMessageHandlerTests
         _db.Promotions.AddRange(activePromo, expiredPromo);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(_userId, _conversation.Id, "Có ưu đãi gì không?");
+        var result = await _handler.Handle(
+            new SendChatMessageCommand(_userId, _conversation.Id, "Có ưu đãi gì không?"), CancellationToken.None);
 
         result.Reply.Should().Be("Câu trả lời test");
         result.SuggestBooking.Should().BeFalse();
@@ -176,7 +180,8 @@ public class SendChatMessageHandlerTests
         _aiChatService.AskAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .ThrowsAsync(new HttpRequestException("Gemini 503"));
 
-        var result = await _handler.HandleAsync(_userId, _conversation.Id, "Phòng khám mở cửa mấy giờ?");
+        var result = await _handler.Handle(
+            new SendChatMessageCommand(_userId, _conversation.Id, "Phòng khám mở cửa mấy giờ?"), CancellationToken.None);
 
         result.SuggestBooking.Should().BeFalse();
         result.Reply.Should().Contain("Xin lỗi");
@@ -191,10 +196,12 @@ public class SendChatMessageHandlerTests
     [Test]
     public async Task HandleAsync_EmptyOrTooLongMessage_ThrowsValidationWithoutCallingAi()
     {
-        var actEmpty = () => _handler.HandleAsync(_userId, _conversation.Id, "   ");
+        var actEmpty = () => _handler.Handle(
+            new SendChatMessageCommand(_userId, _conversation.Id, "   "), CancellationToken.None);
         await actEmpty.Should().ThrowAsync<ValidationException>();
 
-        var actTooLong = () => _handler.HandleAsync(_userId, _conversation.Id, new string('a', 2001));
+        var actTooLong = () => _handler.Handle(
+            new SendChatMessageCommand(_userId, _conversation.Id, new string('a', 2001)), CancellationToken.None);
         await actTooLong.Should().ThrowAsync<ValidationException>();
 
         await _aiChatService.DidNotReceive().AskAsync(
@@ -210,7 +217,8 @@ public class SendChatMessageHandlerTests
         }
         await _db.SaveChangesAsync();
 
-        var act = () => _handler.HandleAsync(_userId, _conversation.Id, "tin nhắn thứ 11");
+        var act = () => _handler.Handle(
+            new SendChatMessageCommand(_userId, _conversation.Id, "tin nhắn thứ 11"), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
         await _aiChatService.DidNotReceive().AskAsync(
@@ -220,7 +228,8 @@ public class SendChatMessageHandlerTests
     [Test]
     public async Task HandleAsync_EnglishLanguage_InstructsBotToReplyInEnglish()
     {
-        await _handler.HandleAsync(_userId, _conversation.Id, "What are your opening hours?", language: "en");
+        await _handler.Handle(
+            new SendChatMessageCommand(_userId, _conversation.Id, "What are your opening hours?", "en"), CancellationToken.None);
 
         await _aiChatService.Received(1).AskAsync(
             Arg.Is<string>(s => s.Contains("tiếng Anh")),
@@ -237,7 +246,8 @@ public class SendChatMessageHandlerTests
     {
         await SeedDentistWithScheduleAsync(TomorrowVn());
 
-        await _handler.HandleAsync(_userId, _conversation.Id, "Ngày mai còn giờ nào trống?");
+        await _handler.Handle(
+            new SendChatMessageCommand(_userId, _conversation.Id, "Ngày mai còn giờ nào trống?"), CancellationToken.None);
 
         await _aiChatService.Received(1).AskAsync(
             Arg.Is<string>(s =>
@@ -266,7 +276,8 @@ public class SendChatMessageHandlerTests
                 ConfirmBooking: true,
                 PreferredTime: new TimeOnly(8, 0)));
 
-        var result = await _handler.HandleAsync(_userId, _conversation.Id, "Đồng ý, đặt giúp tôi");
+        var result = await _handler.Handle(
+            new SendChatMessageCommand(_userId, _conversation.Id, "Đồng ý, đặt giúp tôi"), CancellationToken.None);
 
         result.BookingCreated.Should().BeTrue();
         result.AppointmentCode.Should().NotBeNullOrEmpty();
@@ -309,7 +320,8 @@ public class SendChatMessageHandlerTests
                 ConfirmBooking: true,
                 PreferredTime: new TimeOnly(8, 0)));
 
-        var result = await _handler.HandleAsync(_userId, _conversation.Id, "Đồng ý, đặt giúp tôi");
+        var result = await _handler.Handle(
+            new SendChatMessageCommand(_userId, _conversation.Id, "Đồng ý, đặt giúp tôi"), CancellationToken.None);
 
         result.BookingCreated.Should().BeFalse();
         result.AppointmentCode.Should().BeNull();
@@ -334,7 +346,8 @@ public class SendChatMessageHandlerTests
                 ConfirmBooking: true,
                 PreferredTime: new TimeOnly(8, 0)));
 
-        var result = await _handler.HandleAsync(_userId, _conversation.Id, "Đồng ý");
+        var result = await _handler.Handle(
+            new SendChatMessageCommand(_userId, _conversation.Id, "Đồng ý"), CancellationToken.None);
 
         result.BookingCreated.Should().BeFalse();
         result.SuggestBooking.Should().BeTrue();
@@ -373,7 +386,8 @@ public class SendChatMessageHandlerTests
                 PreferredTime: new TimeOnly(8, 0),
                 PatientNameHint: "Bé Bún"));
 
-        var result = await _handler.HandleAsync(_userId, _conversation.Id, "Đồng ý, đặt cho bé Bún giúp tôi");
+        var result = await _handler.Handle(
+            new SendChatMessageCommand(_userId, _conversation.Id, "Đồng ý, đặt cho bé Bún giúp tôi"), CancellationToken.None);
 
         result.BookingCreated.Should().BeTrue();
         result.Reply.Should().Contain("Bé Bún");
@@ -401,7 +415,8 @@ public class SendChatMessageHandlerTests
                 ConfirmCancel: true,
                 CancelAppointmentCodeHint: code));
 
-        var result = await _handler.HandleAsync(_userId, _conversation.Id, "Đồng ý, hủy giúp tôi");
+        var result = await _handler.Handle(
+            new SendChatMessageCommand(_userId, _conversation.Id, "Đồng ý, hủy giúp tôi"), CancellationToken.None);
 
         result.BookingCancelled.Should().BeTrue();
         result.AppointmentCode.Should().Be(code);
@@ -429,7 +444,8 @@ public class SendChatMessageHandlerTests
                 ConfirmCancel: true,
                 CancelAppointmentCodeHint: "DK00000000FFFFFF"));
 
-        var result = await _handler.HandleAsync(_userId, _conversation.Id, "Đồng ý, hủy giúp tôi");
+        var result = await _handler.Handle(
+            new SendChatMessageCommand(_userId, _conversation.Id, "Đồng ý, hủy giúp tôi"), CancellationToken.None);
 
         result.BookingCancelled.Should().BeFalse();
 
@@ -465,7 +481,8 @@ public class SendChatMessageHandlerTests
                 ConfirmReschedule: true,
                 RescheduleAppointmentCodeHint: originalCode));
 
-        var result = await _handler.HandleAsync(_userId, _conversation.Id, "Đồng ý, dời sang ngày kia giúp tôi");
+        var result = await _handler.Handle(
+            new SendChatMessageCommand(_userId, _conversation.Id, "Đồng ý, dời sang ngày kia giúp tôi"), CancellationToken.None);
 
         result.BookingRescheduled.Should().BeTrue();
         result.AppointmentCode.Should().NotBeNullOrEmpty();
@@ -501,7 +518,8 @@ public class SendChatMessageHandlerTests
                 ConfirmReschedule: true,
                 RescheduleAppointmentCodeHint: "DK00000000FFFFFF"));
 
-        var result = await _handler.HandleAsync(_userId, _conversation.Id, "Đồng ý, dời giúp tôi");
+        var result = await _handler.Handle(
+            new SendChatMessageCommand(_userId, _conversation.Id, "Đồng ý, dời giúp tôi"), CancellationToken.None);
 
         result.BookingRescheduled.Should().BeFalse();
 
@@ -518,7 +536,8 @@ public class SendChatMessageHandlerTests
     {
         _patientRepo.GetByUserIdAsync(_userId, Arg.Any<CancellationToken>()).Returns((Patient?)null);
 
-        var act = () => _handler.HandleAsync(_userId, _conversation.Id, "Xin chào");
+        var act = () => _handler.Handle(
+            new SendChatMessageCommand(_userId, _conversation.Id, "Xin chào"), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
         await _aiChatService.DidNotReceive().AskAsync(
@@ -529,7 +548,8 @@ public class SendChatMessageHandlerTests
     [Test]
     public async Task HandleAsync_ConversationNotFound_ThrowsNotFoundException()
     {
-        var act = () => _handler.HandleAsync(_userId, Guid.NewGuid(), "Xin chào");
+        var act = () => _handler.Handle(
+            new SendChatMessageCommand(_userId, Guid.NewGuid(), "Xin chào"), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
         await _aiChatService.DidNotReceive().AskAsync(
@@ -547,7 +567,8 @@ public class SendChatMessageHandlerTests
         _db.ChatConversations.Add(otherConversation);
         await _db.SaveChangesAsync();
 
-        var act = () => _handler.HandleAsync(_userId, otherConversation.Id, "Xin chào");
+        var act = () => _handler.Handle(
+            new SendChatMessageCommand(_userId, otherConversation.Id, "Xin chào"), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
         await _aiChatService.DidNotReceive().AskAsync(
