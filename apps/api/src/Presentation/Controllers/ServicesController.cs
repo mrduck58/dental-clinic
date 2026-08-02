@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.DTOs.Services;
 using DentalClinic.API.Application.UseCases.Services;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -7,14 +8,7 @@ namespace DentalClinic.API.Presentation.Controllers;
 
 [ApiController]
 [Route("api/services")]
-public class ServicesController(
-    GetServicesHandler getServices,
-    GetServiceByIdHandler getById,
-    CreateServiceHandler create,
-    UpdateServiceHandler update,
-    DeleteServiceHandler delete,
-    ToggleServiceStatusHandler toggleStatus,
-    TreatmentProcedureHandler treatmentProcedures) : ControllerBase
+public class ServicesController(ISender sender) : ControllerBase
 {
     /// <summary>GET api/services — Lấy danh sách dịch vụ (có filter)</summary>
     [HttpGet]
@@ -24,7 +18,7 @@ public class ServicesController(
         [FromQuery] string? search,
         CancellationToken ct)
     {
-        var result = await getServices.HandleAsync(status, search, ct);
+        var result = await sender.Send(new GetServicesQuery(status, search), ct);
         return Ok(result);
     }
 
@@ -33,7 +27,7 @@ public class ServicesController(
     [AllowAnonymous]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
-        var result = await getById.HandleAsync(id, ct);
+        var result = await sender.Send(new GetServiceByIdQuery(id), ct);
         return Ok(result);
     }
 
@@ -42,7 +36,9 @@ public class ServicesController(
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Create([FromBody] CreateServiceRequest request, CancellationToken ct)
     {
-        var result = await create.HandleAsync(request, ct);
+        var result = await sender.Send(
+            new CreateServiceCommand(request.Name, request.Price, request.DurationMinutes, request.Description, request.ImageUrl, request.IconUrl),
+            ct);
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
 
@@ -51,7 +47,9 @@ public class ServicesController(
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateServiceRequest request, CancellationToken ct)
     {
-        var result = await update.HandleAsync(id, request, ct);
+        var result = await sender.Send(
+            new UpdateServiceCommand(id, request.Name, request.Price, request.DurationMinutes, request.Description, request.ImageUrl, request.IconUrl),
+            ct);
         return Ok(result);
     }
 
@@ -60,7 +58,7 @@ public class ServicesController(
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
-        await delete.HandleAsync(id, ct);
+        await sender.Send(new DeleteServiceCommand(id), ct);
         return Ok(new { message = "Đã xóa dịch vụ." });
     }
 
@@ -69,7 +67,7 @@ public class ServicesController(
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> ToggleStatus(Guid id, CancellationToken ct)
     {
-        var result = await toggleStatus.HandleAsync(id, ct);
+        var result = await sender.Send(new ToggleServiceStatusCommand(id), ct);
         return Ok(result);
     }
 
@@ -78,7 +76,7 @@ public class ServicesController(
     [Authorize(Roles = "Admin,Dentist,Staff,Owner")]
     public async Task<IActionResult> GetProcedures(Guid id, CancellationToken ct)
     {
-        var result = await treatmentProcedures.GetByServiceAsync(id, ct);
+        var result = await sender.Send(new GetTreatmentProceduresQuery(id), ct);
         return Ok(result);
     }
 
@@ -90,7 +88,7 @@ public class ServicesController(
         [FromBody] List<ProcedureStepRequest> steps,
         CancellationToken ct)
     {
-        var result = await treatmentProcedures.ReplaceForServiceAsync(id, steps, ct);
+        var result = await sender.Send(new ReplaceTreatmentProceduresCommand(id, steps), ct);
         return Ok(result);
     }
 }

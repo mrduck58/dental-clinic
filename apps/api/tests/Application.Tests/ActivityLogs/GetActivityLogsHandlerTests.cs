@@ -47,7 +47,8 @@ public class GetActivityLogsHandlerTests
         var logs = new List<ActivityLog> { MakeLog(), MakeLog() };
         SetupRepo(logs, total: 2);
 
-        var result = await _handler.HandleAsync(new GetActivityLogsQuery(null, null, null, null, null, null, null));
+        var result = await _handler.Handle(
+            new GetActivityLogsQuery(null, null, null, null, null, null, null), CancellationToken.None);
 
         result.Items.Should().HaveCount(2);
         result.TotalCount.Should().Be(2);
@@ -64,8 +65,8 @@ public class GetActivityLogsHandlerTests
     {
         SetupRepo(Enumerable.Repeat(MakeLog(), 10).ToList(), total: 15);
 
-        var result = await _handler.HandleAsync(
-            new GetActivityLogsQuery(null, null, null, null, null, null, null, Page: 1, PageSize: 10));
+        var result = await _handler.Handle(
+            new GetActivityLogsQuery(null, null, null, null, null, null, null, Page: 1, PageSize: 10), CancellationToken.None);
 
         result.TotalPages.Should().Be(2);
         result.TotalCount.Should().Be(15);
@@ -80,8 +81,8 @@ public class GetActivityLogsHandlerTests
     {
         SetupRepo(Enumerable.Repeat(MakeLog(), 10).ToList(), total: 20);
 
-        var result = await _handler.HandleAsync(
-            new GetActivityLogsQuery(null, null, null, null, null, null, null, Page: 1, PageSize: 10));
+        var result = await _handler.Handle(
+            new GetActivityLogsQuery(null, null, null, null, null, null, null, Page: 1, PageSize: 10), CancellationToken.None);
 
         result.TotalPages.Should().Be(2);
     }
@@ -92,8 +93,8 @@ public class GetActivityLogsHandlerTests
     [Test]
     public async Task HandleAsync_CustomPageAndPageSize_PassedToRepository()
     {
-        await _handler.HandleAsync(
-            new GetActivityLogsQuery(null, null, null, null, null, null, null, Page: 3, PageSize: 50));
+        await _handler.Handle(
+            new GetActivityLogsQuery(null, null, null, null, null, null, null, Page: 3, PageSize: 50), CancellationToken.None);
 
         await _repo.Received(1).GetPagedAsync(
             Arg.Any<Guid?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
@@ -107,8 +108,8 @@ public class GetActivityLogsHandlerTests
     [Test]
     public async Task HandleAsync_PageSizeAbove100_ClampedTo100()
     {
-        await _handler.HandleAsync(
-            new GetActivityLogsQuery(null, null, null, null, null, null, null, Page: 1, PageSize: 9999));
+        await _handler.Handle(
+            new GetActivityLogsQuery(null, null, null, null, null, null, null, Page: 1, PageSize: 9999), CancellationToken.None);
 
         await _repo.Received(1).GetPagedAsync(
             Arg.Any<Guid?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
@@ -122,8 +123,8 @@ public class GetActivityLogsHandlerTests
     [Test]
     public async Task HandleAsync_PageSizeZeroOrNegative_ClampedTo1()
     {
-        await _handler.HandleAsync(
-            new GetActivityLogsQuery(null, null, null, null, null, null, null, Page: 1, PageSize: 0));
+        await _handler.Handle(
+            new GetActivityLogsQuery(null, null, null, null, null, null, null, Page: 1, PageSize: 0), CancellationToken.None);
 
         await _repo.Received(1).GetPagedAsync(
             Arg.Any<Guid?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
@@ -137,8 +138,8 @@ public class GetActivityLogsHandlerTests
     [Test]
     public async Task HandleAsync_PageZeroOrNegative_ClampedTo1()
     {
-        await _handler.HandleAsync(
-            new GetActivityLogsQuery(null, null, null, null, null, null, null, Page: -5, PageSize: 10));
+        await _handler.Handle(
+            new GetActivityLogsQuery(null, null, null, null, null, null, null, Page: -5, PageSize: 10), CancellationToken.None);
 
         await _repo.Received(1).GetPagedAsync(
             Arg.Any<Guid?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
@@ -155,14 +156,14 @@ public class GetActivityLogsHandlerTests
         var start = DateTimeOffset.UtcNow.AddDays(-7);
         var end   = DateTimeOffset.UtcNow;
 
-        await _handler.HandleAsync(new GetActivityLogsQuery(
+        await _handler.Handle(new GetActivityLogsQuery(
             UserId:    null,
             Action:    "create",
             Module:    "account",
             Status:    "success",
             Search:    "admin",
             StartDate: start,
-            EndDate:   end));
+            EndDate:   end), CancellationToken.None);
 
         await _repo.Received(1).GetPagedAsync(
             null, "create", "account", "success", "admin", start, end,
@@ -179,8 +180,8 @@ public class GetActivityLogsHandlerTests
         var log    = MakeLog(userId, "admin@test.com", "Admin", "login", "account", "success");
         SetupRepo(new List<ActivityLog> { log }, total: 1);
 
-        var result = await _handler.HandleAsync(
-            new GetActivityLogsQuery(null, null, null, null, null, null, null));
+        var result = await _handler.Handle(
+            new GetActivityLogsQuery(null, null, null, null, null, null, null), CancellationToken.None);
 
         var dto = result.Items.Single();
         dto.UserId.Should().Be(userId);
@@ -199,8 +200,8 @@ public class GetActivityLogsHandlerTests
     public async Task HandleAsync_EmptyRepository_ReturnsTotalPagesOne()
     {
         // Default SetUp already returns ([], 0)
-        var result = await _handler.HandleAsync(
-            new GetActivityLogsQuery(null, null, null, null, null, null, null, Page: 1, PageSize: 10));
+        var result = await _handler.Handle(
+            new GetActivityLogsQuery(null, null, null, null, null, null, null, Page: 1, PageSize: 10), CancellationToken.None);
 
         result.Items.Should().BeEmpty();
         result.TotalCount.Should().Be(0);
@@ -217,7 +218,8 @@ public class GetActivityLogsHandlerTests
         _currentUser.UserId.Returns(currentUserId);
 
         var requestedUserId = Guid.NewGuid();
-        await _handler.HandleAsync(new GetActivityLogsQuery(requestedUserId, null, null, null, null, null, null));
+        await _handler.Handle(
+            new GetActivityLogsQuery(requestedUserId, null, null, null, null, null, null), CancellationToken.None);
 
         await _repo.Received(1).GetPagedAsync(
             currentUserId, Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
@@ -231,7 +233,8 @@ public class GetActivityLogsHandlerTests
         _currentUser.UserRole.Returns("Admin");
 
         var requestedUserId = Guid.NewGuid();
-        await _handler.HandleAsync(new GetActivityLogsQuery(requestedUserId, null, null, null, null, null, null));
+        await _handler.Handle(
+            new GetActivityLogsQuery(requestedUserId, null, null, null, null, null, null), CancellationToken.None);
 
         await _repo.Received(1).GetPagedAsync(
             requestedUserId, Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
@@ -249,7 +252,8 @@ public class GetActivityLogsHandlerTests
         _currentUser.UserRole.Returns("Owner");
 
         var requestedUserId = Guid.NewGuid();
-        await _handler.HandleAsync(new GetActivityLogsQuery(requestedUserId, null, null, null, null, null, null));
+        await _handler.Handle(
+            new GetActivityLogsQuery(requestedUserId, null, null, null, null, null, null), CancellationToken.None);
 
         await _repo.Received(1).GetPagedAsync(
             requestedUserId, Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
@@ -269,8 +273,8 @@ public class GetActivityLogsHandlerTests
         var endDate = new DateTimeOffset(2024, 1, 15, 0, 0, 0, TimeSpan.Zero);
         var expectedEndDate = endDate.AddDays(1).AddTicks(-1); // 2024-01-15 23:59:59.9999999
 
-        await _handler.HandleAsync(
-            new GetActivityLogsQuery(null, null, null, null, null, null, endDate));
+        await _handler.Handle(
+            new GetActivityLogsQuery(null, null, null, null, null, null, endDate), CancellationToken.None);
 
         await _repo.Received(1).GetPagedAsync(
             Arg.Any<Guid?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
@@ -287,8 +291,8 @@ public class GetActivityLogsHandlerTests
     {
         var endDate = new DateTimeOffset(2024, 1, 15, 14, 30, 0, TimeSpan.Zero);
 
-        await _handler.HandleAsync(
-            new GetActivityLogsQuery(null, null, null, null, null, null, endDate));
+        await _handler.Handle(
+            new GetActivityLogsQuery(null, null, null, null, null, null, endDate), CancellationToken.None);
 
         await _repo.Received(1).GetPagedAsync(
             Arg.Any<Guid?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),

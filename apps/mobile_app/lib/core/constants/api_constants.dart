@@ -1,11 +1,11 @@
-import 'package:flutter/foundation.dart';
+import 'package:mobile_app/app/settings_manager.dart';
 
 abstract class ApiConstants {
-  // Web/desktop → localhost | Android emulator → 10.0.2.2 | iOS simulator → localhost
-  // Điện thoại thật qua cáp USB → localhost (cần chạy `adb reverse tcp:5239 tcp:5239` trước).
-  // ⚠️ Nếu quay lại test bằng Android Emulator, phải đổi lại thành 'http://10.0.2.2:5239/api'.
-  static final String baseUrl =
-      kIsWeb ? 'http://localhost:5239/api' : 'http://localhost:5239/api';
+  // Mặc định (USB/emulator): xem kDefaultApiBaseUrl trong settings_manager.dart.
+  // Có thể đổi runtime qua trang Cài đặt > Địa chỉ máy chủ (vd: test qua Cloudflare
+  // Tunnel) — không cần build lại app. ⚠️ Nếu quay lại test bằng Android Emulator,
+  // đổi giá trị trong Cài đặt thành 'http://10.0.2.2:5239/api'.
+  static String get baseUrl => SettingsManager.instance.apiBaseUrl.value;
 
   static const String login = '/auth/login';
   static const String register = '/auth/register';

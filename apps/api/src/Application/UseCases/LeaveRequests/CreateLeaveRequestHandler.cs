@@ -1,25 +1,27 @@
-﻿using DentalClinic.API.Application.DTOs.LeaveRequests;
+using DentalClinic.API.Application.DTOs.LeaveRequests;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Domain.Constants;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.LeaveRequests;
+
+public record CreateLeaveRequestCommand(Guid UserId, CreateLeaveRequestRequest Request) : IRequest<LeaveRequestDto>;
 
 public class CreateLeaveRequestHandler(
     ILeaveRequestRepository leaveRequestRepository,
     IActivityLogService activityLogService,
     INotificationService notificationService,
     IUserRepository userRepository,
-    ICurrentUserService currentUser)
+    ICurrentUserService currentUser) : IRequestHandler<CreateLeaveRequestCommand, LeaveRequestDto>
 {
-    public async Task<LeaveRequestDto> HandleAsync(
-        Guid userId,
-        CreateLeaveRequestRequest request,
-        CancellationToken ct = default)
+    public async Task<LeaveRequestDto> Handle(CreateLeaveRequestCommand command, CancellationToken ct)
     {
+        var request = command.Request;
+
         if (string.IsNullOrWhiteSpace(request.Reason))
             throw new ValidationException("Lý do nghỉ phép không được để trống.");
 
@@ -31,7 +33,7 @@ public class CreateLeaveRequestHandler(
                 $"Loại nghỉ phép không hợp lệ: '{request.LeaveType}'. " +
                 "Hợp lệ: Annual, Sick, Maternity, Unpaid, Training.");
 
-        var leaveRequest = LeaveRequest.Create(userId, leaveType, request.StartDate, request.EndDate, request.Reason);
+        var leaveRequest = LeaveRequest.Create(command.UserId, leaveType, request.StartDate, request.EndDate, request.Reason);
         await leaveRequestRepository.AddAsync(leaveRequest, ct);
 
         await activityLogService.LogAsync(

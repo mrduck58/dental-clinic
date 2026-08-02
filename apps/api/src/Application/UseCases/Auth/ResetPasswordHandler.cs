@@ -1,12 +1,13 @@
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Auth;
 
-public record ResetPasswordCommand(string Email, string Token, string NewPassword);
+public record ResetPasswordCommand(string Email, string Token, string NewPassword) : IRequest;
 
-public class ResetPasswordHandler(IUserRepository userRepository)
+public class ResetPasswordHandler(IUserRepository userRepository) : IRequestHandler<ResetPasswordCommand>
 {
-    public async Task HandleAsync(ResetPasswordCommand command, CancellationToken ct = default)
+    public async Task Handle(ResetPasswordCommand command, CancellationToken ct)
     {
         var email = command.Email.Trim().ToLower();
         var user = await userRepository.GetByEmailAsync(email, ct)

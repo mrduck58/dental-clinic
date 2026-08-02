@@ -1,4 +1,4 @@
-using DentalClinic.API.Application.UseCases.Appointments;
+using DentalClinic.API.Application.UseCases.Reminders;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
@@ -13,7 +13,11 @@ namespace DentalClinic.API.Infrastructure.Tests.Handlers;
 public class FollowUpReminderHandlerTests
 {
     private AppDbContext _db = null!;
-    private FollowUpReminderHandler _handler = null!;
+    // God-handler FollowUpReminderHandler (4 method) đã tách thành 4 handler MediatR.
+    private SetFollowUpReminderHandler _set = null!;
+    private ClearFollowUpReminderHandler _clear = null!;
+    private GetFollowUpDueHandler _due = null!;
+    private CheckInFollowUpHandler _checkIn = null!;
 
     [SetUp]
     public void SetUp()
@@ -22,7 +26,10 @@ public class FollowUpReminderHandlerTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         _db = new AppDbContext(options);
-        _handler = new FollowUpReminderHandler(_db);
+        _set = new SetFollowUpReminderHandler(_db);
+        _clear = new ClearFollowUpReminderHandler(_db);
+        _due = new GetFollowUpDueHandler(_db);
+        _checkIn = new CheckInFollowUpHandler(_db);
     }
 
     [TearDown]
@@ -48,7 +55,7 @@ public class FollowUpReminderHandlerTests
     {
         var request = new SetFollowUpReminderRequest(DateOnly.FromDateTime(DateTime.Today.AddDays(7)), null);
 
-        Func<Task> act = () => _handler.SetAsync(Guid.NewGuid(), request);
+        Func<Task> act = () => _set.Handle(new SetFollowUpReminderCommand(Guid.NewGuid(), request), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -64,7 +71,7 @@ public class FollowUpReminderHandlerTests
         await _db.SaveChangesAsync();
 
         var request = new SetFollowUpReminderRequest(DateOnly.FromDateTime(DateTime.Today.AddDays(7)), null);
-        Func<Task> act = () => _handler.SetAsync(appointment.Id, request);
+        Func<Task> act = () => _set.Handle(new SetFollowUpReminderCommand(appointment.Id, request), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -80,7 +87,7 @@ public class FollowUpReminderHandlerTests
         await _db.SaveChangesAsync();
 
         var request = new SetFollowUpReminderRequest(DateOnly.FromDateTime(DateTime.Today), null);
-        Func<Task> act = () => _handler.SetAsync(appointment.Id, request);
+        Func<Task> act = () => _set.Handle(new SetFollowUpReminderCommand(appointment.Id, request), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -96,7 +103,7 @@ public class FollowUpReminderHandlerTests
         await _db.SaveChangesAsync();
 
         var followUpDate = DateOnly.FromDateTime(DateTime.Today.AddDays(14));
-        var result = await _handler.SetAsync(appointment.Id, new SetFollowUpReminderRequest(followUpDate, "  Khám lại răng số 6  "));
+        var result = await _set.Handle(new SetFollowUpReminderCommand(appointment.Id, new SetFollowUpReminderRequest(followUpDate, "  Khám lại răng số 6  ")), CancellationToken.None);
 
         result.FollowUpDate.Should().Be(followUpDate);
         result.FollowUpNote.Should().Be("Khám lại răng số 6");
@@ -106,7 +113,7 @@ public class FollowUpReminderHandlerTests
     [Test]
     public async Task ClearAsync_AppointmentNotFound_ThrowsNotFoundException()
     {
-        Func<Task> act = () => _handler.ClearAsync(Guid.NewGuid());
+        Func<Task> act = () => _clear.Handle(new ClearFollowUpReminderCommand(Guid.NewGuid()), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -122,7 +129,7 @@ public class FollowUpReminderHandlerTests
         _db.Appointments.Add(appointment);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.ClearAsync(appointment.Id);
+        var result = await _clear.Handle(new ClearFollowUpReminderCommand(appointment.Id), CancellationToken.None);
 
         result.FollowUpDate.Should().BeNull();
         result.FollowUpNote.Should().BeNull();
@@ -132,7 +139,7 @@ public class FollowUpReminderHandlerTests
     [Test]
     public async Task GetDueAsync_NoActiveTreatmentPlans_ReturnsEmptyList()
     {
-        var result = await _handler.GetDueAsync();
+        var result = await _due.Handle(new GetFollowUpDueQuery(), CancellationToken.None);
 
         result.Should().BeEmpty();
     }
@@ -153,7 +160,7 @@ public class FollowUpReminderHandlerTests
         _db.TreatmentPlans.Add(plan);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.GetDueAsync();
+        var result = await _due.Handle(new GetFollowUpDueQuery(), CancellationToken.None);
 
         result.Should().ContainSingle(x => x.OriginalAppointmentId == appointment.Id && x.PatientId == patient.Id);
     }
@@ -172,9 +179,9 @@ public class FollowUpReminderHandlerTests
         plan.SetStatus(TreatmentPlanStatus.InProgress);
         _db.TreatmentPlans.Add(plan);
         await _db.SaveChangesAsync();
-        await _handler.CheckInAsync(appointment.Id);
+        await _checkIn.Handle(new CheckInFollowUpCommand(appointment.Id), CancellationToken.None);
 
-        var result = await _handler.GetDueAsync();
+        var result = await _due.Handle(new GetFollowUpDueQuery(), CancellationToken.None);
 
         result.Should().NotContain(x => x.OriginalAppointmentId == appointment.Id);
     }
@@ -183,7 +190,7 @@ public class FollowUpReminderHandlerTests
     [Test]
     public async Task CheckInAsync_OriginalAppointmentNotFound_ThrowsNotFoundException()
     {
-        Func<Task> act = () => _handler.CheckInAsync(Guid.NewGuid());
+        Func<Task> act = () => _checkIn.Handle(new CheckInFollowUpCommand(Guid.NewGuid()), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -198,7 +205,7 @@ public class FollowUpReminderHandlerTests
         _db.Appointments.Add(appointment);
         await _db.SaveChangesAsync();
 
-        Func<Task> act = () => _handler.CheckInAsync(appointment.Id);
+        Func<Task> act = () => _checkIn.Handle(new CheckInFollowUpCommand(appointment.Id), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -217,9 +224,9 @@ public class FollowUpReminderHandlerTests
         plan.SetStatus(TreatmentPlanStatus.InProgress);
         _db.TreatmentPlans.Add(plan);
         await _db.SaveChangesAsync();
-        await _handler.CheckInAsync(appointment.Id);
+        await _checkIn.Handle(new CheckInFollowUpCommand(appointment.Id), CancellationToken.None);
 
-        Func<Task> act = () => _handler.CheckInAsync(appointment.Id);
+        Func<Task> act = () => _checkIn.Handle(new CheckInFollowUpCommand(appointment.Id), CancellationToken.None);
 
         await act.Should().ThrowAsync<ConflictException>();
     }
@@ -239,7 +246,7 @@ public class FollowUpReminderHandlerTests
         _db.TreatmentPlans.Add(plan);
         await _db.SaveChangesAsync();
 
-        var newAppointmentId = await _handler.CheckInAsync(appointment.Id);
+        var newAppointmentId = await _checkIn.Handle(new CheckInFollowUpCommand(appointment.Id), CancellationToken.None);
 
         var followUp = await _db.Appointments.SingleAsync(a => a.Id == newAppointmentId);
         followUp.Status.Should().Be(AppointmentStatus.CheckedIn);

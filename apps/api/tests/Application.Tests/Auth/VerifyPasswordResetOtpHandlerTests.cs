@@ -30,7 +30,7 @@ public class VerifyPasswordResetOtpHandlerTests
         _otpRepo.GetLatestValidAsync(Arg.Any<string>(), OtpPurpose.PasswordReset, Arg.Any<CancellationToken>())
             .Returns((OtpCode?)null);
 
-        Func<Task> act = () => _handler.HandleAsync(new VerifyPasswordResetOtpCommand("test@test.com", "123456"));
+        Func<Task> act = () => _handler.Handle(new VerifyPasswordResetOtpCommand("test@test.com", "123456"), CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
     }
@@ -42,7 +42,7 @@ public class VerifyPasswordResetOtpHandlerTests
         var otp = OtpCode.Create("test@test.com", OtpPurpose.PasswordReset);
         _otpRepo.GetLatestValidAsync("test@test.com", OtpPurpose.PasswordReset, Arg.Any<CancellationToken>()).Returns(otp);
 
-        Func<Task> act = () => _handler.HandleAsync(new VerifyPasswordResetOtpCommand("test@test.com", "wrong-code"));
+        Func<Task> act = () => _handler.Handle(new VerifyPasswordResetOtpCommand("test@test.com", "wrong-code"), CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
         await _otpRepo.DidNotReceive().UpdateAsync(Arg.Any<OtpCode>(), Arg.Any<CancellationToken>());
@@ -57,7 +57,7 @@ public class VerifyPasswordResetOtpHandlerTests
         _otpRepo.GetLatestValidAsync("test@test.com", OtpPurpose.PasswordReset, Arg.Any<CancellationToken>()).Returns(otp);
         _userRepo.GetByEmailAsync("test@test.com", Arg.Any<CancellationToken>()).Returns((User?)null);
 
-        Func<Task> act = () => _handler.HandleAsync(new VerifyPasswordResetOtpCommand("test@test.com", otp.Code));
+        Func<Task> act = () => _handler.Handle(new VerifyPasswordResetOtpCommand("test@test.com", otp.Code), CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
     }
@@ -70,7 +70,7 @@ public class VerifyPasswordResetOtpHandlerTests
         _otpRepo.GetLatestValidAsync("test@test.com", OtpPurpose.PasswordReset, Arg.Any<CancellationToken>()).Returns(otp);
         _userRepo.GetByEmailAsync("test@test.com", Arg.Any<CancellationToken>()).Returns((User?)null);
 
-        Func<Task> act = () => _handler.HandleAsync(new VerifyPasswordResetOtpCommand("test@test.com", otp.Code));
+        Func<Task> act = () => _handler.Handle(new VerifyPasswordResetOtpCommand("test@test.com", otp.Code), CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
         await _otpRepo.Received(1).UpdateAsync(Arg.Is<OtpCode>(o => o.IsUsed), Arg.Any<CancellationToken>());
@@ -86,7 +86,7 @@ public class VerifyPasswordResetOtpHandlerTests
         _otpRepo.GetLatestValidAsync("test@test.com", OtpPurpose.PasswordReset, Arg.Any<CancellationToken>()).Returns(otp);
         _userRepo.GetByEmailAsync("test@test.com", Arg.Any<CancellationToken>()).Returns(user);
 
-        var result = await _handler.HandleAsync(new VerifyPasswordResetOtpCommand("test@test.com", otp.Code));
+        var result = await _handler.Handle(new VerifyPasswordResetOtpCommand("test@test.com", otp.Code), CancellationToken.None);
 
         result.ResetToken.Should().NotBeNullOrEmpty();
         user.PasswordResetToken.Should().Be(result.ResetToken);
@@ -104,7 +104,7 @@ public class VerifyPasswordResetOtpHandlerTests
         _otpRepo.GetLatestValidAsync("test@test.com", OtpPurpose.PasswordReset, Arg.Any<CancellationToken>()).Returns(otp);
         _userRepo.GetByEmailAsync("test@test.com", Arg.Any<CancellationToken>()).Returns(user);
 
-        await _handler.HandleAsync(new VerifyPasswordResetOtpCommand("  Test@Test.COM  ", otp.Code));
+        await _handler.Handle(new VerifyPasswordResetOtpCommand("  Test@Test.COM  ", otp.Code), CancellationToken.None);
 
         await _userRepo.Received(1).GetByEmailAsync("test@test.com", Arg.Any<CancellationToken>());
     }

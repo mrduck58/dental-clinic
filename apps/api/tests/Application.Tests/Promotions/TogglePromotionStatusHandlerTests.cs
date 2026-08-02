@@ -31,7 +31,7 @@ public class TogglePromotionStatusHandlerTests
         _repo.GetByIdAsync(promo.Id, Arg.Any<CancellationToken>()).Returns(promo);
         var handler = new TogglePromotionStatusHandler(_repo, _serviceRepo);
 
-        var result = await handler.HandleAsync(promo.Id);
+        var result = await handler.Handle(new TogglePromotionStatusCommand(promo.Id), CancellationToken.None);
 
         result.Should().NotBeNull();
         result!.IsActive.Should().BeFalse();
@@ -47,7 +47,7 @@ public class TogglePromotionStatusHandlerTests
         _repo.GetByIdAsync(promo.Id, Arg.Any<CancellationToken>()).Returns(promo);
         var handler = new TogglePromotionStatusHandler(_repo, _serviceRepo);
 
-        var result = await handler.HandleAsync(promo.Id);
+        var result = await handler.Handle(new TogglePromotionStatusCommand(promo.Id), CancellationToken.None);
 
         result!.IsActive.Should().BeTrue();
     }
@@ -61,7 +61,7 @@ public class TogglePromotionStatusHandlerTests
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Promotion?)null);
         var handler = new TogglePromotionStatusHandler(_repo, _serviceRepo);
 
-        var result = await handler.HandleAsync(Guid.NewGuid());
+        var result = await handler.Handle(new TogglePromotionStatusCommand(Guid.NewGuid()), CancellationToken.None);
 
         result.Should().BeNull();
     }
@@ -77,7 +77,7 @@ public class TogglePromotionStatusHandlerTests
         _repo.GetByIdAsync(promo.Id, Arg.Any<CancellationToken>()).Returns(promo);
         var handler = new TogglePromotionStatusHandler(_repo, _serviceRepo);
 
-        await handler.HandleAsync(promo.Id);
+        await handler.Handle(new TogglePromotionStatusCommand(promo.Id), CancellationToken.None);
 
         await _repo.Received(1).UpdateAsync(promo, Arg.Any<CancellationToken>());
     }
@@ -98,7 +98,7 @@ public class TogglePromotionStatusHandlerTests
         _repo.GetByIdAsync(promo.Id, Arg.Any<CancellationToken>()).Returns(promo);
         var handler = new TogglePromotionStatusHandler(_repo, _serviceRepo);
 
-        var result = await handler.HandleAsync(promo.Id);
+        var result = await handler.Handle(new TogglePromotionStatusCommand(promo.Id), CancellationToken.None);
 
         result!.ServiceNames.Should().Contain(missingServiceId.ToString());
     }

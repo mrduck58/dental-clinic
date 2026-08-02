@@ -35,7 +35,7 @@ public class CreateRoomHandlerTests
     {
         var handler = new CreateRoomHandler(_repo, _activityLog, _currentUser);
 
-        var result = await handler.HandleAsync(new CreateRoomRequest("P01", "Phòng 1", "1", "Phòng khám", "Mô tả"));
+        var result = await handler.Handle(new CreateRoomCommand(new CreateRoomRequest("P01", "Phòng 1", "1", "Phòng khám", "Mô tả")), CancellationToken.None);
 
         await _repo.Received(1).AddAsync(Arg.Any<Room>(), Arg.Any<CancellationToken>());
         result.Name.Should().Be("Phòng 1");
@@ -49,7 +49,7 @@ public class CreateRoomHandlerTests
     {
         var handler = new CreateRoomHandler(_repo, _activityLog, _currentUser);
 
-        var result = await handler.HandleAsync(new CreateRoomRequest("p01", "Phòng 1", "1", "Phòng khám", "Mô tả"));
+        var result = await handler.Handle(new CreateRoomCommand(new CreateRoomRequest("p01", "Phòng 1", "1", "Phòng khám", "Mô tả")), CancellationToken.None);
 
         result.Code.Should().Be("P01");
     }
@@ -63,7 +63,7 @@ public class CreateRoomHandlerTests
         _repo.ExistsByCodeAsync(Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>()).Returns(true);
         var handler = new CreateRoomHandler(_repo, _activityLog, _currentUser);
 
-        Func<Task> act = () => handler.HandleAsync(new CreateRoomRequest("P01", "Phòng Mới", "1", "Loại", "Mô tả"));
+        Func<Task> act = () => handler.Handle(new CreateRoomCommand(new CreateRoomRequest("P01", "Phòng Mới", "1", "Loại", "Mô tả")), CancellationToken.None);
 
         await act.Should().ThrowAsync<ConflictException>();
     }
@@ -77,7 +77,7 @@ public class CreateRoomHandlerTests
         _repo.ExistsByNameAsync(Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>()).Returns(true);
         var handler = new CreateRoomHandler(_repo, _activityLog, _currentUser);
 
-        Func<Task> act = () => handler.HandleAsync(new CreateRoomRequest("P99", "Phòng Trùng Tên", "1", "Loại", "Mô tả"));
+        Func<Task> act = () => handler.Handle(new CreateRoomCommand(new CreateRoomRequest("P99", "Phòng Trùng Tên", "1", "Loại", "Mô tả")), CancellationToken.None);
 
         await act.Should().ThrowAsync<ConflictException>();
     }
@@ -92,7 +92,7 @@ public class CreateRoomHandlerTests
         _repo.ExistsByCodeAsync(Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>()).Returns(true);
         var handler = new CreateRoomHandler(_repo, _activityLog, _currentUser);
 
-        Func<Task> act = () => handler.HandleAsync(new CreateRoomRequest("P01", "Phòng Trùng", "1", "Loại", "Mô tả"));
+        Func<Task> act = () => handler.Handle(new CreateRoomCommand(new CreateRoomRequest("P01", "Phòng Trùng", "1", "Loại", "Mô tả")), CancellationToken.None);
 
         await act.Should().ThrowAsync<ConflictException>();
         await _repo.DidNotReceive().ExistsByNameAsync(Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>());
@@ -107,7 +107,7 @@ public class CreateRoomHandlerTests
     {
         var handler = new CreateRoomHandler(_repo, _activityLog, _currentUser);
 
-        await handler.HandleAsync(new CreateRoomRequest("P01", "Phòng 1", "1", "Phòng khám", "Mô tả"));
+        await handler.Handle(new CreateRoomCommand(new CreateRoomRequest("P01", "Phòng 1", "1", "Phòng khám", "Mô tả")), CancellationToken.None);
 
         await _activityLog.Received(1).LogAsync(
             userId: Arg.Any<Guid?>(), userName: Arg.Any<string>(), userRole: Arg.Any<string>(),

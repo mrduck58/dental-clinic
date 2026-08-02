@@ -1,16 +1,19 @@
 using DentalClinic.API.Application.DTOs.LeaveRequests;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.LeaveRequests;
 
-public class GetMyLeaveRequestsHandler(ILeaveRequestRepository leaveRequestRepository)
+public record GetMyLeaveRequestsQuery(Guid UserId) : IRequest<MyLeaveRequestsResponse>;
+
+public class GetMyLeaveRequestsHandler(ILeaveRequestRepository leaveRequestRepository) : IRequestHandler<GetMyLeaveRequestsQuery, MyLeaveRequestsResponse>
 {
     private const int TotalAnnualDays = 12;
 
-    public async Task<MyLeaveRequestsResponse> HandleAsync(Guid userId, CancellationToken ct = default)
+    public async Task<MyLeaveRequestsResponse> Handle(GetMyLeaveRequestsQuery query, CancellationToken ct)
     {
-        var requests = (await leaveRequestRepository.GetByUserIdAsync(userId, ct)).ToList();
+        var requests = (await leaveRequestRepository.GetByUserIdAsync(query.UserId, ct)).ToList();
 
         var currentYear = DateTimeOffset.UtcNow.Year;
 

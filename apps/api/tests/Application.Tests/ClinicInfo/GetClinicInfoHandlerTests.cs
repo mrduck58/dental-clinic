@@ -26,7 +26,7 @@ public class GetClinicInfoHandlerTests
     {
         _repo.GetAsync(Arg.Any<CancellationToken>()).Returns((Entity?)null);
 
-        var result = await _handler.HandleAsync();
+        var result = await _handler.Handle(new GetClinicInfoQuery(), CancellationToken.None);
 
         result.Should().BeNull();
     }
@@ -39,7 +39,7 @@ public class GetClinicInfoHandlerTests
             "clinic@test.com", "123 Đường ABC", null, "8:00 - 18:00");
         _repo.GetAsync(Arg.Any<CancellationToken>()).Returns(info);
 
-        var result = await _handler.HandleAsync();
+        var result = await _handler.Handle(new GetClinicInfoQuery(), CancellationToken.None);
 
         result.Should().NotBeNull();
         result!.AboutTitle.Should().Be("Về chúng tôi");
@@ -59,7 +59,7 @@ public class GetClinicInfoHandlerTests
         info.SetCollections("{không phải json hợp lệ", null, null, null, null);
         _repo.GetAsync(Arg.Any<CancellationToken>()).Returns(info);
 
-        var result = await _handler.HandleAsync();
+        var result = await _handler.Handle(new GetClinicInfoQuery(), CancellationToken.None);
 
         result.Should().NotBeNull();
         result!.Milestones.Should().BeEmpty();

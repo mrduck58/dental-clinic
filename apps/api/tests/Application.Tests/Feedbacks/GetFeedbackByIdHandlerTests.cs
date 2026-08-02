@@ -26,7 +26,7 @@ public class GetFeedbackByIdHandlerTests
         _repo.GetByIdAsync(feedback.Id, Arg.Any<CancellationToken>()).Returns(feedback);
         var handler = new GetFeedbackByIdHandler(_repo);
 
-        var result = await handler.HandleAsync(feedback.Id);
+        var result = await handler.Handle(new GetFeedbackByIdQuery(feedback.Id), CancellationToken.None);
 
         result.Id.Should().Be(feedback.Id);
         result.CustomerName.Should().Be("Nguyễn Test");
@@ -41,7 +41,7 @@ public class GetFeedbackByIdHandlerTests
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Feedback?)null);
         var handler = new GetFeedbackByIdHandler(_repo);
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid());
+        Func<Task> act = () => handler.Handle(new GetFeedbackByIdQuery(Guid.NewGuid()), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }

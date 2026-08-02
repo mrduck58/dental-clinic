@@ -47,7 +47,7 @@ public class CreateAccountHandlerTests
     [Test]
     public async Task HandleAsync_NewEmail_CallsAddAsyncOnce()
     {
-        await _handler.HandleAsync(ValidCommand);
+        await _handler.Handle(ValidCommand, CancellationToken.None);
 
         await _userRepo.Received(1).AddAsync(Arg.Any<Domain.Entities.User>(), Arg.Any<CancellationToken>());
     }
@@ -59,7 +59,7 @@ public class CreateAccountHandlerTests
     [Test]
     public async Task HandleAsync_NewEmail_SendsCredentialEmailOnce()
     {
-        await _handler.HandleAsync(ValidCommand);
+        await _handler.Handle(ValidCommand, CancellationToken.None);
 
         await _emailService.Received(1).SendStaffCredentialsAsync(
             ValidCommand.Email,
@@ -75,7 +75,7 @@ public class CreateAccountHandlerTests
     [Test]
     public async Task HandleAsync_NewEmail_ReturnsCorrectEmailAndRole()
     {
-        var result = await _handler.HandleAsync(ValidCommand);
+        var result = await _handler.Handle(ValidCommand, CancellationToken.None);
 
         result.Email.Should().Be(ValidCommand.Email);
         result.Role.Should().Be(ValidCommand.Role);
@@ -89,7 +89,7 @@ public class CreateAccountHandlerTests
     public async Task HandleAsync_NewEmail_UsernameDerivedFromEmailPrefix()
     {
         // "nguyenvana@test.com" → "nguyenvana"
-        var result = await _handler.HandleAsync(ValidCommand);
+        var result = await _handler.Handle(ValidCommand, CancellationToken.None);
 
         result.Username.Should().Be("nguyenvana");
     }
@@ -103,7 +103,7 @@ public class CreateAccountHandlerTests
     {
         var cmd = ValidCommand with { Email = "nguyen.van.a@test.com" };
 
-        var result = await _handler.HandleAsync(cmd);
+        var result = await _handler.Handle(cmd, CancellationToken.None);
 
         result.Username.Should().Be("nguyen_van_a");
     }
@@ -117,7 +117,7 @@ public class CreateAccountHandlerTests
     {
         _userRepo.ExistsByUsernameAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(true);
 
-        await _handler.HandleAsync(ValidCommand);
+        await _handler.Handle(ValidCommand, CancellationToken.None);
 
         await _userRepo.Received(1).AddAsync(Arg.Any<Domain.Entities.User>(), Arg.Any<CancellationToken>());
     }
@@ -131,7 +131,7 @@ public class CreateAccountHandlerTests
     {
         _userRepo.ExistsByUsernameAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(true);
 
-        var result = await _handler.HandleAsync(ValidCommand);
+        var result = await _handler.Handle(ValidCommand, CancellationToken.None);
 
         // suffix có dạng "nguyenvana_xxxx" (4 ký tự hex ngẫu nhiên)
         result.Username.Should().StartWith("nguyenvana_");
@@ -147,7 +147,7 @@ public class CreateAccountHandlerTests
     {
         var cmd = ValidCommand with { Email = "nguyen-van-a@test.com" };
 
-        var result = await _handler.HandleAsync(cmd);
+        var result = await _handler.Handle(cmd, CancellationToken.None);
 
         result.Username.Should().Be("nguyen_van_a");
     }
@@ -159,7 +159,7 @@ public class CreateAccountHandlerTests
     [Test]
     public async Task HandleAsync_NewEmail_LogsCreateActivityOnce()
     {
-        await _handler.HandleAsync(ValidCommand);
+        await _handler.Handle(ValidCommand, CancellationToken.None);
 
         await _activityLog.Received(1).LogAsync(
             Arg.Any<Guid?>(),
@@ -185,7 +185,7 @@ public class CreateAccountHandlerTests
     {
         _userRepo.ExistsByEmailAsync(ValidCommand.Email, Arg.Any<CancellationToken>()).Returns(true);
 
-        Func<Task> act = () => _handler.HandleAsync(ValidCommand);
+        Func<Task> act = () => _handler.Handle(ValidCommand, CancellationToken.None);
 
         await act.Should().ThrowAsync<ConflictException>()
             .WithMessage($"*{ValidCommand.Email}*");
@@ -200,7 +200,7 @@ public class CreateAccountHandlerTests
     {
         _userRepo.ExistsByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(true);
 
-        Assert.CatchAsync(() => _handler.HandleAsync(ValidCommand));
+        Assert.CatchAsync(() => _handler.Handle(ValidCommand, CancellationToken.None));
 
         await _userRepo.DidNotReceive().AddAsync(Arg.Any<Domain.Entities.User>(), Arg.Any<CancellationToken>());
     }
@@ -214,7 +214,7 @@ public class CreateAccountHandlerTests
     {
         _userRepo.ExistsByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(true);
 
-        Assert.CatchAsync(() => _handler.HandleAsync(ValidCommand));
+        Assert.CatchAsync(() => _handler.Handle(ValidCommand, CancellationToken.None));
 
         await _emailService.DidNotReceive().SendStaffCredentialsAsync(
             Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());

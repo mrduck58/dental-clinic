@@ -1,15 +1,19 @@
 using DentalClinic.API.Application.DTOs.Promotions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Promotions;
 
+public record GetPromotionByIdQuery(Guid Id) : IRequest<PromotionDto?>;
+
 public class GetPromotionByIdHandler(IPromotionRepository repo, IServiceRepository serviceRepo)
+    : IRequestHandler<GetPromotionByIdQuery, PromotionDto?>
 {
-    public async Task<PromotionDto?> HandleAsync(Guid id, CancellationToken ct = default)
+    public async Task<PromotionDto?> Handle(GetPromotionByIdQuery request, CancellationToken cancellationToken)
     {
-        var p = await repo.GetByIdAsync(id, ct);
+        var p = await repo.GetByIdAsync(request.Id, cancellationToken);
         if (p is null) return null;
-        var services = (await serviceRepo.GetAllAsync(ct)).ToDictionary(s => s.Id, s => s.Name);
+        var services = (await serviceRepo.GetAllAsync(cancellationToken)).ToDictionary(s => s.Id, s => s.Name);
         var ids = p.GetServiceIds();
         var names = ids.Count == 0
             ? (List<string>)["Tat ca dich vu"]

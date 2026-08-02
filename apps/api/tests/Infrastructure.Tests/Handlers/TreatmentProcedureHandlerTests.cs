@@ -2,6 +2,7 @@ using DentalClinic.API.Application.UseCases.Services;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using NUnit.Framework;
@@ -21,7 +22,7 @@ public class TreatmentProcedureHandlerTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         _db = new AppDbContext(options);
-        _handler = new TreatmentProcedureHandler(_db);
+        _handler = new TreatmentProcedureHandler(new TreatmentProcedureRepository(_db), new ServiceRepository(_db));
     }
 
     [TearDown]
@@ -41,7 +42,7 @@ public class TreatmentProcedureHandlerTests
     {
         var service = await SeedServiceAsync();
 
-        var result = await _handler.GetByServiceAsync(service.Id);
+        var result = await _handler.Handle(new GetTreatmentProceduresQuery(service.Id), CancellationToken.None);
 
         result.Should().BeEmpty();
     }
@@ -55,7 +56,7 @@ public class TreatmentProcedureHandlerTests
         _db.TreatmentProcedures.Add(TreatmentProcedure.Create(service.Id, 1, "Khám và chụp X-quang"));
         await _db.SaveChangesAsync();
 
-        var result = await _handler.GetByServiceAsync(service.Id);
+        var result = await _handler.Handle(new GetTreatmentProceduresQuery(service.Id), CancellationToken.None);
 
         result.Should().HaveCount(2);
         result[0].StepNumber.Should().Be(1);
@@ -67,7 +68,7 @@ public class TreatmentProcedureHandlerTests
     [Test]
     public async Task GetByServiceAsync_ServiceDoesNotExist_ReturnsEmptyListWithoutThrowing()
     {
-        var result = await _handler.GetByServiceAsync(Guid.NewGuid());
+        var result = await _handler.Handle(new GetTreatmentProceduresQuery(Guid.NewGuid()), CancellationToken.None);
 
         result.Should().BeEmpty();
     }
@@ -83,7 +84,7 @@ public class TreatmentProcedureHandlerTests
         _db.TreatmentProcedures.Add(TreatmentProcedure.Create(otherService.Id, 1, "Bước của dịch vụ khác"));
         await _db.SaveChangesAsync();
 
-        var result = await _handler.GetByServiceAsync(service.Id);
+        var result = await _handler.Handle(new GetTreatmentProceduresQuery(service.Id), CancellationToken.None);
 
         result.Should().ContainSingle();
         result[0].Name.Should().Be("Bước của dịch vụ chính");
@@ -95,7 +96,7 @@ public class TreatmentProcedureHandlerTests
     {
         var steps = new List<ProcedureStepRequest> { new(1, "Bước 1") };
 
-        Func<Task> act = () => _handler.ReplaceForServiceAsync(Guid.NewGuid(), steps);
+        Func<Task> act = () => _handler.Handle(new ReplaceTreatmentProceduresCommand(Guid.NewGuid(), steps), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -107,7 +108,7 @@ public class TreatmentProcedureHandlerTests
         var service = await SeedServiceAsync();
         var steps = new List<ProcedureStepRequest> { new(1, "  ") };
 
-        Func<Task> act = () => _handler.ReplaceForServiceAsync(service.Id, steps);
+        Func<Task> act = () => _handler.Handle(new ReplaceTreatmentProceduresCommand(service.Id, steps), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -119,7 +120,7 @@ public class TreatmentProcedureHandlerTests
         var service = await SeedServiceAsync();
         var steps = new List<ProcedureStepRequest> { new(1, "Bước A"), new(1, "Bước B") };
 
-        Func<Task> act = () => _handler.ReplaceForServiceAsync(service.Id, steps);
+        Func<Task> act = () => _handler.Handle(new ReplaceTreatmentProceduresCommand(service.Id, steps), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -133,7 +134,7 @@ public class TreatmentProcedureHandlerTests
         await _db.SaveChangesAsync();
 
         var newSteps = new List<ProcedureStepRequest> { new(1, "Bước Mới 1"), new(2, "Bước Mới 2") };
-        var result = await _handler.ReplaceForServiceAsync(service.Id, newSteps);
+        var result = await _handler.Handle(new ReplaceTreatmentProceduresCommand(service.Id, newSteps), CancellationToken.None);
 
         result.Should().HaveCount(2);
         result.Should().NotContain(p => p.Name == "Bước Cũ");
@@ -148,7 +149,7 @@ public class TreatmentProcedureHandlerTests
         _db.TreatmentProcedures.Add(TreatmentProcedure.Create(service.Id, 1, "Bước Cũ"));
         await _db.SaveChangesAsync();
 
-        var result = await _handler.ReplaceForServiceAsync(service.Id, []);
+        var result = await _handler.Handle(new ReplaceTreatmentProceduresCommand(service.Id, []), CancellationToken.None);
 
         result.Should().BeEmpty();
         (await _db.TreatmentProcedures.CountAsync(p => p.ServiceId == service.Id)).Should().Be(0);
@@ -161,7 +162,7 @@ public class TreatmentProcedureHandlerTests
         var service = await SeedServiceAsync();
         var steps = new List<ProcedureStepRequest> { new(1, "  Khám tổng quát  ") };
 
-        var result = await _handler.ReplaceForServiceAsync(service.Id, steps);
+        var result = await _handler.Handle(new ReplaceTreatmentProceduresCommand(service.Id, steps), CancellationToken.None);
 
         result.Should().ContainSingle(p => p.Name == "Khám tổng quát");
     }
@@ -176,9 +177,9 @@ public class TreatmentProcedureHandlerTests
         _db.TreatmentProcedures.Add(TreatmentProcedure.Create(otherService.Id, 1, "Bước dịch vụ khác"));
         await _db.SaveChangesAsync();
 
-        await _handler.ReplaceForServiceAsync(service.Id, [new(1, "Bước dịch vụ chính")]);
+        await _handler.Handle(new ReplaceTreatmentProceduresCommand(service.Id, [new(1, "Bước dịch vụ chính")]), CancellationToken.None);
 
-        var otherProcedures = await _handler.GetByServiceAsync(otherService.Id);
+        var otherProcedures = await _handler.Handle(new GetTreatmentProceduresQuery(otherService.Id), CancellationToken.None);
         otherProcedures.Should().ContainSingle(p => p.Name == "Bước dịch vụ khác");
     }
 }

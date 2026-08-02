@@ -1,6 +1,7 @@
 using DentalClinic.API.Application.UseCases.AiAnalytics;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using NUnit.Framework;
@@ -28,7 +29,8 @@ public class GetAiAnalyticsHandlerTests
         _db.Patients.Add(_patient);
         await _db.SaveChangesAsync();
 
-        _handler = new GetAiAnalyticsHandler(_db);
+        _handler = new GetAiAnalyticsHandler(
+            new ChatConversationRepository(_db), new ChatMessageRepository(_db), new AiUsageLogRepository(_db));
     }
 
     [TearDown]
@@ -50,7 +52,7 @@ public class GetAiAnalyticsHandlerTests
         _db.Entry(oldLog).Property("CreatedAt").CurrentValue = DateTimeOffset.UtcNow.AddDays(-30);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(rangeDays: 14);
+        var result = await _handler.Handle(new GetAiAnalyticsQuery(RangeDays: 14), CancellationToken.None);
 
         result.UsageByFeature.Should().ContainSingle(f => f.Feature == "ChatBot");
         var chatFeature = result.UsageByFeature.Single(f => f.Feature == "ChatBot");
@@ -79,7 +81,7 @@ public class GetAiAnalyticsHandlerTests
         _db.ChatMessages.Add(ChatMessage.Create(conversation.Id, "assistant", "Giờ làm việc 8h-20h"));
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync();
+        var result = await _handler.Handle(new GetAiAnalyticsQuery(), CancellationToken.None);
 
         result.TotalConversations.Should().Be(1);
         result.TotalUserMessages.Should().Be(1);
@@ -91,7 +93,7 @@ public class GetAiAnalyticsHandlerTests
     [Test]
     public async Task HandleAsync_NoData_ReturnsZeroedResultWithoutThrowing()
     {
-        var result = await _handler.HandleAsync();
+        var result = await _handler.Handle(new GetAiAnalyticsQuery(), CancellationToken.None);
 
         result.TotalConversations.Should().Be(0);
         result.TotalMessages.Should().Be(0);
@@ -110,7 +112,7 @@ public class GetAiAnalyticsHandlerTests
         _db.Entry(oldLog).Property("CreatedAt").CurrentValue = DateTimeOffset.UtcNow.AddYears(-2);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(rangeDays: null);
+        var result = await _handler.Handle(new GetAiAnalyticsQuery(RangeDays: null), CancellationToken.None);
 
         result.RangeDays.Should().BeNull();
         result.UsageByFeature.Should().ContainSingle(f => f.Feature == "PatientSummary");
@@ -121,7 +123,7 @@ public class GetAiAnalyticsHandlerTests
     [Test]
     public async Task HandleAsync_RangeDaysBelowMin_ClampedToOne()
     {
-        var result = await _handler.HandleAsync(rangeDays: 0);
+        var result = await _handler.Handle(new GetAiAnalyticsQuery(RangeDays: 0), CancellationToken.None);
 
         result.RangeDays.Should().Be(1);
     }
@@ -131,7 +133,7 @@ public class GetAiAnalyticsHandlerTests
     [Test]
     public async Task HandleAsync_RangeDaysAboveMax_ClampedTo90()
     {
-        var result = await _handler.HandleAsync(rangeDays: 365);
+        var result = await _handler.Handle(new GetAiAnalyticsQuery(RangeDays: 365), CancellationToken.None);
 
         result.RangeDays.Should().Be(90);
     }
@@ -150,7 +152,7 @@ public class GetAiAnalyticsHandlerTests
         _db.Entry(yesterdayFail).Property("CreatedAt").CurrentValue = DateTimeOffset.UtcNow.AddDays(-1);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(rangeDays: 14);
+        var result = await _handler.Handle(new GetAiAnalyticsQuery(RangeDays: 14), CancellationToken.None);
 
         result.DailyUsage.Should().HaveCount(2);
         result.DailyUsage.Select(d => d.Date).Should().BeInAscendingOrder();
@@ -173,7 +175,7 @@ public class GetAiAnalyticsHandlerTests
         _db.AiUsageLogs.Add(AiUsageLog.Create("PopularFeature", false, 100, "err"));
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync();
+        var result = await _handler.Handle(new GetAiAnalyticsQuery(), CancellationToken.None);
 
         result.UsageByFeature.Should().HaveCount(2);
         result.UsageByFeature[0].Feature.Should().Be("PopularFeature");

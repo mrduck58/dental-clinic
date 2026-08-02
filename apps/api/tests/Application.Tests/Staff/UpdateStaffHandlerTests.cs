@@ -30,7 +30,7 @@ public class UpdateStaffHandlerTests
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
         var handler = new UpdateStaffHandler(_userRepo);
 
-        await handler.HandleAsync(BuildCommand(user.Id, email: user.Email));
+        await handler.Handle(BuildCommand(user.Id, email: user.Email), CancellationToken.None);
 
         await _userRepo.Received(1).UpdateAsync(user, Arg.Any<CancellationToken>());
     }
@@ -44,7 +44,7 @@ public class UpdateStaffHandlerTests
         _userRepo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((User?)null);
         var handler = new UpdateStaffHandler(_userRepo);
 
-        Func<Task> act = () => handler.HandleAsync(BuildCommand(Guid.NewGuid()));
+        Func<Task> act = () => handler.Handle(BuildCommand(Guid.NewGuid()), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -60,7 +60,7 @@ public class UpdateStaffHandlerTests
         _userRepo.ExistsByEmailAsync("new@test.com", Arg.Any<CancellationToken>()).Returns(true);
         var handler = new UpdateStaffHandler(_userRepo);
 
-        Func<Task> act = () => handler.HandleAsync(BuildCommand(user.Id, email: "new@test.com"));
+        Func<Task> act = () => handler.Handle(BuildCommand(user.Id, email: "new@test.com"), CancellationToken.None);
 
         await act.Should().ThrowAsync<ConflictException>();
     }
@@ -76,7 +76,7 @@ public class UpdateStaffHandlerTests
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
         var handler = new UpdateStaffHandler(_userRepo);
 
-        await handler.HandleAsync(BuildCommand(user.Id, email: "same@test.com"));
+        await handler.Handle(BuildCommand(user.Id, email: "same@test.com"), CancellationToken.None);
 
         await _userRepo.DidNotReceive().ExistsByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
@@ -92,7 +92,7 @@ public class UpdateStaffHandlerTests
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
         var handler = new UpdateStaffHandler(_userRepo);
 
-        await handler.HandleAsync(BuildCommand(user.Id, email: "same@test.com"));
+        await handler.Handle(BuildCommand(user.Id, email: "same@test.com"), CancellationToken.None);
 
         await _userRepo.DidNotReceive().ExistsByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
@@ -106,7 +106,7 @@ public class UpdateStaffHandlerTests
     {
         var handler = new UpdateStaffHandler(_userRepo);
 
-        Func<Task> act = () => handler.HandleAsync(BuildCommand(Guid.NewGuid()) with { FullName = "" });
+        Func<Task> act = () => handler.Handle(BuildCommand(Guid.NewGuid()) with { FullName = "" }, CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
         await _userRepo.DidNotReceive().GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
@@ -120,7 +120,7 @@ public class UpdateStaffHandlerTests
     {
         var handler = new UpdateStaffHandler(_userRepo);
 
-        Func<Task> act = () => handler.HandleAsync(BuildCommand(Guid.NewGuid()) with { Role = "SuperAdmin" });
+        Func<Task> act = () => handler.Handle(BuildCommand(Guid.NewGuid()) with { Role = "SuperAdmin" }, CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }

@@ -1,4 +1,3 @@
-using DentalClinic.API.Application.DTOs.Inventory;
 using DentalClinic.API.Application.UseCases.Inventory;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
@@ -28,14 +27,14 @@ public class CreateSupplyItemHandlerTests
     [TearDown]
     public async Task TearDown() => await _db.DisposeAsync();
 
-    private static CreateSupplyItemRequest MakeRequest(string code = "VT001") =>
+    private static CreateSupplyItemCommand MakeRequest(string code = "VT001") =>
         new(code, "Găng tay y tế", "Vật tư tiêu hao", "Hộp", 100, 10);
 
     /// <summary>Tên vật tư để trống phải bị từ chối.</summary>
     [Test]
     public async Task HandleAsync_EmptyName_ThrowsValidationException()
     {
-        Func<Task> act = () => _handler.HandleAsync(MakeRequest() with { Name = " " });
+        Func<Task> act = () => _handler.Handle(MakeRequest() with { Name = " " }, CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -44,7 +43,7 @@ public class CreateSupplyItemHandlerTests
     [Test]
     public async Task HandleAsync_EmptyCode_ThrowsValidationException()
     {
-        Func<Task> act = () => _handler.HandleAsync(MakeRequest() with { Code = " " });
+        Func<Task> act = () => _handler.Handle(MakeRequest() with { Code = " " }, CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -53,9 +52,9 @@ public class CreateSupplyItemHandlerTests
     [Test]
     public async Task HandleAsync_DuplicateCode_ThrowsConflictException()
     {
-        await _handler.HandleAsync(MakeRequest("VT001"));
+        await _handler.Handle(MakeRequest("VT001"), CancellationToken.None);
 
-        Func<Task> act = () => _handler.HandleAsync(MakeRequest("vt001"));
+        Func<Task> act = () => _handler.Handle(MakeRequest("vt001"), CancellationToken.None);
 
         await act.Should().ThrowAsync<ConflictException>();
     }
@@ -64,7 +63,7 @@ public class CreateSupplyItemHandlerTests
     [Test]
     public async Task HandleAsync_ValidRequest_SavesItemWithUppercaseCode()
     {
-        var result = await _handler.HandleAsync(MakeRequest("vt002"));
+        var result = await _handler.Handle(MakeRequest("vt002"), CancellationToken.None);
 
         result.Code.Should().Be("VT002");
         (await _db.SupplyItems.CountAsync()).Should().Be(1);
@@ -74,7 +73,7 @@ public class CreateSupplyItemHandlerTests
     [Test]
     public async Task HandleAsync_CodeWithWhitespace_TrimsAndUppercasesCode()
     {
-        var result = await _handler.HandleAsync(MakeRequest("  vt010  "));
+        var result = await _handler.Handle(MakeRequest("  vt010  "), CancellationToken.None);
 
         result.Code.Should().Be("VT010");
     }
@@ -83,9 +82,9 @@ public class CreateSupplyItemHandlerTests
     [Test]
     public async Task HandleAsync_DuplicateCodeDifferingByWhitespaceAndCase_ThrowsConflictException()
     {
-        await _handler.HandleAsync(MakeRequest("VT001"));
+        await _handler.Handle(MakeRequest("VT001"), CancellationToken.None);
 
-        Func<Task> act = () => _handler.HandleAsync(MakeRequest("  vt001  "));
+        Func<Task> act = () => _handler.Handle(MakeRequest("  vt001  "), CancellationToken.None);
 
         await act.Should().ThrowAsync<ConflictException>();
     }
@@ -94,7 +93,7 @@ public class CreateSupplyItemHandlerTests
     [Test]
     public async Task HandleAsync_NameWithWhitespace_TrimsName()
     {
-        var result = await _handler.HandleAsync(MakeRequest("VT020") with { Name = "  Chỉ nha khoa  " });
+        var result = await _handler.Handle(MakeRequest("VT020") with { Name = "  Chỉ nha khoa  " }, CancellationToken.None);
 
         result.Name.Should().Be("Chỉ nha khoa");
     }

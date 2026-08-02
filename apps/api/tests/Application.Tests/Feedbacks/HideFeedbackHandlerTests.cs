@@ -35,7 +35,7 @@ public class HideFeedbackHandlerTests
         _repo.GetByIdAsync(feedback.Id, Arg.Any<CancellationToken>()).Returns(feedback);
         var handler = new HideFeedbackHandler(_repo, _activityLog, _currentUser);
 
-        var result = await handler.HandleAsync(feedback.Id);
+        var result = await handler.Handle(new HideFeedbackCommand(feedback.Id), CancellationToken.None);
 
         result.Status.Should().Be("Hidden");
         await _repo.Received(1).UpdateAsync(feedback, Arg.Any<CancellationToken>());
@@ -50,7 +50,7 @@ public class HideFeedbackHandlerTests
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Feedback?)null);
         var handler = new HideFeedbackHandler(_repo, _activityLog, _currentUser);
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid());
+        Func<Task> act = () => handler.Handle(new HideFeedbackCommand(Guid.NewGuid()), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -66,7 +66,7 @@ public class HideFeedbackHandlerTests
         _repo.GetByIdAsync(feedback.Id, Arg.Any<CancellationToken>()).Returns(feedback);
         var handler = new HideFeedbackHandler(_repo, _activityLog, _currentUser);
 
-        var result = await handler.HandleAsync(feedback.Id);
+        var result = await handler.Handle(new HideFeedbackCommand(feedback.Id), CancellationToken.None);
 
         result.Status.Should().Be("Hidden");
     }
@@ -81,7 +81,7 @@ public class HideFeedbackHandlerTests
         _repo.GetByIdAsync(feedback.Id, Arg.Any<CancellationToken>()).Returns(feedback);
         var handler = new HideFeedbackHandler(_repo, _activityLog, _currentUser);
 
-        await handler.HandleAsync(feedback.Id);
+        await handler.Handle(new HideFeedbackCommand(feedback.Id), CancellationToken.None);
 
         await _activityLog.Received(1).LogAsync(
             userId: Arg.Any<Guid?>(),

@@ -1,17 +1,20 @@
 using DentalClinic.API.Application.DTOs.LeaveRequests;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.LeaveRequests;
 
-public class CancelLeaveRequestHandler(ILeaveRequestRepository leaveRequestRepository)
-{
-    public async Task<LeaveRequestDto> HandleAsync(Guid id, Guid requestingUserId, CancellationToken ct = default)
-    {
-        var leaveRequest = await leaveRequestRepository.GetByIdAsync(id, ct)
-            ?? throw new NotFoundException($"Không tìm thấy đơn nghỉ phép với ID: {id}");
+public record CancelLeaveRequestCommand(Guid Id, Guid RequestingUserId) : IRequest<LeaveRequestDto>;
 
-        if (leaveRequest.UserId != requestingUserId)
+public class CancelLeaveRequestHandler(ILeaveRequestRepository leaveRequestRepository) : IRequestHandler<CancelLeaveRequestCommand, LeaveRequestDto>
+{
+    public async Task<LeaveRequestDto> Handle(CancelLeaveRequestCommand command, CancellationToken ct)
+    {
+        var leaveRequest = await leaveRequestRepository.GetByIdAsync(command.Id, ct)
+            ?? throw new NotFoundException($"Không tìm thấy đơn nghỉ phép với ID: {command.Id}");
+
+        if (leaveRequest.UserId != command.RequestingUserId)
             throw new ValidationException("Bạn không có quyền hủy đơn nghỉ phép này.");
 
         leaveRequest.Cancel();

@@ -26,7 +26,7 @@ public class GetRoomByIdHandlerTests
         _repo.GetByIdAsync(room.Id, Arg.Any<CancellationToken>()).Returns(room);
         var handler = new GetRoomByIdHandler(_repo);
 
-        var result = await handler.HandleAsync(room.Id);
+        var result = await handler.Handle(new GetRoomByIdQuery(room.Id), CancellationToken.None);
 
         result.Id.Should().Be(room.Id);
         result.Name.Should().Be("Phòng Test");
@@ -41,7 +41,7 @@ public class GetRoomByIdHandlerTests
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Room?)null);
         var handler = new GetRoomByIdHandler(_repo);
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid());
+        Func<Task> act = () => handler.Handle(new GetRoomByIdQuery(Guid.NewGuid()), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }

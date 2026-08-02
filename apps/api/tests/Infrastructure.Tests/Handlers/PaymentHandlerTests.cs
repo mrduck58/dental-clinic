@@ -6,6 +6,7 @@ using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -21,8 +22,10 @@ public class PaymentHandlerTests
     private AppDbContext _db = null!;
     private IPaymentGatewayResolver _gatewayResolver = null!;
     private IPaymentGatewayService _gatewayService = null!;
-    private InvoiceHandler _invoiceHandler = null!;
-    private PaymentHandler _handler = null!;
+    private IPaymentConfirmationService _confirmationService = null!;
+    private CreatePaymentRequestHandler _createRequestHandler = null!;
+    private HandlePaymentWebhookHandler _webhookHandler = null!;
+    private GetPaymentStatusHandler _getStatusHandler = null!;
 
     private static readonly IReadOnlyDictionary<string, string> EmptyHeaders = new Dictionary<string, string>();
 
@@ -41,11 +44,15 @@ public class PaymentHandlerTests
         var notificationService = Substitute.For<INotificationService>();
         var userRepo = Substitute.For<IUserRepository>();
         userRepo.GetUserIdsByRoleAsync("Staff", Arg.Any<CancellationToken>()).Returns(new List<Guid>());
-        _invoiceHandler = new InvoiceHandler(_db, notificationService, userRepo);
+        var invoiceQuery = new InvoiceQueryHelper(_db, new TreatmentPlanRepository(_db));
+        _confirmationService = new PaymentConfirmationService(_db, notificationService, userRepo, invoiceQuery);
 
         var configuration = Substitute.For<IConfiguration>();
-        _handler = new PaymentHandler(
-            _db, _gatewayResolver, _invoiceHandler, configuration, NullLogger<PaymentHandler>.Instance);
+        _createRequestHandler = new CreatePaymentRequestHandler(_db, _gatewayResolver, configuration);
+        _webhookHandler = new HandlePaymentWebhookHandler(
+            _db, _gatewayResolver, _confirmationService, NullLogger<HandlePaymentWebhookHandler>.Instance);
+        _getStatusHandler = new GetPaymentStatusHandler(
+            _db, _gatewayResolver, _confirmationService, NullLogger<GetPaymentStatusHandler>.Instance);
     }
 
     [TearDown]
@@ -78,7 +85,8 @@ public class PaymentHandlerTests
     [Test]
     public async Task CreatePaymentRequestAsync_InvoiceNotFound_ThrowsNotFoundException()
     {
-        Func<Task> act = () => _handler.CreatePaymentRequestAsync(Guid.NewGuid(), PaymentGateway.PayOS);
+        Func<Task> act = () => _createRequestHandler.Handle(
+            new CreatePaymentRequestCommand(Guid.NewGuid(), PaymentGateway.PayOS), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -91,7 +99,8 @@ public class PaymentHandlerTests
         invoice.MarkAsPaid(PaymentMethod.Cash);
         await _db.SaveChangesAsync();
 
-        Func<Task> act = () => _handler.CreatePaymentRequestAsync(invoice.Id, PaymentGateway.PayOS);
+        Func<Task> act = () => _createRequestHandler.Handle(
+            new CreatePaymentRequestCommand(invoice.Id, PaymentGateway.PayOS), CancellationToken.None);
 
         await act.Should().ThrowAsync<ConflictException>();
     }
@@ -107,7 +116,8 @@ public class PaymentHandlerTests
         _db.PaymentTransactions.Add(existing);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.CreatePaymentRequestAsync(invoice.Id, PaymentGateway.PayOS);
+        var result = await _createRequestHandler.Handle(
+            new CreatePaymentRequestCommand(invoice.Id, PaymentGateway.PayOS), CancellationToken.None);
 
         result.GatewayOrderCode.Should().Be("ORDER123");
         await _gatewayService.DidNotReceive().CreatePaymentLinkAsync(Arg.Any<CreatePaymentLinkRequest>(), Arg.Any<CancellationToken>());
@@ -121,7 +131,8 @@ public class PaymentHandlerTests
         _gatewayService.CreatePaymentLinkAsync(Arg.Any<CreatePaymentLinkRequest>(), Arg.Any<CancellationToken>())
             .Returns(new CreatePaymentLinkResult("https://pay.url/new", "qr-code-data", "NEWORDER456", DateTimeOffset.UtcNow.AddMinutes(15), "{}"));
 
-        var result = await _handler.CreatePaymentRequestAsync(invoice.Id, PaymentGateway.PayOS);
+        var result = await _createRequestHandler.Handle(
+            new CreatePaymentRequestCommand(invoice.Id, PaymentGateway.PayOS), CancellationToken.None);
 
         result.GatewayOrderCode.Should().Be("NEWORDER456");
         result.CheckoutUrl.Should().Be("https://pay.url/new");
@@ -135,7 +146,8 @@ public class PaymentHandlerTests
         _gatewayService.VerifyAndParseWebhookAsync(Arg.Any<string>(), Arg.Any<IReadOnlyDictionary<string, string>>(), Arg.Any<CancellationToken>())
             .Returns(new WebhookVerificationResult(false, false, "ANY", null, 0, "{}", null));
 
-        Func<Task> act = () => _handler.HandleWebhookAsync(PaymentGateway.PayOS, "{}", EmptyHeaders);
+        Func<Task> act = () => _webhookHandler.Handle(
+            new HandlePaymentWebhookCommand(PaymentGateway.PayOS, "{}", EmptyHeaders), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -147,7 +159,8 @@ public class PaymentHandlerTests
         _gatewayService.VerifyAndParseWebhookAsync(Arg.Any<string>(), Arg.Any<IReadOnlyDictionary<string, string>>(), Arg.Any<CancellationToken>())
             .Returns(new WebhookVerificationResult(true, true, "UNKNOWN-CODE", "gw-tx-1", 500_000m, "{}", null));
 
-        Func<Task> act = () => _handler.HandleWebhookAsync(PaymentGateway.PayOS, "{}", EmptyHeaders);
+        Func<Task> act = () => _webhookHandler.Handle(
+            new HandlePaymentWebhookCommand(PaymentGateway.PayOS, "{}", EmptyHeaders), CancellationToken.None);
 
         await act.Should().NotThrowAsync();
     }
@@ -164,7 +177,7 @@ public class PaymentHandlerTests
         _gatewayService.VerifyAndParseWebhookAsync(Arg.Any<string>(), Arg.Any<IReadOnlyDictionary<string, string>>(), Arg.Any<CancellationToken>())
             .Returns(new WebhookVerificationResult(true, true, "ORDER-DONE", "gw-2", invoice.DepositAmount, "{}", null));
 
-        await _handler.HandleWebhookAsync(PaymentGateway.PayOS, "{}", EmptyHeaders);
+        await _webhookHandler.Handle(new HandlePaymentWebhookCommand(PaymentGateway.PayOS, "{}", EmptyHeaders), CancellationToken.None);
 
         (await _db.PaymentTransactions.SingleAsync(t => t.Id == tx.Id)).GatewayTransactionId.Should().Be("gw-1"); // không bị ghi đè
     }
@@ -185,11 +198,12 @@ public class PaymentHandlerTests
             .Returns(new WebhookVerificationResult(true, true, "ORDER-REPLAY", "gw-original", 500_000m, rawPayload, null));
 
         // Webhook lần 1 (thật): đánh dấu Paid như bình thường.
-        await _handler.HandleWebhookAsync(PaymentGateway.PayOS, rawPayload, EmptyHeaders);
+        await _webhookHandler.Handle(new HandlePaymentWebhookCommand(PaymentGateway.PayOS, rawPayload, EmptyHeaders), CancellationToken.None);
         (await _db.Invoices.SingleAsync(i => i.Id == invoice.Id)).Status.Should().Be(PaymentStatus.Paid);
 
         // PayOS gửi lại đúng payload cũ (duplicate delivery) — không được throw, không xử lý lại.
-        Func<Task> replay = () => _handler.HandleWebhookAsync(PaymentGateway.PayOS, rawPayload, EmptyHeaders);
+        Func<Task> replay = () => _webhookHandler.Handle(
+            new HandlePaymentWebhookCommand(PaymentGateway.PayOS, rawPayload, EmptyHeaders), CancellationToken.None);
         await replay.Should().NotThrowAsync();
 
         (await _db.Invoices.SingleAsync(i => i.Id == invoice.Id)).Status.Should().Be(PaymentStatus.Paid);
@@ -209,7 +223,7 @@ public class PaymentHandlerTests
         _gatewayService.VerifyAndParseWebhookAsync(Arg.Any<string>(), Arg.Any<IReadOnlyDictionary<string, string>>(), Arg.Any<CancellationToken>())
             .Returns(new WebhookVerificationResult(true, true, "ORDER-MISMATCH", "gw-1", 100_000m, "{}", null));
 
-        await _handler.HandleWebhookAsync(PaymentGateway.PayOS, "{}", EmptyHeaders);
+        await _webhookHandler.Handle(new HandlePaymentWebhookCommand(PaymentGateway.PayOS, "{}", EmptyHeaders), CancellationToken.None);
 
         (await _db.PaymentTransactions.SingleAsync(t => t.Id == tx.Id)).Status.Should().Be(TransactionStatus.Failed);
         (await _db.Invoices.SingleAsync(i => i.Id == invoice.Id)).Status.Should().Be(PaymentStatus.Unpaid);
@@ -226,7 +240,7 @@ public class PaymentHandlerTests
         _gatewayService.VerifyAndParseWebhookAsync(Arg.Any<string>(), Arg.Any<IReadOnlyDictionary<string, string>>(), Arg.Any<CancellationToken>())
             .Returns(new WebhookVerificationResult(true, true, "ORDER-OK", "gw-tx-ok", 500_000m, "{}", null));
 
-        await _handler.HandleWebhookAsync(PaymentGateway.PayOS, "{}", EmptyHeaders);
+        await _webhookHandler.Handle(new HandlePaymentWebhookCommand(PaymentGateway.PayOS, "{}", EmptyHeaders), CancellationToken.None);
 
         (await _db.PaymentTransactions.SingleAsync(t => t.Id == tx.Id)).Status.Should().Be(TransactionStatus.Success);
         (await _db.Invoices.SingleAsync(i => i.Id == invoice.Id)).Status.Should().Be(PaymentStatus.Paid);
@@ -243,7 +257,7 @@ public class PaymentHandlerTests
         _gatewayService.VerifyAndParseWebhookAsync(Arg.Any<string>(), Arg.Any<IReadOnlyDictionary<string, string>>(), Arg.Any<CancellationToken>())
             .Returns(new WebhookVerificationResult(true, false, "ORDER-FAIL", null, 0, "{}", "Người dùng hủy giao dịch"));
 
-        await _handler.HandleWebhookAsync(PaymentGateway.PayOS, "{}", EmptyHeaders);
+        await _webhookHandler.Handle(new HandlePaymentWebhookCommand(PaymentGateway.PayOS, "{}", EmptyHeaders), CancellationToken.None);
 
         var updated = await _db.PaymentTransactions.SingleAsync(t => t.Id == tx.Id);
         updated.Status.Should().Be(TransactionStatus.Failed);
@@ -254,7 +268,7 @@ public class PaymentHandlerTests
     [Test]
     public async Task GetStatusAsync_InvoiceNotFound_ThrowsNotFoundException()
     {
-        Func<Task> act = () => _handler.GetStatusAsync(Guid.NewGuid());
+        Func<Task> act = () => _getStatusHandler.Handle(new GetPaymentStatusQuery(Guid.NewGuid()), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -265,7 +279,7 @@ public class PaymentHandlerTests
     {
         var invoice = await SeedUnpaidInvoiceAsync();
 
-        var result = await _handler.GetStatusAsync(invoice.Id);
+        var result = await _getStatusHandler.Handle(new GetPaymentStatusQuery(invoice.Id), CancellationToken.None);
 
         result.LatestTransaction.Should().BeNull();
         result.InvoiceStatus.Should().Be(PaymentStatus.Unpaid.ToString());
@@ -283,7 +297,7 @@ public class PaymentHandlerTests
         _db.PaymentTransactions.Add(newer);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.GetStatusAsync(invoice.Id);
+        var result = await _getStatusHandler.Handle(new GetPaymentStatusQuery(invoice.Id), CancellationToken.None);
 
         result.LatestTransaction.Should().NotBeNull();
         result.LatestTransaction!.GatewayOrderCode.Should().Be("ORDER-NEW");

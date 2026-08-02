@@ -3,22 +3,29 @@ using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Infrastructure.Persistence;
+using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.Chat;
 
+public record StartConversationCommand(Guid UserId, string? Language = null) : IRequest<StartConversationResult>;
+
 public class StartConversationHandler(
     IPatientRepository patientRepository,
     IUserRepository userRepository,
-    AppDbContext dbContext)
+    IChatConversationRepository chatConversationRepository,
+    IChatMessageRepository chatMessageRepository,
+    AppDbContext dbContext) : IRequestHandler<StartConversationCommand, StartConversationResult>
 {
     /// <summary>Chỉ nhắc lịch hẹn diễn ra trong khoảng thời gian gần — nhắc quá xa (vd. còn 2 tuần)
     /// không hữu ích và dễ gây khó chịu mỗi lần bệnh nhân mở một cuộc trò chuyện mới.</summary>
     private const int ReminderWindowHours = 48;
 
-    public async Task<StartConversationResult> HandleAsync(
-        Guid userId, string? language = null, CancellationToken ct = default)
+    public async Task<StartConversationResult> Handle(StartConversationCommand request, CancellationToken ct)
     {
+        var userId = request.UserId;
+        var language = request.Language;
+
         // Bệnh nhân mới đăng ký, chưa từng đặt lịch, sẽ chưa có hồ sơ Patient (hồ sơ này hiện chỉ được
         // tạo lười biếng khi đặt lịch lần đầu — CreateAppointmentHandler). Chatbot phải dùng được ngay
         // sau khi đăng nhập nên áp dụng đúng cách tạo lười biếng tương tự ở đây.
@@ -36,17 +43,15 @@ public class StartConversationHandler(
         }
 
         var conversation = ChatConversation.Create(patient.Id);
-        dbContext.ChatConversations.Add(conversation);
+        await chatConversationRepository.AddAsync(conversation, ct);
 
         // Chủ động nhắc lịch hẹn sắp tới ngay khi bắt đầu một cuộc trò chuyện MỚI, thay vì hoàn toàn
         // bị động chờ được hỏi — chỉ áp dụng cho hội thoại mới (không nhắc lại khi mở lại lịch sử cũ).
         var reminder = await BuildReminderMessageAsync(patient, language, ct);
         if (reminder is not null)
         {
-            dbContext.ChatMessages.Add(ChatMessage.Create(conversation.Id, "assistant", reminder));
+            await chatMessageRepository.AddAsync(ChatMessage.Create(conversation.Id, "assistant", reminder), ct);
         }
-
-        await dbContext.SaveChangesAsync(ct);
 
         return new StartConversationResult(conversation.Id, reminder);
     }

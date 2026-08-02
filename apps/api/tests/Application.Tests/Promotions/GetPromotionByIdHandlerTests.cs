@@ -31,7 +31,7 @@ public class GetPromotionByIdHandlerTests
         _repo.GetByIdAsync(promo.Id, Arg.Any<CancellationToken>()).Returns(promo);
         var handler = new GetPromotionByIdHandler(_repo, _serviceRepo);
 
-        var result = await handler.HandleAsync(promo.Id);
+        var result = await handler.Handle(new GetPromotionByIdQuery(promo.Id), CancellationToken.None);
 
         result.Should().NotBeNull();
         result!.Code.Should().Be("SALE10");
@@ -47,7 +47,7 @@ public class GetPromotionByIdHandlerTests
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Promotion?)null);
         var handler = new GetPromotionByIdHandler(_repo, _serviceRepo);
 
-        var result = await handler.HandleAsync(Guid.NewGuid());
+        var result = await handler.Handle(new GetPromotionByIdQuery(Guid.NewGuid()), CancellationToken.None);
 
         result.Should().BeNull();
     }
@@ -68,7 +68,7 @@ public class GetPromotionByIdHandlerTests
         _repo.GetByIdAsync(promo.Id, Arg.Any<CancellationToken>()).Returns(promo);
         var handler = new GetPromotionByIdHandler(_repo, _serviceRepo);
 
-        var result = await handler.HandleAsync(promo.Id);
+        var result = await handler.Handle(new GetPromotionByIdQuery(promo.Id), CancellationToken.None);
 
         result!.ServiceNames.Should().Contain(missingServiceId.ToString());
     }

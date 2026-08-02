@@ -36,7 +36,7 @@ public class ChangePasswordHandlerTests
     {
         _userRepo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((User?)null);
 
-        Func<Task> act = () => _handler.HandleAsync(new ChangePasswordCommand(Guid.NewGuid(), "old", "new"));
+        Func<Task> act = () => _handler.Handle(new ChangePasswordCommand(Guid.NewGuid(), "old", "new"), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -48,7 +48,7 @@ public class ChangePasswordHandlerTests
         var user = CreateUserWithPassword("correct-password");
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
 
-        Func<Task> act = () => _handler.HandleAsync(new ChangePasswordCommand(user.Id, "wrong-password", "new-password"));
+        Func<Task> act = () => _handler.Handle(new ChangePasswordCommand(user.Id, "wrong-password", "new-password"), CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
         await _userRepo.DidNotReceive().UpdateAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
@@ -61,7 +61,7 @@ public class ChangePasswordHandlerTests
         var user = CreateUserWithPassword("old-password");
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
 
-        await _handler.HandleAsync(new ChangePasswordCommand(user.Id, "old-password", "new-password"));
+        await _handler.Handle(new ChangePasswordCommand(user.Id, "old-password", "new-password"), CancellationToken.None);
 
         BCrypt.Net.BCrypt.Verify("new-password", user.PasswordHash).Should().BeTrue();
         await _userRepo.Received(1).UpdateAsync(user, Arg.Any<CancellationToken>());
@@ -77,7 +77,7 @@ public class ChangePasswordHandlerTests
         var user = User.CreateGoogleUser("google-user@test.com", "Google User", null);
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
 
-        Func<Task> act = () => _handler.HandleAsync(new ChangePasswordCommand(user.Id, "any-password", "new-password"));
+        Func<Task> act = () => _handler.Handle(new ChangePasswordCommand(user.Id, "any-password", "new-password"), CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
         await _userRepo.DidNotReceive().UpdateAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
@@ -95,7 +95,7 @@ public class ChangePasswordHandlerTests
         _currentUser.UserRole.Returns("Admin");
         _currentUser.IpAddress.Returns("127.0.0.1");
 
-        await _handler.HandleAsync(new ChangePasswordCommand(user.Id, "old-password", "new-password"));
+        await _handler.Handle(new ChangePasswordCommand(user.Id, "old-password", "new-password"), CancellationToken.None);
 
         await _activityLogService.Received(1).LogAsync(
             currentUserId,

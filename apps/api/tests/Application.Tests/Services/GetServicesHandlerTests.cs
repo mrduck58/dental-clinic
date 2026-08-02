@@ -29,7 +29,7 @@ public class GetServicesHandlerTests
         });
         var handler = new GetServicesHandler(_repo);
 
-        var result = await handler.HandleAsync(null, null);
+        var result = await handler.Handle(new GetServicesQuery(null, null), CancellationToken.None);
 
         result.Should().HaveCount(3);
     }
@@ -46,7 +46,7 @@ public class GetServicesHandlerTests
         _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<Service> { active, inactive });
         var handler = new GetServicesHandler(_repo);
 
-        var result = await handler.HandleAsync(status: "Active", null);
+        var result = await handler.Handle(new GetServicesQuery(Status: "Active", Search: null), CancellationToken.None);
 
         result.Should().HaveCount(1);
         result.First().IsActive.Should().BeTrue();
@@ -66,7 +66,7 @@ public class GetServicesHandlerTests
         });
         var handler = new GetServicesHandler(_repo);
 
-        var result = await handler.HandleAsync(null, search: "răng");
+        var result = await handler.Handle(new GetServicesQuery(Status: null, Search: "răng"), CancellationToken.None);
 
         result.Should().HaveCount(2);
     }
@@ -83,7 +83,7 @@ public class GetServicesHandlerTests
         _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<Service> { active, inactive });
         var handler = new GetServicesHandler(_repo);
 
-        var result = await handler.HandleAsync(status: "Inactive", null);
+        var result = await handler.Handle(new GetServicesQuery(Status: "Inactive", Search: null), CancellationToken.None);
 
         result.Should().HaveCount(1);
         result.First().IsActive.Should().BeFalse();
@@ -101,7 +101,7 @@ public class GetServicesHandlerTests
         _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<Service> { active, inactive });
         var handler = new GetServicesHandler(_repo);
 
-        var result = await handler.HandleAsync(status: "active", null);
+        var result = await handler.Handle(new GetServicesQuery(Status: "active", Search: null), CancellationToken.None);
 
         result.Should().HaveCount(1);
         result.First().IsActive.Should().BeTrue();
@@ -120,7 +120,7 @@ public class GetServicesHandlerTests
         _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<Service> { activeMatch, inactiveMatch, activeNoMatch });
         var handler = new GetServicesHandler(_repo);
 
-        var result = await handler.HandleAsync(status: "Active", search: "răng");
+        var result = await handler.Handle(new GetServicesQuery(Status: "Active", Search: "răng"), CancellationToken.None);
 
         result.Should().ContainSingle();
         result.First().Name.Should().Be("Nhổ răng khôn");
@@ -139,7 +139,7 @@ public class GetServicesHandlerTests
         });
         var handler = new GetServicesHandler(_repo);
 
-        var result = await handler.HandleAsync(null, search: "cấy ghép");
+        var result = await handler.Handle(new GetServicesQuery(Status: null, Search: "cấy ghép"), CancellationToken.None);
 
         result.Should().ContainSingle();
         result.First().Name.Should().Be("Implant");
@@ -157,7 +157,7 @@ public class GetServicesHandlerTests
         });
         var handler = new GetServicesHandler(_repo);
 
-        var result = await handler.HandleAsync(null, search: "không tồn tại");
+        var result = await handler.Handle(new GetServicesQuery(Status: null, Search: "không tồn tại"), CancellationToken.None);
 
         result.Should().BeEmpty();
     }
@@ -175,7 +175,7 @@ public class GetServicesHandlerTests
         });
         var handler = new GetServicesHandler(_repo);
 
-        var result = await handler.HandleAsync(status: "   ", search: "   ");
+        var result = await handler.Handle(new GetServicesQuery(Status: "   ", Search: "   "), CancellationToken.None);
 
         result.Should().HaveCount(2);
     }

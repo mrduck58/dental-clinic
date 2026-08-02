@@ -1,7 +1,7 @@
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
-using DentalClinic.API.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
+using DentalClinic.API.Domain.Interfaces.Repositories;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Services;
 
@@ -15,30 +15,29 @@ public class TreatmentProcedureDto
     public string Name { get; set; } = string.Empty;
 }
 
-public class TreatmentProcedureHandler(AppDbContext dbContext)
+public record GetTreatmentProceduresQuery(Guid ServiceId) : IRequest<List<TreatmentProcedureDto>>;
+
+/// <summary>Thay toàn bộ quy trình điều trị của một dịch vụ (xóa hết bước cũ, thêm bước mới).</summary>
+public record ReplaceTreatmentProceduresCommand(Guid ServiceId, List<ProcedureStepRequest> Steps) : IRequest<List<TreatmentProcedureDto>>;
+
+public class TreatmentProcedureHandler(
+    ITreatmentProcedureRepository treatmentProcedureRepository,
+    IServiceRepository serviceRepository) :
+    IRequestHandler<GetTreatmentProceduresQuery, List<TreatmentProcedureDto>>,
+    IRequestHandler<ReplaceTreatmentProceduresCommand, List<TreatmentProcedureDto>>
 {
-    public async Task<List<TreatmentProcedureDto>> GetByServiceAsync(Guid serviceId, CancellationToken ct = default)
+    public async Task<List<TreatmentProcedureDto>> Handle(GetTreatmentProceduresQuery request, CancellationToken cancellationToken)
     {
-        return await dbContext.TreatmentProcedures
-            .AsNoTracking()
-            .Where(p => p.ServiceId == serviceId)
-            .OrderBy(p => p.StepNumber)
-            .Select(p => new TreatmentProcedureDto
-            {
-                Id = p.Id,
-                ServiceId = p.ServiceId,
-                StepNumber = p.StepNumber,
-                Name = p.Name
-            })
-            .ToListAsync(ct);
+        return await GetByServiceAsync(request.ServiceId, cancellationToken);
     }
 
-    /// <summary>Thay toàn bộ quy trình điều trị của một dịch vụ (xóa hết bước cũ, thêm bước mới).</summary>
-    public async Task<List<TreatmentProcedureDto>> ReplaceForServiceAsync(
-        Guid serviceId, List<ProcedureStepRequest> steps, CancellationToken ct = default)
+    public async Task<List<TreatmentProcedureDto>> Handle(ReplaceTreatmentProceduresCommand request, CancellationToken cancellationToken)
     {
-        var serviceExists = await dbContext.Services.AnyAsync(s => s.Id == serviceId, ct);
-        if (!serviceExists)
+        var serviceId = request.ServiceId;
+        var steps = request.Steps;
+
+        var service = await serviceRepository.GetByIdAsync(serviceId, cancellationToken);
+        if (service is null)
             throw new NotFoundException("Không tìm thấy dịch vụ.");
 
         if (steps.Any(s => string.IsNullOrWhiteSpace(s.Name)))
@@ -47,16 +46,27 @@ public class TreatmentProcedureHandler(AppDbContext dbContext)
         if (steps.Select(s => s.StepNumber).Distinct().Count() != steps.Count)
             throw new ValidationException("Số thứ tự các bước không được trùng nhau.");
 
-        var existing = await dbContext.TreatmentProcedures
-            .Where(p => p.ServiceId == serviceId)
-            .ToListAsync(ct);
-        dbContext.TreatmentProcedures.RemoveRange(existing);
+        var newProcedures = steps
+            .OrderBy(s => s.StepNumber)
+            .Select(step => TreatmentProcedure.Create(serviceId, step.StepNumber, step.Name.Trim()));
 
-        foreach (var step in steps.OrderBy(s => s.StepNumber))
-            dbContext.TreatmentProcedures.Add(TreatmentProcedure.Create(serviceId, step.StepNumber, step.Name.Trim()));
+        await treatmentProcedureRepository.ReplaceAllForServiceAsync(serviceId, newProcedures, cancellationToken);
 
-        await dbContext.SaveChangesAsync(ct);
+        return await GetByServiceAsync(serviceId, cancellationToken);
+    }
 
-        return await GetByServiceAsync(serviceId, ct);
+    private async Task<List<TreatmentProcedureDto>> GetByServiceAsync(Guid serviceId, CancellationToken cancellationToken)
+    {
+        var procedures = await treatmentProcedureRepository.GetByServiceIdAsync(serviceId, cancellationToken);
+
+        return procedures
+            .Select(p => new TreatmentProcedureDto
+            {
+                Id = p.Id,
+                ServiceId = p.ServiceId,
+                StepNumber = p.StepNumber,
+                Name = p.Name
+            })
+            .ToList();
     }
 }

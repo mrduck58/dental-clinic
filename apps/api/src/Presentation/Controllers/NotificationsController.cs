@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using DentalClinic.API.Application.UseCases.Notifications;
 using DentalClinic.API.Domain.Interfaces.Services;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,7 +11,7 @@ namespace DentalClinic.API.Presentation.Controllers;
 [Route("api/notifications")]
 [Authorize]
 public class NotificationsController(
-    GetNotificationsHandler getNotificationsHandler,
+    ISender sender,
     INotificationService notificationService) : ControllerBase
 {
     private Guid CurrentUserId =>
@@ -27,7 +28,7 @@ public class NotificationsController(
         [FromQuery] int pageSize = 10,
         CancellationToken cancellationToken = default)
     {
-        var result = await getNotificationsHandler.HandleAsync(
+        var result = await sender.Send(
             new GetNotificationsQuery(CurrentUserId, type, priority, isRead, search, page, pageSize),
             cancellationToken);
 

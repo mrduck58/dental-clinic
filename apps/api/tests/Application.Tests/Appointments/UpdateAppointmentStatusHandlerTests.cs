@@ -1,4 +1,5 @@
-using DentalClinic.API.Application.UseCases.Appointments;
+using DentalClinic.API.Application.UseCases.Booking;
+using DentalClinic.API.Application.UseCases.ClinicalRecords;
 using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
@@ -18,7 +19,15 @@ public class UpdateAppointmentStatusHandlerTests
     private ICurrentUserService _currentUser = null!;
     private INotificationService _notification = null!;
     private IPatientRepository _patientRepo = null!;
-    private UpdateAppointmentStatusHandler _handler = null!;
+    // God-handler UpdateAppointmentStatusHandler (7 method) đã được tách thành 7 handler MediatR:
+    // Confirm/Cancel/CheckIn/MarkNoShow thuộc Booking, Start/Complete/EndTreatment thuộc ClinicalRecords.
+    private ConfirmAppointmentHandler _confirm = null!;
+    private CancelAppointmentHandler _cancel = null!;
+    private CheckInAppointmentHandler _checkIn = null!;
+    private MarkNoShowHandler _noShow = null!;
+    private StartTreatmentHandler _startTreatment = null!;
+    private CompleteAppointmentHandler _complete = null!;
+    private EndTreatmentHandler _endTreatment = null!;
 
     [SetUp]
     public void SetUp()
@@ -28,7 +37,13 @@ public class UpdateAppointmentStatusHandlerTests
         _currentUser = Substitute.For<ICurrentUserService>();
         _notification = Substitute.For<INotificationService>();
         _patientRepo = Substitute.For<IPatientRepository>();
-        _handler = new UpdateAppointmentStatusHandler(_repo, _activityLog, _notification, _currentUser, _patientRepo);
+        _confirm = new ConfirmAppointmentHandler(_repo, _activityLog, _notification, _currentUser, _patientRepo);
+        _cancel = new CancelAppointmentHandler(_repo, _activityLog, _notification, _currentUser, _patientRepo);
+        _checkIn = new CheckInAppointmentHandler(_repo, _activityLog, _notification, _currentUser, _patientRepo);
+        _noShow = new MarkNoShowHandler(_repo, _activityLog, _notification, _currentUser, _patientRepo);
+        _startTreatment = new StartTreatmentHandler(_repo);
+        _complete = new CompleteAppointmentHandler(_repo, _activityLog, _currentUser);
+        _endTreatment = new EndTreatmentHandler(_repo, _notification, _patientRepo);
     }
 
     private static Appointment MakeAppointment() =>
@@ -47,7 +62,7 @@ public class UpdateAppointmentStatusHandlerTests
         var appt = MakeAppointment();
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
 
-        await _handler.ConfirmAsync(id);
+        await _confirm.Handle(new ConfirmAppointmentCommand(id), CancellationToken.None);
 
         await _repo.Received(1).UpdateAsync(appt, Arg.Any<CancellationToken>());
     }
@@ -63,7 +78,7 @@ public class UpdateAppointmentStatusHandlerTests
         var appt = MakeAppointment();
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
 
-        await _handler.ConfirmAsync(id);
+        await _confirm.Handle(new ConfirmAppointmentCommand(id), CancellationToken.None);
 
         appt.Status.Should().Be(AppointmentStatus.Confirmed);
     }
@@ -80,7 +95,7 @@ public class UpdateAppointmentStatusHandlerTests
         appt.Status.Should().Be(AppointmentStatus.Pending); // trạng thái ban đầu
 
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
-        await _handler.ConfirmAsync(id);
+        await _confirm.Handle(new ConfirmAppointmentCommand(id), CancellationToken.None);
 
         appt.Status.Should().Be(AppointmentStatus.Confirmed);
     }
@@ -95,7 +110,7 @@ public class UpdateAppointmentStatusHandlerTests
         var id = Guid.NewGuid();
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns((Appointment?)null);
 
-        Func<Task> act = () => _handler.ConfirmAsync(id);
+        Func<Task> act = () => _confirm.Handle(new ConfirmAppointmentCommand(id), CancellationToken.None);
 
         await act.Should().ThrowAsync<KeyNotFoundException>()
             .WithMessage($"*{id}*");
@@ -110,7 +125,7 @@ public class UpdateAppointmentStatusHandlerTests
         var id = Guid.NewGuid();
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns((Appointment?)null);
 
-        Assert.CatchAsync(() => _handler.ConfirmAsync(id));
+        Assert.CatchAsync(() => _confirm.Handle(new ConfirmAppointmentCommand(id), CancellationToken.None));
 
         await _repo.DidNotReceive().UpdateAsync(Arg.Any<Appointment>(), Arg.Any<CancellationToken>());
     }
@@ -128,7 +143,7 @@ public class UpdateAppointmentStatusHandlerTests
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
         _repo.GetDentistUserIdAsync(appt.DentistId, Arg.Any<CancellationToken>()).Returns(dentistUserId);
 
-        await _handler.ConfirmAsync(id);
+        await _confirm.Handle(new ConfirmAppointmentCommand(id), CancellationToken.None);
 
         await _notification.Received(1).CreateAsync(
             Arg.Is<CreateNotificationRequest>(r => r.Type == NotificationType.Appointment),
@@ -147,7 +162,7 @@ public class UpdateAppointmentStatusHandlerTests
         var appt = MakeAppointment();
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
 
-        await _handler.CancelAsync(id);
+        await _cancel.Handle(new CancelAppointmentCommand(id), CancellationToken.None);
 
         await _repo.Received(1).UpdateAsync(appt, Arg.Any<CancellationToken>());
     }
@@ -163,7 +178,7 @@ public class UpdateAppointmentStatusHandlerTests
         var appt = MakeAppointment();
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
 
-        await _handler.CancelAsync(id);
+        await _cancel.Handle(new CancelAppointmentCommand(id), CancellationToken.None);
 
         appt.Status.Should().Be(AppointmentStatus.Cancelled);
     }
@@ -177,7 +192,7 @@ public class UpdateAppointmentStatusHandlerTests
         var id = Guid.NewGuid();
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns((Appointment?)null);
 
-        Func<Task> act = () => _handler.CancelAsync(id);
+        Func<Task> act = () => _cancel.Handle(new CancelAppointmentCommand(id), CancellationToken.None);
 
         await act.Should().ThrowAsync<KeyNotFoundException>()
             .WithMessage($"*{id}*");
@@ -192,7 +207,7 @@ public class UpdateAppointmentStatusHandlerTests
         var id = Guid.NewGuid();
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns((Appointment?)null);
 
-        Assert.CatchAsync(() => _handler.CancelAsync(id));
+        Assert.CatchAsync(() => _cancel.Handle(new CancelAppointmentCommand(id), CancellationToken.None));
 
         await _repo.DidNotReceive().UpdateAsync(Arg.Any<Appointment>(), Arg.Any<CancellationToken>());
     }
@@ -210,7 +225,7 @@ public class UpdateAppointmentStatusHandlerTests
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
         _repo.GetDentistUserIdAsync(appt.DentistId, Arg.Any<CancellationToken>()).Returns(dentistUserId);
 
-        await _handler.CancelAsync(id);
+        await _cancel.Handle(new CancelAppointmentCommand(id), CancellationToken.None);
 
         await _notification.Received(1).CreateAsync(
             Arg.Is<CreateNotificationRequest>(r => r.Priority == NotificationPriority.High),
@@ -235,7 +250,7 @@ public class UpdateAppointmentStatusHandlerTests
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
         _patientRepo.GetByUserIdAsync(patientUserId, Arg.Any<CancellationToken>()).Returns(patient);
 
-        await _handler.CancelAsync(id, "Bận việc đột xuất");
+        await _cancel.Handle(new CancelAppointmentCommand(id, "Bận việc đột xuất"), CancellationToken.None);
 
         appt.Status.Should().Be(AppointmentStatus.Cancelled);
         appt.Notes.Should().Contain("Bận việc đột xuất");
@@ -262,7 +277,7 @@ public class UpdateAppointmentStatusHandlerTests
         _patientRepo.GetByUserIdAsync(patientUserId, Arg.Any<CancellationToken>()).Returns(patient);
         _patientRepo.GetFamilyMembersAsync(patient.Id, Arg.Any<CancellationToken>()).Returns(new List<Patient> { familyMember });
 
-        await _handler.CancelAsync(id, "Đổi lịch");
+        await _cancel.Handle(new CancelAppointmentCommand(id, "Đổi lịch"), CancellationToken.None);
 
         appt.Status.Should().Be(AppointmentStatus.Cancelled);
         await _repo.Received(1).UpdateAsync(appt, Arg.Any<CancellationToken>());
@@ -288,7 +303,7 @@ public class UpdateAppointmentStatusHandlerTests
         _patientRepo.GetByUserIdAsync(patientUserId, Arg.Any<CancellationToken>()).Returns(patient);
         _patientRepo.GetFamilyMembersAsync(patient.Id, Arg.Any<CancellationToken>()).Returns(new List<Patient>());
 
-        Func<Task> act = () => _handler.CancelAsync(id, "Hủy lịch người khác");
+        Func<Task> act = () => _cancel.Handle(new CancelAppointmentCommand(id, "Hủy lịch người khác"), CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
         appt.Status.Should().NotBe(AppointmentStatus.Cancelled);
@@ -312,7 +327,7 @@ public class UpdateAppointmentStatusHandlerTests
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
         _repo.GetDentistUserIdAsync(appt.DentistId, Arg.Any<CancellationToken>()).Returns(dentistUserId);
 
-        await _handler.CheckInAsync(id);
+        await _checkIn.Handle(new CheckInAppointmentCommand(id), CancellationToken.None);
 
         await _notification.Received(1).CreateAsync(
             Arg.Is<CreateNotificationRequest>(r => r.Priority == NotificationPriority.High),
@@ -329,7 +344,7 @@ public class UpdateAppointmentStatusHandlerTests
         var id = Guid.NewGuid();
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns((Appointment?)null);
 
-        Func<Task> act = () => _handler.CheckInAsync(id);
+        Func<Task> act = () => _checkIn.Handle(new CheckInAppointmentCommand(id), CancellationToken.None);
 
         await act.Should().ThrowAsync<KeyNotFoundException>();
     }
@@ -345,7 +360,7 @@ public class UpdateAppointmentStatusHandlerTests
         var appt = MakeAppointment(); // Pending
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
 
-        Func<Task> act = () => _handler.CheckInAsync(id);
+        Func<Task> act = () => _checkIn.Handle(new CheckInAppointmentCommand(id), CancellationToken.None);
 
         await act.Should().ThrowAsync<InvalidOperationException>();
         await _repo.DidNotReceive().UpdateAsync(Arg.Any<Appointment>(), Arg.Any<CancellationToken>());
@@ -360,7 +375,7 @@ public class UpdateAppointmentStatusHandlerTests
         var id = Guid.NewGuid();
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns((Appointment?)null);
 
-        Func<Task> act = () => _handler.MarkNoShowAsync(id);
+        Func<Task> act = () => _noShow.Handle(new MarkNoShowCommand(id), CancellationToken.None);
 
         await act.Should().ThrowAsync<KeyNotFoundException>();
     }
@@ -376,7 +391,7 @@ public class UpdateAppointmentStatusHandlerTests
         var appt = MakeAppointment(); // Pending
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
 
-        Func<Task> act = () => _handler.MarkNoShowAsync(id);
+        Func<Task> act = () => _noShow.Handle(new MarkNoShowCommand(id), CancellationToken.None);
 
         await act.Should().ThrowAsync<InvalidOperationException>();
         await _repo.DidNotReceive().UpdateAsync(Arg.Any<Appointment>(), Arg.Any<CancellationToken>());
@@ -391,7 +406,7 @@ public class UpdateAppointmentStatusHandlerTests
         appt.Confirm();
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
 
-        await _handler.MarkNoShowAsync(id);
+        await _noShow.Handle(new MarkNoShowCommand(id), CancellationToken.None);
 
         appt.Status.Should().Be(AppointmentStatus.NoShow);
         await _repo.Received(1).UpdateAsync(appt, Arg.Any<CancellationToken>());
@@ -408,7 +423,7 @@ public class UpdateAppointmentStatusHandlerTests
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
         _repo.GetDentistUserIdAsync(appt.DentistId, Arg.Any<CancellationToken>()).Returns(dentistUserId);
 
-        await _handler.MarkNoShowAsync(id);
+        await _noShow.Handle(new MarkNoShowCommand(id), CancellationToken.None);
 
         await _notification.Received(1).CreateAsync(
             Arg.Is<CreateNotificationRequest>(r => r.UserId == dentistUserId),
@@ -424,7 +439,7 @@ public class UpdateAppointmentStatusHandlerTests
         var id = Guid.NewGuid();
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns((Appointment?)null);
 
-        Func<Task> act = () => _handler.StartTreatmentAsync(id);
+        Func<Task> act = () => _startTreatment.Handle(new StartTreatmentCommand(id), CancellationToken.None);
 
         await act.Should().ThrowAsync<KeyNotFoundException>();
     }
@@ -437,7 +452,7 @@ public class UpdateAppointmentStatusHandlerTests
         var appt = MakeAppointment(); // Pending
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
 
-        Func<Task> act = () => _handler.StartTreatmentAsync(id);
+        Func<Task> act = () => _startTreatment.Handle(new StartTreatmentCommand(id), CancellationToken.None);
 
         await act.Should().ThrowAsync<InvalidOperationException>();
         await _repo.DidNotReceive().UpdateAsync(Arg.Any<Appointment>(), Arg.Any<CancellationToken>());
@@ -453,7 +468,7 @@ public class UpdateAppointmentStatusHandlerTests
         appt.CheckIn();
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
 
-        await _handler.StartTreatmentAsync(id);
+        await _startTreatment.Handle(new StartTreatmentCommand(id), CancellationToken.None);
 
         appt.Status.Should().Be(AppointmentStatus.InProgress);
         await _repo.Received(1).UpdateAsync(appt, Arg.Any<CancellationToken>());
@@ -468,7 +483,7 @@ public class UpdateAppointmentStatusHandlerTests
         var id = Guid.NewGuid();
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns((Appointment?)null);
 
-        Func<Task> act = () => _handler.CompleteAsync(id);
+        Func<Task> act = () => _complete.Handle(new CompleteAppointmentCommand(id), CancellationToken.None);
 
         await act.Should().ThrowAsync<KeyNotFoundException>();
     }
@@ -481,7 +496,7 @@ public class UpdateAppointmentStatusHandlerTests
         var appt = MakeAppointment();
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
 
-        await _handler.CompleteAsync(id);
+        await _complete.Handle(new CompleteAppointmentCommand(id), CancellationToken.None);
 
         appt.Status.Should().Be(AppointmentStatus.Completed);
         await _repo.Received(1).UpdateAsync(appt, Arg.Any<CancellationToken>());
@@ -501,7 +516,7 @@ public class UpdateAppointmentStatusHandlerTests
         var id = Guid.NewGuid();
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns((Appointment?)null);
 
-        Func<Task> act = () => _handler.EndTreatmentAsync(id);
+        Func<Task> act = () => _endTreatment.Handle(new EndTreatmentCommand(id), CancellationToken.None);
 
         await act.Should().ThrowAsync<KeyNotFoundException>();
     }
@@ -514,7 +529,7 @@ public class UpdateAppointmentStatusHandlerTests
         var appt = MakeAppointment(); // Pending
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
 
-        Func<Task> act = () => _handler.EndTreatmentAsync(id);
+        Func<Task> act = () => _endTreatment.Handle(new EndTreatmentCommand(id), CancellationToken.None);
 
         await act.Should().ThrowAsync<InvalidOperationException>();
         await _repo.DidNotReceive().UpdateAsync(Arg.Any<Appointment>(), Arg.Any<CancellationToken>());
@@ -531,7 +546,7 @@ public class UpdateAppointmentStatusHandlerTests
         appt.StartTreatment();
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
 
-        await _handler.EndTreatmentAsync(id);
+        await _endTreatment.Handle(new EndTreatmentCommand(id), CancellationToken.None);
 
         appt.Status.Should().Be(AppointmentStatus.PendingPayment);
         await _repo.Received(1).UpdateAsync(appt, Arg.Any<CancellationToken>());
@@ -555,7 +570,7 @@ public class UpdateAppointmentStatusHandlerTests
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
         _patientRepo.GetByIdAsync(patient.Id, Arg.Any<CancellationToken>()).Returns(patient);
 
-        await _handler.EndTreatmentAsync(id);
+        await _endTreatment.Handle(new EndTreatmentCommand(id), CancellationToken.None);
 
         await _notification.Received(1).CreateAsync(
             Arg.Is<CreateNotificationRequest>(r => r.UserId == patientUserId && r.Type == NotificationType.Reminder),
@@ -573,7 +588,7 @@ public class UpdateAppointmentStatusHandlerTests
         appt.StartTreatment();
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
 
-        await _handler.EndTreatmentAsync(id);
+        await _endTreatment.Handle(new EndTreatmentCommand(id), CancellationToken.None);
 
         await _notification.DidNotReceive().CreateAsync(
             Arg.Is<CreateNotificationRequest>(r => r.Type == NotificationType.Reminder),
@@ -589,7 +604,7 @@ public class UpdateAppointmentStatusHandlerTests
     [Test]
     public async Task CancelAsync_PatientRoleWithoutPatientRepositoryConfigured_ThrowsInvalidOperationException()
     {
-        var handlerWithoutPatientRepo = new UpdateAppointmentStatusHandler(
+        var handlerWithoutPatientRepo = new CancelAppointmentHandler(
             _repo, _activityLog, _notification, _currentUser, patientRepository: null);
         var id = Guid.NewGuid();
         var appt = MakeAppointment();
@@ -597,7 +612,7 @@ public class UpdateAppointmentStatusHandlerTests
         _currentUser.IsAuthenticated.Returns(true);
         _currentUser.UserRole.Returns("Patient");
 
-        Func<Task> act = () => handlerWithoutPatientRepo.CancelAsync(id);
+        Func<Task> act = () => handlerWithoutPatientRepo.Handle(new CancelAppointmentCommand(id), CancellationToken.None);
 
         await act.Should().ThrowAsync<InvalidOperationException>();
     }
@@ -616,7 +631,7 @@ public class UpdateAppointmentStatusHandlerTests
         _currentUser.UserRole.Returns("Patient");
         _currentUser.UserId.Returns((Guid?)null);
 
-        Func<Task> act = () => _handler.CancelAsync(id);
+        Func<Task> act = () => _cancel.Handle(new CancelAppointmentCommand(id), CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
     }
@@ -637,7 +652,7 @@ public class UpdateAppointmentStatusHandlerTests
         _currentUser.UserId.Returns(patientUserId);
         _patientRepo.GetByUserIdAsync(patientUserId, Arg.Any<CancellationToken>()).Returns((Patient?)null);
 
-        Func<Task> act = () => _handler.CancelAsync(id);
+        Func<Task> act = () => _cancel.Handle(new CancelAppointmentCommand(id), CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
     }

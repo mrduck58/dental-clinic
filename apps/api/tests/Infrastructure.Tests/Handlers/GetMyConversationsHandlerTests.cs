@@ -2,6 +2,7 @@ using DentalClinic.API.Application.UseCases.Chat;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using NSubstitute;
@@ -24,7 +25,7 @@ public class GetMyConversationsHandlerTests
             .Options;
         _db = new AppDbContext(options);
         _patientRepo = Substitute.For<IPatientRepository>();
-        _handler = new GetMyConversationsHandler(_patientRepo, _db);
+        _handler = new GetMyConversationsHandler(_patientRepo, new ChatConversationRepository(_db));
     }
 
     [TearDown]
@@ -36,7 +37,7 @@ public class GetMyConversationsHandlerTests
     {
         _patientRepo.GetByUserIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Patient?)null);
 
-        var result = await _handler.HandleAsync(Guid.NewGuid());
+        var result = await _handler.Handle(new GetMyConversationsQuery(Guid.NewGuid()), CancellationToken.None);
 
         result.Should().BeEmpty();
     }
@@ -54,7 +55,7 @@ public class GetMyConversationsHandlerTests
         await _db.SaveChangesAsync();
         _patientRepo.GetByUserIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(patient);
 
-        var result = await _handler.HandleAsync(Guid.NewGuid());
+        var result = await _handler.Handle(new GetMyConversationsQuery(Guid.NewGuid()), CancellationToken.None);
 
         result.Should().HaveCount(2);
         result[0].Id.Should().Be(newer.Id);
@@ -74,7 +75,7 @@ public class GetMyConversationsHandlerTests
         await _db.SaveChangesAsync();
         _patientRepo.GetByUserIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(patient);
 
-        var result = await _handler.HandleAsync(Guid.NewGuid());
+        var result = await _handler.Handle(new GetMyConversationsQuery(Guid.NewGuid()), CancellationToken.None);
 
         result[0].Preview.Should().Be("Tôi muốn đặt lịch khám răng");
     }
@@ -90,7 +91,7 @@ public class GetMyConversationsHandlerTests
         await _db.SaveChangesAsync();
         _patientRepo.GetByUserIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(patient);
 
-        var result = await _handler.HandleAsync(Guid.NewGuid());
+        var result = await _handler.Handle(new GetMyConversationsQuery(Guid.NewGuid()), CancellationToken.None);
 
         result[0].Preview.Should().Be("Cuộc trò chuyện mới");
     }
@@ -109,7 +110,7 @@ public class GetMyConversationsHandlerTests
         await _db.SaveChangesAsync();
         _patientRepo.GetByUserIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(patient);
 
-        var result = await _handler.HandleAsync(Guid.NewGuid());
+        var result = await _handler.Handle(new GetMyConversationsQuery(Guid.NewGuid()), CancellationToken.None);
 
         result[0].Preview.Should().HaveLength(81); // 80 ký tự + dấu "…"
         result[0].Preview.Should().EndWith("…");

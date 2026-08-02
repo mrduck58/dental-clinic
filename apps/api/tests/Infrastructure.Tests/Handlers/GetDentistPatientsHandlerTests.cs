@@ -1,4 +1,4 @@
-using DentalClinic.API.Application.UseCases.Appointments;
+using DentalClinic.API.Application.UseCases.DentistDashboard;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Infrastructure.Persistence;
@@ -57,7 +57,7 @@ public class GetDentistPatientsHandlerTests
         _db.Appointments.AddRange(pending, confirmed, checkedIn);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(dentist.Id, VietnamToday());
+        var result = await _handler.Handle(new GetDentistPatientsQuery(dentist.Id, VietnamToday()), CancellationToken.None);
 
         result.Patients.Should().ContainSingle();
         result.Patients[0].AppointmentId.Should().Be(checkedIn.Id);
@@ -80,7 +80,7 @@ public class GetDentistPatientsHandlerTests
         _db.Appointments.Add(appointment);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(dentist.Id, VietnamToday());
+        var result = await _handler.Handle(new GetDentistPatientsQuery(dentist.Id, VietnamToday()), CancellationToken.None);
 
         result.Patients[0].Age.Should().Be(29);
     }
@@ -100,7 +100,7 @@ public class GetDentistPatientsHandlerTests
         _db.Appointments.Add(appointment);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(dentist.Id, VietnamToday());
+        var result = await _handler.Handle(new GetDentistPatientsQuery(dentist.Id, VietnamToday()), CancellationToken.None);
 
         result.Patients[0].IsNew.Should().BeTrue();
     }
@@ -123,7 +123,7 @@ public class GetDentistPatientsHandlerTests
         _db.Appointments.Add(followUp);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(dentist.Id, VietnamToday());
+        var result = await _handler.Handle(new GetDentistPatientsQuery(dentist.Id, VietnamToday()), CancellationToken.None);
 
         result.Patients.Should().ContainSingle(p => p.AppointmentId == followUp.Id && p.IsFollowUpVisit);
     }
@@ -145,7 +145,7 @@ public class GetDentistPatientsHandlerTests
         _db.Appointments.Add(appointment);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(dentist.Id, VietnamToday());
+        var result = await _handler.Handle(new GetDentistPatientsQuery(dentist.Id, VietnamToday()), CancellationToken.None);
 
         result.Patients[0].Phone.Should().Be("0977000000");
     }
@@ -160,7 +160,7 @@ public class GetDentistPatientsHandlerTests
         _db.Dentists.Add(dentist);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(dentist.Id, VietnamToday());
+        var result = await _handler.Handle(new GetDentistPatientsQuery(dentist.Id, VietnamToday()), CancellationToken.None);
 
         result.Patients.Should().BeEmpty();
     }

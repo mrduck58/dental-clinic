@@ -3,10 +3,13 @@ using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Feedbacks;
 
 public record FeedbackReplyDraftDto(string ReplyText);
+
+public record GenerateFeedbackReplyQuery(Guid Id) : IRequest<FeedbackReplyDraftDto>;
 
 /// <summary>
 /// Soạn NHÁP câu trả lời cho một đánh giá của khách hàng, hỗ trợ nhân viên/chủ phòng khám phản hồi
@@ -14,14 +17,15 @@ public record FeedbackReplyDraftDto(string ReplyText);
 /// trả lời thông thường; AI không tự gửi phản hồi.
 /// </summary>
 public class GenerateFeedbackReplyHandler(IFeedbackRepository feedbackRepository, IAiChatService aiChatService)
+    : IRequestHandler<GenerateFeedbackReplyQuery, FeedbackReplyDraftDto>
 {
-    public async Task<FeedbackReplyDraftDto> HandleAsync(Guid id, CancellationToken ct = default)
+    public async Task<FeedbackReplyDraftDto> Handle(GenerateFeedbackReplyQuery request, CancellationToken cancellationToken)
     {
-        var feedback = await feedbackRepository.GetByIdAsync(id, ct)
-            ?? throw new NotFoundException($"Không tìm thấy phản hồi với ID: {id}");
+        var feedback = await feedbackRepository.GetByIdAsync(request.Id, cancellationToken)
+            ?? throw new NotFoundException($"Không tìm thấy phản hồi với ID: {request.Id}");
 
         var raw = await aiChatService.SummarizeAsync(
-            BuildSystemInstruction(), BuildPrompt(feedback), feature: "FeedbackReply", ct: ct);
+            BuildSystemInstruction(), BuildPrompt(feedback), feature: "FeedbackReply", ct: cancellationToken);
 
         return new FeedbackReplyDraftDto(raw.Trim());
     }
