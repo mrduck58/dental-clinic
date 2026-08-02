@@ -12,6 +12,9 @@ public interface IDentistReviewRepository
     /// bản ghi, gửi lại sẽ cập nhật thay vì tạo mới.</summary>
     Task<DentistReview?> GetByDentistAndPatientAsync(Guid dentistId, Guid patientId, CancellationToken ct = default);
 
+    /// <summary>Chỉ lấy điểm số các đánh giá của một nha sĩ — dùng để tính điểm trung bình mà không tải cả entity.</summary>
+    Task<IReadOnlyList<int>> GetRatingsByDentistIdAsync(Guid dentistId, CancellationToken ct = default);
+
     Task AddAsync(DentistReview review, CancellationToken ct = default);
     Task UpdateAsync(DentistReview review, CancellationToken ct = default);
 }

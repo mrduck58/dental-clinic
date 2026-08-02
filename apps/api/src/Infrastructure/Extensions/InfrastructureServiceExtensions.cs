@@ -107,10 +107,12 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<GetStaffHandler>();
         services.AddScoped<PatientAccessHelper>();
 
-        // 3 handler dưới đây ĐÃ là MediatR handler nhưng vẫn cần đăng ký theo KIỂU CỤ THỂ vì đang
+        // 5 handler dưới đây ĐÃ là MediatR handler nhưng vẫn cần đăng ký theo KIỂU CỤ THỂ vì đang
         // được inject trực tiếp (không qua ISender) ở nơi khác:
-        //  - GetDentistSlotsHandler, CreateAppointmentHandler, CancelAppointmentHandler → SendChatMessageHandler
+        //  - GetDentistsHandler, GetDentistSlotsHandler, CreateAppointmentHandler,
+        //    CancelAppointmentHandler → SendChatMessageHandler
         //  - GetWaitingQueueHandler → GetPatientQueueHandler (phải dùng đúng thuật toán đánh số hàng đợi)
+        services.AddScoped<GetDentistsHandler>();
         services.AddScoped<GetDentistSlotsHandler>();
         services.AddScoped<CreateAppointmentHandler>();
         services.AddScoped<CancelAppointmentHandler>();

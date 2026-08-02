@@ -108,4 +108,28 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
             .Distinct()
             .CountAsync(cancellationToken);
     }
+
+    public async Task<int> CountCompletedVisitsAsync(Guid dentistId, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Appointments
+            .Where(a => a.DentistId == dentistId &&
+                        (a.Status == DentalClinic.API.Domain.Enums.AppointmentStatus.Completed ||
+                         a.Status == DentalClinic.API.Domain.Enums.AppointmentStatus.PendingPayment))
+            .CountAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<string>> GetTopServiceNamesByDentistAsync(
+        Guid dentistId, int take, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Appointments
+            .Where(a => a.DentistId == dentistId &&
+                        (a.Status == DentalClinic.API.Domain.Enums.AppointmentStatus.Completed ||
+                         a.Status == DentalClinic.API.Domain.Enums.AppointmentStatus.PendingPayment) &&
+                        a.Service != null && a.Service.Name != null)
+            .GroupBy(a => a.Service!.Name)
+            .OrderByDescending(g => g.Count())
+            .Select(g => g.Key!)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+    }
 }

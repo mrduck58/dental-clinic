@@ -32,42 +32,25 @@ public record GetDentistDetailQuery(Guid DentistId) : IRequest<DentistDetailDto?
 
 public class GetDentistDetailHandler(
     IDentistRepository dentistRepository,
-    IAppointmentRepository appointmentRepository)
+    IAppointmentRepository appointmentRepository,
+    IDentistReviewRepository dentistReviewRepository)
     : IRequestHandler<GetDentistDetailQuery, DentistDetailDto?>
 {
+    /// <summary>Số dịch vụ tiêu biểu hiển thị trên trang chi tiết nha sĩ.</summary>
+    private const int TopServiceCount = 8;
+
     public async Task<DentistDetailDto?> Handle(GetDentistDetailQuery request, CancellationToken ct)
     {
         var dentist = await dentistRepository.GetByIdOrUserIdAsync(request.DentistId, ct);
         if (dentist is null) return null;
 
-        // Các buổi khám đã hoàn tất — dùng chung cho số bệnh nhân, số ca và danh sách dịch vụ.
-        var completedAppointments = dbContext.Appointments
-            .AsNoTracking()
-            .Where(a => a.DentistId == dentist.Id &&
-                        (a.Status == AppointmentStatus.Completed || a.Status == AppointmentStatus.PendingPayment));
+        var patientCount = await appointmentRepository.CountDistinctPatientsWithCompletedVisitAsync(dentist.Id, ct);
+        var appointmentCount = await appointmentRepository.CountCompletedVisitsAsync(dentist.Id, ct);
 
-        var patientCount = await completedAppointments
-            .Select(a => a.PatientId)
-            .Distinct()
-            .CountAsync(ct);
+        // Dịch vụ bác sĩ đã thực hiện, xếp theo số ca giảm dần.
+        var services = await appointmentRepository.GetTopServiceNamesByDentistAsync(dentist.Id, TopServiceCount, ct);
 
-        var appointmentCount = await completedAppointments.CountAsync(ct);
-
-        // Dịch vụ bác sĩ đã thực hiện, xếp theo số ca giảm dần (tối đa 8 dịch vụ).
-        var services = await completedAppointments
-            .Where(a => a.Service != null && a.Service.Name != null)
-            .GroupBy(a => a.Service!.Name)
-            .OrderByDescending(g => g.Count())
-            .Select(g => g.Key)
-            .Take(8)
-            .ToListAsync(ct);
-
-        var ratings = await dbContext.DentistReviews
-            .AsNoTracking()
-            .Where(r => r.DentistId == dentist.Id)
-            .Select(r => r.Rating)
-            .ToListAsync(ct);
-
+        var ratings = await dentistReviewRepository.GetRatingsByDentistIdAsync(dentist.Id, ct);
         var averageRating = ratings.Count == 0 ? 0 : Math.Round(ratings.Average(), 1);
 
         return new DentistDetailDto(
