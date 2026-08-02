@@ -2,6 +2,7 @@ using DentalClinic.API.Application.UseCases.Inventory;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using NUnit.Framework;
@@ -21,7 +22,7 @@ public class MarkMaterialRequestDoneHandlerTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         _db = new AppDbContext(options);
-        _handler = new MarkMaterialRequestDoneHandler(_db);
+        _handler = new MarkMaterialRequestDoneHandler(new MaterialRequestRepository(_db));
     }
 
     [TearDown]
@@ -31,7 +32,7 @@ public class MarkMaterialRequestDoneHandlerTests
     [Test]
     public async Task HandleAsync_RequestNotFound_ThrowsNotFoundException()
     {
-        Func<Task> act = () => _handler.HandleAsync(Guid.NewGuid(), "staff1");
+        Func<Task> act = () => _handler.Handle(new MarkMaterialRequestDoneCommand(Guid.NewGuid(), "staff1"), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -44,7 +45,7 @@ public class MarkMaterialRequestDoneHandlerTests
         _db.MaterialRequests.Add(request);
         await _db.SaveChangesAsync();
 
-        await _handler.HandleAsync(request.Id, "staff1");
+        await _handler.Handle(new MarkMaterialRequestDoneCommand(request.Id, "staff1"), CancellationToken.None);
 
         var updated = await _db.MaterialRequests.SingleAsync(r => r.Id == request.Id);
         updated.Status.Should().Be(MaterialRequestStatus.Done);
@@ -62,7 +63,7 @@ public class MarkMaterialRequestDoneHandlerTests
         _db.MaterialRequests.Add(request);
         await _db.SaveChangesAsync();
 
-        await _handler.HandleAsync(request.Id, "staff2");
+        await _handler.Handle(new MarkMaterialRequestDoneCommand(request.Id, "staff2"), CancellationToken.None);
 
         var updated = await _db.MaterialRequests.SingleAsync(r => r.Id == request.Id);
         updated.HandledBy.Should().Be("staff2");

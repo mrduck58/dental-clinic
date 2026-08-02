@@ -33,7 +33,7 @@ public class GetSupplyItemsHandlerTests
     {
         _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(SeedItems());
 
-        var result = (await _handler.HandleAsync(null, null)).ToList();
+        var result = (await _handler.Handle(new GetSupplyItemsQuery(null, null), CancellationToken.None)).ToList();
 
         result.Should().HaveCount(3);
     }
@@ -44,7 +44,7 @@ public class GetSupplyItemsHandlerTests
     {
         _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(SeedItems());
 
-        var result = (await _handler.HandleAsync("găng tay", null)).ToList();
+        var result = (await _handler.Handle(new GetSupplyItemsQuery("găng tay", null), CancellationToken.None)).ToList();
 
         result.Should().ContainSingle(i => i.Code == "VT001");
     }
@@ -55,7 +55,7 @@ public class GetSupplyItemsHandlerTests
     {
         _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(SeedItems());
 
-        var result = (await _handler.HandleAsync(null, "Thiết bị")).ToList();
+        var result = (await _handler.Handle(new GetSupplyItemsQuery(null, "Thiết bị"), CancellationToken.None)).ToList();
 
         result.Should().ContainSingle(i => i.Code == "VT003");
     }
@@ -66,7 +66,7 @@ public class GetSupplyItemsHandlerTests
     {
         _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(SeedItems());
 
-        var result = (await _handler.HandleAsync(null, "Tất cả")).ToList();
+        var result = (await _handler.Handle(new GetSupplyItemsQuery(null, "Tất cả"), CancellationToken.None)).ToList();
 
         result.Should().HaveCount(3);
     }
@@ -77,7 +77,7 @@ public class GetSupplyItemsHandlerTests
     {
         _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(SeedItems());
 
-        var result = (await _handler.HandleAsync(null, null)).ToList();
+        var result = (await _handler.Handle(new GetSupplyItemsQuery(null, null), CancellationToken.None)).ToList();
 
         result.Single(i => i.Code == "VT002").IsLow.Should().BeTrue();
         result.Single(i => i.Code == "VT001").IsLow.Should().BeFalse();
@@ -90,7 +90,7 @@ public class GetSupplyItemsHandlerTests
         var items = new List<SupplyItem> { SupplyItem.Create("VT010", "Chỉ khâu", "Vật tư tiêu hao", "Cuộn", 10, 10) };
         _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(items);
 
-        var result = (await _handler.HandleAsync(null, null)).ToList();
+        var result = (await _handler.Handle(new GetSupplyItemsQuery(null, null), CancellationToken.None)).ToList();
 
         result.Single().IsLow.Should().BeTrue();
     }
@@ -101,7 +101,7 @@ public class GetSupplyItemsHandlerTests
     {
         _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(SeedItems());
 
-        var result = (await _handler.HandleAsync("vt003", null)).ToList();
+        var result = (await _handler.Handle(new GetSupplyItemsQuery("vt003", null), CancellationToken.None)).ToList();
 
         result.Should().ContainSingle(i => i.Code == "VT003");
     }
@@ -112,7 +112,7 @@ public class GetSupplyItemsHandlerTests
     {
         _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(SeedItems());
 
-        var result = (await _handler.HandleAsync("không tồn tại", null)).ToList();
+        var result = (await _handler.Handle(new GetSupplyItemsQuery("không tồn tại", null), CancellationToken.None)).ToList();
 
         result.Should().BeEmpty();
     }
@@ -123,7 +123,7 @@ public class GetSupplyItemsHandlerTests
     {
         _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(SeedItems());
 
-        var result = (await _handler.HandleAsync("kim tiêm", "Vật tư tiêu hao")).ToList();
+        var result = (await _handler.Handle(new GetSupplyItemsQuery("kim tiêm", "Vật tư tiêu hao"), CancellationToken.None)).ToList();
 
         result.Should().ContainSingle(i => i.Code == "VT002");
     }
@@ -134,7 +134,7 @@ public class GetSupplyItemsHandlerTests
     {
         _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(SeedItems());
 
-        var result = (await _handler.HandleAsync("kim tiêm", "Thiết bị")).ToList();
+        var result = (await _handler.Handle(new GetSupplyItemsQuery("kim tiêm", "Thiết bị"), CancellationToken.None)).ToList();
 
         result.Should().BeEmpty();
     }
@@ -146,7 +146,7 @@ public class GetSupplyItemsHandlerTests
     {
         _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(SeedItems());
 
-        var result = (await _handler.HandleAsync(null, "thiết bị")).ToList();
+        var result = (await _handler.Handle(new GetSupplyItemsQuery(null, "thiết bị"), CancellationToken.None)).ToList();
 
         result.Should().BeEmpty();
     }

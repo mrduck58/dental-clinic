@@ -27,7 +27,7 @@ public class ReplyFeedbackHandlerTests
         _repo.GetByIdAsync(feedback.Id, Arg.Any<CancellationToken>()).Returns(feedback);
         var handler = new ReplyFeedbackHandler(_repo);
 
-        var result = await handler.HandleAsync(feedback.Id, new ReplyFeedbackRequest("Cảm ơn bạn!"));
+        var result = await handler.Handle(new ReplyFeedbackCommand(feedback.Id, "Cảm ơn bạn!"), CancellationToken.None);
 
         result.ReplyText.Should().Be("Cảm ơn bạn!");
         result.Status.Should().Be("Featured");
@@ -45,7 +45,7 @@ public class ReplyFeedbackHandlerTests
         _repo.GetByIdAsync(feedback.Id, Arg.Any<CancellationToken>()).Returns(feedback);
         var handler = new ReplyFeedbackHandler(_repo);
 
-        var result = await handler.HandleAsync(feedback.Id, new ReplyFeedbackRequest("Xin lỗi"));
+        var result = await handler.Handle(new ReplyFeedbackCommand(feedback.Id, "Xin lỗi"), CancellationToken.None);
 
         result.Status.Should().Be("Hidden");
         result.ReplyText.Should().Be("Xin lỗi");
@@ -59,7 +59,7 @@ public class ReplyFeedbackHandlerTests
     {
         var handler = new ReplyFeedbackHandler(_repo);
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid(), new ReplyFeedbackRequest("   "));
+        Func<Task> act = () => handler.Handle(new ReplyFeedbackCommand(Guid.NewGuid(), "   "), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
         await _repo.DidNotReceive().GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
@@ -74,7 +74,7 @@ public class ReplyFeedbackHandlerTests
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Feedback?)null);
         var handler = new ReplyFeedbackHandler(_repo);
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid(), new ReplyFeedbackRequest("Reply"));
+        Func<Task> act = () => handler.Handle(new ReplyFeedbackCommand(Guid.NewGuid(), "Reply"), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -87,7 +87,7 @@ public class ReplyFeedbackHandlerTests
     {
         var handler = new ReplyFeedbackHandler(_repo);
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid(), new ReplyFeedbackRequest(null!));
+        Func<Task> act = () => handler.Handle(new ReplyFeedbackCommand(Guid.NewGuid(), null!), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
         await _repo.DidNotReceive().GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
@@ -103,7 +103,7 @@ public class ReplyFeedbackHandlerTests
         _repo.GetByIdAsync(feedback.Id, Arg.Any<CancellationToken>()).Returns(feedback);
         var handler = new ReplyFeedbackHandler(_repo);
 
-        await handler.HandleAsync(feedback.Id, new ReplyFeedbackRequest("Cảm ơn bạn!"));
+        await handler.Handle(new ReplyFeedbackCommand(feedback.Id, "Cảm ơn bạn!"), CancellationToken.None);
 
         await _repo.Received(1).UpdateAsync(feedback, Arg.Any<CancellationToken>());
     }

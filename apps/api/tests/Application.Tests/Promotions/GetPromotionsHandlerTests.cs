@@ -34,7 +34,7 @@ public class GetPromotionsHandlerTests
         });
         var handler = new GetPromotionsHandler(_repo, _serviceRepo);
 
-        var result = (await handler.HandleAsync()).ToList();
+        var result = (await handler.Handle(new GetPromotionsQuery(), CancellationToken.None)).ToList();
 
         result.Should().HaveCount(1);
         result[0].ServiceNames.Should().Contain(n => n.Contains("tat ca") || n.Contains("Tat ca") || n.Contains("tất cả"), because: "empty service ids means all services");
@@ -55,7 +55,7 @@ public class GetPromotionsHandlerTests
         });
         var handler = new GetPromotionsHandler(_repo, _serviceRepo);
 
-        var result = (await handler.HandleAsync()).ToList();
+        var result = (await handler.Handle(new GetPromotionsQuery(), CancellationToken.None)).ToList();
 
         result[0].ServiceNames.Should().Contain("Nhổ răng");
     }
@@ -69,7 +69,7 @@ public class GetPromotionsHandlerTests
         _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<Promotion>());
         var handler = new GetPromotionsHandler(_repo, _serviceRepo);
 
-        await handler.HandleAsync();
+        await handler.Handle(new GetPromotionsQuery(), CancellationToken.None);
 
         await _repo.Received(1).GetAllAsync(Arg.Any<CancellationToken>());
         await _serviceRepo.Received(1).GetAllAsync(Arg.Any<CancellationToken>());
@@ -89,7 +89,7 @@ public class GetPromotionsHandlerTests
         });
         var handler = new GetPromotionsHandler(_repo, _serviceRepo);
 
-        var result = (await handler.HandleAsync()).ToList();
+        var result = (await handler.Handle(new GetPromotionsQuery(), CancellationToken.None)).ToList();
 
         result[0].ServiceNames.Should().Contain(missingServiceId.ToString());
     }

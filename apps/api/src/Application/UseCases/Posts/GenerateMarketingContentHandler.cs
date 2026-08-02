@@ -3,10 +3,12 @@ using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Posts;
 
-public record GenerateMarketingContentRequest(Guid? ServiceId, Guid? PromotionId, string? Topic, string? Tone);
+public record GenerateMarketingContentRequest(Guid? ServiceId, Guid? PromotionId, string? Topic, string? Tone)
+    : IRequest<MarketingContentDraftDto>;
 
 /// <summary>
 /// Soạn nháp bài viết marketing (tiêu đề + nội dung + danh mục gợi ý) từ dữ liệu dịch vụ/ưu đãi có sẵn
@@ -17,7 +19,7 @@ public record GenerateMarketingContentRequest(Guid? ServiceId, Guid? PromotionId
 public class GenerateMarketingContentHandler(
     IServiceRepository serviceRepository,
     IPromotionRepository promotionRepository,
-    IAiChatService aiChatService)
+    IAiChatService aiChatService) : IRequestHandler<GenerateMarketingContentRequest, MarketingContentDraftDto>
 {
     // Phải khớp danh sách danh mục cố định ở form tạo bài viết (apps/admin_website .../posts/create).
     private static readonly string[] AllowedCategories =
@@ -25,8 +27,8 @@ public class GenerateMarketingContentHandler(
         "Chăm sóc răng miệng", "Niềng răng", "Phục hình", "Khuyến mãi", "Lời khuyên nha khoa",
     ];
 
-    public async Task<MarketingContentDraftDto> HandleAsync(
-        GenerateMarketingContentRequest request, CancellationToken ct = default)
+    public async Task<MarketingContentDraftDto> Handle(
+        GenerateMarketingContentRequest request, CancellationToken ct)
     {
         var service = request.ServiceId.HasValue
             ? await serviceRepository.GetByIdAsync(request.ServiceId.Value, ct)

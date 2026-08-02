@@ -26,7 +26,7 @@ public class GetSupplyTransactionsHandlerTests
     {
         _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<SupplyTransaction>());
 
-        var result = await _handler.HandleAsync();
+        var result = await _handler.Handle(new GetSupplyTransactionsQuery(), CancellationToken.None);
 
         result.Should().BeEmpty();
     }
@@ -40,7 +40,7 @@ public class GetSupplyTransactionsHandlerTests
         typeof(SupplyTransaction).GetProperty(nameof(SupplyTransaction.SupplyItem))!.SetValue(tx, item);
         _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<SupplyTransaction> { tx });
 
-        var result = (await _handler.HandleAsync()).ToList();
+        var result = (await _handler.Handle(new GetSupplyTransactionsQuery(), CancellationToken.None)).ToList();
 
         result.Should().ContainSingle();
         result[0].ItemName.Should().Be("Bông gòn y tế");
@@ -59,7 +59,7 @@ public class GetSupplyTransactionsHandlerTests
         typeof(SupplyTransaction).GetProperty(nameof(SupplyTransaction.SupplyItem))!.SetValue(tx2, item2);
         _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<SupplyTransaction> { tx1, tx2 });
 
-        var result = (await _handler.HandleAsync()).ToList();
+        var result = (await _handler.Handle(new GetSupplyTransactionsQuery(), CancellationToken.None)).ToList();
 
         result.Should().HaveCount(2);
         result.Should().Contain(t => t.ItemName == "Bông gòn y tế" && t.Type == "import");
@@ -75,7 +75,7 @@ public class GetSupplyTransactionsHandlerTests
         typeof(SupplyTransaction).GetProperty(nameof(SupplyTransaction.SupplyItem))!.SetValue(tx, item);
         _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<SupplyTransaction> { tx });
 
-        var result = (await _handler.HandleAsync()).ToList();
+        var result = (await _handler.Handle(new GetSupplyTransactionsQuery(), CancellationToken.None)).ToList();
 
         result[0].Id.Should().Be(tx.Id);
         result[0].SupplyItemId.Should().Be(item.Id);

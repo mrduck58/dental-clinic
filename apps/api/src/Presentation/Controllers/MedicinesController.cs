@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.DTOs.Medicines;
 using DentalClinic.API.Application.UseCases.Medicines;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -7,12 +8,7 @@ namespace DentalClinic.API.Presentation.Controllers;
 
 [ApiController]
 [Route("api/medicines")]
-public class MedicinesController(
-    GetMedicinesHandler getMedicines,
-    GetMedicineByIdHandler getById,
-    CreateMedicineHandler create,
-    UpdateMedicineHandler update,
-    DeleteMedicineHandler delete) : ControllerBase
+public class MedicinesController(ISender sender) : ControllerBase
 {
     /// <summary>GET api/medicines — Lấy danh sách thuốc</summary>
     [HttpGet]
@@ -21,7 +17,7 @@ public class MedicinesController(
         [FromQuery] string? search,
         CancellationToken ct)
     {
-        var result = await getMedicines.HandleAsync(search, ct);
+        var result = await sender.Send(new GetMedicinesQuery(search), ct);
         return Ok(result);
     }
 
@@ -30,7 +26,7 @@ public class MedicinesController(
     [AllowAnonymous]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
-        var result = await getById.HandleAsync(id, ct);
+        var result = await sender.Send(new GetMedicineByIdQuery(id), ct);
         return Ok(result);
     }
 
@@ -39,7 +35,9 @@ public class MedicinesController(
     [Authorize(Roles = "Admin,Owner")]
     public async Task<IActionResult> Create([FromBody] CreateMedicineRequest request, CancellationToken ct)
     {
-        var result = await create.HandleAsync(request, ct);
+        var result = await sender.Send(
+            new CreateMedicineCommand(request.Name, request.GenericName, request.Manufacturer, request.Unit, request.Description),
+            ct);
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
 
@@ -48,7 +46,9 @@ public class MedicinesController(
     [Authorize(Roles = "Admin,Owner")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateMedicineRequest request, CancellationToken ct)
     {
-        var result = await update.HandleAsync(id, request, ct);
+        var result = await sender.Send(
+            new UpdateMedicineCommand(id, request.Name, request.GenericName, request.Manufacturer, request.Unit, request.Description),
+            ct);
         return Ok(result);
     }
 
@@ -57,7 +57,7 @@ public class MedicinesController(
     [Authorize(Roles = "Admin,Owner")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
-        await delete.HandleAsync(id, ct);
+        await sender.Send(new DeleteMedicineCommand(id), ct);
         return Ok(new { message = "Đã xóa thuốc." });
     }
 }

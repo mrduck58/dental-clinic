@@ -1,6 +1,7 @@
 using DentalClinic.API.Application.UseCases.Inventory;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using NUnit.Framework;
@@ -20,7 +21,7 @@ public class GetMaterialRequestsHandlerTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         _db = new AppDbContext(options);
-        _handler = new GetMaterialRequestsHandler(_db);
+        _handler = new GetMaterialRequestsHandler(new MaterialRequestRepository(_db));
     }
 
     [TearDown]
@@ -35,7 +36,7 @@ public class GetMaterialRequestsHandlerTests
         _db.MaterialRequests.AddRange(older, newer);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(null);
+        var result = await _handler.Handle(new GetMaterialRequestsQuery(null), CancellationToken.None);
 
         result.Should().HaveCount(2);
         result[0].Id.Should().Be(newer.Id);
@@ -51,7 +52,7 @@ public class GetMaterialRequestsHandlerTests
         _db.MaterialRequests.AddRange(pending, done);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync("Done");
+        var result = await _handler.Handle(new GetMaterialRequestsQuery("Done"), CancellationToken.None);
 
         result.Should().ContainSingle(r => r.Id == done.Id);
     }
@@ -64,7 +65,7 @@ public class GetMaterialRequestsHandlerTests
         _db.MaterialRequests.Add(request);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync("not-a-real-status");
+        var result = await _handler.Handle(new GetMaterialRequestsQuery("not-a-real-status"), CancellationToken.None);
 
         result.Should().ContainSingle();
     }
@@ -79,7 +80,7 @@ public class GetMaterialRequestsHandlerTests
         _db.MaterialRequests.AddRange(pending, done);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync("Pending");
+        var result = await _handler.Handle(new GetMaterialRequestsQuery("Pending"), CancellationToken.None);
 
         result.Should().ContainSingle(r => r.Id == pending.Id);
     }
@@ -94,7 +95,7 @@ public class GetMaterialRequestsHandlerTests
         _db.MaterialRequests.AddRange(pending, done);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync("done");
+        var result = await _handler.Handle(new GetMaterialRequestsQuery("done"), CancellationToken.None);
 
         result.Should().ContainSingle(r => r.Id == done.Id);
     }
@@ -109,7 +110,7 @@ public class GetMaterialRequestsHandlerTests
         _db.MaterialRequests.AddRange(pending, done);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync("   ");
+        var result = await _handler.Handle(new GetMaterialRequestsQuery("   "), CancellationToken.None);
 
         result.Should().HaveCount(2);
     }

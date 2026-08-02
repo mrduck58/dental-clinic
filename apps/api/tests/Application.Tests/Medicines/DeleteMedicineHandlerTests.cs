@@ -35,7 +35,7 @@ public class DeleteMedicineHandlerTests
         _repo.GetByIdAsync(medicine.Id, Arg.Any<CancellationToken>()).Returns(medicine);
         var handler = new DeleteMedicineHandler(_repo, _activityLog, _currentUser);
 
-        await handler.HandleAsync(medicine.Id);
+        await handler.Handle(new DeleteMedicineCommand(medicine.Id), CancellationToken.None);
 
         await _repo.Received(1).DeleteAsync(medicine, Arg.Any<CancellationToken>());
     }
@@ -49,7 +49,7 @@ public class DeleteMedicineHandlerTests
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Medicine?)null);
         var handler = new DeleteMedicineHandler(_repo, _activityLog, _currentUser);
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid());
+        Func<Task> act = () => handler.Handle(new DeleteMedicineCommand(Guid.NewGuid()), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
         await _repo.DidNotReceive().DeleteAsync(Arg.Any<Medicine>(), Arg.Any<CancellationToken>());
@@ -64,7 +64,7 @@ public class DeleteMedicineHandlerTests
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Medicine?)null);
         var handler = new DeleteMedicineHandler(_repo, _activityLog, _currentUser);
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid());
+        Func<Task> act = () => handler.Handle(new DeleteMedicineCommand(Guid.NewGuid()), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
         await _activityLog.DidNotReceive().LogAsync(
@@ -85,7 +85,7 @@ public class DeleteMedicineHandlerTests
         _repo.GetByIdAsync(medicine.Id, Arg.Any<CancellationToken>()).Returns(medicine);
         var handler = new DeleteMedicineHandler(_repo, _activityLog, _currentUser);
 
-        await handler.HandleAsync(medicine.Id);
+        await handler.Handle(new DeleteMedicineCommand(medicine.Id), CancellationToken.None);
 
         await _activityLog.Received(1).LogAsync(
             userId: Arg.Any<Guid?>(),

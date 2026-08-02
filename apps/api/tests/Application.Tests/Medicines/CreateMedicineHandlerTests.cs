@@ -33,7 +33,8 @@ public class CreateMedicineHandlerTests
     {
         var handler = new CreateMedicineHandler(_repo, _activityLog, _currentUser);
 
-        var result = await handler.HandleAsync(new CreateMedicineRequest("Amoxicillin", "Amoxicillin", "GSK", "Viên", "Kháng sinh"));
+        var result = await handler.Handle(
+            new CreateMedicineCommand("Amoxicillin", "Amoxicillin", "GSK", "Viên", "Kháng sinh"), CancellationToken.None);
 
         await _repo.Received(1).AddAsync(Arg.Any<Medicine>(), Arg.Any<CancellationToken>());
         result.Name.Should().Be("Amoxicillin");
@@ -48,7 +49,8 @@ public class CreateMedicineHandlerTests
     {
         var handler = new CreateMedicineHandler(_repo, _activityLog, _currentUser);
 
-        var result = await handler.HandleAsync(new CreateMedicineRequest("Paracetamol", "Paracetamol", "Pharma", "Viên", "Hạ sốt"));
+        var result = await handler.Handle(
+            new CreateMedicineCommand("Paracetamol", "Paracetamol", "Pharma", "Viên", "Hạ sốt"), CancellationToken.None);
 
         result.Id.Should().NotBe(Guid.Empty);
         result.CreatedAt.Should().BeCloseTo(DateTimeOffset.UtcNow, precision: TimeSpan.FromSeconds(5));
@@ -62,7 +64,8 @@ public class CreateMedicineHandlerTests
     {
         var handler = new CreateMedicineHandler(_repo, _activityLog, _currentUser);
 
-        var result = await handler.HandleAsync(new CreateMedicineRequest("Ibuprofen", "Ibuprofen BP", "Pfizer", "Viên", "Giảm đau"));
+        var result = await handler.Handle(
+            new CreateMedicineCommand("Ibuprofen", "Ibuprofen BP", "Pfizer", "Viên", "Giảm đau"), CancellationToken.None);
 
         result.GenericName.Should().Be("Ibuprofen BP");
         result.Unit.Should().Be("Viên");
@@ -78,7 +81,8 @@ public class CreateMedicineHandlerTests
     {
         var handler = new CreateMedicineHandler(_repo, _activityLog, _currentUser);
 
-        await handler.HandleAsync(new CreateMedicineRequest("Amoxicillin", "Amoxicillin", "GSK", "Viên", "Kháng sinh"));
+        await handler.Handle(
+            new CreateMedicineCommand("Amoxicillin", "Amoxicillin", "GSK", "Viên", "Kháng sinh"), CancellationToken.None);
 
         await _activityLog.Received(1).LogAsync(
             userId: Arg.Any<Guid?>(),

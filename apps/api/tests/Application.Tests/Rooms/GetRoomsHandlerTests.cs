@@ -27,7 +27,7 @@ public class GetRoomsHandlerTests
         });
         var handler = new GetRoomsHandler(_repo);
 
-        var result = await handler.HandleAsync(null, null, null);
+        var result = await handler.Handle(new GetRoomsQuery(null, null, null), CancellationToken.None);
 
         result.Should().HaveCount(3);
     }
@@ -44,7 +44,7 @@ public class GetRoomsHandlerTests
         });
         var handler = new GetRoomsHandler(_repo);
 
-        var result = await handler.HandleAsync(floor: "1", null, null);
+        var result = await handler.Handle(new GetRoomsQuery("1", null, null), CancellationToken.None);
 
         result.Should().HaveCount(2);
         result.Should().OnlyContain(r => r.Floor == "1");
@@ -65,7 +65,7 @@ public class GetRoomsHandlerTests
         });
         var handler = new GetRoomsHandler(_repo);
 
-        var result = await handler.HandleAsync(null, null, search: "khám");
+        var result = await handler.Handle(new GetRoomsQuery(null, null, "khám"), CancellationToken.None);
 
         result.Should().HaveCount(2);
     }
@@ -83,7 +83,7 @@ public class GetRoomsHandlerTests
         });
         var handler = new GetRoomsHandler(_repo);
 
-        var result = await handler.HandleAsync(null, status: "KhongHopLe", null);
+        var result = await handler.Handle(new GetRoomsQuery(null, "KhongHopLe", null), CancellationToken.None);
 
         result.Should().HaveCount(2);
     }
@@ -101,7 +101,7 @@ public class GetRoomsHandlerTests
         _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<Room> { roomTrong, roomKham });
         var handler = new GetRoomsHandler(_repo);
 
-        var result = await handler.HandleAsync(null, status: "Trống", null);
+        var result = await handler.Handle(new GetRoomsQuery(null, "Trống", null), CancellationToken.None);
 
         result.Should().ContainSingle();
         result.Single().Id.Should().Be(roomTrong.Id);
@@ -120,7 +120,7 @@ public class GetRoomsHandlerTests
         });
         var handler = new GetRoomsHandler(_repo);
 
-        var result = await handler.HandleAsync(null, null, search: "abc");
+        var result = await handler.Handle(new GetRoomsQuery(null, null, "abc"), CancellationToken.None);
 
         result.Should().ContainSingle();
         result.Single().Code.Should().Be("ABC01");
@@ -139,7 +139,7 @@ public class GetRoomsHandlerTests
         });
         var handler = new GetRoomsHandler(_repo);
 
-        var result = await handler.HandleAsync(null, null, search: "phẫu thuật");
+        var result = await handler.Handle(new GetRoomsQuery(null, null, "phẫu thuật"), CancellationToken.None);
 
         result.Should().ContainSingle();
         result.Single().Code.Should().Be("P01");
@@ -158,7 +158,7 @@ public class GetRoomsHandlerTests
         });
         var handler = new GetRoomsHandler(_repo);
 
-        var result = await handler.HandleAsync(floor: "1", null, search: "khám");
+        var result = await handler.Handle(new GetRoomsQuery("1", null, "khám"), CancellationToken.None);
 
         result.Should().ContainSingle();
         result.Single().Code.Should().Be("P01");
@@ -177,7 +177,7 @@ public class GetRoomsHandlerTests
         });
         var handler = new GetRoomsHandler(_repo);
 
-        var result = await handler.HandleAsync(floor: "   ", status: "   ", search: "   ");
+        var result = await handler.Handle(new GetRoomsQuery("   ", "   ", "   "), CancellationToken.None);
 
         result.Should().HaveCount(2);
     }

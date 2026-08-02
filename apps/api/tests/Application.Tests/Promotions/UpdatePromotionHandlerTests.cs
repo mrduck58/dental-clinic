@@ -34,7 +34,7 @@ public class UpdatePromotionHandlerTests
         _repo.GetByIdAsync(promo.Id, Arg.Any<CancellationToken>()).Returns(promo);
         var handler = new UpdatePromotionHandler(_repo, _activityLog, _currentUser);
 
-        var result = await handler.HandleAsync(promo.Id, BuildUpdateRequest("SALE20"));
+        var result = await handler.Handle(BuildUpdateRequest(promo.Id, "SALE20"), CancellationToken.None);
 
         await _repo.Received(1).UpdateAsync(promo, Arg.Any<CancellationToken>());
         result.Should().BeTrue();
@@ -50,7 +50,7 @@ public class UpdatePromotionHandlerTests
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Promotion?)null);
         var handler = new UpdatePromotionHandler(_repo, _activityLog, _currentUser);
 
-        var result = await handler.HandleAsync(Guid.NewGuid(), BuildUpdateRequest("CODE"));
+        var result = await handler.Handle(BuildUpdateRequest(Guid.NewGuid(), "CODE"), CancellationToken.None);
 
         result.Should().BeFalse();
         await _repo.DidNotReceive().UpdateAsync(Arg.Any<Promotion>(), Arg.Any<CancellationToken>());
@@ -67,7 +67,7 @@ public class UpdatePromotionHandlerTests
         _repo.GetByIdAsync(promo.Id, Arg.Any<CancellationToken>()).Returns(promo);
         var handler = new UpdatePromotionHandler(_repo, _activityLog, _currentUser);
 
-        await handler.HandleAsync(promo.Id, BuildUpdateRequest("sale20"));
+        await handler.Handle(BuildUpdateRequest(promo.Id, "sale20"), CancellationToken.None);
 
         promo.Code.Should().Be("SALE20");
     }
@@ -79,8 +79,8 @@ public class UpdatePromotionHandlerTests
             DateOnly.FromDateTime(DateTime.Today.AddDays(30)),
             true);
 
-    private static UpdatePromotionRequest BuildUpdateRequest(string code)
-        => new(code, "Tên mới", "Mô tả mới", "Percentage", 20m,
+    private static UpdatePromotionCommand BuildUpdateRequest(Guid id, string code)
+        => new(id, code, "Tên mới", "Mô tả mới", "Percentage", 20m,
             new List<Guid>(),
             DateOnly.FromDateTime(DateTime.Today),
             DateOnly.FromDateTime(DateTime.Today.AddDays(60)));

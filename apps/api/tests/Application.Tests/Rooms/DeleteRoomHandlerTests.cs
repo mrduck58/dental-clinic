@@ -34,7 +34,7 @@ public class DeleteRoomHandlerTests
         _repo.GetByIdAsync(room.Id, Arg.Any<CancellationToken>()).Returns(room);
         var handler = new DeleteRoomHandler(_repo, _activityLog, _currentUser);
 
-        await handler.HandleAsync(room.Id);
+        await handler.Handle(new DeleteRoomCommand(room.Id), CancellationToken.None);
 
         await _repo.Received(1).DeleteAsync(room, Arg.Any<CancellationToken>());
     }
@@ -48,7 +48,7 @@ public class DeleteRoomHandlerTests
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Room?)null);
         var handler = new DeleteRoomHandler(_repo, _activityLog, _currentUser);
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid());
+        Func<Task> act = () => handler.Handle(new DeleteRoomCommand(Guid.NewGuid()), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
         await _repo.DidNotReceive().DeleteAsync(Arg.Any<Room>(), Arg.Any<CancellationToken>());
