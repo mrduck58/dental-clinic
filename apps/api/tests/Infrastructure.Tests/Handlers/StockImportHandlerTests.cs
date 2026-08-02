@@ -1,4 +1,3 @@
-using DentalClinic.API.Application.DTOs.Inventory;
 using DentalClinic.API.Application.UseCases.Inventory;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
@@ -34,14 +33,14 @@ public class StockImportHandlerTests
     [TearDown]
     public async Task TearDown() => await _db.DisposeAsync();
 
-    private static StockImportRequest MakeRequest(string name = "Chỉ nha khoa") =>
-        new(name, "Cuộn", "Vật tư tiêu hao", 30, null);
+    private static StockImportCommand MakeRequest(string name = "Chỉ nha khoa") =>
+        new(name, "Cuộn", "Vật tư tiêu hao", 30, null, null, null, "staff1");
 
     /// <summary>Tên vật tư để trống phải bị từ chối.</summary>
     [Test]
     public async Task HandleAsync_EmptyName_ThrowsValidationException()
     {
-        Func<Task> act = () => _handler.HandleAsync(MakeRequest() with { Name = " " }, "staff1");
+        Func<Task> act = () => _handler.Handle(MakeRequest() with { Name = " " }, CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -50,7 +49,7 @@ public class StockImportHandlerTests
     [Test]
     public async Task HandleAsync_InvalidUnit_ThrowsValidationException()
     {
-        Func<Task> act = () => _handler.HandleAsync(MakeRequest() with { Unit = "Kilogram" }, "staff1");
+        Func<Task> act = () => _handler.Handle(MakeRequest() with { Unit = "Kilogram" }, CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -59,7 +58,7 @@ public class StockImportHandlerTests
     [Test]
     public async Task HandleAsync_ZeroQuantity_ThrowsValidationException()
     {
-        Func<Task> act = () => _handler.HandleAsync(MakeRequest() with { Quantity = 0 }, "staff1");
+        Func<Task> act = () => _handler.Handle(MakeRequest() with { Quantity = 0 }, CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -68,7 +67,7 @@ public class StockImportHandlerTests
     [Test]
     public async Task HandleAsync_NewItemName_CreatesNewSupplyItem()
     {
-        var result = await _handler.HandleAsync(MakeRequest("Vật tư hoàn toàn mới"), "staff1");
+        var result = await _handler.Handle(MakeRequest("Vật tư hoàn toàn mới"), CancellationToken.None);
 
         result.ItemName.Should().Be("Vật tư hoàn toàn mới");
         (await _db.SupplyItems.CountAsync()).Should().Be(1);
@@ -83,7 +82,7 @@ public class StockImportHandlerTests
         _db.SupplyItems.Add(existing);
         await _db.SaveChangesAsync();
 
-        await _handler.HandleAsync(MakeRequest("Chỉ Nha Khoa"), "staff1");
+        await _handler.Handle(MakeRequest("Chỉ Nha Khoa"), CancellationToken.None);
 
         (await _db.SupplyItems.CountAsync()).Should().Be(1);
         (await _db.SupplyItems.SingleAsync()).Quantity.Should().Be(40);
@@ -93,7 +92,7 @@ public class StockImportHandlerTests
     [Test]
     public async Task HandleAsync_ValidRequest_CreatesImportTransactionAndLogsActivity()
     {
-        var result = await _handler.HandleAsync(MakeRequest(), "staff1");
+        var result = await _handler.Handle(MakeRequest(), CancellationToken.None);
 
         result.Type.Should().Be("import");
         (await _db.SupplyTransactions.CountAsync()).Should().Be(1);
@@ -112,7 +111,7 @@ public class StockImportHandlerTests
     [TestCase("Bộ")]
     public async Task HandleAsync_EachAllowedUnit_IsAccepted(string unit)
     {
-        var result = await _handler.HandleAsync(MakeRequest($"Vật tư {unit}") with { Unit = unit }, "staff1");
+        var result = await _handler.Handle(MakeRequest($"Vật tư {unit}") with { Unit = unit }, CancellationToken.None);
 
         result.Should().NotBeNull();
         (await _db.SupplyItems.SingleAsync()).Unit.Should().Be(unit);
@@ -122,7 +121,7 @@ public class StockImportHandlerTests
     [Test]
     public async Task HandleAsync_EmptyCategory_ThrowsValidationException()
     {
-        Func<Task> act = () => _handler.HandleAsync(MakeRequest() with { Category = " " }, "staff1");
+        Func<Task> act = () => _handler.Handle(MakeRequest() with { Category = " " }, CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -131,7 +130,7 @@ public class StockImportHandlerTests
     [Test]
     public async Task HandleAsync_NegativeQuantity_ThrowsValidationException()
     {
-        Func<Task> act = () => _handler.HandleAsync(MakeRequest() with { Quantity = -5 }, "staff1");
+        Func<Task> act = () => _handler.Handle(MakeRequest() with { Quantity = -5 }, CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -145,7 +144,7 @@ public class StockImportHandlerTests
         _db.SupplyItems.Add(existing);
         await _db.SaveChangesAsync();
 
-        await _handler.HandleAsync(MakeRequest("  Chỉ nha khoa  "), "staff1");
+        await _handler.Handle(MakeRequest("  Chỉ nha khoa  "), CancellationToken.None);
 
         (await _db.SupplyItems.CountAsync()).Should().Be(1);
         (await _db.SupplyItems.SingleAsync()).Quantity.Should().Be(40);
@@ -159,7 +158,7 @@ public class StockImportHandlerTests
         _db.SupplyItems.Add(existing);
         await _db.SaveChangesAsync();
 
-        await _handler.HandleAsync(MakeRequest("Băng gạc") with { Unit = "Hộp" }, "staff1");
+        await _handler.Handle(MakeRequest("Băng gạc") with { Unit = "Hộp" }, CancellationToken.None);
 
         (await _db.SupplyItems.SingleAsync()).Unit.Should().Be("Gói");
     }

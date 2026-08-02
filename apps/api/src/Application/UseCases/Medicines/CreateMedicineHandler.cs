@@ -1,14 +1,23 @@
-﻿using DentalClinic.API.Application.DTOs.Medicines;
+using DentalClinic.API.Application.DTOs.Medicines;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Domain.Constants;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Medicines;
 
+public record CreateMedicineCommand(
+    string Name,
+    string GenericName,
+    string Manufacturer,
+    string Unit,
+    string Description) : IRequest<MedicineDto>;
+
 public class CreateMedicineHandler(IMedicineRepository repository, IActivityLogService activityLogService, ICurrentUserService currentUser)
+    : IRequestHandler<CreateMedicineCommand, MedicineDto>
 {
-    public async Task<MedicineDto> HandleAsync(CreateMedicineRequest request, CancellationToken ct = default)
+    public async Task<MedicineDto> Handle(CreateMedicineCommand request, CancellationToken ct)
     {
         var medicine = Medicine.Create(
             request.Name,

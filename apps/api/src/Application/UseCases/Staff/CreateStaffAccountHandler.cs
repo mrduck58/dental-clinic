@@ -2,13 +2,18 @@ using System.Security.Cryptography;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Staff;
 
+public record CreateStaffAccountCommand(Guid StaffId) : IRequest<StaffItemDto>;
+
 public class CreateStaffAccountHandler(IUserRepository userRepository, IEmailService emailService)
+    : IRequestHandler<CreateStaffAccountCommand, StaffItemDto>
 {
-    public async Task<StaffItemDto> HandleAsync(Guid staffId, CancellationToken ct = default)
+    public async Task<StaffItemDto> Handle(CreateStaffAccountCommand request, CancellationToken ct)
     {
+        var staffId = request.StaffId;
         var user = await userRepository.GetByIdAsync(staffId, ct)
             ?? throw new NotFoundException($"Không tìm thấy nhân viên với ID '{staffId}'.");
 

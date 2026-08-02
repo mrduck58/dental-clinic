@@ -1,26 +1,26 @@
 using DentalClinic.API.Application.DTOs.Services;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Services;
 
-public class GetServicesHandler(IServiceRepository serviceRepository)
-{
-    public async Task<IEnumerable<ServiceDto>> HandleAsync(
-        string? status,
-        string? search,
-        CancellationToken ct = default)
-    {
-        var services = await serviceRepository.GetAllAsync(ct);
+public record GetServicesQuery(string? Status, string? Search) : IRequest<IEnumerable<ServiceDto>>;
 
-        if (!string.IsNullOrWhiteSpace(status))
+public class GetServicesHandler(IServiceRepository serviceRepository) : IRequestHandler<GetServicesQuery, IEnumerable<ServiceDto>>
+{
+    public async Task<IEnumerable<ServiceDto>> Handle(GetServicesQuery request, CancellationToken cancellationToken)
+    {
+        var services = await serviceRepository.GetAllAsync(cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(request.Status))
         {
-            var isActive = status.Equals("Active", StringComparison.OrdinalIgnoreCase);
+            var isActive = request.Status.Equals("Active", StringComparison.OrdinalIgnoreCase);
             services = services.Where(s => s.IsActive == isActive);
         }
 
-        if (!string.IsNullOrWhiteSpace(search))
+        if (!string.IsNullOrWhiteSpace(request.Search))
         {
-            var q = search.ToLower();
+            var q = request.Search.ToLower();
             services = services.Where(s =>
                 s.Name.ToLower().Contains(q) ||
                 s.Description.ToLower().Contains(q));

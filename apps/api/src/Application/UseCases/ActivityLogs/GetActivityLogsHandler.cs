@@ -1,6 +1,7 @@
 using DentalClinic.API.Application.DTOs.ActivityLogs;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.ActivityLogs;
 
@@ -13,11 +14,12 @@ public record GetActivityLogsQuery(
     DateTimeOffset? StartDate,
     DateTimeOffset? EndDate,
     int Page = 1,
-    int PageSize = 20);
+    int PageSize = 20) : IRequest<ActivityLogPagedDto>;
 
 public class GetActivityLogsHandler(IActivityLogRepository repository, ICurrentUserService currentUser)
+    : IRequestHandler<GetActivityLogsQuery, ActivityLogPagedDto>
 {
-    public async Task<ActivityLogPagedDto> HandleAsync(GetActivityLogsQuery query, CancellationToken ct = default)
+    public async Task<ActivityLogPagedDto> Handle(GetActivityLogsQuery query, CancellationToken ct)
     {
         var targetUserId = query.UserId;
 

@@ -41,7 +41,7 @@ public class CreateLeaveRequestHandlerTests
         _userRepo.GetUserIdsByRoleAsync("Owner", Arg.Any<CancellationToken>()).Returns([]);
         var handler = new CreateLeaveRequestHandler(_repo, _activityLog, _notification, _userRepo, _currentUser);
 
-        var result = await handler.HandleAsync(Guid.NewGuid(), BuildRequest("Annual", "Lý do hợp lệ"));
+        var result = await handler.Handle(new CreateLeaveRequestCommand(Guid.NewGuid(), BuildRequest("Annual", "Lý do hợp lệ")), CancellationToken.None);
 
         await _repo.Received(1).AddAsync(Arg.Any<LeaveRequest>(), Arg.Any<CancellationToken>());
         result.Status.Should().Be("Pending");
@@ -55,7 +55,7 @@ public class CreateLeaveRequestHandlerTests
     {
         var handler = new CreateLeaveRequestHandler(_repo, _activityLog, _notification, _userRepo, _currentUser);
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid(), BuildRequest("Annual", ""));
+        Func<Task> act = () => handler.Handle(new CreateLeaveRequestCommand(Guid.NewGuid(), BuildRequest("Annual", "")), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -68,7 +68,7 @@ public class CreateLeaveRequestHandlerTests
     {
         var handler = new CreateLeaveRequestHandler(_repo, _activityLog, _notification, _userRepo, _currentUser);
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid(), BuildRequest("Annual", new string('a', 1001)));
+        Func<Task> act = () => handler.Handle(new CreateLeaveRequestCommand(Guid.NewGuid(), BuildRequest("Annual", new string('a', 1001))), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -81,7 +81,7 @@ public class CreateLeaveRequestHandlerTests
     {
         var handler = new CreateLeaveRequestHandler(_repo, _activityLog, _notification, _userRepo, _currentUser);
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid(), BuildRequest("InvalidType", "Lý do"));
+        Func<Task> act = () => handler.Handle(new CreateLeaveRequestCommand(Guid.NewGuid(), BuildRequest("InvalidType", "Lý do")), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -99,7 +99,7 @@ public class CreateLeaveRequestHandlerTests
             DateOnly.FromDateTime(DateTime.Today),
             "Lý do hợp lệ");
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid(), req);
+        Func<Task> act = () => handler.Handle(new CreateLeaveRequestCommand(Guid.NewGuid(), req), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -117,7 +117,7 @@ public class CreateLeaveRequestHandlerTests
         _userRepo.GetUserIdsByRoleAsync("Owner", Arg.Any<CancellationToken>()).Returns([]);
         var handler = new CreateLeaveRequestHandler(_repo, _activityLog, _notification, _userRepo, _currentUser);
 
-        await handler.HandleAsync(Guid.NewGuid(), BuildRequest("Annual", "Lý do hợp lệ"));
+        await handler.Handle(new CreateLeaveRequestCommand(Guid.NewGuid(), BuildRequest("Annual", "Lý do hợp lệ")), CancellationToken.None);
 
         await _userRepo.Received(1).GetUserIdsByRoleAsync("Owner", Arg.Any<CancellationToken>());
     }
@@ -138,7 +138,7 @@ public class CreateLeaveRequestHandlerTests
             .Returns(new List<Guid> { owner1, owner2 });
         var handler = new CreateLeaveRequestHandler(_repo, _activityLog, _notification, _userRepo, _currentUser);
 
-        await handler.HandleAsync(Guid.NewGuid(), BuildRequest("Annual", "Lý do hợp lệ"));
+        await handler.Handle(new CreateLeaveRequestCommand(Guid.NewGuid(), BuildRequest("Annual", "Lý do hợp lệ")), CancellationToken.None);
 
         await _notification.Received(1).CreateForMultipleUsersAsync(
             Arg.Is<IEnumerable<Guid>>(ids => ids.Contains(owner1) && ids.Contains(owner2)),
@@ -159,7 +159,7 @@ public class CreateLeaveRequestHandlerTests
         _userRepo.GetUserIdsByRoleAsync("Owner", Arg.Any<CancellationToken>()).Returns([]);
         var handler = new CreateLeaveRequestHandler(_repo, _activityLog, _notification, _userRepo, _currentUser);
 
-        var result = await handler.HandleAsync(Guid.NewGuid(), BuildRequest("Annual", new string('a', 1000)));
+        var result = await handler.Handle(new CreateLeaveRequestCommand(Guid.NewGuid(), BuildRequest("Annual", new string('a', 1000))), CancellationToken.None);
 
         result.Status.Should().Be("Pending");
     }
@@ -173,7 +173,7 @@ public class CreateLeaveRequestHandlerTests
     {
         var handler = new CreateLeaveRequestHandler(_repo, _activityLog, _notification, _userRepo, _currentUser);
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid(), BuildRequest("Annual", "   "));
+        Func<Task> act = () => handler.Handle(new CreateLeaveRequestCommand(Guid.NewGuid(), BuildRequest("Annual", "   ")), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -191,7 +191,7 @@ public class CreateLeaveRequestHandlerTests
         _userRepo.GetUserIdsByRoleAsync("Owner", Arg.Any<CancellationToken>()).Returns([]);
         var handler = new CreateLeaveRequestHandler(_repo, _activityLog, _notification, _userRepo, _currentUser);
 
-        var result = await handler.HandleAsync(Guid.NewGuid(), BuildRequest("annual", "Lý do hợp lệ"));
+        var result = await handler.Handle(new CreateLeaveRequestCommand(Guid.NewGuid(), BuildRequest("annual", "Lý do hợp lệ")), CancellationToken.None);
 
         result.LeaveType.Should().Be("Annual");
     }
@@ -211,7 +211,7 @@ public class CreateLeaveRequestHandlerTests
         var sameDay = DateOnly.FromDateTime(DateTime.Today);
         var req = new CreateLeaveRequestRequest("Annual", sameDay, sameDay, "Lý do hợp lệ");
 
-        var result = await handler.HandleAsync(Guid.NewGuid(), req);
+        var result = await handler.Handle(new CreateLeaveRequestCommand(Guid.NewGuid(), req), CancellationToken.None);
 
         result.DaysCount.Should().Be(1);
     }

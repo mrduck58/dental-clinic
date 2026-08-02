@@ -27,7 +27,7 @@ public class ChangeRoomStatusHandlerTests
         _repo.GetByIdAsync(room.Id, Arg.Any<CancellationToken>()).Returns(room);
         var handler = new ChangeRoomStatusHandler(_repo);
 
-        var result = await handler.HandleAsync(room.Id, new ChangeRoomStatusRequest("Đang khám"));
+        var result = await handler.Handle(new ChangeRoomStatusCommand(room.Id, new ChangeRoomStatusRequest("Đang khám")), CancellationToken.None);
 
         await _repo.Received(1).UpdateAsync(room, Arg.Any<CancellationToken>());
         result.Status.Should().Be("Đang khám");
@@ -42,7 +42,7 @@ public class ChangeRoomStatusHandlerTests
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Room?)null);
         var handler = new ChangeRoomStatusHandler(_repo);
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid(), new ChangeRoomStatusRequest("Trống"));
+        Func<Task> act = () => handler.Handle(new ChangeRoomStatusCommand(Guid.NewGuid(), new ChangeRoomStatusRequest("Trống")), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -57,7 +57,7 @@ public class ChangeRoomStatusHandlerTests
         _repo.GetByIdAsync(room.Id, Arg.Any<CancellationToken>()).Returns(room);
         var handler = new ChangeRoomStatusHandler(_repo);
 
-        Func<Task> act = () => handler.HandleAsync(room.Id, new ChangeRoomStatusRequest("KhongHopLe"));
+        Func<Task> act = () => handler.Handle(new ChangeRoomStatusCommand(room.Id, new ChangeRoomStatusRequest("KhongHopLe")), CancellationToken.None);
 
         await act.Should().ThrowAsync<ArgumentException>();
     }
@@ -73,7 +73,7 @@ public class ChangeRoomStatusHandlerTests
         _repo.GetByIdAsync(room.Id, Arg.Any<CancellationToken>()).Returns(room);
         var handler = new ChangeRoomStatusHandler(_repo);
 
-        var result = await handler.HandleAsync(room.Id, new ChangeRoomStatusRequest("Ngừng hoạt động"));
+        var result = await handler.Handle(new ChangeRoomStatusCommand(room.Id, new ChangeRoomStatusRequest("Ngừng hoạt động")), CancellationToken.None);
 
         result.Status.Should().Be("Ngừng hoạt động");
         result.ActiveStatus.Should().Be("Ngừng hoạt động");
@@ -89,7 +89,7 @@ public class ChangeRoomStatusHandlerTests
         _repo.GetByIdAsync(room.Id, Arg.Any<CancellationToken>()).Returns(room);
         var handler = new ChangeRoomStatusHandler(_repo);
 
-        Func<Task> act = () => handler.HandleAsync(room.Id, new ChangeRoomStatusRequest(""));
+        Func<Task> act = () => handler.Handle(new ChangeRoomStatusCommand(room.Id, new ChangeRoomStatusRequest("")), CancellationToken.None);
 
         await act.Should().ThrowAsync<ArgumentException>();
     }

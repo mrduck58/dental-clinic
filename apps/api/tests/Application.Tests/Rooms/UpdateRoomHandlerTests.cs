@@ -37,7 +37,7 @@ public class UpdateRoomHandlerTests
         _repo.GetByIdAsync(room.Id, Arg.Any<CancellationToken>()).Returns(room);
         var handler = new UpdateRoomHandler(_repo, _activityLog, _currentUser);
 
-        await handler.HandleAsync(room.Id, new UpdateRoomRequest("P02", "Phòng Mới", "1", "Loại", "Mô tả"));
+        await handler.Handle(new UpdateRoomCommand(room.Id, new UpdateRoomRequest("P02", "Phòng Mới", "1", "Loại", "Mô tả")), CancellationToken.None);
 
         await _repo.Received(1).UpdateAsync(room, Arg.Any<CancellationToken>());
     }
@@ -51,7 +51,7 @@ public class UpdateRoomHandlerTests
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Room?)null);
         var handler = new UpdateRoomHandler(_repo, _activityLog, _currentUser);
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid(), new UpdateRoomRequest("P01", "Phòng", "1", "Loại", "Mô tả"));
+        Func<Task> act = () => handler.Handle(new UpdateRoomCommand(Guid.NewGuid(), new UpdateRoomRequest("P01", "Phòng", "1", "Loại", "Mô tả")), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -68,7 +68,7 @@ public class UpdateRoomHandlerTests
         _repo.ExistsByCodeAsync("P02", room.Id, Arg.Any<CancellationToken>()).Returns(true);
         var handler = new UpdateRoomHandler(_repo, _activityLog, _currentUser);
 
-        Func<Task> act = () => handler.HandleAsync(room.Id, new UpdateRoomRequest("P02", "Phòng 1", "1", "Loại", "Mô tả"));
+        Func<Task> act = () => handler.Handle(new UpdateRoomCommand(room.Id, new UpdateRoomRequest("P02", "Phòng 1", "1", "Loại", "Mô tả")), CancellationToken.None);
 
         await act.Should().ThrowAsync<ConflictException>();
     }
@@ -84,7 +84,7 @@ public class UpdateRoomHandlerTests
         _repo.ExistsByNameAsync("Phòng Trùng", room.Id, Arg.Any<CancellationToken>()).Returns(true);
         var handler = new UpdateRoomHandler(_repo, _activityLog, _currentUser);
 
-        Func<Task> act = () => handler.HandleAsync(room.Id, new UpdateRoomRequest("P01", "Phòng Trùng", "1", "Loại", "Mô tả"));
+        Func<Task> act = () => handler.Handle(new UpdateRoomCommand(room.Id, new UpdateRoomRequest("P01", "Phòng Trùng", "1", "Loại", "Mô tả")), CancellationToken.None);
 
         await act.Should().ThrowAsync<ConflictException>();
     }
@@ -100,7 +100,7 @@ public class UpdateRoomHandlerTests
         _repo.GetByIdAsync(room.Id, Arg.Any<CancellationToken>()).Returns(room);
         var handler = new UpdateRoomHandler(_repo, _activityLog, _currentUser);
 
-        Func<Task> act = () => handler.HandleAsync(room.Id, new UpdateRoomRequest("P01", "Phòng 1", "2", "Loại Mới", "Mô tả mới"));
+        Func<Task> act = () => handler.Handle(new UpdateRoomCommand(room.Id, new UpdateRoomRequest("P01", "Phòng 1", "2", "Loại Mới", "Mô tả mới")), CancellationToken.None);
 
         await act.Should().NotThrowAsync();
         await _repo.Received(1).UpdateAsync(room, Arg.Any<CancellationToken>());
@@ -116,7 +116,7 @@ public class UpdateRoomHandlerTests
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Room?)null);
         var handler = new UpdateRoomHandler(_repo, _activityLog, _currentUser);
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid(), new UpdateRoomRequest("P01", "Phòng", "1", "Loại", "Mô tả"));
+        Func<Task> act = () => handler.Handle(new UpdateRoomCommand(Guid.NewGuid(), new UpdateRoomRequest("P01", "Phòng", "1", "Loại", "Mô tả")), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
         await _repo.DidNotReceive().ExistsByCodeAsync(Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>());

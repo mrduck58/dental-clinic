@@ -1,4 +1,3 @@
-using DentalClinic.API.Application.DTOs.ClinicInfo;
 using DentalClinic.API.Application.UseCases.ClinicInfo;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using Entity = DentalClinic.API.Domain.Entities.ClinicInfo;
@@ -21,7 +20,7 @@ public class UpdateClinicInfoHandlerTests
         _handler = new UpdateClinicInfoHandler(_repo);
     }
 
-    private static UpdateClinicInfoRequest MakeRequest() => new(
+    private static UpdateClinicInfoCommand MakeRequest() => new(
         "Về chúng tôi", "Mô tả mới", 2015, "0909999999", "new@test.com", "456 Đường XYZ",
         null, "8:00 - 20:00", null, null, null, null, null);
 
@@ -31,7 +30,7 @@ public class UpdateClinicInfoHandlerTests
     {
         _repo.GetAsync(Arg.Any<CancellationToken>()).Returns((Entity?)null);
 
-        var result = await _handler.HandleAsync(MakeRequest());
+        var result = await _handler.Handle(MakeRequest(), CancellationToken.None);
 
         result.AboutTitle.Should().Be("Về chúng tôi");
         await _repo.Received(1).AddAsync(Arg.Any<Entity>(), Arg.Any<CancellationToken>());
@@ -45,7 +44,7 @@ public class UpdateClinicInfoHandlerTests
         var existing = Entity.Create("Cũ", "Mô tả cũ", 2000, "0281111111", "old@test.com", "Địa chỉ cũ");
         _repo.GetAsync(Arg.Any<CancellationToken>()).Returns(existing);
 
-        var result = await _handler.HandleAsync(MakeRequest());
+        var result = await _handler.Handle(MakeRequest(), CancellationToken.None);
 
         result.AboutTitle.Should().Be("Về chúng tôi");
         result.FoundedYear.Should().Be(2015);
@@ -62,7 +61,7 @@ public class UpdateClinicInfoHandlerTests
             "[{\"Year\":2000,\"Description\":\"Thành lập\"}]", null, null, null, null);
         _repo.GetAsync(Arg.Any<CancellationToken>()).Returns(existing);
 
-        var result = await _handler.HandleAsync(MakeRequest());
+        var result = await _handler.Handle(MakeRequest(), CancellationToken.None);
 
         result.Milestones.Should().ContainSingle(m => m.Description == "Thành lập");
     }
@@ -77,7 +76,7 @@ public class UpdateClinicInfoHandlerTests
         _repo.GetAsync(Arg.Any<CancellationToken>()).Returns(existing);
         var request = MakeRequest() with { Milestones = [] };
 
-        var result = await _handler.HandleAsync(request);
+        var result = await _handler.Handle(request, CancellationToken.None);
 
         result.Milestones.Should().BeEmpty();
     }
@@ -91,7 +90,7 @@ public class UpdateClinicInfoHandlerTests
         _repo.GetAsync(Arg.Any<CancellationToken>()).Returns(existing);
         var request = MakeRequest() with { AboutImageUrl = null };
 
-        var result = await _handler.HandleAsync(request);
+        var result = await _handler.Handle(request, CancellationToken.None);
 
         result.AboutImageUrl.Should().Be("https://existing.jpg");
     }
@@ -105,7 +104,7 @@ public class UpdateClinicInfoHandlerTests
         _repo.GetAsync(Arg.Any<CancellationToken>()).Returns(existing);
         var request = MakeRequest() with { AboutImageUrl = "" };
 
-        var result = await _handler.HandleAsync(request);
+        var result = await _handler.Handle(request, CancellationToken.None);
 
         result.AboutImageUrl.Should().Be("");
     }
@@ -119,7 +118,7 @@ public class UpdateClinicInfoHandlerTests
         _repo.GetAsync(Arg.Any<CancellationToken>()).Returns(existing);
         var request = MakeRequest() with { WorkingHours = null };
 
-        var result = await _handler.HandleAsync(request);
+        var result = await _handler.Handle(request, CancellationToken.None);
 
         result.WorkingHours.Should().Be("8:00 - 17:00");
     }
@@ -131,7 +130,7 @@ public class UpdateClinicInfoHandlerTests
         _repo.GetAsync(Arg.Any<CancellationToken>()).Returns((Entity?)null);
         var request = MakeRequest() with { WorkingHours = null };
 
-        var result = await _handler.HandleAsync(request);
+        var result = await _handler.Handle(request, CancellationToken.None);
 
         result.WorkingHours.Should().Be("");
     }

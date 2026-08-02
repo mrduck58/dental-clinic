@@ -35,7 +35,7 @@ public class UpdatePostHandlerTests
         _repo.GetByIdAsync(post.Id, Arg.Any<CancellationToken>()).Returns(post);
         var handler = new UpdatePostHandler(_repo, _activityLog, _currentUser);
 
-        await handler.HandleAsync(post.Id, BuildRequest());
+        await handler.Handle(BuildRequest(post.Id), CancellationToken.None);
 
         await _repo.Received(1).UpdateAsync(post, Arg.Any<CancellationToken>());
     }
@@ -50,7 +50,7 @@ public class UpdatePostHandlerTests
         _repo.GetByIdAsync(post.Id, Arg.Any<CancellationToken>()).Returns(post);
         var handler = new UpdatePostHandler(_repo, _activityLog, _currentUser);
 
-        var result = await handler.HandleAsync(post.Id, BuildRequest(title: "Tiêu đề mới"));
+        var result = await handler.Handle(BuildRequest(post.Id, title: "Tiêu đề mới"), CancellationToken.None);
 
         result.Title.Should().Be("Tiêu đề mới");
     }
@@ -64,7 +64,7 @@ public class UpdatePostHandlerTests
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Post?)null);
         var handler = new UpdatePostHandler(_repo, _activityLog, _currentUser);
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid(), BuildRequest());
+        Func<Task> act = () => handler.Handle(BuildRequest(Guid.NewGuid()), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -80,7 +80,7 @@ public class UpdatePostHandlerTests
         _repo.GetByIdAsync(post.Id, Arg.Any<CancellationToken>()).Returns(post);
         var handler = new UpdatePostHandler(_repo, _activityLog, _currentUser);
 
-        var result = await handler.HandleAsync(post.Id, BuildRequest(thumbnailUrl: null));
+        var result = await handler.Handle(BuildRequest(post.Id, thumbnailUrl: null), CancellationToken.None);
 
         result.ThumbnailUrl.Should().Be("https://cdn/old-thumb.jpg");
     }
@@ -96,7 +96,7 @@ public class UpdatePostHandlerTests
         _repo.GetByIdAsync(post.Id, Arg.Any<CancellationToken>()).Returns(post);
         var handler = new UpdatePostHandler(_repo, _activityLog, _currentUser);
 
-        var result = await handler.HandleAsync(post.Id, BuildRequest(isPublished: true));
+        var result = await handler.Handle(BuildRequest(post.Id, isPublished: true), CancellationToken.None);
 
         result.PublishedAt.Should().NotBeNull();
     }
@@ -113,7 +113,7 @@ public class UpdatePostHandlerTests
         _repo.GetByIdAsync(post.Id, Arg.Any<CancellationToken>()).Returns(post);
         var handler = new UpdatePostHandler(_repo, _activityLog, _currentUser);
 
-        var result = await handler.HandleAsync(post.Id, BuildRequest(isPublished: true));
+        var result = await handler.Handle(BuildRequest(post.Id, isPublished: true), CancellationToken.None);
 
         result.PublishedAt.Should().Be(originalPublishedAt);
     }
@@ -131,7 +131,7 @@ public class UpdatePostHandlerTests
         _repo.GetByIdAsync(post.Id, Arg.Any<CancellationToken>()).Returns(post);
         var handler = new UpdatePostHandler(_repo, _activityLog, _currentUser);
 
-        var result = await handler.HandleAsync(post.Id, BuildRequest(isPublished: false));
+        var result = await handler.Handle(BuildRequest(post.Id, isPublished: false), CancellationToken.None);
 
         result.IsPublished.Should().BeFalse();
         result.PublishedAt.Should().Be(originalPublishedAt);
@@ -148,7 +148,7 @@ public class UpdatePostHandlerTests
         _repo.GetByIdAsync(post.Id, Arg.Any<CancellationToken>()).Returns(post);
         var handler = new UpdatePostHandler(_repo, _activityLog, _currentUser);
 
-        var result = await handler.HandleAsync(post.Id, BuildRequest());
+        var result = await handler.Handle(BuildRequest(post.Id), CancellationToken.None);
 
         result.ServiceId.Should().BeNull();
     }
@@ -159,9 +159,10 @@ public class UpdatePostHandlerTests
         bool isPublished = false)
         => Post.Create(title, "Tư vấn", "BS. Mặc định", "Nội dung", thumbnailUrl, isPublished);
 
-    private static UpdatePostRequest BuildRequest(
+    private static UpdatePostCommand BuildRequest(
+        Guid id,
         string title = "Tiêu đề đã cập nhật",
         string? thumbnailUrl = "https://cdn/new-thumb.jpg",
         bool isPublished = false)
-        => new(title, "Tư vấn", "Nội dung mới", thumbnailUrl, isPublished, null);
+        => new(id, title, "Tư vấn", "Nội dung mới", thumbnailUrl, isPublished, null);
 }

@@ -1,34 +1,33 @@
 using DentalClinic.API.Application.DTOs.Rooms;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Rooms;
 
-public class GetRoomsHandler(IRoomRepository roomRepository)
+public record GetRoomsQuery(string? Floor, string? Status, string? Search) : IRequest<IEnumerable<RoomDto>>;
+
+public class GetRoomsHandler(IRoomRepository roomRepository) : IRequestHandler<GetRoomsQuery, IEnumerable<RoomDto>>
 {
-    public async Task<IEnumerable<RoomDto>> HandleAsync(
-        string? floor,
-        string? status,
-        string? search,
-        CancellationToken ct = default)
+    public async Task<IEnumerable<RoomDto>> Handle(GetRoomsQuery query, CancellationToken ct)
     {
         var rooms = await roomRepository.GetAllAsync(ct);
 
-        if (!string.IsNullOrWhiteSpace(floor))
-            rooms = rooms.Where(r => r.Floor == floor);
+        if (!string.IsNullOrWhiteSpace(query.Floor))
+            rooms = rooms.Where(r => r.Floor == query.Floor);
 
-        if (!string.IsNullOrWhiteSpace(status))
+        if (!string.IsNullOrWhiteSpace(query.Status))
         {
             try
             {
-                var roomStatus = RoomStatusMapper.FromVietnamese(status);
+                var roomStatus = RoomStatusMapper.FromVietnamese(query.Status);
                 rooms = rooms.Where(r => r.Status == roomStatus);
             }
             catch (ArgumentException) { }
         }
 
-        if (!string.IsNullOrWhiteSpace(search))
+        if (!string.IsNullOrWhiteSpace(query.Search))
         {
-            var q = search.ToLower();
+            var q = query.Search.ToLower();
             rooms = rooms.Where(r =>
                 r.Name.ToLower().Contains(q) ||
                 r.Code.ToLower().Contains(q) ||

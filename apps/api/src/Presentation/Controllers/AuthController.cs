@@ -182,6 +182,15 @@ public class AuthController(ISender sender) : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>PATCH api/auth/accounts/{id}/status — Bật/tắt quyền đăng nhập của 1 tài khoản</summary>
+    [HttpPatch("accounts/{id:guid}/status")]
+    [Authorize(Roles = "Admin,Owner")]
+    public async Task<IActionResult> ToggleAccountStatus(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new ToggleAccountStatusCommand(id), cancellationToken);
+        return Ok(result);
+    }
+
     /// <summary>POST api/auth/forgot-password — Gửi email đặt lại mật khẩu</summary>
     [HttpPost("forgot-password")]
     [AllowAnonymous]

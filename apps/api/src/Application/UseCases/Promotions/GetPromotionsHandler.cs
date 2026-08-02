@@ -1,14 +1,18 @@
 using DentalClinic.API.Application.DTOs.Promotions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Promotions;
 
+public record GetPromotionsQuery : IRequest<IEnumerable<PromotionDto>>;
+
 public class GetPromotionsHandler(IPromotionRepository repo, IServiceRepository serviceRepo)
+    : IRequestHandler<GetPromotionsQuery, IEnumerable<PromotionDto>>
 {
-    public async Task<IEnumerable<PromotionDto>> HandleAsync(CancellationToken ct = default)
+    public async Task<IEnumerable<PromotionDto>> Handle(GetPromotionsQuery request, CancellationToken cancellationToken)
     {
-        var promotions = await repo.GetAllAsync(ct);
-        var services = (await serviceRepo.GetAllAsync(ct)).ToDictionary(s => s.Id, s => s.Name);
+        var promotions = await repo.GetAllAsync(cancellationToken);
+        var services = (await serviceRepo.GetAllAsync(cancellationToken)).ToDictionary(s => s.Id, s => s.Name);
         return promotions.Select(p =>
         {
             var ids = p.GetServiceIds();

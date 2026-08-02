@@ -38,7 +38,7 @@ public class RejectLeaveRequestHandlerTests
         _repo.GetByIdAsync(lr.Id, Arg.Any<CancellationToken>()).Returns(lr);
         var handler = new RejectLeaveRequestHandler(_repo, _activityLog, _notification, _currentUser);
 
-        var result = await handler.HandleAsync(lr.Id, new RejectLeaveRequestRequest("Không đủ điều kiện"));
+        var result = await handler.Handle(new RejectLeaveRequestCommand(lr.Id, new RejectLeaveRequestRequest("Không đủ điều kiện")), CancellationToken.None);
 
         result.Status.Should().Be("Rejected");
         result.ReviewerNote.Should().Be("Không đủ điều kiện");
@@ -53,7 +53,7 @@ public class RejectLeaveRequestHandlerTests
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((LeaveRequest?)null);
         var handler = new RejectLeaveRequestHandler(_repo, _activityLog, _notification, _currentUser);
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid(), new RejectLeaveRequestRequest(null));
+        Func<Task> act = () => handler.Handle(new RejectLeaveRequestCommand(Guid.NewGuid(), new RejectLeaveRequestRequest(null)), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -69,7 +69,7 @@ public class RejectLeaveRequestHandlerTests
         _repo.GetByIdAsync(lr.Id, Arg.Any<CancellationToken>()).Returns(lr);
         var handler = new RejectLeaveRequestHandler(_repo, _activityLog, _notification, _currentUser);
 
-        Func<Task> act = () => handler.HandleAsync(lr.Id, new RejectLeaveRequestRequest(null));
+        Func<Task> act = () => handler.Handle(new RejectLeaveRequestCommand(lr.Id, new RejectLeaveRequestRequest(null)), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -86,7 +86,7 @@ public class RejectLeaveRequestHandlerTests
         _repo.GetByIdAsync(lr.Id, Arg.Any<CancellationToken>()).Returns(lr);
         var handler = new RejectLeaveRequestHandler(_repo, _activityLog, _notification, _currentUser);
 
-        Func<Task> act = () => handler.HandleAsync(lr.Id, new RejectLeaveRequestRequest(null));
+        Func<Task> act = () => handler.Handle(new RejectLeaveRequestCommand(lr.Id, new RejectLeaveRequestRequest(null)), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -102,7 +102,7 @@ public class RejectLeaveRequestHandlerTests
         _repo.GetByIdAsync(lr.Id, Arg.Any<CancellationToken>()).Returns(lr);
         var handler = new RejectLeaveRequestHandler(_repo, _activityLog, _notification, _currentUser);
 
-        await handler.HandleAsync(lr.Id, new RejectLeaveRequestRequest(null));
+        await handler.Handle(new RejectLeaveRequestCommand(lr.Id, new RejectLeaveRequestRequest(null)), CancellationToken.None);
 
         await _notification.Received(1).CreateAsync(
             Arg.Is<CreateNotificationRequest>(n => !n.Body.Contains("Lý do:")),

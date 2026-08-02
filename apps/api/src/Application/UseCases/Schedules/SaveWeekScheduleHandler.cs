@@ -1,18 +1,20 @@
 using DentalClinic.API.Application.DTOs.Schedules;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Schedules;
 
-public class SaveWeekScheduleHandler(IWorkScheduleRepository repo)
+public record SaveWeekScheduleCommand(string WeekStart, SaveWeekScheduleRequest Request) : IRequest<IEnumerable<ScheduleEntryDto>>;
+
+public class SaveWeekScheduleHandler(IWorkScheduleRepository repo) : IRequestHandler<SaveWeekScheduleCommand, IEnumerable<ScheduleEntryDto>>
 {
-    public async Task<IEnumerable<ScheduleEntryDto>> HandleAsync(
-        string weekStart, SaveWeekScheduleRequest request, CancellationToken ct)
+    public async Task<IEnumerable<ScheduleEntryDto>> Handle(SaveWeekScheduleCommand command, CancellationToken ct)
     {
-        if (!DateOnly.TryParseExact(weekStart, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var weekDate))
+        if (!DateOnly.TryParseExact(command.WeekStart, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var weekDate))
             throw new ArgumentException("Invalid date format. Use YYYY-MM-DD.");
 
-        var entries = request.Entries.Select(e =>
+        var entries = command.Request.Entries.Select(e =>
         {
             if (!DateOnly.TryParseExact(e.Date, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d))
                 throw new ArgumentException($"Invalid entry date: {e.Date}");
