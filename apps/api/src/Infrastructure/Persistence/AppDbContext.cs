@@ -41,6 +41,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
     public DbSet<AiUsageLog> AiUsageLogs => Set<AiUsageLog>();
     public DbSet<DentistReview> DentistReviews => Set<DentistReview>();
+    public DbSet<PayrollRecord> PayrollRecords => Set<PayrollRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
