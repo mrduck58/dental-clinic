@@ -1,0 +1,273 @@
+using DentalClinic.API.Application.UseCases.DentistDashboard;
+using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Infrastructure.Persistence;
+using FluentAssertions;
+using MediatR;
+using Microsoft.EntityFrameworkCore;
+using NSubstitute;
+using NUnit.Framework;
+
+namespace DentalClinic.API.Infrastructure.Tests.Handlers;
+
+/// <summary>
+/// GET api/appointments/dentist/patients — bệnh nhân trong ngày của CHÍNH bác sĩ đang đăng nhập.
+/// Handler chỉ đổi userId → dentistId rồi ủy quyền cho <see cref="GetDentistPatientsQuery"/>
+/// (đã có test riêng trong <see cref="GetDentistPatientsHandlerTests"/>) qua ISender — nên ở đây
+/// chỉ cần xác nhận việc tra cứu bác sĩ và tính ngày mặc định, không lặp lại test của handler kia.
+/// </summary>
+[TestFixture]
+public class GetMyDentistPatientsHandlerTests
+{
+    private static readonly TimeZoneInfo VietnamTz = TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
+
+    private AppDbContext _db = null!;
+    private ISender _sender = null!;
+    private GetMyDentistPatientsHandler _handler = null!;
+
+    [SetUp]
+    public void SetUp()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        _db = new AppDbContext(options);
+        _sender = Substitute.For<ISender>();
+        _handler = new GetMyDentistPatientsHandler(_db, _sender);
+    }
+
+    [TearDown]
+    public async Task TearDown() => await _db.DisposeAsync();
+
+    private static DateOnly VietnamToday()
+    {
+        var vietnamNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, VietnamTz);
+        return DateOnly.FromDateTime(vietnamNow);
+    }
+
+    /// <summary>Tài khoản không có hồ sơ bác sĩ phải trả về null (controller map thành 404) và
+    /// KHÔNG được gọi sang GetDentistPatientsQuery.</summary>
+    [Test]
+    public async Task HandleAsync_UserHasNoDentistProfile_ReturnsNull()
+    {
+        var result = await _handler.Handle(new GetMyDentistPatientsQuery(Guid.NewGuid(), null), CancellationToken.None);
+
+        result.Should().BeNull();
+        await _sender.DidNotReceive().Send(Arg.Any<GetDentistPatientsQuery>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Tìm thấy hồ sơ bác sĩ theo UserId phải ủy quyền sang GetDentistPatientsQuery với đúng
+    /// DentistId và trả về nguyên response nhận được.</summary>
+    [Test]
+    public async Task HandleAsync_DentistFound_DelegatesToGetDentistPatientsQueryWithMatchingDentistId()
+    {
+        var dentistUser = User.Create("mdp1", $"mdp1-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        _db.Users.Add(dentistUser);
+        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        _db.Dentists.Add(dentist);
+        await _db.SaveChangesAsync();
+
+        var canned = new DentistPatientsResponse(new DateOnly(2025, 5, 1), 1, 2, 3, []);
+        _sender.Send(Arg.Any<GetDentistPatientsQuery>(), Arg.Any<CancellationToken>()).Returns(canned);
+        var explicitDate = new DateOnly(2025, 5, 1);
+
+        var result = await _handler.Handle(new GetMyDentistPatientsQuery(dentistUser.Id, explicitDate), CancellationToken.None);
+
+        result.Should().BeSameAs(canned);
+        await _sender.Received(1).Send(
+            Arg.Is<GetDentistPatientsQuery>(q => q.DentistId == dentist.Id && q.Date == explicitDate),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Không truyền ngày (request.Date == null) phải mặc định dùng ngày hôm nay theo giờ Việt Nam.</summary>
+    [Test]
+    public async Task HandleAsync_NoDateProvided_DefaultsToVietnamToday()
+    {
+        var dentistUser = User.Create("mdp2", $"mdp2-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        _db.Users.Add(dentistUser);
+        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        _db.Dentists.Add(dentist);
+        await _db.SaveChangesAsync();
+
+        var canned = new DentistPatientsResponse(VietnamToday(), 0, 0, 0, []);
+        _sender.Send(Arg.Any<GetDentistPatientsQuery>(), Arg.Any<CancellationToken>()).Returns(canned);
+
+        await _handler.Handle(new GetMyDentistPatientsQuery(dentistUser.Id, null), CancellationToken.None);
+
+        await _sender.Received(1).Send(
+            Arg.Is<GetDentistPatientsQuery>(q => q.Date == VietnamToday()),
+            Arg.Any<CancellationToken>());
+    }
+}
+
+/// <summary>
+/// GET api/appointments/dentist/patients/past — bệnh nhân đã từng khám (Completed/PendingPayment)
+/// của bác sĩ đang đăng nhập. Toàn bộ logic truy vấn + map nằm trong handler (không ủy quyền qua
+/// sender khác), nên test trực tiếp trên AppDbContext InMemory.
+/// </summary>
+[TestFixture]
+public class GetDentistPastPatientsHandlerTests
+{
+    private AppDbContext _db = null!;
+    private GetDentistPastPatientsHandler _handler = null!;
+
+    [SetUp]
+    public void SetUp()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        _db = new AppDbContext(options);
+        _handler = new GetDentistPastPatientsHandler(_db);
+    }
+
+    [TearDown]
+    public async Task TearDown() => await _db.DisposeAsync();
+
+    /// <summary>Tài khoản không có hồ sơ bác sĩ phải trả về null (controller map thành 404).</summary>
+    [Test]
+    public async Task HandleAsync_UserHasNoDentistProfile_ReturnsNull()
+    {
+        var result = await _handler.Handle(new GetDentistPastPatientsQuery(Guid.NewGuid()), CancellationToken.None);
+
+        result.Should().BeNull();
+    }
+
+    /// <summary>Bác sĩ chưa từng có buổi khám nào phải trả về danh sách rỗng, không ném lỗi.</summary>
+    [Test]
+    public async Task HandleAsync_DentistWithNoPastAppointments_ReturnsEmptyList()
+    {
+        var dentistUser = User.Create("dpp1", $"dpp1-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        _db.Users.Add(dentistUser);
+        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        _db.Dentists.Add(dentist);
+        await _db.SaveChangesAsync();
+
+        var result = await _handler.Handle(new GetDentistPastPatientsQuery(dentistUser.Id), CancellationToken.None);
+
+        result.Should().NotBeNull();
+        result.Should().BeEmpty();
+    }
+
+    /// <summary>Chỉ hiện buổi hẹn Completed hoặc PendingPayment; Pending/Confirmed/CheckedIn/InProgress
+    /// chưa kết thúc khám không được liệt kê vào lịch sử.</summary>
+    [Test]
+    public async Task HandleAsync_OnlyCompletedAndPendingPaymentStatusesIncluded()
+    {
+        var dentistUser = User.Create("dpp2", $"dpp2-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        _db.Users.Add(dentistUser);
+        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        var patientUser = User.Create("dpp2p", $"dpp2p-{Guid.NewGuid()}@test.com", "hash", "Patient");
+        _db.Users.Add(patientUser);
+        var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
+        patient.User = patientUser;
+        _db.Dentists.Add(dentist);
+        _db.Patients.Add(patient);
+        var now = DateTimeOffset.UtcNow;
+
+        var pending = Appointment.Create(patient.Id, dentist.Id, now);
+        var confirmed = Appointment.Create(patient.Id, dentist.Id, now.AddHours(1));
+        confirmed.Confirm();
+        var checkedIn = Appointment.Create(patient.Id, dentist.Id, now.AddHours(2));
+        checkedIn.CheckIn();
+        var inProgress = Appointment.Create(patient.Id, dentist.Id, now.AddHours(3));
+        inProgress.CheckIn();
+        inProgress.StartTreatment();
+        var completed = Appointment.Create(patient.Id, dentist.Id, now.AddHours(4));
+        completed.Complete();
+        var pendingPayment = Appointment.Create(patient.Id, dentist.Id, now.AddHours(5));
+        pendingPayment.CheckIn();
+        pendingPayment.StartTreatment();
+        pendingPayment.EndTreatment();
+
+        _db.Appointments.AddRange(pending, confirmed, checkedIn, inProgress, completed, pendingPayment);
+        await _db.SaveChangesAsync();
+
+        var result = await _handler.Handle(new GetDentistPastPatientsQuery(dentistUser.Id), CancellationToken.None);
+
+        result.Should().HaveCount(2);
+        result!.Select(p => p.AppointmentId).Should().BeEquivalentTo([completed.Id, pendingPayment.Id]);
+    }
+
+    /// <summary>Kết quả phải sắp xếp giảm dần theo ngày hẹn — buổi khám gần nhất hiện lên đầu tiên.</summary>
+    [Test]
+    public async Task HandleAsync_OrdersResultsByAppointmentDateDescending()
+    {
+        var dentistUser = User.Create("dpp3", $"dpp3-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        _db.Users.Add(dentistUser);
+        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        var patientUser = User.Create("dpp3p", $"dpp3p-{Guid.NewGuid()}@test.com", "hash", "Patient");
+        _db.Users.Add(patientUser);
+        var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
+        patient.User = patientUser;
+        _db.Dentists.Add(dentist);
+        _db.Patients.Add(patient);
+        var older = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddDays(-10));
+        older.Complete();
+        var newer = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddDays(-1));
+        newer.Complete();
+        _db.Appointments.AddRange(older, newer);
+        await _db.SaveChangesAsync();
+
+        var result = await _handler.Handle(new GetDentistPastPatientsQuery(dentistUser.Id), CancellationToken.None);
+
+        result![0].AppointmentId.Should().Be(newer.Id);
+        result[1].AppointmentId.Should().Be(older.Id);
+    }
+
+    /// <summary>Buổi tái khám (gắn về buổi gốc qua FollowUpFromAppointmentId) khi đã Complete phải được
+    /// đánh dấu IsFollowUpVisit = true; đồng thời IsNew luôn cố định false ở handler lịch sử này
+    /// (khác GetDentistPatientsHandler — không tính "bệnh nhân mới" cho danh sách quá khứ).</summary>
+    [Test]
+    public async Task HandleAsync_CompletedFollowUpAppointment_MarkedAsFollowUpVisitAndNotNew()
+    {
+        var dentistUser = User.Create("dpp4", $"dpp4-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        _db.Users.Add(dentistUser);
+        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        var patientUser = User.Create("dpp4p", $"dpp4p-{Guid.NewGuid()}@test.com", "hash", "Patient");
+        _db.Users.Add(patientUser);
+        var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
+        patient.User = patientUser;
+        _db.Dentists.Add(dentist);
+        _db.Patients.Add(patient);
+        var original = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddDays(-10));
+        original.Complete();
+        _db.Appointments.Add(original);
+        await _db.SaveChangesAsync();
+        var followUp = Appointment.CheckInFollowUp(original.Id, patient.Id, dentist.Id);
+        followUp.Complete();
+        _db.Appointments.Add(followUp);
+        await _db.SaveChangesAsync();
+
+        var result = await _handler.Handle(new GetDentistPastPatientsQuery(dentistUser.Id), CancellationToken.None);
+
+        var dto = result!.Single(p => p.AppointmentId == followUp.Id);
+        dto.IsFollowUpVisit.Should().BeTrue();
+        dto.IsNew.Should().BeFalse();
+    }
+
+    /// <summary>Bác sĩ khác (không phải bác sĩ của lịch hẹn) không được thấy lịch sử của bệnh nhân này
+    /// trong danh sách của mình.</summary>
+    [Test]
+    public async Task HandleAsync_AppointmentBelongsToOtherDentist_IsNotIncluded()
+    {
+        var dentistUserA = User.Create("dpp5a", $"dpp5a-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        var dentistUserB = User.Create("dpp5b", $"dpp5b-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        _db.Users.AddRange(dentistUserA, dentistUserB);
+        var dentistA = Dentist.Create(dentistUserA.Id, "Nha khoa tổng quát", 5);
+        var dentistB = Dentist.Create(dentistUserB.Id, "Nha khoa tổng quát", 5);
+        var patientUser = User.Create("dpp5p", $"dpp5p-{Guid.NewGuid()}@test.com", "hash", "Patient");
+        _db.Users.Add(patientUser);
+        var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
+        patient.User = patientUser;
+        _db.Dentists.AddRange(dentistA, dentistB);
+        _db.Patients.Add(patient);
+        var appointmentForB = Appointment.Create(patient.Id, dentistB.Id, DateTimeOffset.UtcNow);
+        appointmentForB.Complete();
+        _db.Appointments.Add(appointmentForB);
+        await _db.SaveChangesAsync();
+
+        var result = await _handler.Handle(new GetDentistPastPatientsQuery(dentistUserA.Id), CancellationToken.None);
+
+        result.Should().BeEmpty();
+    }
+}
