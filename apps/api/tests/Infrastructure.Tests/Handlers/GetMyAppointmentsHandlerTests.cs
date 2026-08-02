@@ -1,4 +1,4 @@
-using DentalClinic.API.Application.UseCases.Appointments;
+using DentalClinic.API.Application.UseCases.Booking;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Infrastructure.Persistence;
@@ -36,7 +36,7 @@ public class GetMyAppointmentsHandlerTests
     {
         _patientRepo.GetByUserIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Patient?)null);
 
-        var result = await _handler.HandleAsync(Guid.NewGuid());
+        var result = await _handler.Handle(new GetMyAppointmentsQuery(Guid.NewGuid()), CancellationToken.None);
 
         result.Should().BeEmpty();
     }
@@ -61,7 +61,7 @@ public class GetMyAppointmentsHandlerTests
         await _db.SaveChangesAsync();
         _patientRepo.GetByUserIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(patient);
 
-        var result = (await _handler.HandleAsync(Guid.NewGuid())).ToList();
+        var result = (await _handler.Handle(new GetMyAppointmentsQuery(Guid.NewGuid()), CancellationToken.None)).ToList();
 
         result.Should().HaveCount(2);
         result[0].AppointmentId.Should().Be(newer.Id);
@@ -94,7 +94,7 @@ public class GetMyAppointmentsHandlerTests
         await _db.SaveChangesAsync();
         _patientRepo.GetByUserIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(primary);
 
-        var result = (await _handler.HandleAsync(Guid.NewGuid())).ToList();
+        var result = (await _handler.Handle(new GetMyAppointmentsQuery(Guid.NewGuid()), CancellationToken.None)).ToList();
 
         result.Should().ContainSingle(a => a.AppointmentId == familyAppointment.Id && a.PatientRelationship == "Con");
     }

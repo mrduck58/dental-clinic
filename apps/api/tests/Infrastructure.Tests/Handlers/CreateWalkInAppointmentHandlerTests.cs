@@ -1,4 +1,4 @@
-using DentalClinic.API.Application.UseCases.Appointments;
+using DentalClinic.API.Application.UseCases.Booking;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Services;
@@ -57,7 +57,7 @@ public class CreateWalkInAppointmentHandlerTests
     {
         var pastDate = DateTimeOffset.UtcNow.AddHours(-1);
 
-        Func<Task> act = async () => await _handler.HandleAsync(MakeCommand(pastDate));
+        Func<Task> act = async () => await _handler.Handle(MakeCommand(pastDate), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -71,7 +71,7 @@ public class CreateWalkInAppointmentHandlerTests
     {
         var futureDate = DateTimeOffset.UtcNow.AddHours(1);
 
-        var result = await _handler.HandleAsync(MakeCommand(futureDate));
+        var result = await _handler.Handle(MakeCommand(futureDate), CancellationToken.None);
 
         result.Status.Should().Be("CheckedIn");
         result.PatientName.Should().Be("Nguyễn Văn A");
@@ -84,7 +84,7 @@ public class CreateWalkInAppointmentHandlerTests
     {
         var futureDate = DateTimeOffset.UtcNow.AddHours(1);
 
-        var result = await _handler.HandleAsync(MakeCommand(futureDate));
+        var result = await _handler.Handle(MakeCommand(futureDate), CancellationToken.None);
 
         await _notificationService.Received(1).CreateAsync(
             Arg.Is<CreateNotificationRequest>(r =>
@@ -102,9 +102,9 @@ public class CreateWalkInAppointmentHandlerTests
     public async Task HandleAsync_SlotAlreadyBooked_ThrowsConflictException()
     {
         var futureDate = DateTimeOffset.UtcNow.AddHours(1);
-        await _handler.HandleAsync(MakeCommand(futureDate));
+        await _handler.Handle(MakeCommand(futureDate), CancellationToken.None);
 
-        Func<Task> act = async () => await _handler.HandleAsync(MakeCommand(futureDate));
+        Func<Task> act = async () => await _handler.Handle(MakeCommand(futureDate), CancellationToken.None);
 
         await act.Should().ThrowAsync<ConflictException>();
     }
@@ -123,7 +123,7 @@ public class CreateWalkInAppointmentHandlerTests
         await _db.SaveChangesAsync();
 
         var cmd = MakeCommand(DateTimeOffset.UtcNow.AddHours(1)) with { PatientId = existing.Id, PatientPhone = "0988887777" };
-        var result = await _handler.HandleAsync(cmd);
+        var result = await _handler.Handle(cmd, CancellationToken.None);
 
         _db.Patients.Should().HaveCount(1);
         var appointment = await _db.Appointments.SingleAsync();
@@ -138,7 +138,7 @@ public class CreateWalkInAppointmentHandlerTests
     {
         var cmd = MakeCommand(DateTimeOffset.UtcNow.AddHours(1)) with { PatientId = Guid.NewGuid() };
 
-        Func<Task> act = async () => await _handler.HandleAsync(cmd);
+        Func<Task> act = async () => await _handler.Handle(cmd, CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -150,9 +150,9 @@ public class CreateWalkInAppointmentHandlerTests
     [Test]
     public async Task HandleAsync_SamePhoneAsAccountlessPatient_ReusesExistingPatient()
     {
-        await _handler.HandleAsync(MakeCommand(DateTimeOffset.UtcNow.AddHours(1)));
+        await _handler.Handle(MakeCommand(DateTimeOffset.UtcNow.AddHours(1)), CancellationToken.None);
 
-        await _handler.HandleAsync(MakeCommand(DateTimeOffset.UtcNow.AddHours(2)));
+        await _handler.Handle(MakeCommand(DateTimeOffset.UtcNow.AddHours(2)), CancellationToken.None);
 
         _db.Patients.Should().HaveCount(1);
         _db.Appointments.Should().HaveCount(2);
@@ -173,7 +173,7 @@ public class CreateWalkInAppointmentHandlerTests
         _db.Appointments.Add(cancelledAppointment);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(MakeCommand(futureDate));
+        var result = await _handler.Handle(MakeCommand(futureDate), CancellationToken.None);
 
         result.Status.Should().Be("CheckedIn");
         _db.Appointments.Should().HaveCount(2);
