@@ -1,4 +1,5 @@
-using DentalClinic.API.Application.UseCases.Appointments;
+using DentalClinic.API.Application.DTOs.ClinicalRecords;
+using DentalClinic.API.Application.UseCases.ClinicalRecords;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Infrastructure.Persistence;
 using FluentAssertions;
@@ -30,7 +31,7 @@ public class GetExaminationHandlerTests
     [Test]
     public async Task HandleAsync_AppointmentNotFound_ReturnsNull()
     {
-        var result = await _handler.HandleAsync(Guid.NewGuid());
+        var result = await _handler.Handle(new GetExaminationQuery(Guid.NewGuid()), CancellationToken.None);
 
         result.Should().BeNull();
     }
@@ -60,7 +61,7 @@ public class GetExaminationHandlerTests
         _db.Prescriptions.Add(prescription);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(appointment.Id);
+        var result = await _handler.Handle(new GetExaminationQuery(appointment.Id), CancellationToken.None);
 
         result.Should().NotBeNull();
         result!.Patient.FullName.Should().Be("Bệnh nhân Khám");
@@ -93,7 +94,7 @@ public class GetExaminationHandlerTests
         _db.Appointments.Add(followUp);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(followUp.Id);
+        var result = await _handler.Handle(new GetExaminationQuery(followUp.Id), CancellationToken.None);
 
         result.Should().NotBeNull();
         result!.IsFollowUpVisit.Should().BeTrue();

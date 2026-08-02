@@ -1,4 +1,4 @@
-using DentalClinic.API.Application.UseCases.Appointments;
+using DentalClinic.API.Application.UseCases.Dentists;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Schedules;
 using DentalClinic.API.Infrastructure.Persistence;
@@ -59,7 +59,7 @@ public class GetDentistSlotsHandlerTests
 
         await _db.SaveChangesAsync();
 
-        var result = (await _handler.HandleAsync(date)).ToList();
+        var result = (await _handler.Handle(new GetDentistSlotsQuery(date), CancellationToken.None)).ToList();
 
         result.Should().ContainSingle();
         var slots = result[0].Slots.ToDictionary(s => s.Range);
@@ -81,7 +81,7 @@ public class GetDentistSlotsHandlerTests
         _db.WorkSchedules.Add(WorkSchedule.Create(date, "", "holiday", "holiday", "", "", "", true));
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(date);
+        var result = await _handler.Handle(new GetDentistSlotsQuery(date), CancellationToken.None);
 
         result.Should().BeEmpty();
     }
@@ -94,7 +94,7 @@ public class GetDentistSlotsHandlerTests
             .Select(i => DateOnly.FromDateTime(DateTime.Today.AddDays(i)))
             .First(d => d.DayOfWeek == DayOfWeek.Sunday);
 
-        var result = await _handler.HandleAsync(sunday);
+        var result = await _handler.Handle(new GetDentistSlotsQuery(sunday), CancellationToken.None);
 
         result.Should().BeEmpty();
     }
@@ -108,7 +108,7 @@ public class GetDentistSlotsHandlerTests
             .Select(i => DateOnly.FromDateTime(DateTime.Today.AddDays(i)))
             .First(d => d.DayOfWeek != DayOfWeek.Sunday);
 
-        var result = await _handler.HandleAsync(weekday);
+        var result = await _handler.Handle(new GetDentistSlotsQuery(weekday), CancellationToken.None);
 
         result.Should().BeEmpty();
     }
@@ -128,7 +128,7 @@ public class GetDentistSlotsHandlerTests
         _db.WorkSchedules.Add(WorkSchedule.Create(date, "08:00-10:00", "dentist", "Dentist", dentist.FullName, "P2", "#fff", false));
         await _db.SaveChangesAsync();
 
-        var result = (await _handler.HandleAsync(date)).ToList();
+        var result = (await _handler.Handle(new GetDentistSlotsQuery(date), CancellationToken.None)).ToList();
 
         var dto = result.Should().ContainSingle().Subject;
         dto.FullName.Should().Be("BS. Free");
@@ -154,7 +154,7 @@ public class GetDentistSlotsHandlerTests
         _db.WorkSchedules.Add(WorkSchedule.Create(date, "08:00-10:00", "dentist", "Dentist", scheduledDentist.FullName, "P1", "#fff", false));
         await _db.SaveChangesAsync();
 
-        var result = (await _handler.HandleAsync(date)).ToList();
+        var result = (await _handler.Handle(new GetDentistSlotsQuery(date), CancellationToken.None)).ToList();
 
         result.Should().ContainSingle(d => d.FullName == "BS. Có ca");
     }

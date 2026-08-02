@@ -1,4 +1,4 @@
-using DentalClinic.API.Application.UseCases.Appointments;
+using DentalClinic.API.Application.UseCases.Booking;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Infrastructure.Persistence;
@@ -64,7 +64,7 @@ public class GetAllAppointmentsHandlerTests
         );
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(null, null);
+        var result = await _handler.Handle(new GetAllAppointmentsQuery(null, null), CancellationToken.None);
 
         result.Should().HaveCount(2);
     }
@@ -75,7 +75,7 @@ public class GetAllAppointmentsHandlerTests
     [Test]
     public async Task HandleAsync_NoAppointments_ReturnsEmptyList()
     {
-        var result = await _handler.HandleAsync(null, null);
+        var result = await _handler.Handle(new GetAllAppointmentsQuery(null, null), CancellationToken.None);
 
         result.Should().BeEmpty();
     }
@@ -96,7 +96,7 @@ public class GetAllAppointmentsHandlerTests
         _db.Appointments.Add(Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddDays(1)));
         await _db.SaveChangesAsync();
 
-        var dto = (await _handler.HandleAsync(null, null)).Single();
+        var dto = (await _handler.Handle(new GetAllAppointmentsQuery(null, null), CancellationToken.None)).Single();
 
         dto.PatientName.Should().Be("Nguyễn Thị C");
         dto.DentistName.Should().Be("BS. Lê Văn D");
@@ -113,7 +113,7 @@ public class GetAllAppointmentsHandlerTests
         _db.Appointments.Add(Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddDays(1)));
         await _db.SaveChangesAsync();
 
-        var dto = (await _handler.HandleAsync(null, null)).Single();
+        var dto = (await _handler.Handle(new GetAllAppointmentsQuery(null, null), CancellationToken.None)).Single();
 
         dto.PatientPhone.Should().Be("0912345678");
     }
@@ -128,7 +128,7 @@ public class GetAllAppointmentsHandlerTests
         _db.Appointments.Add(Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddDays(1), symptoms: "Đau răng hàm trên"));
         await _db.SaveChangesAsync();
 
-        var dto = (await _handler.HandleAsync(null, null)).Single();
+        var dto = (await _handler.Handle(new GetAllAppointmentsQuery(null, null), CancellationToken.None)).Single();
 
         dto.Symptoms.Should().Be("Đau răng hàm trên");
     }
@@ -144,7 +144,7 @@ public class GetAllAppointmentsHandlerTests
         _db.Appointments.Add(Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddDays(1)));
         await _db.SaveChangesAsync();
 
-        var dto = (await _handler.HandleAsync(null, null)).Single();
+        var dto = (await _handler.Handle(new GetAllAppointmentsQuery(null, null), CancellationToken.None)).Single();
 
         dto.Status.Should().Be("Pending");
     }
@@ -166,7 +166,7 @@ public class GetAllAppointmentsHandlerTests
         );
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(new DateOnly(2026, 6, 20), null);
+        var result = await _handler.Handle(new GetAllAppointmentsQuery(new DateOnly(2026, 6, 20), null), CancellationToken.None);
 
         result.Should().HaveCount(1);
         result.Single().AppointmentDate.Should().Be(targetDate);
@@ -184,7 +184,7 @@ public class GetAllAppointmentsHandlerTests
         );
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(new DateOnly(2026, 6, 19), null);
+        var result = await _handler.Handle(new GetAllAppointmentsQuery(new DateOnly(2026, 6, 19), null), CancellationToken.None);
 
         result.Should().BeEmpty();
     }
@@ -205,7 +205,7 @@ public class GetAllAppointmentsHandlerTests
         _db.Appointments.AddRange(pending, confirmed);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(null, "Pending");
+        var result = await _handler.Handle(new GetAllAppointmentsQuery(null, "Pending"), CancellationToken.None);
 
         result.Should().HaveCount(1);
         result.Single().Status.Should().Be("Pending");
@@ -224,7 +224,7 @@ public class GetAllAppointmentsHandlerTests
         _db.Appointments.AddRange(pending, confirmed);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(null, "Confirmed");
+        var result = await _handler.Handle(new GetAllAppointmentsQuery(null, "Confirmed"), CancellationToken.None);
 
         result.Should().HaveCount(1);
         result.Single().Status.Should().Be("Confirmed");
@@ -244,7 +244,7 @@ public class GetAllAppointmentsHandlerTests
         );
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(null, "TrangThaiKhongTonTai");
+        var result = await _handler.Handle(new GetAllAppointmentsQuery(null, "TrangThaiKhongTonTai"), CancellationToken.None);
 
         result.Should().HaveCount(2);
     }
@@ -265,7 +265,7 @@ public class GetAllAppointmentsHandlerTests
         );
         await _db.SaveChangesAsync();
 
-        var result = (await _handler.HandleAsync(null, null)).ToList();
+        var result = (await _handler.Handle(new GetAllAppointmentsQuery(null, null), CancellationToken.None)).ToList();
 
         result.Should().BeInDescendingOrder(r => r.CreatedAt);
     }
@@ -281,7 +281,7 @@ public class GetAllAppointmentsHandlerTests
         _db.Appointments.Add(Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddDays(1)));
         await _db.SaveChangesAsync();
 
-        var dto = (await _handler.HandleAsync(null, null)).Single();
+        var dto = (await _handler.Handle(new GetAllAppointmentsQuery(null, null), CancellationToken.None)).Single();
 
         dto.ServiceName.Should().BeNull();
     }
@@ -299,7 +299,7 @@ public class GetAllAppointmentsHandlerTests
         _db.Appointments.Add(appt);
         await _db.SaveChangesAsync();
 
-        var dto = (await _handler.HandleAsync(null, null)).Single();
+        var dto = (await _handler.Handle(new GetAllAppointmentsQuery(null, null), CancellationToken.None)).Single();
 
         dto.CheckedInAt.Should().NotBeNull();
         dto.Status.Should().Be("CheckedIn");
