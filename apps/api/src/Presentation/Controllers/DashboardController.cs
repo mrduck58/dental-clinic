@@ -1,4 +1,5 @@
 using DentalClinic.API.Application.UseCases.Dashboard;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -7,7 +8,7 @@ namespace DentalClinic.API.Presentation.Controllers;
 [ApiController]
 [Route("api/dashboard")]
 [Authorize(Roles = "Admin")]
-public class DashboardController(DashboardHandler handler) : ControllerBase
+public class DashboardController(ISender sender) : ControllerBase
 {
     /// <summary>GET api/dashboard/stats — 3 chỉ số chính (bệnh nhân mới, lịch hẹn, doanh thu) kèm % so với kỳ trước.</summary>
     [HttpGet("stats")]
@@ -15,7 +16,7 @@ public class DashboardController(DashboardHandler handler) : ControllerBase
         [FromQuery] string range = "week",
         CancellationToken cancellationToken = default)
     {
-        var result = await handler.GetStatsAsync(range, cancellationToken);
+        var result = await sender.Send(new GetDashboardStatsQuery(range), cancellationToken);
         return Ok(result);
     }
 
@@ -25,7 +26,7 @@ public class DashboardController(DashboardHandler handler) : ControllerBase
         [FromQuery] string range = "week",
         CancellationToken cancellationToken = default)
     {
-        var result = await handler.GetAppointmentTrendAsync(range, cancellationToken);
+        var result = await sender.Send(new GetAppointmentTrendQuery(range), cancellationToken);
         return Ok(result);
     }
 
@@ -36,7 +37,7 @@ public class DashboardController(DashboardHandler handler) : ControllerBase
         [FromQuery] int topN = 5,
         CancellationToken cancellationToken = default)
     {
-        var result = await handler.GetServiceDistributionAsync(range, topN, cancellationToken);
+        var result = await sender.Send(new GetServiceDistributionQuery(range, topN), cancellationToken);
         return Ok(result);
     }
 
@@ -47,7 +48,7 @@ public class DashboardController(DashboardHandler handler) : ControllerBase
         [FromQuery] int pageSize = 10,
         CancellationToken cancellationToken = default)
     {
-        var result = await handler.GetTodayAppointmentsAsync(page, pageSize, cancellationToken);
+        var result = await sender.Send(new GetDashboardTodayAppointmentsQuery(page, pageSize), cancellationToken);
         return Ok(result);
     }
 
@@ -57,7 +58,7 @@ public class DashboardController(DashboardHandler handler) : ControllerBase
         [FromQuery] DateOnly? date,
         CancellationToken cancellationToken = default)
     {
-        var result = await handler.GetWeeklyScheduleAsync(date, cancellationToken);
+        var result = await sender.Send(new GetWeeklyScheduleQuery(date), cancellationToken);
         return Ok(result);
     }
 
@@ -67,7 +68,7 @@ public class DashboardController(DashboardHandler handler) : ControllerBase
         [FromQuery] int limit = 3,
         CancellationToken cancellationToken = default)
     {
-        var result = await handler.GetRecentFeedbackAsync(limit, cancellationToken);
+        var result = await sender.Send(new GetRecentFeedbackQuery(limit), cancellationToken);
         return Ok(result);
     }
 }

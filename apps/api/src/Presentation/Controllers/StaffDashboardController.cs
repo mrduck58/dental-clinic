@@ -1,4 +1,5 @@
 using DentalClinic.API.Application.UseCases.StaffDashboard;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -7,13 +8,13 @@ namespace DentalClinic.API.Presentation.Controllers;
 [ApiController]
 [Route("api/staff-dashboard")]
 [Authorize(Roles = "Staff")]
-public class StaffDashboardController(StaffDashboardHandler handler) : ControllerBase
+public class StaffDashboardController(ISender sender) : ControllerBase
 {
     /// <summary>GET api/staff-dashboard/stats — 4 chỉ số chính: lịch hẹn hôm nay, chờ check-in, đang khám, chờ thanh toán.</summary>
     [HttpGet("stats")]
     public async Task<IActionResult> GetStats(CancellationToken cancellationToken)
     {
-        var result = await handler.GetStatsAsync(cancellationToken);
+        var result = await sender.Send(new GetStaffDashboardStatsQuery(), cancellationToken);
         return Ok(result);
     }
 
@@ -23,7 +24,7 @@ public class StaffDashboardController(StaffDashboardHandler handler) : Controlle
         [FromQuery] int limit = 5,
         CancellationToken cancellationToken = default)
     {
-        var result = await handler.GetTodayAppointmentsAsync(limit, cancellationToken);
+        var result = await sender.Send(new GetStaffTodayAppointmentsQuery(limit), cancellationToken);
         return Ok(result);
     }
 
@@ -33,7 +34,7 @@ public class StaffDashboardController(StaffDashboardHandler handler) : Controlle
         [FromQuery] int limit = 3,
         CancellationToken cancellationToken = default)
     {
-        var result = await handler.GetPendingInvoicesAsync(limit, cancellationToken);
+        var result = await sender.Send(new GetStaffPendingInvoicesQuery(limit), cancellationToken);
         return Ok(result);
     }
 }
