@@ -41,7 +41,7 @@ public class RegisterHandlerTests
     [Test]
     public async Task HandleAsync_NewEmail_CallsAddAsyncOnce()
     {
-        await _handler.HandleAsync(ValidCommand);
+        await _handler.Handle(ValidCommand, CancellationToken.None);
 
         await _userRepo.Received(1).AddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
     }
@@ -53,7 +53,7 @@ public class RegisterHandlerTests
     [Test]
     public async Task HandleAsync_NewEmail_CreatesUserWithIsActiveFalse()
     {
-        await _handler.HandleAsync(ValidCommand);
+        await _handler.Handle(ValidCommand, CancellationToken.None);
 
         await _userRepo.Received(1).AddAsync(
             Arg.Is<User>(u => !u.IsActive),
@@ -66,7 +66,7 @@ public class RegisterHandlerTests
     [Test]
     public async Task HandleAsync_NewEmail_CreatesUserWithPatientRole()
     {
-        await _handler.HandleAsync(ValidCommand);
+        await _handler.Handle(ValidCommand, CancellationToken.None);
 
         await _userRepo.Received(1).AddAsync(
             Arg.Is<User>(u => u.Role == "Patient"),
@@ -80,7 +80,7 @@ public class RegisterHandlerTests
     [Test]
     public async Task HandleAsync_NewEmail_InvalidatesPreviousOtps()
     {
-        await _handler.HandleAsync(ValidCommand);
+        await _handler.Handle(ValidCommand, CancellationToken.None);
 
         await _otpRepo.Received(1).InvalidateAllAsync(
             TestEmail, OtpPurpose.Registration, Arg.Any<CancellationToken>());
@@ -93,7 +93,7 @@ public class RegisterHandlerTests
     [Test]
     public async Task HandleAsync_NewEmail_SendsOtpEmailToRegisteredAddress()
     {
-        await _handler.HandleAsync(ValidCommand);
+        await _handler.Handle(ValidCommand, CancellationToken.None);
 
         await _emailService.Received(1).SendOtpAsync(
             TestEmail,
@@ -107,7 +107,7 @@ public class RegisterHandlerTests
     [Test]
     public async Task HandleAsync_NewEmail_ReturnsResponseWithCorrectEmail()
     {
-        var result = await _handler.HandleAsync(ValidCommand);
+        var result = await _handler.Handle(ValidCommand, CancellationToken.None);
 
         result.Email.Should().Be(TestEmail);
     }
@@ -119,7 +119,7 @@ public class RegisterHandlerTests
     [Test]
     public async Task HandleAsync_NewEmail_SavesOtpOnce()
     {
-        await _handler.HandleAsync(ValidCommand);
+        await _handler.Handle(ValidCommand, CancellationToken.None);
 
         await _otpRepo.Received(1).AddAsync(Arg.Any<OtpCode>(), Arg.Any<CancellationToken>());
     }
@@ -131,7 +131,7 @@ public class RegisterHandlerTests
     [Test]
     public async Task HandleAsync_NewEmail_ReturnsMessageAboutCheckingEmail()
     {
-        var result = await _handler.HandleAsync(ValidCommand);
+        var result = await _handler.Handle(ValidCommand, CancellationToken.None);
 
         result.Message.Should().Contain("email");
     }
@@ -143,7 +143,7 @@ public class RegisterHandlerTests
     [Test]
     public async Task HandleAsync_NewEmail_CreatesUserWithUsernameEqualToEmail()
     {
-        await _handler.HandleAsync(ValidCommand);
+        await _handler.Handle(ValidCommand, CancellationToken.None);
 
         await _userRepo.Received(1).AddAsync(
             Arg.Is<User>(u => u.Username == TestEmail),
@@ -161,7 +161,7 @@ public class RegisterHandlerTests
     {
         _userRepo.ExistsByEmailAsync(TestEmail, Arg.Any<CancellationToken>()).Returns(true);
 
-        Func<Task> act = () => _handler.HandleAsync(ValidCommand);
+        Func<Task> act = () => _handler.Handle(ValidCommand, CancellationToken.None);
 
         await act.Should().ThrowAsync<ConflictException>();
     }
@@ -174,7 +174,7 @@ public class RegisterHandlerTests
     {
         _userRepo.ExistsByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(true);
 
-        Assert.CatchAsync(() => _handler.HandleAsync(ValidCommand));
+        Assert.CatchAsync(() => _handler.Handle(ValidCommand, CancellationToken.None));
 
         await _userRepo.DidNotReceive().AddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
     }
@@ -188,7 +188,7 @@ public class RegisterHandlerTests
     {
         _userRepo.ExistsByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(true);
 
-        Assert.CatchAsync(() => _handler.HandleAsync(ValidCommand));
+        Assert.CatchAsync(() => _handler.Handle(ValidCommand, CancellationToken.None));
 
         await _emailService.DidNotReceive().SendOtpAsync(
             Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());

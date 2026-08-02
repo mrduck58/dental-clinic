@@ -4,7 +4,6 @@ using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Infrastructure.Services;
 using DentalClinic.API.Infrastructure.Settings;
 using FluentAssertions;
-using Microsoft.Extensions.Options;
 using NUnit.Framework;
 
 namespace DentalClinic.API.Infrastructure.Tests.Services;
@@ -26,7 +25,7 @@ public class JwtServiceTests
         };
     }
 
-    private JwtService CreateSut() => new(Options.Create(_settings));
+    private JwtService CreateSut() => new(_settings);
 
     /// <summary>
     /// Token hợp lệ phải là chuỗi không rỗng, đúng định dạng JWT 3 phần cách nhau bởi dấu chấm.

@@ -27,7 +27,7 @@ public class GetFeedbacksHandlerTests
         });
         var handler = new GetFeedbacksHandler(_repo);
 
-        var result = await handler.HandleAsync(null, null);
+        var result = await handler.Handle(new GetFeedbacksQuery(null, null), CancellationToken.None);
 
         result.Should().HaveCount(3);
     }
@@ -44,7 +44,7 @@ public class GetFeedbacksHandlerTests
         _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<Feedback> { pending, featured });
         var handler = new GetFeedbacksHandler(_repo);
 
-        var result = await handler.HandleAsync(status: "Pending", null);
+        var result = await handler.Handle(new GetFeedbacksQuery("Pending", null), CancellationToken.None);
 
         result.Should().HaveCount(1);
         result.First().Status.Should().Be("Pending");
@@ -64,7 +64,7 @@ public class GetFeedbacksHandlerTests
         });
         var handler = new GetFeedbacksHandler(_repo);
 
-        var result = await handler.HandleAsync(null, search: "văn an");
+        var result = await handler.Handle(new GetFeedbacksQuery(null, "văn an"), CancellationToken.None);
 
         result.Should().HaveCount(2);
     }
@@ -82,7 +82,7 @@ public class GetFeedbacksHandlerTests
         });
         var handler = new GetFeedbacksHandler(_repo);
 
-        var result = await handler.HandleAsync(null, search: "tuyệt vời");
+        var result = await handler.Handle(new GetFeedbacksQuery(null, "tuyệt vời"), CancellationToken.None);
 
         result.Should().ContainSingle();
         result.First().CustomerName.Should().Be("A");
@@ -102,7 +102,7 @@ public class GetFeedbacksHandlerTests
             .Returns(new List<Feedback> { pendingMatch, featuredMatch, pendingNoMatch });
         var handler = new GetFeedbacksHandler(_repo);
 
-        var result = await handler.HandleAsync(status: "Pending", search: "văn an");
+        var result = await handler.Handle(new GetFeedbacksQuery("Pending", "văn an"), CancellationToken.None);
 
         result.Should().ContainSingle();
         result.First().Id.Should().Be(pendingMatch.Id);
@@ -120,7 +120,7 @@ public class GetFeedbacksHandlerTests
         });
         var handler = new GetFeedbacksHandler(_repo);
 
-        var result = await handler.HandleAsync(status: "KhongTonTai", null);
+        var result = await handler.Handle(new GetFeedbacksQuery("KhongTonTai", null), CancellationToken.None);
 
         result.Should().BeEmpty();
     }
@@ -134,7 +134,7 @@ public class GetFeedbacksHandlerTests
         _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<Feedback>());
         var handler = new GetFeedbacksHandler(_repo);
 
-        var result = await handler.HandleAsync(null, null);
+        var result = await handler.Handle(new GetFeedbacksQuery(null, null), CancellationToken.None);
 
         result.Should().BeEmpty();
     }

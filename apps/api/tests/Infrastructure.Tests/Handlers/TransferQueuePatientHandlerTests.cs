@@ -1,4 +1,4 @@
-using DentalClinic.API.Application.UseCases.Appointments;
+using DentalClinic.API.Application.UseCases.Queue;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Services;
@@ -47,7 +47,7 @@ public class TransferQueuePatientHandlerTests
     [Test]
     public async Task HandleAsync_EmptyRoomName_ThrowsValidationException()
     {
-        Func<Task> act = () => _handler.HandleAsync(Guid.NewGuid(), "  ");
+        Func<Task> act = () => _handler.Handle(new TransferQueuePatientCommand(Guid.NewGuid(), "  "), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -56,7 +56,7 @@ public class TransferQueuePatientHandlerTests
     [Test]
     public async Task HandleAsync_AppointmentNotFound_ThrowsNotFoundException()
     {
-        Func<Task> act = () => _handler.HandleAsync(Guid.NewGuid(), "Phòng 101");
+        Func<Task> act = () => _handler.Handle(new TransferQueuePatientCommand(Guid.NewGuid(), "Phòng 101"), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -77,7 +77,7 @@ public class TransferQueuePatientHandlerTests
         _db.Appointments.Add(appointment);
         await _db.SaveChangesAsync();
 
-        Func<Task> act = () => _handler.HandleAsync(appointment.Id, "Phòng 101");
+        Func<Task> act = () => _handler.Handle(new TransferQueuePatientCommand(appointment.Id, "Phòng 101"), CancellationToken.None);
 
         await act.Should().ThrowAsync<ConflictException>();
     }
@@ -97,7 +97,7 @@ public class TransferQueuePatientHandlerTests
         _db.Appointments.Add(appointment);
         await _db.SaveChangesAsync();
 
-        Func<Task> act = () => _handler.HandleAsync(appointment.Id, "Phòng Không Có Ai");
+        Func<Task> act = () => _handler.Handle(new TransferQueuePatientCommand(appointment.Id, "Phòng Không Có Ai"), CancellationToken.None);
 
         await act.Should().ThrowAsync<ConflictException>();
     }
@@ -127,7 +127,7 @@ public class TransferQueuePatientHandlerTests
         _db.Appointments.Add(appointment);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(appointment.Id, "Phòng Đích");
+        var result = await _handler.Handle(new TransferQueuePatientCommand(appointment.Id, "Phòng Đích"), CancellationToken.None);
 
         result.DentistId.Should().Be(targetDentist.Id);
         (await _db.Appointments.SingleAsync(a => a.Id == appointment.Id)).DentistId.Should().Be(targetDentist.Id);
@@ -160,7 +160,7 @@ public class TransferQueuePatientHandlerTests
         _db.Appointments.Add(appointment);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(appointment.Id, "Phòng Hiện Tại");
+        var result = await _handler.Handle(new TransferQueuePatientCommand(appointment.Id, "Phòng Hiện Tại"), CancellationToken.None);
 
         result.DentistId.Should().Be(dentist.Id);
         await _activityLogService.DidNotReceive().LogAsync(

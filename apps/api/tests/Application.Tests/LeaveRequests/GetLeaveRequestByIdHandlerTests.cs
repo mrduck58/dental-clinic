@@ -27,7 +27,7 @@ public class GetLeaveRequestByIdHandlerTests
         _repo.GetByIdAsync(lr.Id, Arg.Any<CancellationToken>()).Returns(lr);
         var handler = new GetLeaveRequestByIdHandler(_repo);
 
-        var result = await handler.HandleAsync(lr.Id);
+        var result = await handler.Handle(new GetLeaveRequestByIdQuery(lr.Id), CancellationToken.None);
 
         result.Id.Should().Be(lr.Id);
     }
@@ -41,7 +41,7 @@ public class GetLeaveRequestByIdHandlerTests
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((LeaveRequest?)null);
         var handler = new GetLeaveRequestByIdHandler(_repo);
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid());
+        Func<Task> act = () => handler.Handle(new GetLeaveRequestByIdQuery(Guid.NewGuid()), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }

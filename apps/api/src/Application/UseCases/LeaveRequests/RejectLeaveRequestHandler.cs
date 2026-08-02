@@ -1,26 +1,26 @@
-﻿using DentalClinic.API.Application.DTOs.LeaveRequests;
+using DentalClinic.API.Application.DTOs.LeaveRequests;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Domain.Constants;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.LeaveRequests;
+
+public record RejectLeaveRequestCommand(Guid Id, RejectLeaveRequestRequest Request) : IRequest<LeaveRequestDto>;
 
 public class RejectLeaveRequestHandler(
     ILeaveRequestRepository leaveRequestRepository,
     IActivityLogService activityLogService,
     INotificationService notificationService,
-    ICurrentUserService currentUser)
+    ICurrentUserService currentUser) : IRequestHandler<RejectLeaveRequestCommand, LeaveRequestDto>
 {
-    public async Task<LeaveRequestDto> HandleAsync(
-        Guid id,
-        RejectLeaveRequestRequest request,
-        CancellationToken ct = default)
+    public async Task<LeaveRequestDto> Handle(RejectLeaveRequestCommand command, CancellationToken ct)
     {
-        var leaveRequest = await leaveRequestRepository.GetByIdAsync(id, ct)
-            ?? throw new NotFoundException($"Không tìm thấy đơn nghỉ phép với ID: {id}");
+        var leaveRequest = await leaveRequestRepository.GetByIdAsync(command.Id, ct)
+            ?? throw new NotFoundException($"Không tìm thấy đơn nghỉ phép với ID: {command.Id}");
 
-        leaveRequest.Reject(request.ReviewerNote);
+        leaveRequest.Reject(command.Request.ReviewerNote);
         await leaveRequestRepository.UpdateAsync(leaveRequest, ct);
 
         await activityLogService.LogAsync(
@@ -29,10 +29,10 @@ public class RejectLeaveRequestHandler(
             userRole: currentUser.UserRole,
             action: ActivityAction.Reject,
             module: ActivityModule.Leave,
-            description: $"Từ chối đơn xin nghỉ ID: {id}",
+            description: $"Từ chối đơn xin nghỉ ID: {command.Id}",
             status: ActivityStatus.Success,
             ipAddress: currentUser.IpAddress,
-            targetId: id.ToString(),
+            targetId: command.Id.ToString(),
             ct: ct);
 
         await notificationService.CreateAsync(new CreateNotificationRequest(

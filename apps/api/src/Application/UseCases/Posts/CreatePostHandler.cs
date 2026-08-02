@@ -1,14 +1,25 @@
-﻿using DentalClinic.API.Application.DTOs.Posts;
+using DentalClinic.API.Application.DTOs.Posts;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Domain.Constants;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Posts;
 
+public record CreatePostCommand(
+    string Title,
+    string Category,
+    string Author,
+    string Content,
+    string? ThumbnailUrl,
+    bool IsPublished,
+    Guid? ServiceId) : IRequest<PostDto>;
+
 public class CreatePostHandler(IPostRepository postRepository, IActivityLogService activityLogService, ICurrentUserService currentUser)
+    : IRequestHandler<CreatePostCommand, PostDto>
 {
-    public async Task<PostDto> HandleAsync(CreatePostRequest request, CancellationToken ct = default)
+    public async Task<PostDto> Handle(CreatePostCommand request, CancellationToken cancellationToken)
     {
         var post = Post.Create(
             request.Title,
@@ -19,7 +30,7 @@ public class CreatePostHandler(IPostRepository postRepository, IActivityLogServi
             request.IsPublished,
             request.ServiceId);
 
-        await postRepository.AddAsync(post, ct);
+        await postRepository.AddAsync(post, cancellationToken);
 
         await activityLogService.LogAsync(
             userId: currentUser.UserId,
@@ -31,7 +42,7 @@ public class CreatePostHandler(IPostRepository postRepository, IActivityLogServi
             status: ActivityStatus.Success,
             ipAddress: currentUser.IpAddress,
             targetId: post.Id.ToString(),
-            ct: ct);
+            ct: cancellationToken);
 
         return GetPostsHandler.ToDto(post);
     }

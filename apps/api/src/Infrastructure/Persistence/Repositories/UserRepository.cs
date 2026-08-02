@@ -23,6 +23,12 @@ public class UserRepository(AppDbContext db) : IUserRepository
     public async Task<bool> ExistsByEmailAsync(string email, CancellationToken ct = default) =>
         await db.Users.AnyAsync(u => u.Email == email, ct);
 
+    public async Task<AccountStatusResult?> GetAccountStatusAsync(Guid id, CancellationToken ct = default) =>
+        await db.Users
+            .Where(u => u.Id == id)
+            .Select(u => new AccountStatusResult(u.IsActive, u.Role))
+            .FirstOrDefaultAsync(ct);
+
     public async Task<bool> ExistsByUsernameAsync(string username, CancellationToken ct = default) =>
         await db.Users.AnyAsync(u => u.Username == username, ct);
 
@@ -44,14 +50,6 @@ public class UserRepository(AppDbContext db) : IUserRepository
             .Include(u => u.Dentist)
             .Include(u => u.Patient)
             .OrderBy(u => u.CreatedAt).ToListAsync(ct);
-
-    public async Task<IEnumerable<User>> GetEmployeesWithoutAccountAsync(CancellationToken ct = default) =>
-        await db.Users
-            .Include(u => u.Staff)
-            .Include(u => u.Dentist)
-            .Where(u => u.Role != "Patient" && u.PasswordHash == null)
-            .OrderBy(u => u.CreatedAt)
-            .ToListAsync(ct);
 
     public async Task<(IReadOnlyList<User> Items, int TotalCount)> GetStaffPagedAsync(
         string? search, string? role, string? status,

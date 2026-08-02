@@ -39,7 +39,7 @@ public class ForgotPasswordHandlerTests
         var user = CreateActiveStaff("staff@test.com", "Admin");
         _userRepo.GetByEmailAsync("staff@test.com", Arg.Any<CancellationToken>()).Returns(user);
 
-        await _handler.HandleAsync(new ForgotPasswordCommand("staff@test.com"));
+        await _handler.Handle(new ForgotPasswordCommand("staff@test.com"), CancellationToken.None);
 
         await _userRepo.Received(1).UpdateAsync(user, Arg.Any<CancellationToken>());
         await _emailService.Received(1).SendPasswordResetAsync(
@@ -59,7 +59,7 @@ public class ForgotPasswordHandlerTests
         var user = CreateActiveStaff("staff@clinic.com", "Dentist");
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(user);
 
-        await _handler.HandleAsync(new ForgotPasswordCommand("staff@clinic.com"));
+        await _handler.Handle(new ForgotPasswordCommand("staff@clinic.com"), CancellationToken.None);
 
         await _emailService.Received(1).SendPasswordResetAsync(
             Arg.Any<string>(),
@@ -78,7 +78,7 @@ public class ForgotPasswordHandlerTests
         var user = CreateActiveStaff("staff@test.com", "Staff");
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(user);
 
-        await _handler.HandleAsync(new ForgotPasswordCommand("staff@test.com"));
+        await _handler.Handle(new ForgotPasswordCommand("staff@test.com"), CancellationToken.None);
 
         user.PasswordResetToken.Should().NotBeNullOrEmpty();
         user.PasswordResetTokenExpiry.Should().BeAfter(DateTimeOffset.UtcNow);
@@ -95,7 +95,7 @@ public class ForgotPasswordHandlerTests
         var user = CreateActiveStaff("staff@test.com", "Admin");
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(user);
 
-        await _handler.HandleAsync(new ForgotPasswordCommand("staff@test.com"));
+        await _handler.Handle(new ForgotPasswordCommand("staff@test.com"), CancellationToken.None);
 
         await _emailService.Received(1).SendPasswordResetAsync(
             Arg.Any<string>(),
@@ -116,7 +116,7 @@ public class ForgotPasswordHandlerTests
         var user = User.Create("user1", "staff@test.com", hash, "Admin", fullName: "Nguyễn Văn A");
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(user);
 
-        await _handler.HandleAsync(new ForgotPasswordCommand("staff@test.com"));
+        await _handler.Handle(new ForgotPasswordCommand("staff@test.com"), CancellationToken.None);
 
         await _emailService.Received(1).SendPasswordResetAsync(
             Arg.Any<string>(), "Nguyễn Văn A", Arg.Any<string>(), Arg.Any<CancellationToken>());
@@ -132,7 +132,7 @@ public class ForgotPasswordHandlerTests
         var user = CreateActiveStaff("staff@test.com", "Staff"); // FullName null, Username = "user1"
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(user);
 
-        await _handler.HandleAsync(new ForgotPasswordCommand("staff@test.com"));
+        await _handler.Handle(new ForgotPasswordCommand("staff@test.com"), CancellationToken.None);
 
         await _emailService.Received(1).SendPasswordResetAsync(
             Arg.Any<string>(), "user1", Arg.Any<string>(), Arg.Any<CancellationToken>());
@@ -148,7 +148,7 @@ public class ForgotPasswordHandlerTests
         var user = User.CreateEmployee("staff@test.com", "Staff"); // Username null, FullName null
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(user);
 
-        await _handler.HandleAsync(new ForgotPasswordCommand("staff@test.com"));
+        await _handler.Handle(new ForgotPasswordCommand("staff@test.com"), CancellationToken.None);
 
         await _emailService.Received(1).SendPasswordResetAsync(
             Arg.Any<string>(), "staff@test.com", Arg.Any<string>(), Arg.Any<CancellationToken>());
@@ -166,7 +166,7 @@ public class ForgotPasswordHandlerTests
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns((User?)null);
 
-        Func<Task> act = () => _handler.HandleAsync(new ForgotPasswordCommand("notfound@test.com"));
+        Func<Task> act = () => _handler.Handle(new ForgotPasswordCommand("notfound@test.com"), CancellationToken.None);
 
         await act.Should().NotThrowAsync();
         await _emailService.DidNotReceive().SendPasswordResetAsync(
@@ -183,7 +183,7 @@ public class ForgotPasswordHandlerTests
         var patient = CreateActiveStaff("patient@test.com", "Patient");
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(patient);
 
-        Func<Task> act = () => _handler.HandleAsync(new ForgotPasswordCommand("patient@test.com"));
+        Func<Task> act = () => _handler.Handle(new ForgotPasswordCommand("patient@test.com"), CancellationToken.None);
 
         await act.Should().NotThrowAsync();
         await _emailService.DidNotReceive().SendPasswordResetAsync(
@@ -201,7 +201,7 @@ public class ForgotPasswordHandlerTests
         user.SetActive(false);
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(user);
 
-        Func<Task> act = () => _handler.HandleAsync(new ForgotPasswordCommand("staff@test.com"));
+        Func<Task> act = () => _handler.Handle(new ForgotPasswordCommand("staff@test.com"), CancellationToken.None);
 
         await act.Should().NotThrowAsync();
         await _emailService.DidNotReceive().SendPasswordResetAsync(
@@ -218,7 +218,7 @@ public class ForgotPasswordHandlerTests
         var user = CreateActiveStaff("staff@test.com", "Staff");
         _userRepo.GetByEmailAsync("staff@test.com", Arg.Any<CancellationToken>()).Returns(user);
 
-        await _handler.HandleAsync(new ForgotPasswordCommand("  Staff@Test.COM  "));
+        await _handler.Handle(new ForgotPasswordCommand("  Staff@Test.COM  "), CancellationToken.None);
 
         await _userRepo.Received(1).GetByEmailAsync("staff@test.com", Arg.Any<CancellationToken>());
     }

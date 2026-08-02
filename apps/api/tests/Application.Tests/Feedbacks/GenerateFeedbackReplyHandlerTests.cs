@@ -35,7 +35,7 @@ public class GenerateFeedbackReplyHandlerTests
     {
         _feedbackRepo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Feedback?)null);
 
-        var act = () => _handler.HandleAsync(Guid.NewGuid());
+        var act = () => _handler.Handle(new GenerateFeedbackReplyQuery(Guid.NewGuid()), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
         await _aiChatService.DidNotReceive().SummarizeAsync(
@@ -50,7 +50,7 @@ public class GenerateFeedbackReplyHandlerTests
         var feedback = Feedback.Create("Nguyễn Văn B", 2, "Chờ đợi quá lâu, nhân viên không nhiệt tình.");
         _feedbackRepo.GetByIdAsync(feedback.Id, Arg.Any<CancellationToken>()).Returns(feedback);
 
-        var result = await _handler.HandleAsync(feedback.Id);
+        var result = await _handler.Handle(new GenerateFeedbackReplyQuery(feedback.Id), CancellationToken.None);
 
         result.ReplyText.Should().Contain("Cảm ơn");
 
@@ -74,7 +74,7 @@ public class GenerateFeedbackReplyHandlerTests
                 Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns("\n  Cảm ơn bạn.  \n");
 
-        var result = await _handler.HandleAsync(feedback.Id);
+        var result = await _handler.Handle(new GenerateFeedbackReplyQuery(feedback.Id), CancellationToken.None);
 
         result.ReplyText.Should().Be("Cảm ơn bạn.");
     }
@@ -90,7 +90,7 @@ public class GenerateFeedbackReplyHandlerTests
                 Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(string.Empty);
 
-        var result = await _handler.HandleAsync(feedback.Id);
+        var result = await _handler.Handle(new GenerateFeedbackReplyQuery(feedback.Id), CancellationToken.None);
 
         result.ReplyText.Should().BeEmpty();
     }
@@ -106,7 +106,7 @@ public class GenerateFeedbackReplyHandlerTests
                 Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException("AI service unavailable"));
 
-        var act = () => _handler.HandleAsync(feedback.Id);
+        var act = () => _handler.Handle(new GenerateFeedbackReplyQuery(feedback.Id), CancellationToken.None);
 
         await act.Should().ThrowAsync<InvalidOperationException>();
     }

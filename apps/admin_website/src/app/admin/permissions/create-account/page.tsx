@@ -99,7 +99,7 @@ export default function CreateAccountPage() {
 
   return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
-      <AdminSidebar activeMenu="permissions" />
+      <AdminSidebar activeMenu="permissions-users" />
 
       <main className="flex-1 flex flex-col min-w-0">
         {/* Header */}

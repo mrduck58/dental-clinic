@@ -5,6 +5,7 @@ using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Domain.Constants;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Auth;
 
@@ -12,11 +13,11 @@ public record CreateAccountCommand(
     string FullName,
     string Email,
     string PhoneNumber,
-    string Role);
+    string Role) : IRequest<CreateAccountResponseDto>;
 
-public class CreateAccountHandler(IUserRepository userRepository, IEmailService emailService, IActivityLogService activityLogService, ICurrentUserService currentUser)
+public class CreateAccountHandler(IUserRepository userRepository, IEmailService emailService, IActivityLogService activityLogService, ICurrentUserService currentUser) : IRequestHandler<CreateAccountCommand, CreateAccountResponseDto>
 {
-    public async Task<CreateAccountResponseDto> HandleAsync(CreateAccountCommand command, CancellationToken ct = default)
+    public async Task<CreateAccountResponseDto> Handle(CreateAccountCommand command, CancellationToken ct)
     {
         if (await userRepository.ExistsByEmailAsync(command.Email, ct))
             throw new ConflictException($"Email '{command.Email}' đã được sử dụng bởi tài khoản khác.");

@@ -48,7 +48,7 @@ export default function LoginPage() {
       } else if (role === "Owner") {
         router.push("/owner");
       } else {
-        router.push("/");
+        router.push("/admin");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Đăng nhập thất bại");

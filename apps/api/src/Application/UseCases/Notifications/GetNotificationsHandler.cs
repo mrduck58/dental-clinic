@@ -4,6 +4,7 @@ using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Infrastructure.Persistence;
+using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.Notifications;
@@ -15,13 +16,13 @@ public record GetNotificationsQuery(
     bool? IsRead = null,
     string? Search = null,
     int Page = 1,
-    int PageSize = 10);
+    int PageSize = 10) : IRequest<NotificationPagedDto>;
 
 public class GetNotificationsHandler(
     INotificationRepository repository,
-    AppDbContext? dbContext = null)
+    AppDbContext? dbContext = null) : IRequestHandler<GetNotificationsQuery, NotificationPagedDto>
 {
-    public async Task<NotificationPagedDto> HandleAsync(GetNotificationsQuery query, CancellationToken ct = default)
+    public async Task<NotificationPagedDto> Handle(GetNotificationsQuery query, CancellationToken ct)
     {
         if (dbContext != null)
         {

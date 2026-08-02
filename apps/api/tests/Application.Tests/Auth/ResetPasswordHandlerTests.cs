@@ -32,7 +32,7 @@ public class ResetPasswordHandlerTests
         var user = CreateUserWithResetToken("valid-token", DateTimeOffset.UtcNow.AddHours(1));
         _userRepo.GetByEmailAsync("staff@test.com", Arg.Any<CancellationToken>()).Returns(user);
 
-        await _handler.HandleAsync(new ResetPasswordCommand("staff@test.com", "valid-token", "NewPass@123"));
+        await _handler.Handle(new ResetPasswordCommand("staff@test.com", "valid-token", "NewPass@123"), CancellationToken.None);
 
         await _userRepo.Received(1).UpdateAsync(user, Arg.Any<CancellationToken>());
     }
@@ -47,7 +47,7 @@ public class ResetPasswordHandlerTests
         var user = CreateUserWithResetToken("valid-token", DateTimeOffset.UtcNow.AddHours(1));
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(user);
 
-        await _handler.HandleAsync(new ResetPasswordCommand("staff@test.com", "valid-token", "NewPass@123"));
+        await _handler.Handle(new ResetPasswordCommand("staff@test.com", "valid-token", "NewPass@123"), CancellationToken.None);
 
         user.PasswordResetToken.Should().BeNull();
         user.PasswordResetTokenExpiry.Should().BeNull();
@@ -64,7 +64,7 @@ public class ResetPasswordHandlerTests
         var user = CreateUserWithResetToken("valid-token", DateTimeOffset.UtcNow.AddHours(1));
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(user);
 
-        await _handler.HandleAsync(new ResetPasswordCommand("staff@test.com", "valid-token", newPassword));
+        await _handler.Handle(new ResetPasswordCommand("staff@test.com", "valid-token", newPassword), CancellationToken.None);
 
         user.PasswordHash.Should().NotBe(newPassword);
         BCrypt.Net.BCrypt.Verify(newPassword, user.PasswordHash).Should().BeTrue();
@@ -82,8 +82,8 @@ public class ResetPasswordHandlerTests
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns((User?)null);
 
-        Func<Task> act = () => _handler.HandleAsync(
-            new ResetPasswordCommand("notfound@test.com", "some-token", "NewPass@123"));
+        Func<Task> act = () => _handler.Handle(
+            new ResetPasswordCommand("notfound@test.com", "some-token", "NewPass@123"), CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>()
             .WithMessage("*không hợp lệ*");
@@ -99,8 +99,8 @@ public class ResetPasswordHandlerTests
         var user = CreateUserWithResetToken("correct-token", DateTimeOffset.UtcNow.AddHours(1));
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(user);
 
-        Func<Task> act = () => _handler.HandleAsync(
-            new ResetPasswordCommand("staff@test.com", "wrong-token", "NewPass@123"));
+        Func<Task> act = () => _handler.Handle(
+            new ResetPasswordCommand("staff@test.com", "wrong-token", "NewPass@123"), CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>()
             .WithMessage("*không hợp lệ*");
@@ -116,8 +116,8 @@ public class ResetPasswordHandlerTests
         var user = CreateUserWithResetToken("valid-token", DateTimeOffset.UtcNow.AddHours(-1));
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(user);
 
-        Func<Task> act = () => _handler.HandleAsync(
-            new ResetPasswordCommand("staff@test.com", "valid-token", "NewPass@123"));
+        Func<Task> act = () => _handler.Handle(
+            new ResetPasswordCommand("staff@test.com", "valid-token", "NewPass@123"), CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>()
             .WithMessage("*hết hạn*");
@@ -133,8 +133,8 @@ public class ResetPasswordHandlerTests
         var user = User.Create("user1", "staff@test.com", BCrypt.Net.BCrypt.HashPassword("pass"), "Staff");
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(user);
 
-        Func<Task> act = () => _handler.HandleAsync(
-            new ResetPasswordCommand("staff@test.com", "any-token", "NewPass@123"));
+        Func<Task> act = () => _handler.Handle(
+            new ResetPasswordCommand("staff@test.com", "any-token", "NewPass@123"), CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
     }
@@ -149,8 +149,8 @@ public class ResetPasswordHandlerTests
         var user = CreateUserWithResetToken("correct-token", DateTimeOffset.UtcNow.AddHours(1));
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(user);
 
-        Assert.CatchAsync(() => _handler.HandleAsync(
-            new ResetPasswordCommand("staff@test.com", "wrong-token", "NewPass@123")));
+        Assert.CatchAsync(() => _handler.Handle(
+            new ResetPasswordCommand("staff@test.com", "wrong-token", "NewPass@123"), CancellationToken.None));
 
         await _userRepo.DidNotReceive().UpdateAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
     }
@@ -165,7 +165,7 @@ public class ResetPasswordHandlerTests
         var user = CreateUserWithResetToken("valid-token", DateTimeOffset.UtcNow.AddHours(1));
         _userRepo.GetByEmailAsync("staff@test.com", Arg.Any<CancellationToken>()).Returns(user);
 
-        await _handler.HandleAsync(new ResetPasswordCommand("  Staff@Test.COM  ", "valid-token", "NewPass@123"));
+        await _handler.Handle(new ResetPasswordCommand("  Staff@Test.COM  ", "valid-token", "NewPass@123"), CancellationToken.None);
 
         await _userRepo.Received(1).GetByEmailAsync("staff@test.com", Arg.Any<CancellationToken>());
     }

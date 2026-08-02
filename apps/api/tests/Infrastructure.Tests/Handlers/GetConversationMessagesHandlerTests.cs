@@ -3,6 +3,7 @@ using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using NSubstitute;
@@ -25,7 +26,7 @@ public class GetConversationMessagesHandlerTests
             .Options;
         _db = new AppDbContext(options);
         _patientRepo = Substitute.For<IPatientRepository>();
-        _handler = new GetConversationMessagesHandler(_patientRepo, _db);
+        _handler = new GetConversationMessagesHandler(_patientRepo, new ChatConversationRepository(_db));
     }
 
     [TearDown]
@@ -37,7 +38,8 @@ public class GetConversationMessagesHandlerTests
     {
         _patientRepo.GetByUserIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Patient?)null);
 
-        Func<Task> act = () => _handler.HandleAsync(Guid.NewGuid(), Guid.NewGuid());
+        Func<Task> act = () => _handler.Handle(
+            new GetConversationMessagesQuery(Guid.NewGuid(), Guid.NewGuid()), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -51,7 +53,8 @@ public class GetConversationMessagesHandlerTests
         await _db.SaveChangesAsync();
         _patientRepo.GetByUserIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(patient);
 
-        Func<Task> act = () => _handler.HandleAsync(Guid.NewGuid(), Guid.NewGuid());
+        Func<Task> act = () => _handler.Handle(
+            new GetConversationMessagesQuery(Guid.NewGuid(), Guid.NewGuid()), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -69,7 +72,8 @@ public class GetConversationMessagesHandlerTests
         await _db.SaveChangesAsync();
         _patientRepo.GetByUserIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(patient);
 
-        Func<Task> act = () => _handler.HandleAsync(Guid.NewGuid(), conversation.Id);
+        Func<Task> act = () => _handler.Handle(
+            new GetConversationMessagesQuery(Guid.NewGuid(), conversation.Id), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -90,7 +94,8 @@ public class GetConversationMessagesHandlerTests
         await _db.SaveChangesAsync();
         _patientRepo.GetByUserIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(patient);
 
-        var result = await _handler.HandleAsync(Guid.NewGuid(), conversation.Id);
+        var result = await _handler.Handle(
+            new GetConversationMessagesQuery(Guid.NewGuid(), conversation.Id), CancellationToken.None);
 
         result.Messages.Should().HaveCount(2);
         result.Messages[0].Content.Should().Be("Xin chào");

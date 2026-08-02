@@ -34,7 +34,7 @@ public class DeletePostHandlerTests
         _repo.GetByIdAsync(post.Id, Arg.Any<CancellationToken>()).Returns(post);
         var handler = new DeletePostHandler(_repo, _activityLog, _currentUser);
 
-        await handler.HandleAsync(post.Id);
+        await handler.Handle(new DeletePostCommand(post.Id), CancellationToken.None);
 
         await _repo.Received(1).DeleteAsync(post, Arg.Any<CancellationToken>());
     }
@@ -48,7 +48,7 @@ public class DeletePostHandlerTests
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Post?)null);
         var handler = new DeletePostHandler(_repo, _activityLog, _currentUser);
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid());
+        Func<Task> act = () => handler.Handle(new DeletePostCommand(Guid.NewGuid()), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -63,7 +63,7 @@ public class DeletePostHandlerTests
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Post?)null);
         var handler = new DeletePostHandler(_repo, _activityLog, _currentUser);
 
-        Assert.CatchAsync(() => handler.HandleAsync(Guid.NewGuid()));
+        Assert.CatchAsync(() => handler.Handle(new DeletePostCommand(Guid.NewGuid()), CancellationToken.None));
 
         await _repo.DidNotReceive().DeleteAsync(Arg.Any<Post>(), Arg.Any<CancellationToken>());
     }

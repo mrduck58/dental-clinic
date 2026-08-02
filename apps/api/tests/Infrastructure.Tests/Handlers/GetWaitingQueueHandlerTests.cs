@@ -1,4 +1,4 @@
-using DentalClinic.API.Application.UseCases.Appointments;
+using DentalClinic.API.Application.UseCases.Queue;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Infrastructure.Persistence;
 using FluentAssertions;
@@ -34,7 +34,7 @@ public class GetWaitingQueueHandlerTests
     [Test]
     public async Task HandleAsync_NoScheduleOrAppointments_ReturnsNoRooms()
     {
-        var result = await _handler.HandleAsync(DateOnly.FromDateTime(DateTime.Today));
+        var result = await _handler.Handle(new GetWaitingQueueQuery(DateOnly.FromDateTime(DateTime.Today)), CancellationToken.None);
 
         result.Rooms.Should().BeEmpty();
         result.TotalWaiting.Should().Be(0);
@@ -62,7 +62,7 @@ public class GetWaitingQueueHandlerTests
         _db.Appointments.Add(appointment);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(today);
+        var result = await _handler.Handle(new GetWaitingQueueQuery(today), CancellationToken.None);
 
         result.Rooms.Should().ContainSingle(r => r.RoomName == "Phòng 101");
         var room = result.Rooms.Single(r => r.RoomName == "Phòng 101");
@@ -99,7 +99,7 @@ public class GetWaitingQueueHandlerTests
         _db.Appointments.AddRange(waiting, inProgress);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(today);
+        var result = await _handler.Handle(new GetWaitingQueueQuery(today), CancellationToken.None);
 
         var room = result.Rooms.Single(r => r.RoomName == "Phòng 202");
         room.Patients[0].PatientName.Should().Be("Bệnh nhân Đang Khám");
@@ -129,7 +129,7 @@ public class GetWaitingQueueHandlerTests
         _db.Appointments.AddRange(waiting, completed);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(today);
+        var result = await _handler.Handle(new GetWaitingQueueQuery(today), CancellationToken.None);
 
         result.TotalWaiting.Should().Be(1);
         result.TotalCompleted.Should().Be(1);
@@ -151,7 +151,7 @@ public class GetWaitingQueueHandlerTests
             today, currentShift, "dentist", "dentist", dentist.FullName, "Phòng Trực", "border-primary", false));
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(today);
+        var result = await _handler.Handle(new GetWaitingQueueQuery(today), CancellationToken.None);
 
         var room = result.Rooms.Single(r => r.RoomName == "Phòng Trực");
         room.Dentists.Should().ContainSingle(d => d.IsOnShiftNow);
@@ -178,7 +178,7 @@ public class GetWaitingQueueHandlerTests
         _db.Appointments.Add(appointment);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(today);
+        var result = await _handler.Handle(new GetWaitingQueueQuery(today), CancellationToken.None);
 
         result.Rooms.Should().ContainSingle(r => r.RoomName == null);
         result.Rooms[0].Dentists.Should().ContainSingle(d => d.DentistName == "BS Không Ca");

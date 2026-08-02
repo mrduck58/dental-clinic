@@ -2,6 +2,7 @@ using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Validators;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Staff;
 
@@ -33,11 +34,12 @@ public record UpdateStaffCommand(
     decimal? BaseSalary,
     string? SalaryUnit,
     decimal? LeaveAccrued,
-    decimal? Allowance);
+    decimal? Allowance) : IRequest<StaffItemDto>;
 
 public class UpdateStaffHandler(IUserRepository userRepository)
+    : IRequestHandler<UpdateStaffCommand, StaffItemDto>
 {
-    public async Task<StaffItemDto> HandleAsync(UpdateStaffCommand command, CancellationToken ct = default)
+    public async Task<StaffItemDto> Handle(UpdateStaffCommand command, CancellationToken ct)
     {
         // Validate all fields
         StaffValidator.ValidateUpdate(

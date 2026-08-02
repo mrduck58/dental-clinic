@@ -29,7 +29,7 @@ public class GetMedicinesHandlerTests
         });
         var handler = new GetMedicinesHandler(_repo);
 
-        var result = await handler.HandleAsync(null);
+        var result = await handler.Handle(new GetMedicinesQuery(null), CancellationToken.None);
 
         result.Should().HaveCount(3);
     }
@@ -48,7 +48,7 @@ public class GetMedicinesHandlerTests
         });
         var handler = new GetMedicinesHandler(_repo);
 
-        var result = await handler.HandleAsync(search: "amox");
+        var result = await handler.Handle(new GetMedicinesQuery(Search: "amox"), CancellationToken.None);
 
         result.Should().HaveCount(2);
     }
@@ -67,7 +67,7 @@ public class GetMedicinesHandlerTests
         });
         var handler = new GetMedicinesHandler(_repo);
 
-        var result = await handler.HandleAsync(search: "paracetamol");
+        var result = await handler.Handle(new GetMedicinesQuery(Search: "paracetamol"), CancellationToken.None);
 
         result.Should().HaveCount(2);
     }
@@ -86,7 +86,7 @@ public class GetMedicinesHandlerTests
         });
         var handler = new GetMedicinesHandler(_repo);
 
-        var result = await handler.HandleAsync(search: "sanofi");
+        var result = await handler.Handle(new GetMedicinesQuery(Search: "sanofi"), CancellationToken.None);
 
         result.Should().HaveCount(2);
     }
@@ -104,7 +104,7 @@ public class GetMedicinesHandlerTests
         });
         var handler = new GetMedicinesHandler(_repo);
 
-        var result = await handler.HandleAsync(search: "");
+        var result = await handler.Handle(new GetMedicinesQuery(Search: ""), CancellationToken.None);
 
         result.Should().HaveCount(2);
     }
@@ -122,7 +122,7 @@ public class GetMedicinesHandlerTests
         });
         var handler = new GetMedicinesHandler(_repo);
 
-        var result = await handler.HandleAsync(search: "   ");
+        var result = await handler.Handle(new GetMedicinesQuery(Search: "   "), CancellationToken.None);
 
         result.Should().HaveCount(2);
     }
@@ -140,7 +140,7 @@ public class GetMedicinesHandlerTests
         });
         var handler = new GetMedicinesHandler(_repo);
 
-        var result = await handler.HandleAsync(search: "khôngtồntại");
+        var result = await handler.Handle(new GetMedicinesQuery(Search: "khôngtồntại"), CancellationToken.None);
 
         result.Should().BeEmpty();
     }

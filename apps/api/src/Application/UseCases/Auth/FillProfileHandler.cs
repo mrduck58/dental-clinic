@@ -1,6 +1,7 @@
 using DentalClinic.API.Application.DTOs.Auth;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Auth;
 
@@ -17,11 +18,11 @@ public record FillProfileCommand(
     string? Bio = null,
     string? Education = null,
     string? Specialty = null,
-    int? YearsOfExperience = null);
+    int? YearsOfExperience = null) : IRequest;
 
-public class FillProfileHandler(IUserRepository userRepository)
+public class FillProfileHandler(IUserRepository userRepository) : IRequestHandler<FillProfileCommand>
 {
-    public async Task HandleAsync(FillProfileCommand command, CancellationToken ct = default)
+    public async Task Handle(FillProfileCommand command, CancellationToken ct)
     {
         var user = await userRepository.GetByIdAsync(command.UserId, ct)
             ?? throw new NotFoundException("Không tìm thấy tài khoản.");

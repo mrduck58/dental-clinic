@@ -33,7 +33,7 @@ public class ResetStaffPasswordHandlerTests
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
         var handler = new ResetStaffPasswordHandler(_userRepo, _emailService);
 
-        await handler.HandleAsync(user.Id);
+        await handler.Handle(new ResetStaffPasswordCommand(user.Id), CancellationToken.None);
 
         await _userRepo.Received(1).UpdateAsync(user, Arg.Any<CancellationToken>());
         await _emailService.Received(1).SendStaffCredentialsAsync(
@@ -49,7 +49,7 @@ public class ResetStaffPasswordHandlerTests
         _userRepo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((User?)null);
         var handler = new ResetStaffPasswordHandler(_userRepo, _emailService);
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid());
+        Func<Task> act = () => handler.Handle(new ResetStaffPasswordCommand(Guid.NewGuid()), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -64,7 +64,7 @@ public class ResetStaffPasswordHandlerTests
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
         var handler = new ResetStaffPasswordHandler(_userRepo, _emailService);
 
-        var result = await handler.HandleAsync(user.Id);
+        var result = await handler.Handle(new ResetStaffPasswordCommand(user.Id), CancellationToken.None);
 
         result.TemporaryPassword.Should().HaveLength(8);
     }
@@ -80,7 +80,7 @@ public class ResetStaffPasswordHandlerTests
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
         var handler = new ResetStaffPasswordHandler(_userRepo, _emailService);
 
-        await handler.HandleAsync(user.Id);
+        await handler.Handle(new ResetStaffPasswordCommand(user.Id), CancellationToken.None);
 
         await _emailService.Received(1).SendStaffCredentialsAsync(
             user.Email, user.Email, Arg.Any<string>(), Arg.Any<CancellationToken>());
@@ -97,7 +97,7 @@ public class ResetStaffPasswordHandlerTests
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
         var handler = new ResetStaffPasswordHandler(_userRepo, _emailService);
 
-        await handler.HandleAsync(user.Id);
+        await handler.Handle(new ResetStaffPasswordCommand(user.Id), CancellationToken.None);
 
         await _emailService.Received(1).SendStaffCredentialsAsync(
             user.Email, "myusername", Arg.Any<string>(), Arg.Any<CancellationToken>());
@@ -114,7 +114,7 @@ public class ResetStaffPasswordHandlerTests
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
         var handler = new ResetStaffPasswordHandler(_userRepo, _emailService);
 
-        var result = await handler.HandleAsync(user.Id);
+        var result = await handler.Handle(new ResetStaffPasswordCommand(user.Id), CancellationToken.None);
 
         result.Id.Should().Be(user.Id);
         result.Email.Should().Be(user.Email);

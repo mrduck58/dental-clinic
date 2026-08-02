@@ -1,7 +1,10 @@
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Auth;
+
+public record GetMyProfileQuery(Guid UserId) : IRequest<UserProfileDto>;
 
 public record UserProfileDto(
     Guid Id,
@@ -33,11 +36,11 @@ public record UserProfileDto(
     DateTimeOffset CreatedAt
 );
 
-public class GetMyProfileHandler(IUserRepository userRepository)
+public class GetMyProfileHandler(IUserRepository userRepository) : IRequestHandler<GetMyProfileQuery, UserProfileDto>
 {
-    public async Task<UserProfileDto> HandleAsync(Guid userId, CancellationToken ct = default)
+    public async Task<UserProfileDto> Handle(GetMyProfileQuery request, CancellationToken ct)
     {
-        var user = await userRepository.GetByIdAsync(userId, ct)
+        var user = await userRepository.GetByIdAsync(request.UserId, ct)
             ?? throw new NotFoundException("Không tìm thấy tài khoản.");
 
         DateOnly? dob = user.Role switch

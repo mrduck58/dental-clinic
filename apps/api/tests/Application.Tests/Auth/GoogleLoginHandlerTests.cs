@@ -34,7 +34,7 @@ public class GoogleLoginHandlerTests
             .Returns(new GoogleUserInfo("new@gmail.com", "Người Dùng Mới", "https://pic.url"));
         _userRepo.GetByEmailAsync("new@gmail.com", Arg.Any<CancellationToken>()).Returns((User?)null);
 
-        var result = await _handler.HandleAsync(new GoogleLoginCommand("valid-id-token"));
+        var result = await _handler.Handle(new GoogleLoginCommand("valid-id-token"), CancellationToken.None);
 
         result.IsNewUser.Should().BeTrue();
         result.User.Role.Should().Be("Patient");
@@ -50,7 +50,7 @@ public class GoogleLoginHandlerTests
             .Returns(new GoogleUserInfo("existing@gmail.com", "Người Dùng Cũ", null));
         _userRepo.GetByEmailAsync("existing@gmail.com", Arg.Any<CancellationToken>()).Returns(existing);
 
-        var result = await _handler.HandleAsync(new GoogleLoginCommand("valid-id-token"));
+        var result = await _handler.Handle(new GoogleLoginCommand("valid-id-token"), CancellationToken.None);
 
         result.IsNewUser.Should().BeFalse();
         await _userRepo.DidNotReceive().AddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
@@ -65,7 +65,7 @@ public class GoogleLoginHandlerTests
             .Returns(new GoogleUserInfo("staff@gmail.com", "Nhân Viên", null));
         _userRepo.GetByEmailAsync("staff@gmail.com", Arg.Any<CancellationToken>()).Returns(staff);
 
-        Func<Task> act = () => _handler.HandleAsync(new GoogleLoginCommand("valid-id-token"));
+        Func<Task> act = () => _handler.Handle(new GoogleLoginCommand("valid-id-token"), CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
     }
@@ -80,7 +80,7 @@ public class GoogleLoginHandlerTests
             .Returns(new GoogleUserInfo("inactive@gmail.com", "Bị Khóa", null));
         _userRepo.GetByEmailAsync("inactive@gmail.com", Arg.Any<CancellationToken>()).Returns(inactive);
 
-        Func<Task> act = () => _handler.HandleAsync(new GoogleLoginCommand("valid-id-token"));
+        Func<Task> act = () => _handler.Handle(new GoogleLoginCommand("valid-id-token"), CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
     }
@@ -93,7 +93,7 @@ public class GoogleLoginHandlerTests
             .Returns(new GoogleUserInfo("new@gmail.com", "Người Dùng Mới", "https://pic.url"));
         _userRepo.GetByEmailAsync("new@gmail.com", Arg.Any<CancellationToken>()).Returns((User?)null);
 
-        var result = await _handler.HandleAsync(new GoogleLoginCommand("valid-id-token"));
+        var result = await _handler.Handle(new GoogleLoginCommand("valid-id-token"), CancellationToken.None);
 
         result.AccessToken.Should().Be("fake-jwt-token");
         result.ExpiresIn.Should().Be(15 * 60);
@@ -114,7 +114,7 @@ public class GoogleLoginHandlerTests
             .Returns(new GoogleUserInfo("existing2@gmail.com", "Người Dùng Cũ", null));
         _userRepo.GetByEmailAsync("existing2@gmail.com", Arg.Any<CancellationToken>()).Returns(existing);
 
-        var result = await _handler.HandleAsync(new GoogleLoginCommand("valid-id-token"));
+        var result = await _handler.Handle(new GoogleLoginCommand("valid-id-token"), CancellationToken.None);
 
         result.User.Username.Should().Be("patient_username");
         _jwtService.Received(1).GenerateToken(existing);

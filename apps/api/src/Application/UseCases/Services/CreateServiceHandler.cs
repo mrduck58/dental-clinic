@@ -1,14 +1,23 @@
-﻿using DentalClinic.API.Application.DTOs.Services;
+using DentalClinic.API.Application.DTOs.Services;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Domain.Constants;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Services;
 
-public class CreateServiceHandler(IServiceRepository serviceRepository, IActivityLogService activityLogService, ICurrentUserService currentUser)
+public record CreateServiceCommand(
+    string Name,
+    decimal Price,
+    int DurationMinutes,
+    string Description,
+    string? ImageUrl,
+    string? IconUrl) : IRequest<ServiceDto>;
+
+public class CreateServiceHandler(IServiceRepository serviceRepository, IActivityLogService activityLogService, ICurrentUserService currentUser) : IRequestHandler<CreateServiceCommand, ServiceDto>
 {
-    public async Task<ServiceDto> HandleAsync(CreateServiceRequest request, CancellationToken ct = default)
+    public async Task<ServiceDto> Handle(CreateServiceCommand request, CancellationToken cancellationToken)
     {
         var service = Service.Create(
             request.Name,
@@ -18,7 +27,7 @@ public class CreateServiceHandler(IServiceRepository serviceRepository, IActivit
             request.ImageUrl,
             request.IconUrl);
 
-        await serviceRepository.AddAsync(service, ct);
+        await serviceRepository.AddAsync(service, cancellationToken);
 
         await activityLogService.LogAsync(
             userId: currentUser.UserId,
@@ -30,7 +39,7 @@ public class CreateServiceHandler(IServiceRepository serviceRepository, IActivit
             status: ActivityStatus.Success,
             ipAddress: currentUser.IpAddress,
             targetId: service.Id.ToString(),
-            ct: ct);
+            ct: cancellationToken);
 
         return new ServiceDto(
             service.Id, service.Name, service.Price,

@@ -1,4 +1,4 @@
-using DentalClinic.API.Application.UseCases.Appointments;
+using DentalClinic.API.Application.UseCases.AiAssist;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Services;
@@ -68,7 +68,7 @@ public class SummarizePatientHistoryHandlerTests
         _db.Appointments.Add(currentAppointment);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(currentAppointment.Id);
+        var result = await _handler.Handle(new SummarizePatientHistoryQuery(currentAppointment.Id), CancellationToken.None);
 
         result.Summary.Should().Be("Tóm tắt test");
         result.Disclaimer.Should().Contain("AI tạo tự động");
@@ -96,8 +96,8 @@ public class SummarizePatientHistoryHandlerTests
         _db.Appointments.Add(currentAppointment);
         await _db.SaveChangesAsync();
 
-        var first = await _handler.HandleAsync(currentAppointment.Id);
-        var second = await _handler.HandleAsync(currentAppointment.Id);
+        var first = await _handler.Handle(new SummarizePatientHistoryQuery(currentAppointment.Id), CancellationToken.None);
+        var second = await _handler.Handle(new SummarizePatientHistoryQuery(currentAppointment.Id), CancellationToken.None);
 
         first.FromCache.Should().BeFalse();
         second.FromCache.Should().BeTrue();
@@ -118,8 +118,8 @@ public class SummarizePatientHistoryHandlerTests
         _db.Appointments.Add(currentAppointment);
         await _db.SaveChangesAsync();
 
-        await _handler.HandleAsync(currentAppointment.Id);
-        var forced = await _handler.HandleAsync(currentAppointment.Id, forceRegenerate: true);
+        await _handler.Handle(new SummarizePatientHistoryQuery(currentAppointment.Id), CancellationToken.None);
+        var forced = await _handler.Handle(new SummarizePatientHistoryQuery(currentAppointment.Id, true), CancellationToken.None);
 
         forced.FromCache.Should().BeFalse();
         await _aiChatService.Received(2).SummarizeAsync(
@@ -137,13 +137,13 @@ public class SummarizePatientHistoryHandlerTests
         _db.Appointments.Add(currentAppointment);
         await _db.SaveChangesAsync();
 
-        await _handler.HandleAsync(currentAppointment.Id);
+        await _handler.Handle(new SummarizePatientHistoryQuery(currentAppointment.Id), CancellationToken.None);
 
         var pastAppointment2 = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddMonths(-1));
         _db.Appointments.Add(pastAppointment2);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(currentAppointment.Id);
+        var result = await _handler.Handle(new SummarizePatientHistoryQuery(currentAppointment.Id), CancellationToken.None);
 
         result.FromCache.Should().BeFalse();
         await _aiChatService.Received(2).SummarizeAsync(
@@ -182,7 +182,7 @@ public class SummarizePatientHistoryHandlerTests
         _db.Appointments.Add(onlyAppointment);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(onlyAppointment.Id);
+        var result = await _handler.Handle(new SummarizePatientHistoryQuery(onlyAppointment.Id), CancellationToken.None);
 
         result.Summary.Should().Contain("chưa có lịch sử khám");
         await _aiChatService.DidNotReceive().SummarizeAsync(
@@ -198,7 +198,7 @@ public class SummarizePatientHistoryHandlerTests
     {
         var nonExistentId = Guid.NewGuid();
 
-        Func<Task> act = () => _handler.HandleAsync(nonExistentId);
+        Func<Task> act = () => _handler.Handle(new SummarizePatientHistoryQuery(nonExistentId), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }

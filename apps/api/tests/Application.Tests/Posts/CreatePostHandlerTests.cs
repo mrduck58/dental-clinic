@@ -32,7 +32,7 @@ public class CreatePostHandlerTests
     {
         var handler = new CreatePostHandler(_repo, _activityLog, _currentUser);
 
-        await handler.HandleAsync(BuildRequest());
+        await handler.Handle(BuildRequest(), CancellationToken.None);
 
         await _repo.Received(1).AddAsync(Arg.Any<Post>(), Arg.Any<CancellationToken>());
     }
@@ -46,7 +46,7 @@ public class CreatePostHandlerTests
     {
         var handler = new CreatePostHandler(_repo, _activityLog, _currentUser);
 
-        var result = await handler.HandleAsync(BuildRequest(title: "Tiêu đề", author: "BS. Nam", category: "Tư vấn"));
+        var result = await handler.Handle(BuildRequest(title: "Tiêu đề", author: "BS. Nam", category: "Tư vấn"), CancellationToken.None);
 
         result.Title.Should().Be("Tiêu đề");
         result.Author.Should().Be("BS. Nam");
@@ -62,7 +62,7 @@ public class CreatePostHandlerTests
     {
         var handler = new CreatePostHandler(_repo, _activityLog, _currentUser);
 
-        var result = await handler.HandleAsync(BuildRequest(isPublished: true));
+        var result = await handler.Handle(BuildRequest(isPublished: true), CancellationToken.None);
 
         result.IsPublished.Should().BeTrue();
         result.PublishedAt.Should().NotBeNull();
@@ -77,13 +77,13 @@ public class CreatePostHandlerTests
     {
         var handler = new CreatePostHandler(_repo, _activityLog, _currentUser);
 
-        var result = await handler.HandleAsync(BuildRequest(isPublished: false));
+        var result = await handler.Handle(BuildRequest(isPublished: false), CancellationToken.None);
 
         result.IsPublished.Should().BeFalse();
         result.PublishedAt.Should().BeNull();
     }
 
-    private static CreatePostRequest BuildRequest(
+    private static CreatePostCommand BuildRequest(
         string title = "Tiêu đề test",
         string category = "Tư vấn",
         string author = "BS. Test",

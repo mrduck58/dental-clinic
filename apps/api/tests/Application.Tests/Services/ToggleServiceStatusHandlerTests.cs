@@ -26,7 +26,7 @@ public class ToggleServiceStatusHandlerTests
         _repo.GetByIdAsync(service.Id, Arg.Any<CancellationToken>()).Returns(service);
         var handler = new ToggleServiceStatusHandler(_repo);
 
-        var result = await handler.HandleAsync(service.Id);
+        var result = await handler.Handle(new ToggleServiceStatusCommand(service.Id), CancellationToken.None);
 
         result.IsActive.Should().BeFalse();
     }
@@ -42,7 +42,7 @@ public class ToggleServiceStatusHandlerTests
         _repo.GetByIdAsync(service.Id, Arg.Any<CancellationToken>()).Returns(service);
         var handler = new ToggleServiceStatusHandler(_repo);
 
-        var result = await handler.HandleAsync(service.Id);
+        var result = await handler.Handle(new ToggleServiceStatusCommand(service.Id), CancellationToken.None);
 
         result.IsActive.Should().BeTrue();
     }
@@ -56,7 +56,7 @@ public class ToggleServiceStatusHandlerTests
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Service?)null);
         var handler = new ToggleServiceStatusHandler(_repo);
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid());
+        Func<Task> act = () => handler.Handle(new ToggleServiceStatusCommand(Guid.NewGuid()), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }

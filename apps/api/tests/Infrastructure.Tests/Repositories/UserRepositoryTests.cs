@@ -97,29 +97,6 @@ public class UserRepositoryTests
         result.Should().BeTrue();
     }
 
-    // ── GetEmployeesWithoutAccountAsync ───────────────────────────────────────
-
-    /// <summary>
-    /// Chỉ trả về nhân viên (không phải Patient) chưa có mật khẩu.
-    /// Loại ra: Patient, và nhân viên đã có PasswordHash.
-    /// </summary>
-    [Test]
-    public async Task GetEmployeesWithoutAccountAsync_ReturnsOnlyNonPatientWithoutPassword()
-    {
-        var staffWithAccount  = User.Create("emp1", "emp1@clinic.com", "hash", "Staff");
-        var staffWithoutAccount = User.CreateEmployee("emp2@clinic.com", "Staff");
-        var patient = User.Create("pat1", "pat@clinic.com", "hash", "Patient");
-        var patientNoPass = User.CreateEmployee("pat2@clinic.com", "Patient");
-
-        await _db.Users.AddRangeAsync(staffWithAccount, staffWithoutAccount, patient, patientNoPass);
-        await _db.SaveChangesAsync();
-
-        var result = (await _sut.GetEmployeesWithoutAccountAsync()).ToList();
-
-        result.Should().HaveCount(1);
-        result[0].Id.Should().Be(staffWithoutAccount.Id);
-    }
-
     // ── GetStaffPagedAsync ────────────────────────────────────────────────────
 
     /// <summary>
