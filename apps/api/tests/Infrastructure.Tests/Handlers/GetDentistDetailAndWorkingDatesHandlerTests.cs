@@ -23,7 +23,8 @@ public class GetDentistDetailHandlerTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         _db = new AppDbContext(options);
-        _handler = new GetDentistDetailHandler(new DentistRepository(_db), new AppointmentRepository(_db));
+        _handler = new GetDentistDetailHandler(
+            new DentistRepository(_db), new AppointmentRepository(_db), new DentistReviewRepository(_db));
     }
 
     [TearDown]

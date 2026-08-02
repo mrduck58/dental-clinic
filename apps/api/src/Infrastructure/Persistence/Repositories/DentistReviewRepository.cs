@@ -14,6 +14,13 @@ public class DentistReviewRepository(AppDbContext db) : IDentistReviewRepository
             .OrderByDescending(r => r.CreatedAt)
             .ToListAsync(ct);
 
+    public async Task<IReadOnlyList<int>> GetRatingsByDentistIdAsync(Guid dentistId, CancellationToken ct = default)
+        => await db.DentistReviews
+            .AsNoTracking()
+            .Where(r => r.DentistId == dentistId)
+            .Select(r => r.Rating)
+            .ToListAsync(ct);
+
     public async Task<DentistReview?> GetByDentistAndPatientAsync(Guid dentistId, Guid patientId, CancellationToken ct = default)
         => await db.DentistReviews
             .FirstOrDefaultAsync(r => r.DentistId == dentistId && r.PatientId == patientId, ct);
