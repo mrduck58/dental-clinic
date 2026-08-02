@@ -75,6 +75,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IPrescriptionRepository, PrescriptionRepository>();
         services.AddScoped<IPrescriptionItemRepository, PrescriptionItemRepository>();
         services.AddScoped<ITreatmentPlanRepository, TreatmentPlanRepository>();
+        services.AddScoped<IPayrollRepository, PayrollRepository>();
 
         // ── Services ────────────────────────────────────────────────────────
         services.AddScoped<IJwtService, JwtService>();

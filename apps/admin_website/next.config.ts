@@ -2,6 +2,13 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  // Root của repo có 1 package-lock.json rỗng (dùng cho Docker) khiến Turbopack
+  // suy luận nhầm workspace root là dental-clinic/ thay vì thư mục app này —
+  // module resolution vỡ và mọi page trả 500 (ComponentMod.handler is not a
+  // function). Chốt cứng root về đúng thư mục app.
+  turbopack: {
+    root: __dirname,
+  },
   // KHÔNG dùng basePath — route (/admin, /staff, /dentist, /owner, /auth/login...) giữ
   // nguyên, khớp đúng cấu trúc thư mục src/app/{admin,staff,dentist,owner,auth}/... Chỉ
   // dùng assetPrefix để file JS/CSS tĩnh (/_next/static/...) có tiền tố /admin riêng —

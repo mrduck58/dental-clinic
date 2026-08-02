@@ -12,4 +12,5 @@ public static class ActivityModule
     public const string Leave       = "leave";
     public const string Feedback    = "feedback";
     public const string Promotion   = "promotion";
+    public const string Payroll     = "payroll";
 }
