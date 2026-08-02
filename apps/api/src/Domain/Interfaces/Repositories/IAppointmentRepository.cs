@@ -25,4 +25,15 @@ public interface IAppointmentRepository
         Guid dentistId, Guid excludeAppointmentId,
         DateTimeOffset utcStart, DateTimeOffset utcEnd,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Bệnh nhân có đang/đã trong một buổi khám (InProgress/PendingPayment/Completed) hay không —
+    /// dùng để chặn ghi nhận chuẩn đoán/đơn thuốc/nhật ký điều trị ngoài lúc đang khám.</summary>
+    Task<bool> HasActiveVisitAsync(Guid patientId, CancellationToken cancellationToken = default);
+
+    /// <summary>Bệnh nhân đã hoàn tất (Completed/PendingPayment) ít nhất 1 buổi khám với nha sĩ này chưa —
+    /// điều kiện để được phép đánh giá nha sĩ.</summary>
+    Task<bool> HasCompletedVisitAsync(Guid dentistId, Guid patientId, CancellationToken cancellationToken = default);
+
+    /// <summary>Số bệnh nhân khác nhau đã hoàn tất buổi khám với một nha sĩ — hiển thị trên trang chi tiết nha sĩ.</summary>
+    Task<int> CountDistinctPatientsWithCompletedVisitAsync(Guid dentistId, CancellationToken cancellationToken = default);
 }

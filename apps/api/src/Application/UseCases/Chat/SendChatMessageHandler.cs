@@ -1,5 +1,6 @@
 using System.Text;
-using DentalClinic.API.Application.UseCases.Appointments;
+using DentalClinic.API.Application.UseCases.Booking;
+using DentalClinic.API.Application.UseCases.Dentists;
 using DentalClinic.API.Application.UseCases.Staff;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
@@ -7,10 +8,14 @@ using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Infrastructure.Persistence;
+using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace DentalClinic.API.Application.UseCases.Chat;
+
+public record SendChatMessageCommand(
+    Guid UserId, Guid ConversationId, string Message, string? Language = null) : IRequest<SendChatMessageResult>;
 
 public class SendChatMessageHandler(
     IPatientRepository patientRepository,
@@ -18,10 +23,12 @@ public class SendChatMessageHandler(
     GetDentistsHandler getDentistsHandler,
     GetDentistSlotsHandler getDentistSlotsHandler,
     CreateAppointmentHandler createAppointmentHandler,
-    UpdateAppointmentStatusHandler updateAppointmentStatusHandler,
+    CancelAppointmentHandler cancelAppointmentHandler,
     IAiChatService aiChatService,
+    IChatConversationRepository chatConversationRepository,
+    IChatMessageRepository chatMessageRepository,
     AppDbContext dbContext,
-    ILogger<SendChatMessageHandler> logger)
+    ILogger<SendChatMessageHandler> logger) : IRequestHandler<SendChatMessageCommand, SendChatMessageResult>
 {
     private const int MaxMessageLength = 2000;
     private const int MaxMessagesPerMinute = 10;
@@ -37,10 +44,13 @@ public class SendChatMessageHandler(
     private static readonly TimeZoneInfo VietnamTz =
         TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
 
-    public async Task<SendChatMessageResult> HandleAsync(
-        Guid userId, Guid conversationId, string message, string? language = null, CancellationToken ct = default)
+    public async Task<SendChatMessageResult> Handle(SendChatMessageCommand command, CancellationToken ct)
     {
-        message = message?.Trim() ?? string.Empty;
+        var userId = command.UserId;
+        var conversationId = command.ConversationId;
+        var language = command.Language;
+
+        var message = command.Message?.Trim() ?? string.Empty;
         if (message.Length == 0)
         {
             throw new ValidationException("Tin nhắn không được để trống.");
@@ -53,8 +63,7 @@ public class SendChatMessageHandler(
         var patient = await patientRepository.GetByUserIdAsync(userId, ct)
             ?? throw new NotFoundException("Không tìm thấy hồ sơ bệnh nhân.");
 
-        var conversation = await dbContext.ChatConversations
-            .FirstOrDefaultAsync(c => c.Id == conversationId, ct);
+        var conversation = await chatConversationRepository.GetByIdAsync(conversationId, ct);
 
         if (conversation is null || conversation.PatientId != patient.Id)
         {
@@ -64,29 +73,22 @@ public class SendChatMessageHandler(
         // Chatbot là endpoint tốn phí theo từng request AI — chặn spam ở mức bệnh nhân,
         // đếm trên DB để hoạt động đúng cả khi API chạy nhiều instance.
         var oneMinuteAgo = DateTimeOffset.UtcNow.AddMinutes(-1);
-        var recentUserMessageCount = await dbContext.ChatMessages.CountAsync(
-            m => m.Role == "user" && m.CreatedAt >= oneMinuteAgo &&
-                 dbContext.ChatConversations.Any(c => c.Id == m.ConversationId && c.PatientId == patient.Id),
-            ct);
+        var recentUserMessageCount = await chatMessageRepository.CountRecentUserMessagesByPatientAsync(
+            patient.Id, oneMinuteAgo, ct);
         if (recentUserMessageCount >= MaxMessagesPerMinute)
         {
             throw new ValidationException("Bạn đang gửi tin nhắn quá nhanh. Vui lòng chờ một chút rồi thử lại.");
         }
 
-        var recentHistory = await dbContext.ChatMessages
-            .Where(m => m.ConversationId == conversation.Id)
-            .OrderByDescending(m => m.CreatedAt)
-            .Take(HistoryMessageCount)
-            .ToListAsync(ct);
-        recentHistory.Reverse();
+        var recentHistory = await chatMessageRepository.GetRecentByConversationAsync(
+            conversation.Id, HistoryMessageCount, ct);
 
         var snapshot = await BuildSnapshotAsync(patient, ct);
         var systemInstruction = BuildSystemInstruction(snapshot, recentHistory, language);
 
         // Lưu tin nhắn của bệnh nhân TRƯỚC khi gọi AI — nếu AI lỗi thì hội thoại không bị mất tin nhắn.
-        dbContext.ChatMessages.Add(ChatMessage.Create(conversation.Id, "user", message));
         conversation.Touch();
-        await dbContext.SaveChangesAsync(ct);
+        await chatMessageRepository.AddAsync(ChatMessage.Create(conversation.Id, "user", message), ct);
 
         AiChatReply reply;
         try
@@ -136,12 +138,11 @@ public class SendChatMessageHandler(
             appointmentCode = outcome.AppointmentCode;
         }
 
-        dbContext.ChatMessages.Add(ChatMessage.Create(
+        conversation.Touch();
+        await chatMessageRepository.AddAsync(ChatMessage.Create(
             conversation.Id, "assistant", reply.Reply,
             suggestBooking: reply.SuggestBooking,
-            bookingActionTaken: bookingCreated || bookingCancelled || bookingRescheduled));
-        conversation.Touch();
-        await dbContext.SaveChangesAsync(ct);
+            bookingActionTaken: bookingCreated || bookingCancelled || bookingRescheduled), ct);
 
         return new SendChatMessageResult(
             reply.Reply, reply.SuggestBooking, bookingHint, bookingCreated, appointmentCode,
@@ -201,7 +202,7 @@ public class SendChatMessageHandler(
             .OrderBy(p => p.EndDate)
             .ToListAsync(ct);
 
-        var dentists = await getDentistsHandler.HandleAsync(ct);
+        var dentists = await getDentistsHandler.Handle(new GetDentistsQuery(), ct);
 
         // Bảng Dentists là nguồn Id thật cho lịch hẹn/slot (DentistSummaryDto.Id là User.Id,
         // không dùng được cho CreateAppointment) — cần cho việc đối chiếu tên → DentistId.
@@ -273,7 +274,7 @@ public class SendChatMessageHandler(
         for (var offset = 0; offset < AvailabilityDays; offset++)
         {
             var date = today.AddDays(offset);
-            var dentistsOfDay = await getDentistSlotsHandler.HandleAsync(date, ct);
+            var dentistsOfDay = await getDentistSlotsHandler.Handle(new GetDentistSlotsQuery(date), ct);
 
             var entries = dentistsOfDay
                 .Select(d => new DentistDayAvailability(
@@ -562,7 +563,7 @@ public class SendChatMessageHandler(
 
         // Đối chiếu với lịch trống thật ngay tại thời điểm đặt (không dùng snapshot đã build trước đó) —
         // chặn được cả ngày nghỉ, bác sĩ không có ca, slot vừa bị người khác đặt và giờ đã trôi qua.
-        var dentistsOfDay = await getDentistSlotsHandler.HandleAsync(date, ct);
+        var dentistsOfDay = await getDentistSlotsHandler.Handle(new GetDentistSlotsQuery(date), ct);
         var dentist = dentistsOfDay.FirstOrDefault(d => d.DentistId == hint.DentistId.Value);
         var timeText = time.ToString("HH:mm");
         var slotFree = dentist is not null && dentist.Slots.Any(
@@ -582,7 +583,7 @@ public class SendChatMessageHandler(
 
         try
         {
-            var result = await createAppointmentHandler.HandleAsync(new CreateAppointmentCommand(
+            var result = await createAppointmentHandler.Handle(new CreateAppointmentCommand(
                 userId,
                 dentist.DentistId,
                 appointmentDate,
@@ -651,7 +652,7 @@ public class SendChatMessageHandler(
     /// Thực sự hủy lịch hẹn khi AI báo bệnh nhân đã xác nhận (confirmCancel = true). Mã lịch hẹn AI đọc
     /// lại chỉ được chấp nhận nếu khớp CHÍNH XÁC với một lịch hẹn sắp tới trong snapshot (của chính chủ
     /// hoặc người thân) — tránh AI bịa mã hoặc hủy nhầm lịch không thuộc về bệnh nhân đang chat.
-    /// Việc kiểm tra quyền sở hữu cuối cùng vẫn do <see cref="UpdateAppointmentStatusHandler.CancelAsync"/>
+    /// Việc kiểm tra quyền sở hữu cuối cùng vẫn do <see cref="CancelAppointmentHandler"/>
     /// đảm nhiệm (dựa trên JWT của request hiện tại), đây chỉ là lớp đối chiếu dữ liệu ở tầng chatbot.
     /// </summary>
     private async Task<CancelOutcome> TryCancelBookingAsync(
@@ -675,7 +676,7 @@ public class SendChatMessageHandler(
 
         try
         {
-            await updateAppointmentStatusHandler.CancelAsync(target.AppointmentId, reason: reply.NotesHint, ct);
+            await cancelAppointmentHandler.Handle(new CancelAppointmentCommand(target.AppointmentId, reply.NotesHint), ct);
 
             var who = target.IsSelf ? (en ? "you" : "bạn") : target.PatientName;
             var confirmation = en
@@ -733,7 +734,7 @@ public class SendChatMessageHandler(
         }
 
         // Đối chiếu với lịch trống thật của ĐÚNG bác sĩ đang phụ trách lịch hẹn gốc — không đổi bác sĩ.
-        var dentistsOfDay = await getDentistSlotsHandler.HandleAsync(date, ct);
+        var dentistsOfDay = await getDentistSlotsHandler.Handle(new GetDentistSlotsQuery(date), ct);
         var dentist = dentistsOfDay.FirstOrDefault(d => d.DentistId == target.DentistId);
         var timeText = time.ToString("HH:mm");
         var slotFree = dentist is not null && dentist.Slots.Any(
@@ -754,7 +755,7 @@ public class SendChatMessageHandler(
         CreateAppointmentResult created;
         try
         {
-            created = await createAppointmentHandler.HandleAsync(new CreateAppointmentCommand(
+            created = await createAppointmentHandler.Handle(new CreateAppointmentCommand(
                 userId,
                 target.DentistId,
                 newAppointmentDate,
@@ -783,8 +784,8 @@ public class SendChatMessageHandler(
         var who = target.IsSelf ? (en ? "you" : "bạn") : target.PatientName;
         try
         {
-            await updateAppointmentStatusHandler.CancelAsync(
-                target.AppointmentId, reason: "Dời sang lịch hẹn mới", ct);
+            await cancelAppointmentHandler.Handle(
+                new CancelAppointmentCommand(target.AppointmentId, "Dời sang lịch hẹn mới"), ct);
         }
         catch (Exception ex)
         {

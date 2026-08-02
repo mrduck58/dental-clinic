@@ -1,13 +1,16 @@
-using DentalClinic.API.Application.UseCases.Appointments;
+using DentalClinic.API.Application.DTOs.ClinicalRecords;
+using DentalClinic.API.Application.UseCases.ClinicalRecords;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using NSubstitute;
 using NUnit.Framework;
+using static DentalClinic.API.Application.UseCases.ClinicalRecords.ClinicalRecordMappers;
 
 namespace DentalClinic.API.Infrastructure.Tests.Handlers;
 
@@ -17,7 +20,15 @@ public class TreatmentPlanHandlerTests
     private AppDbContext _db = null!;
     private IPatientRepository _patientRepo = null!;
     private INotificationService _notificationService = null!;
-    private TreatmentPlanHandler _handler = null!;
+    // God-handler TreatmentPlanHandler (8 method) đã tách thành 8 handler MediatR.
+    private CreateTreatmentPlanHandler _create = null!;
+    private UpdateTreatmentPlanHandler _update = null!;
+    private DeleteTreatmentPlanHandler _delete = null!;
+    private GetPatientTreatmentPlansHandler _getByPatient = null!;
+    private AddStepProgressHandler _addStep = null!;
+    private UpdateStepProgressHandler _updateStep = null!;
+    private ReorderStepProgressHandler _reorderStep = null!;
+    private DeleteStepProgressHandler _deleteStep = null!;
 
     [SetUp]
     public void SetUp()
@@ -29,7 +40,21 @@ public class TreatmentPlanHandlerTests
 
         _patientRepo = Substitute.For<IPatientRepository>();
         _notificationService = Substitute.For<INotificationService>();
-        _handler = new TreatmentPlanHandler(_db, _patientRepo, _notificationService);
+
+        var appointmentRepository = new AppointmentRepository(_db);
+        var serviceRepository = new ServiceRepository(_db);
+        var treatmentPlanRepository = new TreatmentPlanRepository(_db);
+        var queryHelper = new TreatmentPlanQueryHelper(treatmentPlanRepository, appointmentRepository);
+
+        _create = new CreateTreatmentPlanHandler(
+            appointmentRepository, serviceRepository, treatmentPlanRepository, queryHelper, _patientRepo, _notificationService);
+        _update = new UpdateTreatmentPlanHandler(treatmentPlanRepository, queryHelper);
+        _delete = new DeleteTreatmentPlanHandler(treatmentPlanRepository, queryHelper);
+        _getByPatient = new GetPatientTreatmentPlansHandler(treatmentPlanRepository, queryHelper);
+        _addStep = new AddStepProgressHandler(treatmentPlanRepository, queryHelper);
+        _updateStep = new UpdateStepProgressHandler(treatmentPlanRepository, queryHelper);
+        _reorderStep = new ReorderStepProgressHandler(treatmentPlanRepository, queryHelper);
+        _deleteStep = new DeleteStepProgressHandler(treatmentPlanRepository, queryHelper);
     }
 
     [TearDown]
@@ -65,8 +90,8 @@ public class TreatmentPlanHandlerTests
 
         var (appointment, service) = await SeedInProgressAppointmentAsync(patient, dentist);
 
-        var dto = await _handler.CreateAsync(
-            new CreateTreatmentPlanRequest(appointment.Id, service.Id, null, 1, null, null, null));
+        var dto = await _create.Handle(
+            new CreateTreatmentPlanRequest(appointment.Id, service.Id, null, 1, null, null, null), CancellationToken.None);
 
         await _notificationService.Received(1).CreateAsync(
             Arg.Is<CreateNotificationRequest>(r =>
@@ -93,8 +118,8 @@ public class TreatmentPlanHandlerTests
 
         var (appointment, service) = await SeedInProgressAppointmentAsync(patient, dentist);
 
-        var dto = await _handler.CreateAsync(
-            new CreateTreatmentPlanRequest(appointment.Id, service.Id, null, 1, null, null, null));
+        var dto = await _create.Handle(
+            new CreateTreatmentPlanRequest(appointment.Id, service.Id, null, 1, null, null, null), CancellationToken.None);
 
         dto.Should().NotBeNull();
         await _notificationService.DidNotReceive().CreateAsync(
@@ -121,8 +146,8 @@ public class TreatmentPlanHandlerTests
     [Test]
     public async Task CreateAsync_AppointmentNotFound_ThrowsNotFoundException()
     {
-        Func<Task> act = () => _handler.CreateAsync(
-            new CreateTreatmentPlanRequest(Guid.NewGuid(), Guid.NewGuid(), null, 1, null, null, null));
+        Func<Task> act = () => _create.Handle(
+            new CreateTreatmentPlanRequest(Guid.NewGuid(), Guid.NewGuid(), null, 1, null, null, null), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -139,8 +164,8 @@ public class TreatmentPlanHandlerTests
         _db.Appointments.Add(appointment);
         await _db.SaveChangesAsync();
 
-        Func<Task> act = () => _handler.CreateAsync(
-            new CreateTreatmentPlanRequest(appointment.Id, service.Id, null, 1, null, null, null));
+        Func<Task> act = () => _create.Handle(
+            new CreateTreatmentPlanRequest(appointment.Id, service.Id, null, 1, null, null, null), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -152,8 +177,8 @@ public class TreatmentPlanHandlerTests
         var (patient, dentist) = await SeedPatientAndDentistAsync("p6", "d6");
         var (appointment, _) = await SeedInProgressAppointmentAsync(patient, dentist);
 
-        Func<Task> act = () => _handler.CreateAsync(
-            new CreateTreatmentPlanRequest(appointment.Id, Guid.NewGuid(), null, 1, null, null, null));
+        Func<Task> act = () => _create.Handle(
+            new CreateTreatmentPlanRequest(appointment.Id, Guid.NewGuid(), null, 1, null, null, null), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -165,8 +190,8 @@ public class TreatmentPlanHandlerTests
         var (patient, dentist) = await SeedPatientAndDentistAsync("p7", "d7");
         var (appointment, service) = await SeedInProgressAppointmentAsync(patient, dentist);
 
-        var dto = await _handler.CreateAsync(
-            new CreateTreatmentPlanRequest(appointment.Id, service.Id, null, 1, null, null, null));
+        var dto = await _create.Handle(
+            new CreateTreatmentPlanRequest(appointment.Id, service.Id, null, 1, null, null, null), CancellationToken.None);
 
         dto.UnitPrice.Should().Be(service.Price);
     }
@@ -178,8 +203,8 @@ public class TreatmentPlanHandlerTests
         var (patient, dentist) = await SeedPatientAndDentistAsync("p8", "d8");
         var (appointment, service) = await SeedInProgressAppointmentAsync(patient, dentist);
 
-        var dto = await _handler.CreateAsync(
-            new CreateTreatmentPlanRequest(appointment.Id, service.Id, 999_000m, 1, null, null, null));
+        var dto = await _create.Handle(
+            new CreateTreatmentPlanRequest(appointment.Id, service.Id, 999_000m, 1, null, null, null), CancellationToken.None);
 
         dto.UnitPrice.Should().Be(999_000m);
     }
@@ -190,8 +215,8 @@ public class TreatmentPlanHandlerTests
     [Test]
     public async Task UpdateAsync_NonExistentPlan_ThrowsNotFoundException()
     {
-        Func<Task> act = () => _handler.UpdateAsync(
-            new UpdateTreatmentPlanRequest(Guid.NewGuid(), 100_000m, 1, null, null, null, null));
+        Func<Task> act = () => _update.Handle(
+            new UpdateTreatmentPlanRequest(Guid.NewGuid(), 100_000m, 1, null, null, null, null), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -213,8 +238,8 @@ public class TreatmentPlanHandlerTests
         _db.Invoices.Add(invoice);
         await _db.SaveChangesAsync();
 
-        Func<Task> act = () => _handler.UpdateAsync(
-            new UpdateTreatmentPlanRequest(plan.Id, 300_000m, 1, null, null, null, null));
+        Func<Task> act = () => _update.Handle(
+            new UpdateTreatmentPlanRequest(plan.Id, 300_000m, 1, null, null, null, null), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -229,8 +254,8 @@ public class TreatmentPlanHandlerTests
         _db.TreatmentPlans.Add(plan);
         await _db.SaveChangesAsync();
 
-        var dto = await _handler.UpdateAsync(
-            new UpdateTreatmentPlanRequest(plan.Id, 700_000m, 2, "11, 12", "Ghi chú mới", null, null));
+        var dto = await _update.Handle(
+            new UpdateTreatmentPlanRequest(plan.Id, 700_000m, 2, "11, 12", "Ghi chú mới", null, null), CancellationToken.None);
 
         dto.UnitPrice.Should().Be(700_000m);
         dto.Quantity.Should().Be(2);
@@ -248,8 +273,8 @@ public class TreatmentPlanHandlerTests
         _db.TreatmentPlans.Add(plan);
         await _db.SaveChangesAsync();
 
-        Func<Task> act = () => _handler.UpdateAsync(
-            new UpdateTreatmentPlanRequest(plan.Id, 500_000m, 1, null, null, null, "TrangThaiSai"));
+        Func<Task> act = () => _update.Handle(
+            new UpdateTreatmentPlanRequest(plan.Id, 500_000m, 1, null, null, null, "TrangThaiSai"), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -264,8 +289,8 @@ public class TreatmentPlanHandlerTests
         _db.TreatmentPlans.Add(plan);
         await _db.SaveChangesAsync();
 
-        var dto = await _handler.UpdateAsync(
-            new UpdateTreatmentPlanRequest(plan.Id, 500_000m, 1, null, null, null, "Completed"));
+        var dto = await _update.Handle(
+            new UpdateTreatmentPlanRequest(plan.Id, 500_000m, 1, null, null, null, "Completed"), CancellationToken.None);
 
         dto.Status.Should().Be("Completed");
     }
@@ -276,7 +301,7 @@ public class TreatmentPlanHandlerTests
     [Test]
     public async Task DeleteAsync_NonExistentPlan_ThrowsNotFoundException()
     {
-        Func<Task> act = () => _handler.DeleteAsync(Guid.NewGuid());
+        Func<Task> act = () => _delete.Handle(new DeleteTreatmentPlanCommand(Guid.NewGuid()), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -294,7 +319,7 @@ public class TreatmentPlanHandlerTests
         _db.Invoices.Add(invoice);
         await _db.SaveChangesAsync();
 
-        Func<Task> act = () => _handler.DeleteAsync(plan.Id);
+        Func<Task> act = () => _delete.Handle(new DeleteTreatmentPlanCommand(plan.Id), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
         (await _db.TreatmentPlans.FindAsync(plan.Id)).Should().NotBeNull();
@@ -310,7 +335,7 @@ public class TreatmentPlanHandlerTests
         _db.TreatmentPlans.Add(plan);
         await _db.SaveChangesAsync();
 
-        await _handler.DeleteAsync(plan.Id);
+        await _delete.Handle(new DeleteTreatmentPlanCommand(plan.Id), CancellationToken.None);
 
         (await _db.TreatmentPlans.FindAsync(plan.Id)).Should().BeNull();
     }
@@ -321,7 +346,7 @@ public class TreatmentPlanHandlerTests
     [Test]
     public async Task GetByPatientAsync_NoPlans_ReturnsEmptyList()
     {
-        var result = await _handler.GetByPatientAsync(Guid.NewGuid());
+        var result = await _getByPatient.Handle(new GetPatientTreatmentPlansQuery(Guid.NewGuid()), CancellationToken.None);
 
         result.Should().BeEmpty();
     }
@@ -343,7 +368,7 @@ public class TreatmentPlanHandlerTests
         _db.Invoices.AddRange(paidInvoice, unpaidInvoice);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.GetByPatientAsync(patient.Id);
+        var result = await _getByPatient.Handle(new GetPatientTreatmentPlansQuery(patient.Id), CancellationToken.None);
 
         var dto = result.Should().ContainSingle().Subject;
         dto.AmountPaid.Should().Be(300_000m);
@@ -355,8 +380,8 @@ public class TreatmentPlanHandlerTests
     [Test]
     public async Task AddStepProgressAsync_NonExistentPlan_ThrowsNotFoundException()
     {
-        Func<Task> act = () => _handler.AddStepProgressAsync(
-            Guid.NewGuid(), new AddStepProgressRequest(1, "Lấy tủy", 50, null, null));
+        Func<Task> act = () => _addStep.Handle(new AddStepProgressCommand(
+            Guid.NewGuid(), new AddStepProgressRequest(1, "Lấy tủy", 50, null, null)), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -371,8 +396,8 @@ public class TreatmentPlanHandlerTests
         _db.TreatmentPlans.Add(plan);
         await _db.SaveChangesAsync();
 
-        Func<Task> act = () => _handler.AddStepProgressAsync(
-            plan.Id, new AddStepProgressRequest(1, "   ", 50, null, null));
+        Func<Task> act = () => _addStep.Handle(new AddStepProgressCommand(
+            plan.Id, new AddStepProgressRequest(1, "   ", 50, null, null)), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -396,8 +421,8 @@ public class TreatmentPlanHandlerTests
         _db.TreatmentPlans.Add(plan);
         await _db.SaveChangesAsync();
 
-        Func<Task> act = () => _handler.AddStepProgressAsync(
-            plan.Id, new AddStepProgressRequest(1, "Lấy tủy", 50, null, null));
+        Func<Task> act = () => _addStep.Handle(new AddStepProgressCommand(
+            plan.Id, new AddStepProgressRequest(1, "Lấy tủy", 50, null, null)), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -415,8 +440,8 @@ public class TreatmentPlanHandlerTests
         _db.TreatmentPlans.Add(plan);
         await _db.SaveChangesAsync();
 
-        var dto = await _handler.AddStepProgressAsync(
-            plan.Id, new AddStepProgressRequest(1, "Lấy tủy", 150, null, "Bước 1"));
+        var dto = await _addStep.Handle(new AddStepProgressCommand(
+            plan.Id, new AddStepProgressRequest(1, "Lấy tủy", 150, null, "Bước 1")), CancellationToken.None);
 
         dto.Status.Should().Be("InProgress");
         dto.StepProgress.Should().ContainSingle(s => s.StepName == "Lấy tủy" && s.Percent == 100);
@@ -432,12 +457,227 @@ public class TreatmentPlanHandlerTests
         var plan = TreatmentPlan.Create(patient.Id, dentist.Id, appointment.Id, service.Id, 500_000m, 1);
         _db.TreatmentPlans.Add(plan);
         await _db.SaveChangesAsync();
-        await _handler.AddStepProgressAsync(plan.Id, new AddStepProgressRequest(1, "Lấy tủy", 50, null, null));
+        await _addStep.Handle(new AddStepProgressCommand(plan.Id, new AddStepProgressRequest(1, "Lấy tủy", 50, null, null)), CancellationToken.None);
 
-        var dto = await _handler.AddStepProgressAsync(
-            plan.Id, new AddStepProgressRequest(2, "Trám bít", 100, null, null));
+        var dto = await _addStep.Handle(new AddStepProgressCommand(
+            plan.Id, new AddStepProgressRequest(2, "Trám bít", 100, null, null)), CancellationToken.None);
 
         dto.Status.Should().Be("InProgress");
         dto.StepProgress.Should().HaveCount(2);
+    }
+
+    /// <summary>Tạo sẵn liệu trình với các mục nhật ký điều trị (StepProgress) đã ghi nhận, để test
+    /// trực tiếp Update/Reorder/Delete mà không cần đi qua AddStepProgressHandler.</summary>
+    private async Task<TreatmentPlan> SeedPlanWithStepsAsync(
+        Patient patient, Dentist dentist, Appointment appointment, Service service, params string[] stepNames)
+    {
+        var plan = TreatmentPlan.Create(patient.Id, dentist.Id, appointment.Id, service.Id, 500_000m, 1);
+        if (stepNames.Length > 0)
+        {
+            var entries = stepNames.Select((name, i) => new StepProgressEntryDto
+            {
+                StepNumber = i + 1,
+                StepName = name,
+                Percent = 50,
+                Date = DateOnly.FromDateTime(DateTime.Today),
+                DentistName = "BS. Test",
+                Note = null
+            }).ToList();
+            plan.UpdateStepProgress(SerializeStepProgress(entries));
+        }
+        _db.TreatmentPlans.Add(plan);
+        await _db.SaveChangesAsync();
+        return plan;
+    }
+
+    // ── UpdateStepProgressAsync ────────────────────────────────────────────────
+
+    /// <summary>treatmentPlanId không tồn tại phải ném NotFoundException.</summary>
+    [Test]
+    public async Task UpdateStepProgressAsync_NonExistentPlan_ThrowsNotFoundException()
+    {
+        Func<Task> act = () => _updateStep.Handle(new UpdateStepProgressCommand(
+            Guid.NewGuid(), new UpdateStepProgressRequest(0, 80, null, null)), CancellationToken.None);
+
+        await act.Should().ThrowAsync<NotFoundException>();
+    }
+
+    /// <summary>Không có buổi khám nào đang hoạt động cho bệnh nhân của liệu trình này phải bị từ chối.</summary>
+    [Test]
+    public async Task UpdateStepProgressAsync_NoActiveVisit_ThrowsValidationException()
+    {
+        var (patient, dentist) = await SeedPatientAndDentistAsync("p20", "d20");
+        var service = Service.Create("Trám răng", 500_000m, 30, "Trám răng thẩm mỹ");
+        _db.Services.Add(service);
+        var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow); // Pending, chưa khám
+        _db.Appointments.Add(appointment);
+        await _db.SaveChangesAsync();
+        var plan = await SeedPlanWithStepsAsync(patient, dentist, appointment, service, "Lấy tủy");
+
+        Func<Task> act = () => _updateStep.Handle(new UpdateStepProgressCommand(
+            plan.Id, new UpdateStepProgressRequest(0, 80, null, null)), CancellationToken.None);
+
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    /// <summary>EntryIndex ngoài phạm vi danh sách nhật ký điều trị phải ném ValidationException.</summary>
+    [Test]
+    public async Task UpdateStepProgressAsync_OutOfRangeIndex_ThrowsValidationException()
+    {
+        var (patient, dentist) = await SeedPatientAndDentistAsync("p21", "d21");
+        var (appointment, service) = await SeedInProgressAppointmentAsync(patient, dentist);
+        var plan = await SeedPlanWithStepsAsync(patient, dentist, appointment, service, "Lấy tủy");
+
+        Func<Task> act = () => _updateStep.Handle(new UpdateStepProgressCommand(
+            plan.Id, new UpdateStepProgressRequest(5, 80, null, null)), CancellationToken.None);
+
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    /// <summary>Sửa hợp lệ một mục theo EntryIndex phải cập nhật đúng phần trăm/ghi chú/tên bước, các
+    /// mục khác giữ nguyên.</summary>
+    [Test]
+    public async Task UpdateStepProgressAsync_ValidRequest_UpdatesEntryFields()
+    {
+        var (patient, dentist) = await SeedPatientAndDentistAsync("p22", "d22");
+        var (appointment, service) = await SeedInProgressAppointmentAsync(patient, dentist);
+        var plan = await SeedPlanWithStepsAsync(patient, dentist, appointment, service, "Lấy tủy", "Trám bít");
+
+        var dto = await _updateStep.Handle(new UpdateStepProgressCommand(
+            plan.Id, new UpdateStepProgressRequest(0, 90, "Đã xong đợt 1", "Lấy tủy (cập nhật)")), CancellationToken.None);
+
+        dto.StepProgress.Should().HaveCount(2);
+        dto.StepProgress[0].StepName.Should().Be("Lấy tủy (cập nhật)");
+        dto.StepProgress[0].Percent.Should().Be(90);
+        dto.StepProgress[0].Note.Should().Be("Đã xong đợt 1");
+        dto.StepProgress[1].StepName.Should().Be("Trám bít");
+    }
+
+    // ── ReorderStepProgressAsync ───────────────────────────────────────────────
+
+    /// <summary>treatmentPlanId không tồn tại phải ném NotFoundException.</summary>
+    [Test]
+    public async Task ReorderStepProgressAsync_NonExistentPlan_ThrowsNotFoundException()
+    {
+        Func<Task> act = () => _reorderStep.Handle(new ReorderStepProgressCommand(
+            Guid.NewGuid(), new ReorderStepProgressRequest(new List<int> { 0 })), CancellationToken.None);
+
+        await act.Should().ThrowAsync<NotFoundException>();
+    }
+
+    /// <summary>Không có buổi khám nào đang hoạt động cho bệnh nhân của liệu trình này phải bị từ chối.</summary>
+    [Test]
+    public async Task ReorderStepProgressAsync_NoActiveVisit_ThrowsValidationException()
+    {
+        var (patient, dentist) = await SeedPatientAndDentistAsync("p23", "d23");
+        var service = Service.Create("Trám răng", 500_000m, 30, "Trám răng thẩm mỹ");
+        _db.Services.Add(service);
+        var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow); // Pending, chưa khám
+        _db.Appointments.Add(appointment);
+        await _db.SaveChangesAsync();
+        var plan = await SeedPlanWithStepsAsync(patient, dentist, appointment, service, "Lấy tủy", "Trám bít");
+
+        Func<Task> act = () => _reorderStep.Handle(new ReorderStepProgressCommand(
+            plan.Id, new ReorderStepProgressRequest(new List<int> { 1, 0 })), CancellationToken.None);
+
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    /// <summary>Order không phải hoán vị hợp lệ (trùng chỉ số) phải ném ValidationException.</summary>
+    [Test]
+    public async Task ReorderStepProgressAsync_InvalidPermutation_ThrowsValidationException()
+    {
+        var (patient, dentist) = await SeedPatientAndDentistAsync("p24", "d24");
+        var (appointment, service) = await SeedInProgressAppointmentAsync(patient, dentist);
+        var plan = await SeedPlanWithStepsAsync(patient, dentist, appointment, service, "Lấy tủy", "Trám bít");
+
+        Func<Task> act = () => _reorderStep.Handle(new ReorderStepProgressCommand(
+            plan.Id, new ReorderStepProgressRequest(new List<int> { 0, 0 })), CancellationToken.None);
+
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    /// <summary>Hoán vị hợp lệ phải sắp xếp lại danh sách nhật ký điều trị đúng theo Order.</summary>
+    [Test]
+    public async Task ReorderStepProgressAsync_ValidPermutation_ReordersEntries()
+    {
+        var (patient, dentist) = await SeedPatientAndDentistAsync("p25", "d25");
+        var (appointment, service) = await SeedInProgressAppointmentAsync(patient, dentist);
+        var plan = await SeedPlanWithStepsAsync(patient, dentist, appointment, service, "Bước A", "Bước B", "Bước C");
+
+        var dto = await _reorderStep.Handle(new ReorderStepProgressCommand(
+            plan.Id, new ReorderStepProgressRequest(new List<int> { 2, 0, 1 })), CancellationToken.None);
+
+        dto.StepProgress.Select(s => s.StepName).Should().ContainInOrder("Bước C", "Bước A", "Bước B");
+    }
+
+    // ── DeleteStepProgressAsync ────────────────────────────────────────────────
+
+    /// <summary>treatmentPlanId không tồn tại phải ném NotFoundException.</summary>
+    [Test]
+    public async Task DeleteStepProgressAsync_NonExistentPlan_ThrowsNotFoundException()
+    {
+        Func<Task> act = () => _deleteStep.Handle(new DeleteStepProgressCommand(Guid.NewGuid(), 0), CancellationToken.None);
+
+        await act.Should().ThrowAsync<NotFoundException>();
+    }
+
+    /// <summary>Không có buổi khám nào đang hoạt động cho bệnh nhân của liệu trình này phải bị từ chối.</summary>
+    [Test]
+    public async Task DeleteStepProgressAsync_NoActiveVisit_ThrowsValidationException()
+    {
+        var (patient, dentist) = await SeedPatientAndDentistAsync("p26", "d26");
+        var service = Service.Create("Trám răng", 500_000m, 30, "Trám răng thẩm mỹ");
+        _db.Services.Add(service);
+        var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow); // Pending, chưa khám
+        _db.Appointments.Add(appointment);
+        await _db.SaveChangesAsync();
+        var plan = await SeedPlanWithStepsAsync(patient, dentist, appointment, service, "Lấy tủy");
+
+        Func<Task> act = () => _deleteStep.Handle(new DeleteStepProgressCommand(plan.Id, 0), CancellationToken.None);
+
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    /// <summary>EntryIndex ngoài phạm vi danh sách nhật ký điều trị phải ném ValidationException.</summary>
+    [Test]
+    public async Task DeleteStepProgressAsync_OutOfRangeIndex_ThrowsValidationException()
+    {
+        var (patient, dentist) = await SeedPatientAndDentistAsync("p27", "d27");
+        var (appointment, service) = await SeedInProgressAppointmentAsync(patient, dentist);
+        var plan = await SeedPlanWithStepsAsync(patient, dentist, appointment, service, "Lấy tủy");
+
+        Func<Task> act = () => _deleteStep.Handle(new DeleteStepProgressCommand(plan.Id, 3), CancellationToken.None);
+
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    /// <summary>Xóa một mục không phải mục cuối cùng phải giảm đúng 1 phần tử, các mục còn lại giữ nguyên.</summary>
+    [Test]
+    public async Task DeleteStepProgressAsync_ValidRequest_RemovesEntry()
+    {
+        var (patient, dentist) = await SeedPatientAndDentistAsync("p28", "d28");
+        var (appointment, service) = await SeedInProgressAppointmentAsync(patient, dentist);
+        var plan = await SeedPlanWithStepsAsync(patient, dentist, appointment, service, "Lấy tủy", "Trám bít");
+
+        var dto = await _deleteStep.Handle(new DeleteStepProgressCommand(plan.Id, 0), CancellationToken.None);
+
+        dto.StepProgress.Should().ContainSingle(s => s.StepName == "Trám bít");
+    }
+
+    /// <summary>Xóa mục cuối cùng còn lại phải trả về StepProgress rỗng và StepProgressJson trong DB
+    /// phải được đặt về null (không giữ lại mảng rỗng "[]").</summary>
+    [Test]
+    public async Task DeleteStepProgressAsync_LastEntry_ClearsStepProgress()
+    {
+        var (patient, dentist) = await SeedPatientAndDentistAsync("p29", "d29");
+        var (appointment, service) = await SeedInProgressAppointmentAsync(patient, dentist);
+        var plan = await SeedPlanWithStepsAsync(patient, dentist, appointment, service, "Lấy tủy");
+
+        var dto = await _deleteStep.Handle(new DeleteStepProgressCommand(plan.Id, 0), CancellationToken.None);
+
+        dto.StepProgress.Should().BeEmpty();
+        var reloaded = await _db.TreatmentPlans.FindAsync(plan.Id);
+        reloaded!.StepProgressJson.Should().BeNull();
     }
 }

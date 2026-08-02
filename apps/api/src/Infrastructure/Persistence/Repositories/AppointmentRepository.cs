@@ -80,4 +80,32 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
                 a.AppointmentDate >= utcStart &&
                 a.AppointmentDate < utcEnd, cancellationToken);
     }
+
+    public async Task<bool> HasActiveVisitAsync(Guid patientId, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Appointments.AnyAsync(a =>
+            a.PatientId == patientId &&
+            (a.Status == DentalClinic.API.Domain.Enums.AppointmentStatus.InProgress ||
+             a.Status == DentalClinic.API.Domain.Enums.AppointmentStatus.PendingPayment ||
+             a.Status == DentalClinic.API.Domain.Enums.AppointmentStatus.Completed), cancellationToken);
+    }
+
+    public async Task<bool> HasCompletedVisitAsync(Guid dentistId, Guid patientId, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Appointments.AnyAsync(a =>
+            a.DentistId == dentistId && a.PatientId == patientId &&
+            (a.Status == DentalClinic.API.Domain.Enums.AppointmentStatus.Completed ||
+             a.Status == DentalClinic.API.Domain.Enums.AppointmentStatus.PendingPayment), cancellationToken);
+    }
+
+    public async Task<int> CountDistinctPatientsWithCompletedVisitAsync(Guid dentistId, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Appointments
+            .Where(a => a.DentistId == dentistId &&
+                        (a.Status == DentalClinic.API.Domain.Enums.AppointmentStatus.Completed ||
+                         a.Status == DentalClinic.API.Domain.Enums.AppointmentStatus.PendingPayment))
+            .Select(a => a.PatientId)
+            .Distinct()
+            .CountAsync(cancellationToken);
+    }
 }
