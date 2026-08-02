@@ -1,5 +1,8 @@
 import { cache } from "react";
-import type { ServiceDto, PostDto, DentistDto, FeedbackDto, PromotionDto, ClinicInfoDto } from "@/types/api";
+import type {
+  ServiceDto, PostDto, DentistDto, DentistDetailDto, DentistReviewsResultDto,
+  FeedbackDto, PromotionDto, ClinicInfoDto,
+} from "@/types/api";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "http://localhost/api";
@@ -52,11 +55,37 @@ export function getDentists(): Promise<DentistDto[]> {
   return apiGet<DentistDto[]>("/dentists");
 }
 
-// Backend không có endpoint get-by-id cho bác sĩ → lấy danh sách rồi tìm theo id.
-export const getDentistById = cache(async (id: string): Promise<DentistDto | undefined> => {
-  const dentists = await getDentists();
-  return dentists.find((d) => d.id === id);
+/** Giá trị mặc định cho các field số/mảng — API cũ có thể chưa trả về đủ. */
+function withDentistDefaults(d: Partial<DentistDetailDto> & DentistDto): DentistDetailDto {
+  return {
+    ...d,
+    patientCount: d.patientCount ?? 0,
+    appointmentCount: d.appointmentCount ?? 0,
+    averageRating: d.averageRating ?? 0,
+    reviewCount: d.reviewCount ?? 0,
+    services: d.services ?? [],
+  };
+}
+
+/**
+ * Hồ sơ đầy đủ của bác sĩ (học vấn, CCHN, dịch vụ đã thực hiện, số liệu hoạt động).
+ * Fallback về bản rút gọn trong danh sách nếu endpoint chi tiết lỗi/không có dữ liệu.
+ */
+export const getDentistById = cache(async (id: string): Promise<DentistDetailDto | undefined> => {
+  try {
+    return withDentistDefaults(await apiGet<DentistDetailDto>(`/dentists/${id}`));
+  } catch (e) {
+    if (e instanceof ApiError && e.status !== 404) throw e;
+    const dentists = await getDentists();
+    const summary = dentists.find((d) => d.id === id);
+    return summary && withDentistDefaults(summary);
+  }
 });
+
+/** Đánh giá của bệnh nhân dành cho một bác sĩ. */
+export const getDentistReviews = cache((id: string): Promise<DentistReviewsResultDto> =>
+  apiGet<DentistReviewsResultDto>(`/dentists/${id}/reviews`)
+);
 
 // ── Đánh giá nổi bật ──────────────────────────────────────────────────────
 export function getFeaturedFeedbacks(): Promise<FeedbackDto[]> {

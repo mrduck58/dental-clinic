@@ -1,34 +1,14 @@
 import Link from "next/link";
 import { getClinicInfoSafe } from "@/lib/api";
-import type { MilestoneDto } from "@/types/api";
-
-// ── Giá trị mặc định (fallback khi API chưa sẵn sàng) ───────────────────────
-const DEFAULT_TITLE = "Hơn 15 Năm Kiến Tạo Nụ Cười Việt Nam";
-const DEFAULT_DESCRIPTION =
-  "Sơn Giang Dental được thành lập năm 2009 với sứ mệnh mang lại dịch vụ chăm sóc răng miệng chất lượng cao, tiệm cận chuẩn quốc tế, với mức chi phí phù hợp nhất cho người Việt.\n\n" +
-  "Trải qua hơn 15 năm phát triển, chúng tôi đã xây dựng được đội ngũ hơn 20 bác sĩ chuyên khoa, trang bị công nghệ điều trị hàng đầu và phục vụ hơn 10.000 khách hàng hài lòng trên khắp cả nước.";
-const DEFAULT_FOUNDED_YEAR = 2009;
-
-const DEFAULT_MILESTONES: MilestoneDto[] = [
-  { year: 2009, description: "Thành lập phòng khám đầu tiên tại TP.HCM" },
-  { year: 2015, description: "Mở rộng lên 3 cơ sở, đạt chứng nhận ISO 9001" },
-  { year: 2019, description: "Đối tác chính thức của Invisalign tại Việt Nam" },
-  { year: 2023, description: "Ra mắt ứng dụng đặt lịch trên di động" },
-];
-
-const DEFAULT_CERTIFICATIONS = ["ISO 9001:2015", "Invisalign Provider", "Bộ Y tế cấp phép", "ADA Member"];
 
 export default async function AboutSection({ preview = false }: { preview?: boolean }) {
   const info = await getClinicInfoSafe();
+  if (!info) return null;
 
-  const title = info?.aboutTitle || DEFAULT_TITLE;
-  const description = info?.aboutDescription || DEFAULT_DESCRIPTION;
-  const foundedYear = info?.foundedYear || DEFAULT_FOUNDED_YEAR;
-  const milestones = info?.milestones?.length ? info.milestones : DEFAULT_MILESTONES;
-  const certifications = info?.certifications?.length ? info.certifications : DEFAULT_CERTIFICATIONS;
+  const { aboutTitle: title, foundedYear, milestones, certifications } = info;
 
   // Mỗi đoạn văn cách nhau bằng "\n\n".
-  const paragraphs = description.split("\n\n").filter((p) => p.trim().length > 0);
+  const paragraphs = info.aboutDescription.split("\n\n").filter((p) => p.trim().length > 0);
 
   return (
     <section className="py-16 bg-slate-50">
@@ -41,7 +21,7 @@ export default async function AboutSection({ preview = false }: { preview?: bool
             <div className="absolute top-0 left-0 w-[68%] h-[72%] rounded-3xl overflow-hidden shadow-xl">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={info?.aboutImageUrl || "https://picsum.photos/seed/aboutclinic1/600/440"}
+                src={info.aboutImageUrl || "https://picsum.photos/seed/aboutclinic1/600/440"}
                 alt="Phòng khám Sơn Giang Dental"
                 className="w-full h-full object-cover"
               />

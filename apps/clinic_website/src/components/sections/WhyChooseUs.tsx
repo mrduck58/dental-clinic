@@ -1,32 +1,4 @@
 import { getClinicInfoSafe } from "@/lib/api";
-import type { FeatureDto, StatisticDto } from "@/types/api";
-
-// ── Giá trị mặc định (fallback khi API chưa sẵn sàng) ───────────────────────
-const DEFAULT_FEATURES: FeatureDto[] = [
-  {
-    title: "Công nghệ hiện đại hàng đầu",
-    description: "Trang bị máy CT Cone Beam 3D, laser nha khoa, kính lúp phẫu thuật và hệ thống CAD/CAM làm sứ ngay tại phòng khám.",
-  },
-  {
-    title: "Đội ngũ bác sĩ chuyên sâu",
-    description: "100% bác sĩ có chứng chỉ chuyên khoa, tu nghiệp tại Pháp, Mỹ, Nhật — liên tục cập nhật kỹ thuật mới nhất.",
-  },
-  {
-    title: "Cam kết minh bạch giá cả",
-    description: "Báo giá rõ ràng trước điều trị, không phát sinh, bảo hành lên đến 10 năm cho các ca phục hình cao cấp.",
-  },
-  {
-    title: "Môi trường vô trùng tuyệt đối",
-    description: "Quy trình tiệt khuẩn đạt chuẩn CDC/ADA, mỗi bệnh nhân dùng bộ dụng cụ riêng đóng gói sealed.",
-  },
-];
-
-const DEFAULT_STATS: StatisticDto[] = [
-  { value: "10.000+", label: "Khách hàng hài lòng" },
-  { value: "20+", label: "Bác sĩ chuyên khoa" },
-  { value: "15+", label: "Năm kinh nghiệm" },
-  { value: "99%", label: "Đánh giá 5 sao" },
-];
 
 // Icon trình bày cho thẻ thống kê — giữ ở frontend, gán theo thứ tự (API chỉ cấp nội dung).
 const STAT_ICONS = [
@@ -38,9 +10,9 @@ const STAT_ICONS = [
 
 export default async function WhyChooseUs() {
   const info = await getClinicInfoSafe();
+  if (!info) return null;
 
-  const features = info?.features?.length ? info.features : DEFAULT_FEATURES;
-  const stats = info?.statistics?.length ? info.statistics : DEFAULT_STATS;
+  const { features, statistics: stats } = info;
 
   return (
     <section className="py-16 bg-white">
