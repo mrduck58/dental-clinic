@@ -1,25 +1,4 @@
 import { getClinicInfoSafe } from "@/lib/api";
-import type { TreatmentStepDto } from "@/types/api";
-
-// ── Giá trị mặc định (fallback khi API chưa sẵn sàng) ───────────────────────
-const DEFAULT_STEPS: TreatmentStepDto[] = [
-  {
-    title: "Tải App & Đặt Lịch",
-    description: "Tải app Sơn Giang Dental, chọn dịch vụ và đặt lịch trong 30 giây. Xác nhận ngay lập tức.",
-  },
-  {
-    title: "Khám & Tư Vấn",
-    description: "Bác sĩ chuyên khoa thăm khám toàn diện, chụp X-quang và tư vấn phác đồ phù hợp.",
-  },
-  {
-    title: "Điều Trị",
-    description: "Thực hiện điều trị theo phác đồ đã tư vấn với công nghệ hiện đại, không đau, an toàn.",
-  },
-  {
-    title: "Theo Dõi Sau Điều Trị",
-    description: "Tái khám định kỳ miễn phí, bảo hành dài hạn và hỗ trợ 24/7 khi có vấn đề phát sinh.",
-  },
-];
 
 // Icon trình bày cho từng bước — giữ ở frontend, gán theo thứ tự (API chỉ cấp nội dung).
 const STEP_ICONS = [
@@ -31,7 +10,9 @@ const STEP_ICONS = [
 
 export default async function ProcessSection() {
   const info = await getClinicInfoSafe();
-  const steps = info?.treatmentSteps?.length ? info.treatmentSteps : DEFAULT_STEPS;
+  if (!info) return null;
+
+  const steps = info.treatmentSteps;
 
   return (
     <section className="py-16 bg-slate-900">

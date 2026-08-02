@@ -37,6 +37,40 @@ export interface DentistDto {
   bio?: string | null;
 }
 
+/** Hồ sơ đầy đủ của bác sĩ — trả về từ GET /dentists/{id}. */
+export interface DentistDetailDto extends DentistDto {
+  education?: string | null;
+  certificateIssuedBy?: string | null;
+  patientCount: number;
+  gender?: string | null;
+  department?: string | null;
+  position?: string | null;
+  licenseNumber?: string | null;
+  certificateIssuedDate?: string | null; // YYYY-MM-DD
+  startDate?: string | null; // YYYY-MM-DD
+  employmentType?: string | null;
+  shift?: string | null; // "morning" | "afternoon"
+  appointmentCount: number;
+  averageRating: number;
+  reviewCount: number;
+  services: string[];
+}
+
+export interface DentistReviewDto {
+  id: string;
+  patientName: string;
+  rating: number;
+  comment: string;
+  tags: string[];
+  createdAt: string;
+}
+
+export interface DentistReviewsResultDto {
+  averageRating: number;
+  reviewCount: number;
+  reviews: DentistReviewDto[];
+}
+
 export interface FeedbackDto {
   id: string;
   customerName: string;
