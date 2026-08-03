@@ -2,17 +2,18 @@ using DentalClinic.API.Application.DTOs.Auth;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Auth;
 
-public record GoogleLoginCommand(string IdToken);
+public record GoogleLoginCommand(string IdToken) : IRequest<GoogleLoginResponseDto>;
 
 public class GoogleLoginHandler(
     IGoogleAuthService googleAuthService,
     IUserRepository userRepository,
-    IJwtService jwtService)
+    IJwtService jwtService) : IRequestHandler<GoogleLoginCommand, GoogleLoginResponseDto>
 {
-    public async Task<GoogleLoginResponseDto> HandleAsync(GoogleLoginCommand command, CancellationToken ct = default)
+    public async Task<GoogleLoginResponseDto> Handle(GoogleLoginCommand command, CancellationToken ct)
     {
         var googleUser = await googleAuthService.VerifyIdTokenAsync(command.IdToken, ct);
 

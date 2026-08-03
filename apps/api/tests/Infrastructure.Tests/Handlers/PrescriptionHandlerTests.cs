@@ -1,8 +1,10 @@
-using DentalClinic.API.Application.UseCases.Appointments;
+using DentalClinic.API.Application.DTOs.ClinicalRecords;
+using DentalClinic.API.Application.UseCases.ClinicalRecords;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using NSubstitute;
@@ -16,7 +18,13 @@ public class PrescriptionHandlerTests
     private AppDbContext _db = null!;
     private IPatientRepository _patientRepo = null!;
     private INotificationService _notificationService = null!;
-    private PrescriptionHandler _handler = null!;
+    // God-handler PrescriptionHandler (6 method) đã tách thành 6 handler MediatR.
+    private CreatePrescriptionHandler _create = null!;
+    private UpdatePrescriptionHandler _update = null!;
+    private AddPrescriptionItemHandler _addItem = null!;
+    private UpdatePrescriptionItemHandler _updateItem = null!;
+    private DeletePrescriptionItemHandler _deleteItem = null!;
+    private GetPrescriptionByAppointmentHandler _getByAppointment = null!;
 
     [SetUp]
     public void SetUp()
@@ -28,7 +36,18 @@ public class PrescriptionHandlerTests
 
         _patientRepo = Substitute.For<IPatientRepository>();
         _notificationService = Substitute.For<INotificationService>();
-        _handler = new PrescriptionHandler(_db, _patientRepo, _notificationService);
+
+        var appointmentRepository = new AppointmentRepository(_db);
+        var prescriptionRepository = new PrescriptionRepository(_db);
+        var prescriptionItemRepository = new PrescriptionItemRepository(_db);
+
+        _create = new CreatePrescriptionHandler(
+            appointmentRepository, prescriptionRepository, prescriptionItemRepository, _patientRepo, _notificationService);
+        _update = new UpdatePrescriptionHandler(prescriptionRepository);
+        _addItem = new AddPrescriptionItemHandler(prescriptionRepository, prescriptionItemRepository);
+        _updateItem = new UpdatePrescriptionItemHandler(prescriptionItemRepository, prescriptionRepository);
+        _deleteItem = new DeletePrescriptionItemHandler(prescriptionItemRepository);
+        _getByAppointment = new GetPrescriptionByAppointmentHandler(prescriptionRepository);
     }
 
     [TearDown]
@@ -60,7 +79,7 @@ public class PrescriptionHandlerTests
 
         var appointment = await SeedInProgressAppointmentAsync(patient, dentist);
 
-        await _handler.CreateAsync(new CreatePrescriptionRequest(appointment.Id, "Ghi chú", null));
+        await _create.Handle(new CreatePrescriptionRequest(appointment.Id, "Ghi chú", null), CancellationToken.None);
 
         await _notificationService.Received(1).CreateAsync(
             Arg.Is<CreateNotificationRequest>(r =>
@@ -86,7 +105,7 @@ public class PrescriptionHandlerTests
 
         var appointment = await SeedInProgressAppointmentAsync(patient, dentist);
 
-        var result = await _handler.CreateAsync(new CreatePrescriptionRequest(appointment.Id, null, null));
+        var result = await _create.Handle(new CreatePrescriptionRequest(appointment.Id, null, null), CancellationToken.None);
 
         result.Should().NotBeNull();
         await _notificationService.DidNotReceive().CreateAsync(
@@ -113,7 +132,7 @@ public class PrescriptionHandlerTests
     [Test]
     public async Task CreateAsync_AppointmentNotFound_ThrowsKeyNotFoundException()
     {
-        Func<Task> act = () => _handler.CreateAsync(new CreatePrescriptionRequest(Guid.NewGuid(), null, null));
+        Func<Task> act = () => _create.Handle(new CreatePrescriptionRequest(Guid.NewGuid(), null, null), CancellationToken.None);
 
         await act.Should().ThrowAsync<KeyNotFoundException>();
     }
@@ -130,7 +149,7 @@ public class PrescriptionHandlerTests
         _db.Appointments.Add(appointment);
         await _db.SaveChangesAsync();
 
-        Func<Task> act = () => _handler.CreateAsync(new CreatePrescriptionRequest(appointment.Id, null, null));
+        Func<Task> act = () => _create.Handle(new CreatePrescriptionRequest(appointment.Id, null, null), CancellationToken.None);
 
         await act.Should().ThrowAsync<InvalidOperationException>();
     }
@@ -141,9 +160,9 @@ public class PrescriptionHandlerTests
     {
         var (patient, dentist) = await SeedPatientAndDentistAsync("p6", "d6");
         var appointment = await SeedInProgressAppointmentAsync(patient, dentist);
-        await _handler.CreateAsync(new CreatePrescriptionRequest(appointment.Id, null, null));
+        await _create.Handle(new CreatePrescriptionRequest(appointment.Id, null, null), CancellationToken.None);
 
-        Func<Task> act = () => _handler.CreateAsync(new CreatePrescriptionRequest(appointment.Id, "Đơn khác", null));
+        Func<Task> act = () => _create.Handle(new CreatePrescriptionRequest(appointment.Id, "Đơn khác", null), CancellationToken.None);
 
         await act.Should().ThrowAsync<InvalidOperationException>();
     }
@@ -160,7 +179,7 @@ public class PrescriptionHandlerTests
             new("Amoxicillin", "500mg", 14, "viên", "Uống trước ăn", "Kiểm tra dị ứng")
         };
 
-        var dto = await _handler.CreateAsync(new CreatePrescriptionRequest(appointment.Id, "Ghi chú đơn", items));
+        var dto = await _create.Handle(new CreatePrescriptionRequest(appointment.Id, "Ghi chú đơn", items), CancellationToken.None);
 
         dto.Items.Should().HaveCount(2);
         dto.Items.Should().Contain(i => i.MedicineName == "Paracetamol" && i.Quantity == 20);
@@ -173,7 +192,7 @@ public class PrescriptionHandlerTests
     [Test]
     public async Task UpdateAsync_NonExistentPrescription_ThrowsKeyNotFoundException()
     {
-        Func<Task> act = () => _handler.UpdateAsync(new UpdatePrescriptionRequest(Guid.NewGuid(), "Ghi chú"));
+        Func<Task> act = () => _update.Handle(new UpdatePrescriptionRequest(Guid.NewGuid(), "Ghi chú"), CancellationToken.None);
 
         await act.Should().ThrowAsync<KeyNotFoundException>();
     }
@@ -188,7 +207,7 @@ public class PrescriptionHandlerTests
         _db.Prescriptions.Add(prescription);
         await _db.SaveChangesAsync();
 
-        var dto = await _handler.UpdateAsync(new UpdatePrescriptionRequest(prescription.Id, "Ghi chú mới"));
+        var dto = await _update.Handle(new UpdatePrescriptionRequest(prescription.Id, "Ghi chú mới"), CancellationToken.None);
 
         dto.Notes.Should().Be("Ghi chú mới");
     }
@@ -199,8 +218,8 @@ public class PrescriptionHandlerTests
     [Test]
     public async Task AddItemAsync_NonExistentPrescription_ThrowsKeyNotFoundException()
     {
-        Func<Task> act = () => _handler.AddItemAsync(
-            new AddPrescriptionItemRequest(Guid.NewGuid(), "Panadol", "500mg", 10, "viên", "Uống sau ăn", null));
+        Func<Task> act = () => _addItem.Handle(
+            new AddPrescriptionItemRequest(Guid.NewGuid(), "Panadol", "500mg", 10, "viên", "Uống sau ăn", null), CancellationToken.None);
 
         await act.Should().ThrowAsync<KeyNotFoundException>();
     }
@@ -215,8 +234,8 @@ public class PrescriptionHandlerTests
         _db.Prescriptions.Add(prescription);
         await _db.SaveChangesAsync();
 
-        var dto = await _handler.AddItemAsync(
-            new AddPrescriptionItemRequest(prescription.Id, "Panadol", "500mg", 10, "viên", "Uống sau ăn", null));
+        var dto = await _addItem.Handle(
+            new AddPrescriptionItemRequest(prescription.Id, "Panadol", "500mg", 10, "viên", "Uống sau ăn", null), CancellationToken.None);
 
         dto.Items.Should().ContainSingle(i => i.MedicineName == "Panadol");
     }
@@ -227,8 +246,8 @@ public class PrescriptionHandlerTests
     [Test]
     public async Task UpdateItemAsync_NonExistentItem_ThrowsKeyNotFoundException()
     {
-        Func<Task> act = () => _handler.UpdateItemAsync(
-            new UpdatePrescriptionItemRequest(Guid.NewGuid(), "Panadol", "500mg", 10, "viên", "Uống sau ăn", null));
+        Func<Task> act = () => _updateItem.Handle(
+            new UpdatePrescriptionItemRequest(Guid.NewGuid(), "Panadol", "500mg", 10, "viên", "Uống sau ăn", null), CancellationToken.None);
 
         await act.Should().ThrowAsync<KeyNotFoundException>();
     }
@@ -246,8 +265,8 @@ public class PrescriptionHandlerTests
         _db.PrescriptionItems.Add(item);
         await _db.SaveChangesAsync();
 
-        var dto = await _handler.UpdateItemAsync(
-            new UpdatePrescriptionItemRequest(item.Id, "Efferalgan", "250mg", 20, "gói", "Uống trước ăn", "Đổi thuốc"));
+        var dto = await _updateItem.Handle(
+            new UpdatePrescriptionItemRequest(item.Id, "Efferalgan", "250mg", 20, "gói", "Uống trước ăn", "Đổi thuốc"), CancellationToken.None);
 
         var updated = dto.Items.Should().ContainSingle().Subject;
         updated.MedicineName.Should().Be("Efferalgan");
@@ -261,7 +280,7 @@ public class PrescriptionHandlerTests
     [Test]
     public async Task DeleteItemAsync_NonExistentItem_ThrowsKeyNotFoundException()
     {
-        Func<Task> act = () => _handler.DeleteItemAsync(Guid.NewGuid());
+        Func<Task> act = () => _deleteItem.Handle(new DeletePrescriptionItemCommand(Guid.NewGuid()), CancellationToken.None);
 
         await act.Should().ThrowAsync<KeyNotFoundException>();
     }
@@ -279,7 +298,7 @@ public class PrescriptionHandlerTests
         _db.PrescriptionItems.Add(item);
         await _db.SaveChangesAsync();
 
-        await _handler.DeleteItemAsync(item.Id);
+        await _deleteItem.Handle(new DeletePrescriptionItemCommand(item.Id), CancellationToken.None);
 
         (await _db.PrescriptionItems.FindAsync(item.Id)).Should().BeNull();
     }
@@ -290,7 +309,7 @@ public class PrescriptionHandlerTests
     [Test]
     public async Task GetByAppointmentAsync_NoPrescription_ReturnsNull()
     {
-        var result = await _handler.GetByAppointmentAsync(Guid.NewGuid());
+        var result = await _getByAppointment.Handle(new GetPrescriptionByAppointmentQuery(Guid.NewGuid()), CancellationToken.None);
 
         result.Should().BeNull();
     }
@@ -305,7 +324,7 @@ public class PrescriptionHandlerTests
         _db.Prescriptions.Add(prescription);
         await _db.SaveChangesAsync();
 
-        var dto = await _handler.GetByAppointmentAsync(appointment.Id);
+        var dto = await _getByAppointment.Handle(new GetPrescriptionByAppointmentQuery(appointment.Id), CancellationToken.None);
 
         dto.Should().NotBeNull();
         dto!.Notes.Should().Be("Ghi chú riêng");

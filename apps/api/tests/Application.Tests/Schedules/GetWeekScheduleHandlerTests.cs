@@ -35,7 +35,7 @@ public class GetWeekScheduleHandlerTests
             });
         var handler = new GetWeekScheduleHandler(_repo);
 
-        var result = await handler.HandleAsync("2026-06-16", CancellationToken.None);
+        var result = await handler.Handle(new GetWeekScheduleQuery("2026-06-16"), CancellationToken.None);
 
         result.Should().HaveCount(2);
         await _repo.Received(1).GetByWeekAsync(new DateOnly(2026, 6, 16), Arg.Any<CancellationToken>());
@@ -50,7 +50,7 @@ public class GetWeekScheduleHandlerTests
     {
         var handler = new GetWeekScheduleHandler(_repo);
 
-        Func<Task> act = () => handler.HandleAsync("16/06/2026", CancellationToken.None);
+        Func<Task> act = () => handler.Handle(new GetWeekScheduleQuery("16/06/2026"), CancellationToken.None);
 
         await act.Should().ThrowAsync<ArgumentException>();
         await _repo.DidNotReceive().GetByWeekAsync(Arg.Any<DateOnly>(), Arg.Any<CancellationToken>());
@@ -64,7 +64,7 @@ public class GetWeekScheduleHandlerTests
     {
         var handler = new GetWeekScheduleHandler(_repo);
 
-        Func<Task> act = () => handler.HandleAsync("not-a-date", CancellationToken.None);
+        Func<Task> act = () => handler.Handle(new GetWeekScheduleQuery("not-a-date"), CancellationToken.None);
 
         await act.Should().ThrowAsync<ArgumentException>();
     }
@@ -79,7 +79,7 @@ public class GetWeekScheduleHandlerTests
             .Returns(new List<WorkSchedule>());
         var handler = new GetWeekScheduleHandler(_repo);
 
-        var result = await handler.HandleAsync("2026-06-16", CancellationToken.None);
+        var result = await handler.Handle(new GetWeekScheduleQuery("2026-06-16"), CancellationToken.None);
 
         result.Should().BeEmpty();
     }
@@ -95,7 +95,7 @@ public class GetWeekScheduleHandlerTests
             .Returns(new List<WorkSchedule> { schedule });
         var handler = new GetWeekScheduleHandler(_repo);
 
-        var result = (await handler.HandleAsync("2026-06-16", CancellationToken.None)).ToList();
+        var result = (await handler.Handle(new GetWeekScheduleQuery("2026-06-16"), CancellationToken.None)).ToList();
 
         result[0].Date.Should().Be("2026-06-16");
         result[0].Shift.Should().Be("Sáng");

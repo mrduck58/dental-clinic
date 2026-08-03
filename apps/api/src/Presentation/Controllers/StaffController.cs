@@ -1,4 +1,5 @@
 using DentalClinic.API.Application.UseCases.Staff;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -9,10 +10,7 @@ namespace DentalClinic.API.Presentation.Controllers;
 [Authorize(Roles = "Admin,Owner")]
 public class StaffController(
     GetStaffHandler getStaffHandler,
-    CreateStaffHandler createStaffHandler,
-    UpdateStaffHandler updateStaffHandler,
-    ResetStaffPasswordHandler resetStaffPasswordHandler,
-    CreateStaffAccountHandler createStaffAccountHandler) : ControllerBase
+    ISender sender) : ControllerBase
 {
     /// <summary>GET api/staff — Danh sách nhân viên với filter + phân trang</summary>
     [HttpGet]
@@ -47,7 +45,7 @@ public class StaffController(
         [FromBody] CreateStaffRequestDto request,
         CancellationToken cancellationToken)
     {
-        var result = await createStaffHandler.HandleAsync(
+        var result = await sender.Send(
             new CreateStaffCommand(
                 request.FullName, request.Email, request.PhoneNumber, request.Role,
                 request.EmployeeId, request.Department, request.EmploymentStatus,
@@ -70,7 +68,7 @@ public class StaffController(
         [FromBody] UpdateStaffRequestDto request,
         CancellationToken cancellationToken)
     {
-        var result = await updateStaffHandler.HandleAsync(
+        var result = await sender.Send(
             new UpdateStaffCommand(
                 id, request.FullName, request.Email, request.PhoneNumber, request.Role,
                 request.Department, request.EmploymentStatus,
@@ -92,7 +90,7 @@ public class StaffController(
         Guid id,
         CancellationToken cancellationToken)
     {
-        var result = await resetStaffPasswordHandler.HandleAsync(id, cancellationToken);
+        var result = await sender.Send(new ResetStaffPasswordCommand(id), cancellationToken);
         return Ok(result);
     }
 
@@ -102,7 +100,7 @@ public class StaffController(
         Guid id,
         CancellationToken cancellationToken)
     {
-        var result = await createStaffAccountHandler.HandleAsync(id, cancellationToken);
+        var result = await sender.Send(new CreateStaffAccountCommand(id), cancellationToken);
         return Ok(result);
     }
 }

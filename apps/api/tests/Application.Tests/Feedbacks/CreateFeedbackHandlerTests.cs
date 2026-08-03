@@ -25,7 +25,7 @@ public class CreateFeedbackHandlerTests
     {
         var handler = new CreateFeedbackHandler(_repo);
 
-        var result = await handler.HandleAsync(new CreateFeedbackRequest("Nguyễn Văn A", 5, "Rất tốt!"));
+        var result = await handler.Handle(new CreateFeedbackCommand("Nguyễn Văn A", 5, "Rất tốt!"), CancellationToken.None);
 
         await _repo.Received(1).AddAsync(Arg.Any<Feedback>(), Arg.Any<CancellationToken>());
         result.CustomerName.Should().Be("Nguyễn Văn A");
@@ -40,7 +40,7 @@ public class CreateFeedbackHandlerTests
     {
         var handler = new CreateFeedbackHandler(_repo);
 
-        var result = await handler.HandleAsync(new CreateFeedbackRequest("Khách Hàng", 4, "Ổn"));
+        var result = await handler.Handle(new CreateFeedbackCommand("Khách Hàng", 4, "Ổn"), CancellationToken.None);
 
         result.Status.Should().Be("Pending");
     }
@@ -53,7 +53,7 @@ public class CreateFeedbackHandlerTests
     {
         var handler = new CreateFeedbackHandler(_repo);
 
-        Func<Task> act = () => handler.HandleAsync(new CreateFeedbackRequest("A", 0, "Quá tệ"));
+        Func<Task> act = () => handler.Handle(new CreateFeedbackCommand("A", 0, "Quá tệ"), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
         await _repo.DidNotReceive().AddAsync(Arg.Any<Feedback>(), Arg.Any<CancellationToken>());
@@ -67,7 +67,7 @@ public class CreateFeedbackHandlerTests
     {
         var handler = new CreateFeedbackHandler(_repo);
 
-        Func<Task> act = () => handler.HandleAsync(new CreateFeedbackRequest("A", 6, "Xuất sắc"));
+        Func<Task> act = () => handler.Handle(new CreateFeedbackCommand("A", 6, "Xuất sắc"), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
         await _repo.DidNotReceive().AddAsync(Arg.Any<Feedback>(), Arg.Any<CancellationToken>());
@@ -81,7 +81,7 @@ public class CreateFeedbackHandlerTests
     {
         var handler = new CreateFeedbackHandler(_repo);
 
-        var result = await handler.HandleAsync(new CreateFeedbackRequest("A", 1, "Tệ"));
+        var result = await handler.Handle(new CreateFeedbackCommand("A", 1, "Tệ"), CancellationToken.None);
 
         result.Rating.Should().Be(1);
         await _repo.Received(1).AddAsync(Arg.Any<Feedback>(), Arg.Any<CancellationToken>());
@@ -95,7 +95,7 @@ public class CreateFeedbackHandlerTests
     {
         var handler = new CreateFeedbackHandler(_repo);
 
-        var result = await handler.HandleAsync(new CreateFeedbackRequest("A", 5, "Xuất sắc"));
+        var result = await handler.Handle(new CreateFeedbackCommand("A", 5, "Xuất sắc"), CancellationToken.None);
 
         result.Rating.Should().Be(5);
         await _repo.Received(1).AddAsync(Arg.Any<Feedback>(), Arg.Any<CancellationToken>());

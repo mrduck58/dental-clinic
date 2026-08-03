@@ -1,6 +1,8 @@
-using DentalClinic.API.Application.UseCases.Appointments;
+using DentalClinic.API.Application.DTOs.ClinicalRecords;
+using DentalClinic.API.Application.UseCases.ClinicalRecords;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using NUnit.Framework;
@@ -11,7 +13,10 @@ namespace DentalClinic.API.Infrastructure.Tests.Handlers;
 public class DiagnosisHandlerTests
 {
     private AppDbContext _db = null!;
-    private DiagnosisHandler _handler = null!;
+    // God-handler DiagnosisHandler (3 method) đã tách thành 3 handler MediatR.
+    private CreateDiagnosisHandler _create = null!;
+    private UpdateDiagnosisHandler _update = null!;
+    private DeleteDiagnosisHandler _delete = null!;
 
     [SetUp]
     public void SetUp()
@@ -20,7 +25,11 @@ public class DiagnosisHandlerTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         _db = new AppDbContext(options);
-        _handler = new DiagnosisHandler(_db);
+        var appointmentRepository = new AppointmentRepository(_db);
+        var diagnosisRepository = new DiagnosisRepository(_db);
+        _create = new CreateDiagnosisHandler(appointmentRepository, diagnosisRepository);
+        _update = new UpdateDiagnosisHandler(diagnosisRepository);
+        _delete = new DeleteDiagnosisHandler(diagnosisRepository);
     }
 
     [TearDown]
@@ -48,7 +57,7 @@ public class DiagnosisHandlerTests
     [Test]
     public async Task CreateAsync_AppointmentNotFound_ThrowsKeyNotFoundException()
     {
-        Func<Task> act = () => _handler.CreateAsync(MakeCreateRequest(Guid.NewGuid()));
+        Func<Task> act = () => _create.Handle(MakeCreateRequest(Guid.NewGuid()), CancellationToken.None);
 
         await act.Should().ThrowAsync<KeyNotFoundException>();
     }
@@ -68,7 +77,7 @@ public class DiagnosisHandlerTests
         _db.Appointments.Add(appointment);
         await _db.SaveChangesAsync();
 
-        Func<Task> act = () => _handler.CreateAsync(MakeCreateRequest(appointment.Id));
+        Func<Task> act = () => _create.Handle(MakeCreateRequest(appointment.Id), CancellationToken.None);
 
         await act.Should().ThrowAsync<InvalidOperationException>();
     }
@@ -79,7 +88,7 @@ public class DiagnosisHandlerTests
     {
         var appointment = await SeedInProgressAppointmentAsync();
 
-        var result = await _handler.CreateAsync(MakeCreateRequest(appointment.Id));
+        var result = await _create.Handle(MakeCreateRequest(appointment.Id), CancellationToken.None);
 
         result.Description.Should().Be("Sâu răng ngà");
         (await _db.Diagnoses.CountAsync()).Should().Be(1);
@@ -92,7 +101,7 @@ public class DiagnosisHandlerTests
         var request = new UpdateDiagnosisRequest(
             Guid.NewGuid(), "Mới", null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
 
-        Func<Task> act = () => _handler.UpdateAsync(request);
+        Func<Task> act = () => _update.Handle(request, CancellationToken.None);
 
         await act.Should().ThrowAsync<KeyNotFoundException>();
     }
@@ -102,11 +111,11 @@ public class DiagnosisHandlerTests
     public async Task UpdateAsync_ValidRequest_UpdatesFields()
     {
         var appointment = await SeedInProgressAppointmentAsync();
-        var created = await _handler.CreateAsync(MakeCreateRequest(appointment.Id));
+        var created = await _create.Handle(MakeCreateRequest(appointment.Id), CancellationToken.None);
 
         var updateRequest = new UpdateDiagnosisRequest(
             created.Id, "Viêm tủy răng", null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, "Kết luận mới");
-        var result = await _handler.UpdateAsync(updateRequest);
+        var result = await _update.Handle(updateRequest, CancellationToken.None);
         result.Description.Should().Be("Viêm tủy răng");
         result.Conclusion.Should().Be("Kết luận mới");
     }
@@ -115,7 +124,7 @@ public class DiagnosisHandlerTests
     [Test]
     public async Task DeleteAsync_DiagnosisNotFound_ThrowsKeyNotFoundException()
     {
-        Func<Task> act = () => _handler.DeleteAsync(Guid.NewGuid());
+        Func<Task> act = () => _delete.Handle(new DeleteDiagnosisCommand(Guid.NewGuid()), CancellationToken.None);
 
         await act.Should().ThrowAsync<KeyNotFoundException>();
     }
@@ -125,9 +134,9 @@ public class DiagnosisHandlerTests
     public async Task DeleteAsync_DiagnosisExists_RemovesFromDb()
     {
         var appointment = await SeedInProgressAppointmentAsync();
-        var created = await _handler.CreateAsync(MakeCreateRequest(appointment.Id));
+        var created = await _create.Handle(MakeCreateRequest(appointment.Id), CancellationToken.None);
 
-        await _handler.DeleteAsync(created.Id);
+        await _delete.Handle(new DeleteDiagnosisCommand(created.Id), CancellationToken.None);
 
         (await _db.Diagnoses.CountAsync()).Should().Be(0);
     }

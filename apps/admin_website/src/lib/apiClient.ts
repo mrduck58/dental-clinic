@@ -199,6 +199,19 @@ export async function getAccountsApi(): Promise<AccountDto[]> {
   return res.json() as Promise<AccountDto[]>;
 }
 
+export async function toggleAccountStatusApi(id: string): Promise<AccountDto> {
+  const res = await fetch(`${API_URL}/api/auth/accounts/${id}/status`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể cập nhật trạng thái tài khoản");
+  }
+  return res.json() as Promise<AccountDto>;
+}
+
 // ── Staff types & endpoints ──────────────────────────────────────────────────
 
 export interface StaffDto {
@@ -1072,6 +1085,8 @@ export interface SupplyItemDto {
   quantity: number;
   minQuantity: number;
   isLow: boolean;
+  orderType: "standard" | "custom";
+  price: number | null;
   createdAt: string;
   updatedAt: string | null;
 }
@@ -1082,6 +1097,7 @@ export interface SupplyTransactionDto {
   itemName: string;
   type: "import" | "export";
   quantity: number;
+  unitPrice: number | null;
   note: string | null;
   createdBy: string;
   createdAt: string;
@@ -1094,6 +1110,8 @@ export interface CreateSupplyItemRequest {
   unit: string;
   quantity: number;
   minQuantity: number;
+  orderType?: "standard" | "custom";
+  price?: number;
 }
 
 export interface CreateSupplyTransactionRequest {
@@ -1172,6 +1190,8 @@ export interface StockImportRequest {
   category: string;
   quantity: number;
   note?: string;
+  unitPrice?: number;
+  orderType?: "standard" | "custom";
 }
 
 export async function stockImportApi(data: StockImportRequest): Promise<SupplyTransactionDto> {
@@ -1963,6 +1983,8 @@ export interface TreatmentPlanDto {
   notes: string | null;
   totalCost: number;
   amountPaid: number;
+  /** Đã xuất hóa đơn → không cho bác sĩ xóa/hủy dịch vụ này khỏi liệu trình. */
+  isInvoiced: boolean;
   stepProgress: StepProgressEntryDto[];
   createdAt: string;
   completedAt: string | null;
@@ -3463,4 +3485,173 @@ export async function generateMarketingContentApi(
     throw new Error((err as { title?: string }).title ?? "Không thể soạn nội dung bằng AI");
   }
   return res.json() as Promise<MarketingContentDraftDto>;
+}
+
+// ── Payroll types & endpoints ────────────────────────────────────────────────
+
+export interface PayrollItemDto {
+  userId: string;
+  fullName: string;
+  email: string;
+  role: string;
+  employeeId: string | null;
+  department: string | null;
+  position: string | null;
+  phoneNumber: string | null;
+  baseSalary: number;
+  allowance: number;
+  leaveDays: number;
+  allowedLeaveDays: number;
+  exceededDays: number;
+  deduction: number;
+  netSalary: number;
+  status: "Pending" | "Paid";
+  paidAt: string | null;
+  note: string | null;
+  hasSalaryConfigured: boolean;
+  previousNetSalary: number;
+}
+
+export interface PayrollSummaryDto {
+  totalStaff: number;
+  paidCount: number;
+  pendingCount: number;
+  totalNet: number;
+  totalPaid: number;
+  totalDeduction: number;
+  missingSalaryCount: number;
+  previousTotalNet: number;
+}
+
+export interface PayrollPeriodDto {
+  year: number;
+  month: number;
+  workingDaysPerMonth: number;
+  summary: PayrollSummaryDto;
+  items: PayrollItemDto[];
+}
+
+export interface PayrollFailureDto {
+  userId: string;
+  fullName: string;
+  reason: string;
+}
+
+export interface PayAllPayrollResult {
+  paidCount: number;
+  skippedCount: number;
+  totalPaid: number;
+  alreadyPaidCount: number;
+  failures: PayrollFailureDto[];
+}
+
+export interface PayrollMonthStatDto {
+  month: number;
+  staffCount: number;
+  paidCount: number;
+  totalNet: number;
+  totalPaid: number;
+  totalDeduction: number;
+}
+
+export interface PayrollYearlyDto {
+  year: number;
+  totalNet: number;
+  totalPaid: number;
+  totalDeduction: number;
+  averageMonthlyNet: number;
+  peakMonth: number;
+  months: PayrollMonthStatDto[];
+}
+
+export async function getPayrollYearlyApi(year: number): Promise<PayrollYearlyDto> {
+  const res = await fetch(`${API_URL}/api/payrolls/yearly?year=${year}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải báo cáo lương theo năm");
+  }
+  return res.json() as Promise<PayrollYearlyDto>;
+}
+
+export async function getPayrollPeriodApi(params: {
+  year: number;
+  month: number;
+  search?: string;
+  department?: string;
+  role?: string;
+}): Promise<PayrollPeriodDto> {
+  const qs = new URLSearchParams({
+    year: String(params.year),
+    month: String(params.month),
+  });
+  if (params.search)     qs.set("search",     params.search);
+  if (params.department) qs.set("department", params.department);
+  if (params.role)       qs.set("role",       params.role);
+  const res = await fetch(`${API_URL}/api/payrolls?${qs.toString()}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải bảng lương");
+  }
+  return res.json() as Promise<PayrollPeriodDto>;
+}
+
+export async function payPayrollApi(data: {
+  year: number;
+  month: number;
+  userId: string;
+  note?: string | null;
+}): Promise<PayrollItemDto> {
+  const res = await fetch(`${API_URL}/api/payrolls/pay`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể chi trả lương");
+  }
+  return res.json() as Promise<PayrollItemDto>;
+}
+
+export async function unpayPayrollApi(data: {
+  year: number;
+  month: number;
+  userId: string;
+}): Promise<PayrollItemDto> {
+  const res = await fetch(`${API_URL}/api/payrolls/unpay`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể hoàn tác chi trả lương");
+  }
+  return res.json() as Promise<PayrollItemDto>;
+}
+
+export async function payAllPayrollApi(data: {
+  year: number;
+  month: number;
+  note?: string | null;
+}): Promise<PayAllPayrollResult> {
+  const res = await fetch(`${API_URL}/api/payrolls/pay-all`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể chi trả lương toàn bộ nhân sự");
+  }
+  return res.json() as Promise<PayAllPayrollResult>;
 }

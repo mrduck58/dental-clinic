@@ -35,7 +35,7 @@ public class GenerateMarketingContentHandlerTests
     [Test]
     public async Task HandleAsync_NoServiceNoPromotionNoTopic_ThrowsValidationWithoutCallingAi()
     {
-        var act = () => _handler.HandleAsync(new GenerateMarketingContentRequest(null, null, null, null));
+        var act = () => _handler.Handle(new GenerateMarketingContentRequest(null, null, null, null), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
         await _aiChatService.DidNotReceive().SummarizeAsync(
@@ -46,8 +46,8 @@ public class GenerateMarketingContentHandlerTests
     [Test]
     public async Task HandleAsync_TopicOnly_CallsAiWithTopicInPrompt()
     {
-        var result = await _handler.HandleAsync(
-            new GenerateMarketingContentRequest(null, null, "Chăm sóc răng cho trẻ em", null));
+        var result = await _handler.Handle(
+            new GenerateMarketingContentRequest(null, null, "Chăm sóc răng cho trẻ em", null), CancellationToken.None);
 
         result.Title.Should().Be("Test");
 
@@ -66,7 +66,7 @@ public class GenerateMarketingContentHandlerTests
         var service = Service.Create("Tẩy trắng răng", 1_500_000m, 60, "Tẩy trắng an toàn, hiệu quả nhanh");
         _serviceRepo.GetByIdAsync(service.Id, Arg.Any<CancellationToken>()).Returns(service);
 
-        await _handler.HandleAsync(new GenerateMarketingContentRequest(service.Id, null, null, null));
+        await _handler.Handle(new GenerateMarketingContentRequest(service.Id, null, null, null), CancellationToken.None);
 
         await _aiChatService.Received(1).SummarizeAsync(
             Arg.Any<string>(),
@@ -91,7 +91,7 @@ public class GenerateMarketingContentHandlerTests
             true);
         _promotionRepo.GetByIdAsync(promotion.Id, Arg.Any<CancellationToken>()).Returns(promotion);
 
-        await _handler.HandleAsync(new GenerateMarketingContentRequest(null, promotion.Id, null, null));
+        await _handler.Handle(new GenerateMarketingContentRequest(null, promotion.Id, null, null), CancellationToken.None);
 
         await _aiChatService.Received(1).SummarizeAsync(
             Arg.Any<string>(),
@@ -117,7 +117,7 @@ public class GenerateMarketingContentHandlerTests
             true);
         _promotionRepo.GetByIdAsync(promotion.Id, Arg.Any<CancellationToken>()).Returns(promotion);
 
-        await _handler.HandleAsync(new GenerateMarketingContentRequest(null, promotion.Id, null, null));
+        await _handler.Handle(new GenerateMarketingContentRequest(null, promotion.Id, null, null), CancellationToken.None);
 
         await _aiChatService.Received(1).SummarizeAsync(
             Arg.Any<string>(),
@@ -131,7 +131,7 @@ public class GenerateMarketingContentHandlerTests
     [Test]
     public async Task HandleAsync_WhitespaceOnlyTopic_ThrowsValidationWithoutCallingAi()
     {
-        var act = () => _handler.HandleAsync(new GenerateMarketingContentRequest(null, null, "   ", null));
+        var act = () => _handler.Handle(new GenerateMarketingContentRequest(null, null, "   ", null), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
         await _aiChatService.DidNotReceive().SummarizeAsync(
@@ -148,8 +148,8 @@ public class GenerateMarketingContentHandlerTests
                 Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(string.Empty);
 
-        var result = await _handler.HandleAsync(
-            new GenerateMarketingContentRequest(null, null, "Chủ đề bất kỳ", null));
+        var result = await _handler.Handle(
+            new GenerateMarketingContentRequest(null, null, "Chủ đề bất kỳ", null), CancellationToken.None);
 
         result.Title.Should().Be("Bài viết mới");
         result.Content.Should().BeEmpty();

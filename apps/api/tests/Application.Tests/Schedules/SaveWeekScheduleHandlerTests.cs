@@ -35,7 +35,7 @@ public class SaveWeekScheduleHandlerTests
             new("2026-06-17", "Chiều", "Phẫu thuật", "Bác sĩ", "Bs. Bình", "Phòng 2", "#00FF00", false),
         });
 
-        var result = await handler.HandleAsync("2026-06-16", request, CancellationToken.None);
+        var result = await handler.Handle(new SaveWeekScheduleCommand("2026-06-16", request), CancellationToken.None);
 
         await _repo.Received(1).ReplaceWeekAsync(
             new DateOnly(2026, 6, 16),
@@ -53,7 +53,7 @@ public class SaveWeekScheduleHandlerTests
         var handler = new SaveWeekScheduleHandler(_repo);
         var request = new SaveWeekScheduleRequest(new List<SaveScheduleEntryRequest>());
 
-        Func<Task> act = () => handler.HandleAsync("16-06-2026", request, CancellationToken.None);
+        Func<Task> act = () => handler.Handle(new SaveWeekScheduleCommand("16-06-2026", request), CancellationToken.None);
 
         await act.Should().ThrowAsync<ArgumentException>();
         await _repo.DidNotReceive().ReplaceWeekAsync(Arg.Any<DateOnly>(), Arg.Any<IEnumerable<WorkSchedule>>(), Arg.Any<CancellationToken>());
@@ -72,7 +72,7 @@ public class SaveWeekScheduleHandlerTests
             new("invalid-date", "Sáng", "Khám", "Nha sĩ", "Bs. An", "Phòng 1", "#FF0000", false),
         });
 
-        Func<Task> act = () => handler.HandleAsync("2026-06-16", request, CancellationToken.None);
+        Func<Task> act = () => handler.Handle(new SaveWeekScheduleCommand("2026-06-16", request), CancellationToken.None);
 
         await act.Should().ThrowAsync<ArgumentException>();
     }
@@ -87,7 +87,7 @@ public class SaveWeekScheduleHandlerTests
         var handler = new SaveWeekScheduleHandler(_repo);
         var request = new SaveWeekScheduleRequest(new List<SaveScheduleEntryRequest>());
 
-        var result = await handler.HandleAsync("2026-06-16", request, CancellationToken.None);
+        var result = await handler.Handle(new SaveWeekScheduleCommand("2026-06-16", request), CancellationToken.None);
 
         await _repo.Received(1).ReplaceWeekAsync(
             new DateOnly(2026, 6, 16),

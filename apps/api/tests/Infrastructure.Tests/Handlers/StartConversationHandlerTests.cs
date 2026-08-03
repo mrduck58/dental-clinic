@@ -3,6 +3,7 @@ using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using NSubstitute;
@@ -43,7 +44,8 @@ public class StartConversationHandlerTests
 
         _userRepo = Substitute.For<IUserRepository>();
 
-        _handler = new StartConversationHandler(_patientRepo, _userRepo, _db);
+        _handler = new StartConversationHandler(
+            _patientRepo, _userRepo, new ChatConversationRepository(_db), new ChatMessageRepository(_db), _db);
     }
 
     [TearDown]
@@ -53,7 +55,7 @@ public class StartConversationHandlerTests
     [Test]
     public async Task HandleAsync_NoUpcomingAppointment_ReturnsNullInitialMessage()
     {
-        var result = await _handler.HandleAsync(_userId);
+        var result = await _handler.Handle(new StartConversationCommand(_userId), CancellationToken.None);
 
         result.InitialMessage.Should().BeNull();
     }
@@ -68,7 +70,7 @@ public class StartConversationHandlerTests
         _db.Appointments.Add(appointment);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(_userId);
+        var result = await _handler.Handle(new StartConversationCommand(_userId), CancellationToken.None);
 
         result.InitialMessage.Should().NotBeNull();
         result.InitialMessage.Should().Contain(dentist.FullName);
@@ -87,7 +89,7 @@ public class StartConversationHandlerTests
         _db.Appointments.Add(appointment);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(_userId);
+        var result = await _handler.Handle(new StartConversationCommand(_userId), CancellationToken.None);
 
         result.InitialMessage.Should().BeNull();
     }
@@ -102,7 +104,7 @@ public class StartConversationHandlerTests
         _db.Appointments.Add(appointment);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(_userId);
+        var result = await _handler.Handle(new StartConversationCommand(_userId), CancellationToken.None);
 
         result.InitialMessage.Should().BeNull();
     }
@@ -134,7 +136,7 @@ public class StartConversationHandlerTests
         _patientRepo.GetFamilyMembersAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(new List<Patient>());
 
-        var result = await _handler.HandleAsync(newUser.Id);
+        var result = await _handler.Handle(new StartConversationCommand(newUser.Id), CancellationToken.None);
 
         result.ConversationId.Should().NotBeEmpty();
         await _patientRepo.Received(1).AddAsync(
@@ -149,7 +151,7 @@ public class StartConversationHandlerTests
         _patientRepo.GetByUserIdAsync(unknownUserId, Arg.Any<CancellationToken>()).Returns((Patient?)null);
         _userRepo.GetByIdAsync(unknownUserId, Arg.Any<CancellationToken>()).Returns((User?)null);
 
-        var act = () => _handler.HandleAsync(unknownUserId);
+        var act = () => _handler.Handle(new StartConversationCommand(unknownUserId), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }

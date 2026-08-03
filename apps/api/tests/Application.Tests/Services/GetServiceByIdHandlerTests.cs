@@ -26,7 +26,7 @@ public class GetServiceByIdHandlerTests
         _repo.GetByIdAsync(service.Id, Arg.Any<CancellationToken>()).Returns(service);
         var handler = new GetServiceByIdHandler(_repo);
 
-        var result = await handler.HandleAsync(service.Id);
+        var result = await handler.Handle(new GetServiceByIdQuery(service.Id), CancellationToken.None);
 
         result.Id.Should().Be(service.Id);
         result.Name.Should().Be("Implant");
@@ -41,7 +41,7 @@ public class GetServiceByIdHandlerTests
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Service?)null);
         var handler = new GetServiceByIdHandler(_repo);
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid());
+        Func<Task> act = () => handler.Handle(new GetServiceByIdQuery(Guid.NewGuid()), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }

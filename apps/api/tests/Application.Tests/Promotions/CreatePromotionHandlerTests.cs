@@ -32,7 +32,7 @@ public class CreatePromotionHandlerTests
     {
         var handler = new CreatePromotionHandler(_repo, _activityLog, _currentUser);
 
-        var result = await handler.HandleAsync(BuildCreateRequest("SALE10"));
+        var result = await handler.Handle(BuildCreateRequest("SALE10"), CancellationToken.None);
 
         await _repo.Received(1).AddAsync(Arg.Any<Promotion>(), Arg.Any<CancellationToken>());
         result.Should().NotBe(Guid.Empty);
@@ -49,12 +49,12 @@ public class CreatePromotionHandlerTests
         await _repo.AddAsync(Arg.Do<Promotion>(p => captured = p), Arg.Any<CancellationToken>());
         var handler = new CreatePromotionHandler(_repo, _activityLog, _currentUser);
 
-        await handler.HandleAsync(BuildCreateRequest("sale10"));
+        await handler.Handle(BuildCreateRequest("sale10"), CancellationToken.None);
 
         captured!.Code.Should().Be("SALE10");
     }
 
-    private static CreatePromotionRequest BuildCreateRequest(string code)
+    private static CreatePromotionCommand BuildCreateRequest(string code)
         => new(code, "Tên khuyến mãi", "Mô tả", "Percentage", 10m,
             new List<Guid>(),
             DateOnly.FromDateTime(DateTime.Today),

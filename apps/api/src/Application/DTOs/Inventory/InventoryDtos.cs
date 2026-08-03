@@ -9,6 +9,8 @@ public record SupplyItemDto(
     int Quantity,
     int MinQuantity,
     bool IsLow,
+    string OrderType,
+    decimal? Price,
     DateTimeOffset CreatedAt,
     DateTimeOffset? UpdatedAt);
 
@@ -18,6 +20,7 @@ public record SupplyTransactionDto(
     string ItemName,
     string Type,
     int Quantity,
+    decimal? UnitPrice,
     string? Note,
     string CreatedBy,
     DateTimeOffset CreatedAt);
@@ -34,11 +37,15 @@ public record CreateSupplyItemRequest(
     string Category,
     string Unit,
     int Quantity,
-    int MinQuantity);
+    int MinQuantity,
+    string? OrderType = null,
+    decimal? Price = null);
 
 public record StockImportRequest(
     string Name,
     string Unit,
     string Category,
     int Quantity,
-    string? Note);
+    string? Note,
+    decimal? UnitPrice = null,
+    string? OrderType = null);

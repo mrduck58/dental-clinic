@@ -35,7 +35,7 @@ public class DeleteServiceHandlerTests
         _repo.GetByIdAsync(service.Id, Arg.Any<CancellationToken>()).Returns(service);
         var handler = new DeleteServiceHandler(_repo, _activityLog, _currentUser);
 
-        await handler.HandleAsync(service.Id);
+        await handler.Handle(new DeleteServiceCommand(service.Id), CancellationToken.None);
 
         await _repo.Received(1).DeleteAsync(service, Arg.Any<CancellationToken>());
     }
@@ -49,7 +49,7 @@ public class DeleteServiceHandlerTests
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Service?)null);
         var handler = new DeleteServiceHandler(_repo, _activityLog, _currentUser);
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid());
+        Func<Task> act = () => handler.Handle(new DeleteServiceCommand(Guid.NewGuid()), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
         await _repo.DidNotReceive().DeleteAsync(Arg.Any<Service>(), Arg.Any<CancellationToken>());
@@ -65,7 +65,7 @@ public class DeleteServiceHandlerTests
         _repo.GetByIdAsync(service.Id, Arg.Any<CancellationToken>()).Returns(service);
         var handler = new DeleteServiceHandler(_repo, _activityLog, _currentUser);
 
-        await handler.HandleAsync(service.Id);
+        await handler.Handle(new DeleteServiceCommand(service.Id), CancellationToken.None);
 
         await _activityLog.Received(1).LogAsync(
             userId: Arg.Any<Guid?>(),
@@ -89,7 +89,7 @@ public class DeleteServiceHandlerTests
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Service?)null);
         var handler = new DeleteServiceHandler(_repo, _activityLog, _currentUser);
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid());
+        Func<Task> act = () => handler.Handle(new DeleteServiceCommand(Guid.NewGuid()), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
         await _activityLog.DidNotReceive().LogAsync(

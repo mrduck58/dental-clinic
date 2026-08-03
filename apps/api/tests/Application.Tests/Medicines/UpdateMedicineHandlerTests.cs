@@ -36,7 +36,8 @@ public class UpdateMedicineHandlerTests
         _repo.GetByIdAsync(medicine.Id, Arg.Any<CancellationToken>()).Returns(medicine);
         var handler = new UpdateMedicineHandler(_repo, _activityLog, _currentUser);
 
-        var result = await handler.HandleAsync(medicine.Id, new UpdateMedicineRequest("Amoxicillin 500mg", "Amox", "Novartis", "Viên", "Kháng sinh"));
+        var result = await handler.Handle(
+            new UpdateMedicineCommand(medicine.Id, "Amoxicillin 500mg", "Amox", "Novartis", "Viên", "Kháng sinh"), CancellationToken.None);
 
         await _repo.Received(1).UpdateAsync(medicine, Arg.Any<CancellationToken>());
         result.Name.Should().Be("Amoxicillin 500mg");
@@ -52,7 +53,8 @@ public class UpdateMedicineHandlerTests
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Medicine?)null);
         var handler = new UpdateMedicineHandler(_repo, _activityLog, _currentUser);
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid(), new UpdateMedicineRequest("X", "X", "X", "Viên", "X"));
+        Func<Task> act = () => handler.Handle(
+            new UpdateMedicineCommand(Guid.NewGuid(), "X", "X", "X", "Viên", "X"), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -67,7 +69,8 @@ public class UpdateMedicineHandlerTests
         _repo.GetByIdAsync(medicine.Id, Arg.Any<CancellationToken>()).Returns(medicine);
         var handler = new UpdateMedicineHandler(_repo, _activityLog, _currentUser);
 
-        var result = await handler.HandleAsync(medicine.Id, new UpdateMedicineRequest("Mới", "Mới", "Mới", "Viên", "Mới"));
+        var result = await handler.Handle(
+            new UpdateMedicineCommand(medicine.Id, "Mới", "Mới", "Mới", "Viên", "Mới"), CancellationToken.None);
 
         result.UpdatedAt.Should().NotBeNull();
     }
@@ -81,7 +84,8 @@ public class UpdateMedicineHandlerTests
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Medicine?)null);
         var handler = new UpdateMedicineHandler(_repo, _activityLog, _currentUser);
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid(), new UpdateMedicineRequest("X", "X", "X", "Viên", "X"));
+        Func<Task> act = () => handler.Handle(
+            new UpdateMedicineCommand(Guid.NewGuid(), "X", "X", "X", "Viên", "X"), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
         await _repo.DidNotReceive().UpdateAsync(Arg.Any<Medicine>(), Arg.Any<CancellationToken>());
@@ -98,7 +102,8 @@ public class UpdateMedicineHandlerTests
         _repo.GetByIdAsync(medicine.Id, Arg.Any<CancellationToken>()).Returns(medicine);
         var handler = new UpdateMedicineHandler(_repo, _activityLog, _currentUser);
 
-        await handler.HandleAsync(medicine.Id, new UpdateMedicineRequest("Amoxicillin 500mg", "Amox", "Novartis", "Viên", "Kháng sinh"));
+        await handler.Handle(
+            new UpdateMedicineCommand(medicine.Id, "Amoxicillin 500mg", "Amox", "Novartis", "Viên", "Kháng sinh"), CancellationToken.None);
 
         await _activityLog.Received(1).LogAsync(
             userId: Arg.Any<Guid?>(),

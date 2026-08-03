@@ -2,15 +2,20 @@ using System.Security.Cryptography;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Staff;
 
 public record ResetStaffPasswordResult(Guid Id, string Email, string TemporaryPassword);
 
+public record ResetStaffPasswordCommand(Guid StaffId) : IRequest<ResetStaffPasswordResult>;
+
 public class ResetStaffPasswordHandler(IUserRepository userRepository, IEmailService emailService)
+    : IRequestHandler<ResetStaffPasswordCommand, ResetStaffPasswordResult>
 {
-    public async Task<ResetStaffPasswordResult> HandleAsync(Guid staffId, CancellationToken ct = default)
+    public async Task<ResetStaffPasswordResult> Handle(ResetStaffPasswordCommand request, CancellationToken ct)
     {
+        var staffId = request.StaffId;
         var user = await userRepository.GetByIdAsync(staffId, ct)
             ?? throw new NotFoundException($"Không tìm thấy nhân viên với ID '{staffId}'.");
 

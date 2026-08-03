@@ -1,24 +1,25 @@
 using DentalClinic.API.Application.DTOs.Feedbacks;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Feedbacks;
 
+public record GetFeedbacksQuery(string? Status, string? Search) : IRequest<IEnumerable<FeedbackDto>>;
+
 public class GetFeedbacksHandler(IFeedbackRepository feedbackRepository)
+    : IRequestHandler<GetFeedbacksQuery, IEnumerable<FeedbackDto>>
 {
-    public async Task<IEnumerable<FeedbackDto>> HandleAsync(
-        string? status,
-        string? search,
-        CancellationToken ct = default)
+    public async Task<IEnumerable<FeedbackDto>> Handle(GetFeedbacksQuery request, CancellationToken cancellationToken)
     {
-        var feedbacks = await feedbackRepository.GetAllAsync(ct);
+        var feedbacks = await feedbackRepository.GetAllAsync(cancellationToken);
 
-        if (!string.IsNullOrWhiteSpace(status))
-            feedbacks = feedbacks.Where(f => f.Status.ToString().Equals(status, StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(request.Status))
+            feedbacks = feedbacks.Where(f => f.Status.ToString().Equals(request.Status, StringComparison.OrdinalIgnoreCase));
 
-        if (!string.IsNullOrWhiteSpace(search))
+        if (!string.IsNullOrWhiteSpace(request.Search))
         {
-            var q = search.ToLower();
+            var q = request.Search.ToLower();
             feedbacks = feedbacks.Where(f =>
                 f.CustomerName.ToLower().Contains(q) ||
                 f.Comment.ToLower().Contains(q));

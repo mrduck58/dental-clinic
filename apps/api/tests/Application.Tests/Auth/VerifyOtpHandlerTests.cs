@@ -35,7 +35,7 @@ public class VerifyOtpHandlerTests
         _otpRepo.GetLatestValidAsync(Arg.Any<string>(), OtpPurpose.Registration, Arg.Any<CancellationToken>())
             .Returns((OtpCode?)null);
 
-        Func<Task> act = () => _handler.HandleAsync(new VerifyOtpCommand("test@test.com", "123456"));
+        Func<Task> act = () => _handler.Handle(new VerifyOtpCommand("test@test.com", "123456"), CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
     }
@@ -47,7 +47,7 @@ public class VerifyOtpHandlerTests
         var otp = OtpCode.Create("test@test.com", OtpPurpose.Registration);
         _otpRepo.GetLatestValidAsync("test@test.com", OtpPurpose.Registration, Arg.Any<CancellationToken>()).Returns(otp);
 
-        Func<Task> act = () => _handler.HandleAsync(new VerifyOtpCommand("test@test.com", "wrong-code"));
+        Func<Task> act = () => _handler.Handle(new VerifyOtpCommand("test@test.com", "wrong-code"), CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
         await _otpRepo.DidNotReceive().UpdateAsync(Arg.Any<OtpCode>(), Arg.Any<CancellationToken>());
@@ -61,7 +61,7 @@ public class VerifyOtpHandlerTests
         _otpRepo.GetLatestValidAsync("test@test.com", OtpPurpose.Registration, Arg.Any<CancellationToken>()).Returns(otp);
         _userRepo.GetByEmailAsync("test@test.com", Arg.Any<CancellationToken>()).Returns((User?)null);
 
-        Func<Task> act = () => _handler.HandleAsync(new VerifyOtpCommand("test@test.com", otp.Code));
+        Func<Task> act = () => _handler.Handle(new VerifyOtpCommand("test@test.com", otp.Code), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -75,7 +75,7 @@ public class VerifyOtpHandlerTests
         _otpRepo.GetLatestValidAsync("test@test.com", OtpPurpose.Registration, Arg.Any<CancellationToken>()).Returns(otp);
         _userRepo.GetByEmailAsync("test@test.com", Arg.Any<CancellationToken>()).Returns(user);
 
-        var result = await _handler.HandleAsync(new VerifyOtpCommand("test@test.com", otp.Code));
+        var result = await _handler.Handle(new VerifyOtpCommand("test@test.com", otp.Code), CancellationToken.None);
 
         user.IsActive.Should().BeTrue();
         result.AccessToken.Should().Be("fake-jwt-token");
@@ -93,7 +93,7 @@ public class VerifyOtpHandlerTests
         _otpRepo.GetLatestValidAsync("test@test.com", OtpPurpose.Registration, Arg.Any<CancellationToken>()).Returns(otp);
         _userRepo.GetByEmailAsync("test@test.com", Arg.Any<CancellationToken>()).Returns(user);
 
-        await _handler.HandleAsync(new VerifyOtpCommand("test@test.com", otp.Code));
+        await _handler.Handle(new VerifyOtpCommand("test@test.com", otp.Code), CancellationToken.None);
 
         user.IsActive.Should().BeTrue();
         await _userRepo.Received(1).UpdateAsync(Arg.Is<User>(u => u.IsActive), Arg.Any<CancellationToken>());
@@ -108,7 +108,7 @@ public class VerifyOtpHandlerTests
         _otpRepo.GetLatestValidAsync("test@test.com", OtpPurpose.Registration, Arg.Any<CancellationToken>()).Returns(otp);
         _userRepo.GetByEmailAsync("test@test.com", Arg.Any<CancellationToken>()).Returns(user);
 
-        var result = await _handler.HandleAsync(new VerifyOtpCommand("test@test.com", otp.Code));
+        var result = await _handler.Handle(new VerifyOtpCommand("test@test.com", otp.Code), CancellationToken.None);
 
         result.Id.Should().Be(user.Id);
         result.Email.Should().Be(user.Email);
@@ -124,7 +124,7 @@ public class VerifyOtpHandlerTests
         _otpRepo.GetLatestValidAsync("test@test.com", OtpPurpose.Registration, Arg.Any<CancellationToken>()).Returns(otp);
         _userRepo.GetByEmailAsync("test@test.com", Arg.Any<CancellationToken>()).Returns((User?)null);
 
-        Func<Task> act = () => _handler.HandleAsync(new VerifyOtpCommand("test@test.com", otp.Code));
+        Func<Task> act = () => _handler.Handle(new VerifyOtpCommand("test@test.com", otp.Code), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
         await _otpRepo.Received(1).UpdateAsync(Arg.Is<OtpCode>(o => o.IsUsed), Arg.Any<CancellationToken>());

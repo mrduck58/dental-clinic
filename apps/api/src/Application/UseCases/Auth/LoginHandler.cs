@@ -2,14 +2,15 @@ using DentalClinic.API.Application.DTOs.Auth;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Domain.Constants;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Auth;
 
-public record LoginCommand(string Email, string Password, string[]? AllowedRoles = null, string? IpAddress = null);
+public record LoginCommand(string Email, string Password, string[]? AllowedRoles = null, string? IpAddress = null) : IRequest<LoginResponseDto>;
 
-public class LoginHandler(IUserRepository userRepository, IJwtService jwtService, IActivityLogService activityLogService)
+public class LoginHandler(IUserRepository userRepository, IJwtService jwtService, IActivityLogService activityLogService) : IRequestHandler<LoginCommand, LoginResponseDto>
 {
-    public async Task<LoginResponseDto> HandleAsync(LoginCommand command, CancellationToken ct = default)
+    public async Task<LoginResponseDto> Handle(LoginCommand command, CancellationToken ct)
     {
         var user = await userRepository.GetByEmailAsync(command.Email, ct);
 

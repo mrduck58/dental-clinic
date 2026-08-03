@@ -36,7 +36,7 @@ public class GetAccountsHandlerTests
         _userRepo.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(new List<User> { withAccount1, withAccount2, withoutAccount });
 
-        var result = await _handler.HandleAsync();
+        var result = await _handler.Handle(new GetAccountsQuery(), CancellationToken.None);
 
         result.Should().HaveCount(2);
     }
@@ -55,7 +55,7 @@ public class GetAccountsHandlerTests
         };
         _userRepo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(employees);
 
-        var result = await _handler.HandleAsync();
+        var result = await _handler.Handle(new GetAccountsQuery(), CancellationToken.None);
 
         result.Should().BeEmpty();
     }
@@ -68,7 +68,7 @@ public class GetAccountsHandlerTests
     {
         _userRepo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<User>());
 
-        var result = await _handler.HandleAsync();
+        var result = await _handler.Handle(new GetAccountsQuery(), CancellationToken.None);
 
         result.Should().BeEmpty();
     }
@@ -83,7 +83,7 @@ public class GetAccountsHandlerTests
         var user = User.Create("adminuser", "admin@test.com", "hash", "Admin", "0901234567", "Admin Full");
         _userRepo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<User> { user });
 
-        var result = (await _handler.HandleAsync()).Single();
+        var result = (await _handler.Handle(new GetAccountsQuery(), CancellationToken.None)).Single();
 
         result.Username.Should().Be("adminuser");
         result.Email.Should().Be("admin@test.com");
@@ -108,7 +108,7 @@ public class GetAccountsHandlerTests
         };
         _userRepo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(users);
 
-        var result = await _handler.HandleAsync();
+        var result = await _handler.Handle(new GetAccountsQuery(), CancellationToken.None);
 
         result.Should().HaveCount(3);
     }
@@ -122,7 +122,7 @@ public class GetAccountsHandlerTests
     {
         _userRepo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<User>());
 
-        await _handler.HandleAsync();
+        await _handler.Handle(new GetAccountsQuery(), CancellationToken.None);
 
         await _userRepo.Received(1).GetAllAsync(Arg.Any<CancellationToken>());
     }
@@ -137,7 +137,7 @@ public class GetAccountsHandlerTests
         var user = User.Create("adminuser", "admin@test.com", "hash", "Admin");
         _userRepo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<User> { user });
 
-        var result = (await _handler.HandleAsync()).Single();
+        var result = (await _handler.Handle(new GetAccountsQuery(), CancellationToken.None)).Single();
 
         result.Id.Should().Be(user.Id);
         result.CreatedAt.Should().Be(user.CreatedAt);
@@ -154,7 +154,7 @@ public class GetAccountsHandlerTests
         user.SetActive(false);
         _userRepo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<User> { user });
 
-        var result = (await _handler.HandleAsync()).Single();
+        var result = (await _handler.Handle(new GetAccountsQuery(), CancellationToken.None)).Single();
 
         result.IsActive.Should().BeFalse();
     }

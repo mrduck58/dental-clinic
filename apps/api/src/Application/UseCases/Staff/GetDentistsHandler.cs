@@ -1,6 +1,5 @@
 using DentalClinic.API.Domain.Interfaces.Repositories;
-using DentalClinic.API.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Staff;
 
@@ -12,27 +11,24 @@ public record DentistSummaryDto(
     int? YearsOfExperience,
     string? Bio);
 
-public class GetDentistsHandler(IUserRepository userRepository, AppDbContext? dbContext = null)
-{
-    public async Task<IEnumerable<DentistSummaryDto>> HandleAsync(CancellationToken ct = default)
-    {
-        if (dbContext != null)
-        {
-            var dbDentists = await dbContext.Dentists
-                .AsNoTracking()
-                .Include(d => d.User)
-                .ToListAsync(ct);
+public record GetDentistsQuery : IRequest<IEnumerable<DentistSummaryDto>>;
 
-            if (dbDentists.Count > 0)
-            {
-                return dbDentists.Select(d => new DentistSummaryDto(
-                    d.Id,
-                    d.FullName,
-                    d.Specialization,
-                    d.ProfilePictureUrl,
-                    d.ExperienceYears,
-                    d.Biography));
-            }
+public class GetDentistsHandler(IUserRepository userRepository, IDentistRepository dentistRepository)
+    : IRequestHandler<GetDentistsQuery, IEnumerable<DentistSummaryDto>>
+{
+    public async Task<IEnumerable<DentistSummaryDto>> Handle(GetDentistsQuery request, CancellationToken ct)
+    {
+        var dbDentists = await dentistRepository.GetAllWithUserAsync(ct);
+
+        if (dbDentists.Count > 0)
+        {
+            return dbDentists.Select(d => new DentistSummaryDto(
+                d.Id,
+                d.FullName,
+                d.Specialization,
+                d.ProfilePictureUrl,
+                d.ExperienceYears,
+                d.Biography));
         }
 
         var (items, _) = await userRepository.GetStaffPagedAsync(

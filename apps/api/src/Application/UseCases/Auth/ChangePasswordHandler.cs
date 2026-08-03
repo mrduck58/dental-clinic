@@ -5,17 +5,18 @@ using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Domain.Constants;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Auth;
 
 public record ChangePasswordCommand(
     Guid UserId,
     string CurrentPassword,
-    string NewPassword);
+    string NewPassword) : IRequest;
 
-public class ChangePasswordHandler(IUserRepository userRepository, IActivityLogService activityLogService, ICurrentUserService currentUser)
+public class ChangePasswordHandler(IUserRepository userRepository, IActivityLogService activityLogService, ICurrentUserService currentUser) : IRequestHandler<ChangePasswordCommand>
 {
-    public async Task HandleAsync(ChangePasswordCommand command, CancellationToken ct = default)
+    public async Task Handle(ChangePasswordCommand command, CancellationToken ct)
     {
         var user = await userRepository.GetByIdAsync(command.UserId, ct)
             ?? throw new NotFoundException("Không tìm thấy tài khoản.");

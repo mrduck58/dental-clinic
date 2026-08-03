@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Hosting;
 
@@ -7,8 +8,12 @@ namespace DentalClinic.API.Presentation.Controllers;
 [Route("api/files")]
 public class FilesController(IHostEnvironment env) : ControllerBase
 {
+    /// <summary>POST api/files/upload — dùng chung cho mọi vai trò đã đăng nhập (Admin/Staff tải ảnh
+    /// dịch vụ-thuốc-nhân viên, bệnh nhân tải ảnh đại diện...) — trước đây không yêu cầu đăng nhập,
+    /// ai cũng gọi được kể cả ẩn danh.</summary>
     [HttpPost("upload")]
     [Consumes("multipart/form-data")]
+    [Authorize]
     public async Task<IActionResult> Upload([FromForm] IFormFile file, CancellationToken ct)
     {
         if (file is null || file.Length == 0)

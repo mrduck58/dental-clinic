@@ -32,7 +32,7 @@ public class CreateStaffAccountHandlerTests
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
         var handler = new CreateStaffAccountHandler(_userRepo, _emailService);
 
-        await handler.HandleAsync(user.Id);
+        await handler.Handle(new CreateStaffAccountCommand(user.Id), CancellationToken.None);
 
         await _userRepo.Received(1).UpdateAsync(user, Arg.Any<CancellationToken>());
         await _emailService.Received(1).SendStaffCredentialsAsync(
@@ -48,7 +48,7 @@ public class CreateStaffAccountHandlerTests
         _userRepo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((User?)null);
         var handler = new CreateStaffAccountHandler(_userRepo, _emailService);
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid());
+        Func<Task> act = () => handler.Handle(new CreateStaffAccountCommand(Guid.NewGuid()), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -63,7 +63,7 @@ public class CreateStaffAccountHandlerTests
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
         var handler = new CreateStaffAccountHandler(_userRepo, _emailService);
 
-        Func<Task> act = () => handler.HandleAsync(user.Id);
+        Func<Task> act = () => handler.Handle(new CreateStaffAccountCommand(user.Id), CancellationToken.None);
 
         await act.Should().ThrowAsync<ConflictException>().WithMessage("*đã có tài khoản*");
     }
@@ -78,7 +78,7 @@ public class CreateStaffAccountHandlerTests
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
         var handler = new CreateStaffAccountHandler(_userRepo, _emailService);
 
-        var result = await handler.HandleAsync(user.Id);
+        var result = await handler.Handle(new CreateStaffAccountCommand(user.Id), CancellationToken.None);
 
         result.HasAccount.Should().BeTrue();
     }
@@ -94,7 +94,7 @@ public class CreateStaffAccountHandlerTests
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
         var handler = new CreateStaffAccountHandler(_userRepo, _emailService);
 
-        var result = await handler.HandleAsync(user.Id);
+        var result = await handler.Handle(new CreateStaffAccountCommand(user.Id), CancellationToken.None);
 
         result.Username.Should().Be("first_last_name");
     }
@@ -111,7 +111,7 @@ public class CreateStaffAccountHandlerTests
         _userRepo.ExistsByUsernameAsync("emp", Arg.Any<CancellationToken>()).Returns(true);
         var handler = new CreateStaffAccountHandler(_userRepo, _emailService);
 
-        var result = await handler.HandleAsync(user.Id);
+        var result = await handler.Handle(new CreateStaffAccountCommand(user.Id), CancellationToken.None);
 
         result.Username.Should().StartWith("emp_");
         result.Username.Should().NotBe("emp");
@@ -128,7 +128,7 @@ public class CreateStaffAccountHandlerTests
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
         var handler = new CreateStaffAccountHandler(_userRepo, _emailService);
 
-        await handler.HandleAsync(user.Id);
+        await handler.Handle(new CreateStaffAccountCommand(user.Id), CancellationToken.None);
 
         await _emailService.Received(1).SendStaffCredentialsAsync(
             user.Email, user.Username!, Arg.Any<string>(), Arg.Any<CancellationToken>());

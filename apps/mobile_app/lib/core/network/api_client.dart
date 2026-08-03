@@ -67,6 +67,12 @@ class ApiClient {
       ? Options(headers: {'Authorization': 'Bearer $token'})
       : null;
 
+  /// Đọc lại ApiConstants.baseUrl (SettingsManager) và áp dụng cho Dio ngay lập tức —
+  /// gọi sau khi đổi địa chỉ máy chủ ở trang Cài đặt để không cần khởi động lại app.
+  void refreshBaseUrl() {
+    _dio.options.baseUrl = ApiConstants.baseUrl;
+  }
+
   /// Trích xuất thông báo lỗi từ phản hồi API (format: { title, status }).
   static String errorMessage(DioException e) {
     final data = e.response?.data;

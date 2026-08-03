@@ -33,7 +33,7 @@ public class CreateServiceHandlerTests
     {
         var handler = new CreateServiceHandler(_repo, _activityLog, _currentUser);
 
-        var result = await handler.HandleAsync(new CreateServiceRequest("Nhổ răng", 200000m, 30, "Mô tả", null));
+        var result = await handler.Handle(new CreateServiceCommand("Nhổ răng", 200000m, 30, "Mô tả", null, null), CancellationToken.None);
 
         await _repo.Received(1).AddAsync(Arg.Any<Service>(), Arg.Any<CancellationToken>());
         result.Name.Should().Be("Nhổ răng");
@@ -48,7 +48,7 @@ public class CreateServiceHandlerTests
     {
         var handler = new CreateServiceHandler(_repo, _activityLog, _currentUser);
 
-        var result = await handler.HandleAsync(new CreateServiceRequest("Trồng răng sứ", 5000000m, 120, "Mô tả", null));
+        var result = await handler.Handle(new CreateServiceCommand("Trồng răng sứ", 5000000m, 120, "Mô tả", null, null), CancellationToken.None);
 
         result.IsActive.Should().BeTrue();
     }
@@ -61,7 +61,7 @@ public class CreateServiceHandlerTests
     {
         var handler = new CreateServiceHandler(_repo, _activityLog, _currentUser);
 
-        var result = await handler.HandleAsync(new CreateServiceRequest("Tẩy trắng", 800000m, 60, "Mô tả", "https://img.com/teeth.jpg"));
+        var result = await handler.Handle(new CreateServiceCommand("Tẩy trắng", 800000m, 60, "Mô tả", "https://img.com/teeth.jpg", null), CancellationToken.None);
 
         result.ImageUrl.Should().Be("https://img.com/teeth.jpg");
     }
@@ -74,7 +74,7 @@ public class CreateServiceHandlerTests
     {
         var handler = new CreateServiceHandler(_repo, _activityLog, _currentUser);
 
-        var result = await handler.HandleAsync(new CreateServiceRequest("Nhổ răng", 200000m, 30, "Mô tả", null));
+        var result = await handler.Handle(new CreateServiceCommand("Nhổ răng", 200000m, 30, "Mô tả", null, null), CancellationToken.None);
 
         await _activityLog.Received(1).LogAsync(
             userId: Arg.Any<Guid?>(),
