@@ -18,7 +18,8 @@ public record MyAppointmentDto(
     string? ServiceName,
     string PatientName,
     string? PatientRelationship,
-    Guid PatientId);
+    Guid PatientId,
+    Guid DentistId);
 
 public class GetMyAppointmentsHandler(
     IPatientRepository patientRepository,
@@ -49,6 +50,7 @@ public class GetMyAppointmentsHandler(
             a.Service?.Name,
             a.Patient.FullName,
             a.Patient.Id == patient.Id ? "Tôi" : (a.Patient.Relationship ?? string.Empty),
-            a.Patient.Id));
+            a.Patient.Id,
+            a.DentistId));
     }
 }

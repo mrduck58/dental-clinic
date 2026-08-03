@@ -31,6 +31,7 @@ import 'package:mobile_app/features/payment/presentation/pages/payment_gateway_s
 import 'package:mobile_app/features/home/presentation/pages/dentist_profile_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/dentist_reviews_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/write_review_page.dart';
+import 'package:mobile_app/features/home/presentation/pages/clinic_feedback_page.dart';
 import 'package:mobile_app/features/home/data/models/doctor_model.dart';
 import 'package:mobile_app/features/home/presentation/pages/services_list_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/posts_list_page.dart';
@@ -171,6 +172,10 @@ final GoRouter appRouter = GoRouter(
         }
         return const _PlaceholderPage(title: 'Viết đánh giá');
       },
+    ),
+    GoRoute(
+      path: AppRoutes.clinicFeedback,
+      builder: (context, state) => const ClinicFeedbackPage(),
     ),
     GoRoute(
       path: AppRoutes.servicesList,
@@ -358,6 +363,7 @@ abstract class AppRoutes {
   static const dentistProfile = '/dentist/profile';
   static const dentistReviews = '/dentist/reviews';
   static const writeReview = '/dentist/reviews/write';
+  static const clinicFeedback = '/clinic-feedback';
   static const servicesList = '/services';
   static const postsList = '/posts';
   static const dentistsList = '/dentists';

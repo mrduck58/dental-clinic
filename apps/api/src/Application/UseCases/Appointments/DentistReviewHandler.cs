@@ -76,3 +76,37 @@ public class DentistReviewHandler(AppDbContext dbContext, IPatientRepository pat
         return new DentistReviewDto(existing.Id, patient.FullName, existing.Rating, existing.Comment, existing.Tags, existing.CreatedAt);
     }
 }
+
+public record ReviewEligibilityDto(bool CanReview, string Reason, DentistReviewDto? MyReview);
+
+public record GetDentistReviewEligibilityQuery(Guid DentistId, Guid UserId) : IRequest<ReviewEligibilityDto>;
+
+public class GetDentistReviewEligibilityHandler(
+    IDentistReviewRepository dentistReviewRepository,
+    IAppointmentRepository appointmentRepository,
+    IPatientRepository patientRepository)
+    : IRequestHandler<GetDentistReviewEligibilityQuery, ReviewEligibilityDto>
+{
+    public async Task<ReviewEligibilityDto> Handle(GetDentistReviewEligibilityQuery query, CancellationToken ct)
+    {
+        var patient = await patientRepository.GetByUserIdAsync(query.UserId, ct);
+        if (patient == null)
+        {
+            return new ReviewEligibilityDto(false, "Không tìm thấy hồ sơ bệnh nhân.", null);
+        }
+
+        var hasVisited = await appointmentRepository.HasCompletedVisitAsync(query.DentistId, patient.Id, ct);
+        if (!hasVisited)
+        {
+            return new ReviewEligibilityDto(false, "Bạn cần hoàn tất ít nhất 1 buổi khám với nha sĩ này trước khi đánh giá.", null);
+        }
+
+        var existing = await dentistReviewRepository.GetByDentistAndPatientAsync(query.DentistId, patient.Id, ct);
+        DentistReviewDto? myReview = existing == null
+            ? null
+            : new DentistReviewDto(existing.Id, patient.FullName, existing.Rating, existing.Comment, existing.Tags, existing.CreatedAt);
+
+        return new ReviewEligibilityDto(true, "Đủ điều kiện đánh giá nha sĩ.", myReview);
+    }
+}
+

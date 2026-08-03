@@ -293,6 +293,49 @@ class _DentistReviewsPageState extends State<DentistReviewsPage> {
                 height: 52,
                 child: ElevatedButton(
                   onPressed: () async {
+                    final eligibility = await ReviewService().checkEligibility(doc.id);
+                    if (!context.mounted) return;
+
+                    if (!eligibility.canReview) {
+                      showDialog(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          backgroundColor: context.card,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                          title: Row(
+                            children: [
+                              const Icon(Icons.info_outline_rounded, color: AppColors.primary, size: 24),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  isVi ? 'Thông báo' : 'Notice',
+                                  style: TextStyle(color: context.textPrimary, fontWeight: FontWeight.bold, fontSize: 16),
+                                ),
+                              ),
+                            ],
+                          ),
+                          content: Text(
+                            eligibility.reason.isNotEmpty
+                                ? eligibility.reason
+                                : (isVi
+                                    ? 'Bạn cần hoàn tất ít nhất 1 buổi khám với nha sĩ này trước khi đánh giá.'
+                                    : 'You need to complete at least 1 visit with this dentist before leaving a review.'),
+                            style: TextStyle(color: context.textSecondary, fontSize: 14, height: 1.4),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(ctx).pop(),
+                              child: Text(
+                                isVi ? 'Đã hiểu' : 'Understood',
+                                style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                      return;
+                    }
+
                     final added = await context.push(AppRoutes.writeReview, extra: doc);
                     if (added == true) _loadReviews();
                   },
