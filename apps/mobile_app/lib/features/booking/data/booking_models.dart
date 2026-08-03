@@ -214,6 +214,7 @@ class ApiDoctorWithSlots {
 class MyAppointmentItem {
   final String appointmentId;
   final String appointmentCode;
+  final String dentistId;
   final String dentistName;
   final String? dentistAvatarUrl;
   final String specialization;
@@ -228,6 +229,7 @@ class MyAppointmentItem {
   const MyAppointmentItem({
     required this.appointmentId,
     required this.appointmentCode,
+    this.dentistId = '',
     required this.dentistName,
     this.dentistAvatarUrl,
     required this.specialization,
@@ -244,6 +246,7 @@ class MyAppointmentItem {
       MyAppointmentItem(
         appointmentId: json['appointmentId'].toString(),
         appointmentCode: json['appointmentCode'] as String,
+        dentistId: json['dentistId']?.toString() ?? '',
         dentistName: json['dentistName'] as String? ?? '',
         dentistAvatarUrl: json['dentistAvatarUrl'] as String?,
         specialization: json['specialization'] as String? ?? '',

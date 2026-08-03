@@ -344,6 +344,11 @@ class _ProfilePageState extends State<ProfilePage> {
               // ── Section 4: SUPPORT & LEGAL ────────────────────────────────
               _buildSectionHeader(context.l10n('support_legal')),
               _SettingsTile(
+                icon: Iconsax.hospital,
+                label: SettingsManager.instance.locale.value.languageCode == 'vi' ? 'Đánh giá phòng khám' : 'Clinic Review',
+                onTap: () => context.push(AppRoutes.clinicFeedback),
+              ),
+              _SettingsTile(
                 icon: Iconsax.info_circle,
                 label: context.l10n('help_faq'),
                 onTap: () => _showComingSoon('Trung tâm trợ giúp'),

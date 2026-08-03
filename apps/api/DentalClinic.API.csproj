@@ -8,10 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="tests/**" />
-    <Content Remove="tests/**" />
-    <None Remove="tests/**" />
-    <EmbeddedResource Remove="tests/**" />
+    <Compile Remove="tests/**;*Tests/**" />
+    <Content Remove="tests/**;*Tests/**" />
+    <None Remove="tests/**;*Tests/**" />
+    <EmbeddedResource Remove="tests/**;*Tests/**" />
   </ItemGroup>
 
   <ItemGroup>

@@ -95,7 +95,7 @@ class _DentistProfilePageState extends State<DentistProfilePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Doctor Image & Rating badge
+                    // Doctor Image & Interactive Rating Badge Button
                     Center(
                       child: Stack(
                         alignment: Alignment.bottomCenter,
@@ -103,7 +103,7 @@ class _DentistProfilePageState extends State<DentistProfilePage> {
                           Container(
                             width: 140,
                             height: 140,
-                            margin: const EdgeInsets.only(bottom: 14),
+                            margin: const EdgeInsets.only(bottom: 16),
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               border: Border.all(color: context.card, width: 4),
@@ -125,14 +125,19 @@ class _DentistProfilePageState extends State<DentistProfilePage> {
                                   : _placeholderAvatar(),
                             ),
                           ),
-                          if (_reviewsCount > 0)
-                            Positioned(
-                              bottom: 6,
+                          Positioned(
+                            bottom: 0,
+                            child: GestureDetector(
+                              onTap: () async {
+                                await context.push(AppRoutes.dentistReviews, extra: doc);
+                                _load();
+                              },
                               child: Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                 decoration: BoxDecoration(
                                   color: AppColors.primary,
                                   borderRadius: BorderRadius.circular(999),
+                                  border: Border.all(color: context.card, width: 2),
                                   boxShadow: [
                                     BoxShadow(
                                       color: AppColors.primary.withValues(alpha: 0.35),
@@ -144,16 +149,19 @@ class _DentistProfilePageState extends State<DentistProfilePage> {
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    const Icon(Icons.star_rounded, color: Colors.white, size: 14),
+                                    const Icon(Icons.star_rounded, color: Colors.amber, size: 14),
                                     const SizedBox(width: 4),
                                     Text(
-                                      _avgRating.toString(),
+                                      _reviewsCount > 0
+                                          ? '$_avgRating ($_reviewsCount)'
+                                          : (isVi ? 'Đánh giá' : 'Rate'),
                                       style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800),
                                     ),
                                   ],
                                 ),
                               ),
                             ),
+                          ),
                         ],
                       ),
                     ),
@@ -277,62 +285,6 @@ class _DentistProfilePageState extends State<DentistProfilePage> {
                     ],
                     const SizedBox(height: 28),
 
-                    // Reviews Preview Card
-                    InkWell(
-                      onTap: () async {
-                        await context.push(AppRoutes.dentistReviews, extra: doc);
-                        _load();
-                      },
-                      borderRadius: BorderRadius.circular(18),
-                      child: Container(
-                        padding: const EdgeInsets.all(18),
-                        decoration: BoxDecoration(
-                          color: context.card,
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: context.divider),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: context.isDark ? 0.15 : 0.04),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 48,
-                              height: 48,
-                              decoration: BoxDecoration(
-                                color: context.isDark ? Colors.red[900]?.withValues(alpha: 0.3) : const Color(0xFFFEF2F2),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Iconsax.messages_1, color: AppColors.primary, size: 24),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    isVi ? 'Đánh giá từ bệnh nhân' : 'Patient Reviews',
-                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: context.textPrimary),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    _reviewsCount == 0
-                                        ? (isVi ? 'Chưa có đánh giá nào' : 'No reviews yet')
-                                        : '⭐ $_avgRating/5.0 ($_reviewsCount ${isVi ? 'đánh giá' : 'reviews'})',
-                                    style: TextStyle(fontSize: 13, color: context.textSecondary, fontWeight: FontWeight.w600),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Icon(Icons.arrow_forward_ios_rounded, size: 16, color: context.textMuted),
-                          ],
-                        ),
-                      ),
-                    ),
                     const SizedBox(height: 12),
                   ],
                 ),
