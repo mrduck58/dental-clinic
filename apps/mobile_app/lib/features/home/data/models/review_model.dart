@@ -97,11 +97,13 @@ class ClinicFeedbackEligibilityModel {
   final bool canReview;
   final String reason;
   final bool hasCompletedFirstVisit;
+  final ClinicFeedbackModel? myFeedback;
 
   const ClinicFeedbackEligibilityModel({
     required this.canReview,
     required this.reason,
     required this.hasCompletedFirstVisit,
+    this.myFeedback,
   });
 
   factory ClinicFeedbackEligibilityModel.fromJson(Map<String, dynamic> json) {
@@ -109,6 +111,7 @@ class ClinicFeedbackEligibilityModel {
       canReview: json['canReview'] as bool? ?? false,
       reason: json['reason'] as String? ?? '',
       hasCompletedFirstVisit: json['hasCompletedFirstVisit'] as bool? ?? false,
+      myFeedback: json['myFeedback'] != null ? ClinicFeedbackModel.fromJson(json['myFeedback'] as Map<String, dynamic>) : null,
     );
   }
 }

@@ -20,6 +20,7 @@ class _ClinicFeedbackPageState extends State<ClinicFeedbackPage> {
   final _reviewService = ReviewService();
 
   List<ClinicFeedbackModel> _feedbacks = [];
+  ClinicFeedbackModel? _myFeedback;
   bool _isLoading = true;
   bool _hasSubmitted = false;
 
@@ -32,10 +33,12 @@ class _ClinicFeedbackPageState extends State<ClinicFeedbackPage> {
 
   Future<void> _checkSubmittedStatus() async {
     final prefs = await SharedPreferences.getInstance();
-    final submitted = prefs.getBool('has_submitted_clinic_feedback') ?? false;
+    final localSubmitted = prefs.getBool('has_submitted_clinic_feedback') ?? false;
+    final eligibility = await _reviewService.checkClinicEligibility();
     if (!mounted) return;
     setState(() {
-      _hasSubmitted = submitted;
+      _myFeedback = eligibility.myFeedback;
+      _hasSubmitted = localSubmitted || _myFeedback != null || (!eligibility.canReview && eligibility.hasCompletedFirstVisit);
     });
   }
 
@@ -57,13 +60,8 @@ class _ClinicFeedbackPageState extends State<ClinicFeedbackPage> {
   Future<void> _onOpenFeedbackForm() async {
     final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
 
-    if (_hasSubmitted) {
-      _showNoticeDialog(
-        title: isVi ? 'Thông báo' : 'Notice',
-        message: isVi
-            ? 'Bạn đã gửi đánh giá cho phòng khám trước đó. Cảm ơn sự đóng góp quý báu của bạn!'
-            : 'You have already submitted feedback for the clinic. Thank you!',
-      );
+    if (_myFeedback != null) {
+      _showMyFeedbackDetailsBottomSheet(_myFeedback!);
       return;
     }
 
@@ -71,7 +69,16 @@ class _ClinicFeedbackPageState extends State<ClinicFeedbackPage> {
     final eligibility = await _reviewService.checkClinicEligibility();
     if (!mounted) return;
 
-    if (!eligibility.hasCompletedFirstVisit) {
+    if (eligibility.myFeedback != null) {
+      setState(() {
+        _myFeedback = eligibility.myFeedback;
+        _hasSubmitted = true;
+      });
+      _showMyFeedbackDetailsBottomSheet(eligibility.myFeedback!);
+      return;
+    }
+
+    if (!eligibility.canReview) {
       _showNoticeDialog(
         title: isVi ? 'Thông báo' : 'Notice',
         message: eligibility.reason.isNotEmpty
@@ -118,6 +125,149 @@ class _ClinicFeedbackPageState extends State<ClinicFeedbackPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showMyFeedbackDetailsBottomSheet(ClinicFeedbackModel feedback) {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
+    final parsed = _ParsedFeedbackComment.parse(feedback.comment);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: context.card,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: context.divider,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                const Icon(Icons.star_rounded, color: Colors.amber, size: 24),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    isVi ? 'Đánh giá của bạn' : 'Your Review',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: context.textPrimary),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryLight,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    isVi ? 'Đã gửi' : 'Submitted',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: List.generate(
+                5,
+                (s) => Icon(
+                  s < feedback.rating ? Icons.star_rounded : Icons.star_outline_rounded,
+                  color: Colors.amber,
+                  size: 20,
+                ),
+              ),
+            ),
+            if (parsed.text.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                parsed.text,
+                style: TextStyle(fontSize: 14, color: context.textPrimary, height: 1.45),
+              ),
+            ],
+            if (parsed.tags.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: parsed.tags.map((tag) {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: context.isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      tag,
+                      style: TextStyle(fontSize: 11, color: context.textSecondary, fontWeight: FontWeight.w600),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+            if (feedback.replyText != null && feedback.replyText!.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryLight.withValues(alpha: context.isDark ? 0.2 : 0.6),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Iconsax.messages_2, color: AppColors.primary, size: 18),
+                        const SizedBox(width: 8),
+                        Text(
+                          isVi ? 'Phản hồi từ phòng khám' : 'Clinic Response',
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.primary),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      feedback.replyText!,
+                      style: TextStyle(fontSize: 13, color: context.textPrimary, height: 1.45),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: OutlinedButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                style: OutlinedButton.styleFrom(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                ),
+                child: Text(
+                  isVi ? 'Đóng' : 'Close',
+                  style: TextStyle(fontWeight: FontWeight.bold, color: context.textPrimary),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -243,8 +393,129 @@ class _ClinicFeedbackPageState extends State<ClinicFeedbackPage> {
                       ),
                       const SizedBox(height: 24),
 
+                      if (_myFeedback != null) ...[
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryLight.withValues(alpha: context.isDark ? 0.15 : 0.4),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppColors.primary.withValues(alpha: 0.4)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.star_rounded, color: Colors.amber, size: 18),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        isVi ? 'Đánh giá của bạn' : 'Your Review',
+                                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.primary),
+                                      ),
+                                    ],
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primary,
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Text(
+                                      isVi ? 'Đã gửi' : 'Submitted',
+                                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: List.generate(
+                                  5,
+                                  (s) => Icon(
+                                    s < _myFeedback!.rating ? Icons.star_rounded : Icons.star_outline_rounded,
+                                    color: Colors.amber,
+                                    size: 14,
+                                  ),
+                                ),
+                              ),
+                              (() {
+                                final parsed = _ParsedFeedbackComment.parse(_myFeedback!.comment);
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    if (parsed.text.isNotEmpty) ...[
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        parsed.text,
+                                        style: TextStyle(fontSize: 13, color: context.textPrimary, height: 1.4),
+                                      ),
+                                    ],
+                                    if (parsed.tags.isNotEmpty) ...[
+                                      const SizedBox(height: 8),
+                                      Wrap(
+                                        spacing: 6,
+                                        runSpacing: 6,
+                                        children: parsed.tags.map((tag) {
+                                          return Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                            decoration: BoxDecoration(
+                                              color: context.isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                                              borderRadius: BorderRadius.circular(6),
+                                            ),
+                                            child: Text(
+                                              tag,
+                                              style: TextStyle(fontSize: 10, color: context.textSecondary, fontWeight: FontWeight.w600),
+                                            ),
+                                          );
+                                        }).toList(),
+                                      ),
+                                    ],
+                                  ],
+                                );
+                              })(),
+                              if (_myFeedback!.replyText != null && _myFeedback!.replyText!.isNotEmpty) ...[
+                                const SizedBox(height: 12),
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: context.card,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          const Icon(Iconsax.messages_2, color: AppColors.primary, size: 16),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            isVi ? 'Phản hồi từ phòng khám' : 'Clinic Response',
+                                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.primary),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        _myFeedback!.replyText!,
+                                        style: TextStyle(fontSize: 13, color: context.textPrimary, height: 1.4),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
+
                       Text(
-                        isVi ? 'Đánh giá từ bệnh nhân' : 'Patient Reviews',
+                        isVi ? 'Đánh giá từ bệnh nhân khác' : 'Other Patient Reviews',
                         style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: context.textPrimary),
                       ),
                       const SizedBox(height: 14),
@@ -313,29 +584,79 @@ class _ClinicFeedbackPageState extends State<ClinicFeedbackPage> {
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 10),
-                                  Text(
-                                    item.comment,
-                                    style: TextStyle(fontSize: 13, color: context.textSecondary, height: 1.4),
-                                  ),
+                                   (() {
+                                     final parsed = _ParsedFeedbackComment.parse(item.comment);
+                                     return Column(
+                                       crossAxisAlignment: CrossAxisAlignment.start,
+                                       children: [
+                                         if (parsed.text.isNotEmpty) ...[
+                                           const SizedBox(height: 10),
+                                           Text(
+                                             parsed.text,
+                                             style: TextStyle(fontSize: 13, color: context.textSecondary, height: 1.4),
+                                           ),
+                                         ],
+                                         if (parsed.tags.isNotEmpty) ...[
+                                           const SizedBox(height: 10),
+                                           Wrap(
+                                             spacing: 6,
+                                             runSpacing: 6,
+                                             children: parsed.tags.map((tag) {
+                                               return Container(
+                                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                                 decoration: BoxDecoration(
+                                                   color: context.isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                                                   borderRadius: BorderRadius.circular(6),
+                                                 ),
+                                                 child: Text(
+                                                   tag,
+                                                   style: TextStyle(
+                                                     fontSize: 11,
+                                                     color: context.textSecondary,
+                                                     fontWeight: FontWeight.w600,
+                                                   ),
+                                                 ),
+                                               );
+                                             }).toList(),
+                                           ),
+                                         ],
+                                       ],
+                                     );
+                                   })(),
                                   if (item.replyText != null && item.replyText!.isNotEmpty) ...[
-                                    const SizedBox(height: 10),
+                                    const SizedBox(height: 12),
                                     Container(
+                                      width: double.infinity,
                                       padding: const EdgeInsets.all(12),
                                       decoration: BoxDecoration(
-                                        color: context.isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                                        color: AppColors.primaryLight.withValues(alpha: context.isDark ? 0.2 : 0.6),
                                         borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(color: context.divider),
+                                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
                                       ),
-                                      child: Row(
+                                      child: Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          const Icon(Iconsax.message_text, color: AppColors.primary, size: 16),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                            child: Text(
-                                              'Phòng khám: ${item.replyText}',
-                                              style: TextStyle(fontSize: 12, color: context.textPrimary, fontWeight: FontWeight.w500),
+                                          Row(
+                                            children: [
+                                              const Icon(Iconsax.messages_2, color: AppColors.primary, size: 16),
+                                              const SizedBox(width: 6),
+                                              Text(
+                                                isVi ? 'Phản hồi từ phòng khám' : 'Clinic Response',
+                                                style: const TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w800,
+                                                  color: AppColors.primary,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            item.replyText!,
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              color: context.textPrimary,
+                                              height: 1.4,
                                             ),
                                           ),
                                         ],
@@ -732,5 +1053,25 @@ class _ClinicFeedbackFormBottomSheetState extends State<_ClinicFeedbackFormBotto
         ),
       ),
     );
+  }
+}
+
+class _ParsedFeedbackComment {
+  final List<String> tags;
+  final String text;
+
+  const _ParsedFeedbackComment({required this.tags, required this.text});
+
+  factory _ParsedFeedbackComment.parse(String raw) {
+    if (raw.startsWith('[')) {
+      final closingIndex = raw.indexOf(']');
+      if (closingIndex > 0) {
+        final tagsStr = raw.substring(1, closingIndex);
+        final commentText = raw.substring(closingIndex + 1).trim();
+        final tags = tagsStr.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+        return _ParsedFeedbackComment(tags: tags, text: commentText);
+      }
+    }
+    return _ParsedFeedbackComment(tags: const [], text: raw);
   }
 }
