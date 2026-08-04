@@ -25,3 +25,30 @@ public class CreateFeedbackHandler(IFeedbackRepository feedbackRepository)
         return GetFeedbacksHandler.ToDto(feedback);
     }
 }
+
+public record ClinicFeedbackEligibilityDto(bool CanReview, string Reason, bool HasCompletedFirstVisit);
+
+public record GetClinicFeedbackEligibilityQuery(Guid UserId) : IRequest<ClinicFeedbackEligibilityDto>;
+
+public class GetClinicFeedbackEligibilityHandler(
+    IAppointmentRepository appointmentRepository,
+    IPatientRepository patientRepository)
+    : IRequestHandler<GetClinicFeedbackEligibilityQuery, ClinicFeedbackEligibilityDto>
+{
+    public async Task<ClinicFeedbackEligibilityDto> Handle(GetClinicFeedbackEligibilityQuery query, CancellationToken ct)
+    {
+        var patient = await patientRepository.GetByUserIdAsync(query.UserId, ct);
+        if (patient == null)
+        {
+            return new ClinicFeedbackEligibilityDto(false, "Không tìm thấy hồ sơ bệnh nhân.", false);
+        }
+
+        var totalVisits = await appointmentRepository.CountOverallCompletedVisitsAsync(patient.Id, ct);
+        if (totalVisits == 0)
+        {
+            return new ClinicFeedbackEligibilityDto(false, "Bạn cần hoàn thành lần khám hoặc điều trị đầu tiên tại phòng khám để gửi đánh giá.", false);
+        }
+
+        return new ClinicFeedbackEligibilityDto(true, "Đủ điều kiện gửi đánh giá phòng khám.", true);
+    }
+}

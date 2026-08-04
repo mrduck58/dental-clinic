@@ -296,24 +296,6 @@ class _DoctorSlotCard extends StatelessWidget {
                               ),
                             ),
                           ),
-                          if (isPreferred) ...[
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: AppColors.primary,
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Text(
-                                isVi ? 'Gợi ý AI' : 'AI pick',
-                                style: const TextStyle(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ],
                         ],
                       ),
                       const SizedBox(height: 2),

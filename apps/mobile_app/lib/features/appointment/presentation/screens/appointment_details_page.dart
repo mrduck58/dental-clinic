@@ -700,7 +700,13 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
                             specialty: item.specialization,
                             profilePictureUrl: item.dentistAvatarUrl,
                           );
-                          context.push(AppRoutes.writeReview, extra: doctor);
+                          context.push(
+                            AppRoutes.writeReview,
+                            extra: {
+                              'doctor': doctor,
+                              'appointmentId': item.appointmentId,
+                            },
+                          );
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,

@@ -10,7 +10,8 @@ import 'package:mobile_app/features/home/data/review_service.dart';
 
 class WriteReviewPage extends StatefulWidget {
   final DoctorModel doctor;
-  const WriteReviewPage({super.key, required this.doctor});
+  final String? appointmentId;
+  const WriteReviewPage({super.key, required this.doctor, this.appointmentId});
 
   @override
   State<WriteReviewPage> createState() => _WriteReviewPageState();
@@ -34,7 +35,10 @@ class _WriteReviewPageState extends State<WriteReviewPage> {
   }
 
   Future<void> _checkEligibility() async {
-    final result = await _reviewService.checkEligibility(widget.doctor.id);
+    final result = await _reviewService.checkEligibility(
+      widget.doctor.id,
+      appointmentId: widget.appointmentId,
+    );
     if (!mounted) return;
     setState(() {
       _canReview = result.canReview;
@@ -94,6 +98,7 @@ class _WriteReviewPageState extends State<WriteReviewPage> {
         rating: _rating,
         comment: comment,
         tags: _selectedTags,
+        appointmentId: widget.appointmentId,
       );
       if (!mounted) return;
       _showSuccessDialog();

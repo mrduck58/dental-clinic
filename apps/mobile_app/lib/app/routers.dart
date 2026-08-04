@@ -166,6 +166,12 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: AppRoutes.writeReview,
       builder: (context, state) {
+        if (state.extra is Map<String, dynamic>) {
+          final map = state.extra as Map<String, dynamic>;
+          final doctor = map['doctor'] as DoctorModel;
+          final appointmentId = map['appointmentId'] as String?;
+          return WriteReviewPage(doctor: doctor, appointmentId: appointmentId);
+        }
         final doctor = state.extra as DoctorModel?;
         if (doctor != null) {
           return WriteReviewPage(doctor: doctor);

@@ -5,6 +5,7 @@ class ReviewModel {
   final String comment;
   final List<String> tags;
   final DateTime createdAt;
+  final String? serviceName;
 
   const ReviewModel({
     required this.id,
@@ -13,6 +14,7 @@ class ReviewModel {
     required this.comment,
     required this.tags,
     required this.createdAt,
+    this.serviceName,
   });
 
   factory ReviewModel.fromJson(Map<String, dynamic> json) => ReviewModel(
@@ -22,6 +24,7 @@ class ReviewModel {
         comment: json['comment'] as String? ?? '',
         tags: (json['tags'] as List<dynamic>? ?? []).map((e) => e.toString()).toList(),
         createdAt: DateTime.parse(json['createdAt'] as String),
+        serviceName: json['serviceName'] as String?,
       );
 }
 
@@ -88,5 +91,25 @@ class ClinicFeedbackModel {
         replyText: json['replyText'] as String?,
         createdAt: DateTime.parse(json['createdAt'] as String),
       );
+}
+
+class ClinicFeedbackEligibilityModel {
+  final bool canReview;
+  final String reason;
+  final bool hasCompletedFirstVisit;
+
+  const ClinicFeedbackEligibilityModel({
+    required this.canReview,
+    required this.reason,
+    required this.hasCompletedFirstVisit,
+  });
+
+  factory ClinicFeedbackEligibilityModel.fromJson(Map<String, dynamic> json) {
+    return ClinicFeedbackEligibilityModel(
+      canReview: json['canReview'] as bool? ?? false,
+      reason: json['reason'] as String? ?? '',
+      hasCompletedFirstVisit: json['hasCompletedFirstVisit'] as bool? ?? false,
+    );
+  }
 }
 

@@ -76,7 +76,11 @@ class DoctorInfo {
     this.avatarUrl,
   });
 
-  String get fullName => '$title. $name';
+  String get fullName {
+    final cleanName = name.replaceAll(RegExp(r'^[.\s,:-]+'), '').trim();
+    if (title.isEmpty) return cleanName;
+    return '$title $cleanName';
+  }
   String get sessionLabel =>
       session == DoctorSession.morning ? 'Buổi sáng' : 'Buổi chiều';
 }

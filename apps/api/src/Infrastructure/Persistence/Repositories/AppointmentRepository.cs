@@ -118,6 +118,25 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
             .CountAsync(cancellationToken);
     }
 
+    public async Task<int> CountCompletedVisitsForPatientAsync(Guid dentistId, Guid patientId, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Appointments
+            .Where(a => a.DentistId == dentistId &&
+                        (a.PatientId == patientId || a.Patient.PrimaryPatientId == patientId) &&
+                        (a.Status == DentalClinic.API.Domain.Enums.AppointmentStatus.Completed ||
+                         a.Status == DentalClinic.API.Domain.Enums.AppointmentStatus.PendingPayment))
+            .CountAsync(cancellationToken);
+    }
+
+    public async Task<int> CountOverallCompletedVisitsAsync(Guid patientId, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Appointments
+            .Where(a => (a.PatientId == patientId || a.Patient.PrimaryPatientId == patientId) &&
+                        (a.Status == DentalClinic.API.Domain.Enums.AppointmentStatus.Completed ||
+                         a.Status == DentalClinic.API.Domain.Enums.AppointmentStatus.PendingPayment))
+            .CountAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<string>> GetTopServiceNamesByDentistAsync(
         Guid dentistId, int take, CancellationToken cancellationToken = default)
     {
