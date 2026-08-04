@@ -26,6 +26,7 @@ abstract class ApiConstants {
   static String dentistReviewEligibility(String id) => '/dentists/$id/review-eligibility';
   static const String feedbacks = '/feedbacks';
   static const String featuredFeedbacks = '/feedbacks/featured';
+  static const String clinicFeedbackEligibility = '/feedbacks/eligibility';
   static const String services = '/services';
   static const String posts = '/posts';
   static const String appointments = '/appointments';

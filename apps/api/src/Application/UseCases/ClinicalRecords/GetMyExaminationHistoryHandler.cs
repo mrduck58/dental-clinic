@@ -52,6 +52,7 @@ public class GetMyExaminationHistoryHandler(AppDbContext dbContext)
             a.Id,
             ClinicalRecordMappers.AppointmentCode(a),
             a.AppointmentDate,
+            a.DentistId,
             a.Dentist.FullName,
             a.Service?.Name ?? "Khám tổng quát",
             a.Symptoms,

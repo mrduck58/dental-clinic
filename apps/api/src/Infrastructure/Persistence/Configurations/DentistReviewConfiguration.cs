@@ -31,7 +31,12 @@ public class DentistReviewConfiguration : IEntityTypeConfiguration<DentistReview
             .HasForeignKey(r => r.PatientId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // Mỗi bệnh nhân chỉ có 1 đánh giá cho mỗi nha sĩ.
-        builder.HasIndex(r => new { r.DentistId, r.PatientId }).IsUnique();
+        builder.HasOne(r => r.Appointment)
+            .WithMany()
+            .HasForeignKey(r => r.AppointmentId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasIndex(r => new { r.DentistId, r.PatientId });
+        builder.HasIndex(r => r.AppointmentId);
     }
 }
