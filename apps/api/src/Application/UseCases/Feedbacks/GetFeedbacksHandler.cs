@@ -1,4 +1,5 @@
 using DentalClinic.API.Application.DTOs.Feedbacks;
+using DentalClinic.API.Application.UseCases.Dentists;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using MediatR;
@@ -30,7 +31,7 @@ public class GetFeedbacksHandler(IFeedbackRepository feedbackRepository)
 
     internal static FeedbackDto ToDto(Feedback f) => new(
         f.Id,
-        f.CustomerName,
+        NameMasker.MaskName(f.CustomerName),
         f.Rating,
         f.Comment,
         f.Status.ToString(),
