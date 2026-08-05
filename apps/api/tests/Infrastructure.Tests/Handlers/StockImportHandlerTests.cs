@@ -162,4 +162,38 @@ public class StockImportHandlerTests
 
         (await _db.SupplyItems.SingleAsync()).Unit.Should().Be("Gói");
     }
+
+    /// <summary>Vật tư "standard" đã tồn tại: cộng dồn số lượng phải đi kèm cập nhật giá tham chiếu
+    /// theo lần nhập mới nhất (giá nhà cung cấp trôi nổi theo thời gian).</summary>
+    [Test]
+    public async Task HandleAsync_ExistingStandardItem_UpdatesReferencePriceToLatestImport()
+    {
+        var existing = SupplyItem.Create("VT997", "Găng tay", "Bảo hộ", "Hộp", 10, 5, "standard", price: 10_000m);
+        _db.SupplyItems.Add(existing);
+        await _db.SaveChangesAsync();
+
+        await _handler.Handle(MakeRequest("Găng tay") with { UnitPrice = 50_000m }, CancellationToken.None);
+
+        (await _db.SupplyItems.SingleAsync()).Price.Should().Be(50_000m);
+    }
+
+    /// <summary>Vật tư "custom" (đặt riêng cho bệnh nhân) đã tồn tại: cộng dồn số lượng như bình thường
+    /// nhưng KHÔNG được ghi đè giá tham chiếu — mỗi lần nhập là 1 ca khác nhau, giá khác nhau là bình thường;
+    /// giá thật của từng lần nhập vẫn tra đúng qua SupplyTransaction (Lịch sử giao dịch), không mất dữ liệu.</summary>
+    [Test]
+    public async Task HandleAsync_ExistingCustomItem_KeepsOriginalReferencePrice()
+    {
+        var existing = SupplyItem.Create("VT996", "Răng sứ Cercon", "Vật liệu", "Cái", 1, 0, "custom", price: 10_000m);
+        _db.SupplyItems.Add(existing);
+        await _db.SaveChangesAsync();
+
+        await _handler.Handle(MakeRequest("Răng sứ Cercon") with { UnitPrice = 50_000m, OrderType = "custom" }, CancellationToken.None);
+
+        var item = await _db.SupplyItems.SingleAsync();
+        item.Price.Should().Be(10_000m);
+        item.Quantity.Should().Be(31); // vẫn cộng dồn số lượng bình thường (1 + 30 từ MakeRequest)
+
+        var tx = await _db.SupplyTransactions.SingleAsync();
+        tx.UnitPrice.Should().Be(50_000m); // giá thật của lần nhập này vẫn được lưu đúng ở giao dịch
+    }
 }

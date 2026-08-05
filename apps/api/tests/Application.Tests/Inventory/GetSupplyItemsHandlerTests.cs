@@ -150,4 +150,18 @@ public class GetSupplyItemsHandlerTests
 
         result.Should().BeEmpty();
     }
+
+    /// <summary>Lọc theo OrderType="custom" chỉ trả về vật tư đặt riêng cho bệnh nhân,
+    /// dùng cho autocomplete bên form yêu cầu vật tư của bác sĩ.</summary>
+    [Test]
+    public async Task HandleAsync_OrderTypeCustom_ReturnsOnlyCustomItems()
+    {
+        var items = SeedItems();
+        items.Add(SupplyItem.Create("VT004", "Răng sứ Cercon", "Vật liệu", "Cái", 1, 0, "custom"));
+        _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(items);
+
+        var result = (await _handler.Handle(new GetSupplyItemsQuery(OrderType: "custom"), CancellationToken.None)).ToList();
+
+        result.Should().ContainSingle(i => i.Name == "Răng sứ Cercon");
+    }
 }

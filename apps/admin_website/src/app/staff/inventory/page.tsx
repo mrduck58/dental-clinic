@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import StaffSidebar from "../../../components/shared/StaffSidebar";
 import StaffPageHeader from "../../../components/shared/StaffPageHeader";
 import { useRequireStaff } from "../../../hooks/useRequireStaff";
@@ -16,9 +17,9 @@ import {
   type SupplyTransactionDto,
   type MaterialRequestDto,
 } from "../../../lib/apiClient";
+import { SUPPLY_UNITS } from "../../../lib/inventoryConstants";
 
 const ITEM_CATEGORIES = ["Bảo hộ", "Dụng cụ", "Vật liệu", "Tiêu hao", "Thuốc"];
-const SUPPLY_UNITS = ["Cái", "Hộp", "Tuýp", "Cuộn", "Chai", "Gói", "Bộ"];
 
 const CATEGORIES = ["Tất cả", "Bảo hộ", "Dụng cụ", "Vật liệu", "Tiêu hao", "Thuốc"];
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
@@ -31,6 +32,14 @@ const ORDER_TYPES: { value: "standard" | "custom"; label: string }[] = [
 ];
 
 const fmt = (n: number) => n.toLocaleString("vi-VN") + "₫";
+
+// Modal phải render qua Portal thẳng vào document.body — trang bọc ngoài dùng class "animate-fade-in"
+// (transform), mà theo spec CSS, "position: fixed" bên trong 1 ancestor có transform sẽ neo theo ancestor
+// đó thay vì theo viewport. Nếu không portal, modal bị đẩy xuống theo chiều cao trang, phải cuộn mới thấy.
+function Portal({ children }: { children: React.ReactNode }) {
+  if (typeof document === "undefined") return null;
+  return createPortal(children, document.body);
+}
 
 // ── Pagination ─────────────────────────────────────────────────────────────
 
@@ -99,7 +108,10 @@ export default function InventoryPage() {
   const [tab,           setTab]           = useState<"stock" | "transaction" | "log" | "requests">("stock");
   const [requests,      setRequests]      = useState<MaterialRequestDto[]>([]);
   const [loadingReqs,   setLoadingReqs]   = useState(false);
-  const [fulfilling,    setFulfilling]    = useState<MaterialRequestDto | null>(null);
+  const [processingId,  setProcessingId]  = useState<string | null>(null);
+  const [priceDrafts,   setPriceDrafts]   = useState<Record<string, string>>({});
+  const [priceErrors,   setPriceErrors]   = useState<Record<string, boolean>>({});
+  const [confirmingRequest, setConfirmingRequest] = useState<MaterialRequestDto | null>(null);
   const [cat,           setCat]           = useState("Tất cả");
   const [orderTypeTab,  setOrderTypeTab]  = useState<"standard" | "custom">("standard");
   const [search,        setSearch]        = useState("");
@@ -174,26 +186,44 @@ export default function InventoryPage() {
     }
   }, []);
 
-  const handleMarkRequestDone = async (id: string) => {
-    try {
-      await markMaterialRequestDoneApi(id);
-      if (fulfilling?.id === id) setFulfilling(null);
-      await fetchRequests();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Cập nhật yêu cầu vật tư thất bại");
+  // Bấm "Nhập kho & Đã xử lý" → chỉ validate đủ giá rồi MỞ MODAL xác nhận, chưa gọi API — tránh trường hợp
+  // bấm nhầm là nhập kho luôn (không thể hoàn tác). Phải bấm "Xác nhận" trong modal mới thực sự nhập kho.
+  const handleRequestValidateAndConfirm = (r: MaterialRequestDto) => {
+    const missing: Record<string, boolean> = {};
+    for (const it of r.items) {
+      const price = Number(priceDrafts[it.id]);
+      if (priceDrafts[it.id] === undefined || priceDrafts[it.id] === "" || Number.isNaN(price) || price < 0) {
+        missing[it.id] = true;
+      }
     }
+    if (Object.keys(missing).length > 0) {
+      setPriceErrors(prev => ({ ...prev, ...missing }));
+      setError("Vui lòng nhập đủ đơn giá cho từng vật tư trước khi xác nhận.");
+      return;
+    }
+    setError(null);
+    setConfirmingRequest(r);
   };
 
-  // Bấm "Nhập" ở một yêu cầu → nhảy sang form nhập kho, kèm ngữ cảnh yêu cầu.
-  const handleImportForRequest = (r: MaterialRequestDto) => {
-    setFulfilling(r);
-    setTab("transaction");
-    setTxType("import");
-    setSelectedItemId("");
-    setTxItemSearch("");
-    setTxQtyStr("");
-    setTxNote(`Theo yêu cầu: ${r.courseName} · BS ${r.dentistName}`);
-    setError(null);
+  const handleConfirmImport = async () => {
+    const r = confirmingRequest;
+    if (!r) return;
+    setProcessingId(r.id);
+    try {
+      const itemPrices = r.items.map(it => ({ materialRequestItemId: it.id, unitPrice: Number(priceDrafts[it.id]) }));
+      await markMaterialRequestDoneApi(r.id, itemPrices);
+      setPriceDrafts(prev => {
+        const next = { ...prev };
+        for (const it of r.items) delete next[it.id];
+        return next;
+      });
+      setConfirmingRequest(null);
+      await Promise.all([fetchRequests(), fetchItems(), fetchLog()]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Nhập kho theo yêu cầu vật tư thất bại");
+    } finally {
+      setProcessingId(null);
+    }
   };
 
   useEffect(() => { fetchItems(); fetchLog(); fetchRequests(); }, []);
@@ -433,14 +463,13 @@ export default function InventoryPage() {
                       <th className="px-5 py-3 text-left font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Danh mục</th>
                       <th className="px-5 py-3 text-left font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Đơn vị</th>
                       <th className="px-5 py-3 text-right font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Tồn kho</th>
-                      <th className="px-5 py-3 text-right font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Giá</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {loadingItems ? (
-                      <tr><td colSpan={6} className="px-5 py-10 text-center text-[13px] text-slate-400 font-semibold">Đang tải...</td></tr>
+                      <tr><td colSpan={5} className="px-5 py-10 text-center text-[13px] text-slate-400 font-semibold">Đang tải...</td></tr>
                     ) : pagedStock.length === 0 ? (
-                      <tr><td colSpan={6} className="px-5 py-10 text-center text-[13px] text-slate-400 font-semibold">
+                      <tr><td colSpan={5} className="px-5 py-10 text-center text-[13px] text-slate-400 font-semibold">
                         {items.length === 0 ? "Chưa có vật tư nào trong kho." : "Không tìm thấy vật tư nào."}
                       </td></tr>
                     ) : pagedStock.map(s => (
@@ -450,7 +479,6 @@ export default function InventoryPage() {
                         <td className="px-5 py-3.5 text-slate-500 font-semibold">{s.category}</td>
                         <td className="px-5 py-3.5 text-slate-500 font-semibold">{s.unit}</td>
                         <td className="px-5 py-3.5 text-right font-black text-slate-900">{s.quantity}</td>
-                        <td className="px-5 py-3.5 text-right font-semibold text-slate-600">{s.price != null ? fmt(s.price) : "—"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -463,28 +491,6 @@ export default function InventoryPage() {
           {/* ── Tab: Nhập / Xuất ── */}
           {tab === "transaction" && (
             <div className="flex flex-col gap-5">
-            {fulfilling && (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-6 py-4 flex items-start gap-4">
-                <svg className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[13.5px] font-black text-emerald-800">Đang nhập theo yêu cầu của bác sĩ — {fulfilling.courseName}</div>
-                  <div className="text-[12px] font-semibold text-emerald-700/80 mt-0.5">BN: {fulfilling.patientName} · BS: {fulfilling.dentistName}</div>
-                  <p className="mt-2 text-[13px] font-semibold text-slate-700 whitespace-pre-wrap bg-white border border-emerald-100 rounded-xl px-4 py-3">{fulfilling.content}</p>
-                  <p className="mt-2 text-[12px] font-semibold text-emerald-700/80">Nhập từng vật tư theo danh sách trên. Xong thì bấm “Đã xử lý xong”.</p>
-                </div>
-                <div className="shrink-0 flex flex-col gap-2">
-                  <button onClick={() => handleMarkRequestDone(fulfilling.id)}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-[12.5px] font-black rounded-xl transition-all shadow-sm cursor-pointer whitespace-nowrap">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
-                    Đã xử lý xong
-                  </button>
-                  <button onClick={() => setFulfilling(null)}
-                    className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-500 border border-slate-200 text-[12.5px] font-bold rounded-xl transition-all cursor-pointer whitespace-nowrap">
-                    Bỏ qua
-                  </button>
-                </div>
-              </div>
-            )}
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
               <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200/60 shadow-sm p-7 flex flex-col gap-5">
                 <h2 className="text-[15px] font-black text-slate-900">Tạo phiếu nhập / xuất</h2>
@@ -747,7 +753,7 @@ export default function InventoryPage() {
           {tab === "requests" && (
             <div className="flex flex-col gap-3">
               <p className="text-[13px] text-slate-500 font-semibold">
-                Vật liệu bác sĩ yêu cầu khi lập liệu trình dài hạn. Nhập kho ở tab <strong>Nhập / Xuất</strong>, sau đó đánh dấu <strong>Đã xử lý</strong>.
+                Vật liệu bác sĩ yêu cầu khi lập liệu trình dài hạn. Nhập <strong>đơn giá</strong> cho từng vật tư rồi bấm <strong>Nhập kho &amp; Đã xử lý</strong> — hệ thống tự cộng vào tồn kho, loại <strong>&quot;Đặt riêng cho bệnh nhân&quot;</strong>. Số lượng/đơn vị giữ nguyên theo yêu cầu của bác sĩ.
               </p>
               {loadingReqs ? (
                 <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm py-16 text-center text-[13px] text-slate-400 font-semibold">Đang tải...</div>
@@ -769,19 +775,45 @@ export default function InventoryPage() {
                         BN: {r.patientName} · BS: {r.dentistName} · {formatDate(r.createdAt)}
                         {r.handledBy ? ` · Xử lý bởi ${r.handledBy}` : ""}
                       </div>
-                      <p className="mt-2 text-[13px] font-semibold text-slate-700 whitespace-pre-wrap bg-slate-50 border border-slate-100 rounded-xl px-4 py-3">{r.content}</p>
+                      <div className="mt-2 flex flex-col gap-1.5 bg-slate-50 border border-slate-100 rounded-xl px-4 py-3">
+                        {r.items.map(it => (
+                          <div key={it.id} className="flex items-center gap-3">
+                            <div className="text-[13px] font-semibold text-slate-700 flex-1 min-w-0">
+                              {it.itemName} — {it.quantity} {it.unit}
+                            </div>
+                            {r.status === "Pending" && (
+                              <div className="shrink-0 flex flex-col items-end">
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[12px] text-slate-400 font-semibold">Đơn giá</span>
+                                  <input
+                                    type="number" min={0}
+                                    value={priceDrafts[it.id] ?? ""}
+                                    onChange={e => {
+                                      setPriceDrafts(prev => ({ ...prev, [it.id]: e.target.value }));
+                                      setPriceErrors(prev => ({ ...prev, [it.id]: false }));
+                                    }}
+                                    placeholder="₫"
+                                    className={`w-28 px-2.5 py-1.5 text-[13px] bg-white border rounded-lg focus:outline-none focus:border-primary font-semibold text-slate-700 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${priceErrors[it.id] ? "border-red-300" : "border-slate-200"}`}
+                                  />
+                                </div>
+                                {priceErrors[it.id] && <span className="text-[11px] text-red-500 font-semibold mt-0.5">Cần nhập giá</span>}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                     {r.status === "Pending" && (
                       <div className="shrink-0 flex items-center gap-2">
-                        <button onClick={() => handleImportForRequest(r)}
-                          className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-[13px] font-black rounded-xl transition-all shadow-sm shadow-emerald-200 cursor-pointer whitespace-nowrap">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
-                          Nhập
-                        </button>
-                        <button onClick={() => handleMarkRequestDone(r.id)}
-                          className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 text-slate-500 border border-slate-200 text-[13px] font-black rounded-xl transition-all cursor-pointer whitespace-nowrap">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
-                          Đã xử lý
+                        <button onClick={() => handleRequestValidateAndConfirm(r)}
+                          disabled={processingId === r.id}
+                          className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-[13px] font-black rounded-xl transition-all shadow-sm shadow-emerald-200 cursor-pointer whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed">
+                          {processingId === r.id ? (
+                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" /></svg>
+                          ) : (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                          )}
+                          Nhập kho & Đã xử lý
                         </button>
                       </div>
                     )}
@@ -795,6 +827,7 @@ export default function InventoryPage() {
 
       {/* ── Modal: Thêm vật tư ── */}
       {showAddModal && (
+        <Portal>
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={e => { if (e.target === e.currentTarget) setShowAddModal(false); }}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
@@ -890,7 +923,87 @@ export default function InventoryPage() {
             </form>
           </div>
         </div>
+        </Portal>
       )}
+
+      {/* ── Modal: Xác nhận nhập kho theo yêu cầu vật tư ── */}
+      {confirmingRequest && (() => {
+        const busy = processingId === confirmingRequest.id;
+        const total = confirmingRequest.items.reduce((sum, it) => sum + Number(priceDrafts[it.id] ?? 0) * it.quantity, 0);
+        return (
+          <Portal>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+            onClick={e => { if (e.target === e.currentTarget && !busy) setConfirmingRequest(null); }}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
+              <div className="shrink-0 flex items-center justify-between px-6 py-5 border-b border-slate-100">
+                <h2 className="text-[15px] font-black text-slate-900">Xác nhận nhập kho</h2>
+                <button onClick={() => setConfirmingRequest(null)} disabled={busy}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+
+              <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5 flex flex-col gap-4">
+                <div className="text-[13px] text-slate-500 font-semibold">
+                  BN: <span className="font-bold text-slate-700">{confirmingRequest.patientName}</span> · BS: <span className="font-bold text-slate-700">{confirmingRequest.dentistName}</span>
+                </div>
+
+                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                  <table className="w-full text-[13px]">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-100">
+                        <th className="px-3 py-2 text-left font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Vật tư</th>
+                        <th className="px-3 py-2 text-right font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">SL</th>
+                        <th className="px-3 py-2 text-right font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Đơn giá</th>
+                        <th className="px-3 py-2 text-right font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Thành tiền</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {confirmingRequest.items.map(it => {
+                        const price = Number(priceDrafts[it.id] ?? 0);
+                        return (
+                          <tr key={it.id}>
+                            <td className="px-3 py-2.5 font-bold text-slate-800">{it.itemName} <span className="text-slate-400 font-semibold">({it.unit})</span></td>
+                            <td className="px-3 py-2.5 text-right font-semibold text-slate-600">{it.quantity}</td>
+                            <td className="px-3 py-2.5 text-right font-semibold text-slate-600">{fmt(price)}</td>
+                            <td className="px-3 py-2.5 text-right font-black text-slate-900">{fmt(price * it.quantity)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[13px] font-bold text-slate-500">Tổng cộng</span>
+                  <span className="text-[18px] font-black text-emerald-600">{fmt(total)}</span>
+                </div>
+
+                <p className="text-[12px] text-amber-700 font-semibold bg-amber-50 border border-amber-100 rounded-xl px-3.5 py-2.5">
+                  Xác nhận sẽ cộng thẳng các vật tư trên vào tồn kho (loại &quot;Đặt riêng cho bệnh nhân&quot;) và đánh dấu yêu cầu đã xử lý — không thể hoàn tác.
+                </p>
+              </div>
+
+              <div className="shrink-0 px-6 py-5 border-t border-slate-100 flex gap-3">
+                <button type="button" onClick={() => setConfirmingRequest(null)} disabled={busy}
+                  className="flex-1 py-2.5 rounded-xl text-[13.5px] font-bold border border-slate-200 text-slate-600 hover:bg-slate-50 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
+                  Huỷ
+                </button>
+                <button type="button" onClick={() => void handleConfirmImport()} disabled={busy}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[13.5px] font-black bg-emerald-500 text-white hover:bg-emerald-600 transition-all cursor-pointer shadow-sm shadow-emerald-200 disabled:opacity-60 disabled:cursor-not-allowed">
+                  {busy ? (
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" /></svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                  )}
+                  Xác nhận nhập kho
+                </button>
+              </div>
+            </div>
+          </div>
+          </Portal>
+        );
+      })()}
     </div>
   );
 }
