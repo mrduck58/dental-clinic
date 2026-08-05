@@ -1,6 +1,7 @@
 using DentalClinic.API.Application.DTOs.LeaveRequests;
 using DentalClinic.API.Application.UseCases.LeaveRequests;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
@@ -35,7 +36,7 @@ public class CreateLeaveRequestHandlerTests
     [Test]
     public async Task HandleAsync_ValidRequest_CallsAddAsyncAndReturnsPending()
     {
-        var user = User.Create("emp", "emp@test.com", "hash", "Staff", null, "Nhân Viên Test");
+        var user = User.Create("emp", "emp@test.com", "hash", UserRole.Staff, null, "Nhân Viên Test");
         _repo.When(r => r.AddAsync(Arg.Any<LeaveRequest>(), Arg.Any<CancellationToken>()))
             .Do(call => typeof(LeaveRequest).GetProperty("User")!.SetValue(call.Arg<LeaveRequest>(), user));
         _userRepo.GetUserIdsByRoleAsync("Owner", Arg.Any<CancellationToken>()).Returns([]);
@@ -111,7 +112,7 @@ public class CreateLeaveRequestHandlerTests
     [Test]
     public async Task HandleAsync_ValidRequest_NotifiesOwnerRole()
     {
-        var user = User.Create("emp", "emp@test.com", "hash", "Staff", null, "Nhân Viên Test");
+        var user = User.Create("emp", "emp@test.com", "hash", UserRole.Staff, null, "Nhân Viên Test");
         _repo.When(r => r.AddAsync(Arg.Any<LeaveRequest>(), Arg.Any<CancellationToken>()))
             .Do(call => typeof(LeaveRequest).GetProperty("User")!.SetValue(call.Arg<LeaveRequest>(), user));
         _userRepo.GetUserIdsByRoleAsync("Owner", Arg.Any<CancellationToken>()).Returns([]);
@@ -129,7 +130,7 @@ public class CreateLeaveRequestHandlerTests
     [Test]
     public async Task HandleAsync_ValidRequest_SendsNotificationToEachOwner()
     {
-        var user = User.Create("emp", "emp@test.com", "hash", "Staff", null, "Nhân Viên Test");
+        var user = User.Create("emp", "emp@test.com", "hash", UserRole.Staff, null, "Nhân Viên Test");
         _repo.When(r => r.AddAsync(Arg.Any<LeaveRequest>(), Arg.Any<CancellationToken>()))
             .Do(call => typeof(LeaveRequest).GetProperty("User")!.SetValue(call.Arg<LeaveRequest>(), user));
         var owner1 = Guid.NewGuid();
@@ -153,7 +154,7 @@ public class CreateLeaveRequestHandlerTests
     [Test]
     public async Task HandleAsync_ReasonExactly1000Chars_Succeeds()
     {
-        var user = User.Create("emp", "emp@test.com", "hash", "Staff", null, "Nhân Viên Test");
+        var user = User.Create("emp", "emp@test.com", "hash", UserRole.Staff, null, "Nhân Viên Test");
         _repo.When(r => r.AddAsync(Arg.Any<LeaveRequest>(), Arg.Any<CancellationToken>()))
             .Do(call => typeof(LeaveRequest).GetProperty("User")!.SetValue(call.Arg<LeaveRequest>(), user));
         _userRepo.GetUserIdsByRoleAsync("Owner", Arg.Any<CancellationToken>()).Returns([]);
@@ -185,7 +186,7 @@ public class CreateLeaveRequestHandlerTests
     [Test]
     public async Task HandleAsync_LeaveTypeLowercase_ParsesSuccessfully()
     {
-        var user = User.Create("emp", "emp@test.com", "hash", "Staff", null, "Nhân Viên Test");
+        var user = User.Create("emp", "emp@test.com", "hash", UserRole.Staff, null, "Nhân Viên Test");
         _repo.When(r => r.AddAsync(Arg.Any<LeaveRequest>(), Arg.Any<CancellationToken>()))
             .Do(call => typeof(LeaveRequest).GetProperty("User")!.SetValue(call.Arg<LeaveRequest>(), user));
         _userRepo.GetUserIdsByRoleAsync("Owner", Arg.Any<CancellationToken>()).Returns([]);
@@ -203,7 +204,7 @@ public class CreateLeaveRequestHandlerTests
     [Test]
     public async Task HandleAsync_StartDateEqualsEndDate_CreatesSingleDayRequest()
     {
-        var user = User.Create("emp", "emp@test.com", "hash", "Staff", null, "Nhân Viên Test");
+        var user = User.Create("emp", "emp@test.com", "hash", UserRole.Staff, null, "Nhân Viên Test");
         _repo.When(r => r.AddAsync(Arg.Any<LeaveRequest>(), Arg.Any<CancellationToken>()))
             .Do(call => typeof(LeaveRequest).GetProperty("User")!.SetValue(call.Arg<LeaveRequest>(), user));
         _userRepo.GetUserIdsByRoleAsync("Owner", Arg.Any<CancellationToken>()).Returns([]);

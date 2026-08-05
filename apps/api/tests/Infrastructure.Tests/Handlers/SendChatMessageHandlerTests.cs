@@ -3,6 +3,7 @@ using DentalClinic.API.Application.UseCases.Dentists;
 using DentalClinic.API.Application.UseCases.Chat;
 using DentalClinic.API.Application.UseCases.Staff;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Domain.Exceptions;
@@ -39,7 +40,7 @@ public class SendChatMessageHandlerTests
             .Options;
         _db = new AppDbContext(options);
 
-        var user = User.Create($"patient-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: "Bệnh nhân Test");
+        var user = User.Create($"patient-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", UserRole.Patient, fullName: "Bệnh nhân Test");
         _db.Users.Add(user);
         _userId = user.Id;
 
@@ -105,15 +106,19 @@ public class SendChatMessageHandlerTests
     /// Tạo bác sĩ (kèm user) và ca làm việc 08:00-10:00 cho một ngày — dữ liệu tối thiểu để
     /// GetDentistSlotsHandler sinh được khung giờ trống cho bác sĩ đó trong ngày.
     /// </summary>
-    private async Task<Dentist> SeedDentistWithScheduleAsync(DateOnly date)
+    private async Task<DentistProfile> SeedDentistWithScheduleAsync(DateOnly date)
     {
         var dentistUser = User.Create(
-            $"dentist-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", "Dentist",
+            $"dentist-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist,
             fullName: "BS Nguyễn Văn A");
         _db.Users.Add(dentistUser);
 
-        var dentist = Dentist.Create(dentistUser.Id, "Chỉnh nha", 5);
-        _db.Dentists.Add(dentist);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Chỉnh nha", "N/A", 5);
+        dentist.Employee = employee;
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
 
         _db.WorkSchedules.Add(WorkSchedule.Create(
             date, "08:00-10:00", "dentist", "Dentist",
@@ -367,7 +372,7 @@ public class SendChatMessageHandlerTests
         var tomorrow = TomorrowVn();
         var dentist = await SeedDentistWithScheduleAsync(tomorrow);
 
-        var childUser = User.CreateEmployee($"family-{Guid.NewGuid()}@songiangdental.com", "Patient", fullName: "Bé Bún");
+        var childUser = User.CreateEmployee($"family-{Guid.NewGuid()}@songiangdental.com", UserRole.Patient, fullName: "Bé Bún");
         _db.Users.Add(childUser);
         var child = Patient.Create(
             childUser.Id, new DateOnly(2018, 1, 1), "Nam", primaryPatientId: _patient.Id, relationship: "Con");

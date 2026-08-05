@@ -1,6 +1,7 @@
 using DentalClinic.API.Application.DTOs.ClinicalRecords;
 using DentalClinic.API.Application.UseCases.ClinicalRecords;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Infrastructure.Persistence;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
@@ -40,15 +41,18 @@ public class GetExaminationHandlerTests
     [Test]
     public async Task HandleAsync_AppointmentWithDiagnosisAndPrescription_ReturnsFullDto()
     {
-        var dentistUser = User.Create("ex1", $"ex1-{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: "BS Khám");
+        var dentistUser = User.Create("ex1", $"ex1-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: "BS Khám");
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
-        dentist.User = dentistUser;
-        var patientUser = User.Create("pa_ex1", $"pa_ex1-{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: "Bệnh nhân Khám");
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
+        var patientUser = User.Create("pa_ex1", $"pa_ex1-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient, fullName: "Bệnh nhân Khám");
         _db.Users.Add(patientUser);
         var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
         patient.User = patientUser;
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         _db.Patients.Add(patient);
         var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
         appointment.StartTreatment();
@@ -75,15 +79,18 @@ public class GetExaminationHandlerTests
     [Test]
     public async Task HandleAsync_FollowUpAppointment_ReturnsFollowUpChain()
     {
-        var dentistUser = User.Create("ex2", $"ex2-{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: "BS ex2");
+        var dentistUser = User.Create("ex2", $"ex2-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: "BS ex2");
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
-        dentist.User = dentistUser;
-        var patientUser = User.Create("pa_ex2", $"pa_ex2-{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: "Bệnh Nhân ex2");
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
+        var patientUser = User.Create("pa_ex2", $"pa_ex2-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient, fullName: "Bệnh Nhân ex2");
         _db.Users.Add(patientUser);
         var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
         patient.User = patientUser;
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         _db.Patients.Add(patient);
         var original = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddDays(-10));
         original.Complete();

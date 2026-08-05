@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.UseCases.Inventory;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Infrastructure.Persistence;
 using DentalClinic.API.Infrastructure.Persistence.Repositories;
@@ -30,13 +31,17 @@ public class CreateMaterialRequestHandlerTests
 
     private async Task<Appointment> SeedAppointmentAsync(bool withService = true)
     {
-        var patientUser = User.Create("mr-p", $"mr-p-{Guid.NewGuid()}@test.com", "hash", "Patient");
-        var dentistUser = User.Create("mr-d", $"mr-d-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        var patientUser = User.Create("mr-p", $"mr-p-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient);
+        var dentistUser = User.Create("mr-d", $"mr-d-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist);
         _db.Users.AddRange(patientUser, dentistUser);
         var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
         _db.Patients.Add(patient);
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
 
         Guid? serviceId = null;
         if (withService)
@@ -81,7 +86,7 @@ public class CreateMaterialRequestHandlerTests
     {
         var appointment = await SeedAppointmentAsync(withService: true);
         var appt = await _db.Appointments.Include(a => a.Patient).ThenInclude(p => p.User)
-            .Include(a => a.Dentist).ThenInclude(d => d.User)
+            .Include(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
             .Include(a => a.Service)
             .FirstAsync(a => a.Id == appointment.Id);
 

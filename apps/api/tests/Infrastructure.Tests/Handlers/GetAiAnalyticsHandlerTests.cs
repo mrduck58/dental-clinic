@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.UseCases.AiAnalytics;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Infrastructure.Persistence;
 using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
@@ -23,7 +24,7 @@ public class GetAiAnalyticsHandlerTests
             .Options;
         _db = new AppDbContext(options);
 
-        var user = User.Create($"patient-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: "Bệnh nhân Test");
+        var user = User.Create($"patient-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", UserRole.Patient, fullName: "Bệnh nhân Test");
         _db.Users.Add(user);
         _patient = Patient.Create(user.Id, new DateOnly(1990, 1, 1), "Nam");
         _db.Patients.Add(_patient);

@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.UseCases.Dentists;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Schedules;
 using DentalClinic.API.Infrastructure.Persistence;
 using DentalClinic.API.Infrastructure.Persistence.Repositories;
@@ -37,13 +38,17 @@ public class GetDentistSlotsHandlerTests
     {
         var date = DateOnly.FromDateTime(DateTime.Today.AddDays(1));
 
-        var dentistUser = User.Create("d1", "d1@test.com", "hash", "Dentist", fullName: "BS. Test");
-        var patientUser = User.Create("p1", "p1@test.com", "hash", "Patient", fullName: "Bệnh nhân Test");
+        var dentistUser = User.Create("d1", "d1@test.com", "hash", UserRole.Dentist, fullName: "BS. Test");
+        var patientUser = User.Create("p1", "p1@test.com", "hash", UserRole.Patient, fullName: "Bệnh nhân Test");
         _db.Users.AddRange(dentistUser, patientUser);
 
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
         var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         _db.Patients.Add(patient);
 
         var service = Service.Create("Điều trị tủy", 500_000, 90, "Dịch vụ dài");
@@ -121,10 +126,14 @@ public class GetDentistSlotsHandlerTests
     public async Task HandleAsync_DentistScheduledWithNoBookings_ReturnsDentistWithAllSlotsFree()
     {
         var date = DateOnly.FromDateTime(DateTime.Today.AddDays(1));
-        var dentistUser = User.Create("d2", "d2@test.com", "hash", "Dentist");
+        var dentistUser = User.Create("d2", "d2@test.com", "hash", UserRole.Dentist);
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Implant", 7);
-        _db.Dentists.Add(dentist);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Implant", "N/A", 7);
+        dentist.Employee = employee;
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         _db.WorkSchedules.Add(WorkSchedule.Create(date, "08:00-10:00", "dentist", "Dentist", dentist.FullName, "P2", "#fff", false));
         await _db.SaveChangesAsync();
 
@@ -145,12 +154,19 @@ public class GetDentistSlotsHandlerTests
     public async Task HandleAsync_DentistWithoutScheduleOnThatDay_IsExcludedFromResult()
     {
         var date = DateOnly.FromDateTime(DateTime.Today.AddDays(1));
-        var scheduledUser = User.Create("d3", "d3@test.com", "hash", "Dentist");
-        var unscheduledUser = User.Create("d4", "d4@test.com", "hash", "Dentist");
+        var scheduledUser = User.Create("d3", "d3@test.com", "hash", UserRole.Dentist);
+        var unscheduledUser = User.Create("d4", "d4@test.com", "hash", UserRole.Dentist);
         _db.Users.AddRange(scheduledUser, unscheduledUser);
-        var scheduledDentist = Dentist.Create(scheduledUser.Id, "Nha khoa tổng quát", 5);
-        var unscheduledDentist = Dentist.Create(unscheduledUser.Id, "Nha khoa tổng quát", 5);
-        _db.Dentists.AddRange(scheduledDentist, unscheduledDentist);
+        var scheduledEmployee = Employee.Create(scheduledUser.Id, $"DT-{Guid.NewGuid():N}");
+        scheduledEmployee.User = scheduledUser;
+        var scheduledDentist = DentistProfile.Create(scheduledEmployee.Id, "Nha khoa tổng quát", "N/A", 5);
+        scheduledDentist.Employee = scheduledEmployee;
+        var unscheduledEmployee = Employee.Create(unscheduledUser.Id, $"DT-{Guid.NewGuid():N}");
+        unscheduledEmployee.User = unscheduledUser;
+        var unscheduledDentist = DentistProfile.Create(unscheduledEmployee.Id, "Nha khoa tổng quát", "N/A", 5);
+        unscheduledDentist.Employee = unscheduledEmployee;
+        _db.Employees.AddRange(scheduledEmployee, unscheduledEmployee);
+        _db.DentistProfiles.AddRange(scheduledDentist, unscheduledDentist);
         _db.WorkSchedules.Add(WorkSchedule.Create(date, "08:00-10:00", "dentist", "Dentist", scheduledDentist.FullName, "P1", "#fff", false));
         await _db.SaveChangesAsync();
 

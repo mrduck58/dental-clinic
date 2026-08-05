@@ -1,6 +1,7 @@
 using DentalClinic.API.Application.DTOs.Patients;
 using DentalClinic.API.Application.UseCases.Patients;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Infrastructure.Persistence;
@@ -61,8 +62,8 @@ public class PatientMedicalHistoryHandlerTests
         string fullName = "Nguyen Van A", string? gender = "Nam", string? phone = "0900000001", bool hasAccount = true)
     {
         var user = hasAccount
-            ? User.Create($"user-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", "Patient", phone, fullName)
-            : User.CreateEmployee($"{Guid.NewGuid()}@test.com", "Patient", phone, fullName);
+            ? User.Create($"user-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", UserRole.Patient, phone, fullName)
+            : User.CreateEmployee($"{Guid.NewGuid()}@test.com", UserRole.Patient, phone, fullName);
         user.UpdateGender(gender);
         _db.Users.Add(user);
         var patient = Patient.Create(user.Id, new DateOnly(1990, 1, 1));
@@ -75,7 +76,7 @@ public class PatientMedicalHistoryHandlerTests
     private async Task<(User User, Patient Patient)> SeedFamilyMemberAsync(
         Guid primaryPatientId, string fullName = "Nguyen Van B", string relationship = "Con")
     {
-        var user = User.CreateEmployee($"{Guid.NewGuid()}@test.com", "Patient", null, fullName);
+        var user = User.CreateEmployee($"{Guid.NewGuid()}@test.com", UserRole.Patient, null, fullName);
         _db.Users.Add(user);
         var member = Patient.Create(user.Id, new DateOnly(2015, 1, 1), primaryPatientId: primaryPatientId, relationship: relationship);
         member.User = user;
@@ -103,7 +104,7 @@ public class PatientMedicalHistoryHandlerTests
     [Test]
     public async Task GetOrCreatePrimaryPatientAsync_UserWithoutPatientProfile_CreatesNewPatient()
     {
-        var user = User.Create("user-x", $"{Guid.NewGuid()}@test.com", "hash", "Patient");
+        var user = User.Create("user-x", $"{Guid.NewGuid()}@test.com", "hash", UserRole.Patient);
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
 
@@ -214,11 +215,11 @@ public class PatientMedicalHistoryHandlerTests
     [Test]
     public async Task Handle_MatchingPatients_MapsHasAccountCorrectly()
     {
-        var withAccount = User.Create("acc1", "acc1@test.com", "hash", "Patient", "0911111111", "Co Tai Khoan");
+        var withAccount = User.Create("acc1", "acc1@test.com", "hash", UserRole.Patient, "0911111111", "Co Tai Khoan");
         var patientWithAccount = Patient.Create(withAccount.Id);
         patientWithAccount.User = withAccount;
 
-        var withoutAccount = User.CreateEmployee("walkin@test.com", "Patient", "0922222222", "Khong Tai Khoan");
+        var withoutAccount = User.CreateEmployee("walkin@test.com", UserRole.Patient, "0922222222", "Khong Tai Khoan");
         var patientWithoutAccount = Patient.Create(withoutAccount.Id);
         patientWithoutAccount.User = withoutAccount;
 

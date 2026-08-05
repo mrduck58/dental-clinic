@@ -1,6 +1,7 @@
 using DentalClinic.API.Application.UseCases.Auth;
 using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using FluentAssertions;
@@ -110,7 +111,7 @@ public class LoginHandlerTests
         await _activityLog.Received(1).LogAsync(
             user.Id,
             Arg.Any<string>(),
-            user.Role,
+            user.Role.ToString(),
             ActivityAction.Login,
             ActivityModule.Account,
             Arg.Any<string>(),
@@ -161,7 +162,7 @@ public class LoginHandlerTests
         await _activityLog.Received(1).LogAsync(
             user.Id,
             Arg.Any<string>(),
-            user.Role,
+            user.Role.ToString(),
             ActivityAction.Login,
             ActivityModule.Account,
             Arg.Any<string>(),
@@ -279,7 +280,7 @@ public class LoginHandlerTests
     [Test]
     public async Task HandleAsync_EmployeeWithNoPasswordHash_ThrowsUnauthorizedAccessException()
     {
-        var user = User.CreateEmployee("emp@test.com", "Staff");
+        var user = User.CreateEmployee("emp@test.com", UserRole.Staff);
         _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
 
         Func<Task> act = () => _handler.Handle(new LoginCommand(user.Email, "anypass"), CancellationToken.None);
@@ -345,12 +346,12 @@ public class LoginHandlerTests
     private static User CreateActiveUserWithPassword(string plainPassword)
     {
         var hash = BCrypt.Net.BCrypt.HashPassword(plainPassword);
-        return User.Create("user1", "test@test.com", hash, "Staff");
+        return User.Create("user1", "test@test.com", hash, UserRole.Staff);
     }
 
     private static User CreateActivePatientWithPassword(string plainPassword)
     {
         var hash = BCrypt.Net.BCrypt.HashPassword(plainPassword);
-        return User.Create("patient1", "patient@test.com", hash, "Patient");
+        return User.Create("patient1", "patient@test.com", hash, UserRole.Patient);
     }
 }

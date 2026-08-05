@@ -1,6 +1,7 @@
 using DentalClinic.API.Application.UseCases.Auth;
 using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
@@ -28,7 +29,7 @@ public class ChangePasswordHandlerTests
     }
 
     private static User CreateUserWithPassword(string password)
-        => User.Create("user1", "user1@test.com", BCrypt.Net.BCrypt.HashPassword(password), "Staff");
+        => User.Create("user1", "user1@test.com", BCrypt.Net.BCrypt.HashPassword(password), UserRole.Staff);
 
     /// <summary>Không tìm thấy tài khoản phải ném NotFoundException.</summary>
     [Test]

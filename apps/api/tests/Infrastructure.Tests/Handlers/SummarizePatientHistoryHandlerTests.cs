@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.UseCases.AiAssist;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Infrastructure.Persistence;
@@ -42,14 +43,18 @@ public class SummarizePatientHistoryHandlerTests
     [Test]
     public async Task HandleAsync_PatientHasPastVisit_IncludesHistoryInPromptAndReturnsFixedDisclaimer()
     {
-        var patientUser = User.Create("p1", "p1@test.com", "hash", "Patient", fullName: "Bệnh nhân Test");
-        var dentistUser = User.Create("d1", "d1@test.com", "hash", "Dentist", fullName: "BS. Test");
+        var patientUser = User.Create("p1", "p1@test.com", "hash", UserRole.Patient, fullName: "Bệnh nhân Test");
+        var dentistUser = User.Create("d1", "d1@test.com", "hash", UserRole.Dentist, fullName: "BS. Test");
         _db.Users.AddRange(patientUser, dentistUser);
 
         var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
         _db.Patients.Add(patient);
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
 
         var pastAppointment = Appointment.Create(
             patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddMonths(-2), symptoms: "Đau răng hàm dưới");
@@ -150,17 +155,21 @@ public class SummarizePatientHistoryHandlerTests
             Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
-    private async Task<(Patient patient, Dentist dentist)> SeedPatientAndDentistAsync(
+    private async Task<(Patient patient, DentistProfile dentist)> SeedPatientAndDentistAsync(
         string patientUsername, string dentistUsername)
     {
-        var patientUser = User.Create(patientUsername, $"{patientUsername}@test.com", "hash", "Patient", fullName: "Bệnh nhân Test");
-        var dentistUser = User.Create(dentistUsername, $"{dentistUsername}@test.com", "hash", "Dentist", fullName: "BS. Test");
+        var patientUser = User.Create(patientUsername, $"{patientUsername}@test.com", "hash", UserRole.Patient, fullName: "Bệnh nhân Test");
+        var dentistUser = User.Create(dentistUsername, $"{dentistUsername}@test.com", "hash", UserRole.Dentist, fullName: "BS. Test");
         _db.Users.AddRange(patientUser, dentistUser);
 
         var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
         _db.Patients.Add(patient);
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         await _db.SaveChangesAsync();
 
         return (patient, dentist);
@@ -169,14 +178,18 @@ public class SummarizePatientHistoryHandlerTests
     [Test]
     public async Task HandleAsync_PatientHasNoPastVisit_ReturnsCannedMessageWithoutCallingAi()
     {
-        var patientUser = User.Create("p2", "p2@test.com", "hash", "Patient", fullName: "Bệnh nhân Mới");
-        var dentistUser = User.Create("d2", "d2@test.com", "hash", "Dentist", fullName: "BS. Test 2");
+        var patientUser = User.Create("p2", "p2@test.com", "hash", UserRole.Patient, fullName: "Bệnh nhân Mới");
+        var dentistUser = User.Create("d2", "d2@test.com", "hash", UserRole.Dentist, fullName: "BS. Test 2");
         _db.Users.AddRange(patientUser, dentistUser);
 
         var patient = Patient.Create(patientUser.Id, new DateOnly(1995, 1, 1), "Nữ");
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 3);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 3);
+        dentist.Employee = employee;
         _db.Patients.Add(patient);
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
 
         var onlyAppointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
         _db.Appointments.Add(onlyAppointment);

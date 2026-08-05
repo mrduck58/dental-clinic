@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.UseCases.Chat;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Infrastructure.Persistence;
@@ -29,7 +30,7 @@ public class StartConversationHandlerTests
             .Options;
         _db = new AppDbContext(options);
 
-        var user = User.Create($"patient-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: "Bệnh nhân Test");
+        var user = User.Create($"patient-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", UserRole.Patient, fullName: "Bệnh nhân Test");
         _db.Users.Add(user);
         _userId = user.Id;
 
@@ -109,12 +110,16 @@ public class StartConversationHandlerTests
         result.InitialMessage.Should().BeNull();
     }
 
-    private async Task<(Dentist dentist, User user)> SeedDentistAsync()
+    private async Task<(DentistProfile dentist, User user)> SeedDentistAsync()
     {
-        var dentistUser = User.Create($"dentist-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: "BS Nguyễn Văn A");
+        var dentistUser = User.Create($"dentist-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: "BS Nguyễn Văn A");
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Chỉnh nha", 5);
-        _db.Dentists.Add(dentist);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Chỉnh nha", "N/A", 5);
+        dentist.Employee = employee;
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         await _db.SaveChangesAsync();
         return (dentist, dentistUser);
     }
@@ -125,7 +130,7 @@ public class StartConversationHandlerTests
     public async Task HandleAsync_NoPatientProfileYet_LazilyCreatesPatientFromUser()
     {
         var newUser = User.Create(
-            $"newpatient-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", "Patient",
+            $"newpatient-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", UserRole.Patient,
             fullName: "Người Dùng Mới");
         newUser.UpdatePatientProfile("Người Dùng Mới", "0900000000", new DateOnly(2000, 6, 15), "Nam");
         _db.Users.Add(newUser);

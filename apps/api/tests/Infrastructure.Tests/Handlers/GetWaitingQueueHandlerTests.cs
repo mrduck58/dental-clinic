@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.UseCases.Queue;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Infrastructure.Persistence;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
@@ -45,15 +46,18 @@ public class GetWaitingQueueHandlerTests
     public async Task HandleAsync_CheckedInPatient_IsGroupedUnderDentistRoom()
     {
         var today = DateOnly.FromDateTime(DateTime.Today);
-        var dentistUser = User.Create("wq1", $"wq1-{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: "BS Hàng Đợi");
+        var dentistUser = User.Create("wq1", $"wq1-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: "BS Hàng Đợi");
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
-        dentist.User = dentistUser;
-        var patientUser = User.Create("pq1", $"pq1-{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: "Bệnh nhân Chờ");
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
+        var patientUser = User.Create("pq1", $"pq1-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient, fullName: "Bệnh nhân Chờ");
         _db.Users.Add(patientUser);
         var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
         patient.User = patientUser;
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         _db.Patients.Add(patient);
         _db.WorkSchedules.Add(WorkSchedule.Create(
             today, "morning", "dentist", "dentist", dentist.FullName, "Phòng 101", "border-primary", false));
@@ -76,18 +80,21 @@ public class GetWaitingQueueHandlerTests
     public async Task HandleAsync_InProgressPatient_IsListedBeforeCheckedInPatients()
     {
         var today = DateOnly.FromDateTime(DateTime.Today);
-        var dentistUser = User.Create("wq2", $"wq2-{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: "BS wq2");
+        var dentistUser = User.Create("wq2", $"wq2-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: "BS wq2");
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
-        dentist.User = dentistUser;
-        var patientUserA = User.Create("pq2a", $"pq2a-{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: "Bệnh nhân Chờ Trước");
-        var patientUserB = User.Create("pq2b", $"pq2b-{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: "Bệnh nhân Đang Khám");
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
+        var patientUserA = User.Create("pq2a", $"pq2a-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient, fullName: "Bệnh nhân Chờ Trước");
+        var patientUserB = User.Create("pq2b", $"pq2b-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient, fullName: "Bệnh nhân Đang Khám");
         _db.Users.AddRange(patientUserA, patientUserB);
         var patientA = Patient.Create(patientUserA.Id, new DateOnly(1990, 1, 1), "Nam");
         patientA.User = patientUserA;
         var patientB = Patient.Create(patientUserB.Id, new DateOnly(1991, 1, 1), "Nữ");
         patientB.User = patientUserB;
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         _db.Patients.AddRange(patientA, patientB);
         _db.WorkSchedules.Add(WorkSchedule.Create(
             today, "morning", "dentist", "dentist", dentist.FullName, "Phòng 202", "border-primary", false));
@@ -112,15 +119,18 @@ public class GetWaitingQueueHandlerTests
     public async Task HandleAsync_TotalCounts_MatchAppointmentStatuses()
     {
         var today = DateOnly.FromDateTime(DateTime.Today);
-        var dentistUser = User.Create("wq3", $"wq3-{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: "BS wq3");
+        var dentistUser = User.Create("wq3", $"wq3-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: "BS wq3");
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
-        dentist.User = dentistUser;
-        var patientUser = User.Create("pq3", $"pq3-{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: "Bệnh nhân wq3");
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
+        var patientUser = User.Create("pq3", $"pq3-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient, fullName: "Bệnh nhân wq3");
         _db.Users.Add(patientUser);
         var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
         patient.User = patientUser;
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         _db.Patients.Add(patient);
         var waiting = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
         waiting.CheckIn();
@@ -142,11 +152,14 @@ public class GetWaitingQueueHandlerTests
     {
         var today = DateOnly.FromDateTime(NowVietnam().DateTime);
         var currentShift = CurrentShiftCode();
-        var dentistUser = User.Create("wq4", $"wq4-{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: "BS wq4");
+        var dentistUser = User.Create("wq4", $"wq4-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: "BS wq4");
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
-        dentist.User = dentistUser;
-        _db.Dentists.Add(dentist);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         _db.WorkSchedules.Add(WorkSchedule.Create(
             today, currentShift, "dentist", "dentist", dentist.FullName, "Phòng Trực", "border-primary", false));
         await _db.SaveChangesAsync();
@@ -163,15 +176,18 @@ public class GetWaitingQueueHandlerTests
     public async Task HandleAsync_DentistWithCheckedInPatientButNoSchedule_StillShownInQueue()
     {
         var today = DateOnly.FromDateTime(DateTime.Today);
-        var dentistUser = User.Create("wq5", $"wq5-{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: "BS Không Ca");
+        var dentistUser = User.Create("wq5", $"wq5-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: "BS Không Ca");
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
-        dentist.User = dentistUser;
-        var patientUser = User.Create("pq5", $"pq5-{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: "Bệnh nhân Dự Phòng");
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
+        var patientUser = User.Create("pq5", $"pq5-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient, fullName: "Bệnh nhân Dự Phòng");
         _db.Users.Add(patientUser);
         var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
         patient.User = patientUser;
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         _db.Patients.Add(patient);
         var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
         appointment.CheckIn();

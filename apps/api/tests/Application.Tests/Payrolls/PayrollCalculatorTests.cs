@@ -109,11 +109,12 @@ public class PayrollCalculatorTests
     [Test]
     public void ReadSalaryProfile_DentistRole_ReadsFromDentistProfile()
     {
-        var user = User.Create("d1", "d@test.com", "hash", "Dentist");
-        var dentist = Dentist.Create(
-            user.Id, "NS001", specialization: "Chỉnh nha", licenseNumber: "CCHN-001",
+        var user = User.Create("d1", "d@test.com", "hash", UserRole.Dentist);
+        var employee = Employee.Create(
+            user.Id, "NS001",
             baseSalary: 30_000_000m, allowance: 2_000_000m, leaveAccrued: 1.5m);
-        typeof(User).GetProperty("Dentist")!.SetValue(user, dentist);
+        user.AttachEmployee(employee);
+        DentistProfile.Create(employee.Id, "Chỉnh nha", "CCHN-001");
 
         var (baseSalary, allowance, leaveAccrued) = PayrollCalculator.ReadSalaryProfile(user);
 
@@ -124,11 +125,11 @@ public class PayrollCalculatorTests
 
     private static User MakeStaffUser(decimal? baseSalary, decimal? allowance, decimal? leaveAccrued)
     {
-        var user = User.Create("emp", "emp@test.com", "hash", "Staff", null, "Nguyễn Văn A");
-        var staff = DentalClinic.API.Domain.Entities.Staff.Create(
+        var user = User.Create("emp", "emp@test.com", "hash", UserRole.Staff, null, "Nguyễn Văn A");
+        var employee = Employee.Create(
             user.Id, "NV001",
             baseSalary: baseSalary, allowance: allowance, leaveAccrued: leaveAccrued);
-        typeof(User).GetProperty("Staff")!.SetValue(user, staff);
+        user.AttachEmployee(employee);
         return user;
     }
 

@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.UseCases.Booking;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Infrastructure.Persistence;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
@@ -29,15 +30,12 @@ public class GetStaffScheduleHandlerTests
 
     private async Task<User> SeedActiveDentistUserAsync(string fullName, string employmentStatus = "Active")
     {
-        var user = User.Create($"u-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: fullName);
-        user.SetStaffProfile(new StaffProfileData(
-            EmployeeId: null, Department: null, EmploymentStatus: employmentStatus, ProfilePictureUrl: null,
-            ProfessionalNotes: null, Specialty: null, LicenseNumber: null, YearsOfExperience: null,
-            Gender: null, DateOfBirth: null, Address: null, StartDate: null, ServicesHandled: null,
-            CertificateIssuedDate: null, CertificateIssuedBy: null, Education: null, Bio: null,
-            Position: null, EmploymentType: null, BaseSalary: null, SalaryUnit: null,
-            LeaveAccrued: null, Allowance: null));
+        var user = User.Create($"u-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: fullName);
         _db.Users.Add(user);
+        var employee = Employee.Create(user.Id, $"DT-{Guid.NewGuid():N}", employmentStatus: employmentStatus);
+        employee.User = user;
+        user.AttachEmployee(employee);
+        _db.Employees.Add(employee);
         await _db.SaveChangesAsync();
         return user;
     }
@@ -225,14 +223,14 @@ public class GetStaffScheduleHandlerTests
         _db.WorkSchedules.Add(WorkSchedule.Create(
             Today, "08:00-10:00", "dentist", "dentist", user.FullName!, "Phòng 1", "border-primary", false));
 
-        var patientUser = User.Create("bn1", $"{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: "Nguyễn Văn Bệnh Nhân");
+        var patientUser = User.Create("bn1", $"{Guid.NewGuid()}@test.com", "hash", UserRole.Patient, fullName: "Nguyễn Văn Bệnh Nhân");
         _db.Users.Add(patientUser);
         var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
         patient.User = patientUser;
         _db.Patients.Add(patient);
-        var dentist = Dentist.Create(user.Id, "Nha khoa tổng quát", 5);
-        dentist.User = user;
-        _db.Dentists.Add(dentist);
+        var dentist = DentistProfile.Create(user.Employee!.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = user.Employee!;
+        _db.DentistProfiles.Add(dentist);
         await _db.SaveChangesAsync();
 
         var appointmentDate = new DateTimeOffset(Today.Year, Today.Month, Today.Day, 8, 0, 0, TimeSpan.FromHours(7));
@@ -258,14 +256,14 @@ public class GetStaffScheduleHandlerTests
         var user = await SeedActiveDentistUserAsync("BS. Có lịch hủy");
         _db.WorkSchedules.Add(WorkSchedule.Create(
             Today, "08:00-10:00", "dentist", "dentist", user.FullName!, "Phòng 1", "border-primary", false));
-        var patientUser = User.Create("bn2", $"{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: "Nguyễn Bệnh Nhân Hủy");
+        var patientUser = User.Create("bn2", $"{Guid.NewGuid()}@test.com", "hash", UserRole.Patient, fullName: "Nguyễn Bệnh Nhân Hủy");
         _db.Users.Add(patientUser);
         var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
         patient.User = patientUser;
         _db.Patients.Add(patient);
-        var dentist = Dentist.Create(user.Id, "Nha khoa tổng quát", 5);
-        dentist.User = user;
-        _db.Dentists.Add(dentist);
+        var dentist = DentistProfile.Create(user.Employee!.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = user.Employee!;
+        _db.DentistProfiles.Add(dentist);
         await _db.SaveChangesAsync();
 
         var appointmentDate = new DateTimeOffset(Today.Year, Today.Month, Today.Day, 8, 0, 0, TimeSpan.FromHours(7));
@@ -302,7 +300,7 @@ public class GetStaffScheduleHandlerTests
     [Test]
     public async Task HandleAsync_UserWithDoctorRole_IncludedInResult()
     {
-        var user = User.Create($"u-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", "Doctor", fullName: "BS. Vai trò Doctor");
+        var user = User.Create($"u-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: "BS. Vai trò Doctor");
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
         _db.WorkSchedules.Add(WorkSchedule.Create(

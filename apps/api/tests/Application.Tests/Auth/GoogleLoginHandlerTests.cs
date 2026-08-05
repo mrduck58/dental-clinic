@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.UseCases.Auth;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using FluentAssertions;
@@ -60,7 +61,7 @@ public class GoogleLoginHandlerTests
     [Test]
     public async Task HandleAsync_ExistingNonPatientAccount_ThrowsUnauthorizedAccessException()
     {
-        var staff = User.Create("staff1", "staff@gmail.com", BCrypt.Net.BCrypt.HashPassword("pass"), "Staff");
+        var staff = User.Create("staff1", "staff@gmail.com", BCrypt.Net.BCrypt.HashPassword("pass"), UserRole.Staff);
         _googleAuthService.VerifyIdTokenAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(new GoogleUserInfo("staff@gmail.com", "Nhân Viên", null));
         _userRepo.GetByEmailAsync("staff@gmail.com", Arg.Any<CancellationToken>()).Returns(staff);
@@ -109,7 +110,7 @@ public class GoogleLoginHandlerTests
     [Test]
     public async Task HandleAsync_ExistingPatientWithUsername_ReturnsActualUsername()
     {
-        var existing = User.Create("patient_username", "existing2@gmail.com", BCrypt.Net.BCrypt.HashPassword("pass"), "Patient");
+        var existing = User.Create("patient_username", "existing2@gmail.com", BCrypt.Net.BCrypt.HashPassword("pass"), UserRole.Patient);
         _googleAuthService.VerifyIdTokenAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(new GoogleUserInfo("existing2@gmail.com", "Người Dùng Cũ", null));
         _userRepo.GetByEmailAsync("existing2@gmail.com", Arg.Any<CancellationToken>()).Returns(existing);

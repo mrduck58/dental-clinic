@@ -1,6 +1,7 @@
 using DentalClinic.API.Application.UseCases.Booking;
 using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
@@ -63,7 +64,7 @@ public class CreateAppointmentHandlerTests
     public async Task HandleAsync_PatientNotExists_CreatesNewPatient()
     {
         var cmd = MakeCmd();
-        var user = User.Create("patient01", "patient@test.com", "hash", "Patient", null, "Trần Thị B");
+        var user = User.Create("patient01", "patient@test.com", "hash", UserRole.Patient, null, "Trần Thị B");
         _patientRepo.GetByUserIdAsync(cmd.UserId, Arg.Any<CancellationToken>()).Returns((Patient?)null);
         _userRepo.GetByIdAsync(cmd.UserId, Arg.Any<CancellationToken>()).Returns(user);
 

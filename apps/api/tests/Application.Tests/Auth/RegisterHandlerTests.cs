@@ -69,7 +69,7 @@ public class RegisterHandlerTests
         await _handler.Handle(ValidCommand, CancellationToken.None);
 
         await _userRepo.Received(1).AddAsync(
-            Arg.Is<User>(u => u.Role == "Patient"),
+            Arg.Is<User>(u => u.Role == UserRole.Patient),
             Arg.Any<CancellationToken>());
     }
 

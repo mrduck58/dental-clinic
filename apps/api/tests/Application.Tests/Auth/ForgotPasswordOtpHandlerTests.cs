@@ -29,7 +29,7 @@ public class ForgotPasswordOtpHandlerTests
 
     private static User CreatePatient(string email, bool isActive = true)
     {
-        var user = User.Create("patient1", email, BCrypt.Net.BCrypt.HashPassword("pass"), "Patient");
+        var user = User.Create("patient1", email, BCrypt.Net.BCrypt.HashPassword("pass"), UserRole.Patient);
         user.SetActive(isActive);
         return user;
     }
@@ -50,7 +50,7 @@ public class ForgotPasswordOtpHandlerTests
     [Test]
     public async Task HandleAsync_NonPatientRole_ThrowsNotFoundException()
     {
-        var staff = User.Create("staff1", "staff@test.com", BCrypt.Net.BCrypt.HashPassword("pass"), "Staff");
+        var staff = User.Create("staff1", "staff@test.com", BCrypt.Net.BCrypt.HashPassword("pass"), UserRole.Staff);
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(staff);
 
         Func<Task> act = () => _handler.Handle(new ForgotPasswordOtpCommand("staff@test.com"), CancellationToken.None);

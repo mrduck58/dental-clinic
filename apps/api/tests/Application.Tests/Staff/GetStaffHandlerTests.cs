@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.UseCases.Staff;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using FluentAssertions;
 using NSubstitute;
@@ -59,8 +60,8 @@ public class GetStaffHandlerTests
     {
         var users = new List<User>
         {
-            User.Create("u1", "a@test.com", "h", "Staff"),
-            User.Create("u2", "b@test.com", "h", "Dentist"),
+            User.Create("u1", "a@test.com", "h", UserRole.Staff),
+            User.Create("u2", "b@test.com", "h", UserRole.Dentist),
         };
         _userRepo.GetStaffPagedAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
             Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
