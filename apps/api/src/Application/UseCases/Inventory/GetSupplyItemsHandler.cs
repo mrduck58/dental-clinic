@@ -4,7 +4,7 @@ using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Inventory;
 
-public record GetSupplyItemsQuery(string? Search = null, string? Category = null) : IRequest<IEnumerable<SupplyItemDto>>;
+public record GetSupplyItemsQuery(string? Search = null, string? Category = null, string? OrderType = null) : IRequest<IEnumerable<SupplyItemDto>>;
 
 public class GetSupplyItemsHandler(ISupplyItemRepository repository) : IRequestHandler<GetSupplyItemsQuery, IEnumerable<SupplyItemDto>>
 {
@@ -20,6 +20,9 @@ public class GetSupplyItemsHandler(ISupplyItemRepository repository) : IRequestH
 
         if (!string.IsNullOrWhiteSpace(query.Category) && query.Category != "Tất cả")
             items = items.Where(i => i.Category == query.Category);
+
+        if (!string.IsNullOrWhiteSpace(query.OrderType))
+            items = items.Where(i => i.OrderType == query.OrderType);
 
         return items.Select(ToDto);
     }
