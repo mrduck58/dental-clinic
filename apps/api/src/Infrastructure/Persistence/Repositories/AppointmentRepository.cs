@@ -60,9 +60,9 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
 
     public async Task<Guid?> GetDentistUserIdAsync(Guid dentistId, CancellationToken cancellationToken = default)
     {
-        return await dbContext.Set<Dentist>()
+        return await dbContext.Set<DentistProfile>()
             .Where(d => d.Id == dentistId)
-            .Select(d => (Guid?)d.UserId)
+            .Select(d => (Guid?)d.Employee.UserId)
             .FirstOrDefaultAsync(cancellationToken);
     }
 

@@ -13,7 +13,7 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.Username).HasMaxLength(100);   // nullable
         builder.Property(u => u.Email).HasMaxLength(255);       // nullable now
         builder.Property(u => u.PasswordHash);                 // nullable
-        builder.Property(u => u.Role).IsRequired().HasMaxLength(50);
+        builder.Property(u => u.Role).IsRequired().HasConversion<string>().HasMaxLength(50);
         builder.Property(u => u.FullName).IsRequired().HasMaxLength(200);
         builder.Property(u => u.Gender).HasMaxLength(20);
         builder.Property(u => u.PhoneNumber).HasMaxLength(20);
