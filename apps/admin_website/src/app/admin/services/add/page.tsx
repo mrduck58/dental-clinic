@@ -4,7 +4,7 @@ import React, { useState, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AdminSidebar from "../../../../components/shared/AdminSidebar";
-import NotificationBell from "../../../../components/shared/NotificationBell";
+import AdminPageHeader from "../../../../components/shared/AdminPageHeader";
 import { useRequireAdmin } from "../../../../hooks/useRequireAdmin";
 import { createServiceApi, uploadFileApi } from "../../../../lib/apiClient";
 
@@ -111,8 +111,10 @@ export default function AddServicePage() {
 
       <main className="flex-1 flex flex-col min-w-0">
         {/* HEADER */}
-        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 font-sans shadow-sm shadow-slate-100/50">
-          <div className="flex items-center gap-4">
+        <AdminPageHeader
+          title="Thêm dịch vụ"
+          subtitle="Thêm dịch vụ mới vào hệ thống."
+          left={
             <Link
               href="/admin/services"
               className="flex items-center justify-center w-10 h-10 rounded-xl bg-slate-100 text-slate-600 hover:bg-primary hover:text-white transition-all cursor-pointer"
@@ -121,16 +123,8 @@ export default function AddServicePage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
               </svg>
             </Link>
-            <div>
-              <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Thêm dịch vụ</h1>
-              <p className="text-[13px] text-slate-400 font-semibold mt-0.5">
-                Thêm dịch vụ mới vào hệ thống.
-              </p>
-            </div>
-          </div>
-
-          <NotificationBell />
-        </header>
+          }
+        />
 
         {/* BODY */}
         <div className="p-8 flex-1 overflow-y-auto">

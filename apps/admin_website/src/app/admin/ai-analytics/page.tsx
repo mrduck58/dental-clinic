@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import AdminSidebar from "../../../components/shared/AdminSidebar";
-import NotificationBell from "../../../components/shared/NotificationBell";
+import AdminPageHeader from "../../../components/shared/AdminPageHeader";
 import { useRequireAdmin } from "../../../hooks/useRequireAdmin";
 import { getAiAnalyticsApi, type AiAnalyticsDto } from "../../../lib/apiClient";
 
@@ -62,15 +62,10 @@ export default function AiAnalyticsPage() {
       <AdminSidebar activeMenu="ai-analytics" />
 
       <main className="flex-1 flex flex-col min-w-0">
-        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-16 flex items-center justify-between shrink-0 shadow-sm shadow-slate-100/50">
-          <div className="flex flex-col">
-            <h1 className="text-[18px] font-black text-slate-900 leading-tight">Thống kê AI</h1>
-            <p className="text-[12.5px] text-slate-400 font-semibold mt-0.5">
-              Hiệu quả và chi phí vận hành của chatbot, tóm tắt bệnh án, soạn nội dung marketing
-            </p>
-          </div>
-          <NotificationBell />
-        </header>
+        <AdminPageHeader
+          title="Thống kê AI"
+          subtitle="Hiệu quả và chi phí vận hành của chatbot, tóm tắt bệnh án, soạn nội dung marketing"
+        />
 
         <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-6">
           {/* Range selector */}

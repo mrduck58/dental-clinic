@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AdminSidebar from "../../../../components/shared/AdminSidebar";
-import NotificationBell from "../../../../components/shared/NotificationBell";
+import AdminPageHeader from "../../../../components/shared/AdminPageHeader";
 import { useRequireAdmin } from "../../../../hooks/useRequireAdmin";
 import { createRoomApi } from "../../../../lib/apiClient";
 
@@ -52,12 +52,7 @@ export default function CreateRoomPage() {
       <main className="flex-1 flex flex-col min-w-0">
 
         {/* Header */}
-        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 font-sans shadow-sm shadow-slate-100/50">
-          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Tạo Phòng Khám Mới</h1>
-          <div className="flex items-center gap-6">
-            <NotificationBell />
-          </div>
-        </header>
+        <AdminPageHeader title="Tạo Phòng Khám Mới" />
 
         <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-6">
 

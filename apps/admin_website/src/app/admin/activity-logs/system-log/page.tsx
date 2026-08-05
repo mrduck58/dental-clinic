@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import AdminSidebar from "../../../../components/shared/AdminSidebar";
-import NotificationBell from "../../../../components/shared/NotificationBell";
+import AdminPageHeader from "../../../../components/shared/AdminPageHeader";
 import { useRequireAdmin } from "../../../../hooks/useRequireAdmin";
 import { getActivityLogsApi, type ActivityLogItemDto } from "../../../../lib/apiClient";
 import { supabase } from "../../../../lib/supabaseClient";
@@ -233,26 +233,23 @@ export default function SystemLogPage() {
 
       <main className="flex-1 flex flex-col min-w-0">
         {/* HEADER */}
-        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-16 flex items-center justify-between shrink-0 shadow-sm shadow-slate-100/50">
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2.5">
-              <h1 className="text-[18px] font-black text-slate-900 leading-tight">System Log</h1>
-              <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-green-50 border border-green-100 text-[10.5px] font-extrabold text-green-600 uppercase tracking-wider">
-                <span className="relative flex h-1.5 w-1.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500"></span>
-                </span>
-                Realtime
+        <AdminPageHeader
+          title="System Log"
+          subtitle="Các sự kiện ở cấp hệ thống, không gắn với một nghiệp vụ cụ thể"
+          right={
+            <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-green-50 border border-green-100 text-[10.5px] font-extrabold text-green-600 uppercase tracking-wider">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500"></span>
               </span>
-            </div>
-            <p className="text-[12.5px] text-slate-400 font-semibold mt-0.5">Các sự kiện ở cấp hệ thống, không gắn với một nghiệp vụ cụ thể</p>
-          </div>
-          <NotificationBell />
-        </header>
+              Realtime
+            </span>
+          }
+        />
 
         {/* NEW ACTIVITY BANNER */}
         {newCount > 0 && (
-          <div className="sticky top-16 z-10 mx-8 mt-0">
+          <div className="sticky top-20 z-10 mx-8 mt-0">
             <button
               onClick={handleGoToLatest}
               className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white text-[13px] font-bold rounded-b-2xl shadow-lg hover:bg-primary/90 transition-all animate-fade-in cursor-pointer"

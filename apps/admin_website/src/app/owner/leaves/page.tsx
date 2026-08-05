@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import OwnerSidebar from "../../../components/shared/OwnerSidebar";
+import OwnerPageHeader from "../../../components/shared/OwnerPageHeader";
 import { useRequireOwner } from "../../../hooks/useRequireOwner";
 import {
   getLeaveRequestsAdminApi,
@@ -155,22 +156,10 @@ export default function LeavesPage() {
 
       <main className="flex-1 flex flex-col min-w-0">
         {/* HEADER */}
-        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 shadow-sm shadow-slate-100/50">
-          <div>
-            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Đơn Xin Nghỉ Phép</h1>
-            <p className="text-[13px] text-slate-400 font-semibold mt-0.5">
-              Quản lý và phê duyệt đơn xin nghỉ phép của nhân viên.
-            </p>
-          </div>
-          <button className="relative p-2.5 rounded-full bg-slate-100 text-slate-600 hover:bg-red-50 hover:text-primary transition-all cursor-pointer">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
-            </svg>
-            {stats.pending > 0 && (
-              <span className="absolute top-1.5 right-1.5 w-3 h-3 bg-primary rounded-full border-2 border-white" />
-            )}
-          </button>
-        </header>
+        <OwnerPageHeader
+          title="Đơn Xin Nghỉ Phép"
+          subtitle="Quản lý và phê duyệt đơn xin nghỉ phép của nhân viên."
+        />
 
         <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-6">
 

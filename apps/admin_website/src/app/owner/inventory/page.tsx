@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import OwnerSidebar from "../../../components/shared/OwnerSidebar";
-import NotificationBell from "../../../components/shared/NotificationBell";
+import OwnerPageHeader from "../../../components/shared/OwnerPageHeader";
 import { useRequireOwner } from "../../../hooks/useRequireOwner";
 
 interface StockItem { id: string; name: string; category: string; unit: string; qty: number; minQty: number }
@@ -77,15 +77,10 @@ export default function OwnerInventoryPage() {
       <main className="flex-1 flex flex-col min-w-0">
         
         {/* HEADER */}
-        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 shadow-sm shadow-slate-100/50">
-          <div>
-            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Quản lý vật tư</h1>
-            <p className="text-[13px] text-slate-400 font-semibold mt-0.5">
-              Quản lý kho vật tư và dụng cụ y tế phục vụ vận hành.
-            </p>
-          </div>
-          <NotificationBell />
-        </header>
+        <OwnerPageHeader
+          title="Quản lý vật tư"
+          subtitle="Quản lý kho vật tư và dụng cụ y tế phục vụ vận hành."
+        />
 
         <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-5">
           {/* Low-stock alert */}

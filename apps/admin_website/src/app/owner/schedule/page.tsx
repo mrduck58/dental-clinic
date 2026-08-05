@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import OwnerSidebar from "../../../components/shared/OwnerSidebar";
-import NotificationBell from "../../../components/shared/NotificationBell";
+import OwnerPageHeader from "../../../components/shared/OwnerPageHeader";
 import { useRequireOwner } from "../../../hooks/useRequireOwner";
 import { getWeekScheduleApi } from "../../../lib/apiClient";
 import { SHIFT_PERIODS, shiftsByPeriod, shiftLabel } from "../../../lib/shifts";
@@ -222,17 +222,10 @@ export default function OwnerSchedulePage() {
       <main className="flex-1 flex flex-col min-w-0">
         
         {/* HEADER */}
-        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 shadow-sm shadow-slate-100/50">
-          {/* Page title */}
-          <div className="flex flex-col">
-            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Lịch làm việc</h1>
-            <p className="text-[13px] text-slate-400 font-semibold mt-0.5">Quản lý ca trực và lịch làm việc nhân sự</p>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <NotificationBell />
-          </div>
-        </header>
+        <OwnerPageHeader
+          title="Lịch làm việc"
+          subtitle="Quản lý ca trực và lịch làm việc nhân sự"
+        />
 
         {/* NOTIFICATION TOAST */}
         {notification && (

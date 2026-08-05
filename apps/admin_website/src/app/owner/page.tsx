@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import OwnerSidebar from "../../components/shared/OwnerSidebar";
-import NotificationBell from "../../components/shared/NotificationBell";
+import OwnerPageHeader from "../../components/shared/OwnerPageHeader";
 import { useRequireOwner } from "../../hooks/useRequireOwner";
 
 export default function OwnerDashboardPage() {
@@ -51,16 +51,15 @@ export default function OwnerDashboardPage() {
 
       <main className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 shadow-sm shadow-slate-100/50">
-          <div>
-            <h1 className="text-xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+        <OwnerPageHeader
+          title={
+            <>
               <span>Hệ Thống Tổng Quản</span>
               <span className="text-[10px] bg-red-100 text-primary px-2 py-0.5 rounded-full font-black uppercase tracking-wide">Owner</span>
-            </h1>
-            <p className="text-[13px] text-slate-400 font-semibold mt-0.5">Báo cáo kinh doanh phòng khám và xếp hạng hiệu suất hoạt động.</p>
-          </div>
-          <NotificationBell />
-        </header>
+            </>
+          }
+          subtitle="Báo cáo kinh doanh phòng khám và xếp hạng hiệu suất hoạt động."
+        />
 
         <div className="flex-1 p-8 overflow-y-auto space-y-6">
           {/* Row 1: KPI Cards */}

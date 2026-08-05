@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import AdminSidebar from "../../../components/shared/AdminSidebar";
-import NotificationBell from "../../../components/shared/NotificationBell";
+import AdminPageHeader from "../../../components/shared/AdminPageHeader";
 import { useRequireAdmin } from "../../../hooks/useRequireAdmin";
 import {
   getNotificationsApi,
@@ -196,15 +196,10 @@ export default function NotificationsPage() {
 
       <main className="flex-1 flex flex-col min-w-0">
         {/* HEADER */}
-        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-16 flex items-center justify-between shrink-0 shadow-sm shadow-slate-100/50">
-          <div className="flex flex-col">
-            <h1 className="text-[18px] font-black text-slate-900 leading-tight">Thông Báo</h1>
-            <p className="text-[12.5px] text-slate-400 font-semibold mt-0.5">Theo dõi các cảnh báo và thông báo từ hệ thống</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <NotificationBell />
-          </div>
-        </header>
+        <AdminPageHeader
+          title="Thông Báo"
+          subtitle="Theo dõi các cảnh báo và thông báo từ hệ thống"
+        />
 
         <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-6">
 
