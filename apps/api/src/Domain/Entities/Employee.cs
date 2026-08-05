@@ -1,11 +1,17 @@
 namespace DentalClinic.API.Domain.Entities;
 
-public class Dentist
+/// <summary>
+/// Thông tin nhân sự (HR) dùng chung cho mọi nhân viên phòng khám — bao gồm cả Staff (lễ tân/hành chính)
+/// và Dentist (bác sĩ, có thêm hồ sơ chuyên môn riêng ở <see cref="DentistProfile"/>).
+/// Trước đây các field này bị lặp lại y hệt giữa 2 entity Staff và Dentist.
+/// </summary>
+public class Employee
 {
+    public const string DefaultEmploymentStatus = "Active";
+
     public Guid Id { get; private set; }
     public Guid UserId { get; private set; }
-    
-    // Properties
+
     public string EmployeeId { get; private set; } = string.Empty;
     public string? Department { get; private set; }
     public string? Position { get; private set; }
@@ -19,45 +25,16 @@ public class Dentist
     public string? SalaryUnit { get; private set; }
     public decimal? Allowance { get; private set; }
     public decimal? LeaveAccrued { get; private set; }
-    
-    public string Specialization { get; private set; } = string.Empty;
-    public string LicenseNumber { get; private set; } = string.Empty;
-    public int? ExperienceYears { get; private set; }
-    public string? Education { get; private set; }
-    public string? Biography { get; private set; }
-    public DateOnly? CertificateIssuedDate { get; private set; }
-    public string? CertificateIssuedBy { get; private set; }
-    public string Shift { get; private set; } = "morning"; // "morning" | "afternoon"
-
-    // Read-only delegated properties from User
-    public string FullName => User?.FullName ?? string.Empty;
 
     // Navigation properties
     public User User { get; set; } = null!;
-    public ICollection<Appointment> Appointments { get; private set; } = [];
+    public DentistProfile? DentistProfile { get; private set; }
 
-    private Dentist() { }
+    private Employee() { }
 
-    public static Dentist Create(
-        Guid userId,
-        string specialization,
-        int experienceYears)
-    {
-        return Create(
-            userId: userId,
-            employeeId: $"DT-{Guid.NewGuid().ToString("N")[..8].ToUpper()}",
-            specialization: specialization,
-            licenseNumber: "N/A",
-            experienceYears: experienceYears
-        );
-    }
-
-    public static Dentist Create(
+    public static Employee Create(
         Guid userId,
         string employeeId,
-        string specialization,
-        string licenseNumber,
-        int? experienceYears = null,
         string? department = null,
         string? position = null,
         string employmentStatus = "Active",
@@ -69,21 +46,13 @@ public class Dentist
         decimal? baseSalary = null,
         string? salaryUnit = null,
         decimal? allowance = null,
-        decimal? leaveAccrued = null,
-        string? education = null,
-        string? biography = null,
-        DateOnly? certificateIssuedDate = null,
-        string? certificateIssuedBy = null,
-        string shift = "morning")
+        decimal? leaveAccrued = null)
     {
-        return new Dentist
+        return new Employee
         {
             Id = Guid.NewGuid(),
             UserId = userId,
             EmployeeId = employeeId,
-            Specialization = specialization,
-            LicenseNumber = licenseNumber,
-            ExperienceYears = experienceYears,
             Department = department,
             Position = position,
             EmploymentStatus = employmentStatus,
@@ -95,19 +64,11 @@ public class Dentist
             BaseSalary = baseSalary,
             SalaryUnit = salaryUnit,
             Allowance = allowance,
-            LeaveAccrued = leaveAccrued,
-            Education = education,
-            Biography = biography,
-            CertificateIssuedDate = certificateIssuedDate,
-            CertificateIssuedBy = certificateIssuedBy,
-            Shift = shift
+            LeaveAccrued = leaveAccrued
         };
     }
 
     public void Update(
-        string specialization,
-        string licenseNumber,
-        int? experienceYears,
         string? department,
         string? position,
         string employmentStatus,
@@ -119,16 +80,8 @@ public class Dentist
         decimal? baseSalary,
         string? salaryUnit,
         decimal? allowance,
-        decimal? leaveAccrued,
-        string? education,
-        string? biography,
-        DateOnly? certificateIssuedDate,
-        string? certificateIssuedBy,
-        string shift)
+        decimal? leaveAccrued)
     {
-        Specialization = specialization;
-        LicenseNumber = licenseNumber;
-        ExperienceYears = experienceYears;
         Department = department;
         Position = position;
         EmploymentStatus = employmentStatus;
@@ -141,10 +94,5 @@ public class Dentist
         SalaryUnit = salaryUnit;
         Allowance = allowance;
         LeaveAccrued = leaveAccrued;
-        Education = education;
-        Biography = biography;
-        CertificateIssuedDate = certificateIssuedDate;
-        CertificateIssuedBy = certificateIssuedBy;
-        Shift = shift;
     }
 }

@@ -13,7 +13,7 @@ public class DentistReview
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
 
-    public Dentist Dentist { get; private set; } = null!;
+    public DentistProfile Dentist { get; private set; } = null!;
     public Patient Patient { get; private set; } = null!;
 
     public IReadOnlyList<string> Tags =>

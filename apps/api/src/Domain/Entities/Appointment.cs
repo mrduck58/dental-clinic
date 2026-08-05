@@ -29,7 +29,7 @@ public class Appointment
 
     // Navigation properties
     public Patient Patient { get; private set; } = null!;
-    public Dentist Dentist { get; private set; } = null!;
+    public DentistProfile Dentist { get; private set; } = null!;
     public Service? Service { get; private set; }
     public ICollection<Invoice> Invoices { get; private set; } = new List<Invoice>();
 
