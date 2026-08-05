@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.UseCases.Auth;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using FluentAssertions;
@@ -31,7 +32,7 @@ public class GetMyProfileHandlerTests
     public async Task HandleAsync_ExistingUser_ReturnsCorrectEmail()
     {
         var userId = Guid.NewGuid();
-        var user = User.Create("patient1", "patient@test.com", "hash", "Patient", "0901234567");
+        var user = User.Create("patient1", "patient@test.com", "hash", UserRole.Patient, "0901234567");
         _userRepo.GetByIdAsync(userId, Arg.Any<CancellationToken>()).Returns(user);
 
         var result = await _handler.Handle(new GetMyProfileQuery(userId), CancellationToken.None);
@@ -47,7 +48,7 @@ public class GetMyProfileHandlerTests
     public async Task HandleAsync_ExistingUser_ReturnsCorrectPhoneNumber()
     {
         var userId = Guid.NewGuid();
-        var user = User.Create("patient2", "patient2@test.com", "hash", "Patient", "0912345678");
+        var user = User.Create("patient2", "patient2@test.com", "hash", UserRole.Patient, "0912345678");
         _userRepo.GetByIdAsync(userId, Arg.Any<CancellationToken>()).Returns(user);
 
         var result = await _handler.Handle(new GetMyProfileQuery(userId), CancellationToken.None);
@@ -63,7 +64,7 @@ public class GetMyProfileHandlerTests
     public async Task HandleAsync_UserWithNoPhone_ReturnsNullPhoneNumber()
     {
         var userId = Guid.NewGuid();
-        var user = User.Create("patient3", "patient3@test.com", "hash", "Patient");
+        var user = User.Create("patient3", "patient3@test.com", "hash", UserRole.Patient);
         _userRepo.GetByIdAsync(userId, Arg.Any<CancellationToken>()).Returns(user);
 
         var result = await _handler.Handle(new GetMyProfileQuery(userId), CancellationToken.None);
@@ -79,7 +80,7 @@ public class GetMyProfileHandlerTests
     public async Task HandleAsync_NewUser_ReturnsNullOptionalFields()
     {
         var userId = Guid.NewGuid();
-        var user = User.Create("patient4", "patient4@test.com", "hash", "Patient");
+        var user = User.Create("patient4", "patient4@test.com", "hash", UserRole.Patient);
         _userRepo.GetByIdAsync(userId, Arg.Any<CancellationToken>()).Returns(user);
 
         var result = await _handler.Handle(new GetMyProfileQuery(userId), CancellationToken.None);
@@ -99,14 +100,11 @@ public class GetMyProfileHandlerTests
     public async Task HandleAsync_DentistRole_ReturnsCorrectBaseSalaryAndAllowance()
     {
         var userId = Guid.NewGuid();
-        var user = User.Create("dentist1", "dentist1@test.com", "hash", "Dentist");
-        user.SetStaffProfile(new StaffProfileData(
-            EmployeeId: null, Department: null, EmploymentStatus: null, ProfilePictureUrl: null,
-            ProfessionalNotes: null, Specialty: null, LicenseNumber: null, YearsOfExperience: 5,
-            Gender: null, DateOfBirth: null, Address: null, StartDate: null, ServicesHandled: null,
-            CertificateIssuedDate: null, CertificateIssuedBy: null, Education: null, Bio: null,
-            Position: null, EmploymentType: null, BaseSalary: null, SalaryUnit: null,
-            LeaveAccrued: null, Allowance: null));
+        var user = User.Create("dentist1", "dentist1@test.com", "hash", UserRole.Dentist);
+        var employee = Employee.Create(user.Id, "EMP-001");
+        user.AttachEmployee(employee);
+        var dentistProfile = DentistProfile.Create(employee.Id, "Nha chu", "LIC-001", experienceYears: 5);
+        typeof(Employee).GetProperty(nameof(Employee.DentistProfile))!.SetValue(employee, dentistProfile);
         _userRepo.GetByIdAsync(userId, Arg.Any<CancellationToken>()).Returns(user);
 
         var result = await _handler.Handle(new GetMyProfileQuery(userId), CancellationToken.None);
@@ -124,7 +122,7 @@ public class GetMyProfileHandlerTests
     public async Task HandleAsync_DentistWithNoYearsOfExperience_AllowanceIsZero()
     {
         var userId = Guid.NewGuid();
-        var user = User.Create("dentist2", "dentist2@test.com", "hash", "Dentist");
+        var user = User.Create("dentist2", "dentist2@test.com", "hash", UserRole.Dentist);
         _userRepo.GetByIdAsync(userId, Arg.Any<CancellationToken>()).Returns(user);
 
         var result = await _handler.Handle(new GetMyProfileQuery(userId), CancellationToken.None);
@@ -140,7 +138,7 @@ public class GetMyProfileHandlerTests
     public async Task HandleAsync_AdminRole_ReturnsCorrectBaseSalaryAndAllowance()
     {
         var userId = Guid.NewGuid();
-        var user = User.Create("admin1", "admin1@test.com", "hash", "Admin");
+        var user = User.Create("admin1", "admin1@test.com", "hash", UserRole.Admin);
         _userRepo.GetByIdAsync(userId, Arg.Any<CancellationToken>()).Returns(user);
 
         var result = await _handler.Handle(new GetMyProfileQuery(userId), CancellationToken.None);
@@ -158,7 +156,7 @@ public class GetMyProfileHandlerTests
     public async Task HandleAsync_StaffRole_ReturnsCorrectBaseSalaryAndAllowance()
     {
         var userId = Guid.NewGuid();
-        var user = User.Create("staff1", "staff1@test.com", "hash", "Staff");
+        var user = User.Create("staff1", "staff1@test.com", "hash", UserRole.Staff);
         _userRepo.GetByIdAsync(userId, Arg.Any<CancellationToken>()).Returns(user);
 
         var result = await _handler.Handle(new GetMyProfileQuery(userId), CancellationToken.None);
@@ -176,7 +174,7 @@ public class GetMyProfileHandlerTests
     public async Task HandleAsync_PatientRole_ReturnsZeroSalaryAndEmptyNote()
     {
         var userId = Guid.NewGuid();
-        var user = User.Create("patient5", "patient5@test.com", "hash", "Patient");
+        var user = User.Create("patient5", "patient5@test.com", "hash", UserRole.Patient);
         _userRepo.GetByIdAsync(userId, Arg.Any<CancellationToken>()).Returns(user);
 
         var result = await _handler.Handle(new GetMyProfileQuery(userId), CancellationToken.None);
@@ -194,7 +192,7 @@ public class GetMyProfileHandlerTests
     public async Task HandleAsync_UserWithNoFullName_ReturnsEmptyStringFullName()
     {
         var userId = Guid.NewGuid();
-        var user = User.Create("patient6", "patient6@test.com", "hash", "Patient");
+        var user = User.Create("patient6", "patient6@test.com", "hash", UserRole.Patient);
         _userRepo.GetByIdAsync(userId, Arg.Any<CancellationToken>()).Returns(user);
 
         var result = await _handler.Handle(new GetMyProfileQuery(userId), CancellationToken.None);

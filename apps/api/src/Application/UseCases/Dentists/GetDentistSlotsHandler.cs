@@ -49,7 +49,7 @@ public class GetDentistSlotsHandler(AppDbContext dbContext, IAppointmentReposito
             .Where(ws => ws.Type == "dentist" || ws.Role == "dentist" || string.Equals(ws.Type, "Khám", StringComparison.OrdinalIgnoreCase))
             .ToList();
 
-        List<Dentist> dentists;
+        List<DentistProfile> dentists;
         var shiftsByName = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
 
         if (dentistSchedules.Count > 0)
@@ -62,17 +62,17 @@ public class GetDentistSlotsHandler(AppDbContext dbContext, IAppointmentReposito
                 .Select(ws => ws.StaffName)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-            dentists = await dbContext.Dentists
-                .Include(d => d.User)
-                .Where(d => d.User.IsActive && dentistNames.Contains(d.User.FullName ?? string.Empty))
+            dentists = await dbContext.DentistProfiles
+                .Include(d => d.Employee).ThenInclude(e => e.User)
+                .Where(d => d.Employee.User.IsActive && dentistNames.Contains(d.Employee.User.FullName ?? string.Empty))
                 .ToListAsync(ct);
         }
         else
         {
             // Chưa có WorkSchedule cụ thể cho bác sĩ ngày này -> Mặc định lấy tất cả bác sĩ đang hoạt động
-            dentists = await dbContext.Dentists
-                .Include(d => d.User)
-                .Where(d => d.User.IsActive)
+            dentists = await dbContext.DentistProfiles
+                .Include(d => d.Employee).ThenInclude(e => e.User)
+                .Where(d => d.Employee.User.IsActive)
                 .ToListAsync(ct);
         }
 

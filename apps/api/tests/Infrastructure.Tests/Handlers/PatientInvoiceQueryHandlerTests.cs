@@ -1,6 +1,7 @@
 using DentalClinic.API.Application.DTOs.Invoices;
 using DentalClinic.API.Application.UseCases.Invoices;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Infrastructure.Persistence;
@@ -50,13 +51,17 @@ public class PatientInvoiceQueryHandlerTests
 
     private async Task<(Appointment appointment, Patient patient)> SeedPendingPaymentAppointmentAsync()
     {
-        var patientUser = User.Create("pinv-p", $"pinv-p-{Guid.NewGuid()}@test.com", "hash", "Patient");
-        var dentistUser = User.Create("pinv-d", $"pinv-d-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        var patientUser = User.Create("pinv-p", $"pinv-p-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient);
+        var dentistUser = User.Create("pinv-d", $"pinv-d-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist);
         _db.Users.AddRange(patientUser, dentistUser);
         var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
         _db.Patients.Add(patient);
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
         appointment.StartTreatment();
         appointment.EndTreatment();

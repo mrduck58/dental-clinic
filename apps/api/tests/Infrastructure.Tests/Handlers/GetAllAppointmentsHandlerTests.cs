@@ -29,19 +29,23 @@ public class GetAllAppointmentsHandlerTests
 
     // ── Seed helpers ──────────────────────────────────────────────────────────
 
-    private async Task<(Patient patient, Dentist dentist)> SeedBasicDataAsync(
+    private async Task<(Patient patient, DentistProfile dentist)> SeedBasicDataAsync(
         string patientName = "Trần Thị B",
         string phone = "0901234567",
         string dentistName = "BS. Nguyễn Văn A",
         string specialization = "Nha khoa tổng quát")
     {
-        var patientUser = User.Create("p1", "p1@test.com", "hash", "Patient", phone, fullName: patientName);
-        var dentistUser = User.Create("d1", "d1@test.com", "hash", "Dentist", fullName: dentistName);
+        var patientUser = User.Create("p1", "p1@test.com", "hash", UserRole.Patient, phone, fullName: patientName);
+        var dentistUser = User.Create("d1", "d1@test.com", "hash", UserRole.Dentist, fullName: dentistName);
         _db.Users.AddRange(patientUser, dentistUser);
 
-        var dentist = Dentist.Create(dentistUser.Id, specialization, 5);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, specialization, "N/A", 5);
+        dentist.Employee = employee;
         var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nữ");
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         _db.Patients.Add(patient);
 
         await _db.SaveChangesAsync();

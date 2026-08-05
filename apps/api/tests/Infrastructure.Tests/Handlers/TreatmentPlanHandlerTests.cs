@@ -1,6 +1,7 @@
 using DentalClinic.API.Application.DTOs.ClinicalRecords;
 using DentalClinic.API.Application.UseCases.ClinicalRecords;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
@@ -61,7 +62,7 @@ public class TreatmentPlanHandlerTests
     public async Task TearDown() => await _db.DisposeAsync();
 
     private async Task<(Appointment appointment, Service service)> SeedInProgressAppointmentAsync(
-        Patient patient, Dentist dentist)
+        Patient patient, DentistProfile dentist)
     {
         var service = Service.Create("Trám răng", 500_000m, 30, "Trám răng thẩm mỹ");
         _db.Services.Add(service);
@@ -78,13 +79,17 @@ public class TreatmentPlanHandlerTests
     [Test]
     public async Task CreateAsync_PatientHasAccount_SendsNotificationToPatientUser()
     {
-        var patientUser = User.Create("p3", "p3@test.com", "hash", "Patient");
-        var dentistUser = User.Create("d3", "d3@test.com", "hash", "Dentist");
+        var patientUser = User.Create("p3", "p3@test.com", "hash", UserRole.Patient);
+        var dentistUser = User.Create("d3", "d3@test.com", "hash", UserRole.Dentist);
         _db.Users.AddRange(patientUser, dentistUser);
         var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
         _db.Patients.Add(patient);
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         await _db.SaveChangesAsync();
         _patientRepo.GetByIdAsync(patient.Id, Arg.Any<CancellationToken>()).Returns(patient);
 
@@ -107,12 +112,16 @@ public class TreatmentPlanHandlerTests
     [Test]
     public async Task CreateAsync_PatientHasNoAccount_DoesNotSendNotificationOrThrow()
     {
-        var dentistUser = User.Create("d4", "d4@test.com", "hash", "Dentist");
+        var dentistUser = User.Create("d4", "d4@test.com", "hash", UserRole.Dentist);
         _db.Users.Add(dentistUser);
         var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 3);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 3);
+        dentist.Employee = employee;
         _db.Patients.Add(patient);
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         await _db.SaveChangesAsync();
         _patientRepo.GetByIdAsync(patient.Id, Arg.Any<CancellationToken>()).Returns(patient);
 
@@ -126,15 +135,19 @@ public class TreatmentPlanHandlerTests
             Arg.Any<CreateNotificationRequest>(), Arg.Any<CancellationToken>());
     }
 
-    private async Task<(Patient patient, Dentist dentist)> SeedPatientAndDentistAsync(string patientUsername, string dentistUsername)
+    private async Task<(Patient patient, DentistProfile dentist)> SeedPatientAndDentistAsync(string patientUsername, string dentistUsername)
     {
-        var patientUser = User.Create(patientUsername, $"{patientUsername}@test.com", "hash", "Patient");
-        var dentistUser = User.Create(dentistUsername, $"{dentistUsername}@test.com", "hash", "Dentist");
+        var patientUser = User.Create(patientUsername, $"{patientUsername}@test.com", "hash", UserRole.Patient);
+        var dentistUser = User.Create(dentistUsername, $"{dentistUsername}@test.com", "hash", UserRole.Dentist);
         _db.Users.AddRange(patientUser, dentistUser);
         var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
         _db.Patients.Add(patient);
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         await _db.SaveChangesAsync();
         _patientRepo.GetByIdAsync(patient.Id, Arg.Any<CancellationToken>()).Returns(patient);
         return (patient, dentist);
@@ -469,7 +482,7 @@ public class TreatmentPlanHandlerTests
     /// <summary>Tạo sẵn liệu trình với các mục nhật ký điều trị (StepProgress) đã ghi nhận, để test
     /// trực tiếp Update/Reorder/Delete mà không cần đi qua AddStepProgressHandler.</summary>
     private async Task<TreatmentPlan> SeedPlanWithStepsAsync(
-        Patient patient, Dentist dentist, Appointment appointment, Service service, params string[] stepNames)
+        Patient patient, DentistProfile dentist, Appointment appointment, Service service, params string[] stepNames)
     {
         var plan = TreatmentPlan.Create(patient.Id, dentist.Id, appointment.Id, service.Id, 500_000m, 1);
         if (stepNames.Length > 0)

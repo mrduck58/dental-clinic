@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.DTOs.Auth;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using MediatR;
@@ -25,7 +26,7 @@ public class GoogleLoginHandler(
             user = User.CreateGoogleUser(googleUser.Email, googleUser.FullName, googleUser.PictureUrl);
             await userRepository.AddAsync(user, ct);
         }
-        else if (user.Role != "Patient")
+        else if (user.Role != UserRole.Patient)
         {
             throw new UnauthorizedAccessException("Tài khoản này không thể đăng nhập bằng ứng dụng di động.");
         }
@@ -36,18 +37,14 @@ public class GoogleLoginHandler(
 
         var token = jwtService.GenerateToken(user);
 
-        var profilePic = user.Role switch
-        {
-            "Patient" => user.Patient?.ProfilePictureUrl,
-            "Dentist" => user.Dentist?.ProfilePictureUrl,
-            "Staff" => user.Staff?.ProfilePictureUrl,
-            _ => null
-        };
+        var profilePic = user.Role == UserRole.Patient
+            ? user.Patient?.ProfilePictureUrl
+            : user.Employee?.ProfilePictureUrl;
 
         return new GoogleLoginResponseDto(
             AccessToken: token,
             ExpiresIn: 15 * 60,
             IsNewUser: isNewUser,
-            User: new AuthUserDto(user.Id, user.Username ?? user.Email, user.FullName, user.Email, user.Role, user.IsActive, profilePic));
+            User: new AuthUserDto(user.Id, user.Username ?? user.Email, user.FullName, user.Email, user.Role.ToString(), user.IsActive, profilePic));
     }
 }

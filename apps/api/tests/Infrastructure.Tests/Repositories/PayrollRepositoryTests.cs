@@ -30,24 +30,23 @@ public class PayrollRepositoryTests
     // ── GetPayableUsersAsync ──────────────────────────────────────────────────
 
     /// <summary>
-    /// Bảng lương chỉ dành cho bác sĩ (Dentist/Doctor) và nhân viên (Staff).
+    /// Bảng lương chỉ dành cho bác sĩ (Dentist) và nhân viên (Staff).
     /// Tài khoản quản trị Admin/Owner và bệnh nhân không được xuất hiện trong kỳ lương.
     /// </summary>
     [Test]
-    public async Task GetPayableUsersAsync_ReturnsOnlyDentistDoctorAndStaff()
+    public async Task GetPayableUsersAsync_ReturnsOnlyDentistAndStaff()
     {
         await _db.Users.AddRangeAsync(
-            User.Create("d1", "dentist@test.com", "hash", "Dentist"),
-            User.Create("dr1", "doctor@test.com", "hash", "Doctor"),
-            User.Create("s1", "staff@test.com", "hash", "Staff"),
-            User.Create("a1", "admin@test.com", "hash", "Admin"),
-            User.Create("o1", "owner@test.com", "hash", "Owner"),
-            User.Create("p1", "patient@test.com", "hash", "Patient"));
+            User.Create("d1", "dentist@test.com", "hash", UserRole.Dentist),
+            User.Create("s1", "staff@test.com", "hash", UserRole.Staff),
+            User.Create("a1", "admin@test.com", "hash", UserRole.Admin),
+            User.Create("o1", "owner@test.com", "hash", UserRole.Owner),
+            User.Create("p1", "patient@test.com", "hash", UserRole.Patient));
         await _db.SaveChangesAsync();
 
         var result = await _sut.GetPayableUsersAsync();
 
-        result.Select(u => u.Role).Should().BeEquivalentTo(["Dentist", "Doctor", "Staff"]);
+        result.Select(u => u.Role).Should().BeEquivalentTo([UserRole.Dentist, UserRole.Staff]);
     }
 
     // ── GetApprovedLeavesOverlappingAsync ─────────────────────────────────────

@@ -3,10 +3,11 @@
 import React, { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import OwnerSidebar from "../../../../../components/shared/OwnerSidebar";
-import NotificationBell from "../../../../../components/shared/NotificationBell";
+import OwnerPageHeader from "../../../../../components/shared/OwnerPageHeader";
 import { useRequireOwner } from "../../../../../hooks/useRequireOwner";
 import { getWeekScheduleApi, getStaffByIdApi, type StaffDto, type ScheduleEntryDto } from "../../../../../lib/apiClient";
 import { periodOfShift } from "../../../../../lib/shifts";
+import { ROLE_LABELS, ROLE_BADGE_CLASSES, type UiRole } from "../../../../../lib/roles";
 
 // ── Mock review data — TODO: replace with real reviews API ────────────────
 const MOCK_RATING = 4.8;
@@ -28,16 +29,6 @@ const MONTH_NAMES = [
 ];
 const DAY_HEADERS = ["T2","T3","T4","T5","T6","T7","CN"];
 
-const ROLE_LABELS: Record<string, string> = {
-  Doctor: "Nha sĩ", Dentist: "Nha sĩ",
-  Staff: "Lễ tân / Trợ lý", Admin: "Quản trị viên",
-};
-const ROLE_COLORS: Record<string, string> = {
-  Doctor: "bg-emerald-50 text-emerald-700 border-emerald-100",
-  Dentist: "bg-emerald-50 text-emerald-700 border-emerald-100",
-  Staff: "bg-green-50 text-green-700 border-green-100",
-  Admin: "bg-purple-50 text-purple-700 border-purple-100",
-};
 const STATUS_LABELS: Record<string, string> = {
   Active: "Đang làm việc", "On Leave": "Nghỉ phép", Inactive: "Đã nghỉ việc",
 };
@@ -157,7 +148,7 @@ export default function StaffDetailPage() {
   const [viewYear,  setViewYear]  = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
 
-  const isDentist = staff?.role === "Doctor" || staff?.role === "Dentist";
+  const isDentist = staff?.role === "Dentist";
 
   useEffect(() => {
     const raw = sessionStorage.getItem("staffDetailData");
@@ -272,21 +263,17 @@ export default function StaffDetailPage() {
       <main className="flex-1 flex flex-col min-w-0">
 
         {/* ── Top Header ── */}
-        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 shadow-sm">
-          <div className="flex items-center gap-4">
+        <OwnerPageHeader
+          left={
             <button onClick={() => router.push("/owner/employee")} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all cursor-pointer">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
               </svg>
             </button>
-            <div>
-              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Chi Tiết Nhân Sự</h1>
-              <p className="text-[13px] text-slate-400 font-semibold mt-0.5">
-                Hồ sơ và thông tin làm việc của {isDentist ? "nha sĩ" : "nhân viên"}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
+          }
+          title="Chi Tiết Nhân Sự"
+          subtitle={<>Hồ sơ và thông tin làm việc của {isDentist ? "nha sĩ" : "nhân viên"}</>}
+          right={
             <button
               onClick={() => {
                 sessionStorage.setItem("staffEditData", JSON.stringify(staff));
@@ -302,9 +289,8 @@ export default function StaffDetailPage() {
               </svg>
               Chỉnh sửa
             </button>
-            <NotificationBell />
-          </div>
-        </header>
+          }
+        />
 
         <div className="flex-1 p-8 flex justify-center overflow-y-auto">
           <div className="w-full max-w-5xl flex flex-col gap-6">
@@ -327,8 +313,8 @@ export default function StaffDetailPage() {
                     )}
                   </div>
                   <div className="flex flex-wrap items-center gap-2 mb-3">
-                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11.5px] font-black border ${ROLE_COLORS[staff.role] || "bg-slate-50 border-slate-200 text-slate-600"}`}>
-                      {ROLE_LABELS[staff.role] || staff.role}
+                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11.5px] font-black border ${ROLE_BADGE_CLASSES[staff.role as UiRole] || "bg-slate-50 border-slate-200 text-slate-600"}`}>
+                      {ROLE_LABELS[staff.role as UiRole] || staff.role}
                     </span>
                     <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11.5px] font-black border ${STATUS_COLORS[empStatus]}`}>
                       {STATUS_LABELS[empStatus]}

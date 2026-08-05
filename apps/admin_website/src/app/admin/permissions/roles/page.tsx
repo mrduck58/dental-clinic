@@ -3,17 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import AdminSidebar from "../../../../components/shared/AdminSidebar";
-import NotificationBell from "../../../../components/shared/NotificationBell";
+import AdminPageHeader from "../../../../components/shared/AdminPageHeader";
 import { getAccountsApi } from "../../../../lib/apiClient";
 import { useRequireAdmin } from "../../../../hooks/useRequireAdmin";
-
-type UiRole = "Admin" | "Owner" | "Dentist" | "Staff";
-
-function normalizeRole(raw: string): UiRole {
-  if (raw === "Admin" || raw === "Owner" || raw === "Staff") return raw;
-  if (raw === "Dentist" || raw === "Doctor") return "Dentist";
-  return "Staff";
-}
+import { normalizeRole, ROLE_LABELS, type UiRole } from "../../../../lib/roles";
 
 interface RoleInfo {
   key: UiRole;
@@ -28,7 +21,7 @@ interface RoleInfo {
 const ROLES: RoleInfo[] = [
   {
     key: "Admin",
-    label: "Admin",
+    label: ROLE_LABELS.Admin,
     description: "Quản trị hệ thống: tài khoản, phân quyền, danh mục dùng chung (dịch vụ, thuốc, phòng khám) và theo dõi hoạt động hệ thống.",
     iconPath: "M9.348 14.652a3.75 3.75 0 010-5.304m5.304 0a3.75 3.75 0 010 5.304m-7.425 2.121a6.75 6.75 0 010-9.546m9.546 0a6.75 6.75 0 010 9.546M12 12h.008v.008H12V12z",
     colorBg: "bg-purple-50",
@@ -37,7 +30,7 @@ const ROLES: RoleInfo[] = [
   },
   {
     key: "Owner",
-    label: "Chủ cửa hàng",
+    label: ROLE_LABELS.Owner,
     description: "Điều hành vận hành kinh doanh phòng khám: nhân sự, lịch làm việc, tài chính, đơn nghỉ và phản hồi khách hàng.",
     iconPath: "M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3a1.5 1.5 0 011.5-1.5h3a1.5 1.5 0 011.5 1.5v3",
     colorBg: "bg-amber-50",
@@ -46,7 +39,7 @@ const ROLES: RoleInfo[] = [
   },
   {
     key: "Dentist",
-    label: "Bác sĩ",
+    label: ROLE_LABELS.Dentist,
     description: "Khám chữa bệnh: hồ sơ bệnh án, chẩn đoán, phác đồ điều trị và kê đơn thuốc cho bệnh nhân.",
     iconPath: "M9 12h3.75M9 15h3.375c.621 0 1.125-.504 1.125-1.125V11.25M9 9h7.5M12 3v18M3 5.25h18A2.25 2.25 0 0121 7.5v9a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 16.5v-9A2.25 2.25 0 015.25 5.25z",
     colorBg: "bg-sky-50",
@@ -55,7 +48,7 @@ const ROLES: RoleInfo[] = [
   },
   {
     key: "Staff",
-    label: "Nhân viên",
+    label: ROLE_LABELS.Staff,
     description: "Tiếp đón bệnh nhân, đặt và điều phối lịch hẹn, hỗ trợ vận hành hằng ngày tại phòng khám.",
     iconPath: "M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z",
     colorBg: "bg-green-50",
@@ -89,13 +82,10 @@ export default function RolesPage() {
       <AdminSidebar activeMenu="permissions-roles" />
 
       <main className="flex-1 flex flex-col min-w-0">
-        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 font-sans shadow-sm shadow-slate-100/50">
-          <div>
-            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Vai Trò</h1>
-            <p className="text-[13px] text-slate-400 font-semibold mt-0.5">Các vai trò cố định trong hệ thống và phạm vi trách nhiệm.</p>
-          </div>
-          <NotificationBell />
-        </header>
+        <AdminPageHeader
+          title="Vai Trò"
+          subtitle="Các vai trò cố định trong hệ thống và phạm vi trách nhiệm."
+        />
 
         <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-6">
           <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200 flex items-start gap-2.5">

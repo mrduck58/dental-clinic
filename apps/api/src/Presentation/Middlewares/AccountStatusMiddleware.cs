@@ -27,7 +27,7 @@ public class AccountStatusMiddleware(RequestDelegate next)
             }
 
             var status = await userRepository.GetAccountStatusAsync(userId, ctx.RequestAborted);
-            if (status is null || !status.IsActive || status.Role != roleClaim)
+            if (status is null || !status.IsActive || status.Role.ToString() != roleClaim)
             {
                 await RejectAsync(ctx);
                 return;

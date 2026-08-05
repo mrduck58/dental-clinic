@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.UseCases.Booking;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Infrastructure.Persistence;
@@ -29,10 +30,14 @@ public class CreateWalkInAppointmentHandlerTests
         _notificationService = Substitute.For<INotificationService>();
         _handler = new CreateWalkInAppointmentHandler(_db, _notificationService);
 
-        var dentistUser = User.Create("d1", $"d1-{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: "BS. Nguyễn Văn Hùng");
+        var dentistUser = User.Create("d1", $"d1-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: "BS. Nguyễn Văn Hùng");
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
-        _db.Dentists.Add(dentist);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         await _db.SaveChangesAsync();
         _dentistId = dentist.Id;
         _dentistUserId = dentistUser.Id;
@@ -116,7 +121,7 @@ public class CreateWalkInAppointmentHandlerTests
     [Test]
     public async Task HandleAsync_WithPatientId_ReusesThatPatientAndUpdatesPhone()
     {
-        var user = User.CreateEmployee("existing@test.com", "Patient", phoneNumber: "0900000001", fullName: "Trần Thị B");
+        var user = User.CreateEmployee("existing@test.com", UserRole.Patient, phoneNumber: "0900000001", fullName: "Trần Thị B");
         _db.Users.Add(user);
         var existing = Patient.Create(user.Id, new DateOnly(1985, 5, 20), "Nữ", phoneNumber: "0900000001");
         _db.Patients.Add(existing);

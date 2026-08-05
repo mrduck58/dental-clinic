@@ -185,7 +185,7 @@ public class GetMyLeaveRequestsHandlerTests
     {
         var today = DateOnly.FromDateTime(DateTime.Today);
         var lr = LeaveRequest.Create(userId, type, today, today.AddDays(daysCount - 1), "Lý do test");
-        var user = User.Create("emp", "emp@test.com", "hash", "Staff", null, "Test");
+        var user = User.Create("emp", "emp@test.com", "hash", UserRole.Staff, null, "Test");
         typeof(LeaveRequest).GetProperty("User")!.SetValue(lr, user);
         return lr;
     }

@@ -22,6 +22,6 @@ public class ToggleAccountStatusHandler(IUserRepository userRepository) : IReque
 
         return new AccountDto(
             user.Id, user.Username!, user.FullName, user.Email,
-            user.PhoneNumber, user.Role, user.IsActive, user.CreatedAt);
+            user.PhoneNumber, user.Role.ToString(), user.IsActive, user.CreatedAt);
     }
 }

@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.UseCases.Reminders;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Infrastructure.Persistence;
 using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
@@ -31,13 +32,17 @@ public class GetMedicationRemindersHandlerTests
     private async Task<(Patient patient, PrescriptionItem item)> SeedPatientWithPrescriptionItemAsync(
         DateOnly startDate, int durationDays, int timesPerDay, Patient? appointmentPatient = null)
     {
-        var patientUser = User.Create("med-p", $"med-p-{Guid.NewGuid()}@test.com", "hash", "Patient");
-        var dentistUser = User.Create("med-d", $"med-d-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        var patientUser = User.Create("med-p", $"med-p-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient);
+        var dentistUser = User.Create("med-d", $"med-d-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist);
         _db.Users.AddRange(patientUser, dentistUser);
         var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
         _db.Patients.Add(patient);
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
 
         var appointmentPatientEntity = appointmentPatient ?? patient;
         var appointment = Appointment.Create(appointmentPatientEntity.Id, dentist.Id, DateTimeOffset.UtcNow);
@@ -133,13 +138,13 @@ public class GetMedicationRemindersHandlerTests
     [Test]
     public async Task HandleAsync_FamilyMemberPrescription_IncludedWithFamilyRelationship()
     {
-        var primaryUser = User.Create("fam-primary", $"fam-primary-{Guid.NewGuid()}@test.com", "hash", "Patient");
+        var primaryUser = User.Create("fam-primary", $"fam-primary-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient);
         _db.Users.Add(primaryUser);
         var primaryPatient = Patient.Create(primaryUser.Id, new DateOnly(1985, 1, 1), "Nữ");
         _db.Patients.Add(primaryPatient);
         await _db.SaveChangesAsync();
 
-        var familyMemberUser = User.Create("fam-child", $"fam-child-{Guid.NewGuid()}@test.com", "hash", "Patient");
+        var familyMemberUser = User.Create("fam-child", $"fam-child-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient);
         _db.Users.Add(familyMemberUser);
         var familyMember = Patient.Create(
             familyMemberUser.Id, new DateOnly(2015, 1, 1), "Nam",
@@ -166,13 +171,17 @@ public class GetMedicationRemindersHandlerTests
     [Test]
     public async Task HandleAsync_ItemMissingScheduleData_IsExcludedFromReminders()
     {
-        var patientUser = User.Create("med-p2", $"med-p2-{Guid.NewGuid()}@test.com", "hash", "Patient");
-        var dentistUser = User.Create("med-d2", $"med-d2-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        var patientUser = User.Create("med-p2", $"med-p2-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient);
+        var dentistUser = User.Create("med-d2", $"med-d2-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist);
         _db.Users.AddRange(patientUser, dentistUser);
         var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
         _db.Patients.Add(patient);
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
         _db.Appointments.Add(appointment);
         var prescription = Prescription.Create(appointment.Id);

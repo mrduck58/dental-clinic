@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.UseCases.Staff;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using FluentAssertions;
@@ -12,12 +13,16 @@ namespace DentalClinic.API.Application.Tests.Staff;
 public class UpdateStaffHandlerTests
 {
     private IUserRepository _userRepo = null!;
+    private IEmployeeRepository _employeeRepo = null!;
+    private IDentistRepository _dentistRepo = null!;
 
     [SetUp]
     public void SetUp()
     {
         _userRepo = Substitute.For<IUserRepository>();
         _userRepo.ExistsByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(false);
+        _employeeRepo = Substitute.For<IEmployeeRepository>();
+        _dentistRepo = Substitute.For<IDentistRepository>();
     }
 
     /// <summary>
@@ -28,7 +33,7 @@ public class UpdateStaffHandlerTests
     {
         var user = MakeEmployee();
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
-        var handler = new UpdateStaffHandler(_userRepo);
+        var handler = new UpdateStaffHandler(_userRepo, _employeeRepo, _dentistRepo);
 
         await handler.Handle(BuildCommand(user.Id, email: user.Email), CancellationToken.None);
 
@@ -42,7 +47,7 @@ public class UpdateStaffHandlerTests
     public async Task HandleAsync_NotFound_ThrowsNotFoundException()
     {
         _userRepo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((User?)null);
-        var handler = new UpdateStaffHandler(_userRepo);
+        var handler = new UpdateStaffHandler(_userRepo, _employeeRepo, _dentistRepo);
 
         Func<Task> act = () => handler.Handle(BuildCommand(Guid.NewGuid()), CancellationToken.None);
 
@@ -58,7 +63,7 @@ public class UpdateStaffHandlerTests
         var user = MakeEmployee(email: "old@test.com");
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
         _userRepo.ExistsByEmailAsync("new@test.com", Arg.Any<CancellationToken>()).Returns(true);
-        var handler = new UpdateStaffHandler(_userRepo);
+        var handler = new UpdateStaffHandler(_userRepo, _employeeRepo, _dentistRepo);
 
         Func<Task> act = () => handler.Handle(BuildCommand(user.Id, email: "new@test.com"), CancellationToken.None);
 
@@ -74,7 +79,7 @@ public class UpdateStaffHandlerTests
     {
         var user = MakeEmployee(email: "same@test.com");
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
-        var handler = new UpdateStaffHandler(_userRepo);
+        var handler = new UpdateStaffHandler(_userRepo, _employeeRepo, _dentistRepo);
 
         await handler.Handle(BuildCommand(user.Id, email: "same@test.com"), CancellationToken.None);
 
@@ -90,7 +95,7 @@ public class UpdateStaffHandlerTests
     {
         var user = MakeEmployee(email: "Same@Test.com");
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
-        var handler = new UpdateStaffHandler(_userRepo);
+        var handler = new UpdateStaffHandler(_userRepo, _employeeRepo, _dentistRepo);
 
         await handler.Handle(BuildCommand(user.Id, email: "same@test.com"), CancellationToken.None);
 
@@ -104,7 +109,7 @@ public class UpdateStaffHandlerTests
     [Test]
     public async Task HandleAsync_InvalidFullName_ThrowsValidationExceptionBeforeLookup()
     {
-        var handler = new UpdateStaffHandler(_userRepo);
+        var handler = new UpdateStaffHandler(_userRepo, _employeeRepo, _dentistRepo);
 
         Func<Task> act = () => handler.Handle(BuildCommand(Guid.NewGuid()) with { FullName = "" }, CancellationToken.None);
 
@@ -118,7 +123,7 @@ public class UpdateStaffHandlerTests
     [Test]
     public async Task HandleAsync_InvalidRole_ThrowsValidationException()
     {
-        var handler = new UpdateStaffHandler(_userRepo);
+        var handler = new UpdateStaffHandler(_userRepo, _employeeRepo, _dentistRepo);
 
         Func<Task> act = () => handler.Handle(BuildCommand(Guid.NewGuid()) with { Role = "SuperAdmin" }, CancellationToken.None);
 
@@ -126,7 +131,7 @@ public class UpdateStaffHandlerTests
     }
 
     private static User MakeEmployee(string email = "emp@test.com")
-        => User.CreateEmployee(email, "Staff", "0901234567", "Nhân Viên Test");
+        => User.CreateEmployee(email, UserRole.Staff, "0901234567", "Nhân Viên Test");
 
     private static UpdateStaffCommand BuildCommand(Guid id, string email = "emp@test.com")
         => new(Id: id, FullName: "Tên Mới", Email: email, PhoneNumber: "0901234567",

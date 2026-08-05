@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import OwnerSidebar from "../../../components/shared/OwnerSidebar";
-import NotificationBell from "../../../components/shared/NotificationBell";
+import OwnerPageHeader from "../../../components/shared/OwnerPageHeader";
 import { useRequireOwner } from "../../../hooks/useRequireOwner";
 import {
   getPayrollPeriodApi,
@@ -382,13 +382,10 @@ export default function OwnerPayrollPage() {
 
       <main className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 shadow-sm shadow-slate-100/50">
-          <div>
-            <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Bảng Lương Nhân Viên</h1>
-            <p className="text-[13px] text-slate-400 font-semibold mt-0.5">Quản lý đãi ngộ, phê duyệt bảng thanh toán lương hàng tháng.</p>
-          </div>
-          <NotificationBell />
-        </header>
+        <OwnerPageHeader
+          title="Bảng Lương Nhân Viên"
+          subtitle="Quản lý đãi ngộ, phê duyệt bảng thanh toán lương hàng tháng."
+        />
 
         {/* Toast nổi bên trên nội dung — không chiếm chỗ trong luồng nên trang không bị
             đẩy xuống lúc hiện và không nhảy lên lúc thông báo biến mất */}

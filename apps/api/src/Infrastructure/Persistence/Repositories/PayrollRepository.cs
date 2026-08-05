@@ -7,7 +7,7 @@ namespace DentalClinic.API.Infrastructure.Persistence.Repositories;
 
 public class PayrollRepository(AppDbContext db) : IPayrollRepository
 {
-    private static readonly string[] PayrollRoles = ["Dentist", "Doctor", "Staff"];
+    private static readonly UserRole[] PayrollRoles = [UserRole.Dentist, UserRole.Staff];
 
     public async Task<IReadOnlyList<PayrollRecord>> GetByPeriodAsync(int year, int month, CancellationToken ct = default)
         => await db.PayrollRecords
@@ -29,8 +29,7 @@ public class PayrollRepository(AppDbContext db) : IPayrollRepository
     /// </summary>
     public async Task<IReadOnlyList<User>> GetPayableUsersAsync(CancellationToken ct = default)
         => await db.Users
-            .Include(u => u.Staff)
-            .Include(u => u.Dentist)
+            .Include(u => u.Employee).ThenInclude(e => e!.DentistProfile)
             .Where(u => PayrollRoles.Contains(u.Role))
             .OrderBy(u => u.CreatedAt)
             .ToListAsync(ct);

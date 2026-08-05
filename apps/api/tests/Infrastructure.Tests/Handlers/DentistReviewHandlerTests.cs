@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.UseCases.Dentists;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Infrastructure.Persistence;
 using DentalClinic.API.Infrastructure.Persistence.Repositories;
@@ -39,12 +40,16 @@ public class DentistReviewHandlerTests
     public async Task TearDown() => await _db.DisposeAsync();
 
     /// <summary>Tạo dentist + user liên kết, trả về (dentist, user) đã lưu DB.</summary>
-    private async Task<Dentist> SeedDentistAsync(string username)
+    private async Task<DentistProfile> SeedDentistAsync(string username)
     {
-        var dentistUser = User.Create(username, $"{username}-{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: "BS. Test");
+        var dentistUser = User.Create(username, $"{username}-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: "BS. Test");
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
-        _db.Dentists.Add(dentist);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         await _db.SaveChangesAsync();
         return dentist;
     }
@@ -52,7 +57,7 @@ public class DentistReviewHandlerTests
     /// <summary>Tạo patient + user liên kết, trả về (patient, userId) đã lưu DB.</summary>
     private async Task<Patient> SeedPatientAsync(string username, string fullName = "Bệnh nhân Test")
     {
-        var patientUser = User.Create(username, $"{username}-{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: fullName);
+        var patientUser = User.Create(username, $"{username}-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient, fullName: fullName);
         _db.Users.Add(patientUser);
         var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
         _db.Patients.Add(patient);

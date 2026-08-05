@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import OwnerSidebar from "../../../components/shared/OwnerSidebar";
-import NotificationBell from "../../../components/shared/NotificationBell";
+import OwnerPageHeader from "../../../components/shared/OwnerPageHeader";
 import { useRequireOwner } from "../../../hooks/useRequireOwner";
 import {
   getClinicInfoApi,
@@ -298,15 +298,10 @@ export default function OwnerClinicInfoPage() {
 
       <main className="animate-fade-in flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 shadow-sm shadow-slate-100/50">
-          <div>
-            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-              Thông Tin Phòng Khám
-            </h1>
-            <p className="text-[13px] text-slate-400 font-semibold mt-0.5">Cấu hình thông tin giới thiệu và thông tin liên hệ hiển thị ở trang Landing Page khách hàng.</p>
-          </div>
-          <NotificationBell />
-        </header>
+        <OwnerPageHeader
+          title="Thông Tin Phòng Khám"
+          subtitle="Cấu hình thông tin giới thiệu và thông tin liên hệ hiển thị ở trang Landing Page khách hàng."
+        />
 
         <div className="flex-1 px-8 py-5 overflow-y-auto w-full">
 

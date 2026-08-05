@@ -1,4 +1,5 @@
 using DentalClinic.API.Application.DTOs.Auth;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Domain.Constants;
@@ -32,14 +33,14 @@ public class LoginHandler(IUserRepository userRepository, IJwtService jwtService
 
         if (!user.IsActive)
         {
-            var msg = user.Role == "Patient"
+            var msg = user.Role == UserRole.Patient
                 ? "Tài khoản chưa được xác thực. Vui lòng kiểm tra email để nhận mã OTP."
                 : "Tài khoản đã bị vô hiệu hóa. Vui lòng liên hệ quản trị viên.";
 
             await activityLogService.LogAsync(
                 userId: user.Id,
                 userName: !string.IsNullOrWhiteSpace(user.FullName) ? user.FullName : user.Email,
-                userRole: user.Role,
+                userRole: user.Role.ToString(),
                 action: ActivityAction.Login,
                 module: ActivityModule.Account,
                 description: $"Đăng nhập thất bại — tài khoản bị vô hiệu hóa: {command.Email}",
@@ -50,12 +51,12 @@ public class LoginHandler(IUserRepository userRepository, IJwtService jwtService
             throw new UnauthorizedAccessException(msg);
         }
 
-        if (command.AllowedRoles is { Length: > 0 } && !command.AllowedRoles.Contains(user.Role))
+        if (command.AllowedRoles is { Length: > 0 } && !command.AllowedRoles.Contains(user.Role.ToString(), StringComparer.OrdinalIgnoreCase))
         {
             await activityLogService.LogAsync(
                 userId: user.Id,
                 userName: !string.IsNullOrWhiteSpace(user.FullName) ? user.FullName : user.Email,
-                userRole: user.Role,
+                userRole: user.Role.ToString(),
                 action: ActivityAction.Login,
                 module: ActivityModule.Account,
                 description: $"Đăng nhập thất bại — không đúng cổng đăng nhập: {command.Email} (role: {user.Role})",
@@ -71,7 +72,7 @@ public class LoginHandler(IUserRepository userRepository, IJwtService jwtService
         await activityLogService.LogAsync(
             userId: user.Id,
             userName: !string.IsNullOrWhiteSpace(user.FullName) ? user.FullName : user.Email,
-            userRole: user.Role,
+            userRole: user.Role.ToString(),
             action: ActivityAction.Login,
             module: ActivityModule.Account,
             description: $"Đăng nhập thành công",
@@ -79,17 +80,13 @@ public class LoginHandler(IUserRepository userRepository, IJwtService jwtService
             ipAddress: command.IpAddress,
             ct: ct);
 
-        var profilePic = user.Role switch
-        {
-            "Patient" => user.Patient?.ProfilePictureUrl,
-            "Dentist" => user.Dentist?.ProfilePictureUrl,
-            "Staff" => user.Staff?.ProfilePictureUrl,
-            _ => null
-        };
+        var profilePic = user.Role == UserRole.Patient
+            ? user.Patient?.ProfilePictureUrl
+            : user.Employee?.ProfilePictureUrl;
 
         return new LoginResponseDto(
             AccessToken: token,
             ExpiresIn: 15 * 60,
-            User: new AuthUserDto(user.Id, user.Username ?? user.Email, user.FullName, user.Email, user.Role, user.IsActive, profilePic));
+            User: new AuthUserDto(user.Id, user.Username ?? user.Email, user.FullName, user.Email, user.Role.ToString(), user.IsActive, profilePic));
     }
 }

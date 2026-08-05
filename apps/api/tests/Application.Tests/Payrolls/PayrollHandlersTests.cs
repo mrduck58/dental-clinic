@@ -80,7 +80,7 @@ public class PayrollHandlersTests
     public async Task GetPeriod_RoleFilter_ReturnsOnlyMatchingRoles()
     {
         var staff = MakeStaffUser(10_000_000m, 0m);
-        var dentistUser = User.Create("d1", "d@test.com", "hash", "Dentist");
+        var dentistUser = User.Create("d1", "d@test.com", "hash", UserRole.Dentist);
         _repo.GetPayableUsersAsync(Arg.Any<CancellationToken>()).Returns([staff, dentistUser]);
 
         var result = await new GetPayrollPeriodHandler(_repo)
@@ -319,9 +319,9 @@ public class PayrollHandlersTests
 
     private static User MakeStaffUser(decimal? baseSalary, decimal? allowance)
     {
-        var user = User.Create($"emp{Guid.NewGuid():N}"[..10], $"{Guid.NewGuid():N}@test.com", "hash", "Staff", null, "Nguyễn Văn A");
-        var staff = DentalClinic.API.Domain.Entities.Staff.Create(user.Id, "NV001", baseSalary: baseSalary, allowance: allowance, leaveAccrued: 1m);
-        typeof(User).GetProperty("Staff")!.SetValue(user, staff);
+        var user = User.Create($"emp{Guid.NewGuid():N}"[..10], $"{Guid.NewGuid():N}@test.com", "hash", UserRole.Staff, null, "Nguyễn Văn A");
+        var employee = Employee.Create(user.Id, "NV001", baseSalary: baseSalary, allowance: allowance, leaveAccrued: 1m);
+        user.AttachEmployee(employee);
         return user;
     }
 }

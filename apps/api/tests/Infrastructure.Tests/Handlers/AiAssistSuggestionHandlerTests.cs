@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.UseCases.AiAssist;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Infrastructure.Persistence;
@@ -41,17 +42,21 @@ public class AiAssistSuggestionHandlerTests
     [TearDown]
     public async Task TearDown() => await _db.DisposeAsync();
 
-    private async Task<(Patient patient, Dentist dentist, Service service)> SeedPatientDentistServiceAsync(
+    private async Task<(Patient patient, DentistProfile dentist, Service service)> SeedPatientDentistServiceAsync(
         string patientUsername, string dentistUsername)
     {
-        var patientUser = User.Create(patientUsername, $"{patientUsername}@test.com", "hash", "Patient", fullName: "Bệnh nhân Test");
-        var dentistUser = User.Create(dentistUsername, $"{dentistUsername}@test.com", "hash", "Dentist", fullName: "BS. Test");
+        var patientUser = User.Create(patientUsername, $"{patientUsername}@test.com", "hash", UserRole.Patient, fullName: "Bệnh nhân Test");
+        var dentistUser = User.Create(dentistUsername, $"{dentistUsername}@test.com", "hash", UserRole.Dentist, fullName: "BS. Test");
         _db.Users.AddRange(patientUser, dentistUser);
 
         var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
         _db.Patients.Add(patient);
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
 
         var service = Service.Create("Trám răng", 300000m, 30, "Trám răng sâu");
         _db.Services.Add(service);

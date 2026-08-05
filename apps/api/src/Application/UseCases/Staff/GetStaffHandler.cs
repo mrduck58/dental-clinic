@@ -1,6 +1,7 @@
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Domain.Enums;
 
 namespace DentalClinic.API.Application.UseCases.Staff;
 
@@ -85,33 +86,17 @@ public class GetStaffHandler(IUserRepository userRepository)
 
     public static StaffItemDto ToDto(User u)
     {
-        if (u.Role == "Dentist" || u.Role == "Doctor")
-        {
-            var d = u.Dentist;
-            return new StaffItemDto(
-                u.Id, u.Username ?? "", u.Email ?? "", u.Role,
-                u.FullName, u.PhoneNumber, u.IsActive,
-                d?.EmployeeId, d?.Department, d?.EmploymentStatus,
-                d?.ProfilePictureUrl, null, u.CreatedAt,
-                d?.Specialization, d?.LicenseNumber, d?.ExperienceYears, u.HasAccount,
-                u.Gender, d?.DateOfBirth, d?.Address,
-                d?.StartDate, null, d?.CertificateIssuedDate,
-                d?.CertificateIssuedBy, d?.Education, d?.Biography, d?.Position,
-                d?.EmploymentType, d?.BaseSalary, d?.SalaryUnit, d?.LeaveAccrued, d?.Allowance);
-        }
-        else
-        {
-            var s = u.Staff;
-            return new StaffItemDto(
-                u.Id, u.Username ?? "", u.Email ?? "", u.Role,
-                u.FullName, u.PhoneNumber, u.IsActive,
-                s?.EmployeeId, s?.Department, s?.EmploymentStatus,
-                s?.ProfilePictureUrl, null, u.CreatedAt,
-                null, null, null, u.HasAccount,
-                u.Gender, s?.DateOfBirth, s?.Address,
-                s?.StartDate, null, null,
-                null, null, null, s?.Position,
-                s?.EmploymentType, s?.BaseSalary, s?.SalaryUnit, s?.LeaveAccrued, s?.Allowance);
-        }
+        var e = u.Employee;
+        var d = e?.DentistProfile;
+        return new StaffItemDto(
+            u.Id, u.Username ?? "", u.Email ?? "", u.Role.ToString(),
+            u.FullName, u.PhoneNumber, u.IsActive,
+            e?.EmployeeId, e?.Department, e?.EmploymentStatus,
+            e?.ProfilePictureUrl, null, u.CreatedAt,
+            d?.Specialization, d?.LicenseNumber, d?.ExperienceYears, u.HasAccount,
+            u.Gender, e?.DateOfBirth, e?.Address,
+            e?.StartDate, null, d?.CertificateIssuedDate,
+            d?.CertificateIssuedBy, d?.Education, d?.Biography, e?.Position,
+            e?.EmploymentType, e?.BaseSalary, e?.SalaryUnit, e?.LeaveAccrued, e?.Allowance);
     }
 }

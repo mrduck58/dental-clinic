@@ -22,7 +22,7 @@ public class ResendOtpHandler(
         if (user.IsActive)
             throw new ConflictException("Tài khoản đã được xác thực.");
 
-        if (user.Role != "Patient")
+        if (user.Role != UserRole.Patient)
             throw new UnauthorizedAccessException("Không thể gửi OTP cho tài khoản này.");
 
         await otpRepository.InvalidateAllAsync(command.Email, OtpPurpose.Registration, ct);

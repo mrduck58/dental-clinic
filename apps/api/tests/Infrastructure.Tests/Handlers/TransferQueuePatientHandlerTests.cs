@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.UseCases.Queue;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Infrastructure.Persistence;
@@ -66,11 +67,15 @@ public class TransferQueuePatientHandlerTests
     [Test]
     public async Task HandleAsync_AppointmentNotCheckedIn_ThrowsConflictException()
     {
-        var dentistUser = User.Create("tq1", $"tq1-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        var dentistUser = User.Create("tq1", $"tq1-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist);
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
         var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         _db.Patients.Add(patient);
         var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
         appointment.Confirm();
@@ -86,11 +91,15 @@ public class TransferQueuePatientHandlerTests
     [Test]
     public async Task HandleAsync_NoDentistOnShiftAtTargetRoom_ThrowsConflictException()
     {
-        var dentistUser = User.Create("tq2", $"tq2-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        var dentistUser = User.Create("tq2", $"tq2-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist);
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
         var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         _db.Patients.Add(patient);
         var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
         appointment.CheckIn();
@@ -110,15 +119,20 @@ public class TransferQueuePatientHandlerTests
         var today = DateOnly.FromDateTime(NowVietnam().Date);
         var shift = CurrentShiftCode();
 
-        var sourceDentistUser = User.Create("tq3", $"tq3-{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: "BS Nguồn");
-        var targetDentistUser = User.Create("tq4", $"tq4-{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: "BS Đích");
+        var sourceDentistUser = User.Create("tq3", $"tq3-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: "BS Nguồn");
+        var targetDentistUser = User.Create("tq4", $"tq4-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: "BS Đích");
         _db.Users.AddRange(sourceDentistUser, targetDentistUser);
-        var sourceDentist = Dentist.Create(sourceDentistUser.Id, "Nha khoa tổng quát", 5);
-        var targetDentist = Dentist.Create(targetDentistUser.Id, "Nha khoa tổng quát", 5);
-        sourceDentist.User = sourceDentistUser;
-        targetDentist.User = targetDentistUser;
+        var sourceEmployee = Employee.Create(sourceDentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        var targetEmployee = Employee.Create(targetDentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        sourceEmployee.User = sourceDentistUser;
+        targetEmployee.User = targetDentistUser;
+        var sourceDentist = DentistProfile.Create(sourceEmployee.Id, "Nha khoa tổng quát", "N/A", 5);
+        var targetDentist = DentistProfile.Create(targetEmployee.Id, "Nha khoa tổng quát", "N/A", 5);
+        sourceDentist.Employee = sourceEmployee;
+        targetDentist.Employee = targetEmployee;
         var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
-        _db.Dentists.AddRange(sourceDentist, targetDentist);
+        _db.Employees.AddRange(sourceEmployee, targetEmployee);
+        _db.DentistProfiles.AddRange(sourceDentist, targetDentist);
         _db.Patients.Add(patient);
         _db.WorkSchedules.Add(WorkSchedule.Create(
             today, shift, "dentist", "dentist", targetDentist.FullName, "Phòng Đích", "border-primary", false));
@@ -146,12 +160,15 @@ public class TransferQueuePatientHandlerTests
     {
         var today = DateOnly.FromDateTime(NowVietnam().Date);
         var shift = CurrentShiftCode();
-        var dentistUser = User.Create("tq5", $"tq5-{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: "BS Trực");
+        var dentistUser = User.Create("tq5", $"tq5-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: "BS Trực");
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
-        dentist.User = dentistUser;
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
         var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         _db.Patients.Add(patient);
         _db.WorkSchedules.Add(WorkSchedule.Create(
             today, shift, "dentist", "dentist", dentist.FullName, "Phòng Hiện Tại", "border-primary", false));

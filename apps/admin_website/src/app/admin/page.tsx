@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import AdminSidebar from "../../components/shared/AdminSidebar";
-import NotificationBell from "../../components/shared/NotificationBell";
+import AdminPageHeader from "../../components/shared/AdminPageHeader";
 import { useRequireAdmin } from "../../hooks/useRequireAdmin";
 import {
   AccountDto,
@@ -19,6 +20,7 @@ import {
   getActivityLogsApi,
   getNotificationsApi,
 } from "../../lib/apiClient";
+import { normalizeRole, ROLE_LABELS, type UiRole } from "../../lib/roles";
 
 // ── Formatting helpers ───────────────────────────────────────────────────────
 
@@ -33,6 +35,17 @@ function vnWeekdayLabel(date: Date): string {
 function formatDateTime(dateStr: string): string {
   const d = new Date(dateStr);
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")} ${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/** Thời gian tương đối ("5 phút trước") — dùng cho tín hiệu "hệ thống còn hoạt động" ở panel Tình Trạng Hệ Thống. */
+function formatRelativeTime(dateStr: string): string {
+  const diffMs = Date.now() - new Date(dateStr).getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return "Vừa xong";
+  if (diffMin < 60) return `${diffMin} phút trước`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `${diffHour} giờ trước`;
+  return `${Math.floor(diffHour / 24)} ngày trước`;
 }
 
 interface Bucket {
@@ -94,35 +107,46 @@ const PRIORITY_CONFIG: Record<string, { label: string; badgeClass: string }> = {
   low: { label: "Thấp", badgeClass: "bg-slate-100 text-slate-500 border border-slate-200" },
 };
 
+// Cùng bảng màu/nhãn với trang Vai Trò (admin/permissions/roles) để nhất quán trong toàn hệ thống.
+const ROLE_CHART_CONFIG: Record<UiRole, { text: string; dot: string }> = {
+  Admin: { text: "text-purple-500", dot: "bg-purple-500" },
+  Owner: { text: "text-amber-500", dot: "bg-amber-500" },
+  Dentist: { text: "text-sky-500", dot: "bg-sky-500" },
+  Staff: { text: "text-green-500", dot: "bg-green-500" },
+};
+
 // ── Small presentational pieces ──────────────────────────────────────────────
 
 function StatTile({
   label,
   value,
   iconPath,
-  accent,
+  size = "md",
 }: {
   label: string;
   value: string | number;
   iconPath: string;
-  accent?: "green" | "red";
+  size?: "md" | "lg";
 }) {
-  const iconWrap =
-    accent === "green"
-      ? "bg-green-50 text-green-600"
-      : accent === "red"
-        ? "bg-red-50 text-red-600"
-        : "bg-red-50 text-primary";
+  const isLg = size === "lg";
   return (
-    <div className="bg-slate-50/60 p-4 rounded-xl border border-slate-200/60 shadow-sm flex items-center gap-3.5 hover-lift hover:border-primary/40 hover:bg-white transition-colors duration-200">
-      <span className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${iconWrap}`}>
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+    <div
+      className={`bg-slate-50/60 rounded-xl border border-slate-200/60 shadow-sm flex items-center gap-3.5 hover-lift hover:border-primary/40 hover:bg-white transition-colors duration-200 ${
+        isLg ? "p-5" : "p-4"
+      }`}
+    >
+      <span
+        className={`rounded-xl flex items-center justify-center shrink-0 bg-red-50 text-primary ${
+          isLg ? "w-14 h-14" : "w-12 h-12"
+        }`}
+      >
+        <svg className={isLg ? "w-7 h-7" : "w-6 h-6"} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d={iconPath} />
         </svg>
       </span>
       <div className="min-w-0">
-        <div className="text-[26px] font-black text-slate-900 leading-none truncate">{value}</div>
-        <div className="text-[12.5px] font-bold text-slate-400 mt-1.5 truncate">{label}</div>
+        <div className={`font-black text-slate-900 leading-none truncate ${isLg ? "text-[32px]" : "text-[26px]"}`}>{value}</div>
+        <div className={`font-bold text-slate-400 mt-1.5 truncate ${isLg ? "text-[13px]" : "text-[12.5px]"}`}>{label}</div>
       </div>
     </div>
   );
@@ -170,6 +194,113 @@ function MiniBarChart({ title, desc, items }: { title: string; desc: string; ite
   );
 }
 
+/** Biểu đồ tròn (donut) phân bố người dùng theo vai trò — đa dạng hoá loại biểu đồ so với 3 bar chart còn lại,
+ * vẽ thuần SVG (stroke-dasharray) để khớp quy ước "không dùng thư viện chart" của dự án. */
+function RoleDonutChart({ data }: { data: { role: UiRole; value: number }[] }) {
+  const total = data.reduce((s, d) => s + d.value, 0);
+  const radius = 40;
+  const circumference = 2 * Math.PI * radius;
+  let offsetAcc = 0;
+
+  return (
+    <div className="bg-white p-4.5 rounded-xl border border-slate-200/60 flex flex-col min-h-[240px]">
+      <h4 className="text-[14px] font-extrabold text-slate-900">Phân Bố Người Dùng</h4>
+      <p className="text-[12px] text-slate-400 mt-0.5 font-medium mb-4">Theo vai trò trong hệ thống</p>
+
+      {total === 0 ? (
+        <div className="flex-1 flex items-center justify-center text-[12.5px] text-slate-400 font-semibold">Chưa có dữ liệu</div>
+      ) : (
+        <div className="flex-1 flex items-center gap-4">
+          <svg viewBox="0 0 100 100" className="w-24 h-24 -rotate-90 shrink-0">
+            <circle cx="50" cy="50" r={radius} fill="none" stroke="#f1f5f9" strokeWidth="14" />
+            {data
+              .filter((d) => d.value > 0)
+              .map((d) => {
+                const dash = (d.value / total) * circumference;
+                const el = (
+                  <circle
+                    key={d.role}
+                    cx="50"
+                    cy="50"
+                    r={radius}
+                    fill="none"
+                    strokeWidth="14"
+                    strokeDasharray={`${dash} ${circumference - dash}`}
+                    strokeDashoffset={-offsetAcc}
+                    className={ROLE_CHART_CONFIG[d.role].text}
+                    stroke="currentColor"
+                  />
+                );
+                offsetAcc += dash;
+                return el;
+              })}
+          </svg>
+          <div className="flex flex-col gap-2 min-w-0 flex-1">
+            {data.map((d) => (
+              <div key={d.role} className="flex items-center justify-between gap-2 text-[12px]">
+                <span className="flex items-center gap-1.5 font-bold text-slate-600 truncate">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${ROLE_CHART_CONFIG[d.role].dot}`} />
+                  {ROLE_LABELS[d.role]}
+                </span>
+                <span className="font-black text-slate-900">{d.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function QuickAction({ href, label, iconPath }: { href: string; label: string; iconPath: string }) {
+  return (
+    <Link
+      href={href}
+      className="flex items-center gap-3 p-3.5 rounded-xl border border-slate-200/60 bg-slate-50/60 hover:bg-white hover:border-primary/40 hover:shadow-sm transition-all duration-200 group"
+    >
+      <span className="w-10 h-10 rounded-lg bg-white border border-slate-200/60 text-primary flex items-center justify-center shrink-0 group-hover:bg-red-50 group-hover:border-primary/20 transition-colors">
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d={iconPath} />
+        </svg>
+      </span>
+      <span className="text-[13px] font-bold text-slate-700 group-hover:text-slate-900 truncate">{label}</span>
+    </Link>
+  );
+}
+
+const QUICK_ACTIONS = [
+  {
+    href: "/admin/permissions/create-account",
+    label: "Tạo tài khoản mới",
+    iconPath: "M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM3 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 019.374 21c-2.331 0-4.512-.645-6.374-1.766z",
+  },
+  {
+    href: "/admin/permissions",
+    label: "Quản lý người dùng",
+    iconPath: "M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z",
+  },
+  {
+    href: "/admin/activity-logs",
+    label: "Xem nhật ký hệ thống",
+    iconPath: "M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z",
+  },
+  {
+    href: "/admin/ai-analytics",
+    label: "Phân tích AI",
+    iconPath: "M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z",
+  },
+  {
+    href: "/admin/services/add",
+    label: "Thêm dịch vụ",
+    iconPath: "M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z",
+  },
+  {
+    href: "/admin/rooms/create",
+    label: "Thêm phòng khám",
+    iconPath: "M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3a1.5 1.5 0 011.5-1.5h3a1.5 1.5 0 011.5 1.5v3m-9-10.5h.75m-.75 3h.75m-.75 3h.75m9-6h.75m-.75 3h.75m-.75 3h.75",
+  },
+];
+
 export default function Dashboard() {
   const authorized = useRequireAdmin();
 
@@ -196,7 +327,7 @@ export default function Dashboard() {
       getMedicinesApi(),
       getDashboardTodayAppointmentsApi(1, 1),
       getActivityLogsApi({ page: 1, pageSize: 100 }),
-      getNotificationsApi({ page: 1, pageSize: 5 }),
+      getNotificationsApi({ page: 1, pageSize: 3 }),
     ])
       .then(([acc, staff, rooms, services, medicines, todayAppts, logs, notifs]) => {
         if (cancelled) return;
@@ -244,8 +375,14 @@ export default function Dashboard() {
     () => bucketCounts(activityLogs.map((l) => l.createdAt), buckets),
     [activityLogs, buckets]
   );
+  const roleDistribution = useMemo(() => {
+    const counts: Record<UiRole, number> = { Admin: 0, Owner: 0, Dentist: 0, Staff: 0 };
+    for (const a of accounts ?? []) counts[normalizeRole(a.role)]++;
+    return (Object.keys(counts) as UiRole[]).map((role) => ({ role, value: counts[role] }));
+  }, [accounts]);
 
   const lockedAccountsCount = (accounts ?? []).filter((a) => !a.isActive).length;
+  const mostRecentLogAt = activityLogs[0]?.createdAt;
 
   if (!authorized) {
     return (
@@ -261,12 +398,10 @@ export default function Dashboard() {
 
       <main className="flex-1 flex flex-col min-w-0">
         {/* HEADER */}
-        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 font-sans shadow-sm shadow-slate-100/50">
-          <div>
-            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Tổng Quan Hệ Thống</h1>
-            <p className="text-[13px] text-slate-400 font-semibold mt-0.5">Số liệu vận hành và tình trạng hệ thống.</p>
-          </div>
-          <div className="flex items-center gap-6">
+        <AdminPageHeader
+          title="Tổng Quan Hệ Thống"
+          subtitle="Số liệu vận hành và tình trạng hệ thống."
+          right={
             <div className="relative w-64 hidden sm:block">
               <span className="absolute inset-y-0 left-3 flex items-center text-slate-400">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -279,12 +414,34 @@ export default function Dashboard() {
                 className="w-full pl-9 pr-4 py-2 text-[15px] bg-slate-100 rounded-full border border-transparent focus:bg-white focus:border-slate-200 focus:outline-none transition-all"
               />
             </div>
-            <NotificationBell />
-          </div>
-        </header>
+          }
+        />
 
         {/* BODY */}
         <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-6">
+
+          {/* Cảnh báo hệ thống — nổi bật ở đầu trang, chỉ hiện khi có việc cần chú ý */}
+          {lockedAccountsCount > 0 && (
+            <div className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-amber-50 border-2 border-amber-200 shadow-sm shadow-amber-100/50">
+              <div className="flex items-center gap-3.5 min-w-0">
+                <span className="w-11 h-11 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                  </svg>
+                </span>
+                <div className="min-w-0">
+                  <p className="text-[14px] font-black text-amber-800">Cần chú ý: {lockedAccountsCount} tài khoản đang bị khóa</p>
+                  <p className="text-[12.5px] font-semibold text-amber-600">Kiểm tra lại danh sách người dùng để mở khóa nếu cần thiết.</p>
+                </div>
+              </div>
+              <Link
+                href="/admin/permissions"
+                className="shrink-0 px-4 py-2 rounded-xl bg-amber-600 text-white text-[13px] font-bold hover:bg-amber-700 transition-colors shadow-sm"
+              >
+                Xem chi tiết
+              </Link>
+            </div>
+          )}
 
           {/* Chỉ số hệ thống */}
           <section className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col gap-4">
@@ -292,12 +449,24 @@ export default function Dashboard() {
               <h3 className="text-[18px] font-extrabold text-slate-900">Chỉ Số Hệ Thống</h3>
               <p className="text-[13.5px] text-slate-400 mt-0.5 font-semibold">Số liệu tổng quan toàn bộ hệ thống tính đến hiện tại.</p>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+
+            {/* 2 chỉ số quan trọng nhất được nhấn mạnh hơn (kích thước lớn hơn) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <StatTile
+                size="lg"
                 label="Tổng số người dùng"
                 value={accounts?.length ?? "—"}
                 iconPath="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
               />
+              <StatTile
+                size="lg"
+                label="Lịch hẹn hôm nay"
+                value={todayAppointmentsCount ?? "—"}
+                iconPath="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <StatTile
                 label="Tổng số bác sĩ"
                 value={staffStats?.totalDentists ?? "—"}
@@ -318,22 +487,19 @@ export default function Dashboard() {
                 value={servicesCount ?? "—"}
                 iconPath="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.83-5.83m0 0a2.95 2.95 0 11-4.174-4.172 2.95 2.95 0 014.174 4.172zm-7.42 7.42l9.39-9.39"
               />
-              <StatTile
-                label="Tổng số thuốc"
-                value={medicinesCount ?? "—"}
-                iconPath="M9.75 9.75h.005v.005h-.005v-.005zM9.75 12h.005v.005h-.005V12zm-2.25.005h.005v.01H7.5v-.01zM12 12h.75v.75H12V12zM9 15h.75v.75H9V15zM3.75 6h16.5v14.25H3.75V6z"
-              />
-              <StatTile
-                label="Lịch hẹn hôm nay"
-                value={todayAppointmentsCount ?? "—"}
-                iconPath="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
-              />
-              <StatTile
-                label="Trạng thái hệ thống"
-                value={loadError ? "Sự cố" : "Tốt"}
-                accent={loadError ? "red" : "green"}
-                iconPath="M9.348 14.652a3.75 3.75 0 010-5.304m5.304 0a3.75 3.75 0 010 5.304m-7.425 2.121a6.75 6.75 0 010-9.546m9.546 0a6.75 6.75 0 010 9.546M12 12h.008v.008H12V12z"
-              />
+            </div>
+          </section>
+
+          {/* Quick Actions */}
+          <section className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col gap-4">
+            <div>
+              <h3 className="text-[18px] font-extrabold text-slate-900">Thao Tác Nhanh</h3>
+              <p className="text-[13.5px] text-slate-400 mt-0.5 font-semibold">Truy cập nhanh các tác vụ quản trị thường dùng.</p>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
+              {QUICK_ACTIONS.map((action) => (
+                <QuickAction key={action.href} {...action} />
+              ))}
             </div>
           </section>
 
@@ -362,10 +528,11 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                   <MiniBarChart title="Số Lượng Lịch Hẹn" desc="Lịch hẹn theo thời gian" items={appointmentItems} />
                   <MiniBarChart title="Người Dùng Mới" desc="Tài khoản tạo mới" items={newUsersItems} />
                   <MiniBarChart title="Hoạt Động Hệ Thống" desc="Số thao tác ghi nhận" items={activityItems} />
+                  <RoleDonutChart data={roleDistribution} />
                 </div>
               </section>
 
@@ -376,6 +543,12 @@ export default function Dashboard() {
                     <h3 className="text-[18px] font-extrabold text-slate-900">Nhật Ký Hoạt Động Gần Đây</h3>
                     <p className="text-[13.5px] text-slate-400 mt-0.5 font-semibold">Các thao tác mới nhất được ghi nhận trên hệ thống.</p>
                   </div>
+                  <Link
+                    href="/admin/activity-logs"
+                    className="shrink-0 text-[12.5px] font-bold text-primary hover:text-red-700 transition-colors"
+                  >
+                    Xem tất cả →
+                  </Link>
                 </div>
                 <div className="overflow-x-auto flex-1">
                   <table className="w-full text-left border-collapse text-[13px]">
@@ -420,35 +593,44 @@ export default function Dashboard() {
             {/* ── RIGHT COLUMN ── */}
             <div className="lg:col-span-4 flex flex-col min-w-0 self-stretch gap-6">
 
-              {/* Cảnh báo hệ thống */}
+              {/* Tình trạng hệ thống — thay cho ô "Trạng thái hệ thống" đơn lẻ trước đây, gộp nhiều tín hiệu
+                  thực tế đang có (không bịa số liệu health-check chưa tồn tại ở backend). */}
               <section className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col gap-3.5">
-                <h3 className="text-[16px] font-extrabold text-slate-900">Cảnh Báo Hệ Thống</h3>
-                {lockedAccountsCount === 0 ? (
-                  <div className="flex items-center gap-3 p-3 rounded-xl bg-green-50 border border-green-100">
-                    <span className="w-9 h-9 rounded-lg bg-green-100 text-green-600 flex items-center justify-center shrink-0">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </span>
-                    <p className="text-[13px] font-bold text-green-700">Không có cảnh báo nào.</p>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-3 p-3 rounded-xl bg-amber-50 border border-amber-100">
-                    <span className="w-9 h-9 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-                      </svg>
-                    </span>
-                    <p className="text-[13px] font-bold text-amber-700">
-                      {lockedAccountsCount} tài khoản đang bị khóa
-                    </p>
-                  </div>
-                )}
+                <h3 className="text-[16px] font-extrabold text-slate-900">Tình Trạng Hệ Thống</h3>
+
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-green-50 border border-green-100">
+                  <span className="relative flex w-2.5 h-2.5 shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
+                  </span>
+                  <p className="text-[13px] font-bold text-green-700">Hệ thống đang hoạt động bình thường</p>
+                </div>
+
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[12.5px] font-semibold text-slate-500">Hoạt động gần nhất</span>
+                  <span className="text-[12.5px] font-bold text-slate-800">
+                    {mostRecentLogAt ? formatRelativeTime(mostRecentLogAt) : "—"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[12.5px] font-semibold text-slate-500">Tài khoản đang bị khóa</span>
+                  <span className={`text-[12.5px] font-bold ${lockedAccountsCount > 0 ? "text-amber-600" : "text-slate-800"}`}>
+                    {lockedAccountsCount}
+                  </span>
+                </div>
               </section>
 
-              {/* Thông báo quản trị */}
+              {/* Thông báo quản trị — 3 thông báo gần nhất */}
               <section className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col gap-3.5">
-                <h3 className="text-[16px] font-extrabold text-slate-900">Thông Báo Quản Trị</h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-[16px] font-extrabold text-slate-900">Thông Báo Quản Trị</h3>
+                  <Link
+                    href="/admin/notifications"
+                    className="text-[12px] font-bold text-primary hover:text-red-700 transition-colors"
+                  >
+                    Xem tất cả →
+                  </Link>
+                </div>
                 <div className="flex flex-col gap-3">
                   {notifications.length === 0 ? (
                     <p className="text-[13px] text-slate-400 font-semibold">Chưa có thông báo nào.</p>

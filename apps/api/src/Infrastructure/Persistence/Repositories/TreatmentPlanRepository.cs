@@ -14,19 +14,19 @@ public class TreatmentPlanRepository(AppDbContext db) : ITreatmentPlanRepository
         => await db.TreatmentPlans
             .AsNoTracking()
             .Include(tp => tp.Service)
-            .Include(tp => tp.Dentist).ThenInclude(d => d.User)
+            .Include(tp => tp.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
             .FirstOrDefaultAsync(tp => tp.Id == id, ct);
 
     public async Task<TreatmentPlan?> GetByIdWithDentistAsync(Guid id, CancellationToken ct = default)
         => await db.TreatmentPlans
-            .Include(tp => tp.Dentist).ThenInclude(d => d.User)
+            .Include(tp => tp.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
             .FirstOrDefaultAsync(tp => tp.Id == id, ct);
 
     public async Task<IReadOnlyList<TreatmentPlan>> GetByPatientIdAsync(Guid patientId, CancellationToken ct = default)
         => await db.TreatmentPlans
             .AsNoTracking()
             .Include(tp => tp.Service)
-            .Include(tp => tp.Dentist).ThenInclude(d => d.User)
+            .Include(tp => tp.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
             .Where(tp => tp.PatientId == patientId)
             .OrderBy(tp => tp.CreatedAt)
             .ToListAsync(ct);

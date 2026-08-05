@@ -26,12 +26,7 @@ public static class PayrollCalculator
     public const int WorkingDaysPerMonth = 26;
 
     public static (decimal? BaseSalary, decimal? Allowance, decimal? LeaveAccrued) ReadSalaryProfile(User user)
-    {
-        if (user.Role is "Dentist" or "Doctor")
-            return (user.Dentist?.BaseSalary, user.Dentist?.Allowance, user.Dentist?.LeaveAccrued);
-
-        return (user.Staff?.BaseSalary, user.Staff?.Allowance, user.Staff?.LeaveAccrued);
-    }
+        => (user.Employee?.BaseSalary, user.Employee?.Allowance, user.Employee?.LeaveAccrued);
 
     /// <summary>Đếm số ngày của một đơn nghỉ rơi vào tháng/năm chỉ định.</summary>
     public static int CountLeaveDaysInPeriod(LeaveRequest leave, int year, int month)

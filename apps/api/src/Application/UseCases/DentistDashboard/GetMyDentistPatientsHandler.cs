@@ -23,7 +23,7 @@ public class GetMyDentistPatientsHandler(AppDbContext dbContext, ISender sender)
 
     public async Task<DentistPatientsResponse?> Handle(GetMyDentistPatientsQuery request, CancellationToken ct)
     {
-        var dentist = await dbContext.Dentists.FirstOrDefaultAsync(d => d.UserId == request.UserId, ct);
+        var dentist = await dbContext.DentistProfiles.FirstOrDefaultAsync(d => d.Employee.UserId == request.UserId, ct);
         if (dentist == null) return null;
 
         var vietnamNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, VietnamTz);

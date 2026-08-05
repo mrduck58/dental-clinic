@@ -1,6 +1,7 @@
 using DentalClinic.API.Application.DTOs.ClinicalRecords;
 using DentalClinic.API.Application.UseCases.ClinicalRecords;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Infrastructure.Persistence;
 using FluentAssertions;
 using MediatR;
@@ -44,19 +45,22 @@ public class ClinicalRecordsQueryHandlerTests
     [TearDown]
     public async Task TearDown() => await _db.DisposeAsync();
 
-    private async Task<(Patient patient, Dentist dentist, Service service)> SeedPatientDentistServiceAsync(
+    private async Task<(Patient patient, DentistProfile dentist, Service service)> SeedPatientDentistServiceAsync(
         string patientUsername, string dentistUsername)
     {
-        var patientUser = User.Create(patientUsername, $"{patientUsername}@test.com", "hash", "Patient", fullName: $"BN {patientUsername}");
-        var dentistUser = User.Create(dentistUsername, $"{dentistUsername}@test.com", "hash", "Dentist", fullName: $"BS {dentistUsername}");
+        var patientUser = User.Create(patientUsername, $"{patientUsername}@test.com", "hash", UserRole.Patient, fullName: $"BN {patientUsername}");
+        var dentistUser = User.Create(dentistUsername, $"{dentistUsername}@test.com", "hash", UserRole.Dentist, fullName: $"BS {dentistUsername}");
         _db.Users.AddRange(patientUser, dentistUser);
         var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
         patient.User = patientUser;
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
-        dentist.User = dentistUser;
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
         var service = Service.Create("Trám răng", 500_000m, 30, "Trám răng thẩm mỹ");
         _db.Patients.Add(patient);
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         _db.Services.Add(service);
         await _db.SaveChangesAsync();
         return (patient, dentist, service);
@@ -64,7 +68,7 @@ public class ClinicalRecordsQueryHandlerTests
 
     private async Task<Patient> SeedFamilyMemberAsync(Patient primaryPatient, string username, string relationship)
     {
-        var user = User.Create(username, $"{username}@test.com", "hash", "Patient", fullName: $"BN {username}");
+        var user = User.Create(username, $"{username}@test.com", "hash", UserRole.Patient, fullName: $"BN {username}");
         _db.Users.Add(user);
         var member = Patient.Create(user.Id, new DateOnly(2015, 1, 1), "Nữ", primaryPatientId: primaryPatient.Id, relationship: relationship);
         member.User = user;

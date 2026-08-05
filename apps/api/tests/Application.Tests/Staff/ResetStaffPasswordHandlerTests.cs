@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.UseCases.Staff;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
@@ -76,7 +77,7 @@ public class ResetStaffPasswordHandlerTests
     [Test]
     public async Task HandleAsync_NoFullNameAndNoUsername_EmailUsesEmailAsDisplayName()
     {
-        var user = User.CreateEmployee("emp@test.com", "Staff", fullName: null);
+        var user = User.CreateEmployee("emp@test.com", UserRole.Staff, fullName: null);
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
         var handler = new ResetStaffPasswordHandler(_userRepo, _emailService);
 
@@ -93,7 +94,7 @@ public class ResetStaffPasswordHandlerTests
     [Test]
     public async Task HandleAsync_NoFullNameButHasUsername_EmailUsesUsernameAsDisplayName()
     {
-        var user = User.Create("myusername", "emp@test.com", "hash", "Staff", fullName: null);
+        var user = User.Create("myusername", "emp@test.com", "hash", UserRole.Staff, fullName: null);
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
         var handler = new ResetStaffPasswordHandler(_userRepo, _emailService);
 
@@ -121,5 +122,5 @@ public class ResetStaffPasswordHandlerTests
     }
 
     private static User MakeEmployee()
-        => User.CreateEmployee("emp@test.com", "Staff", "0901234567", "Nhân Viên Test");
+        => User.CreateEmployee("emp@test.com", UserRole.Staff, "0901234567", "Nhân Viên Test");
 }

@@ -1,3 +1,4 @@
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using Microsoft.Extensions.Configuration;
@@ -13,7 +14,7 @@ public class ForgotPasswordHandler(
     IEmailService emailService,
     IConfiguration configuration) : IRequestHandler<ForgotPasswordCommand>
 {
-    private static readonly string[] StaffRoles = ["Admin", "Owner", "Dentist", "Staff"];
+    private static readonly UserRole[] StaffRoles = [UserRole.Admin, UserRole.Owner, UserRole.Dentist, UserRole.Staff];
 
     public async Task Handle(ForgotPasswordCommand command, CancellationToken ct)
     {

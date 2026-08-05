@@ -1,3 +1,4 @@
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using MediatR;
 
@@ -35,16 +36,13 @@ public class GetDentistsHandler(IUserRepository userRepository, IDentistReposito
             search: null, role: null, status: null, page: 1, pageSize: 500, ct);
 
         return items
-            .Where(u =>
-                string.Equals(u.Role, "Dentist", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(u.Role, "Doctor", StringComparison.OrdinalIgnoreCase) ||
-                u.Dentist != null)
+            .Where(u => u.Role == UserRole.Dentist || u.Employee?.DentistProfile != null)
             .Select(u => new DentistSummaryDto(
-                u.Dentist?.Id ?? u.Id,
+                u.Employee?.DentistProfile?.Id ?? u.Id,
                 u.FullName,
-                u.Dentist?.Specialization ?? "Nha khoa tổng quát",
-                u.Dentist?.ProfilePictureUrl,
-                u.Dentist?.ExperienceYears ?? 5,
-                u.Dentist?.Biography));
+                u.Employee?.DentistProfile?.Specialization ?? "Nha khoa tổng quát",
+                u.Employee?.ProfilePictureUrl,
+                u.Employee?.DentistProfile?.ExperienceYears ?? 5,
+                u.Employee?.DentistProfile?.Biography));
     }
 }

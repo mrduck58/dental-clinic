@@ -24,7 +24,7 @@ public class GetBillablePlansHandler(AppDbContext dbContext, InvoiceQueryHelper 
         var appointments = await dbContext.Appointments
             .AsNoTracking()
             .Include(a => a.Patient).ThenInclude(p => p.User)
-            .Include(a => a.Dentist).ThenInclude(d => d.User)
+            .Include(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
             .Include(a => a.Diagnoses)
             .Where(a => a.Status == AppointmentStatus.PendingPayment)
             .OrderBy(a => a.AppointmentDate)
@@ -114,7 +114,7 @@ public class GetBillablePlansHandler(AppDbContext dbContext, InvoiceQueryHelper 
         var remainingParents = await dbContext.Invoices
             .AsNoTracking()
             .Include(i => i.Appointment).ThenInclude(a => a.Patient).ThenInclude(p => p.User)
-            .Include(i => i.Appointment).ThenInclude(a => a.Dentist).ThenInclude(d => d.User)
+            .Include(i => i.Appointment).ThenInclude(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
             .Where(i => i.CollectingRemaining && !i.IsSettled && i.TotalAmount > i.DepositAmount
                         && !dbContext.Invoices.Any(c => c.ParentInvoiceId == i.Id))
             .OrderBy(i => i.CreatedAt)

@@ -82,7 +82,7 @@ public class VerifyPasswordResetOtpHandlerTests
     public async Task HandleAsync_ValidOtp_MarksUsedAndIssuesResetToken()
     {
         var otp = OtpCode.Create("test@test.com", OtpPurpose.PasswordReset);
-        var user = User.Create("patient1", "test@test.com", BCrypt.Net.BCrypt.HashPassword("pass"), "Patient");
+        var user = User.Create("patient1", "test@test.com", BCrypt.Net.BCrypt.HashPassword("pass"), UserRole.Patient);
         _otpRepo.GetLatestValidAsync("test@test.com", OtpPurpose.PasswordReset, Arg.Any<CancellationToken>()).Returns(otp);
         _userRepo.GetByEmailAsync("test@test.com", Arg.Any<CancellationToken>()).Returns(user);
 
@@ -100,7 +100,7 @@ public class VerifyPasswordResetOtpHandlerTests
     public async Task HandleAsync_EmailWithWhitespaceAndUpperCase_NormalizesBeforeLookup()
     {
         var otp = OtpCode.Create("test@test.com", OtpPurpose.PasswordReset);
-        var user = User.Create("patient1", "test@test.com", BCrypt.Net.BCrypt.HashPassword("pass"), "Patient");
+        var user = User.Create("patient1", "test@test.com", BCrypt.Net.BCrypt.HashPassword("pass"), UserRole.Patient);
         _otpRepo.GetLatestValidAsync("test@test.com", OtpPurpose.PasswordReset, Arg.Any<CancellationToken>()).Returns(otp);
         _userRepo.GetByEmailAsync("test@test.com", Arg.Any<CancellationToken>()).Returns(user);
 

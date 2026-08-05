@@ -152,7 +152,7 @@ public class GetLeaveRequestsHandlerTests
     {
         var today = DateOnly.FromDateTime(DateTime.Today);
         var lr = LeaveRequest.Create(Guid.NewGuid(), LeaveType.Annual, today, today.AddDays(2), reason);
-        var user = User.Create("emp", "emp@test.com", "hash", "Staff", null, fullName);
+        var user = User.Create("emp", "emp@test.com", "hash", UserRole.Staff, null, fullName);
         typeof(LeaveRequest).GetProperty("User")!.SetValue(lr, user);
         return lr;
     }

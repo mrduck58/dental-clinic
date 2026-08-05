@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import OwnerSidebar from "../../../components/shared/OwnerSidebar";
-import NotificationBell from "../../../components/shared/NotificationBell";
+import OwnerPageHeader from "../../../components/shared/OwnerPageHeader";
 import { useRequireOwner } from "../../../hooks/useRequireOwner";
 import {
   getFeedbacksApi,
@@ -131,14 +131,7 @@ export default function OwnerFeedbackPage() {
       <main className="flex-1 flex flex-col min-w-0">
 
         {/* HEADER */}
-        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 font-sans shadow-sm shadow-slate-100/50">
-          <div>
-            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Phản hồi & Đánh giá</h1>
-          </div>
-          <div className="flex items-center gap-6">
-            <NotificationBell href="/owner/notifications" />
-          </div>
-        </header>
+        <OwnerPageHeader title="Phản hồi & Đánh giá" />
 
         <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-6">
 

@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.UseCases.Patients;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Infrastructure.Persistence;
@@ -50,7 +51,7 @@ public class FamilyMemberHandlerTests
     private async Task<(User User, Patient Patient)> SeedPrimaryPatientAsync(
         string fullName = "Nguyen Van A", string? phone = "0900000001")
     {
-        var user = User.Create($"user-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", "Patient", phone, fullName);
+        var user = User.Create($"user-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", UserRole.Patient, phone, fullName);
         user.UpdateGender("Nam");
         _db.Users.Add(user);
         var patient = Patient.Create(user.Id, new DateOnly(1985, 5, 20));
@@ -64,7 +65,7 @@ public class FamilyMemberHandlerTests
         Guid primaryPatientId, string fullName = "Nguyen Van B", string relationship = "Con",
         string gender = "Nu", string? phone = "0900000002")
     {
-        var user = User.CreateEmployee($"{Guid.NewGuid()}@test.com", "Patient", phone, fullName);
+        var user = User.CreateEmployee($"{Guid.NewGuid()}@test.com", UserRole.Patient, phone, fullName);
         user.UpdateGender(gender);
         _db.Users.Add(user);
         var member = Patient.Create(
@@ -149,7 +150,7 @@ public class FamilyMemberHandlerTests
         persisted.ProfilePictureUrl.Should().Be("http://pic.jpg");
         persisted.User.Should().NotBeNull();
         persisted.User.PasswordHash.Should().BeNull("thành viên gia đình chỉ là hồ sơ placeholder, chưa có tài khoản đăng nhập riêng");
-        persisted.User.Role.Should().Be("Patient");
+        persisted.User.Role.Should().Be(UserRole.Patient);
     }
 
     /// <summary>Tạo thành viên gia đình mới không được ảnh hưởng tới các thành viên đã có trước đó.</summary>

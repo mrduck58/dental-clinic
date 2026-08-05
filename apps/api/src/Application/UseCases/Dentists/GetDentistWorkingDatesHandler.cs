@@ -21,9 +21,9 @@ public class GetDentistWorkingDatesHandler(AppDbContext dbContext)
         var year = request.Year;
         var month = request.Month;
 
-        var dentist = await dbContext.Dentists
-            .Include(d => d.User)
-            .FirstOrDefaultAsync(d => d.Id == dentistId || d.UserId == dentistId, ct);
+        var dentist = await dbContext.DentistProfiles
+            .Include(d => d.Employee).ThenInclude(e => e.User)
+            .FirstOrDefaultAsync(d => d.Id == dentistId || d.Employee.UserId == dentistId, ct);
 
         string fullName;
         Guid realDentistId;
@@ -31,7 +31,7 @@ public class GetDentistWorkingDatesHandler(AppDbContext dbContext)
 
         if (dentist != null)
         {
-            fullName = dentist.FullName ?? dentist.User?.FullName ?? string.Empty;
+            fullName = dentist.FullName;
             realDentistId = dentist.Id;
             defaultShift = dentist.Shift;
         }

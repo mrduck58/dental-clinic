@@ -29,7 +29,7 @@ public class ResendOtpHandlerTests
 
     private static User CreateInactivePatient(string email)
     {
-        var user = User.Create("patient1", email, BCrypt.Net.BCrypt.HashPassword("pass"), "Patient");
+        var user = User.Create("patient1", email, BCrypt.Net.BCrypt.HashPassword("pass"), UserRole.Patient);
         user.SetActive(false);
         return user;
     }
@@ -49,7 +49,7 @@ public class ResendOtpHandlerTests
     [Test]
     public async Task HandleAsync_AccountAlreadyActive_ThrowsConflictException()
     {
-        var activeUser = User.Create("patient1", "active@test.com", BCrypt.Net.BCrypt.HashPassword("pass"), "Patient");
+        var activeUser = User.Create("patient1", "active@test.com", BCrypt.Net.BCrypt.HashPassword("pass"), UserRole.Patient);
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(activeUser);
 
         Func<Task> act = () => _handler.Handle(new ResendOtpCommand("active@test.com"), CancellationToken.None);
@@ -61,7 +61,7 @@ public class ResendOtpHandlerTests
     [Test]
     public async Task HandleAsync_NonPatientRole_ThrowsUnauthorizedAccessException()
     {
-        var staff = User.Create("staff1", "staff@test.com", BCrypt.Net.BCrypt.HashPassword("pass"), "Staff");
+        var staff = User.Create("staff1", "staff@test.com", BCrypt.Net.BCrypt.HashPassword("pass"), UserRole.Staff);
         staff.SetActive(false);
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(staff);
 

@@ -60,13 +60,17 @@ public class InvoiceHandlerTests
 
     private async Task<(Appointment appointment, Patient patient, Guid patientUserId)> SeedPendingPaymentAppointmentAsync()
     {
-        var patientUser = User.Create("inv-p", $"inv-p-{Guid.NewGuid()}@test.com", "hash", "Patient");
-        var dentistUser = User.Create("inv-d", $"inv-d-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        var patientUser = User.Create("inv-p", $"inv-p-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient);
+        var dentistUser = User.Create("inv-d", $"inv-d-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist);
         _db.Users.AddRange(patientUser, dentistUser);
         var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
         _db.Patients.Add(patient);
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
         appointment.StartTreatment();
         appointment.EndTreatment();
@@ -108,11 +112,15 @@ public class InvoiceHandlerTests
     [Test]
     public async Task IssueAsync_AppointmentNotPendingPayment_ThrowsValidationException()
     {
-        var dentistUser = User.Create("inv1", $"inv1-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        var dentistUser = User.Create("inv1", $"inv1-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist);
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
         var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         _db.Patients.Add(patient);
         var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
         _db.Appointments.Add(appointment);
@@ -339,7 +347,7 @@ public class InvoiceHandlerTests
     public async Task IssueAsync_PlanInstallment_PlanNotInProgress_ThrowsValidationException()
     {
         var (appointment, patient, _) = await SeedPendingPaymentAppointmentAsync();
-        var dentist = await _db.Dentists.FirstAsync();
+        var dentist = await _db.DentistProfiles.FirstAsync();
         var service = Service.Create("Niềng răng", 20_000_000m, 60, "Chỉnh nha");
         _db.Services.Add(service);
         var plan = TreatmentPlan.Create(patient.Id, dentist.Id, null, service.Id, service.Price, 1);
@@ -358,7 +366,7 @@ public class InvoiceHandlerTests
     public async Task IssueAsync_PlanInstallment_ValidRequest_CreatesInstallmentInvoice()
     {
         var (appointment, patient, _) = await SeedPendingPaymentAppointmentAsync();
-        var dentist = await _db.Dentists.FirstAsync();
+        var dentist = await _db.DentistProfiles.FirstAsync();
         var service = Service.Create("Niềng răng", 20_000_000m, 60, "Chỉnh nha");
         _db.Services.Add(service);
         var plan = TreatmentPlan.Create(patient.Id, dentist.Id, null, service.Id, service.Price, 1);
@@ -425,7 +433,7 @@ public class InvoiceHandlerTests
     public async Task GetOutstandingPlansAsync_ReturnsInProgressPlansWithRemainingBalanceOnly()
     {
         var (_, patient, _) = await SeedPendingPaymentAppointmentAsync();
-        var dentist = await _db.Dentists.FirstAsync();
+        var dentist = await _db.DentistProfiles.FirstAsync();
         var service = Service.Create("Trồng Implant", 15_000_000m, 90, "Cấy ghép implant");
         _db.Services.Add(service);
         var inProgressPlan = TreatmentPlan.Create(patient.Id, dentist.Id, null, service.Id, service.Price, 1);
@@ -461,7 +469,7 @@ public class InvoiceHandlerTests
     public async Task ConfirmPaymentAsync_PlanInstallmentFullyPaid_CompletesTreatmentPlan()
     {
         var (appointment, patient, _) = await SeedPendingPaymentAppointmentAsync();
-        var dentist = await _db.Dentists.FirstAsync();
+        var dentist = await _db.DentistProfiles.FirstAsync();
         var service = Service.Create("Trồng Implant", 500_000m, 90, "Cấy ghép implant");
         _db.Services.Add(service);
         var plan = TreatmentPlan.Create(patient.Id, dentist.Id, null, service.Id, service.Price, 1);

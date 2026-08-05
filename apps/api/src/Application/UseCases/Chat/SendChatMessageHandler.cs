@@ -172,7 +172,7 @@ public class SendChatMessageHandler(
         List<Service> Services,
         List<Promotion> Promotions,
         IEnumerable<DentistSummaryDto> Dentists,
-        List<Dentist> DentistEntities,
+        List<DentistProfile> DentistEntities,
         List<Post> Posts,
         DateOnly Today,
         TimeOnly NowTime,
@@ -206,7 +206,7 @@ public class SendChatMessageHandler(
 
         // Bảng Dentists là nguồn Id thật cho lịch hẹn/slot (DentistSummaryDto.Id là User.Id,
         // không dùng được cho CreateAppointment) — cần cho việc đối chiếu tên → DentistId.
-        var dentistEntities = await dbContext.Dentists.Include(d => d.User).ToListAsync(ct);
+        var dentistEntities = await dbContext.DentistProfiles.Include(d => d.Employee).ThenInclude(e => e.User).ToListAsync(ct);
 
         var posts = await dbContext.Posts
             .Where(p => p.IsPublished)
@@ -234,7 +234,7 @@ public class SendChatMessageHandler(
 
         var nowUtc = DateTimeOffset.UtcNow;
         var upcoming = await dbContext.Appointments
-            .Include(a => a.Dentist).ThenInclude(d => d.User)
+            .Include(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
             .Include(a => a.Patient).ThenInclude(p => p.User)
             .Where(a => relevantPatientIds.Contains(a.PatientId) &&
                 (a.Status == AppointmentStatus.Pending || a.Status == AppointmentStatus.Confirmed) &&

@@ -1,4 +1,5 @@
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 
 namespace DentalClinic.API.Domain.Interfaces.Repositories;
 
@@ -21,6 +22,6 @@ public interface IUserRepository
     Task<AccountStatusResult?> GetAccountStatusAsync(Guid id, CancellationToken ct = default);
 }
 
-public record AccountStatusResult(bool IsActive, string Role);
+public record AccountStatusResult(bool IsActive, UserRole Role);
 
 public record StaffStatsResult(int TotalEmployees, int TotalDentists, int TotalDoctors);

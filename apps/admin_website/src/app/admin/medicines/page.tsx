@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import AdminSidebar from "../../../components/shared/AdminSidebar";
-import NotificationBell from "../../../components/shared/NotificationBell";
+import AdminPageHeader from "../../../components/shared/AdminPageHeader";
 import { useRequireAdmin } from "../../../hooks/useRequireAdmin";
 import { getMedicinesApi, deleteMedicineApi, type MedicineDto } from "../../../lib/apiClient";
 
@@ -90,16 +90,10 @@ export default function MedicinesPage() {
 
       <main className="flex-1 flex flex-col min-w-0">
         {/* HEADER */}
-        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 font-sans shadow-sm shadow-slate-100/50">
-          <div>
-            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Quản Lí Thuốc</h1>
-            <p className="text-[13px] text-slate-400 font-semibold mt-0.5">
-              Danh sách thuốc để bác sĩ kê đơn.
-            </p>
-          </div>
-
-          <NotificationBell />
-        </header>
+        <AdminPageHeader
+          title="Quản Lí Thuốc"
+          subtitle="Danh sách thuốc để bác sĩ kê đơn."
+        />
 
         {/* BODY */}
         <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-8">

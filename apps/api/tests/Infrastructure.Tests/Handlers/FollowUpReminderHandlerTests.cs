@@ -35,14 +35,18 @@ public class FollowUpReminderHandlerTests
     [TearDown]
     public async Task TearDown() => await _db.DisposeAsync();
 
-    private async Task<(Patient patient, Dentist dentist, Service service)> SeedBaseDataAsync()
+    private async Task<(Patient patient, DentistProfile dentist, Service service)> SeedBaseDataAsync()
     {
-        var dentistUser = User.Create("fu1", $"fu1-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        var dentistUser = User.Create("fu1", $"fu1-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist);
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
         var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
         var service = Service.Create("Niềng răng", 20_000_000m, 60, "Chỉnh nha");
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         _db.Patients.Add(patient);
         _db.Services.Add(service);
         await _db.SaveChangesAsync();

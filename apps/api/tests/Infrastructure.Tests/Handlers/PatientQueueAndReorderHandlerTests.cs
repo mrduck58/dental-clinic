@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.UseCases.Queue;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Infrastructure.Persistence;
@@ -58,7 +59,7 @@ public class GetPatientQueueHandlerTests
     [Test]
     public async Task HandleAsync_UserWithoutPatientProfile_AutoCreatesPrimaryPatientRecord()
     {
-        var user = User.Create("pq1", $"pq1-{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: "Người Dùng Mới");
+        var user = User.Create("pq1", $"pq1-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient, fullName: "Người Dùng Mới");
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
 
@@ -73,7 +74,7 @@ public class GetPatientQueueHandlerTests
     [Test]
     public async Task HandleAsync_RequestedPatientIdNotFamilyMember_ReturnsHasActiveQueueFalse()
     {
-        var user = User.Create("pq2", $"pq2-{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: "Bệnh nhân Chính");
+        var user = User.Create("pq2", $"pq2-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient, fullName: "Bệnh nhân Chính");
         _db.Users.Add(user);
         var patient = Patient.Create(user.Id, new DateOnly(1990, 1, 1), "Nam");
         patient.User = user;
@@ -90,15 +91,18 @@ public class GetPatientQueueHandlerTests
     [Test]
     public async Task HandleAsync_NoCheckedInOrInProgressAppointmentToday_ReturnsHasActiveQueueFalse()
     {
-        var user = User.Create("pq3", $"pq3-{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: "Bệnh nhân pq3");
-        var dentistUser = User.Create("pq3d", $"pq3d-{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: "BS pq3");
+        var user = User.Create("pq3", $"pq3-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient, fullName: "Bệnh nhân pq3");
+        var dentistUser = User.Create("pq3d", $"pq3d-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: "BS pq3");
         _db.Users.AddRange(user, dentistUser);
         var patient = Patient.Create(user.Id, new DateOnly(1990, 1, 1), "Nam");
         patient.User = user;
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
-        dentist.User = dentistUser;
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
         _db.Patients.Add(patient);
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         var completedToday = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
         completedToday.Complete();
         _db.Appointments.Add(completedToday);
@@ -116,16 +120,19 @@ public class GetPatientQueueHandlerTests
     public async Task HandleAsync_CheckedInWithSomeoneAhead_ReturnsPeopleAheadAndEstWaitMinutes()
     {
         var today = DateOnly.FromDateTime(DateTime.Today);
-        var dentistUser = User.Create("pq4d", $"pq4d-{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: "BS pq4");
+        var dentistUser = User.Create("pq4d", $"pq4d-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: "BS pq4");
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
-        dentist.User = dentistUser;
-        _db.Dentists.Add(dentist);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         _db.WorkSchedules.Add(WorkSchedule.Create(
             today, "morning", "dentist", "dentist", dentist.FullName, "Phòng pq4", "border-primary", false));
 
-        var userAhead = User.Create("pq4a", $"pq4a-{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: "Bệnh nhân Trước");
-        var userTarget = User.Create("pq4t", $"pq4t-{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: "Bệnh nhân Mục Tiêu");
+        var userAhead = User.Create("pq4a", $"pq4a-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient, fullName: "Bệnh nhân Trước");
+        var userTarget = User.Create("pq4t", $"pq4t-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient, fullName: "Bệnh nhân Mục Tiêu");
         _db.Users.AddRange(userAhead, userTarget);
         var patientAhead = Patient.Create(userAhead.Id, new DateOnly(1990, 1, 1), "Nam");
         patientAhead.User = userAhead;
@@ -157,15 +164,18 @@ public class GetPatientQueueHandlerTests
     public async Task HandleAsync_InProgressAppointment_CurrentServingNumberEqualsOwnQueueNumber()
     {
         var today = DateOnly.FromDateTime(DateTime.Today);
-        var dentistUser = User.Create("pq5d", $"pq5d-{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: "BS pq5");
+        var dentistUser = User.Create("pq5d", $"pq5d-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: "BS pq5");
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
-        dentist.User = dentistUser;
-        _db.Dentists.Add(dentist);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         _db.WorkSchedules.Add(WorkSchedule.Create(
             today, "morning", "dentist", "dentist", dentist.FullName, "Phòng pq5", "border-primary", false));
 
-        var user = User.Create("pq5", $"pq5-{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: "Bệnh nhân Đang Khám");
+        var user = User.Create("pq5", $"pq5-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient, fullName: "Bệnh nhân Đang Khám");
         _db.Users.Add(user);
         var patient = Patient.Create(user.Id, new DateOnly(1990, 1, 1), "Nam");
         patient.User = user;
@@ -189,22 +199,25 @@ public class GetPatientQueueHandlerTests
     public async Task HandleAsync_ValidFamilyMemberPatientId_ReturnsQueueForFamilyMember()
     {
         var today = DateOnly.FromDateTime(DateTime.Today);
-        var dentistUser = User.Create("pq6d", $"pq6d-{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: "BS pq6");
+        var dentistUser = User.Create("pq6d", $"pq6d-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: "BS pq6");
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
-        dentist.User = dentistUser;
-        _db.Dentists.Add(dentist);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         _db.WorkSchedules.Add(WorkSchedule.Create(
             today, "morning", "dentist", "dentist", dentist.FullName, "Phòng pq6", "border-primary", false));
 
-        var primaryUser = User.Create("pq6p", $"pq6p-{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: "Bệnh nhân Chính pq6");
+        var primaryUser = User.Create("pq6p", $"pq6p-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient, fullName: "Bệnh nhân Chính pq6");
         _db.Users.Add(primaryUser);
         var primaryPatient = Patient.Create(primaryUser.Id, new DateOnly(1980, 1, 1), "Nam");
         primaryPatient.User = primaryUser;
         _db.Patients.Add(primaryPatient);
         await _db.SaveChangesAsync();
 
-        var familyUser = User.Create("pq6f", $"pq6f-{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: "Thành Viên Gia Đình");
+        var familyUser = User.Create("pq6f", $"pq6f-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient, fullName: "Thành Viên Gia Đình");
         _db.Users.Add(familyUser);
         var familyPatient = Patient.Create(familyUser.Id, new DateOnly(2010, 1, 1), "Nữ", primaryPatientId: primaryPatient.Id, relationship: "Con");
         familyPatient.User = familyUser;
@@ -243,14 +256,18 @@ public class ReorderQueuePatientHandlerTests
     [TearDown]
     public async Task TearDown() => await _db.DisposeAsync();
 
-    private (Dentist dentist, Patient patientA, Patient patientB) SeedDentistAndTwoPatients(string prefix)
+    private (DentistProfile dentist, Patient patientA, Patient patientB) SeedDentistAndTwoPatients(string prefix)
     {
-        var dentistUser = User.Create($"{prefix}d", $"{prefix}d-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        var dentistUser = User.Create($"{prefix}d", $"{prefix}d-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist);
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
         var patientA = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
         var patientB = Patient.Create(Guid.Empty, new DateOnly(1991, 1, 1), "Nữ");
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         _db.Patients.AddRange(patientA, patientB);
         return (dentist, patientA, patientB);
     }

@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.UseCases.DentistDashboard;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Infrastructure.Persistence;
 using FluentAssertions;
 using MediatR;
@@ -60,10 +61,14 @@ public class GetMyDentistPatientsHandlerTests
     [Test]
     public async Task HandleAsync_DentistFound_DelegatesToGetDentistPatientsQueryWithMatchingDentistId()
     {
-        var dentistUser = User.Create("mdp1", $"mdp1-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        var dentistUser = User.Create("mdp1", $"mdp1-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist);
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
-        _db.Dentists.Add(dentist);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         await _db.SaveChangesAsync();
 
         var canned = new DentistPatientsResponse(new DateOnly(2025, 5, 1), 1, 2, 3, []);
@@ -82,10 +87,14 @@ public class GetMyDentistPatientsHandlerTests
     [Test]
     public async Task HandleAsync_NoDateProvided_DefaultsToVietnamToday()
     {
-        var dentistUser = User.Create("mdp2", $"mdp2-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        var dentistUser = User.Create("mdp2", $"mdp2-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist);
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
-        _db.Dentists.Add(dentist);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         await _db.SaveChangesAsync();
 
         var canned = new DentistPatientsResponse(VietnamToday(), 0, 0, 0, []);
@@ -136,10 +145,14 @@ public class GetDentistPastPatientsHandlerTests
     [Test]
     public async Task HandleAsync_DentistWithNoPastAppointments_ReturnsEmptyList()
     {
-        var dentistUser = User.Create("dpp1", $"dpp1-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        var dentistUser = User.Create("dpp1", $"dpp1-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist);
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
-        _db.Dentists.Add(dentist);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         await _db.SaveChangesAsync();
 
         var result = await _handler.Handle(new GetDentistPastPatientsQuery(dentistUser.Id), CancellationToken.None);
@@ -153,14 +166,18 @@ public class GetDentistPastPatientsHandlerTests
     [Test]
     public async Task HandleAsync_OnlyCompletedAndPendingPaymentStatusesIncluded()
     {
-        var dentistUser = User.Create("dpp2", $"dpp2-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        var dentistUser = User.Create("dpp2", $"dpp2-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist);
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
-        var patientUser = User.Create("dpp2p", $"dpp2p-{Guid.NewGuid()}@test.com", "hash", "Patient");
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
+        var patientUser = User.Create("dpp2p", $"dpp2p-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient);
         _db.Users.Add(patientUser);
         var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
         patient.User = patientUser;
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         _db.Patients.Add(patient);
         var now = DateTimeOffset.UtcNow;
 
@@ -192,14 +209,18 @@ public class GetDentistPastPatientsHandlerTests
     [Test]
     public async Task HandleAsync_OrdersResultsByAppointmentDateDescending()
     {
-        var dentistUser = User.Create("dpp3", $"dpp3-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        var dentistUser = User.Create("dpp3", $"dpp3-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist);
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
-        var patientUser = User.Create("dpp3p", $"dpp3p-{Guid.NewGuid()}@test.com", "hash", "Patient");
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
+        var patientUser = User.Create("dpp3p", $"dpp3p-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient);
         _db.Users.Add(patientUser);
         var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
         patient.User = patientUser;
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         _db.Patients.Add(patient);
         var older = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddDays(-10));
         older.Complete();
@@ -220,14 +241,18 @@ public class GetDentistPastPatientsHandlerTests
     [Test]
     public async Task HandleAsync_CompletedFollowUpAppointment_MarkedAsFollowUpVisitAndNotNew()
     {
-        var dentistUser = User.Create("dpp4", $"dpp4-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        var dentistUser = User.Create("dpp4", $"dpp4-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist);
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
-        var patientUser = User.Create("dpp4p", $"dpp4p-{Guid.NewGuid()}@test.com", "hash", "Patient");
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
+        var patientUser = User.Create("dpp4p", $"dpp4p-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient);
         _db.Users.Add(patientUser);
         var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
         patient.User = patientUser;
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         _db.Patients.Add(patient);
         var original = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddDays(-10));
         original.Complete();
@@ -250,16 +275,23 @@ public class GetDentistPastPatientsHandlerTests
     [Test]
     public async Task HandleAsync_AppointmentBelongsToOtherDentist_IsNotIncluded()
     {
-        var dentistUserA = User.Create("dpp5a", $"dpp5a-{Guid.NewGuid()}@test.com", "hash", "Dentist");
-        var dentistUserB = User.Create("dpp5b", $"dpp5b-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        var dentistUserA = User.Create("dpp5a", $"dpp5a-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist);
+        var dentistUserB = User.Create("dpp5b", $"dpp5b-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist);
         _db.Users.AddRange(dentistUserA, dentistUserB);
-        var dentistA = Dentist.Create(dentistUserA.Id, "Nha khoa tổng quát", 5);
-        var dentistB = Dentist.Create(dentistUserB.Id, "Nha khoa tổng quát", 5);
-        var patientUser = User.Create("dpp5p", $"dpp5p-{Guid.NewGuid()}@test.com", "hash", "Patient");
+        var employeeA = Employee.Create(dentistUserA.Id, $"DT-{Guid.NewGuid():N}");
+        employeeA.User = dentistUserA;
+        var dentistA = DentistProfile.Create(employeeA.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentistA.Employee = employeeA;
+        var employeeB = Employee.Create(dentistUserB.Id, $"DT-{Guid.NewGuid():N}");
+        employeeB.User = dentistUserB;
+        var dentistB = DentistProfile.Create(employeeB.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentistB.Employee = employeeB;
+        var patientUser = User.Create("dpp5p", $"dpp5p-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient);
         _db.Users.Add(patientUser);
         var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
         patient.User = patientUser;
-        _db.Dentists.AddRange(dentistA, dentistB);
+        _db.Employees.AddRange(employeeA, employeeB);
+        _db.DentistProfiles.AddRange(dentistA, dentistB);
         _db.Patients.Add(patient);
         var appointmentForB = Appointment.Create(patient.Id, dentistB.Id, DateTimeOffset.UtcNow);
         appointmentForB.Complete();

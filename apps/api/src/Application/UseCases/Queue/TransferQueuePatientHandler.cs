@@ -81,7 +81,7 @@ public class TransferQueuePatientHandler(
             ct: ct);
 
         await notificationService.CreateAsync(new CreateNotificationRequest(
-            UserId: target.UserId,
+            UserId: target.Employee.UserId,
             Type: NotificationType.Appointment,
             Priority: NotificationPriority.High,
             Title: "Bệnh nhân được chuyển sang hàng đợi của bạn",
@@ -96,7 +96,7 @@ public class TransferQueuePatientHandler(
     /// Bác sĩ đang trực phòng <paramref name="roomName"/> tại thời điểm này: có ca bao trùm
     /// giờ hiện tại và tài khoản còn Active. Nhiều người cùng ca thì lấy theo thứ tự tên.
     /// </summary>
-    private async Task<Dentist?> FindDentistOnShiftAsync(
+    private async Task<DentistProfile?> FindDentistOnShiftAsync(
         string roomName, DateOnly today, DateTimeOffset nowVietnam, CancellationToken ct)
     {
         var validShiftCodes = WorkShifts.AllValidCodes;
@@ -112,10 +112,10 @@ public class TransferQueuePatientHandler(
 
         if (onShiftNames.Count == 0) return null;
 
-        var dentists = await dbContext.Dentists.Include(d => d.User).ToListAsync(ct);
+        var dentists = await dbContext.DentistProfiles.Include(d => d.Employee).ThenInclude(e => e.User).ToListAsync(ct);
 
         return dentists
-            .Where(d => onShiftNames.Contains(d.FullName) && IsEmployed(d.EmploymentStatus))
+            .Where(d => onShiftNames.Contains(d.FullName) && IsEmployed(d.Employee.EmploymentStatus))
             .OrderBy(d => d.FullName, StringComparer.CurrentCulture)
             .FirstOrDefault();
     }
@@ -126,7 +126,7 @@ public class TransferQueuePatientHandler(
     /// trùm hiện tại HOẶC sắp bắt đầu trong cửa sổ giao ca, và tài khoản còn Active. Chặn việc giao
     /// cho bác sĩ ca đã tan hoặc còn quá xa để khớp đúng những gì hàng đợi hiển thị cho lễ tân.
     /// </summary>
-    private async Task<Dentist?> FindAssignableDentistAsync(
+    private async Task<DentistProfile?> FindAssignableDentistAsync(
         string roomName, Guid dentistId, DateOnly today, DateTimeOffset nowVietnam, CancellationToken ct)
     {
         var validShiftCodes = WorkShifts.AllValidCodes;
@@ -145,15 +145,15 @@ public class TransferQueuePatientHandler(
 
         if (assignableNames.Count == 0) return null;
 
-        var dentists = await dbContext.Dentists.Include(d => d.User).ToListAsync(ct);
+        var dentists = await dbContext.DentistProfiles.Include(d => d.Employee).ThenInclude(e => e.User).ToListAsync(ct);
 
         return dentists.FirstOrDefault(d =>
             d.Id == dentistId &&
             assignableNames.Contains(d.FullName) &&
-            IsEmployed(d.EmploymentStatus));
+            IsEmployed(d.Employee.EmploymentStatus));
     }
 
     /// <summary>Bác sĩ còn đang làm việc: EmploymentStatus phải là "Active".</summary>
     private static bool IsEmployed(string employmentStatus) =>
-        string.Equals(employmentStatus, User.DefaultEmploymentStatus, StringComparison.OrdinalIgnoreCase);
+        string.Equals(employmentStatus, Employee.DefaultEmploymentStatus, StringComparison.OrdinalIgnoreCase);
 }

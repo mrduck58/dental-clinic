@@ -71,7 +71,7 @@ public class VerifyOtpHandlerTests
     public async Task HandleAsync_ValidOtp_ActivatesUserAndReturnsToken()
     {
         var otp = OtpCode.Create("test@test.com", OtpPurpose.Registration);
-        var user = User.Create("patient1", "test@test.com", BCrypt.Net.BCrypt.HashPassword("pass"), "Patient");
+        var user = User.Create("patient1", "test@test.com", BCrypt.Net.BCrypt.HashPassword("pass"), UserRole.Patient);
         _otpRepo.GetLatestValidAsync("test@test.com", OtpPurpose.Registration, Arg.Any<CancellationToken>()).Returns(otp);
         _userRepo.GetByEmailAsync("test@test.com", Arg.Any<CancellationToken>()).Returns(user);
 
@@ -88,7 +88,7 @@ public class VerifyOtpHandlerTests
     public async Task HandleAsync_ValidOtp_ActivatesInactiveUser()
     {
         var otp = OtpCode.Create("test@test.com", OtpPurpose.Registration);
-        var user = User.Create("patient1", "test@test.com", BCrypt.Net.BCrypt.HashPassword("pass"), "Patient");
+        var user = User.Create("patient1", "test@test.com", BCrypt.Net.BCrypt.HashPassword("pass"), UserRole.Patient);
         user.SetActive(false);
         _otpRepo.GetLatestValidAsync("test@test.com", OtpPurpose.Registration, Arg.Any<CancellationToken>()).Returns(otp);
         _userRepo.GetByEmailAsync("test@test.com", Arg.Any<CancellationToken>()).Returns(user);
@@ -104,7 +104,7 @@ public class VerifyOtpHandlerTests
     public async Task HandleAsync_ValidOtp_ReturnsFullResponseDto()
     {
         var otp = OtpCode.Create("test@test.com", OtpPurpose.Registration);
-        var user = User.Create("patient1", "test@test.com", BCrypt.Net.BCrypt.HashPassword("pass"), "Patient");
+        var user = User.Create("patient1", "test@test.com", BCrypt.Net.BCrypt.HashPassword("pass"), UserRole.Patient);
         _otpRepo.GetLatestValidAsync("test@test.com", OtpPurpose.Registration, Arg.Any<CancellationToken>()).Returns(otp);
         _userRepo.GetByEmailAsync("test@test.com", Arg.Any<CancellationToken>()).Returns(user);
 
@@ -112,7 +112,7 @@ public class VerifyOtpHandlerTests
 
         result.Id.Should().Be(user.Id);
         result.Email.Should().Be(user.Email);
-        result.Role.Should().Be(user.Role);
+        result.Role.Should().Be(user.Role.ToString());
         result.ExpiresIn.Should().Be(8 * 60 * 60);
     }
 

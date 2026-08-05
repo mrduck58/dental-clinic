@@ -27,7 +27,7 @@ public class GetMyExaminationHistoryHandler(AppDbContext dbContext)
         if (patient is null) return new List<MyMedicalHistoryDto>();
 
         var appointments = await dbContext.Appointments
-            .Include(a => a.Dentist).ThenInclude(d => d.User)
+            .Include(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
             .Include(a => a.Patient)
             .Include(a => a.Service)
             .Include(a => a.Diagnoses)

@@ -4,11 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getUser, clearSession, type AuthUser } from "../../lib/apiClient";
-
-const ROLE_LABEL: Record<string, string> = {
-  Admin: "Quản trị viên (Chủ)",
-  Owner: "Chủ phòng khám",
-};
+import { ROLE_LABELS, type UiRole } from "../../lib/roles";
 
 interface SidebarProps {
   activeMenu: string;
@@ -252,7 +248,7 @@ export default function OwnerSidebar({ activeMenu }: SidebarProps) {
                 {user?.fullName ?? user?.username ?? "..."}
               </div>
               <div className="text-[11px] font-semibold text-slate-400 mt-0.5">
-                {ROLE_LABEL[user?.role ?? ""] ?? user?.role ?? "Owner"}
+                {ROLE_LABELS[(user?.role ?? "") as UiRole] ?? user?.role ?? "Owner"}
               </div>
             </div>
             {/* Arrow up/down */}

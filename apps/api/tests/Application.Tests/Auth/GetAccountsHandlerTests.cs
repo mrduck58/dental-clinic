@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.UseCases.Auth;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using FluentAssertions;
 using NSubstitute;
@@ -29,9 +30,9 @@ public class GetAccountsHandlerTests
     [Test]
     public async Task HandleAsync_MixedUsers_ReturnsOnlyUsersWithAccount()
     {
-        var withAccount1 = User.Create("u1", "a@test.com", "hash1", "Admin");
-        var withAccount2 = User.Create("u2", "b@test.com", "hash2", "Staff");
-        var withoutAccount = User.CreateEmployee("c@test.com", "Dentist");
+        var withAccount1 = User.Create("u1", "a@test.com", "hash1", UserRole.Admin);
+        var withAccount2 = User.Create("u2", "b@test.com", "hash2", UserRole.Staff);
+        var withoutAccount = User.CreateEmployee("c@test.com", UserRole.Dentist);
 
         _userRepo.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(new List<User> { withAccount1, withAccount2, withoutAccount });
@@ -50,8 +51,8 @@ public class GetAccountsHandlerTests
     {
         var employees = new List<User>
         {
-            User.CreateEmployee("a@test.com", "Staff"),
-            User.CreateEmployee("b@test.com", "Dentist"),
+            User.CreateEmployee("a@test.com", UserRole.Staff),
+            User.CreateEmployee("b@test.com", UserRole.Dentist),
         };
         _userRepo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(employees);
 
@@ -80,7 +81,7 @@ public class GetAccountsHandlerTests
     [Test]
     public async Task HandleAsync_MapsFieldsCorrectly()
     {
-        var user = User.Create("adminuser", "admin@test.com", "hash", "Admin", "0901234567", "Admin Full");
+        var user = User.Create("adminuser", "admin@test.com", "hash", UserRole.Admin, "0901234567", "Admin Full");
         _userRepo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<User> { user });
 
         var result = (await _handler.Handle(new GetAccountsQuery(), CancellationToken.None)).Single();
@@ -102,9 +103,9 @@ public class GetAccountsHandlerTests
     {
         var users = new List<User>
         {
-            User.Create("u1", "a@test.com", "h1", "Staff"),
-            User.Create("u2", "b@test.com", "h2", "Dentist"),
-            User.Create("u3", "c@test.com", "h3", "Admin"),
+            User.Create("u1", "a@test.com", "h1", UserRole.Staff),
+            User.Create("u2", "b@test.com", "h2", UserRole.Dentist),
+            User.Create("u3", "c@test.com", "h3", UserRole.Admin),
         };
         _userRepo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(users);
 
@@ -134,7 +135,7 @@ public class GetAccountsHandlerTests
     [Test]
     public async Task HandleAsync_MapsIdAndCreatedAtCorrectly()
     {
-        var user = User.Create("adminuser", "admin@test.com", "hash", "Admin");
+        var user = User.Create("adminuser", "admin@test.com", "hash", UserRole.Admin);
         _userRepo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<User> { user });
 
         var result = (await _handler.Handle(new GetAccountsQuery(), CancellationToken.None)).Single();
@@ -150,7 +151,7 @@ public class GetAccountsHandlerTests
     [Test]
     public async Task HandleAsync_InactiveUser_MapsIsActiveFalse()
     {
-        var user = User.Create("inactiveuser", "inactive@test.com", "hash", "Staff");
+        var user = User.Create("inactiveuser", "inactive@test.com", "hash", UserRole.Staff);
         user.SetActive(false);
         _userRepo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<User> { user });
 

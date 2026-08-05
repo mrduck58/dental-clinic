@@ -32,7 +32,7 @@ public class GetLeaveRequestsHandler(ILeaveRequestRepository leaveRequestReposit
         r.Id,
         r.UserId,
         !string.IsNullOrWhiteSpace(r.User.FullName) ? r.User.FullName : (r.User.Email ?? string.Empty),
-        r.User.Role == "Dentist" || r.User.Role == "Doctor" ? r.User.Dentist?.Department : r.User.Staff?.Department,
+        r.User.Employee?.Department,
         r.LeaveType.ToString(),
         r.StartDate,
         r.EndDate,

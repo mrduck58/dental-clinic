@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.UseCases.Staff;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using FluentAssertions;
 using NSubstitute;
@@ -23,7 +24,7 @@ public class GetDentistsHandlerTests
             Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns((new List<User>().AsReadOnly(), 0));
         _dentistRepo = Substitute.For<IDentistRepository>();
-        _dentistRepo.GetAllWithUserAsync(Arg.Any<CancellationToken>()).Returns(new List<Dentist>());
+        _dentistRepo.GetAllWithUserAsync(Arg.Any<CancellationToken>()).Returns(new List<DentistProfile>());
         _handler = new GetDentistsHandler(_userRepo, _dentistRepo);
     }
 
@@ -62,10 +63,10 @@ public class GetDentistsHandlerTests
     [Test]
     public async Task HandleAsync_MixedRoles_ReturnsDentistsAndDoctorsOnly()
     {
-        var dentist = User.Create("d1", "dentist@test.com", "hash", "Dentist");
-        var doctor = User.Create("d2", "doctor@test.com", "hash", "Doctor");
-        var staff = User.Create("s1", "staff@test.com", "hash", "Staff");
-        var admin = User.Create("a1", "admin@test.com", "hash", "Admin");
+        var dentist = User.Create("d1", "dentist@test.com", "hash", UserRole.Dentist);
+        var doctor = User.Create("d2", "doctor@test.com", "hash", UserRole.Dentist);
+        var staff = User.Create("s1", "staff@test.com", "hash", UserRole.Staff);
+        var admin = User.Create("a1", "admin@test.com", "hash", UserRole.Admin);
 
         SetRepoData(dentist, doctor, staff, admin);
 
@@ -81,7 +82,7 @@ public class GetDentistsHandlerTests
     [Test]
     public async Task HandleAsync_OnlyStaffInRepo_ReturnsEmptyList()
     {
-        SetRepoData(User.Create("s1", "staff@test.com", "hash", "Staff"));
+        SetRepoData(User.Create("s1", "staff@test.com", "hash", UserRole.Staff));
 
         var result = await _handler.Handle(new GetDentistsQuery(), CancellationToken.None);
 
@@ -94,7 +95,7 @@ public class GetDentistsHandlerTests
     [Test]
     public async Task HandleAsync_OnlyAdminInRepo_ReturnsEmptyList()
     {
-        SetRepoData(User.Create("a1", "admin@test.com", "hash", "Admin"));
+        SetRepoData(User.Create("a1", "admin@test.com", "hash", UserRole.Admin));
 
         var result = await _handler.Handle(new GetDentistsQuery(), CancellationToken.None);
 
@@ -109,7 +110,7 @@ public class GetDentistsHandlerTests
     [Test]
     public async Task HandleAsync_DentistUser_MapsIdAndFullNameCorrectly()
     {
-        var dentist = User.Create("bs1", "bs@test.com", "hash", "Dentist",
+        var dentist = User.Create("bs1", "bs@test.com", "hash", UserRole.Dentist,
             fullName: "Bác sĩ Nguyễn Văn A");
         SetRepoData(dentist);
 
@@ -125,8 +126,8 @@ public class GetDentistsHandlerTests
     [Test]
     public async Task HandleAsync_MultipleDentists_ReturnsAllMapped()
     {
-        var d1 = User.Create("d1", "d1@test.com", "hash", "Dentist", fullName: "Bác sĩ A");
-        var d2 = User.Create("d2", "d2@test.com", "hash", "Doctor", fullName: "Bác sĩ B");
+        var d1 = User.Create("d1", "d1@test.com", "hash", UserRole.Dentist, fullName: "Bác sĩ A");
+        var d2 = User.Create("d2", "d2@test.com", "hash", UserRole.Dentist, fullName: "Bác sĩ B");
         SetRepoData(d1, d2);
 
         var result = (await _handler.Handle(new GetDentistsQuery(), CancellationToken.None)).ToList();

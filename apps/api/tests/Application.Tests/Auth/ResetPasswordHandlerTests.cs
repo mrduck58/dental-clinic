@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.UseCases.Auth;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using FluentAssertions;
 using NSubstitute;
@@ -130,7 +131,7 @@ public class ResetPasswordHandlerTests
     [Test]
     public async Task HandleAsync_NoTokenOnUser_ThrowsUnauthorizedAccessException()
     {
-        var user = User.Create("user1", "staff@test.com", BCrypt.Net.BCrypt.HashPassword("pass"), "Staff");
+        var user = User.Create("user1", "staff@test.com", BCrypt.Net.BCrypt.HashPassword("pass"), UserRole.Staff);
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(user);
 
         Func<Task> act = () => _handler.Handle(
@@ -175,7 +176,7 @@ public class ResetPasswordHandlerTests
     private static User CreateUserWithResetToken(string token, DateTimeOffset expiry)
     {
         var hash = BCrypt.Net.BCrypt.HashPassword("oldpass");
-        var user = User.Create("user1", "staff@test.com", hash, "Staff");
+        var user = User.Create("user1", "staff@test.com", hash, UserRole.Staff);
         user.SetPasswordResetToken(token, expiry);
         return user;
     }

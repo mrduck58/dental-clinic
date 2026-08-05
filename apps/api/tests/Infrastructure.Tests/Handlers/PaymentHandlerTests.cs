@@ -60,13 +60,17 @@ public class PaymentHandlerTests
 
     private async Task<Invoice> SeedUnpaidInvoiceAsync(decimal depositAmount = 500_000m)
     {
-        var patientUser = User.Create("pay-p", $"pay-p-{Guid.NewGuid()}@test.com", "hash", "Patient");
-        var dentistUser = User.Create("pay-d", $"pay-d-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        var patientUser = User.Create("pay-p", $"pay-p-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient);
+        var dentistUser = User.Create("pay-d", $"pay-d-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist);
         _db.Users.AddRange(patientUser, dentistUser);
         var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
         _db.Patients.Add(patient);
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
         appointment.StartTreatment();
         appointment.EndTreatment();

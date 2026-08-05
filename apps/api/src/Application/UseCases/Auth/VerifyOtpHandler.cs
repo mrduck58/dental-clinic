@@ -33,6 +33,6 @@ public class VerifyOtpHandler(
 
         var token = jwtService.GenerateToken(user);
 
-        return new VerifyOtpResponseDto(user.Id, user.Email, user.Role, token, 8 * 60 * 60);
+        return new VerifyOtpResponseDto(user.Id, user.Email, user.Role.ToString(), token, 8 * 60 * 60);
     }
 }

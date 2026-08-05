@@ -30,28 +30,33 @@ public class GetDentistDetailHandlerTests
     [TearDown]
     public async Task TearDown() => await _db.DisposeAsync();
 
-    private async Task<Dentist> SeedDentistAsync(string username)
+    private async Task<DentistProfile> SeedDentistAsync(string username)
     {
-        var user = User.Create(username, $"{username}-{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: "BS. Chi Tiết");
+        var user = User.Create(username, $"{username}-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: "BS. Chi Tiết");
         _db.Users.Add(user);
-        var dentist = Dentist.Create(
-            userId: user.Id,
+        var employee = Employee.Create(
+            user.Id,
             employeeId: $"DT-{Guid.NewGuid():N}",
+            profilePictureUrl: "http://avatar.test/1.png");
+        employee.User = user;
+        _db.Employees.Add(employee);
+        var dentist = DentistProfile.Create(
+            employeeId: employee.Id,
             specialization: "Implant",
             licenseNumber: "LIC-001",
             experienceYears: 8,
-            profilePictureUrl: "http://avatar.test/1.png",
             education: "Đại học Y Dược",
             biography: "Nhiều năm kinh nghiệm",
             certificateIssuedBy: "Bộ Y Tế");
-        _db.Dentists.Add(dentist);
+        dentist.Employee = employee;
+        _db.DentistProfiles.Add(dentist);
         await _db.SaveChangesAsync();
         return dentist;
     }
 
     private async Task<Patient> SeedPatientAsync(string username)
     {
-        var user = User.Create(username, $"{username}-{Guid.NewGuid()}@test.com", "hash", "Patient");
+        var user = User.Create(username, $"{username}-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient);
         _db.Users.Add(user);
         var patient = Patient.Create(user.Id, new DateOnly(1990, 1, 1), "Nam");
         _db.Patients.Add(patient);
@@ -94,7 +99,7 @@ public class GetDentistDetailHandlerTests
     {
         var dentist = await SeedDentistAsync("gd2");
 
-        var result = await _handler.Handle(new GetDentistDetailQuery(dentist.UserId), CancellationToken.None);
+        var result = await _handler.Handle(new GetDentistDetailQuery(dentist.Employee.UserId), CancellationToken.None);
 
         result.Should().NotBeNull();
         result!.Id.Should().Be(dentist.Id);
@@ -159,12 +164,16 @@ public class GetDentistWorkingDatesHandlerTests
             .Select(d => new DateOnly(Year, Month, d))
             .First(d => d.DayOfWeek != DayOfWeek.Sunday);
 
-    private async Task<Dentist> SeedDentistAsync(string username, string fullName = "BS. Lịch Làm Việc")
+    private async Task<DentistProfile> SeedDentistAsync(string username, string fullName = "BS. Lịch Làm Việc")
     {
-        var user = User.Create(username, $"{username}-{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: fullName);
+        var user = User.Create(username, $"{username}-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: fullName);
         _db.Users.Add(user);
-        var dentist = Dentist.Create(user.Id, "Nha khoa tổng quát", 5); // Shift mặc định = "morning"
-        _db.Dentists.Add(dentist);
+        var employee = Employee.Create(user.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = user;
+        _db.Employees.Add(employee);
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5); // Shift mặc định = "morning"
+        dentist.Employee = employee;
+        _db.DentistProfiles.Add(dentist);
         await _db.SaveChangesAsync();
         return dentist;
     }
@@ -244,7 +253,7 @@ public class GetDentistWorkingDatesHandlerTests
     public async Task HandleAsync_FullyBookedDefaultShift_DateExcluded()
     {
         var dentist = await SeedDentistAsync("wd5");
-        var patientUser = User.Create("wd5-p", $"wd5-p-{Guid.NewGuid()}@test.com", "hash", "Patient");
+        var patientUser = User.Create("wd5-p", $"wd5-p-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient);
         _db.Users.Add(patientUser);
         var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
         _db.Patients.Add(patient);
@@ -271,7 +280,7 @@ public class GetDentistWorkingDatesHandlerTests
         var dentist = await SeedDentistAsync("wd6");
 
         var byDentistId = (await _handler.Handle(new GetDentistWorkingDatesQuery(dentist.Id, Year, Month), CancellationToken.None)).ToList();
-        var byUserId = (await _handler.Handle(new GetDentistWorkingDatesQuery(dentist.UserId, Year, Month), CancellationToken.None)).ToList();
+        var byUserId = (await _handler.Handle(new GetDentistWorkingDatesQuery(dentist.Employee.UserId, Year, Month), CancellationToken.None)).ToList();
 
         byUserId.Should().BeEquivalentTo(byDentistId);
     }

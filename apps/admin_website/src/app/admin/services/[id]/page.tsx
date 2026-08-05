@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import AdminSidebar from "../../../../components/shared/AdminSidebar";
-import NotificationBell from "../../../../components/shared/NotificationBell";
+import AdminPageHeader from "../../../../components/shared/AdminPageHeader";
 import { useRequireAdmin } from "../../../../hooks/useRequireAdmin";
 import {
   getServiceByIdApi,
@@ -49,8 +49,10 @@ export default function ServiceDetailPage({ params }: ServiceDetailPageProps) {
       <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
         <AdminSidebar activeMenu="services" />
         <main className="flex-1 flex flex-col min-w-0">
-          <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 font-sans shadow-sm shadow-slate-100/50">
-            <div className="flex items-center gap-4">
+          <AdminPageHeader
+            title="Chi tiết dịch vụ"
+            subtitle="Đang tải thông tin..."
+            left={
               <Link
                 href="/admin/services"
                 className="flex items-center justify-center w-10 h-10 rounded-xl bg-slate-100 text-slate-600 hover:bg-primary hover:text-white transition-all cursor-pointer"
@@ -59,13 +61,8 @@ export default function ServiceDetailPage({ params }: ServiceDetailPageProps) {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
                 </svg>
               </Link>
-              <div>
-                <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Chi tiết dịch vụ</h1>
-                <p className="text-[13px] text-slate-400 font-semibold mt-0.5">Đang tải thông tin...</p>
-              </div>
-            </div>
-            <NotificationBell />
-          </header>
+            }
+          />
           <div className="p-8 flex-1 flex items-center justify-center">
             <div className="flex flex-col items-center gap-4">
               <svg className="animate-spin w-10 h-10 text-primary" fill="none" viewBox="0 0 24 24">
@@ -85,8 +82,10 @@ export default function ServiceDetailPage({ params }: ServiceDetailPageProps) {
       <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
         <AdminSidebar activeMenu="services" />
         <main className="flex-1 flex flex-col min-w-0">
-          <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 font-sans shadow-sm shadow-slate-100/50">
-            <div className="flex items-center gap-4">
+          <AdminPageHeader
+            title="Chi tiết dịch vụ"
+            subtitle="Không tìm thấy dịch vụ"
+            left={
               <Link
                 href="/admin/services"
                 className="flex items-center justify-center w-10 h-10 rounded-xl bg-slate-100 text-slate-600 hover:bg-primary hover:text-white transition-all cursor-pointer"
@@ -95,13 +94,8 @@ export default function ServiceDetailPage({ params }: ServiceDetailPageProps) {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
                 </svg>
               </Link>
-              <div>
-                <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Chi tiết dịch vụ</h1>
-                <p className="text-[13px] text-slate-400 font-semibold mt-0.5">Không tìm thấy dịch vụ</p>
-              </div>
-            </div>
-            <NotificationBell />
-          </header>
+            }
+          />
           <div className="p-8 flex-1 flex items-center justify-center">
             <div className="text-center">
               <div className="w-20 h-20 rounded-full bg-red-100 text-red-500 flex items-center justify-center mx-auto mb-4">
@@ -129,8 +123,10 @@ export default function ServiceDetailPage({ params }: ServiceDetailPageProps) {
 
       <main className="flex-1 flex flex-col min-w-0">
         {/* HEADER */}
-        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 font-sans shadow-sm shadow-slate-100/50">
-          <div className="flex items-center gap-4">
+        <AdminPageHeader
+          title={service.name}
+          subtitle="Chi tiết dịch vụ"
+          left={
             <Link
               href="/admin/services"
               className="flex items-center justify-center w-10 h-10 rounded-xl bg-slate-100 text-slate-600 hover:bg-primary hover:text-white transition-all cursor-pointer"
@@ -139,13 +135,8 @@ export default function ServiceDetailPage({ params }: ServiceDetailPageProps) {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
               </svg>
             </Link>
-            <div>
-              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">{service.name}</h1>
-              <p className="text-[13px] text-slate-400 font-semibold mt-0.5">Chi tiết dịch vụ</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
+          }
+          right={
             <Link
               href={`/admin/services/edit/${service.id}`}
               className="flex items-center gap-2 px-4 py-2 text-[14px] font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 rounded-xl transition-all cursor-pointer"
@@ -155,9 +146,8 @@ export default function ServiceDetailPage({ params }: ServiceDetailPageProps) {
               </svg>
               Chỉnh sửa
             </Link>
-            <NotificationBell />
-          </div>
-        </header>
+          }
+        />
 
         {/* BODY */}
         <div className="p-8 flex-1 overflow-y-auto">
