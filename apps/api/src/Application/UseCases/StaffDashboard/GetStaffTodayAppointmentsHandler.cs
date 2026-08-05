@@ -34,7 +34,7 @@ public class GetStaffTodayAppointmentsHandler(AppDbContext dbContext)
                 a.Id,
                 a.Patient.User.FullName ?? string.Empty,
                 a.Service != null ? a.Service.Name : null,
-                a.Dentist.User.FullName ?? string.Empty,
+                a.Dentist.Employee.User.FullName ?? string.Empty,
                 a.AppointmentDate,
                 a.Status.ToString()))
             .ToListAsync(ct);

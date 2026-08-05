@@ -15,7 +15,7 @@ public class GetExaminationHandler(AppDbContext dbContext) : IRequestHandler<Get
 
         var appointment = await dbContext.Appointments
             .Include(a => a.Patient).ThenInclude(p => p.User)
-            .Include(a => a.Dentist).ThenInclude(d => d.User)
+            .Include(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
             .Include(a => a.Service)
             .Include(a => a.Diagnoses)
             .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Service)

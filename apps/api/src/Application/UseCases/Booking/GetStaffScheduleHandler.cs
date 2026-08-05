@@ -63,33 +63,38 @@ public class GetStaffScheduleHandler(AppDbContext dbContext)
         if (workingToday.Count == 0)
             return new StaffScheduleResponse(date, []);
 
-        // 2. Lấy bác sĩ Active từ bảng Users, kèm Dentist entry
+        // 2. Lấy bác sĩ Active từ bảng Users, kèm Employee/DentistProfile
         var allUsers = await dbContext.Users
-            .Include(u => u.Dentist)
+            .Include(u => u.Employee).ThenInclude(e => e!.DentistProfile)
             .ToListAsync(ct);
 
         var dentistUsers = allUsers
             .Where(u =>
-                (string.Equals(u.Role, "Dentist", StringComparison.OrdinalIgnoreCase) ||
-                 string.Equals(u.Role, "Doctor",  StringComparison.OrdinalIgnoreCase)) &&
+                u.Role == UserRole.Dentist &&
                 // EmploymentStatus là cột NOT NULL, dữ liệu cũ/chưa set lưu chuỗi rỗng chứ không
                 // phải null — "?? "Active"" sẽ không bao giờ kích hoạt, nên phải coi rỗng là Active.
-                (string.IsNullOrWhiteSpace(u.Dentist?.EmploymentStatus) ||
-                 string.Equals(u.Dentist!.EmploymentStatus, "Active", StringComparison.OrdinalIgnoreCase)) &&
+                (string.IsNullOrWhiteSpace(u.Employee?.EmploymentStatus) ||
+                 string.Equals(u.Employee!.EmploymentStatus, "Active", StringComparison.OrdinalIgnoreCase)) &&
                 workingToday.ContainsKey(!string.IsNullOrWhiteSpace(u.FullName) ? u.FullName : u.Email))
             .OrderBy(u => u.FullName)
             .ToList();
 
-        // 3. Tự động tạo Dentist entry cho bác sĩ chưa có (để FK appointment hợp lệ)
-        var createdDentists = new Dictionary<Guid, Dentist>();
-        foreach (var user in dentistUsers.Where(u => u.Dentist == null))
+        // 3. Tự động tạo Employee + DentistProfile cho bác sĩ chưa có (để FK appointment hợp lệ)
+        var createdDentists = new Dictionary<Guid, DentistProfile>();
+        foreach (var user in dentistUsers.Where(u => u.Employee?.DentistProfile == null))
         {
-            var d = Dentist.Create(user.Id,
-                        $"DT-{Guid.NewGuid().ToString("N")[..8].ToUpper()}",
+            var employee = user.Employee;
+            if (employee == null)
+            {
+                employee = Employee.Create(user.Id, $"NV-{Guid.NewGuid().ToString("N")[..8].ToUpper()}");
+                dbContext.Employees.Add(employee);
+                user.AttachEmployee(employee);
+            }
+            var d = DentistProfile.Create(employee.Id,
                         "Nha khoa tổng quát",
                         "N/A",
                         experienceYears: 0);
-            dbContext.Dentists.Add(d);
+            dbContext.DentistProfiles.Add(d);
             createdDentists[user.Id] = d;
         }
         if (createdDentists.Count > 0)
@@ -106,7 +111,7 @@ public class GetStaffScheduleHandler(AppDbContext dbContext)
         // 5. Build kết quả — chỉ hiện slot của ca bác sĩ đang làm hôm nay
         var result = dentistUsers.Select(user =>
         {
-            var dentist = user.Dentist ?? createdDentists[user.Id];
+            var dentist = user.Employee?.DentistProfile ?? createdDentists[user.Id];
             var name = !string.IsNullOrWhiteSpace(user.FullName) ? user.FullName : user.Email;
             var shifts = workingToday.GetValueOrDefault(name, []);
             var dentistAppts = appointments.Where(a => a.DentistId == dentist.Id).ToList();

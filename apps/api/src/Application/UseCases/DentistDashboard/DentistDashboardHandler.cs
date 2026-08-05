@@ -47,7 +47,9 @@ public class DentistDashboardHandler(AppDbContext dbContext)
         var utcEnd   = utcStart.AddDays(1);
 
         // Chỉ lấy data của chính bác sĩ đang đăng nhập
-        var dentist = await dbContext.Dentists.FirstOrDefaultAsync(d => d.UserId == userId, ct);
+        var dentist = await dbContext.DentistProfiles
+            .Include(d => d.Employee).ThenInclude(e => e.User)
+            .FirstOrDefaultAsync(d => d.Employee.UserId == userId, ct);
         if (dentist == null)
         {
             return new DentistDashboardResponse(

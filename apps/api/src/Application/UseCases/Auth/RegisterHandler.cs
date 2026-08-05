@@ -21,7 +21,7 @@ public class RegisterHandler(
             throw new ConflictException("Email này đã được đăng ký. Vui lòng dùng email khác.");
 
         var passwordHash = BCrypt.Net.BCrypt.HashPassword(command.Password, workFactor: 12);
-        var user = User.Create(command.Email, command.Email, passwordHash, "Patient");
+        var user = User.Create(command.Email, command.Email, passwordHash, UserRole.Patient);
         user.SetActive(false); // Kích hoạt sau khi xác thực OTP
 
         await userRepository.AddAsync(user, ct);

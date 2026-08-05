@@ -17,7 +17,7 @@ public class GetDentistPastPatientsHandler(AppDbContext dbContext)
 {
     public async Task<List<DentistPatientDto>?> Handle(GetDentistPastPatientsQuery request, CancellationToken ct)
     {
-        var dentist = await dbContext.Dentists.FirstOrDefaultAsync(d => d.UserId == request.UserId, ct);
+        var dentist = await dbContext.DentistProfiles.FirstOrDefaultAsync(d => d.Employee.UserId == request.UserId, ct);
         if (dentist == null) return null;
 
         var appointments = await dbContext.Appointments

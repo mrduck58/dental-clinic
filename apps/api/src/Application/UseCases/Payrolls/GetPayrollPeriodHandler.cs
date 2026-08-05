@@ -97,7 +97,7 @@ public class GetPayrollPeriodHandler(IPayrollRepository payrollRepository)
         if (record is { Status: PayrollStatus.Paid })
         {
             return new PayrollItemDto(
-                user.Id, user.FullName, user.Email ?? string.Empty, user.Role,
+                user.Id, user.FullName, user.Email ?? string.Empty, user.Role.ToString(),
                 employeeId, department, position, user.PhoneNumber,
                 record.BaseSalary, record.Allowance,
                 record.LeaveDays, record.AllowedLeaveDays, record.ExceededDays,
@@ -110,7 +110,7 @@ public class GetPayrollPeriodHandler(IPayrollRepository payrollRepository)
         var c = PayrollCalculator.Compute(user, approvedLeaves, year, month);
 
         return new PayrollItemDto(
-            user.Id, user.FullName, user.Email ?? string.Empty, user.Role,
+            user.Id, user.FullName, user.Email ?? string.Empty, user.Role.ToString(),
             employeeId, department, position, user.PhoneNumber,
             c.BaseSalary, c.Allowance,
             c.LeaveDays, c.AllowedLeaveDays, c.ExceededDays,
@@ -121,9 +121,7 @@ public class GetPayrollPeriodHandler(IPayrollRepository payrollRepository)
     }
 
     internal static (string? EmployeeId, string? Department, string? Position) ReadEmploymentProfile(User user)
-        => user.Role is "Dentist" or "Doctor"
-            ? (user.Dentist?.EmployeeId, user.Dentist?.Department, user.Dentist?.Position)
-            : (user.Staff?.EmployeeId, user.Staff?.Department, user.Staff?.Position);
+        => (user.Employee?.EmployeeId, user.Employee?.Department, user.Employee?.Position);
 
     private static bool Matches(User user, GetPayrollPeriodQuery query)
     {
@@ -131,8 +129,12 @@ public class GetPayrollPeriodHandler(IPayrollRepository payrollRepository)
 
         if (!string.IsNullOrWhiteSpace(query.Role))
         {
-            var roles = query.Role.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            if (!roles.Contains(user.Role, StringComparer.OrdinalIgnoreCase))
+            var roles = query.Role
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(r => Enum.TryParse<UserRole>(r, true, out _))
+                .Select(r => Enum.Parse<UserRole>(r, true))
+                .ToArray();
+            if (!roles.Contains(user.Role))
                 return false;
         }
 

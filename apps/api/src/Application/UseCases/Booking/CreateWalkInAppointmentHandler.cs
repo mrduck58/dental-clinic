@@ -71,7 +71,7 @@ public class CreateWalkInAppointmentHandler(AppDbContext dbContext, INotificatio
 
         if (patient == null)
         {
-            var placeholderUser = User.CreateEmployee(null, "Patient", cmd.PatientPhone, cmd.PatientName);
+            var placeholderUser = User.CreateEmployee(null, UserRole.Patient, cmd.PatientPhone, cmd.PatientName);
             placeholderUser.UpdateGender(cmd.Gender);
             dbContext.Users.Add(placeholderUser);
             patient = Patient.Create(placeholderUser.Id, cmd.DateOfBirth);
@@ -100,9 +100,9 @@ public class CreateWalkInAppointmentHandler(AppDbContext dbContext, INotificatio
 
         // Bệnh nhân đã ngồi chờ tại quầy (CheckedIn ngay) nên bác sĩ càng cần được báo ngay lập tức —
         // không báo Staff vì chính nhân viên đang thao tác đã biết rõ việc này rồi.
-        var dentistUserId = await dbContext.Dentists
+        var dentistUserId = await dbContext.DentistProfiles
             .Where(d => d.Id == cmd.DentistId)
-            .Select(d => (Guid?)d.UserId)
+            .Select(d => (Guid?)d.Employee.UserId)
             .FirstOrDefaultAsync(ct);
         if (dentistUserId.HasValue)
         {

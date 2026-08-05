@@ -32,11 +32,11 @@ public class GetWeeklyScheduleHandler(AppDbContext dbContext) : IRequestHandler<
 
         var staffNames = shifts.Select(s => s.StaffName).Distinct().ToList();
 
-        var dentistsByName = await dbContext.Dentists
+        var dentistsByName = await dbContext.DentistProfiles
             .AsNoTracking()
-            .Include(d => d.User)
-            .Where(d => staffNames.Contains(d.User.FullName ?? string.Empty))
-            .ToDictionaryAsync(d => d.User.FullName ?? string.Empty, d => d, ct);
+            .Include(d => d.Employee).ThenInclude(e => e.User)
+            .Where(d => staffNames.Contains(d.Employee.User.FullName ?? string.Empty))
+            .ToDictionaryAsync(d => d.Employee.User.FullName ?? string.Empty, d => d, ct);
 
         var dayStart = ToVn(selectedDate);
         var dayEnd = ToVn(selectedDate.AddDays(1));
@@ -57,7 +57,7 @@ public class GetWeeklyScheduleHandler(AppDbContext dbContext) : IRequestHandler<
     private static List<ShiftEntryDto> BuildShiftEntries(
         IEnumerable<Domain.Entities.WorkSchedule> shifts,
         string shift,
-        IReadOnlyDictionary<string, Domain.Entities.Dentist> dentistsByName,
+        IReadOnlyDictionary<string, Domain.Entities.DentistProfile> dentistsByName,
         IReadOnlySet<Guid> busyDentistIds) => shifts
         .Where(s => s.Shift == shift)
         .OrderBy(s => s.StaffName)
@@ -68,7 +68,7 @@ public class GetWeeklyScheduleHandler(AppDbContext dbContext) : IRequestHandler<
             return new ShiftEntryDto(
                 s.StaffName,
                 dentist?.Specialization,
-                dentist?.ProfilePictureUrl,
+                dentist?.Employee.ProfilePictureUrl,
                 s.Room,
                 s.RoomColor,
                 isBusy);

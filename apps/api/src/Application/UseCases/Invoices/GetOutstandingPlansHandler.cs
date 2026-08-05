@@ -18,7 +18,7 @@ public class GetOutstandingPlansHandler(AppDbContext dbContext, InvoiceQueryHelp
         var plans = await dbContext.TreatmentPlans
             .AsNoTracking()
             .Include(tp => tp.Patient).ThenInclude(p => p.User)
-            .Include(tp => tp.Dentist).ThenInclude(d => d.User)
+            .Include(tp => tp.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
             .Include(tp => tp.Service)
             .Where(tp => tp.Status == TreatmentPlanStatus.InProgress)
             .OrderByDescending(tp => tp.CreatedAt)

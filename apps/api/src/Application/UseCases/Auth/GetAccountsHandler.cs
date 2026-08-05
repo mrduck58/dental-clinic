@@ -24,6 +24,6 @@ public class GetAccountsHandler(IUserRepository userRepository) : IRequestHandle
             .Where(u => u.HasAccount)
             .Select(u => new AccountDto(
                 u.Id, u.Username!, u.FullName, u.Email,
-                u.PhoneNumber, u.Role, u.IsActive, u.CreatedAt));
+                u.PhoneNumber, u.Role.ToString(), u.IsActive, u.CreatedAt));
     }
 }

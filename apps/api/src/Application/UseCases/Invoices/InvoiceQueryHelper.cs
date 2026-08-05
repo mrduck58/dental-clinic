@@ -17,7 +17,7 @@ public class InvoiceQueryHelper(AppDbContext dbContext, ITreatmentPlanRepository
             .AsNoTracking()
             .Include(i => i.Items)
             .Include(i => i.Appointment).ThenInclude(a => a.Patient).ThenInclude(p => p.User)
-            .Include(i => i.Appointment).ThenInclude(a => a.Dentist).ThenInclude(d => d.User);
+            .Include(i => i.Appointment).ThenInclude(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User);
 
     public async Task<InvoiceDto> GetByIdAsync(Guid invoiceId, CancellationToken ct)
     {

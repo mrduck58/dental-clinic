@@ -20,7 +20,7 @@ public class ForgotPasswordOtpHandler(
         var email = command.Email.Trim().ToLower();
         var user = await userRepository.GetByEmailAsync(email, ct);
 
-        if (user is null || user.Role != "Patient" || !user.IsActive)
+        if (user is null || user.Role != UserRole.Patient || !user.IsActive)
             throw new NotFoundException("Email chưa được đăng ký.");
 
         await otpRepository.InvalidateAllAsync(email, OtpPurpose.PasswordReset, ct);

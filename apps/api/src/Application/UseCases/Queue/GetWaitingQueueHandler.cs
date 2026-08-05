@@ -68,7 +68,7 @@ public class GetWaitingQueueHandler(AppDbContext dbContext)
 
         var appointments = await dbContext.Appointments
             .Include(a => a.Patient).ThenInclude(p => p.User)
-            .Include(a => a.Dentist).ThenInclude(d => d.User)
+            .Include(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
             .Include(a => a.Service)
             .Where(a => a.AppointmentDate >= utcStart && a.AppointmentDate < utcEnd &&
                         (a.Status == AppointmentStatus.CheckedIn ||
@@ -93,12 +93,12 @@ public class GetWaitingQueueHandler(AppDbContext dbContext)
         // Hàng đợi hiện MỌI phòng có bác sĩ đang hoạt động — kể cả phòng chưa có ai check-in,
         // để lễ tân thấy được phòng nào đang trống. "Đang hoạt động" = có ca làm việc trong
         // ngày và tài khoản còn Active.
-        var activeDentists = await dbContext.Dentists
-            .Include(d => d.User)
+        var activeDentists = await dbContext.DentistProfiles
+            .Include(d => d.Employee).ThenInclude(e => e.User)
             .ToListAsync(ct);
 
         var dentistsToShow = activeDentists
-            .Where(d => schedulesByName.ContainsKey(d.FullName) && IsEmployed(d.EmploymentStatus))
+            .Where(d => schedulesByName.ContainsKey(d.FullName) && IsEmployed(d.Employee.EmploymentStatus))
             .ToList();
 
         // Dự phòng: bác sĩ có bệnh nhân đã check-in nhưng không có ca trong bảng lịch làm việc
@@ -119,7 +119,7 @@ public class GetWaitingQueueHandler(AppDbContext dbContext)
             // Bác sĩ vào danh sách qua nhánh dự phòng bên trên KHÔNG qua bộ lọc trạng thái làm việc.
             // Phải kiểm lại ở đây, nếu không hàng đợi sẽ báo họ "đang trực" và cho lễ tân thả bệnh
             // nhân vào, trong khi TransferQueuePatientHandler luôn từ chối vì họ đã nghỉ.
-            var isEmployed = IsEmployed(dentist.EmploymentStatus);
+            var isEmployed = IsEmployed(dentist.Employee.EmploymentStatus);
 
             if (schedules.Count == 0)
             {
@@ -180,7 +180,7 @@ public class GetWaitingQueueHandler(AppDbContext dbContext)
 
     /// <summary>Bác sĩ còn đang làm việc: EmploymentStatus phải là "Active".</summary>
     private static bool IsEmployed(string employmentStatus) =>
-        string.Equals(employmentStatus, User.DefaultEmploymentStatus, StringComparison.OrdinalIgnoreCase);
+        string.Equals(employmentStatus, Employee.DefaultEmploymentStatus, StringComparison.OrdinalIgnoreCase);
 
     private static bool CoversNow(WorkSchedule schedule, DateTimeOffset nowVietnam)
         => WorkShifts.IsWorkingAt([schedule.Shift], nowVietnam.Hour, nowVietnam.Minute);

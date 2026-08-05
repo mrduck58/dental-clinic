@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.DTOs.Patients;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using MediatR;
@@ -28,7 +29,7 @@ public class CreateFamilyMemberHandler(
         // Create a placeholder user for the family member
         var placeholderUser = User.CreateEmployee(
             email: $"family-{Guid.NewGuid()}@songiangdental.com",
-            role: "Patient",
+            role: UserRole.Patient,
             phoneNumber: command.PhoneNumber,
             fullName: command.FullName
         );
