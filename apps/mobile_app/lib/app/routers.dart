@@ -31,6 +31,7 @@ import 'package:mobile_app/features/payment/presentation/pages/payment_gateway_s
 import 'package:mobile_app/features/home/presentation/pages/dentist_profile_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/dentist_reviews_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/write_review_page.dart';
+import 'package:mobile_app/features/home/presentation/pages/clinic_feedback_page.dart';
 import 'package:mobile_app/features/home/data/models/doctor_model.dart';
 import 'package:mobile_app/features/home/presentation/pages/services_list_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/posts_list_page.dart';
@@ -165,12 +166,22 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: AppRoutes.writeReview,
       builder: (context, state) {
+        if (state.extra is Map<String, dynamic>) {
+          final map = state.extra as Map<String, dynamic>;
+          final doctor = map['doctor'] as DoctorModel;
+          final appointmentId = map['appointmentId'] as String?;
+          return WriteReviewPage(doctor: doctor, appointmentId: appointmentId);
+        }
         final doctor = state.extra as DoctorModel?;
         if (doctor != null) {
           return WriteReviewPage(doctor: doctor);
         }
         return const _PlaceholderPage(title: 'Viết đánh giá');
       },
+    ),
+    GoRoute(
+      path: AppRoutes.clinicFeedback,
+      builder: (context, state) => const ClinicFeedbackPage(),
     ),
     GoRoute(
       path: AppRoutes.servicesList,
@@ -358,6 +369,7 @@ abstract class AppRoutes {
   static const dentistProfile = '/dentist/profile';
   static const dentistReviews = '/dentist/reviews';
   static const writeReview = '/dentist/reviews/write';
+  static const clinicFeedback = '/clinic-feedback';
   static const servicesList = '/services';
   static const postsList = '/posts';
   static const dentistsList = '/dentists';

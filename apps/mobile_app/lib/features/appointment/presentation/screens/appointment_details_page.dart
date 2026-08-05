@@ -6,6 +6,8 @@ import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/booking/data/booking_models.dart';
 import 'package:mobile_app/features/booking/data/booking_service.dart';
 import 'package:mobile_app/core/network/api_client.dart';
+import 'package:mobile_app/app/routers.dart';
+import 'package:mobile_app/features/home/data/models/doctor_model.dart';
 import 'package:dio/dio.dart';
 
 class AppointmentDetailsPage extends StatefulWidget {
@@ -648,6 +650,74 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
                         label: Text(
                           isVi ? 'Hủy lịch khám' : 'Cancel visit',
                           style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          // Action Buttons at bottom for Completed appointments
+          if (isCompleted)
+            Container(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+              decoration: BoxDecoration(
+                color: context.card,
+                border: Border(top: BorderSide(color: context.divider)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 50,
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          context.push(AppRoutes.clinicFeedback);
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.primary,
+                          side: const BorderSide(color: AppColors.primary),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        icon: const Icon(Iconsax.hospital, size: 18),
+                        label: Text(
+                          isVi ? 'Đánh giá phòng khám' : 'Review Clinic',
+                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: SizedBox(
+                      height: 50,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          final doctor = DoctorModel(
+                            id: item.dentistId,
+                            fullName: item.dentistName,
+                            specialty: item.specialization,
+                            profilePictureUrl: item.dentistAvatarUrl,
+                          );
+                          context.push(
+                            AppRoutes.writeReview,
+                            extra: {
+                              'doctor': doctor,
+                              'appointmentId': item.appointmentId,
+                            },
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        icon: const Icon(Iconsax.star_1, size: 18),
+                        label: Text(
+                          isVi ? 'Đánh giá nha sĩ' : 'Review Dentist',
+                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                         ),
                       ),
                     ),

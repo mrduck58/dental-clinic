@@ -22,15 +22,12 @@ public record StockImportCommand(
 public class StockImportHandler(AppDbContext db, IActivityLogService activityLogService, ICurrentUserService currentUser)
     : IRequestHandler<StockImportCommand, SupplyTransactionDto>
 {
-    private static readonly string[] AllowedUnits = ["Cái", "Hộp", "Tuýp", "Cuộn", "Chai", "Gói", "Bộ"];
-    private static readonly string[] AllowedOrderTypes = ["standard", "custom"];
-
     public async Task<SupplyTransactionDto> Handle(StockImportCommand command, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(command.Name))
             throw new ValidationException("Tên vật tư không được để trống.");
 
-        if (string.IsNullOrWhiteSpace(command.Unit) || !AllowedUnits.Contains(command.Unit))
+        if (string.IsNullOrWhiteSpace(command.Unit) || !InventoryConstants.AllowedUnits.Contains(command.Unit))
             throw new ValidationException("Đơn vị không hợp lệ. Vui lòng chọn từ danh sách.");
 
         if (string.IsNullOrWhiteSpace(command.Category))
@@ -43,7 +40,7 @@ public class StockImportHandler(AppDbContext db, IActivityLogService activityLog
             throw new ValidationException("Đơn giá không được âm.");
 
         var orderType = string.IsNullOrWhiteSpace(command.OrderType) ? "standard" : command.OrderType.Trim();
-        if (!AllowedOrderTypes.Contains(orderType))
+        if (!InventoryConstants.AllowedOrderTypes.Contains(orderType))
             throw new ValidationException("Loại vật tư không hợp lệ. Chỉ chấp nhận: standard, custom.");
 
         var nameNorm = command.Name.Trim();
@@ -55,7 +52,12 @@ public class StockImportHandler(AppDbContext db, IActivityLogService activityLog
         {
             // Vật tư đã tồn tại — giữ nguyên đơn vị + loại vật tư đã phân, chỉ cộng số lượng.
             item.AdjustQuantity(command.Quantity);
-            if (command.UnitPrice is decimal p) item.UpdatePrice(p); // giá tham chiếu cập nhật theo lần nhập gần nhất
+            // Giá tham chiếu chỉ cập nhật theo lần nhập gần nhất với hàng "standard" (mua lại theo thời gian,
+            // giá nhà cung cấp trôi nổi). Hàng "custom" (đặt riêng cho bệnh nhân) mỗi lần nhập thường là 1 ca
+            // khác nhau với giá khác nhau — ghi đè Price ở đây sẽ đánh mất giá trị tham chiếu ban đầu một cách
+            // sai lệch; giá thật của từng lần nhập vẫn tra được đúng qua SupplyTransaction.UnitPrice (tab
+            // "Lịch sử giao dịch"), không mất dữ liệu.
+            if (command.UnitPrice is decimal p && item.OrderType != "custom") item.UpdatePrice(p);
         }
         else
         {

@@ -173,11 +173,7 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            widget.draft.doctor!.fullName.toLowerCase().startsWith('bs') ||
-                                    widget.draft.doctor!.fullName.toLowerCase().startsWith('bác sĩ') ||
-                                    widget.draft.doctor!.fullName.toLowerCase().startsWith('dr')
-                                ? widget.draft.doctor!.fullName
-                                : 'BS. ${widget.draft.doctor!.fullName}',
+                            widget.draft.doctor!.fullName,
                             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: context.textPrimary),
                           ),
                         ],

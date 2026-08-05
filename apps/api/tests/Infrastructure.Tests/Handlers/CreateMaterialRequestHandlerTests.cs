@@ -57,14 +57,53 @@ public class CreateMaterialRequestHandlerTests
         return appointment;
     }
 
-    /// <summary>Nội dung yêu cầu trống phải bị từ chối.</summary>
+    /// <summary>Danh sách vật tư trống phải bị từ chối.</summary>
     [Test]
-    public async Task HandleAsync_EmptyContent_ThrowsValidationException()
+    public async Task HandleAsync_EmptyItems_ThrowsValidationException()
     {
         var appointment = await SeedAppointmentAsync();
 
         Func<Task> act = () => _handler.Handle(
-            new CreateMaterialRequestRequest(appointment.Id, "   "), CancellationToken.None);
+            new CreateMaterialRequestRequest(appointment.Id, []), CancellationToken.None);
+
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    /// <summary>Một item có tên trống phải bị từ chối.</summary>
+    [Test]
+    public async Task HandleAsync_ItemWithBlankName_ThrowsValidationException()
+    {
+        var appointment = await SeedAppointmentAsync();
+
+        Func<Task> act = () => _handler.Handle(
+            new CreateMaterialRequestRequest(appointment.Id, [new MaterialRequestItemInput(" ", 2, "Cái")]),
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    /// <summary>Một item có số lượng &lt;= 0 phải bị từ chối.</summary>
+    [Test]
+    public async Task HandleAsync_ItemWithZeroQuantity_ThrowsValidationException()
+    {
+        var appointment = await SeedAppointmentAsync();
+
+        Func<Task> act = () => _handler.Handle(
+            new CreateMaterialRequestRequest(appointment.Id, [new MaterialRequestItemInput("Bông gòn", 0, "Gói")]),
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    /// <summary>Một item có đơn vị không nằm trong danh sách cho phép phải bị từ chối.</summary>
+    [Test]
+    public async Task HandleAsync_ItemWithInvalidUnit_ThrowsValidationException()
+    {
+        var appointment = await SeedAppointmentAsync();
+
+        Func<Task> act = () => _handler.Handle(
+            new CreateMaterialRequestRequest(appointment.Id, [new MaterialRequestItemInput("Bông gòn", 2, "Kilogram")]),
+            CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -74,13 +113,14 @@ public class CreateMaterialRequestHandlerTests
     public async Task HandleAsync_AppointmentNotFound_ThrowsNotFoundException()
     {
         Func<Task> act = () => _handler.Handle(
-            new CreateMaterialRequestRequest(Guid.NewGuid(), "Cần thêm vật tư"), CancellationToken.None);
+            new CreateMaterialRequestRequest(Guid.NewGuid(), [new MaterialRequestItemInput("Bông gòn", 2, "Gói")]),
+            CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
 
-    /// <summary>Yêu cầu hợp lệ cho lịch hẹn có dịch vụ phải tạo và lưu đúng yêu cầu vật tư với tên khóa học
-    /// lấy từ tên dịch vụ, nội dung được trim khoảng trắng thừa.</summary>
+    /// <summary>Yêu cầu hợp lệ nhiều vật tư cho lịch hẹn có dịch vụ phải tạo và lưu đúng yêu cầu vật tư với tên
+    /// khóa học lấy từ tên dịch vụ, tên từng vật tư được trim khoảng trắng thừa.</summary>
     [Test]
     public async Task HandleAsync_ValidRequestWithService_CreatesAndPersistsMaterialRequest()
     {
@@ -91,17 +131,25 @@ public class CreateMaterialRequestHandlerTests
             .FirstAsync(a => a.Id == appointment.Id);
 
         var result = await _handler.Handle(
-            new CreateMaterialRequestRequest(appointment.Id, "  Cần thêm trụ implant  "), CancellationToken.None);
+            new CreateMaterialRequestRequest(appointment.Id, [
+                new MaterialRequestItemInput("  Trụ implant  ", 2, "Cái"),
+                new MaterialRequestItemInput("Chỉ khâu 4/0", 1, "Cuộn"),
+            ]),
+            CancellationToken.None);
 
         result.CourseName.Should().Be("Trồng Implant");
         result.PatientName.Should().Be(appt.Patient.FullName);
         result.DentistName.Should().Be(appt.Dentist.FullName);
-        result.Content.Should().Be("Cần thêm trụ implant");
         result.Status.Should().Be(MaterialRequestStatus.Pending.ToString());
+        result.Items.Should().HaveCount(2);
+        result.Items[0].ItemName.Should().Be("Trụ implant");
+        result.Items[0].Quantity.Should().Be(2);
+        result.Items[0].Unit.Should().Be("Cái");
 
-        var persisted = await _db.MaterialRequests.SingleAsync(m => m.Id == result.Id);
+        var persisted = await _db.MaterialRequests.Include(m => m.Items).SingleAsync(m => m.Id == result.Id);
         persisted.PatientName.Should().Be(appt.Patient.FullName);
-        persisted.Content.Should().Be("Cần thêm trụ implant");
+        persisted.Items.Should().HaveCount(2);
+        persisted.Items.Should().Contain(i => i.ItemName == "Trụ implant" && i.Quantity == 2 && i.Unit == "Cái");
     }
 
     /// <summary>Lịch hẹn không gắn dịch vụ (khám tổng quát) phải dùng tên mặc định "Khám tổng quát".</summary>
@@ -111,7 +159,8 @@ public class CreateMaterialRequestHandlerTests
         var appointment = await SeedAppointmentAsync(withService: false);
 
         var result = await _handler.Handle(
-            new CreateMaterialRequestRequest(appointment.Id, "Cần bông gòn"), CancellationToken.None);
+            new CreateMaterialRequestRequest(appointment.Id, [new MaterialRequestItemInput("Bông gòn", 3, "Gói")]),
+            CancellationToken.None);
 
         result.CourseName.Should().Be("Khám tổng quát");
     }

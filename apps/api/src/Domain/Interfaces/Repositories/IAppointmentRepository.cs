@@ -37,8 +37,14 @@ public interface IAppointmentRepository
     /// <summary>Số bệnh nhân khác nhau đã hoàn tất buổi khám với một nha sĩ — hiển thị trên trang chi tiết nha sĩ.</summary>
     Task<int> CountDistinctPatientsWithCompletedVisitAsync(Guid dentistId, CancellationToken cancellationToken = default);
 
-    /// <summary>Tổng số buổi khám đã hoàn tất của một nha sĩ (khác với số bệnh nhân — một bệnh nhân có thể khám nhiều lần).</summary>
+    /// <summary>Số buổi khám đã hoàn tất của một nha sĩ (khác với số bệnh nhân — một bệnh nhân có thể khám nhiều lần).</summary>
     Task<int> CountCompletedVisitsAsync(Guid dentistId, CancellationToken cancellationToken = default);
+
+    /// <summary>Số buổi khám đã hoàn tất của một bệnh nhân với một nha sĩ cụ thể.</summary>
+    Task<int> CountCompletedVisitsForPatientAsync(Guid dentistId, Guid patientId, CancellationToken cancellationToken = default);
+
+    /// <summary>Tổng số buổi khám đã hoàn tất của một bệnh nhân trên toàn hệ thống phòng khám.</summary>
+    Task<int> CountOverallCompletedVisitsAsync(Guid patientId, CancellationToken cancellationToken = default);
 
     /// <summary>Tên các dịch vụ nha sĩ đã thực hiện, xếp theo số ca giảm dần — hiển thị trên trang chi tiết nha sĩ.</summary>
     Task<IReadOnlyList<string>> GetTopServiceNamesByDentistAsync(Guid dentistId, int take, CancellationToken cancellationToken = default);

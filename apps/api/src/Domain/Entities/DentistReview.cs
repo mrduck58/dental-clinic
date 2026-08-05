@@ -6,6 +6,7 @@ public class DentistReview
     public Guid Id { get; private set; }
     public Guid DentistId { get; private set; }
     public Guid PatientId { get; private set; }
+    public Guid? AppointmentId { get; private set; }
     public int Rating { get; private set; }
     public string Comment { get; private set; } = string.Empty;
     /// <summary>Nhãn nổi bật do bệnh nhân chọn (VD: "Không đau", "Chuyên nghiệp"), lưu dạng chuỗi phân tách bởi dấu phẩy.</summary>
@@ -15,13 +16,14 @@ public class DentistReview
 
     public DentistProfile Dentist { get; private set; } = null!;
     public Patient Patient { get; private set; } = null!;
+    public Appointment? Appointment { get; private set; }
 
     public IReadOnlyList<string> Tags =>
         string.IsNullOrWhiteSpace(TagsCsv) ? [] : TagsCsv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     private DentistReview() { }
 
-    public static DentistReview Create(Guid dentistId, Guid patientId, int rating, string comment, IEnumerable<string>? tags = null)
+    public static DentistReview Create(Guid dentistId, Guid patientId, int rating, string comment, IEnumerable<string>? tags = null, Guid? appointmentId = null)
     {
         var now = DateTimeOffset.UtcNow;
         return new DentistReview
@@ -29,6 +31,7 @@ public class DentistReview
             Id = Guid.NewGuid(),
             DentistId = dentistId,
             PatientId = patientId,
+            AppointmentId = appointmentId,
             Rating = rating,
             Comment = comment,
             TagsCsv = tags == null ? null : string.Join(',', tags),

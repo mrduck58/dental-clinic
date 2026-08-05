@@ -23,6 +23,10 @@ abstract class ApiConstants {
   static const String dentistSlots = '/dentists/slots';
   static String dentistDetail(String id) => '/dentists/$id';
   static String dentistReviews(String id) => '/dentists/$id/reviews';
+  static String dentistReviewEligibility(String id) => '/dentists/$id/review-eligibility';
+  static const String feedbacks = '/feedbacks';
+  static const String featuredFeedbacks = '/feedbacks/featured';
+  static const String clinicFeedbackEligibility = '/feedbacks/eligibility';
   static const String services = '/services';
   static const String posts = '/posts';
   static const String appointments = '/appointments';

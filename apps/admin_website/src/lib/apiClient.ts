@@ -1140,10 +1140,12 @@ export async function createSupplyItemApi(data: CreateSupplyItemRequest): Promis
 export async function getSupplyItemsApi(params?: {
   search?: string;
   category?: string;
+  orderType?: string;
 }): Promise<SupplyItemDto[]> {
   const qs = new URLSearchParams();
   if (params?.search) qs.set("search", params.search);
   if (params?.category) qs.set("category", params.category);
+  if (params?.orderType) qs.set("orderType", params.orderType);
   const query = qs.toString() ? `?${qs.toString()}` : "";
   const res = await fetch(`${API_URL}/api/inventory/items${query}`, {
     headers: { ...authHeaders() },
@@ -1210,12 +1212,19 @@ export async function stockImportApi(data: StockImportRequest): Promise<SupplyTr
 
 // ── Material requests (yêu cầu vật tư từ bác sĩ) ─────────────────────────────
 
+export interface MaterialRequestItemDto {
+  id: string;
+  itemName: string;
+  quantity: number;
+  unit: string;
+}
+
 export interface MaterialRequestDto {
   id: string;
   courseName: string;
   patientName: string;
   dentistName: string;
-  content: string;
+  items: MaterialRequestItemDto[];
   status: string;        // "Pending" | "Done"
   createdAt: string;
   handledAt: string | null;
@@ -1235,10 +1244,14 @@ export async function getMaterialRequestsApi(status?: string): Promise<MaterialR
   return res.json() as Promise<MaterialRequestDto[]>;
 }
 
-export async function markMaterialRequestDoneApi(id: string): Promise<void> {
+export async function markMaterialRequestDoneApi(
+  id: string,
+  itemPrices: { materialRequestItemId: string; unitPrice: number }[]
+): Promise<void> {
   const res = await fetch(`${API_URL}/api/inventory/material-requests/${id}/done`, {
     method: "PUT",
-    headers: { ...authHeaders() },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ itemPrices }),
   });
   await checkAuth(res);
   if (!res.ok) {
@@ -1250,7 +1263,7 @@ export async function markMaterialRequestDoneApi(id: string): Promise<void> {
 // ── Yêu cầu vật tư (bác sĩ tạo từ buổi khám) ─────────────────────────────────
 export interface CreateMaterialRequestRequest {
   appointmentId: string;
-  content: string;
+  items: { itemName: string; quantity: number; unit: string }[];
 }
 
 export async function createMaterialRequestApi(request: CreateMaterialRequestRequest): Promise<MaterialRequestDto> {

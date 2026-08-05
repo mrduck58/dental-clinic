@@ -13,7 +13,7 @@ public class MaterialRequestRepository(AppDbContext db) : IMaterialRequestReposi
     }
 
     public async Task<MaterialRequest?> GetByIdAsync(Guid id, CancellationToken ct = default)
-        => await db.MaterialRequests.FirstOrDefaultAsync(m => m.Id == id, ct);
+        => await db.MaterialRequests.Include(m => m.Items).FirstOrDefaultAsync(m => m.Id == id, ct);
 
     public async Task<IEnumerable<MaterialRequest>> SearchAsync(
         string? status,
@@ -21,7 +21,7 @@ public class MaterialRequestRepository(AppDbContext db) : IMaterialRequestReposi
         string? patientName,
         CancellationToken ct = default)
     {
-        var q = db.MaterialRequests.AsNoTracking().AsQueryable();
+        var q = db.MaterialRequests.Include(m => m.Items).AsNoTracking().AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<MaterialRequestStatus>(status, true, out var st))
             q = q.Where(m => m.Status == st);

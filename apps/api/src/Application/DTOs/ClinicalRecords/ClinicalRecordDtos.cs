@@ -195,6 +195,7 @@ public record MyMedicalHistoryDto(
     Guid AppointmentId,
     string AppointmentCode,
     DateTimeOffset AppointmentDate,
+    Guid DentistId,
     string DentistName,
     string ServiceName,
     string? Symptoms,

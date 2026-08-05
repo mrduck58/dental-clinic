@@ -25,3 +25,56 @@ public class CreateFeedbackHandler(IFeedbackRepository feedbackRepository)
         return GetFeedbacksHandler.ToDto(feedback);
     }
 }
+
+public record ClinicFeedbackEligibilityDto(
+    bool CanReview,
+    string Reason,
+    bool HasCompletedFirstVisit,
+    FeedbackDto? MyFeedback = null);
+
+public record GetClinicFeedbackEligibilityQuery(Guid UserId) : IRequest<ClinicFeedbackEligibilityDto>;
+
+public class GetClinicFeedbackEligibilityHandler(
+    IAppointmentRepository appointmentRepository,
+    IPatientRepository patientRepository,
+    IFeedbackRepository feedbackRepository)
+    : IRequestHandler<GetClinicFeedbackEligibilityQuery, ClinicFeedbackEligibilityDto>
+{
+    public async Task<ClinicFeedbackEligibilityDto> Handle(GetClinicFeedbackEligibilityQuery query, CancellationToken ct)
+    {
+        var patient = await patientRepository.GetByUserIdAsync(query.UserId, ct);
+        if (patient == null)
+        {
+            return new ClinicFeedbackEligibilityDto(false, "Không tìm thấy hồ sơ bệnh nhân.", false);
+        }
+
+        var totalVisits = await appointmentRepository.CountOverallCompletedVisitsAsync(patient.Id, ct);
+        if (totalVisits == 0)
+        {
+            return new ClinicFeedbackEligibilityDto(false, "Bạn cần hoàn thành lần khám hoặc điều trị đầu tiên tại phòng khám để gửi đánh giá.", false);
+        }
+
+        var allFeedbacks = await feedbackRepository.GetAllAsync(ct);
+        var existing = allFeedbacks.FirstOrDefault(f => f.CustomerName.Equals(patient.FullName, StringComparison.OrdinalIgnoreCase));
+        if (existing != null)
+        {
+            var myFeedbackDto = new FeedbackDto(
+                existing.Id,
+                patient.FullName,
+                existing.Rating,
+                existing.Comment,
+                existing.Status.ToString(),
+                existing.ReplyText,
+                existing.RepliedAt,
+                existing.CreatedAt);
+
+            return new ClinicFeedbackEligibilityDto(
+                false,
+                "Bạn đã gửi đánh giá cho phòng khám trước đó và không thể gửi thêm.",
+                true,
+                myFeedbackDto);
+        }
+
+        return new ClinicFeedbackEligibilityDto(true, "Đủ điều kiện gửi đánh giá phòng khám.", true, null);
+    }
+}

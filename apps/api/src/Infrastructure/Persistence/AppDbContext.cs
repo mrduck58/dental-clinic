@@ -29,6 +29,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<SupplyItem> SupplyItems => Set<SupplyItem>();
     public DbSet<SupplyTransaction> SupplyTransactions => Set<SupplyTransaction>();
     public DbSet<MaterialRequest> MaterialRequests => Set<MaterialRequest>();
+    public DbSet<MaterialRequestItem> MaterialRequestItems => Set<MaterialRequestItem>();
     public DbSet<Diagnosis> Diagnoses => Set<Diagnosis>();
     public DbSet<TreatmentPlan> TreatmentPlans => Set<TreatmentPlan>();
     public DbSet<TreatmentProcedure> TreatmentProcedures => Set<TreatmentProcedure>();

@@ -31,6 +31,18 @@ public class FeedbacksController(ISender sender) : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>GET api/feedbacks/eligibility — Kiểm tra điều kiện đánh giá phòng khám của bệnh nhân</summary>
+    [HttpGet("eligibility")]
+    [Authorize]
+    public async Task<IActionResult> GetEligibility(CancellationToken ct)
+    {
+        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (!Guid.TryParse(userIdClaim, out var userId)) return Unauthorized();
+
+        var result = await sender.Send(new GetClinicFeedbackEligibilityQuery(userId), ct);
+        return Ok(result);
+    }
+
     /// <summary>GET api/feedbacks/{id} — Chi tiết phản hồi (Admin)</summary>
     [HttpGet("{id:guid}")]
     [Authorize(Roles = "Staff,Owner")]

@@ -79,6 +79,20 @@ public class DentistsController(ISender sender) : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>GET api/dentists/{id}/review-eligibility — Kiểm tra bệnh nhân có đủ điều kiện đánh giá nha sĩ không và trả về review cũ (nếu có)</summary>
+    [HttpGet("{id:guid}/review-eligibility")]
+    [Authorize(Roles = "Patient")]
+    public async Task<IActionResult> GetReviewEligibility(
+        Guid id,
+        [FromQuery] Guid? appointmentId,
+        CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        var result = await sender.Send(new GetDentistReviewEligibilityQuery(id, userId, appointmentId), cancellationToken);
+        return Ok(result);
+    }
+
+
     private Guid GetCurrentUserId()
     {
         var sub = User.FindFirstValue(JwtRegisteredClaimNames.Sub)

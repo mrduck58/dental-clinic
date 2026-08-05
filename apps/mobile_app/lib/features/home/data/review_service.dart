@@ -16,12 +16,13 @@ class ReviewService {
     return DentistReviewsResult.fromJson(res.data as Map<String, dynamic>);
   }
 
-  /// Gửi (hoặc cập nhật) đánh giá của bệnh nhân hiện tại cho nha sĩ.
+  /// Gửi đánh giá của bệnh nhân hiện tại cho nha sĩ (theo lượt khám).
   Future<ReviewModel> submitReview({
     required String dentistId,
     required double rating,
     required String comment,
     required List<String> tags,
+    String? appointmentId,
   }) async {
     final token = await _auth.getToken();
     if (token == null) throw Exception('Chưa đăng nhập.');
@@ -31,9 +32,87 @@ class ReviewService {
         'rating': rating.round(),
         'comment': comment,
         'tags': tags,
+        if (appointmentId != null && appointmentId.isNotEmpty) 'appointmentId': appointmentId,
       },
       token: token,
     );
     return ReviewModel.fromJson(res.data as Map<String, dynamic>);
   }
+
+  /// Kiểm tra xem bệnh nhân hiện tại có đủ điều kiện đánh giá nha sĩ (hoặc lượt khám này) hay không.
+  Future<ReviewEligibilityModel> checkEligibility(String dentistId, {String? appointmentId}) async {
+    final token = await _auth.getToken();
+    if (token == null) {
+      return const ReviewEligibilityModel(
+        canReview: false,
+        reason: 'Vui lòng đăng nhập để thực hiện đánh giá.',
+      );
+    }
+    try {
+      final res = await _client.get(
+        ApiConstants.dentistReviewEligibility(dentistId),
+        token: token,
+        queryParameters: (appointmentId != null && appointmentId.isNotEmpty) ? {'appointmentId': appointmentId} : null,
+      );
+      return ReviewEligibilityModel.fromJson(res.data as Map<String, dynamic>);
+    } catch (e) {
+      return const ReviewEligibilityModel(
+        canReview: false,
+        reason: 'Không thể kiểm tra điều kiện đánh giá.',
+      );
+    }
+  }
+
+  /// Gửi đánh giá / phản hồi phòng khám.
+  Future<ClinicFeedbackModel> submitClinicFeedback({
+    required double rating,
+    required String comment,
+    String? customerName,
+  }) async {
+    final token = await _auth.getToken();
+    final name = customerName ?? await _auth.getUserName() ?? 'Khách hàng';
+    final res = await _client.post(
+      ApiConstants.feedbacks,
+      {
+        'customerName': name,
+        'rating': rating.round(),
+        'comment': comment,
+      },
+      token: token,
+    );
+    return ClinicFeedbackModel.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  /// Lấy danh sách đánh giá nổi bật của phòng khám.
+  Future<List<ClinicFeedbackModel>> getFeaturedClinicFeedbacks() async {
+    final res = await _client.get(ApiConstants.featuredFeedbacks);
+    final list = res.data as List<dynamic>? ?? [];
+    return list.map((e) => ClinicFeedbackModel.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  /// Kiểm tra xem bệnh nhân hiện tại có đủ điều kiện đánh giá phòng khám hay không.
+  Future<ClinicFeedbackEligibilityModel> checkClinicEligibility() async {
+    final token = await _auth.getToken();
+    if (token == null) {
+      return const ClinicFeedbackEligibilityModel(
+        canReview: false,
+        reason: 'Vui lòng đăng nhập để đánh giá phòng khám.',
+        hasCompletedFirstVisit: false,
+      );
+    }
+    try {
+      final res = await _client.get(
+        ApiConstants.clinicFeedbackEligibility,
+        token: token,
+      );
+      return ClinicFeedbackEligibilityModel.fromJson(res.data as Map<String, dynamic>);
+    } catch (e) {
+      return const ClinicFeedbackEligibilityModel(
+        canReview: false,
+        reason: 'Không thể kiểm tra điều kiện đánh giá phòng khám.',
+        hasCompletedFirstVisit: false,
+      );
+    }
+  }
 }
+

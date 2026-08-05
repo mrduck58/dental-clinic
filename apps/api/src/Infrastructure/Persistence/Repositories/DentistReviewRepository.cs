@@ -10,6 +10,7 @@ public class DentistReviewRepository(AppDbContext db) : IDentistReviewRepository
         => await db.DentistReviews
             .AsNoTracking()
             .Include(r => r.Patient).ThenInclude(p => p.User)
+            .Include(r => r.Appointment).ThenInclude(a => a!.Service)
             .Where(r => r.DentistId == dentistId)
             .OrderByDescending(r => r.CreatedAt)
             .ToListAsync(ct);
@@ -24,6 +25,13 @@ public class DentistReviewRepository(AppDbContext db) : IDentistReviewRepository
     public async Task<DentistReview?> GetByDentistAndPatientAsync(Guid dentistId, Guid patientId, CancellationToken ct = default)
         => await db.DentistReviews
             .FirstOrDefaultAsync(r => r.DentistId == dentistId && r.PatientId == patientId, ct);
+
+    public async Task<DentistReview?> GetByAppointmentIdAsync(Guid appointmentId, CancellationToken ct = default)
+        => await db.DentistReviews
+            .FirstOrDefaultAsync(r => r.AppointmentId == appointmentId, ct);
+
+    public async Task<int> CountByDentistAndPatientAsync(Guid dentistId, Guid patientId, CancellationToken ct = default)
+        => await db.DentistReviews.CountAsync(r => r.DentistId == dentistId && r.PatientId == patientId, ct);
 
     public async Task AddAsync(DentistReview review, CancellationToken ct = default)
     {
