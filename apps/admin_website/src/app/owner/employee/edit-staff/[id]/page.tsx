@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import OwnerSidebar from "../../../../../components/shared/OwnerSidebar";
-import NotificationBell from "../../../../../components/shared/NotificationBell";
+import OwnerPageHeader from "../../../../../components/shared/OwnerPageHeader";
 import { useRequireOwner } from "../../../../../hooks/useRequireOwner";
 import { updateStaffApi, uploadFileApi, ApiValidationError, type StaffDto, type UpdateStaffCommand } from "../../../../../lib/apiClient";
 
@@ -60,7 +60,7 @@ export default function EditStaffPage() {
       setStaff(data);
 
       const exp = data.yearsOfExperience ?? 5;
-      const isDentist = data.role === "Doctor" || data.role === "Dentist";
+      const isDentist = data.role === "Dentist";
       const isPartTime = exp % 2 === 0 && isDentist;
       const isShift = !isPartTime && (data.role === "Staff" && (data.position?.toLowerCase().includes("lễ tân") || data.position?.toLowerCase().includes("tiếp đón")));
       const calculatedType = isPartTime ? "Part-time" : isShift ? "Shift-based" : "Full-time";
@@ -239,23 +239,22 @@ export default function EditStaffPage() {
       <OwnerSidebar activeMenu="staff" />
 
       <main className="flex-1 flex flex-col min-w-0">
-        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 shadow-sm shadow-slate-100/50">
-          <div className="flex items-center gap-4">
+        <OwnerPageHeader
+          left={
             <button onClick={() => router.push("/owner/employee")} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all cursor-pointer">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
               </svg>
             </button>
-            <div>
-              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Chỉnh Sửa Nhân Viên</h1>
-              <p className="text-[13px] text-slate-400 font-semibold mt-0.5">
-                {staff.employeeId && <span className="font-mono text-primary font-bold mr-2">{staff.employeeId}</span>}
-                {staff.fullName || staff.email}
-              </p>
-            </div>
-          </div>
-          <NotificationBell />
-        </header>
+          }
+          title="Chỉnh Sửa Nhân Viên"
+          subtitle={
+            <>
+              {staff.employeeId && <span className="font-mono text-primary font-bold mr-2">{staff.employeeId}</span>}
+              {staff.fullName || staff.email}
+            </>
+          }
+        />
 
         <div className="flex-1 p-8 flex justify-center overflow-y-auto">
           <div className="w-full max-w-5xl">

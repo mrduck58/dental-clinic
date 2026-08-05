@@ -4,31 +4,15 @@ import { useState, useMemo, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import AdminSidebar from "../../../components/shared/AdminSidebar";
-import NotificationBell from "../../../components/shared/NotificationBell";
+import AdminPageHeader from "../../../components/shared/AdminPageHeader";
 import { getAccountsApi, getStaffApi, toggleAccountStatusApi, type AccountDto, type StaffDto } from "../../../lib/apiClient";
 import { useRequireAdmin } from "../../../hooks/useRequireAdmin";
-
-type UiRole = "Admin" | "Owner" | "Dentist" | "Staff";
-
-const ROLE_LABEL: Record<UiRole, string> = {
-  Admin: "Admin",
-  Owner: "Chủ cửa hàng",
-  Dentist: "Bác sĩ",
-  Staff: "Nhân viên",
-};
-
-const ROLE_BADGE: Record<UiRole, string> = {
-  Admin: "bg-purple-50 text-purple-700 border border-purple-200",
-  Owner: "bg-amber-50 text-amber-700 border border-amber-200",
-  Dentist: "bg-sky-50 text-sky-700 border border-sky-200",
-  Staff: "bg-green-50 text-green-700 border border-green-200",
-};
-
-function normalizeRole(raw: string): UiRole {
-  if (raw === "Admin" || raw === "Owner" || raw === "Staff") return raw;
-  if (raw === "Dentist" || raw === "Doctor") return "Dentist";
-  return "Staff";
-}
+import {
+  normalizeRole,
+  ROLE_LABELS as ROLE_LABEL,
+  ROLE_BADGE_CLASSES as ROLE_BADGE,
+  type UiRole,
+} from "../../../lib/roles";
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/);
@@ -70,7 +54,7 @@ function UsersPageContent() {
   };
 
   const loadEmployeesWithoutAccount = () => {
-    getStaffApi({ role: "Doctor,Dentist,Staff,Admin", pageSize: 200 })
+    getStaffApi({ role: "Dentist,Staff,Admin", pageSize: 200 })
       .then((res) => setEmployeesWithoutAccount(res.items.filter((s) => !s.hasAccount)))
       .catch(() => {});
   };
@@ -166,13 +150,10 @@ function UsersPageContent() {
       <AdminSidebar activeMenu="permissions-users" />
 
       <main className="flex-1 flex flex-col min-w-0">
-        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 font-sans shadow-sm shadow-slate-100/50">
-          <div>
-            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Người Dùng</h1>
-            <p className="text-[13px] text-slate-400 font-semibold mt-0.5">Danh sách tài khoản nhân sự trong hệ thống.</p>
-          </div>
-          <NotificationBell />
-        </header>
+        <AdminPageHeader
+          title="Người Dùng"
+          subtitle="Danh sách tài khoản nhân sự trong hệ thống."
+        />
 
         <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-8">
           {toast?.show && (
@@ -370,10 +351,10 @@ function UsersPageContent() {
                   className="appearance-none bg-white text-slate-700 font-bold text-[14px] pl-4 pr-9 py-2.5 rounded-xl border border-slate-200 focus:outline-none transition-all cursor-pointer"
                 >
                   <option value="All">Tất cả vai trò</option>
-                  <option value="Admin">Admin</option>
-                  <option value="Owner">Chủ cửa hàng</option>
-                  <option value="Dentist">Bác sĩ</option>
-                  <option value="Staff">Nhân viên</option>
+                  <option value="Admin">{ROLE_LABEL.Admin}</option>
+                  <option value="Owner">{ROLE_LABEL.Owner}</option>
+                  <option value="Dentist">{ROLE_LABEL.Dentist}</option>
+                  <option value="Staff">{ROLE_LABEL.Staff}</option>
                 </select>
                 <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">

@@ -3,15 +3,16 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import OwnerSidebar from "../../../components/shared/OwnerSidebar";
-import NotificationBell from "../../../components/shared/NotificationBell";
+import OwnerPageHeader from "../../../components/shared/OwnerPageHeader";
 import { useRequireOwner } from "../../../hooks/useRequireOwner";
 import { getStaffApi, getWeekScheduleApi, getLeaveRequestsAdminApi, type StaffDto, type StaffStatsDto, type ScheduleEntryDto } from "../../../lib/apiClient";
+import { ROLE_LABELS, type UiRole } from "../../../lib/roles";
 import * as XLSX from "xlsx";
 
 type TabKey = "staff" | "dentists";
 
 const TABS: Array<{ key: TabKey; label: string; scopeRoles: string; defaultAddRole: string }> = [
-  { key: "dentists", label: "Nha sĩ",     scopeRoles: "Doctor,Dentist", defaultAddRole: "Dentist" },
+  { key: "dentists", label: "Nha sĩ",     scopeRoles: "Dentist", defaultAddRole: "Dentist" },
   { key: "staff",   label: "Nhân viên",  scopeRoles: "Staff",    defaultAddRole: "Staff"   },
 ];
 
@@ -23,20 +24,7 @@ const ROLE_OPTIONS: Record<TabKey, Array<{ value: string; label: string }>> = {
   dentists: [
     { value: "",        label: "Tất cả nha sĩ"       },
     { value: "Dentist", label: "Nha sĩ"               },
-    { value: "Doctor",  label: "Nha sĩ chuyên khoa"  },
   ],
-};
-
-const ROLE_LABELS: Record<string, string> = {
-  Admin: "Quản trị viên", Doctor: "Nha sĩ",
-  Dentist: "Nha sĩ",      Staff: "Lễ tân / Trợ lý",
-};
-
-const ROLE_BADGES: Record<string, string> = {
-  Admin:   "bg-purple-50 text-purple-700 border-purple-100",
-  Doctor:  "bg-emerald-50 text-emerald-700 border-emerald-100",
-  Dentist: "bg-emerald-50 text-emerald-700 border-emerald-100",
-  Staff:   "bg-green-50 text-green-700 border-green-100",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -127,9 +115,9 @@ export default function OwnerStaffManagementPage() {
       .then(entries => setTodaySchedule(entries.filter(e => e.date === today && !e.isHoliday)))
       .catch(() => {});
     Promise.all([
-      getStaffApi({ role: "Doctor,Dentist", status: "On Leave", page: 1, pageSize: 1 }),
+      getStaffApi({ role: "Dentist", status: "On Leave", page: 1, pageSize: 1 }),
       getStaffApi({ role: "Staff",           status: "On Leave", page: 1, pageSize: 1 }),
-      getStaffApi({ role: "Doctor,Dentist", status: "Active",   page: 1, pageSize: 1 }),
+      getStaffApi({ role: "Dentist", status: "Active",   page: 1, pageSize: 1 }),
       getStaffApi({ role: "Staff",           status: "Active",   page: 1, pageSize: 1 }),
       getLeaveRequestsAdminApi("Pending").catch(() => []),
     ]).then(([drLeave, stLeave, drActive, stActive, pendingLeaves]) => {
@@ -183,7 +171,7 @@ export default function OwnerStaffManagementPage() {
       : ["Họ tên", "Email", "SĐT", "Vai trò", "Bộ phận", "Trạng thái"];
     const rows = staffList.map((u) => [
       u.fullName || u.email, u.email,
-      u.phoneNumber || "—", ROLE_LABELS[u.role] || u.role,
+      u.phoneNumber || "—", ROLE_LABELS[u.role as UiRole] || u.role,
       activeTab === "dentists" ? (u.specialty || "—") : (u.department || "—"),
       STATUS_LABELS[u.employmentStatus || "Active"],
     ]);
@@ -204,15 +192,10 @@ export default function OwnerStaffManagementPage() {
 
       <main className="flex-1 flex flex-col min-w-0">
         {/* HEADER */}
-        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 shadow-sm shadow-slate-100/50">
-          <div>
-            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Quản Lý Nhân Sự</h1>
-            <p className="text-[13px] text-slate-400 font-semibold mt-0.5">
-              Tra cứu hồ sơ nhân sự phòng khám phục vụ vận hành.
-            </p>
-          </div>
-          <NotificationBell />
-        </header>
+        <OwnerPageHeader
+          title="Quản Lý Nhân Sự"
+          subtitle="Tra cứu hồ sơ nhân sự phòng khám phục vụ vận hành."
+        />
 
         <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-6">
           {/* TOAST */}
@@ -459,7 +442,7 @@ export default function OwnerStaffManagementPage() {
                           <td className="px-6 py-4.5">
                             {(() => {
                               const exp = item.yearsOfExperience ?? 5;
-                              const isDentist = item.role === "Doctor" || item.role === "Dentist";
+                              const isDentist = item.role === "Dentist";
                               const isPartTime = exp % 2 === 0 && isDentist;
                               const isShift = !isPartTime && (item.role === "Staff" && (item.position?.toLowerCase().includes("lễ tân") || item.position?.toLowerCase().includes("tiếp đón")));
                               const type = item.employmentType || (isPartTime ? "Part-time" : isShift ? "Shift-based" : "Full-time");
@@ -487,7 +470,7 @@ export default function OwnerStaffManagementPage() {
                           </td>
                           <td className="px-6 py-4.5 text-slate-900 font-bold">
                             {(() => {
-                              const isDentist = item.role === "Doctor" || item.role === "Dentist";
+                              const isDentist = item.role === "Dentist";
                               const exp = item.yearsOfExperience ?? 5;
                               const isPartTime = exp % 2 === 0 && isDentist;
                               const isShift = !isPartTime && (item.role === "Staff" && (item.position?.toLowerCase().includes("lễ tân") || item.position?.toLowerCase().includes("tiếp đón")));
@@ -508,7 +491,7 @@ export default function OwnerStaffManagementPage() {
                           <td className="px-6 py-4.5 text-center font-bold text-slate-500">
                             {(() => {
                               if (item.leaveAccrued != null) return `${item.leaveAccrued} ngày`;
-                              const isDentist = item.role === "Doctor" || item.role === "Dentist";
+                              const isDentist = item.role === "Dentist";
                               const exp = item.yearsOfExperience ?? 5;
                               const isPartTime = exp % 2 === 0 && isDentist;
                               const isShift = !isPartTime && (item.role === "Staff" && (item.position?.toLowerCase().includes("lễ tân") || item.position?.toLowerCase().includes("tiếp đón")));
@@ -550,7 +533,7 @@ export default function OwnerStaffManagementPage() {
                                 onClick={() => {
                                   sessionStorage.setItem("staffEditData", JSON.stringify(item));
                                   router.push(
-                                    (item.role === "Doctor" || item.role === "Dentist")
+                                    item.role === "Dentist"
                                       ? `/owner/employee/edit-dentist/${item.id}`
                                       : `/owner/employee/edit-staff/${item.id}`
                                   );
