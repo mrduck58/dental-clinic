@@ -1,4 +1,5 @@
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Interfaces.Repositories;
 using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Infrastructure.Persistence;
@@ -6,8 +7,10 @@ namespace DentalClinic.API.Infrastructure.Persistence;
 /// <summary>
 /// Đây là DbContext chính của ứng dụng.
 /// Cấu hình Entity được đặt trong thư mục Configurations/ theo chuẩn IEntityTypeConfiguration&lt;T&gt;.
+/// Implement <see cref="IUnitOfWork"/> trực tiếp (chữ ký <c>SaveChangesAsync</c> đã khớp sẵn với DbContext)
+/// để các luồng xuyên nhiều entity (xem PaymentConfirmationService) có 1 điểm chốt lưu duy nhất.
 /// </summary>
-public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
+public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options), IUnitOfWork
 {
     public DbSet<User> Users => Set<User>();
     public DbSet<OtpCode> OtpCodes => Set<OtpCode>();

@@ -1,7 +1,6 @@
 using DentalClinic.API.Application.DTOs.ClinicalRecords;
-using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Domain.Interfaces.Repositories;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.ClinicalRecords;
 
@@ -16,18 +15,16 @@ namespace DentalClinic.API.Application.UseCases.ClinicalRecords;
 /// </summary>
 public record GetMyTreatmentPlansQuery(Guid UserId, Guid? PatientId) : IRequest<List<TreatmentPlanDto>>;
 
-public class GetMyTreatmentPlansHandler(AppDbContext dbContext, ISender sender)
+public class GetMyTreatmentPlansHandler(IPatientRepository patientRepository, ISender sender)
     : IRequestHandler<GetMyTreatmentPlansQuery, List<TreatmentPlanDto>>
 {
     public async Task<List<TreatmentPlanDto>> Handle(GetMyTreatmentPlansQuery request, CancellationToken ct)
     {
-        var patient = await dbContext.Patients.FirstOrDefaultAsync(p => p.UserId == request.UserId, ct);
+        var patient = await patientRepository.GetByUserIdAsync(request.UserId, ct);
         if (patient is null) return new List<TreatmentPlanDto>();
 
-        var allowedIds = await dbContext.Patients
-            .Where(p => p.Id == patient.Id || p.PrimaryPatientId == patient.Id)
-            .Select(p => p.Id)
-            .ToListAsync(ct);
+        var allowedIds = new List<Guid> { patient.Id };
+        allowedIds.AddRange((await patientRepository.GetFamilyMembersAsync(patient.Id, ct)).Select(f => f.Id));
 
         if (request.PatientId != null && !allowedIds.Contains(request.PatientId.Value))
             return new List<TreatmentPlanDto>();

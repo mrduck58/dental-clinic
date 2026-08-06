@@ -23,7 +23,7 @@ public class CreateMaterialRequestHandlerTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         _db = new AppDbContext(options);
-        _handler = new CreateMaterialRequestHandler(_db, new MaterialRequestRepository(_db));
+        _handler = new CreateMaterialRequestHandler(new AppointmentSummaryReader(_db), new MaterialRequestRepository(_db));
     }
 
     [TearDown]

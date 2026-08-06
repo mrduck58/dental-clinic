@@ -25,4 +25,10 @@ public class SupplyItemRepository(AppDbContext db) : ISupplyItemRepository
         db.SupplyItems.Update(item);
         await db.SaveChangesAsync(ct);
     }
+
+    public async Task<bool> ExistsByCodeAsync(string code, CancellationToken ct = default)
+        => await db.SupplyItems.AnyAsync(s => s.Code == code, ct);
+
+    public async Task<SupplyItem?> GetByNameAsync(string name, CancellationToken ct = default)
+        => await db.SupplyItems.FirstOrDefaultAsync(s => s.Name.ToLower() == name.ToLower(), ct);
 }

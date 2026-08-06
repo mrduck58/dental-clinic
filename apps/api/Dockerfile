@@ -8,7 +8,12 @@ WORKDIR /src
 # Copy project file và restore dependencies trước (tận dụng Docker cache layer)
 # Chỉ định rõ project (không dùng *.csproj / để dotnet tự dò) vì thư mục này còn có
 # DentalClinic.sln (kèm 3 project test) — nếu để dotnet tự dò sẽ báo lỗi "ambiguous project".
+# Domain/Application/Infrastructure giờ là project riêng (ProjectReference) — copy .csproj của
+# từng project trước khi restore, để cache layer restore vẫn chỉ invalidate khi có .csproj đổi.
 COPY DentalClinic.API.csproj ./
+COPY src/Domain/Domain.csproj ./src/Domain/
+COPY src/Application/Application.csproj ./src/Application/
+COPY src/Infrastructure/Infrastructure.csproj ./src/Infrastructure/
 RUN dotnet restore DentalClinic.API.csproj
 
 # Copy toàn bộ source code (bao gồm cả .sln + tests/) và tiến hành publish

@@ -1,10 +1,9 @@
 using System.Text;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
+using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
-using DentalClinic.API.Infrastructure.Persistence;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.AiAssist;
 
@@ -24,7 +23,7 @@ public record SummarizePatientHistoryQuery(Guid AppointmentId, bool ForceRegener
 /// AiSummaryBasedOnCount) — chỉ gọi lại Gemini khi có thêm lịch hẹn mới trong lịch sử hoặc khi
 /// <paramref name="forceRegenerate"/> = true, tránh tốn chi phí AI cho mỗi lần bác sĩ mở lại trang.
 /// </summary>
-public class SummarizePatientHistoryHandler(IAiChatService aiChatService, AppDbContext dbContext)
+public class SummarizePatientHistoryHandler(IAiChatService aiChatService, IAppointmentRepository appointmentRepository)
     : IRequestHandler<SummarizePatientHistoryQuery, PatientHistorySummaryResult>
 {
     private const string DisclaimerText =
@@ -36,18 +35,11 @@ public class SummarizePatientHistoryHandler(IAiChatService aiChatService, AppDbC
         var appointmentId = request.AppointmentId;
         var forceRegenerate = request.ForceRegenerate;
 
-        var currentAppointment = await dbContext.Appointments
-            .FirstOrDefaultAsync(a => a.Id == appointmentId, ct)
+        var currentAppointment = await appointmentRepository.GetByIdAsync(appointmentId, ct)
             ?? throw new NotFoundException("Không tìm thấy lịch hẹn.");
 
-        var pastAppointments = await dbContext.Appointments
-            .Where(a => a.PatientId == currentAppointment.PatientId && a.Id != appointmentId)
-            .Include(a => a.Service)
-            .Include(a => a.Diagnoses)
-            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Service)
-            .Include(a => a.Prescriptions).ThenInclude(p => p.Items)
-            .OrderByDescending(a => a.AppointmentDate)
-            .ToListAsync(ct);
+        var pastAppointments = (await appointmentRepository.GetPatientHistoryExcludingAsync(
+            currentAppointment.PatientId, appointmentId, ct)).ToList();
 
         if (pastAppointments.Count == 0)
         {
@@ -67,7 +59,7 @@ public class SummarizePatientHistoryHandler(IAiChatService aiChatService, AppDbC
             BuildSystemInstruction(), historyText, feature: "PatientSummary", ct: ct);
 
         currentAppointment.SetAiSummary(summary, pastAppointments.Count);
-        await dbContext.SaveChangesAsync(ct);
+        await appointmentRepository.UpdateAsync(currentAppointment, ct);
 
         return new PatientHistorySummaryResult(summary, DisclaimerText);
     }

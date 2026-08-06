@@ -8,10 +8,18 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="tests/**;*Tests/**" />
-    <Content Remove="tests/**;*Tests/**" />
-    <None Remove="tests/**;*Tests/**" />
-    <EmbeddedResource Remove="tests/**;*Tests/**" />
+    <!-- src/Domain, src/Application, src/Infrastructure giờ là project riêng (xem ProjectReference dưới) —
+         loại khỏi glob mặc định của project này để tránh biên dịch trùng. -->
+    <Compile Remove="tests/**;*Tests/**;src/Domain/**;src/Application/**;src/Infrastructure/**" />
+    <Content Remove="tests/**;*Tests/**;src/Domain/**;src/Application/**;src/Infrastructure/**" />
+    <None Remove="tests/**;*Tests/**;src/Domain/**;src/Application/**;src/Infrastructure/**" />
+    <EmbeddedResource Remove="tests/**;*Tests/**;src/Domain/**;src/Infrastructure/**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="src\Domain\Domain.csproj" />
+    <ProjectReference Include="src\Application\Application.csproj" />
+    <ProjectReference Include="src\Infrastructure\Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>

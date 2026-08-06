@@ -1,8 +1,6 @@
-using DentalClinic.API.Domain.Enums;
+using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Schedules;
-using DentalClinic.API.Infrastructure.Persistence;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.Dentists;
 
@@ -12,7 +10,11 @@ namespace DentalClinic.API.Application.UseCases.Dentists;
 /// </summary>
 public record GetDentistWorkingDatesQuery(Guid DentistId, int Year, int Month) : IRequest<IEnumerable<string>>;
 
-public class GetDentistWorkingDatesHandler(AppDbContext dbContext)
+public class GetDentistWorkingDatesHandler(
+    IDentistRepository dentistRepository,
+    IUserRepository userRepository,
+    IAppointmentRepository appointmentRepository,
+    IWorkScheduleRepository workScheduleRepository)
     : IRequestHandler<GetDentistWorkingDatesQuery, IEnumerable<string>>
 {
     public async Task<IEnumerable<string>> Handle(GetDentistWorkingDatesQuery request, CancellationToken ct)
@@ -21,9 +23,7 @@ public class GetDentistWorkingDatesHandler(AppDbContext dbContext)
         var year = request.Year;
         var month = request.Month;
 
-        var dentist = await dbContext.DentistProfiles
-            .Include(d => d.Employee).ThenInclude(e => e.User)
-            .FirstOrDefaultAsync(d => d.Id == dentistId || d.Employee.UserId == dentistId, ct);
+        var dentist = await dentistRepository.GetByIdOrUserIdAsync(dentistId, ct);
 
         string fullName;
         Guid realDentistId;
@@ -37,7 +37,7 @@ public class GetDentistWorkingDatesHandler(AppDbContext dbContext)
         }
         else
         {
-            var user = await dbContext.Users.FirstOrDefaultAsync(u => u.Id == dentistId, ct);
+            var user = await userRepository.GetByIdAsync(dentistId, ct);
             if (user == null) return Enumerable.Empty<string>();
             fullName = user.FullName ?? string.Empty;
             realDentistId = user.Id;
@@ -48,19 +48,13 @@ public class GetDentistWorkingDatesHandler(AppDbContext dbContext)
         var endDate = startDate.AddMonths(1).AddDays(-1);
 
         // Lấy tất cả lịch hẹn chưa hủy trong tháng của bác sĩ này
-        var dentistAppointments = await dbContext.Appointments
-            .Include(a => a.Service)
-            .Where(a => a.DentistId == realDentistId && a.Status != AppointmentStatus.Cancelled)
-            .ToListAsync(ct);
+        var dentistAppointments = await appointmentRepository.GetActiveByDentistIdAsync(realDentistId, ct);
 
         var appointmentsByDate = dentistAppointments
             .GroupBy(a => DateOnly.FromDateTime(a.AppointmentDate.UtcDateTime.AddHours(7)))
             .ToDictionary(g => g.Key, g => g.ToList());
 
-        var schedules = await dbContext.WorkSchedules
-            .AsNoTracking()
-            .Where(ws => ws.Date >= startDate && ws.Date <= endDate)
-            .ToListAsync(ct);
+        var schedules = await workScheduleRepository.GetByDateRangeAsync(startDate, endDate, ct);
 
         var holidayDates = schedules
             .Where(ws => ws.IsHoliday)

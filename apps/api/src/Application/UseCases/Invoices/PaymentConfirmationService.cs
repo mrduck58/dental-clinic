@@ -3,13 +3,19 @@ using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
-using DentalClinic.API.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.Invoices;
 
+/// <summary>
+/// Xác nhận thanh toán chạm đồng thời vào Invoice + PaymentTransaction + TreatmentPlan (credit công nợ) +
+/// Appointment (hoàn tất buổi khám) — một giao dịch nghiệp vụ xuyên nhiều entity, nên dùng
+/// <see cref="IUnitOfWork"/> để chốt lưu đúng 2 điểm như hành vi gốc (sau khi đánh dấu giao dịch thành công,
+/// và sau khi xử lý xong hóa đơn/công nợ/buổi khám) thay vì mỗi repository tự SaveChanges riêng lẻ.
+/// </summary>
 public class PaymentConfirmationService(
-    AppDbContext dbContext,
+    IInvoiceRepository invoiceRepository,
+    IPaymentTransactionRepository paymentTransactionRepository,
+    IUnitOfWork unitOfWork,
     INotificationService notificationService,
     IUserRepository userRepository,
     InvoiceQueryHelper invoiceQuery) : IPaymentConfirmationService
@@ -18,7 +24,7 @@ public class PaymentConfirmationService(
         PaymentTransaction transaction, string? gatewayTransactionId, string rawPayload, CancellationToken ct)
     {
         transaction.MarkSuccess(gatewayTransactionId, rawPayload);
-        await dbContext.SaveChangesAsync(ct);
+        await unitOfWork.SaveChangesAsync(ct);
 
         var paymentMethod = transaction.Gateway == PaymentGateway.PayOS && transaction.Invoice.PaymentMethod == PaymentMethod.BankTransfer
             ? PaymentMethod.BankTransfer
@@ -27,7 +33,7 @@ public class PaymentConfirmationService(
         // ConfirmInvoicePaymentAsync tự đóng mọi giao dịch Pending còn sót lại của hóa đơn này (kể cả các giao
         // dịch trùng do race trước khi sửa) — không cần lặp lại việc đó ở đây.
         await ConfirmInvoicePaymentAsync(transaction.Invoice, paymentMethod, ct);
-        await dbContext.SaveChangesAsync(ct);
+        await unitOfWork.SaveChangesAsync(ct);
     }
 
     public async Task ConfirmInvoicePaymentAsync(Invoice invoice, PaymentMethod paymentMethod, CancellationToken ct)
@@ -41,9 +47,7 @@ public class PaymentConfirmationService(
         // giao dịch Pending khác chắc chắn sẽ không bao giờ Paid được nữa (CreatePaymentRequestAsync chặn tạo mới
         // khi hóa đơn đã Paid). Nếu không dọn, dữ liệu sẽ có invoice=Paid nhưng transaction=Pending mãi mãi — gây
         // nhiễu khi tra soát và tốn lệnh gọi PayOS mỗi lượt poll nếu còn client đang mở màn hình hóa đơn đó.
-        var pendingTxns = await dbContext.PaymentTransactions
-            .Where(t => t.InvoiceId == invoice.Id && t.Status == TransactionStatus.Pending)
-            .ToListAsync(ct);
+        var pendingTxns = await paymentTransactionRepository.GetPendingByInvoiceIdAsync(invoice.Id, ct);
         foreach (var t in pendingTxns)
             t.MarkFailed("Hóa đơn đã được xác nhận thanh toán.", null);
 
@@ -51,7 +55,7 @@ public class PaymentConfirmationService(
         Invoice? parent = null;
         if (invoice.ParentInvoiceId is Guid parentId)
         {
-            parent = await dbContext.Invoices.FirstOrDefaultAsync(i => i.Id == parentId, ct);
+            parent = await invoiceRepository.GetByIdAsync(parentId, ct);
             parent?.Settle();
         }
 
@@ -61,15 +65,7 @@ public class PaymentConfirmationService(
         var creditSource = parent ?? invoice;
         var creditRemaining = parent != null; // true → thu nốt phần còn lại của các dòng gốc
 
-        var lines = await dbContext.InvoiceItems
-            .Where(it => it.InvoiceId == creditSource.Id && it.TreatmentPlanId != null)
-            .Select(it => new
-            {
-                PlanId = it.TreatmentPlanId!.Value,
-                Collected = it.AmountCollected,
-                Line = it.Quantity * it.UnitPrice
-            })
-            .ToListAsync(ct);
+        var lines = await invoiceRepository.GetInvoiceItemsForCreditAsync(creditSource.Id, ct);
 
         var creditByPlan = new Dictionary<Guid, decimal>();
         foreach (var l in lines)
@@ -86,7 +82,7 @@ public class PaymentConfirmationService(
 
         foreach (var (pid, thisCredit) in creditByPlan)
         {
-            var plan = await dbContext.TreatmentPlans.FirstOrDefaultAsync(tp => tp.Id == pid, ct);
+            var plan = await invoiceRepository.GetTreatmentPlanTrackedAsync(pid, ct);
             if (plan != null && plan.Status == TreatmentPlanStatus.InProgress)
             {
                 // GetPlanPaidAsync đọc từ DB (chưa gồm thay đổi lần này) → cộng thêm số vừa thu.
@@ -101,11 +97,7 @@ public class PaymentConfirmationService(
         if (invoice.Appointment.Status == AppointmentStatus.PendingPayment)
         {
             var chain = await invoiceQuery.GetChainAsync(invoice.AppointmentId, ct);
-            var chainPlans = await dbContext.TreatmentPlans
-                .Where(tp => tp.AppointmentId != null && chain.Contains(tp.AppointmentId.Value)
-                             && tp.Status != TreatmentPlanStatus.Cancelled)
-                .Select(tp => new { tp.Id, tp.UnitPrice, tp.Quantity })
-                .ToListAsync(ct);
+            var chainPlans = await invoiceRepository.GetTreatmentPlanBillingInfoByAppointmentIdsAsync(chain.ToList(), ct);
             var billedMap = await invoiceQuery.GetPlanBilledMapAsync(chainPlans.Select(p => p.Id).ToList(), ct);
             var anyUnbilled = chainPlans.Any(p =>
                 (p.UnitPrice * Math.Max(1, p.Quantity)) - billedMap.GetValueOrDefault(p.Id, 0m) > 1m);
@@ -119,15 +111,11 @@ public class PaymentConfirmationService(
     /// <summary>Báo cho bệnh nhân (nếu có tài khoản) và toàn bộ Staff khi một hóa đơn được xác nhận đã thanh toán.</summary>
     private async Task NotifyPaymentConfirmedAsync(Invoice invoice, PaymentMethod paymentMethod, CancellationToken ct)
     {
-        var patient = await dbContext.Appointments
-            .Where(a => a.Id == invoice.AppointmentId)
-            .Select(a => a.Patient)
-            .FirstOrDefaultAsync(ct);
-
-        if (patient?.UserId is Guid patientUserId)
+        var patientUserId = await invoiceRepository.GetPatientUserIdByAppointmentIdAsync(invoice.AppointmentId, ct);
+        if (patientUserId is Guid userId)
         {
             await notificationService.CreateAsync(new CreateNotificationRequest(
-                UserId: patientUserId,
+                UserId: userId,
                 Type: NotificationType.Invoice,
                 Priority: NotificationPriority.Medium,
                 Title: "Thanh toán thành công",

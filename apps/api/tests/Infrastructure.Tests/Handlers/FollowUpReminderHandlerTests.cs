@@ -3,6 +3,7 @@ using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using NUnit.Framework;
@@ -26,10 +27,11 @@ public class FollowUpReminderHandlerTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         _db = new AppDbContext(options);
-        _set = new SetFollowUpReminderHandler(_db);
-        _clear = new ClearFollowUpReminderHandler(_db);
-        _due = new GetFollowUpDueHandler(_db);
-        _checkIn = new CheckInFollowUpHandler(_db);
+        var appointmentRepository = new AppointmentRepository(_db);
+        _set = new SetFollowUpReminderHandler(appointmentRepository);
+        _clear = new ClearFollowUpReminderHandler(appointmentRepository);
+        _due = new GetFollowUpDueHandler(appointmentRepository, new TreatmentPlanRepository(_db));
+        _checkIn = new CheckInFollowUpHandler(appointmentRepository);
     }
 
     [TearDown]

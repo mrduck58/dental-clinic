@@ -2,11 +2,10 @@ using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
+using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Domain.Schedules;
-using DentalClinic.API.Infrastructure.Persistence;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.Queue;
 
@@ -21,7 +20,9 @@ public record TransferQueuePatientCommand(Guid AppointmentId, string RoomName, G
 /// nên "chuyển phòng" thực chất là giao bệnh nhân cho bác sĩ đang trực ở phòng đích.
 /// </summary>
 public class TransferQueuePatientHandler(
-    AppDbContext dbContext,
+    IAppointmentRepository appointmentRepository,
+    IWorkScheduleRepository workScheduleRepository,
+    IDentistRepository dentistRepository,
     IActivityLogService activityLogService,
     INotificationService notificationService,
     ICurrentUserService currentUser) : IRequestHandler<TransferQueuePatientCommand, TransferQueuePatientResponse>
@@ -38,8 +39,7 @@ public class TransferQueuePatientHandler(
             throw new ValidationException("Thiếu tên phòng đích.");
 
         // Không Include(Dentist): nav đã nạp mà FK đổi thì EF ưu tiên nav và nuốt mất thay đổi.
-        var appointment = await dbContext.Appointments
-            .FirstOrDefaultAsync(a => a.Id == appointmentId, ct)
+        var appointment = await appointmentRepository.GetByIdAsync(appointmentId, ct)
             ?? throw new NotFoundException($"Không tìm thấy lịch hẹn {appointmentId}.");
 
         if (appointment.Status != AppointmentStatus.CheckedIn)
@@ -66,7 +66,7 @@ public class TransferQueuePatientHandler(
         var nowTicks = DateTimeOffset.UtcNow.UtcTicks;
         appointment.SetQueueOrder(nowTicks);
         appointment.SetQueueEntryOrder(nowTicks);
-        await dbContext.SaveChangesAsync(ct);
+        await appointmentRepository.UpdateAsync(appointment, ct);
 
         await activityLogService.LogAsync(
             userId: currentUser.UserId,
@@ -99,11 +99,7 @@ public class TransferQueuePatientHandler(
     private async Task<DentistProfile?> FindDentistOnShiftAsync(
         string roomName, DateOnly today, DateTimeOffset nowVietnam, CancellationToken ct)
     {
-        var validShiftCodes = WorkShifts.AllValidCodes;
-        var roomSchedules = await dbContext.WorkSchedules
-            .Where(ws => ws.Date == today && ws.Type == "dentist" && !ws.IsHoliday &&
-                         ws.Room == roomName && validShiftCodes.Contains(ws.Shift))
-            .ToListAsync(ct);
+        var roomSchedules = await workScheduleRepository.GetDentistSchedulesForDateAsync(today, roomName, ct);
 
         var onShiftNames = roomSchedules
             .Where(ws => WorkShifts.IsWorkingAt([ws.Shift], nowVietnam.Hour, nowVietnam.Minute))
@@ -112,7 +108,7 @@ public class TransferQueuePatientHandler(
 
         if (onShiftNames.Count == 0) return null;
 
-        var dentists = await dbContext.DentistProfiles.Include(d => d.Employee).ThenInclude(e => e.User).ToListAsync(ct);
+        var dentists = await dentistRepository.GetAllWithUserAsync(ct);
 
         return dentists
             .Where(d => onShiftNames.Contains(d.FullName) && IsEmployed(d.Employee.EmploymentStatus))
@@ -129,13 +125,9 @@ public class TransferQueuePatientHandler(
     private async Task<DentistProfile?> FindAssignableDentistAsync(
         string roomName, Guid dentistId, DateOnly today, DateTimeOffset nowVietnam, CancellationToken ct)
     {
-        var validShiftCodes = WorkShifts.AllValidCodes;
         var nowMinutes = nowVietnam.Hour * 60 + nowVietnam.Minute;
 
-        var roomSchedules = await dbContext.WorkSchedules
-            .Where(ws => ws.Date == today && ws.Type == "dentist" && !ws.IsHoliday &&
-                         ws.Room == roomName && validShiftCodes.Contains(ws.Shift))
-            .ToListAsync(ct);
+        var roomSchedules = await workScheduleRepository.GetDentistSchedulesForDateAsync(today, roomName, ct);
 
         var assignableNames = roomSchedules
             .Where(ws => WorkShifts.IsWorkingAt([ws.Shift], nowVietnam.Hour, nowVietnam.Minute) ||
@@ -145,7 +137,7 @@ public class TransferQueuePatientHandler(
 
         if (assignableNames.Count == 0) return null;
 
-        var dentists = await dbContext.DentistProfiles.Include(d => d.Employee).ThenInclude(e => e.User).ToListAsync(ct);
+        var dentists = await dentistRepository.GetAllWithUserAsync(ct);
 
         return dentists.FirstOrDefault(d =>
             d.Id == dentistId &&

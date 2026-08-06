@@ -7,9 +7,7 @@ using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
-using DentalClinic.API.Infrastructure.Persistence;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace DentalClinic.API.Application.UseCases.Chat;
@@ -20,14 +18,15 @@ public record SendChatMessageCommand(
 public class SendChatMessageHandler(
     IPatientRepository patientRepository,
     IClinicInfoRepository clinicInfoRepository,
-    GetDentistsHandler getDentistsHandler,
-    GetDentistSlotsHandler getDentistSlotsHandler,
-    CreateAppointmentHandler createAppointmentHandler,
-    CancelAppointmentHandler cancelAppointmentHandler,
+    ISender sender,
     IAiChatService aiChatService,
     IChatConversationRepository chatConversationRepository,
     IChatMessageRepository chatMessageRepository,
-    AppDbContext dbContext,
+    IServiceRepository serviceRepository,
+    IPromotionRepository promotionRepository,
+    IDentistRepository dentistRepository,
+    IPostRepository postRepository,
+    IAppointmentRepository appointmentRepository,
     ILogger<SendChatMessageHandler> logger) : IRequestHandler<SendChatMessageCommand, SendChatMessageResult>
 {
     private const int MaxMessageLength = 2000;
@@ -190,29 +189,19 @@ public class SendChatMessageHandler(
 
         var clinicInfo = await clinicInfoRepository.GetAsync(ct);
 
-        var services = await dbContext.Services
-            .Where(s => s.IsActive)
-            .OrderBy(s => s.Name)
-            .ToListAsync(ct);
+        var services = (await serviceRepository.GetActiveAsync(ct)).ToList();
 
         // GetPromotionsHandler hiện không lọc theo IsActive/khoảng ngày nên không dùng lại được —
         // tự lọc trực tiếp ở đây để chatbot không nhắc tới ưu đãi đã hết hạn hoặc bị tắt.
-        var promotions = await dbContext.Promotions
-            .Where(p => p.IsActive && p.StartDate <= today && p.EndDate >= today)
-            .OrderBy(p => p.EndDate)
-            .ToListAsync(ct);
+        var promotions = (await promotionRepository.GetActiveOnDateAsync(today, ct)).ToList();
 
-        var dentists = await getDentistsHandler.Handle(new GetDentistsQuery(), ct);
+        var dentists = await sender.Send(new GetDentistsQuery(), ct);
 
         // Bảng Dentists là nguồn Id thật cho lịch hẹn/slot (DentistSummaryDto.Id là User.Id,
         // không dùng được cho CreateAppointment) — cần cho việc đối chiếu tên → DentistId.
-        var dentistEntities = await dbContext.DentistProfiles.Include(d => d.Employee).ThenInclude(e => e.User).ToListAsync(ct);
+        var dentistEntities = await dentistRepository.GetAllWithUserAsync(ct);
 
-        var posts = await dbContext.Posts
-            .Where(p => p.IsPublished)
-            .OrderByDescending(p => p.PublishedAt)
-            .Take(5)
-            .ToListAsync(ct);
+        var posts = (await postRepository.GetRecentPublishedAsync(5, ct)).ToList();
 
         var availability = await BuildAvailabilityAsync(today, nowTime, ct);
 
@@ -233,15 +222,8 @@ public class SendChatMessageHandler(
         relevantPatientIds.AddRange(familyMembers.Select(f => f.Id));
 
         var nowUtc = DateTimeOffset.UtcNow;
-        var upcoming = await dbContext.Appointments
-            .Include(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
-            .Include(a => a.Patient).ThenInclude(p => p.User)
-            .Where(a => relevantPatientIds.Contains(a.PatientId) &&
-                (a.Status == AppointmentStatus.Pending || a.Status == AppointmentStatus.Confirmed) &&
-                a.AppointmentDate >= nowUtc)
-            .OrderBy(a => a.AppointmentDate)
-            .Take(MaxUpcomingAppointments)
-            .ToListAsync(ct);
+        var upcoming = await appointmentRepository.GetUpcomingForPatientsAsync(
+            relevantPatientIds, nowUtc, MaxUpcomingAppointments, ct);
 
         return upcoming.Select(a => new UpcomingAppointmentInfo(
             a.Id,
@@ -274,7 +256,7 @@ public class SendChatMessageHandler(
         for (var offset = 0; offset < AvailabilityDays; offset++)
         {
             var date = today.AddDays(offset);
-            var dentistsOfDay = await getDentistSlotsHandler.Handle(new GetDentistSlotsQuery(date), ct);
+            var dentistsOfDay = await sender.Send(new GetDentistSlotsQuery(date), ct);
 
             var entries = dentistsOfDay
                 .Select(d => new DentistDayAvailability(
@@ -563,7 +545,7 @@ public class SendChatMessageHandler(
 
         // Đối chiếu với lịch trống thật ngay tại thời điểm đặt (không dùng snapshot đã build trước đó) —
         // chặn được cả ngày nghỉ, bác sĩ không có ca, slot vừa bị người khác đặt và giờ đã trôi qua.
-        var dentistsOfDay = await getDentistSlotsHandler.Handle(new GetDentistSlotsQuery(date), ct);
+        var dentistsOfDay = await sender.Send(new GetDentistSlotsQuery(date), ct);
         var dentist = dentistsOfDay.FirstOrDefault(d => d.DentistId == hint.DentistId.Value);
         var timeText = time.ToString("HH:mm");
         var slotFree = dentist is not null && dentist.Slots.Any(
@@ -583,7 +565,7 @@ public class SendChatMessageHandler(
 
         try
         {
-            var result = await createAppointmentHandler.Handle(new CreateAppointmentCommand(
+            var result = await sender.Send(new CreateAppointmentCommand(
                 userId,
                 dentist.DentistId,
                 appointmentDate,
@@ -676,7 +658,7 @@ public class SendChatMessageHandler(
 
         try
         {
-            await cancelAppointmentHandler.Handle(new CancelAppointmentCommand(target.AppointmentId, reply.NotesHint), ct);
+            await sender.Send(new CancelAppointmentCommand(target.AppointmentId, reply.NotesHint), ct);
 
             var who = target.IsSelf ? (en ? "you" : "bạn") : target.PatientName;
             var confirmation = en
@@ -734,7 +716,7 @@ public class SendChatMessageHandler(
         }
 
         // Đối chiếu với lịch trống thật của ĐÚNG bác sĩ đang phụ trách lịch hẹn gốc — không đổi bác sĩ.
-        var dentistsOfDay = await getDentistSlotsHandler.Handle(new GetDentistSlotsQuery(date), ct);
+        var dentistsOfDay = await sender.Send(new GetDentistSlotsQuery(date), ct);
         var dentist = dentistsOfDay.FirstOrDefault(d => d.DentistId == target.DentistId);
         var timeText = time.ToString("HH:mm");
         var slotFree = dentist is not null && dentist.Slots.Any(
@@ -755,7 +737,7 @@ public class SendChatMessageHandler(
         CreateAppointmentResult created;
         try
         {
-            created = await createAppointmentHandler.Handle(new CreateAppointmentCommand(
+            created = await sender.Send(new CreateAppointmentCommand(
                 userId,
                 target.DentistId,
                 newAppointmentDate,
@@ -784,7 +766,7 @@ public class SendChatMessageHandler(
         var who = target.IsSelf ? (en ? "you" : "bạn") : target.PatientName;
         try
         {
-            await cancelAppointmentHandler.Handle(
+            await sender.Send(
                 new CancelAppointmentCommand(target.AppointmentId, "Dời sang lịch hẹn mới"), ct);
         }
         catch (Exception ex)

@@ -34,4 +34,11 @@ public class PostRepository(AppDbContext db) : IPostRepository
         db.Posts.Remove(post);
         await db.SaveChangesAsync(ct);
     }
+
+    public async Task<IEnumerable<Post>> GetRecentPublishedAsync(int take, CancellationToken ct = default)
+        => await db.Posts
+            .Where(p => p.IsPublished)
+            .OrderByDescending(p => p.PublishedAt)
+            .Take(take)
+            .ToListAsync(ct);
 }

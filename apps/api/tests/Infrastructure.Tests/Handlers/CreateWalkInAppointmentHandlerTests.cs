@@ -4,6 +4,7 @@ using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using NSubstitute;
@@ -28,7 +29,8 @@ public class CreateWalkInAppointmentHandlerTests
             .Options;
         _db = new AppDbContext(options);
         _notificationService = Substitute.For<INotificationService>();
-        _handler = new CreateWalkInAppointmentHandler(_db, _notificationService);
+        _handler = new CreateWalkInAppointmentHandler(
+            new AppointmentRepository(_db), new PatientRepository(_db), new UserRepository(_db), _notificationService);
 
         var dentistUser = User.Create("d1", $"d1-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: "BS. Nguyễn Văn Hùng");
         _db.Users.Add(dentistUser);

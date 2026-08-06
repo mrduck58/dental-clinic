@@ -37,13 +37,16 @@ public class PatientInvoiceQueryHandlerTests
         _notificationService = Substitute.For<INotificationService>();
         _userRepo = Substitute.For<IUserRepository>();
         _userRepo.GetUserIdsByRoleAsync("Staff", Arg.Any<CancellationToken>()).Returns(new List<Guid>());
-        _invoiceQuery = new InvoiceQueryHelper(_db, new TreatmentPlanRepository(_db));
-        var confirmationService = new PaymentConfirmationService(_db, _notificationService, _userRepo, _invoiceQuery);
+        var invoiceRepository = new InvoiceRepository(_db);
+        var paymentTransactionRepository = new PaymentTransactionRepository(_db);
+        _invoiceQuery = new InvoiceQueryHelper(invoiceRepository, new TreatmentPlanRepository(_db));
+        var confirmationService = new PaymentConfirmationService(
+            invoiceRepository, paymentTransactionRepository, _db, _notificationService, _userRepo, _invoiceQuery);
 
-        _issueHandler = new IssueInvoiceHandler(_db, _notificationService, _invoiceQuery);
-        _confirmPaymentHandler = new ConfirmInvoicePaymentHandler(_db, confirmationService, _invoiceQuery);
-        _getPaidHandler = new GetPaidInvoicesByPatientHandler(_invoiceQuery);
-        _getPendingHandler = new GetPendingInvoicesByPatientHandler(_invoiceQuery);
+        _issueHandler = new IssueInvoiceHandler(invoiceRepository, _db, _notificationService, _invoiceQuery);
+        _confirmPaymentHandler = new ConfirmInvoicePaymentHandler(invoiceRepository, _db, confirmationService, _invoiceQuery);
+        _getPaidHandler = new GetPaidInvoicesByPatientHandler(invoiceRepository);
+        _getPendingHandler = new GetPendingInvoicesByPatientHandler(invoiceRepository);
     }
 
     [TearDown]

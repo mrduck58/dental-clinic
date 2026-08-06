@@ -2,19 +2,18 @@ using DentalClinic.API.Application.UseCases.DentistDashboard;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Infrastructure.Services;
 using FluentAssertions;
-using MediatR;
 using Microsoft.EntityFrameworkCore;
-using NSubstitute;
 using NUnit.Framework;
 
 namespace DentalClinic.API.Infrastructure.Tests.Handlers;
 
 /// <summary>
 /// GET api/appointments/dentist/patients — bệnh nhân trong ngày của CHÍNH bác sĩ đang đăng nhập.
-/// Handler chỉ đổi userId → dentistId rồi ủy quyền cho <see cref="GetDentistPatientsQuery"/>
-/// (đã có test riêng trong <see cref="GetDentistPatientsHandlerTests"/>) qua ISender — nên ở đây
-/// chỉ cần xác nhận việc tra cứu bác sĩ và tính ngày mặc định, không lặp lại test của handler kia.
+/// Handler chỉ ủy quyền cho <see cref="IDentistDashboardQueryService.GetMyPatientsAsync"/> (đổi userId →
+/// dentistId rồi gọi lại đúng logic của <see cref="GetDentistPatientsQuery"/> trong cùng service — không
+/// còn round-trip qua ISender) — nên test trực tiếp trên AppDbContext InMemory như handler kia.
 /// </summary>
 [TestFixture]
 public class GetMyDentistPatientsHandlerTests
@@ -22,7 +21,6 @@ public class GetMyDentistPatientsHandlerTests
     private static readonly TimeZoneInfo VietnamTz = TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
 
     private AppDbContext _db = null!;
-    private ISender _sender = null!;
     private GetMyDentistPatientsHandler _handler = null!;
 
     [SetUp]
@@ -32,8 +30,7 @@ public class GetMyDentistPatientsHandlerTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         _db = new AppDbContext(options);
-        _sender = Substitute.For<ISender>();
-        _handler = new GetMyDentistPatientsHandler(_db, _sender);
+        _handler = new GetMyDentistPatientsHandler(new DentistDashboardQueryService(_db));
     }
 
     [TearDown]
@@ -45,21 +42,19 @@ public class GetMyDentistPatientsHandlerTests
         return DateOnly.FromDateTime(vietnamNow);
     }
 
-    /// <summary>Tài khoản không có hồ sơ bác sĩ phải trả về null (controller map thành 404) và
-    /// KHÔNG được gọi sang GetDentistPatientsQuery.</summary>
+    /// <summary>Tài khoản không có hồ sơ bác sĩ phải trả về null (controller map thành 404).</summary>
     [Test]
     public async Task HandleAsync_UserHasNoDentistProfile_ReturnsNull()
     {
         var result = await _handler.Handle(new GetMyDentistPatientsQuery(Guid.NewGuid(), null), CancellationToken.None);
 
         result.Should().BeNull();
-        await _sender.DidNotReceive().Send(Arg.Any<GetDentistPatientsQuery>(), Arg.Any<CancellationToken>());
     }
 
-    /// <summary>Tìm thấy hồ sơ bác sĩ theo UserId phải ủy quyền sang GetDentistPatientsQuery với đúng
-    /// DentistId và trả về nguyên response nhận được.</summary>
+    /// <summary>Tìm thấy hồ sơ bác sĩ theo UserId phải trả đúng danh sách bệnh nhân đã check-in của
+    /// CHÍNH bác sĩ đó vào đúng ngày truyền vào.</summary>
     [Test]
-    public async Task HandleAsync_DentistFound_DelegatesToGetDentistPatientsQueryWithMatchingDentistId()
+    public async Task HandleAsync_DentistFound_ReturnsPatientsForMatchingDentistAndDate()
     {
         var dentistUser = User.Create("mdp1", $"mdp1-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist);
         _db.Users.Add(dentistUser);
@@ -67,20 +62,26 @@ public class GetMyDentistPatientsHandlerTests
         employee.User = dentistUser;
         var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
         dentist.Employee = employee;
+        var patientUser = User.Create("mdp1p", $"mdp1p-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient);
+        _db.Users.Add(patientUser);
+        var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
+        patient.User = patientUser;
         _db.Employees.Add(employee);
         _db.DentistProfiles.Add(dentist);
-        await _db.SaveChangesAsync();
+        _db.Patients.Add(patient);
 
-        var canned = new DentistPatientsResponse(new DateOnly(2025, 5, 1), 1, 2, 3, []);
-        _sender.Send(Arg.Any<GetDentistPatientsQuery>(), Arg.Any<CancellationToken>()).Returns(canned);
         var explicitDate = new DateOnly(2025, 5, 1);
+        var vnStart = new DateTimeOffset(explicitDate.Year, explicitDate.Month, explicitDate.Day, 9, 0, 0, VietnamTz.BaseUtcOffset);
+        var appointment = Appointment.Create(patient.Id, dentist.Id, vnStart);
+        appointment.CheckIn();
+        _db.Appointments.Add(appointment);
+        await _db.SaveChangesAsync();
 
         var result = await _handler.Handle(new GetMyDentistPatientsQuery(dentistUser.Id, explicitDate), CancellationToken.None);
 
-        result.Should().BeSameAs(canned);
-        await _sender.Received(1).Send(
-            Arg.Is<GetDentistPatientsQuery>(q => q.DentistId == dentist.Id && q.Date == explicitDate),
-            Arg.Any<CancellationToken>());
+        result.Should().NotBeNull();
+        result!.Date.Should().Be(explicitDate);
+        result.Patients.Should().ContainSingle(p => p.AppointmentId == appointment.Id);
     }
 
     /// <summary>Không truyền ngày (request.Date == null) phải mặc định dùng ngày hôm nay theo giờ Việt Nam.</summary>
@@ -97,14 +98,10 @@ public class GetMyDentistPatientsHandlerTests
         _db.DentistProfiles.Add(dentist);
         await _db.SaveChangesAsync();
 
-        var canned = new DentistPatientsResponse(VietnamToday(), 0, 0, 0, []);
-        _sender.Send(Arg.Any<GetDentistPatientsQuery>(), Arg.Any<CancellationToken>()).Returns(canned);
+        var result = await _handler.Handle(new GetMyDentistPatientsQuery(dentistUser.Id, null), CancellationToken.None);
 
-        await _handler.Handle(new GetMyDentistPatientsQuery(dentistUser.Id, null), CancellationToken.None);
-
-        await _sender.Received(1).Send(
-            Arg.Is<GetDentistPatientsQuery>(q => q.Date == VietnamToday()),
-            Arg.Any<CancellationToken>());
+        result.Should().NotBeNull();
+        result!.Date.Should().Be(VietnamToday());
     }
 }
 
@@ -126,7 +123,7 @@ public class GetDentistPastPatientsHandlerTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         _db = new AppDbContext(options);
-        _handler = new GetDentistPastPatientsHandler(_db);
+        _handler = new GetDentistPastPatientsHandler(new DentistDashboardQueryService(_db));
     }
 
     [TearDown]

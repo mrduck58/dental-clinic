@@ -1,10 +1,9 @@
 using System.Text;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
+using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
-using DentalClinic.API.Infrastructure.Persistence;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.AiAssist;
 
@@ -20,7 +19,7 @@ public record SuggestTreatmentQuery(Guid AppointmentId) : IRequest<TreatmentSugg
 /// Không cache như <see cref="SummarizePatientHistoryHandler"/> vì chẩn đoán có thể được bác sĩ
 /// chỉnh sửa nhiều lần trong buổi khám — mỗi lần bấm sẽ tạo gợi ý mới theo dữ liệu mới nhất.
 /// </summary>
-public class SuggestTreatmentHandler(IAiChatService aiChatService, AppDbContext dbContext)
+public class SuggestTreatmentHandler(IAiChatService aiChatService, IAppointmentRepository appointmentRepository)
     : IRequestHandler<SuggestTreatmentQuery, TreatmentSuggestionResult>
 {
     private const string DisclaimerText =
@@ -30,23 +29,14 @@ public class SuggestTreatmentHandler(IAiChatService aiChatService, AppDbContext 
     {
         var appointmentId = request.AppointmentId;
 
-        var currentAppointment = await dbContext.Appointments
-            .Include(a => a.Service)
-            .Include(a => a.Diagnoses)
-            .FirstOrDefaultAsync(a => a.Id == appointmentId, ct)
+        var currentAppointment = await appointmentRepository.GetForTreatmentSuggestionAsync(appointmentId, ct)
             ?? throw new NotFoundException("Không tìm thấy lịch hẹn.");
 
         var diagnosis = currentAppointment.Diagnoses.FirstOrDefault()
             ?? throw new ValidationException("Cần lưu phiếu khám trước khi tạo gợi ý điều trị.");
 
-        var pastAppointments = await dbContext.Appointments
-            .Where(a => a.PatientId == currentAppointment.PatientId && a.Id != appointmentId)
-            .Include(a => a.Service)
-            .Include(a => a.Diagnoses)
-            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Service)
-            .Include(a => a.Prescriptions).ThenInclude(p => p.Items)
-            .OrderByDescending(a => a.AppointmentDate)
-            .ToListAsync(ct);
+        var pastAppointments = (await appointmentRepository.GetPatientHistoryExcludingAsync(
+            currentAppointment.PatientId, appointmentId, ct)).ToList();
 
         var prompt = BuildPrompt(currentAppointment, diagnosis, pastAppointments);
         var suggestion = await aiChatService.SummarizeAsync(

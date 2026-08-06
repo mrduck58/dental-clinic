@@ -2,6 +2,7 @@ using DentalClinic.API.Application.UseCases.Dashboard;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Infrastructure.Services;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using NUnit.Framework;
@@ -21,7 +22,7 @@ public class GetServiceDistributionHandlerTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         _db = new AppDbContext(options);
-        _handler = new GetServiceDistributionHandler(_db);
+        _handler = new GetServiceDistributionHandler(new DashboardQueryService(_db));
     }
 
     [TearDown]

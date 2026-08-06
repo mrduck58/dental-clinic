@@ -10,6 +10,7 @@ using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Infrastructure.Persistence;
 using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
+using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -88,17 +89,33 @@ public class SendChatMessageHandlerTests
         currentUserService.UserId.Returns(_userId);
 
         var getDentistsHandler = new GetDentistsHandler(_userRepo, new DentistRepository(_db));
-        var getDentistSlotsHandler = new GetDentistSlotsHandler(_db, _appointmentRepo);
+        var getDentistSlotsHandler = new GetDentistSlotsHandler(
+            new WorkScheduleRepository(_db), new DentistRepository(_db), _appointmentRepo);
         var createAppointmentHandler = new CreateAppointmentHandler(
             _appointmentRepo, _patientRepo, _userRepo,
             Substitute.For<IServiceRepository>(), Substitute.For<INotificationService>());
         var cancelAppointmentHandler = new CancelAppointmentHandler(
             _appointmentRepo, Substitute.For<IActivityLogService>(), Substitute.For<INotificationService>(),
             currentUserService, _patientRepo);
+
+        // SendChatMessageHandler gọi 4 use case này qua ISender — fake sender chuyển tiếp sang đúng
+        // instance handler đã dựng ở trên (không mock hành vi, chỉ thay cơ chế gọi trực tiếp bằng gọi
+        // qua mediator, khớp với cách handler thật vận hành sau khi tách composition root).
+        var sender = Substitute.For<ISender>();
+        sender.Send(Arg.Any<GetDentistsQuery>(), Arg.Any<CancellationToken>())
+            .Returns(ci => getDentistsHandler.Handle((GetDentistsQuery)ci[0], (CancellationToken)ci[1]));
+        sender.Send(Arg.Any<GetDentistSlotsQuery>(), Arg.Any<CancellationToken>())
+            .Returns(ci => getDentistSlotsHandler.Handle((GetDentistSlotsQuery)ci[0], (CancellationToken)ci[1]));
+        sender.Send(Arg.Any<CreateAppointmentCommand>(), Arg.Any<CancellationToken>())
+            .Returns(ci => createAppointmentHandler.Handle((CreateAppointmentCommand)ci[0], (CancellationToken)ci[1]));
+        sender.Send(Arg.Any<CancelAppointmentCommand>(), Arg.Any<CancellationToken>())
+            .Returns(ci => cancelAppointmentHandler.Handle((CancelAppointmentCommand)ci[0], (CancellationToken)ci[1]));
+
         _handler = new SendChatMessageHandler(
-            _patientRepo, _clinicInfoRepo, getDentistsHandler, getDentistSlotsHandler,
-            createAppointmentHandler, cancelAppointmentHandler, _aiChatService,
-            new ChatConversationRepository(_db), new ChatMessageRepository(_db), _db,
+            _patientRepo, _clinicInfoRepo, sender, _aiChatService,
+            new ChatConversationRepository(_db), new ChatMessageRepository(_db),
+            new ServiceRepository(_db), new PromotionRepository(_db), new DentistRepository(_db),
+            new PostRepository(_db), new AppointmentRepository(_db),
             NullLogger<SendChatMessageHandler>.Instance);
     }
 

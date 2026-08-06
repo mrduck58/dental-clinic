@@ -1,7 +1,6 @@
 using DentalClinic.API.Domain.Enums;
-using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Domain.Interfaces.Repositories;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.Booking;
 
@@ -21,7 +20,7 @@ public record StaffAppointmentDto(
 public record GetAllAppointmentsQuery(DateOnly? Date, string? Status)
     : IRequest<IEnumerable<StaffAppointmentDto>>;
 
-public class GetAllAppointmentsHandler(AppDbContext dbContext)
+public class GetAllAppointmentsHandler(IAppointmentRepository appointmentRepository)
     : IRequestHandler<GetAllAppointmentsQuery, IEnumerable<StaffAppointmentDto>>
 {
     public async Task<IEnumerable<StaffAppointmentDto>> Handle(GetAllAppointmentsQuery request, CancellationToken ct)
@@ -29,28 +28,14 @@ public class GetAllAppointmentsHandler(AppDbContext dbContext)
         var date = request.Date;
         var status = request.Status;
 
-        var query = dbContext.Appointments
-            .Include(a => a.Patient).ThenInclude(p => p.User)
-            .Include(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
-            .Include(a => a.Service)
-            .AsQueryable();
-
-        if (date.HasValue)
-        {
-            var start = new DateTimeOffset(date.Value.Year, date.Value.Month, date.Value.Day, 0, 0, 0, TimeSpan.Zero);
-            var end = start.AddDays(1);
-            query = query.Where(a => a.AppointmentDate >= start && a.AppointmentDate < end);
-        }
-
+        AppointmentStatus? statusEnum = null;
         if (!string.IsNullOrWhiteSpace(status) &&
-            Enum.TryParse<AppointmentStatus>(status, ignoreCase: true, out var statusEnum))
+            Enum.TryParse<AppointmentStatus>(status, ignoreCase: true, out var parsedStatus))
         {
-            query = query.Where(a => a.Status == statusEnum);
+            statusEnum = parsedStatus;
         }
 
-        var appointments = await query
-            .OrderByDescending(a => a.CreatedAt)
-            .ToListAsync(ct);
+        var appointments = await appointmentRepository.GetStaffAppointmentsAsync(date, statusEnum, ct);
 
         return appointments.Select(a => new StaffAppointmentDto(
             a.Id,

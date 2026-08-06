@@ -1,10 +1,9 @@
 using System.Text;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
+using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
-using DentalClinic.API.Infrastructure.Persistence;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.AiAssist;
 
@@ -20,7 +19,10 @@ public record SuggestPrescriptionQuery(Guid AppointmentId) : IRequest<Prescripti
 /// <see cref="SuggestTreatmentHandler"/>) vì yêu cầu gốc chỉ nói "dựa vào chẩn đoán và liệu trình
 /// điều trị". Không cache vì chẩn đoán/liệu trình có thể thay đổi trong buổi khám.
 /// </summary>
-public class SuggestPrescriptionHandler(IAiChatService aiChatService, AppDbContext dbContext)
+public class SuggestPrescriptionHandler(
+    IAiChatService aiChatService,
+    IAppointmentRepository appointmentRepository,
+    IMedicineRepository medicineRepository)
     : IRequestHandler<SuggestPrescriptionQuery, PrescriptionSuggestionResult>
 {
     private const string DisclaimerText =
@@ -30,21 +32,16 @@ public class SuggestPrescriptionHandler(IAiChatService aiChatService, AppDbConte
     {
         var appointmentId = request.AppointmentId;
 
-        var appointment = await dbContext.Appointments
-            .Include(a => a.Service)
-            .Include(a => a.Diagnoses)
-            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Service)
-            .Include(a => a.Prescriptions).ThenInclude(p => p.Items)
-            .FirstOrDefaultAsync(a => a.Id == appointmentId, ct)
+        var appointment = await appointmentRepository.GetForPrescriptionSuggestionAsync(appointmentId, ct)
             ?? throw new NotFoundException("Không tìm thấy lịch hẹn.");
 
         var diagnosis = appointment.Diagnoses.FirstOrDefault()
             ?? throw new ValidationException("Cần lưu phiếu khám trước khi tạo gợi ý đơn thuốc.");
 
-        var activeMedicines = await dbContext.Medicines
+        var activeMedicines = (await medicineRepository.GetAllAsync(ct))
             .Where(m => m.IsActive)
             .OrderBy(m => m.Name)
-            .ToListAsync(ct);
+            .ToList();
 
         var prompt = BuildPrompt(appointment, diagnosis, activeMedicines);
         var suggestion = await aiChatService.SummarizeAsync(

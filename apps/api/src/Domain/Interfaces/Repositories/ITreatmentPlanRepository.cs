@@ -37,4 +37,10 @@ public interface ITreatmentPlanRepository
     /// Gồm dòng hóa đơn gắn liệu trình (mô hình mới) và hóa đơn "đợt thu" cũ (gắn ở cấp hóa đơn).
     /// </summary>
     Task<Dictionary<Guid, decimal>> GetPlanBilledMapAsync(List<Guid> planIds, CancellationToken ct = default);
+
+    /// <summary>Liệu trình InProgress gắn với một buổi hẹn cụ thể, của một nhóm bệnh nhân — dùng để hiển thị
+    /// bối cảnh "đang điều trị" trên danh sách chờ tái khám.</summary>
+    Task<IReadOnlyList<ActiveTreatmentPlanSummary>> GetActiveByPatientIdsAsync(List<Guid> patientIds, CancellationToken ct = default);
 }
+
+public record ActiveTreatmentPlanSummary(Guid AppointmentId, string ServiceName);

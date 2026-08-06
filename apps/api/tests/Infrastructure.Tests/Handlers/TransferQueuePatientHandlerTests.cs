@@ -4,6 +4,7 @@ using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using NSubstitute;
@@ -35,7 +36,9 @@ public class TransferQueuePatientHandlerTests
         _currentUser.UserId.Returns(Guid.NewGuid());
         _currentUser.UserName.Returns("Lễ tân Test");
         _currentUser.UserRole.Returns("Staff");
-        _handler = new TransferQueuePatientHandler(_db, _activityLogService, _notificationService, _currentUser);
+        _handler = new TransferQueuePatientHandler(
+            new AppointmentRepository(_db), new WorkScheduleRepository(_db), new DentistRepository(_db),
+            _activityLogService, _notificationService, _currentUser);
     }
 
     [TearDown]

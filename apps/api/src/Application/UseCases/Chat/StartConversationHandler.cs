@@ -1,10 +1,7 @@
 using DentalClinic.API.Domain.Entities;
-using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
-using DentalClinic.API.Infrastructure.Persistence;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.Chat;
 
@@ -15,7 +12,7 @@ public class StartConversationHandler(
     IUserRepository userRepository,
     IChatConversationRepository chatConversationRepository,
     IChatMessageRepository chatMessageRepository,
-    AppDbContext dbContext) : IRequestHandler<StartConversationCommand, StartConversationResult>
+    IAppointmentRepository appointmentRepository) : IRequestHandler<StartConversationCommand, StartConversationResult>
 {
     /// <summary>Chỉ nhắc lịch hẹn diễn ra trong khoảng thời gian gần — nhắc quá xa (vd. còn 2 tuần)
     /// không hữu ích và dễ gây khó chịu mỗi lần bệnh nhân mở một cuộc trò chuyện mới.</summary>
@@ -65,14 +62,8 @@ public class StartConversationHandler(
         var now = DateTimeOffset.UtcNow;
         var windowEnd = now.AddHours(ReminderWindowHours);
 
-        var nextAppointment = await dbContext.Appointments
-            .Include(a => a.Dentist)
-            .Include(a => a.Patient)
-            .Where(a => relevantPatientIds.Contains(a.PatientId) &&
-                (a.Status == AppointmentStatus.Pending || a.Status == AppointmentStatus.Confirmed) &&
-                a.AppointmentDate >= now && a.AppointmentDate <= windowEnd)
-            .OrderBy(a => a.AppointmentDate)
-            .FirstOrDefaultAsync(ct);
+        var nextAppointment = await appointmentRepository.GetNextUpcomingForPatientsAsync(
+            relevantPatientIds, now, windowEnd, ct);
 
         if (nextAppointment is null)
         {

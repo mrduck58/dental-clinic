@@ -4,6 +4,7 @@ using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using NSubstitute;
@@ -30,7 +31,7 @@ public class SummarizePatientHistoryHandlerTests
         _aiChatService.SummarizeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns("Tóm tắt test");
 
-        _handler = new SummarizePatientHistoryHandler(_aiChatService, _db);
+        _handler = new SummarizePatientHistoryHandler(_aiChatService, new AppointmentRepository(_db));
     }
 
     [TearDown]

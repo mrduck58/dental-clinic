@@ -3,6 +3,7 @@ using DentalClinic.API.Application.UseCases.ClinicalRecords;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -35,11 +36,13 @@ public class ClinicalRecordsQueryHandlerTests
             .Options;
         _db = new AppDbContext(options);
 
-        _myHistoryHandler = new GetMyExaminationHistoryHandler(_db);
-        _patientHistoryHandler = new GetPatientMedicalHistoryHandler(_db);
+        var patientRepository = new PatientRepository(_db);
+        var appointmentRepository = new AppointmentRepository(_db);
+        _myHistoryHandler = new GetMyExaminationHistoryHandler(patientRepository, appointmentRepository);
+        _patientHistoryHandler = new GetPatientMedicalHistoryHandler(appointmentRepository);
 
         _sender = Substitute.For<ISender>();
-        _myTreatmentPlansHandler = new GetMyTreatmentPlansHandler(_db, _sender);
+        _myTreatmentPlansHandler = new GetMyTreatmentPlansHandler(patientRepository, _sender);
     }
 
     [TearDown]

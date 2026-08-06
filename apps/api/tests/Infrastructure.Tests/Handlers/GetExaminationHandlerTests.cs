@@ -3,6 +3,7 @@ using DentalClinic.API.Application.UseCases.ClinicalRecords;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using NUnit.Framework;
@@ -22,7 +23,7 @@ public class GetExaminationHandlerTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         _db = new AppDbContext(options);
-        _handler = new GetExaminationHandler(_db);
+        _handler = new GetExaminationHandler(new AppointmentRepository(_db));
     }
 
     [TearDown]

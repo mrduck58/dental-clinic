@@ -3,9 +3,7 @@ using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Interfaces.Repositories;
-using DentalClinic.API.Infrastructure.Persistence;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.Notifications;
 
@@ -20,11 +18,12 @@ public record GetNotificationsQuery(
 
 public class GetNotificationsHandler(
     INotificationRepository repository,
-    AppDbContext? dbContext = null) : IRequestHandler<GetNotificationsQuery, NotificationPagedDto>
+    IPatientRepository? patientRepository = null,
+    IAppointmentRepository? appointmentRepository = null) : IRequestHandler<GetNotificationsQuery, NotificationPagedDto>
 {
     public async Task<NotificationPagedDto> Handle(GetNotificationsQuery query, CancellationToken ct)
     {
-        if (dbContext != null)
+        if (patientRepository != null && appointmentRepository != null)
         {
             await EnsureAppointmentRemindersCreatedAsync(query.UserId, ct);
         }
@@ -67,31 +66,21 @@ public class GetNotificationsHandler(
 
     private async Task EnsureAppointmentRemindersCreatedAsync(Guid userId, CancellationToken ct)
     {
-        if (dbContext == null) return;
+        if (patientRepository == null || appointmentRepository == null) return;
         try
         {
             var nowUtc = DateTimeOffset.UtcNow;
             var vnNow = nowUtc.AddHours(7);
             var todayDate = DateOnly.FromDateTime(vnNow.DateTime);
 
-            var patient = await dbContext.Patients.AsNoTracking().FirstOrDefaultAsync(p => p.UserId == userId, ct);
+            var patient = await patientRepository.GetByUserIdAsync(userId, ct);
             var patientId = patient?.Id;
 
-            var upcomingApps = await dbContext.Appointments
-                .Include(a => a.Dentist)
-                .Include(a => a.Patient)
-                .AsNoTracking()
-                .Where(a => ((patientId != null && a.PatientId == patientId) || a.Patient.UserId == userId)
-                         && a.Status != AppointmentStatus.Cancelled)
-                .ToListAsync(ct);
+            var upcomingApps = await appointmentRepository.GetActiveByPatientOrUserAsync(patientId, userId, ct);
 
             if (upcomingApps.Count == 0) return;
 
-            var existingNotificationTitles = await dbContext.Notifications
-                .AsNoTracking()
-                .Where(n => n.UserId == userId && n.Type == NotificationType.Appointment)
-                .Select(n => new { n.Title, n.RelatedEntityId })
-                .ToListAsync(ct);
+            var existingNotificationTitles = await repository.GetAppointmentReminderKeysAsync(userId, ct);
 
             var existingKeys = existingNotificationTitles
                 .Select(n => $"{n.Title}|{n.RelatedEntityId}")
@@ -148,8 +137,7 @@ public class GetNotificationsHandler(
 
             if (newNotifications.Count > 0)
             {
-                await dbContext.Notifications.AddRangeAsync(newNotifications, ct);
-                await dbContext.SaveChangesAsync(ct);
+                await repository.AddRangeAsync(newNotifications, ct);
             }
         }
         catch

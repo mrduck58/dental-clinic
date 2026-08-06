@@ -2,6 +2,7 @@ using DentalClinic.API.Application.UseCases.Queue;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using NUnit.Framework;
@@ -21,7 +22,8 @@ public class GetWaitingQueueHandlerTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         _db = new AppDbContext(options);
-        _handler = new GetWaitingQueueHandler(_db);
+        _handler = new GetWaitingQueueHandler(
+            new AppointmentRepository(_db), new WorkScheduleRepository(_db), new DentistRepository(_db));
     }
 
     [TearDown]

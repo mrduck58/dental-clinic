@@ -3,6 +3,7 @@ using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using NSubstitute;
@@ -25,7 +26,7 @@ public class GetMyAppointmentsHandlerTests
             .Options;
         _db = new AppDbContext(options);
         _patientRepo = Substitute.For<IPatientRepository>();
-        _handler = new GetMyAppointmentsHandler(_patientRepo, _db);
+        _handler = new GetMyAppointmentsHandler(_patientRepo, new AppointmentRepository(_db));
     }
 
     [TearDown]

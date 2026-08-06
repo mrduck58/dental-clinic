@@ -1,6 +1,6 @@
 namespace DentalClinic.API.Application.UseCases.StaffDashboard;
 
-internal static class StaffDashboardDateHelper
+public static class StaffDashboardDateHelper
 {
     private static readonly TimeZoneInfo VietnamTz =
         TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
