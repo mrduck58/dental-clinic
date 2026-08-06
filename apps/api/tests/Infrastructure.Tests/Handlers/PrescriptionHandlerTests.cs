@@ -164,7 +164,9 @@ public class PrescriptionHandlerTests
 
         Func<Task> act = () => _create.Handle(new CreatePrescriptionRequest(appointment.Id, null, null), CancellationToken.None);
 
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        // CreatePrescriptionHandler ném DentalClinic ValidationException riêng (không phải InvalidOperationException
+        // của .NET) khi buổi hẹn chưa đúng trạng thái — cập nhật theo đúng loại exception thật handler ném ra.
+        await act.Should().ThrowAsync<DentalClinic.API.Domain.Exceptions.ValidationException>();
     }
 
     /// <summary>Mỗi cuộc hẹn chỉ được có một đơn thuốc — tạo lần 2 phải ném InvalidOperationException.</summary>

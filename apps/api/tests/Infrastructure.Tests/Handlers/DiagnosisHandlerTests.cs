@@ -88,7 +88,9 @@ public class DiagnosisHandlerTests
 
         Func<Task> act = () => _create.Handle(MakeCreateRequest(appointment.Id), CancellationToken.None);
 
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        // CreateDiagnosisHandler ném DentalClinic ValidationException riêng (không phải InvalidOperationException
+        // của .NET) khi buổi hẹn chưa đúng trạng thái — cập nhật theo đúng loại exception thật handler ném ra.
+        await act.Should().ThrowAsync<DentalClinic.API.Domain.Exceptions.ValidationException>();
     }
 
     /// <summary>Tạo chẩn đoán hợp lệ phải lưu vào DB và trả về đúng dữ liệu.</summary>

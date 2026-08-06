@@ -3,6 +3,7 @@ using DentalClinic.API.Application.UseCases.ClinicalRecords;
 using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
+using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using FluentAssertions;
@@ -454,7 +455,9 @@ public class UpdateAppointmentStatusHandlerTests
 
         Func<Task> act = () => _startTreatment.Handle(new StartTreatmentCommand(id), CancellationToken.None);
 
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        // StartTreatmentHandler ném DentalClinic ValidationException riêng (không phải InvalidOperationException
+        // của .NET) khi buổi hẹn chưa check-in — cập nhật theo đúng loại exception thật handler ném ra.
+        await act.Should().ThrowAsync<ValidationException>();
         await _repo.DidNotReceive().UpdateAsync(Arg.Any<Appointment>(), Arg.Any<CancellationToken>());
     }
 

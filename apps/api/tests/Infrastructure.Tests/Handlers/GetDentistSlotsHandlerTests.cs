@@ -127,7 +127,7 @@ public class GetDentistSlotsHandlerTests
     public async Task HandleAsync_DentistScheduledWithNoBookings_ReturnsDentistWithAllSlotsFree()
     {
         var date = DateOnly.FromDateTime(DateTime.Today.AddDays(1));
-        var dentistUser = User.Create("d2", "d2@test.com", "hash", UserRole.Dentist);
+        var dentistUser = User.Create("d2", "d2@test.com", "hash", UserRole.Dentist, fullName: "BS. Free");
         _db.Users.Add(dentistUser);
         var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
         employee.User = dentistUser;
@@ -155,8 +155,8 @@ public class GetDentistSlotsHandlerTests
     public async Task HandleAsync_DentistWithoutScheduleOnThatDay_IsExcludedFromResult()
     {
         var date = DateOnly.FromDateTime(DateTime.Today.AddDays(1));
-        var scheduledUser = User.Create("d3", "d3@test.com", "hash", UserRole.Dentist);
-        var unscheduledUser = User.Create("d4", "d4@test.com", "hash", UserRole.Dentist);
+        var scheduledUser = User.Create("d3", "d3@test.com", "hash", UserRole.Dentist, fullName: "BS. Có ca");
+        var unscheduledUser = User.Create("d4", "d4@test.com", "hash", UserRole.Dentist, fullName: "BS. Không có ca");
         _db.Users.AddRange(scheduledUser, unscheduledUser);
         var scheduledEmployee = Employee.Create(scheduledUser.Id, $"DT-{Guid.NewGuid():N}");
         scheduledEmployee.User = scheduledUser;

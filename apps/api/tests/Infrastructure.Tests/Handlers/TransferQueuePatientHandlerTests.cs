@@ -45,7 +45,18 @@ public class TransferQueuePatientHandlerTests
     public async Task TearDown() => await _db.DisposeAsync();
 
     private static DateTimeOffset NowVietnam() => TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, VietnamTz);
-    private static string CurrentShiftCode() => NowVietnam().Hour < 12 ? "morning" : "afternoon";
+
+    /// <summary>Ca legacy ("morning"/"afternoon") mà <c>WorkShifts.ShiftCovers</c> THẬT SỰ coi là bao trùm
+    /// thời điểm hiện tại (08:00-12:00 / 13:30-17:30) — không phải suy diễn "trước/sau 12h" như cũ (sai vì bỏ
+    /// sót giờ nghỉ trưa 12:00-13:30 và sau 17:30, khiến test flaky ngoài giờ làm). Trả null nếu đang trong
+    /// khung không ca nào che phủ — khi đó test phụ thuộc giờ thật nên tự bỏ qua qua <see cref="Assert.Ignore"/>.</summary>
+    private static string? CurrentShiftCodeOrNull()
+    {
+        var minutesOfDay = NowVietnam().Hour * 60 + NowVietnam().Minute;
+        if (minutesOfDay >= 8 * 60 && minutesOfDay < 12 * 60) return "morning";
+        if (minutesOfDay >= 13 * 60 + 30 && minutesOfDay < 17 * 60 + 30) return "afternoon";
+        return null;
+    }
 
     /// <summary>Thiếu tên phòng đích phải báo lỗi ValidationException.</summary>
     [Test]
@@ -119,8 +130,10 @@ public class TransferQueuePatientHandlerTests
     [Test]
     public async Task HandleAsync_ValidTransfer_ReassignsDentistLogsAndNotifies()
     {
+        var shift = CurrentShiftCodeOrNull();
+        if (shift is null)
+            Assert.Ignore("Đang ngoài giờ làm (giờ nghỉ trưa/tối) — không có ca legacy nào che phủ 'bây giờ' để test.");
         var today = DateOnly.FromDateTime(NowVietnam().Date);
-        var shift = CurrentShiftCode();
 
         var sourceDentistUser = User.Create("tq3", $"tq3-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: "BS Nguồn");
         var targetDentistUser = User.Create("tq4", $"tq4-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: "BS Đích");
@@ -161,8 +174,10 @@ public class TransferQueuePatientHandlerTests
     [Test]
     public async Task HandleAsync_TargetIsSameAsCurrentDentist_IsNoOp()
     {
+        var shift = CurrentShiftCodeOrNull();
+        if (shift is null)
+            Assert.Ignore("Đang ngoài giờ làm (giờ nghỉ trưa/tối) — không có ca legacy nào che phủ 'bây giờ' để test.");
         var today = DateOnly.FromDateTime(NowVietnam().Date);
-        var shift = CurrentShiftCode();
         var dentistUser = User.Create("tq5", $"tq5-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: "BS Trực");
         _db.Users.Add(dentistUser);
         var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");

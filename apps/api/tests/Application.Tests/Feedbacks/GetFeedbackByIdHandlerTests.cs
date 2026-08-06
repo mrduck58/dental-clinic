@@ -1,3 +1,4 @@
+using DentalClinic.API.Application.UseCases.Dentists;
 using DentalClinic.API.Application.UseCases.Feedbacks;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
@@ -29,7 +30,7 @@ public class GetFeedbackByIdHandlerTests
         var result = await handler.Handle(new GetFeedbackByIdQuery(feedback.Id), CancellationToken.None);
 
         result.Id.Should().Be(feedback.Id);
-        result.CustomerName.Should().Be("Nguyễn Test");
+        result.CustomerName.Should().Be(NameMasker.MaskName("Nguyễn Test"));
     }
 
     /// <summary>

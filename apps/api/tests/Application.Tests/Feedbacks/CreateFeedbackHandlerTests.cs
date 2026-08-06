@@ -1,4 +1,5 @@
 using DentalClinic.API.Application.DTOs.Feedbacks;
+using DentalClinic.API.Application.UseCases.Dentists;
 using DentalClinic.API.Application.UseCases.Feedbacks;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
@@ -18,7 +19,8 @@ public class CreateFeedbackHandlerTests
     public void SetUp() => _repo = Substitute.For<IFeedbackRepository>();
 
     /// <summary>
-    /// Tạo feedback hợp lệ (rating 1-5) phải gọi AddAsync 1 lần và trả về DTO.
+    /// Tạo feedback hợp lệ (rating 1-5) phải gọi AddAsync 1 lần và trả về DTO — tên khách hàng trong DTO
+    /// đã bị che 1 phần (NameMasker.MaskName) vì lý do riêng tư, không trả về tên đầy đủ.
     /// </summary>
     [Test]
     public async Task HandleAsync_ValidRating_CallsAddAsyncAndReturnsDto()
@@ -28,7 +30,7 @@ public class CreateFeedbackHandlerTests
         var result = await handler.Handle(new CreateFeedbackCommand("Nguyễn Văn A", 5, "Rất tốt!"), CancellationToken.None);
 
         await _repo.Received(1).AddAsync(Arg.Any<Feedback>(), Arg.Any<CancellationToken>());
-        result.CustomerName.Should().Be("Nguyễn Văn A");
+        result.CustomerName.Should().Be(NameMasker.MaskName("Nguyễn Văn A"));
         result.Rating.Should().Be(5);
     }
 

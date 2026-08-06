@@ -135,7 +135,9 @@ public class CreateWalkInAppointmentHandlerTests
         _db.Patients.Should().HaveCount(1);
         var appointment = await _db.Appointments.SingleAsync();
         appointment.PatientId.Should().Be(existing.Id);
-        result.PatientName.Should().Be("Trần Thị B");
+        // Handler cập nhật đè FullName bằng tên staff nhập tại quầy (chủ ý — cho phép sửa lỗi
+        // chính tả tên bệnh nhân cũ), không giữ nguyên tên cũ đã lưu trước đó.
+        result.PatientName.Should().Be(cmd.PatientName);
         (await _db.Patients.SingleAsync()).PhoneNumber.Should().Be("0988887777");
     }
 

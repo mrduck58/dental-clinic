@@ -481,7 +481,11 @@ public class SendChatMessageHandlerTests
     public async Task HandleAsync_ConfirmedRescheduleWithFreeSlot_CreatesNewAppointmentAndCancelsOld()
     {
         var tomorrow = TomorrowVn();
-        var dayAfter = tomorrow.AddDays(1);
+        // Chủ Nhật phòng khám nghỉ mặc định (GetDentistSlotsHandler), nên bỏ qua nếu "ngày kia" rơi
+        // vào Chủ Nhật để test không phụ thuộc vào ngày chạy thật.
+        var dayAfter = tomorrow.AddDays(1).DayOfWeek == DayOfWeek.Sunday
+            ? tomorrow.AddDays(2)
+            : tomorrow.AddDays(1);
         var dentist = await SeedDentistWithScheduleAsync(tomorrow);
         // Lịch hẹn gốc chỉ có ca làm việc ngày mai — cần thêm ca cho ngày kia để dời lịch sang đó.
         _db.WorkSchedules.Add(WorkSchedule.Create(

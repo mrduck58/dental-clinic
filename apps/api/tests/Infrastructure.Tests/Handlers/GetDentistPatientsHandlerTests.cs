@@ -47,7 +47,13 @@ public class GetDentistPatientsHandlerTests
         employee.User = dentistUser;
         var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
         dentist.Employee = employee;
-        var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
+        // Patient.User là quan hệ IsRequired() — dùng UserId thật (không phải Guid.Empty) để
+        // .Include(a => a.Patient).ThenInclude(p => p.User) trong DentistDashboardQueryService không
+        // bị EF Core InMemory provider loại bỏ hàng do FK "required" không khớp được User nào.
+        var patientUser1 = User.Create("gp1p", $"gp1p-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient);
+        _db.Users.Add(patientUser1);
+        var patient = Patient.Create(patientUser1.Id, new DateOnly(1990, 1, 1), "Nam");
+        patient.User = patientUser1;
         _db.Employees.Add(employee);
         _db.DentistProfiles.Add(dentist);
         _db.Patients.Add(patient);
@@ -80,7 +86,10 @@ public class GetDentistPatientsHandlerTests
         var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
         dentist.Employee = employee;
         var dob = DateOnly.FromDateTime(DateTime.Today.AddYears(-30).AddDays(1)); // chưa tới sinh nhật năm nay
-        var patient = Patient.Create(Guid.Empty, dob, "Nữ");
+        var patientUser2 = User.Create("gp2p", $"gp2p-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient);
+        _db.Users.Add(patientUser2);
+        var patient = Patient.Create(patientUser2.Id, dob, "Nữ");
+        patient.User = patientUser2;
         _db.Employees.Add(employee);
         _db.DentistProfiles.Add(dentist);
         _db.Patients.Add(patient);
@@ -104,7 +113,10 @@ public class GetDentistPatientsHandlerTests
         employee.User = dentistUser;
         var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
         dentist.Employee = employee;
-        var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
+        var patientUser3 = User.Create("gp3p", $"gp3p-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient);
+        _db.Users.Add(patientUser3);
+        var patient = Patient.Create(patientUser3.Id, new DateOnly(1990, 1, 1), "Nam");
+        patient.User = patientUser3;
         _db.Employees.Add(employee);
         _db.DentistProfiles.Add(dentist);
         _db.Patients.Add(patient);
@@ -128,7 +140,10 @@ public class GetDentistPatientsHandlerTests
         employee.User = dentistUser;
         var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
         dentist.Employee = employee;
-        var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
+        var patientUser5 = User.Create("gp5p", $"gp5p-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient);
+        _db.Users.Add(patientUser5);
+        var patient = Patient.Create(patientUser5.Id, new DateOnly(1990, 1, 1), "Nam");
+        patient.User = patientUser5;
         _db.Employees.Add(employee);
         _db.DentistProfiles.Add(dentist);
         _db.Patients.Add(patient);
