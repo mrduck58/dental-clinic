@@ -1,22 +1,17 @@
 using DentalClinic.API.Application.DTOs.Invoices;
-using DentalClinic.API.Domain.Enums;
+using DentalClinic.API.Domain.Interfaces.Repositories;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.Invoices;
 
 public record GetInvoiceHistoryQuery : IRequest<List<InvoiceDto>>;
 
 /// <summary>Tab "Lịch sử hóa đơn": các hóa đơn đã thanh toán.</summary>
-public class GetInvoiceHistoryHandler(InvoiceQueryHelper invoiceQuery) : IRequestHandler<GetInvoiceHistoryQuery, List<InvoiceDto>>
+public class GetInvoiceHistoryHandler(IInvoiceRepository invoiceRepository) : IRequestHandler<GetInvoiceHistoryQuery, List<InvoiceDto>>
 {
     public async Task<List<InvoiceDto>> Handle(GetInvoiceHistoryQuery query, CancellationToken ct)
     {
-        var invoices = await invoiceQuery.QueryWithDetails()
-            .Where(i => i.Status == PaymentStatus.Paid)
-            .OrderByDescending(i => i.PaymentDate)
-            .ToListAsync(ct);
-
+        var invoices = await invoiceRepository.GetInvoiceHistoryAsync(ct);
         return invoices.Select(InvoiceHelpers.ToDto).ToList();
     }
 }

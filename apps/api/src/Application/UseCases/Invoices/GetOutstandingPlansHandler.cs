@@ -1,8 +1,6 @@
 using DentalClinic.API.Application.DTOs.Invoices;
-using DentalClinic.API.Domain.Enums;
-using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Domain.Interfaces.Repositories;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using static DentalClinic.API.Application.UseCases.Invoices.InvoiceHelpers;
 
 namespace DentalClinic.API.Application.UseCases.Invoices;
@@ -10,19 +8,12 @@ namespace DentalClinic.API.Application.UseCases.Invoices;
 public record GetOutstandingPlansQuery : IRequest<List<OutstandingPlanDto>>;
 
 /// <summary>Tab "Công nợ" — phần liệu trình điều trị còn nợ.</summary>
-public class GetOutstandingPlansHandler(AppDbContext dbContext, InvoiceQueryHelper invoiceQuery)
+public class GetOutstandingPlansHandler(IInvoiceRepository invoiceRepository, InvoiceQueryHelper invoiceQuery)
     : IRequestHandler<GetOutstandingPlansQuery, List<OutstandingPlanDto>>
 {
     public async Task<List<OutstandingPlanDto>> Handle(GetOutstandingPlansQuery query, CancellationToken ct)
     {
-        var plans = await dbContext.TreatmentPlans
-            .AsNoTracking()
-            .Include(tp => tp.Patient).ThenInclude(p => p.User)
-            .Include(tp => tp.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
-            .Include(tp => tp.Service)
-            .Where(tp => tp.Status == TreatmentPlanStatus.InProgress)
-            .OrderByDescending(tp => tp.CreatedAt)
-            .ToListAsync(ct);
+        var plans = await invoiceRepository.GetInProgressTreatmentPlansWithDetailsAsync(ct);
 
         var paidMap = await invoiceQuery.GetPlanPaidMapAsync(plans.Select(p => p.Id).ToList(), ct);
 

@@ -4,6 +4,7 @@ using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using NSubstitute;
@@ -35,8 +36,10 @@ public class AiAssistSuggestionHandlerTests
         _aiChatService.SummarizeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns("Gợi ý test");
 
-        _prescriptionHandler = new SuggestPrescriptionHandler(_aiChatService, _db);
-        _treatmentHandler = new SuggestTreatmentHandler(_aiChatService, _db);
+        var appointmentRepository = new AppointmentRepository(_db);
+        var medicineRepository = new MedicineRepository(_db);
+        _prescriptionHandler = new SuggestPrescriptionHandler(_aiChatService, appointmentRepository, medicineRepository);
+        _treatmentHandler = new SuggestTreatmentHandler(_aiChatService, appointmentRepository);
     }
 
     [TearDown]

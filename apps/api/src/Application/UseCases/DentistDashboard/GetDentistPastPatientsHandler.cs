@@ -1,7 +1,5 @@
-using DentalClinic.API.Domain.Enums;
-using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Application.Interfaces;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.DentistDashboard;
 
@@ -12,35 +10,9 @@ namespace DentalClinic.API.Application.UseCases.DentistDashboard;
 /// </summary>
 public record GetDentistPastPatientsQuery(Guid UserId) : IRequest<List<DentistPatientDto>?>;
 
-public class GetDentistPastPatientsHandler(AppDbContext dbContext)
+public class GetDentistPastPatientsHandler(IDentistDashboardQueryService dentistDashboardQueryService)
     : IRequestHandler<GetDentistPastPatientsQuery, List<DentistPatientDto>?>
 {
-    public async Task<List<DentistPatientDto>?> Handle(GetDentistPastPatientsQuery request, CancellationToken ct)
-    {
-        var dentist = await dbContext.DentistProfiles.FirstOrDefaultAsync(d => d.Employee.UserId == request.UserId, ct);
-        if (dentist == null) return null;
-
-        var appointments = await dbContext.Appointments
-            .Include(a => a.Patient).ThenInclude(p => p.User)
-            .Include(a => a.Service)
-            .Where(a => a.DentistId == dentist.Id &&
-                        (a.Status == AppointmentStatus.Completed || a.Status == AppointmentStatus.PendingPayment))
-            .OrderByDescending(a => a.AppointmentDate)
-            .ToListAsync(ct);
-
-        return appointments.Select(a => new DentistPatientDto(
-            a.Id,
-            $"DK{a.AppointmentDate:yyyyMMdd}{a.Id.ToString("N")[..6].ToUpper()}",
-            a.Patient.FullName,
-            DentistPatientMapper.CalculateAge(a.Patient.DateOfBirth),
-            a.Patient.Gender ?? "Khác",
-            a.Patient.PhoneNumber ?? a.Patient.User?.PhoneNumber,
-            a.AppointmentDate,
-            a.Status.ToString(),
-            a.Service?.Name,
-            a.Symptoms,
-            false,
-            a.FollowUpFromAppointmentId != null
-        )).ToList();
-    }
+    public Task<List<DentistPatientDto>?> Handle(GetDentistPastPatientsQuery request, CancellationToken ct) =>
+        dentistDashboardQueryService.GetPastPatientsAsync(request.UserId, ct);
 }

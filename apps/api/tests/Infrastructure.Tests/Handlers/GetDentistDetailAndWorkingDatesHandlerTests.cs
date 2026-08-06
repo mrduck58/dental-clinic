@@ -148,7 +148,8 @@ public class GetDentistWorkingDatesHandlerTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         _db = new AppDbContext(options);
-        _handler = new GetDentistWorkingDatesHandler(_db);
+        _handler = new GetDentistWorkingDatesHandler(
+            new DentistRepository(_db), new UserRepository(_db), new AppointmentRepository(_db), new WorkScheduleRepository(_db));
     }
 
     [TearDown]

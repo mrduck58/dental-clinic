@@ -43,4 +43,19 @@ public class DentistRepository(AppDbContext db) : IDentistRepository
         db.DentistProfiles.Update(dentistProfile);
         await db.SaveChangesAsync(ct);
     }
+
+    public async Task<List<DentistProfile>> GetAllActiveWithUserAsync(CancellationToken ct = default)
+        => await db.DentistProfiles
+            .Include(d => d.Employee).ThenInclude(e => e.User)
+            .Where(d => d.Employee.User.IsActive)
+            .ToListAsync(ct);
+
+    public async Task<List<DentistProfile>> GetActiveByNamesAsync(IEnumerable<string> names, CancellationToken ct = default)
+    {
+        var nameSet = names.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return await db.DentistProfiles
+            .Include(d => d.Employee).ThenInclude(e => e.User)
+            .Where(d => d.Employee.User.IsActive && nameSet.Contains(d.Employee.User.FullName ?? string.Empty))
+            .ToListAsync(ct);
+    }
 }

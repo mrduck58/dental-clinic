@@ -2,10 +2,9 @@ using DentalClinic.API.Application.DTOs.Payments;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
+using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
-using DentalClinic.API.Infrastructure.Persistence;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using static DentalClinic.API.Application.UseCases.Payments.PaymentHelpers;
 
@@ -15,26 +14,22 @@ public record CreatePaymentRequestCommand(Guid InvoiceId, PaymentGateway Gateway
 
 /// <summary>Tạo (hoặc tái sử dụng) một yêu cầu thanh toán cho hóa đơn qua cổng chỉ định.</summary>
 public class CreatePaymentRequestHandler(
-    AppDbContext dbContext,
+    IInvoiceRepository invoiceRepository,
+    IPaymentTransactionRepository paymentTransactionRepository,
+    IUnitOfWork unitOfWork,
     IPaymentGatewayResolver gatewayResolver,
     IConfiguration configuration) : IRequestHandler<CreatePaymentRequestCommand, PaymentTransactionDto>
 {
     public async Task<PaymentTransactionDto> Handle(CreatePaymentRequestCommand command, CancellationToken ct)
     {
-        var invoice = await dbContext.Invoices
-            .Include(i => i.Appointment).ThenInclude(a => a.Patient)
-            .FirstOrDefaultAsync(i => i.Id == command.InvoiceId, ct)
+        var invoice = await invoiceRepository.GetByIdWithAppointmentAndPatientAsync(command.InvoiceId, ct)
             ?? throw new NotFoundException("Không tìm thấy hóa đơn.");
 
         if (invoice.Status == PaymentStatus.Paid)
             throw new ConflictException("Hóa đơn này đã được thanh toán.");
 
         // Tái sử dụng giao dịch Pending còn hiệu lực (nếu có) thay vì tạo link mới mỗi lần mở lại màn hình.
-        var existing = await dbContext.PaymentTransactions
-            .Where(t => t.InvoiceId == command.InvoiceId && t.Gateway == command.Gateway && t.Status == TransactionStatus.Pending
-                        && (t.ExpiresAt == null || t.ExpiresAt > DateTimeOffset.UtcNow))
-            .OrderByDescending(t => t.CreatedAt)
-            .FirstOrDefaultAsync(ct);
+        var existing = await paymentTransactionRepository.GetLatestPendingAsync(command.InvoiceId, command.Gateway, ct);
         if (existing is not null)
             return ToDto(existing);
 
@@ -58,11 +53,7 @@ public class CreatePaymentRequestHandler(
         // Kiểm tra lại lần nữa NGAY TRƯỚC khi insert: lệnh gọi PayOS ở trên có độ trễ mạng đáng kể, đủ để một
         // request khác (2 tab, hoặc React StrictMode gọi effect 2 lần ở dev) lọt qua nhánh "chưa có Pending" phía
         // trên và đã insert xong trong lúc ta đang chờ PayOS trả lời — thu hẹp cửa sổ race, không để tạo 2 giao dịch.
-        var raceWinner = await dbContext.PaymentTransactions
-            .Where(t => t.InvoiceId == command.InvoiceId && t.Gateway == command.Gateway && t.Status == TransactionStatus.Pending
-                        && (t.ExpiresAt == null || t.ExpiresAt > DateTimeOffset.UtcNow))
-            .OrderByDescending(t => t.CreatedAt)
-            .FirstOrDefaultAsync(ct);
+        var raceWinner = await paymentTransactionRepository.GetLatestPendingAsync(command.InvoiceId, command.Gateway, ct);
         if (raceWinner is not null)
             return ToDto(raceWinner);
 
@@ -70,8 +61,8 @@ public class CreatePaymentRequestHandler(
             invoice.Id, command.Gateway, linkResult.GatewayOrderCode, invoice.DepositAmount,
             linkResult.CheckoutUrl, linkResult.QrCode, linkResult.RawResponsePayload, linkResult.ExpiresAt);
 
-        dbContext.PaymentTransactions.Add(transaction);
-        await dbContext.SaveChangesAsync(ct);
+        paymentTransactionRepository.Add(transaction);
+        await unitOfWork.SaveChangesAsync(ct);
 
         return ToDto(transaction);
     }

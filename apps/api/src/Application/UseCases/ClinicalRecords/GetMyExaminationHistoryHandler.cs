@@ -1,8 +1,6 @@
 using DentalClinic.API.Application.DTOs.ClinicalRecords;
-using DentalClinic.API.Domain.Enums;
-using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Domain.Interfaces.Repositories;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.ClinicalRecords;
 
@@ -15,7 +13,9 @@ namespace DentalClinic.API.Application.UseCases.ClinicalRecords;
 /// </summary>
 public record GetMyExaminationHistoryQuery(Guid UserId, Guid? PatientId) : IRequest<List<MyMedicalHistoryDto>>;
 
-public class GetMyExaminationHistoryHandler(AppDbContext dbContext)
+public class GetMyExaminationHistoryHandler(
+    IPatientRepository patientRepository,
+    IAppointmentRepository appointmentRepository)
     : IRequestHandler<GetMyExaminationHistoryQuery, List<MyMedicalHistoryDto>>
 {
     public async Task<List<MyMedicalHistoryDto>> Handle(GetMyExaminationHistoryQuery request, CancellationToken ct)
@@ -23,29 +23,17 @@ public class GetMyExaminationHistoryHandler(AppDbContext dbContext)
         var userId = request.UserId;
         var patientId = request.PatientId;
 
-        var patient = await dbContext.Patients.FirstOrDefaultAsync(p => p.UserId == userId, ct);
+        var patient = await patientRepository.GetByUserIdAsync(userId, ct);
         if (patient is null) return new List<MyMedicalHistoryDto>();
 
-        var appointments = await dbContext.Appointments
-            .Include(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
-            .Include(a => a.Patient)
-            .Include(a => a.Service)
-            .Include(a => a.Diagnoses)
-            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Service)
-            .Include(a => a.Prescriptions).ThenInclude(p => p.Items)
-            .Where(a => (a.PatientId == patient.Id || a.Patient.PrimaryPatientId == patient.Id) &&
-                        (patientId == null || a.PatientId == patientId) &&
-                        (a.Status == AppointmentStatus.Completed || a.Status == AppointmentStatus.PendingPayment))
-            .OrderByDescending(a => a.AppointmentDate)
-            .Take(50)
-            .ToListAsync(ct);
+        var appointments = await appointmentRepository.GetCompletedHistoryForFamilyAsync(patient.Id, patientId, 50, ct);
 
         // Chuỗi buổi hẹn gốc của lượt tái khám (đi ngược FollowUpFromAppointmentId) — để mobile gộp
         // liệu trình điều trị dài hạn xuyên suốt nhiều buổi tái khám thay vì chỉ khớp đúng 1 buổi.
         var chainByAppointment = new Dictionary<Guid, List<Guid>>();
         foreach (var a in appointments)
         {
-            chainByAppointment[a.Id] = await ClinicalRecordMappers.GetFollowUpChainAsync(dbContext, a.Id, ct);
+            chainByAppointment[a.Id] = await appointmentRepository.GetFollowUpChainAsync(a.Id, ct);
         }
 
         return appointments.Select(a => new MyMedicalHistoryDto(

@@ -1,9 +1,8 @@
 using DentalClinic.API.Application.DTOs.Inventory;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
-using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Domain.Interfaces.Repositories;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.Inventory;
 
@@ -17,7 +16,7 @@ public record CreateSupplyItemCommand(
     string? OrderType = null,
     decimal? Price = null) : IRequest<SupplyItemDto>;
 
-public class CreateSupplyItemHandler(AppDbContext db) : IRequestHandler<CreateSupplyItemCommand, SupplyItemDto>
+public class CreateSupplyItemHandler(ISupplyItemRepository supplyItemRepository) : IRequestHandler<CreateSupplyItemCommand, SupplyItemDto>
 {
     private static readonly string[] AllowedOrderTypes = ["standard", "custom"];
 
@@ -36,7 +35,7 @@ public class CreateSupplyItemHandler(AppDbContext db) : IRequestHandler<CreateSu
         if (command.Price is < 0)
             throw new ValidationException("Giá tiền không được âm.");
 
-        if (await db.SupplyItems.AnyAsync(s => s.Code == command.Code.Trim().ToUpper(), ct))
+        if (await supplyItemRepository.ExistsByCodeAsync(command.Code.Trim().ToUpper(), ct))
             throw new ConflictException($"Mã vật tư '{command.Code}' đã tồn tại.");
 
         var item = SupplyItem.Create(
@@ -49,8 +48,7 @@ public class CreateSupplyItemHandler(AppDbContext db) : IRequestHandler<CreateSu
             orderType,
             command.Price);
 
-        db.SupplyItems.Add(item);
-        await db.SaveChangesAsync(ct);
+        await supplyItemRepository.AddAsync(item, ct);
 
         return GetSupplyItemsHandler.ToDto(item);
     }

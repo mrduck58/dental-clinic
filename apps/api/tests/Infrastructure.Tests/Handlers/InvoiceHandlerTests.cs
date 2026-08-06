@@ -42,17 +42,20 @@ public class InvoiceHandlerTests
         _notificationService = Substitute.For<INotificationService>();
         _userRepo = Substitute.For<IUserRepository>();
         _userRepo.GetUserIdsByRoleAsync("Staff", Arg.Any<CancellationToken>()).Returns(new List<Guid>());
-        _invoiceQuery = new InvoiceQueryHelper(_db, new TreatmentPlanRepository(_db));
-        _confirmationService = new PaymentConfirmationService(_db, _notificationService, _userRepo, _invoiceQuery);
+        var invoiceRepository = new InvoiceRepository(_db);
+        var paymentTransactionRepository = new PaymentTransactionRepository(_db);
+        _invoiceQuery = new InvoiceQueryHelper(invoiceRepository, new TreatmentPlanRepository(_db));
+        _confirmationService = new PaymentConfirmationService(
+            invoiceRepository, paymentTransactionRepository, _db, _notificationService, _userRepo, _invoiceQuery);
 
-        _getBillablePlansHandler = new GetBillablePlansHandler(_db, _invoiceQuery);
-        _issueHandler = new IssueInvoiceHandler(_db, _notificationService, _invoiceQuery);
-        _getPendingHandler = new GetPendingInvoicesHandler(_invoiceQuery);
-        _getOutstandingHandler = new GetOutstandingInvoicesHandler(_invoiceQuery);
-        _getOutstandingPlansHandler = new GetOutstandingPlansHandler(_db, _invoiceQuery);
-        _confirmPaymentHandler = new ConfirmInvoicePaymentHandler(_db, _confirmationService, _invoiceQuery);
-        _collectRemainingHandler = new CollectRemainingInvoiceHandler(_db, _invoiceQuery);
-        _getHistoryHandler = new GetInvoiceHistoryHandler(_invoiceQuery);
+        _getBillablePlansHandler = new GetBillablePlansHandler(invoiceRepository, _invoiceQuery);
+        _issueHandler = new IssueInvoiceHandler(invoiceRepository, _db, _notificationService, _invoiceQuery);
+        _getPendingHandler = new GetPendingInvoicesHandler(invoiceRepository);
+        _getOutstandingHandler = new GetOutstandingInvoicesHandler(invoiceRepository);
+        _getOutstandingPlansHandler = new GetOutstandingPlansHandler(invoiceRepository, _invoiceQuery);
+        _confirmPaymentHandler = new ConfirmInvoicePaymentHandler(invoiceRepository, _db, _confirmationService, _invoiceQuery);
+        _collectRemainingHandler = new CollectRemainingInvoiceHandler(invoiceRepository, _db, _invoiceQuery);
+        _getHistoryHandler = new GetInvoiceHistoryHandler(invoiceRepository);
     }
 
     [TearDown]

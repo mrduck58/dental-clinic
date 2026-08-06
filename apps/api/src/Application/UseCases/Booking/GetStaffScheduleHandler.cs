@@ -1,9 +1,8 @@
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
+using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Schedules;
-using DentalClinic.API.Infrastructure.Persistence;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.Booking;
 
@@ -21,7 +20,12 @@ public record StaffScheduleResponse(
 
 public record GetStaffScheduleQuery(DateOnly? Date) : IRequest<StaffScheduleResponse>;
 
-public class GetStaffScheduleHandler(AppDbContext dbContext)
+public class GetStaffScheduleHandler(
+    IWorkScheduleRepository workScheduleRepository,
+    IUserRepository userRepository,
+    IEmployeeRepository employeeRepository,
+    IDentistRepository dentistRepository,
+    IAppointmentRepository appointmentRepository)
     : IRequestHandler<GetStaffScheduleQuery, StaffScheduleResponse>
 {
     private static readonly TimeZoneInfo VietnamTz =
@@ -49,11 +53,7 @@ public class GetStaffScheduleHandler(AppDbContext dbContext)
         // 1. Lịch làm việc hôm nay (bác sĩ, không phải ngày nghỉ)
         //    Chỉ chấp nhận mã ca hợp lệ (6 ca 2 tiếng hiện tại + "morning"/"afternoon" cũ) —
         //    dữ liệu rác với giá trị Shift khác không được coi là bác sĩ có ca làm việc thật.
-        var validShiftCodes = WorkShifts.AllValidCodes;
-        var todaySchedules = await dbContext.WorkSchedules
-            .Where(s => s.Type == "dentist" && !s.IsHoliday && s.Date == date &&
-                        validShiftCodes.Contains(s.Shift))
-            .ToListAsync(ct);
+        var todaySchedules = await workScheduleRepository.GetDentistSchedulesForDateAsync(date, ct: ct);
 
         // Tên bác sĩ làm việc hôm nay → set ca làm việc (mã ca 2 tiếng hoặc "morning"/"afternoon" cũ)
         var workingToday = todaySchedules
@@ -64,9 +64,7 @@ public class GetStaffScheduleHandler(AppDbContext dbContext)
             return new StaffScheduleResponse(date, []);
 
         // 2. Lấy bác sĩ Active từ bảng Users, kèm Employee/DentistProfile
-        var allUsers = await dbContext.Users
-            .Include(u => u.Employee).ThenInclude(e => e!.DentistProfile)
-            .ToListAsync(ct);
+        var allUsers = await userRepository.GetAllAsync(ct);
 
         var dentistUsers = allUsers
             .Where(u =>
@@ -87,26 +85,20 @@ public class GetStaffScheduleHandler(AppDbContext dbContext)
             if (employee == null)
             {
                 employee = Employee.Create(user.Id, $"NV-{Guid.NewGuid().ToString("N")[..8].ToUpper()}");
-                dbContext.Employees.Add(employee);
+                await employeeRepository.AddAsync(employee, ct);
                 user.AttachEmployee(employee);
+                await userRepository.UpdateAsync(user, ct);
             }
             var d = DentistProfile.Create(employee.Id,
                         "Nha khoa tổng quát",
                         "N/A",
                         experienceYears: 0);
-            dbContext.DentistProfiles.Add(d);
+            await dentistRepository.AddAsync(d, ct);
             createdDentists[user.Id] = d;
         }
-        if (createdDentists.Count > 0)
-            await dbContext.SaveChangesAsync(ct);
 
         // 4. Lịch hẹn hôm nay
-        var appointments = await dbContext.Appointments
-            .Include(a => a.Patient)
-            .Where(a => a.AppointmentDate >= utcStart &&
-                        a.AppointmentDate < utcEnd &&
-                        a.Status != AppointmentStatus.Cancelled)
-            .ToListAsync(ct);
+        var appointments = await appointmentRepository.GetActiveInRangeAsync(utcStart, utcEnd, ct);
 
         // 5. Build kết quả — chỉ hiện slot của ca bác sĩ đang làm hôm nay
         var result = dentistUsers.Select(user =>

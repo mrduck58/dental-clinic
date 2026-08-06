@@ -1,6 +1,7 @@
 using DentalClinic.API.Application.UseCases.Dashboard;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Infrastructure.Services;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using NUnit.Framework;
@@ -20,7 +21,7 @@ public class GetRecentFeedbackHandlerTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         _db = new AppDbContext(options);
-        _handler = new GetRecentFeedbackHandler(_db);
+        _handler = new GetRecentFeedbackHandler(new DashboardQueryService(_db));
     }
 
     [TearDown]

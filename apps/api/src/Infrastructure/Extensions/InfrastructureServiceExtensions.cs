@@ -1,9 +1,7 @@
-using DentalClinic.API.Application.UseCases.Booking;
-using DentalClinic.API.Application.UseCases.Dentists;
 using DentalClinic.API.Application.UseCases.Invoices;
-using DentalClinic.API.Application.UseCases.Queue;
 using DentalClinic.API.Application.UseCases.Patients;
 using DentalClinic.API.Application.UseCases.Payments;
+using DentalClinic.API.Application.Interfaces;
 using DentalClinic.API.Application.UseCases.Staff;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
@@ -13,6 +11,8 @@ using DentalClinic.API.Infrastructure.Services;
 using DentalClinic.API.Infrastructure.Settings;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace DentalClinic.API.Infrastructure.Extensions;
@@ -27,11 +27,6 @@ public static class InfrastructureServiceExtensions
         services.AddDbContext<AppDbContext>(options =>
             options.UseNpgsql(configuration.GetConnectionString("DefaultConnection"))
                    .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning)));
-
-        // ── Mediator ────────────────────────────────────────────────────────
-        // Auto-discovers IRequestHandler<> implementations by assembly scan, replacing the need to
-        // manually register each Handler below one by one. Controllers depend on ISender only.
-        services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(InfrastructureServiceExtensions).Assembly));
 
         // ── Settings ────────────────────────────────────────────────────────
         // JwtSettings bound once as a fixed singleton instance (not via IOptions<T>): IOptions<T> is
@@ -76,6 +71,17 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IPrescriptionItemRepository, PrescriptionItemRepository>();
         services.AddScoped<ITreatmentPlanRepository, TreatmentPlanRepository>();
         services.AddScoped<IPayrollRepository, PayrollRepository>();
+        services.AddScoped<IAppointmentSummaryReader, AppointmentSummaryReader>();
+        services.AddScoped<IInvoiceRepository, InvoiceRepository>();
+        services.AddScoped<IPaymentTransactionRepository, PaymentTransactionRepository>();
+        // AppDbContext đã implement IUnitOfWork — resolve về ĐÚNG instance scoped của request này
+        // (không tạo DbContext mới) để các repository stage thay đổi và unit of work chốt lưu chung 1 lần.
+        services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AppDbContext>());
+
+        // ── Query-service (đọc tổng hợp đa entity — không phải repository CRUD) ────
+        services.AddScoped<IDashboardQueryService, DashboardQueryService>();
+        services.AddScoped<IStaffDashboardQueryService, StaffDashboardQueryService>();
+        services.AddScoped<IDentistDashboardQueryService, DentistDashboardQueryService>();
 
         // ── Services ────────────────────────────────────────────────────────
         services.AddScoped<IJwtService, JwtService>();
@@ -99,26 +105,12 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IAiChatService, GeminiChatService>();
 
         // ── Use Case Handlers ────────────────────────────────────────────────
-        // Auth, Staff, Feedbacks, Posts, Services, Inventory, Medicines, Schedules,
-        // Promotions, LeaveRequests, Rooms, ClinicInfo, Chat, AiAnalytics, ActivityLogs,
-        // Notifications, Patients, StaffDashboard and (từ đợt này) Booking/Queue/ClinicalRecords/
-        // AiAssist/Reminders/DentistDashboard/Dentists handlers are now auto-registered by
-        // MediatR (implement IRequestHandler<,>). Remaining registrations below are for
-        // the "god-handlers" Invoice/Payment/Dashboard — deferred to a later refactor phase.
+        // Toàn bộ MediatR handler (implement IRequestHandler<,>) được AddApplication() tự quét và
+        // đăng ký — Controller/handler khác chỉ cần ISender, không còn chỗ nào tiêm handler cụ thể.
+        // Các class dưới đây KHÔNG phải MediatR handler (chỉ là helper thường được handler khác tiêm
+        // trực tiếp qua constructor) nên vẫn cần đăng ký kiểu cụ thể riêng.
         services.AddScoped<GetStaffHandler>();
         services.AddScoped<PatientAccessHelper>();
-
-        // 5 handler dưới đây ĐÃ là MediatR handler nhưng vẫn cần đăng ký theo KIỂU CỤ THỂ vì đang
-        // được inject trực tiếp (không qua ISender) ở nơi khác:
-        //  - GetDentistsHandler, GetDentistSlotsHandler, CreateAppointmentHandler,
-        //    CancelAppointmentHandler → SendChatMessageHandler
-        //  - GetWaitingQueueHandler → GetPatientQueueHandler (phải dùng đúng thuật toán đánh số hàng đợi)
-        services.AddScoped<GetDentistsHandler>();
-        services.AddScoped<GetDentistSlotsHandler>();
-        services.AddScoped<CreateAppointmentHandler>();
-        services.AddScoped<CancelAppointmentHandler>();
-        services.AddScoped<GetWaitingQueueHandler>();
-
         services.AddScoped<InvoiceQueryHelper>();
         services.AddScoped<IPaymentConfirmationService, PaymentConfirmationService>();
         services.AddScoped<DentalClinic.API.Application.UseCases.ClinicalRecords.TreatmentPlanQueryHelper>();

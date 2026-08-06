@@ -3,6 +3,7 @@ using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Infrastructure.Services;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using NUnit.Framework;
@@ -24,7 +25,7 @@ public class GetAppointmentTrendHandlerTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         _db = new AppDbContext(options);
-        _handler = new GetAppointmentTrendHandler(_db);
+        _handler = new GetAppointmentTrendHandler(new DashboardQueryService(_db));
     }
 
     [TearDown]

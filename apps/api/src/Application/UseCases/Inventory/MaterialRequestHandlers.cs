@@ -2,9 +2,7 @@ using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
-using DentalClinic.API.Infrastructure.Persistence;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.Inventory;
 
@@ -34,7 +32,9 @@ public record MaterialRequestItemInput(string ItemName, int Quantity, string Uni
 public record CreateMaterialRequestRequest(Guid AppointmentId, List<MaterialRequestItemInput> Items) : IRequest<MaterialRequestDto>;
 
 /// <summary>Bác sĩ gửi yêu cầu vật tư (nhiều dòng) từ buổi khám → sang trang nhập–xuất vật tư của staff.</summary>
-public class CreateMaterialRequestHandler(AppDbContext dbContext, IMaterialRequestRepository materialRequestRepository)
+public class CreateMaterialRequestHandler(
+    IAppointmentSummaryReader appointmentSummaryReader,
+    IMaterialRequestRepository materialRequestRepository)
     : IRequestHandler<CreateMaterialRequestRequest, MaterialRequestDto>
 {
     public async Task<MaterialRequestDto> Handle(CreateMaterialRequestRequest request, CancellationToken ct)
@@ -52,18 +52,13 @@ public class CreateMaterialRequestHandler(AppDbContext dbContext, IMaterialReque
                 throw new ValidationException($"Đơn vị của \"{item.ItemName}\" không hợp lệ. Vui lòng chọn từ danh sách.");
         }
 
-        var appt = await dbContext.Appointments
-            .AsNoTracking()
-            .Include(a => a.Patient)
-            .Include(a => a.Dentist)
-            .Include(a => a.Service)
-            .FirstOrDefaultAsync(a => a.Id == request.AppointmentId, ct)
+        var appt = await appointmentSummaryReader.GetSummaryAsync(request.AppointmentId, ct)
             ?? throw new NotFoundException("Không tìm thấy lịch hẹn.");
 
         var mr = MaterialRequest.Create(
-            courseName: appt.Service?.Name ?? "Khám tổng quát",
-            patientName: appt.Patient.FullName,
-            dentistName: appt.Dentist.FullName,
+            courseName: appt.ServiceName ?? "Khám tổng quát",
+            patientName: appt.PatientName,
+            dentistName: appt.DentistName,
             items: request.Items.Select(i => (i.ItemName.Trim(), i.Quantity, i.Unit)),
             courseId: appt.PatientId); // dùng CourseId (cột cũ, không còn dùng cho course) để lưu PatientId
 
@@ -122,7 +117,6 @@ public record MarkMaterialRequestDoneCommand(Guid Id, string HandledBy, List<Mat
 /// trong 1 transaction để không nửa vời nếu lỗi giữa chừng.
 /// </summary>
 public class MarkMaterialRequestDoneHandler(
-    AppDbContext dbContext,
     IMaterialRequestRepository materialRequestRepository,
     ISender sender) : IRequestHandler<MarkMaterialRequestDoneCommand>
 {
@@ -143,11 +137,10 @@ public class MarkMaterialRequestDoneHandler(
                 throw new ValidationException($"Đơn giá của \"{item.ItemName}\" không được âm.");
         }
 
-        // IsRelational(): InMemory provider (dùng trong unit test) không hỗ trợ transaction —
-        // chỉ bọc transaction thật khi chạy trên Postgres, tránh nửa vời nếu 1 item lỗi giữa vòng lặp.
-        var transaction = dbContext.Database.IsRelational()
-            ? await dbContext.Database.BeginTransactionAsync(ct)
-            : null;
+        // BeginTransactionAsync trả về null trên InMemory provider (dùng trong unit test, không hỗ trợ
+        // transaction) — chỉ bọc transaction thật khi chạy trên Postgres, tránh nửa vời nếu 1 item lỗi giữa
+        // vòng lặp.
+        var transaction = await materialRequestRepository.BeginTransactionAsync(ct);
         try
         {
             foreach (var item in request.Items)

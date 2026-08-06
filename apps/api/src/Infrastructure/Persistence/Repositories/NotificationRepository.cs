@@ -1,3 +1,4 @@
+using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -91,4 +92,11 @@ public class NotificationRepository(AppDbContext db) : INotificationRepository
             await db.SaveChangesAsync(ct);
         }
     }
+
+    public async Task<IReadOnlyList<NotificationReminderKey>> GetAppointmentReminderKeysAsync(Guid userId, CancellationToken ct = default)
+        => await db.Notifications
+            .AsNoTracking()
+            .Where(n => n.UserId == userId && n.Type == NotificationType.Appointment)
+            .Select(n => new NotificationReminderKey(n.Title, n.RelatedEntityId))
+            .ToListAsync(ct);
 }

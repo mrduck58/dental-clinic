@@ -3,10 +3,9 @@ using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
+using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
-using DentalClinic.API.Infrastructure.Persistence;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using static DentalClinic.API.Application.UseCases.Invoices.InvoiceHelpers;
 
 namespace DentalClinic.API.Application.UseCases.Invoices;
@@ -24,7 +23,8 @@ public record IssueInvoiceCommand(
 
 /// <summary>Xuất hóa đơn từ liệu trình điều trị của một lịch hẹn (hoặc thu phần còn lại, hoặc một đợt thu liệu trình).</summary>
 public class IssueInvoiceHandler(
-    AppDbContext dbContext,
+    IInvoiceRepository invoiceRepository,
+    IUnitOfWork unitOfWork,
     INotificationService notificationService,
     InvoiceQueryHelper invoiceQuery) : IRequestHandler<IssueInvoiceCommand, InvoiceDto>
 {
@@ -38,9 +38,7 @@ public class IssueInvoiceHandler(
         if (command.ParentInvoiceId is Guid parentId)
             return await IssueRemainingAsync(parentId, command, ct);
 
-        var appointment = await dbContext.Appointments
-            .Include(a => a.Invoices)
-            .FirstOrDefaultAsync(a => a.Id == command.AppointmentId, ct)
+        var appointment = await invoiceRepository.GetAppointmentWithInvoicesAsync(command.AppointmentId, ct)
             ?? throw new NotFoundException("Không tìm thấy lịch hẹn.");
 
         if (appointment.Status != AppointmentStatus.PendingPayment)
@@ -58,10 +56,7 @@ public class IssueInvoiceHandler(
         if (lineByPlan.Count > 0)
         {
             var billedMap = await invoiceQuery.GetPlanBilledMapAsync(lineByPlan.Keys.ToList(), ct);
-            var plans = await dbContext.TreatmentPlans
-                .Where(tp => lineByPlan.Keys.Contains(tp.Id))
-                .Select(tp => new { tp.Id, tp.UnitPrice, tp.Quantity })
-                .ToListAsync(ct);
+            var plans = await invoiceRepository.GetTreatmentPlanBillingInfoAsync(lineByPlan.Keys.ToList(), ct);
             foreach (var p in plans)
             {
                 var total = p.UnitPrice * Math.Max(1, p.Quantity);
@@ -87,8 +82,8 @@ public class IssueInvoiceHandler(
         if (invoice.DepositAmount <= 0)
             throw new ValidationException("Số tiền thu phải lớn hơn 0.");
 
-        dbContext.Invoices.Add(invoice);
-        await dbContext.SaveChangesAsync(ct);
+        invoiceRepository.Add(invoice);
+        await unitOfWork.SaveChangesAsync(ct);
         await NotifyInvoiceIssuedAsync(invoice, ct);
 
         return await invoiceQuery.GetByIdAsync(invoice.Id, ct);
@@ -97,14 +92,13 @@ public class IssueInvoiceHandler(
     /// <summary>Tạo hóa đơn thu nốt phần còn lại cho một hóa đơn đặt cọc.</summary>
     private async Task<InvoiceDto> IssueRemainingAsync(Guid parentId, IssueInvoiceCommand command, CancellationToken ct)
     {
-        var parent = await dbContext.Invoices
-            .FirstOrDefaultAsync(i => i.Id == parentId, ct)
+        var parent = await invoiceRepository.GetByIdAsync(parentId, ct)
             ?? throw new NotFoundException("Không tìm thấy hóa đơn gốc.");
 
         if (parent.IsSettled || parent.RemainingAmount <= 0)
             throw new ValidationException("Hóa đơn này đã được thu đủ.");
 
-        var alreadyHasChild = await dbContext.Invoices.AnyAsync(c => c.ParentInvoiceId == parentId, ct);
+        var alreadyHasChild = await invoiceRepository.HasChildInvoiceAsync(parentId, ct);
         if (alreadyHasChild)
             throw new ConflictException("Đã tạo hóa đơn thu phần còn lại cho hóa đơn này.");
 
@@ -120,8 +114,8 @@ public class IssueInvoiceHandler(
             paymentMethod,
             command.Notes);
 
-        dbContext.Invoices.Add(invoice);
-        await dbContext.SaveChangesAsync(ct);
+        invoiceRepository.Add(invoice);
+        await unitOfWork.SaveChangesAsync(ct);
         await NotifyInvoiceIssuedAsync(invoice, ct);
 
         return await invoiceQuery.GetByIdAsync(invoice.Id, ct);
@@ -130,17 +124,13 @@ public class IssueInvoiceHandler(
     /// <summary>Tạo một đợt thu của liệu trình điều trị (số tiền tùy ý, không vượt công nợ còn lại).</summary>
     private async Task<InvoiceDto> IssuePlanInstallmentAsync(Guid treatmentPlanId, IssueInvoiceCommand command, CancellationToken ct)
     {
-        var plan = await dbContext.TreatmentPlans
-            .Include(tp => tp.Service)
-            .FirstOrDefaultAsync(tp => tp.Id == treatmentPlanId, ct)
+        var plan = await invoiceRepository.GetTreatmentPlanWithServiceAsync(treatmentPlanId, ct)
             ?? throw new NotFoundException("Không tìm thấy liệu trình.");
 
         if (plan.Status != TreatmentPlanStatus.InProgress)
             throw new ValidationException("Chỉ có thể thu đợt cho liệu trình đang điều trị.");
 
-        var appointment = await dbContext.Appointments
-            .Include(a => a.Invoices)
-            .FirstOrDefaultAsync(a => a.Id == command.AppointmentId, ct)
+        var appointment = await invoiceRepository.GetAppointmentWithInvoicesAsync(command.AppointmentId, ct)
             ?? throw new NotFoundException("Không tìm thấy lịch hẹn.");
 
         if (appointment.PatientId != plan.PatientId)
@@ -173,8 +163,8 @@ public class IssueInvoiceHandler(
             paymentMethod,
             command.Notes);
 
-        dbContext.Invoices.Add(invoice);
-        await dbContext.SaveChangesAsync(ct);
+        invoiceRepository.Add(invoice);
+        await unitOfWork.SaveChangesAsync(ct);
         await NotifyInvoiceIssuedAsync(invoice, ct);
 
         return await invoiceQuery.GetByIdAsync(invoice.Id, ct);
@@ -183,15 +173,11 @@ public class IssueInvoiceHandler(
     /// <summary>Báo cho bệnh nhân (nếu có tài khoản liên kết) khi có hóa đơn mới cần thanh toán.</summary>
     private async Task NotifyInvoiceIssuedAsync(Invoice invoice, CancellationToken ct)
     {
-        var patient = await dbContext.Appointments
-            .Where(a => a.Id == invoice.AppointmentId)
-            .Select(a => a.Patient)
-            .FirstOrDefaultAsync(ct);
-
-        if (patient?.UserId is not Guid patientUserId) return;
+        var patientUserId = await invoiceRepository.GetPatientUserIdByAppointmentIdAsync(invoice.AppointmentId, ct);
+        if (patientUserId is not Guid userId) return;
 
         await notificationService.CreateAsync(new CreateNotificationRequest(
-            UserId: patientUserId,
+            UserId: userId,
             Type: NotificationType.Invoice,
             Priority: NotificationPriority.Medium,
             Title: "Hóa đơn mới",

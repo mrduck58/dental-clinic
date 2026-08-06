@@ -22,4 +22,10 @@ public interface IDentistRepository
 
     Task AddAsync(DentistProfile dentistProfile, CancellationToken ct = default);
     Task UpdateAsync(DentistProfile dentistProfile, CancellationToken ct = default);
+
+    /// <summary>Toàn bộ hồ sơ nha sĩ có tài khoản Active, kèm Employee+User.</summary>
+    Task<List<DentistProfile>> GetAllActiveWithUserAsync(CancellationToken ct = default);
+
+    /// <summary>Hồ sơ nha sĩ có tài khoản Active VÀ tên khớp một trong các tên được phân ca — dùng khi lọc theo WorkSchedule.StaffName.</summary>
+    Task<List<DentistProfile>> GetActiveByNamesAsync(IEnumerable<string> names, CancellationToken ct = default);
 }

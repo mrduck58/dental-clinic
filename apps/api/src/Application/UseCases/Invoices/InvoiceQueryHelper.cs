@@ -1,33 +1,25 @@
 using DentalClinic.API.Application.DTOs.Invoices;
-using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Interfaces.Repositories;
-using DentalClinic.API.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.Invoices;
 
 /// <summary>Truy vấn/tính toán dùng chung giữa nhiều handler Invoice và <see cref="PaymentConfirmationService"/> —
 /// tách ra để không phải lặp lại logic công nợ liệu trình ở từng handler nhỏ sau khi InvoiceHandler được chia tách.
 /// Phần công nợ liệu trình (paid/billed map) ủy quyền cho <see cref="ITreatmentPlanRepository"/> — tránh lặp lại
-/// y hệt logic này ở <c>TreatmentPlanQueryHelper</c> bên ClinicalRecords.</summary>
-public class InvoiceQueryHelper(AppDbContext dbContext, ITreatmentPlanRepository treatmentPlanRepository)
+/// y hệt logic này ở <c>TreatmentPlanQueryHelper</c> bên ClinicalRecords. Truy vấn hóa đơn ủy quyền cho
+/// <see cref="IInvoiceRepository"/> — nơi thực sự chạm EF Core/AppDbContext.</summary>
+public class InvoiceQueryHelper(IInvoiceRepository invoiceRepository, ITreatmentPlanRepository treatmentPlanRepository)
 {
-    public IQueryable<Invoice> QueryWithDetails() =>
-        dbContext.Invoices
-            .AsNoTracking()
-            .Include(i => i.Items)
-            .Include(i => i.Appointment).ThenInclude(a => a.Patient).ThenInclude(p => p.User)
-            .Include(i => i.Appointment).ThenInclude(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User);
-
     public async Task<InvoiceDto> GetByIdAsync(Guid invoiceId, CancellationToken ct)
     {
-        var invoice = await QueryWithDetails().FirstAsync(i => i.Id == invoiceId, ct);
+        var invoice = await invoiceRepository.GetByIdWithDetailsAsync(invoiceId, ct)
+            ?? throw new InvalidOperationException($"Không tìm thấy hóa đơn {invoiceId}.");
         return InvoiceHelpers.ToDto(invoice);
     }
 
     public async Task<string> GenerateInvoiceNumberAsync(CancellationToken ct)
     {
-        var count = await dbContext.Invoices.CountAsync(ct);
+        var count = await invoiceRepository.CountAsync(ct);
         return $"INV{count + 1:D3}";
     }
 
@@ -51,15 +43,6 @@ public class InvoiceQueryHelper(AppDbContext dbContext, ITreatmentPlanRepository
         treatmentPlanRepository.GetPlanBilledMapAsync(planIds, ct);
 
     /// <summary>Chuỗi tái khám của một buổi hẹn: chính nó + các buổi gốc phía trên (đi ngược FollowUpFromAppointmentId).</summary>
-    public async Task<HashSet<Guid>> GetChainAsync(Guid appointmentId, CancellationToken ct)
-    {
-        var chain = new HashSet<Guid>();
-        Guid? cursor = appointmentId;
-        while (cursor is Guid c && chain.Add(c))
-            cursor = await dbContext.Appointments
-                .Where(a => a.Id == c)
-                .Select(a => a.FollowUpFromAppointmentId)
-                .FirstOrDefaultAsync(ct);
-        return chain;
-    }
+    public Task<HashSet<Guid>> GetChainAsync(Guid appointmentId, CancellationToken ct) =>
+        invoiceRepository.GetFollowUpChainAsync(appointmentId, ct);
 }

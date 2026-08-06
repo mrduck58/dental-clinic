@@ -1,9 +1,8 @@
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
-using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Domain.Interfaces.Repositories;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.Queue;
 
@@ -14,7 +13,7 @@ public record ReorderQueuePatientCommand(Guid AppointmentId, Guid SwapWithAppoin
 /// Chỉ hoán đổi vị trí (<see cref="Appointment.QueueOrder"/>), không đụng giờ check-in nên thời gian
 /// chờ của cả hai giữ nguyên. Frontend luôn gửi kèm người liền kề trong CÙNG hàng đợi phòng.
 /// </summary>
-public class ReorderQueuePatientHandler(AppDbContext dbContext) : IRequestHandler<ReorderQueuePatientCommand>
+public class ReorderQueuePatientHandler(IAppointmentRepository appointmentRepository) : IRequestHandler<ReorderQueuePatientCommand>
 {
     public async Task Handle(ReorderQueuePatientCommand command, CancellationToken ct)
     {
@@ -24,9 +23,9 @@ public class ReorderQueuePatientHandler(AppDbContext dbContext) : IRequestHandle
         if (appointmentId == swapWithAppointmentId)
             throw new ValidationException("Không thể đổi chỗ với chính bệnh nhân đó.");
 
-        var a = await dbContext.Appointments.FirstOrDefaultAsync(x => x.Id == appointmentId, ct)
+        var a = await appointmentRepository.GetByIdAsync(appointmentId, ct)
             ?? throw new NotFoundException($"Không tìm thấy lịch hẹn {appointmentId}.");
-        var b = await dbContext.Appointments.FirstOrDefaultAsync(x => x.Id == swapWithAppointmentId, ct)
+        var b = await appointmentRepository.GetByIdAsync(swapWithAppointmentId, ct)
             ?? throw new NotFoundException($"Không tìm thấy lịch hẹn {swapWithAppointmentId}.");
 
         // Chỉ đổi thứ tự giữa hai người đang chờ — ai đã vào khám/khám xong không còn trong hàng.
@@ -39,7 +38,8 @@ public class ReorderQueuePatientHandler(AppDbContext dbContext) : IRequestHandle
         a.SetQueueOrder(eb);
         b.SetQueueOrder(ea);
 
-        await dbContext.SaveChangesAsync(ct);
+        await appointmentRepository.UpdateAsync(a, ct);
+        await appointmentRepository.UpdateAsync(b, ct);
     }
 
     private static long EffectiveOrder(Appointment a)

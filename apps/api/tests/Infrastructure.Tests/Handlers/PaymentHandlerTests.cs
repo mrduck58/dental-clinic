@@ -44,15 +44,20 @@ public class PaymentHandlerTests
         var notificationService = Substitute.For<INotificationService>();
         var userRepo = Substitute.For<IUserRepository>();
         userRepo.GetUserIdsByRoleAsync("Staff", Arg.Any<CancellationToken>()).Returns(new List<Guid>());
-        var invoiceQuery = new InvoiceQueryHelper(_db, new TreatmentPlanRepository(_db));
-        _confirmationService = new PaymentConfirmationService(_db, notificationService, userRepo, invoiceQuery);
+        var invoiceRepository = new InvoiceRepository(_db);
+        var paymentTransactionRepository = new PaymentTransactionRepository(_db);
+        var invoiceQuery = new InvoiceQueryHelper(invoiceRepository, new TreatmentPlanRepository(_db));
+        _confirmationService = new PaymentConfirmationService(
+            invoiceRepository, paymentTransactionRepository, _db, notificationService, userRepo, invoiceQuery);
 
         var configuration = Substitute.For<IConfiguration>();
-        _createRequestHandler = new CreatePaymentRequestHandler(_db, _gatewayResolver, configuration);
+        _createRequestHandler = new CreatePaymentRequestHandler(
+            invoiceRepository, paymentTransactionRepository, _db, _gatewayResolver, configuration);
         _webhookHandler = new HandlePaymentWebhookHandler(
-            _db, _gatewayResolver, _confirmationService, NullLogger<HandlePaymentWebhookHandler>.Instance);
+            paymentTransactionRepository, _db, _gatewayResolver, _confirmationService, NullLogger<HandlePaymentWebhookHandler>.Instance);
         _getStatusHandler = new GetPaymentStatusHandler(
-            _db, _gatewayResolver, _confirmationService, NullLogger<GetPaymentStatusHandler>.Instance);
+            invoiceRepository, paymentTransactionRepository, _db, _gatewayResolver, _confirmationService,
+            NullLogger<GetPaymentStatusHandler>.Instance);
     }
 
     [TearDown]

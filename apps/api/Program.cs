@@ -1,5 +1,5 @@
 using System.Text;
-using DentalClinic.API.Application.Validators.Auth;
+using DentalClinic.API.Application.DependencyInjection;
 using DentalClinic.API.Infrastructure.Extensions;
 using DentalClinic.API.Infrastructure.Persistence;
 using DentalClinic.API.Presentation.Middlewares;
@@ -16,9 +16,10 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddOpenApi();
 builder.Services.AddControllers();
 
-// FluentValidation — tự động validate [FromBody] trước khi vào controller
+// FluentValidation — tự động validate [FromBody] trước khi vào controller (auto-validation wiring
+// là mối quan tâm riêng của tầng Web/MVC nên vẫn ở đây; đăng ký validator cụ thể nằm trong AddApplication()).
 builder.Services.AddFluentValidationAutoValidation();
-builder.Services.AddValidatorsFromAssemblyContaining<LoginValidator>();
+builder.Services.AddApplication();
 
 // Chuẩn hóa response lỗi validation → { title, status } nhất quán với ExceptionMiddleware
 builder.Services.Configure<ApiBehaviorOptions>(options =>

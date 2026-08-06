@@ -1,9 +1,8 @@
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
-using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Domain.Interfaces.Repositories;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.Reminders;
 
@@ -23,7 +22,7 @@ public record CheckInFollowUpCommand(Guid OriginalAppointmentId) : IRequest<Guid
 // hệ thống gửi thông báo cho bệnh nhân (xem ClinicalRecords/EndTreatmentHandler).
 // Tách ra từ god-handler FollowUpReminderHandler (4 method).
 
-public class SetFollowUpReminderHandler(AppDbContext dbContext)
+public class SetFollowUpReminderHandler(IAppointmentRepository appointmentRepository)
     : IRequestHandler<SetFollowUpReminderCommand, FollowUpReminderDto>
 {
     public async Task<FollowUpReminderDto> Handle(SetFollowUpReminderCommand command, CancellationToken ct)
@@ -31,8 +30,7 @@ public class SetFollowUpReminderHandler(AppDbContext dbContext)
         var appointmentId = command.AppointmentId;
         var request = command.Request;
 
-        var appointment = await dbContext.Appointments
-            .FirstOrDefaultAsync(a => a.Id == appointmentId, ct)
+        var appointment = await appointmentRepository.GetByIdAsync(appointmentId, ct)
             ?? throw new NotFoundException("Không tìm thấy lịch hẹn.");
 
         if (appointment.Status is not (AppointmentStatus.InProgress or AppointmentStatus.PendingPayment or AppointmentStatus.Completed))
@@ -42,25 +40,24 @@ public class SetFollowUpReminderHandler(AppDbContext dbContext)
             throw new ValidationException("Ngày tái khám phải sau ngày hôm nay.");
 
         appointment.SetFollowUpReminder(request.FollowUpDate, string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim());
-        await dbContext.SaveChangesAsync(ct);
+        await appointmentRepository.UpdateAsync(appointment, ct);
 
         return FollowUpReminderMapper.ToDto(appointmentId, appointment.FollowUpDate, appointment.FollowUpNote);
     }
 }
 
-public class ClearFollowUpReminderHandler(AppDbContext dbContext)
+public class ClearFollowUpReminderHandler(IAppointmentRepository appointmentRepository)
     : IRequestHandler<ClearFollowUpReminderCommand, FollowUpReminderDto>
 {
     public async Task<FollowUpReminderDto> Handle(ClearFollowUpReminderCommand command, CancellationToken ct)
     {
         var appointmentId = command.AppointmentId;
 
-        var appointment = await dbContext.Appointments
-            .FirstOrDefaultAsync(a => a.Id == appointmentId, ct)
+        var appointment = await appointmentRepository.GetByIdAsync(appointmentId, ct)
             ?? throw new NotFoundException("Không tìm thấy lịch hẹn.");
 
         appointment.SetFollowUpReminder(null, null);
-        await dbContext.SaveChangesAsync(ct);
+        await appointmentRepository.UpdateAsync(appointment, ct);
 
         return FollowUpReminderMapper.ToDto(appointmentId, null, null);
     }
@@ -72,50 +69,29 @@ public class ClearFollowUpReminderHandler(AppDbContext dbContext)
 /// staff check-in trực tiếp từ danh sách này.
 /// Buổi gốc đã được check-in tái khám (có buổi con chưa hủy) sẽ được ẩn để tránh trùng.
 /// </summary>
-public class GetFollowUpDueHandler(AppDbContext dbContext) : IRequestHandler<GetFollowUpDueQuery, List<FollowUpDueDto>>
+public class GetFollowUpDueHandler(
+    IAppointmentRepository appointmentRepository,
+    ITreatmentPlanRepository treatmentPlanRepository) : IRequestHandler<GetFollowUpDueQuery, List<FollowUpDueDto>>
 {
     public async Task<List<FollowUpDueDto>> Handle(GetFollowUpDueQuery request, CancellationToken ct)
     {
         // Buổi hẹn đã kết thúc điều trị và được bác sĩ hẹn tái khám.
-        var scheduled = await dbContext.Appointments
-            .AsNoTracking()
-            .Include(a => a.Patient).ThenInclude(p => p.User)
-            .Include(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
-            .Include(a => a.Service)
-            .Where(a => a.FollowUpDate != null &&
-                        (a.Status == AppointmentStatus.Completed || a.Status == AppointmentStatus.PendingPayment))
-            .ToListAsync(ct);
+        var scheduled = await appointmentRepository.GetFollowUpScheduledAsync(ct);
 
         if (scheduled.Count == 0) return new List<FollowUpDueDto>();
 
         var scheduledIds = scheduled.Select(a => a.Id).ToList();
 
         // Buổi gốc đã được check-in tái khám (buổi con chưa hủy) → ẩn.
-        var checkedInSet = (await dbContext.Appointments
-            .AsNoTracking()
-            .Where(f => f.FollowUpFromAppointmentId != null &&
-                        scheduledIds.Contains(f.FollowUpFromAppointmentId!.Value) &&
-                        f.Status != AppointmentStatus.Cancelled)
-            .Select(f => f.FollowUpFromAppointmentId!.Value)
-            .ToListAsync(ct)).ToHashSet();
+        var checkedInSet = await appointmentRepository.GetCheckedInFollowUpOriginalIdsAsync(scheduledIds, ct);
 
         var patientIds = scheduled.Select(a => a.PatientId).Distinct().ToList();
 
         // Liệu trình đang thực hiện (để hiển thị bối cảnh "đang điều trị", có thể rỗng).
-        var activePlans = await dbContext.TreatmentPlans
-            .AsNoTracking()
-            .Include(tp => tp.Service)
-            .Where(tp => tp.Status == TreatmentPlanStatus.InProgress && tp.AppointmentId != null && patientIds.Contains(tp.PatientId))
-            .Select(tp => new { AppointmentId = tp.AppointmentId!.Value, ServiceName = tp.Service.Name })
-            .ToListAsync(ct);
+        var activePlans = await treatmentPlanRepository.GetActiveByPatientIdsAsync(patientIds, ct);
 
         // Bản đồ cha-con để gom liệu trình theo đúng chuỗi tái khám của mỗi buổi.
-        var parentById = (await dbContext.Appointments
-            .AsNoTracking()
-            .Where(a => patientIds.Contains(a.PatientId))
-            .Select(a => new { a.Id, a.FollowUpFromAppointmentId })
-            .ToListAsync(ct))
-            .ToDictionary(a => a.Id, a => a.FollowUpFromAppointmentId);
+        var parentById = await appointmentRepository.GetFollowUpParentMapAsync(patientIds, ct);
 
         // Chuỗi tái khám của một buổi hẹn: chính nó + các buổi gốc phía trên (chặn vòng lặp).
         HashSet<Guid> ChainOf(Guid id)
@@ -163,14 +139,13 @@ public class GetFollowUpDueHandler(AppDbContext dbContext) : IRequestHandler<Get
 /// Staff check-in bệnh nhân đến tái khám: tạo buổi hẹn mới đã check-in ngay,
 /// gắn về buổi gốc — bác sĩ sẽ thấy cờ tái khám và liệu trình cũ của bệnh nhân.
 /// </summary>
-public class CheckInFollowUpHandler(AppDbContext dbContext) : IRequestHandler<CheckInFollowUpCommand, Guid>
+public class CheckInFollowUpHandler(IAppointmentRepository appointmentRepository) : IRequestHandler<CheckInFollowUpCommand, Guid>
 {
     public async Task<Guid> Handle(CheckInFollowUpCommand command, CancellationToken ct)
     {
         var originalAppointmentId = command.OriginalAppointmentId;
 
-        var original = await dbContext.Appointments
-            .FirstOrDefaultAsync(a => a.Id == originalAppointmentId, ct)
+        var original = await appointmentRepository.GetByIdAsync(originalAppointmentId, ct)
             ?? throw new NotFoundException("Không tìm thấy buổi hẹn gốc.");
 
         // Chỉ check-in tái khám được khi bác sĩ đã hẹn ngày tái khám cho buổi này.
@@ -179,8 +154,7 @@ public class CheckInFollowUpHandler(AppDbContext dbContext) : IRequestHandler<Ch
 
         // Chặn check-in tái khám lặp cho cùng một buổi gốc (buổi hủy không tính).
         // Các lịch hẹn/lượt khám khác của bệnh nhân là lần khám riêng — không ảnh hưởng.
-        var alreadyCheckedIn = await dbContext.Appointments.AnyAsync(f =>
-            f.FollowUpFromAppointmentId == originalAppointmentId && f.Status != AppointmentStatus.Cancelled, ct);
+        var alreadyCheckedIn = await appointmentRepository.HasActiveFollowUpCheckInAsync(originalAppointmentId, ct);
         if (alreadyCheckedIn)
             throw new ConflictException("Buổi hẹn này đã được check-in tái khám.");
 
@@ -191,8 +165,7 @@ public class CheckInFollowUpHandler(AppDbContext dbContext) : IRequestHandler<Ch
             original.ServiceId,
             string.IsNullOrWhiteSpace(original.FollowUpNote) ? "Tái khám theo hẹn" : $"Tái khám: {original.FollowUpNote}");
 
-        dbContext.Appointments.Add(followUpVisit);
-        await dbContext.SaveChangesAsync(ct);
+        await appointmentRepository.AddAsync(followUpVisit, ct);
 
         return followUpVisit.Id;
     }

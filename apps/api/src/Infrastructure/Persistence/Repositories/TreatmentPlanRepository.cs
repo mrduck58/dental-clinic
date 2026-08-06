@@ -110,4 +110,12 @@ public class TreatmentPlanRepository(AppDbContext db) : ITreatmentPlanRepository
 
         return map;
     }
+
+    public async Task<IReadOnlyList<ActiveTreatmentPlanSummary>> GetActiveByPatientIdsAsync(List<Guid> patientIds, CancellationToken ct = default)
+        => await db.TreatmentPlans
+            .AsNoTracking()
+            .Include(tp => tp.Service)
+            .Where(tp => tp.Status == TreatmentPlanStatus.InProgress && tp.AppointmentId != null && patientIds.Contains(tp.PatientId))
+            .Select(tp => new ActiveTreatmentPlanSummary(tp.AppointmentId!.Value, tp.Service.Name))
+            .ToListAsync(ct);
 }

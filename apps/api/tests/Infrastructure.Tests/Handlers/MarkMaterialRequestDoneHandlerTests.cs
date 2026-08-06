@@ -38,7 +38,7 @@ public class MarkMaterialRequestDoneHandlerTests
                 var cmd = ci.Arg<StockImportCommand>();
                 return new SupplyTransactionDto(Guid.NewGuid(), Guid.NewGuid(), cmd.Name, "import", cmd.Quantity, cmd.UnitPrice, cmd.Note, cmd.CreatedBy, DateTimeOffset.UtcNow);
             });
-        _handler = new MarkMaterialRequestDoneHandler(_db, new MaterialRequestRepository(_db), _sender);
+        _handler = new MarkMaterialRequestDoneHandler(new MaterialRequestRepository(_db), _sender);
     }
 
     [TearDown]

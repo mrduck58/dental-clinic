@@ -1,9 +1,7 @@
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Schedules;
-using DentalClinic.API.Infrastructure.Persistence;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.Dentists;
 
@@ -20,7 +18,10 @@ public record DentistWithSlotsDto(
 
 public record GetDentistSlotsQuery(DateOnly Date) : IRequest<IEnumerable<DentistWithSlotsDto>>;
 
-public class GetDentistSlotsHandler(AppDbContext dbContext, IAppointmentRepository appointmentRepository)
+public class GetDentistSlotsHandler(
+    IWorkScheduleRepository workScheduleRepository,
+    IDentistRepository dentistRepository,
+    IAppointmentRepository appointmentRepository)
     : IRequestHandler<GetDentistSlotsQuery, IEnumerable<DentistWithSlotsDto>>
 {
     public async Task<IEnumerable<DentistWithSlotsDto>> Handle(GetDentistSlotsQuery request, CancellationToken ct)
@@ -34,9 +35,7 @@ public class GetDentistSlotsHandler(AppDbContext dbContext, IAppointmentReposito
         }
 
         // Kiểm tra WorkSchedule cho ngày này
-        var daySchedules = await dbContext.WorkSchedules
-            .Where(ws => ws.Date == date)
-            .ToListAsync(ct);
+        var daySchedules = await workScheduleRepository.GetByDateAsync(date, ct);
 
         // Nếu có WorkSchedule đánh dấu là ngày nghỉ lễ
         if (daySchedules.Any(ws => ws.IsHoliday))
@@ -62,18 +61,12 @@ public class GetDentistSlotsHandler(AppDbContext dbContext, IAppointmentReposito
                 .Select(ws => ws.StaffName)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-            dentists = await dbContext.DentistProfiles
-                .Include(d => d.Employee).ThenInclude(e => e.User)
-                .Where(d => d.Employee.User.IsActive && dentistNames.Contains(d.Employee.User.FullName ?? string.Empty))
-                .ToListAsync(ct);
+            dentists = await dentistRepository.GetActiveByNamesAsync(dentistNames, ct);
         }
         else
         {
             // Chưa có WorkSchedule cụ thể cho bác sĩ ngày này -> Mặc định lấy tất cả bác sĩ đang hoạt động
-            dentists = await dbContext.DentistProfiles
-                .Include(d => d.Employee).ThenInclude(e => e.User)
-                .Where(d => d.Employee.User.IsActive)
-                .ToListAsync(ct);
+            dentists = await dentistRepository.GetAllActiveWithUserAsync(ct);
         }
 
         var dayAppointments = await appointmentRepository.GetByDateAsync(date, ct);

@@ -1,8 +1,6 @@
 using DentalClinic.API.Application.DTOs.ClinicalRecords;
-using DentalClinic.API.Domain.Enums;
-using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Domain.Interfaces.Repositories;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.ClinicalRecords;
 
@@ -12,24 +10,14 @@ namespace DentalClinic.API.Application.UseCases.ClinicalRecords;
 /// </summary>
 public record GetPatientMedicalHistoryQuery(Guid PatientId) : IRequest<List<PatientMedicalHistoryDto>>;
 
-public class GetPatientMedicalHistoryHandler(AppDbContext dbContext)
+public class GetPatientMedicalHistoryHandler(IAppointmentRepository appointmentRepository)
     : IRequestHandler<GetPatientMedicalHistoryQuery, List<PatientMedicalHistoryDto>>
 {
     public async Task<List<PatientMedicalHistoryDto>> Handle(GetPatientMedicalHistoryQuery request, CancellationToken ct)
     {
         var patientId = request.PatientId;
 
-        var appointments = await dbContext.Appointments
-            .Include(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
-            .Include(a => a.Service)
-            .Include(a => a.Diagnoses)
-            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Service)
-            .Include(a => a.Prescriptions).ThenInclude(p => p.Items)
-            .Where(a => a.PatientId == patientId &&
-                        (a.Status == AppointmentStatus.Completed || a.Status == AppointmentStatus.PendingPayment))
-            .OrderByDescending(a => a.AppointmentDate)
-            .Take(50)
-            .ToListAsync(ct);
+        var appointments = await appointmentRepository.GetCompletedHistoryByPatientAsync(patientId, 50, ct);
 
         return appointments.Select(a => new PatientMedicalHistoryDto(
             a.Id,

@@ -6,18 +6,20 @@ using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Infrastructure.Persistence;
 using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
+using MediatR;
 using Microsoft.EntityFrameworkCore;
+using NSubstitute;
 using NUnit.Framework;
 
 namespace DentalClinic.API.Infrastructure.Tests.Handlers;
 
 /// <summary>
 /// GET api/queue/my-position (tên route thực tế xem QueueController) — vị trí hàng đợi của CHÍNH
-/// bệnh nhân/thành viên gia đình đang đăng nhập. Handler phụ thuộc trực tiếp vào
-/// <see cref="GetWaitingQueueHandler"/> (đã có test riêng ở GetWaitingQueueHandlerTests) để dùng
-/// đúng thuật toán đánh số/thứ tự hàng đợi phòng — nên dùng instance THẬT của handler đó, không mock,
-/// và dùng repository THẬT (PatientRepository/UserRepository) trên cùng AppDbContext InMemory để
-/// hành vi tự tạo hồ sơ bệnh nhân (GetOrCreatePrimaryPatientAsync) được kiểm tra đúng như production.
+/// bệnh nhân/thành viên gia đình đang đăng nhập. Handler gọi <see cref="GetWaitingQueueQuery"/> qua
+/// <c>ISender</c> (đã có test riêng ở GetWaitingQueueHandlerTests) để dùng đúng thuật toán đánh số/
+/// thứ tự hàng đợi phòng — ở đây fake ISender chuyển tiếp sang instance THẬT của handler đó (không
+/// mock hành vi), và dùng repository THẬT (PatientRepository/UserRepository) trên cùng AppDbContext
+/// InMemory để hành vi tự tạo hồ sơ bệnh nhân (GetOrCreatePrimaryPatientAsync) được kiểm tra đúng như production.
 /// </summary>
 [TestFixture]
 public class GetPatientQueueHandlerTests
@@ -26,6 +28,7 @@ public class GetPatientQueueHandlerTests
     private IPatientRepository _patientRepository = null!;
     private IUserRepository _userRepository = null!;
     private GetWaitingQueueHandler _waitingQueueHandler = null!;
+    private ISender _sender = null!;
     private GetPatientQueueHandler _handler = null!;
 
     [SetUp]
@@ -37,8 +40,13 @@ public class GetPatientQueueHandlerTests
         _db = new AppDbContext(options);
         _patientRepository = new PatientRepository(_db);
         _userRepository = new UserRepository(_db);
-        _waitingQueueHandler = new GetWaitingQueueHandler(_db);
-        _handler = new GetPatientQueueHandler(_patientRepository, _userRepository, _waitingQueueHandler, _db);
+        _waitingQueueHandler = new GetWaitingQueueHandler(
+            new AppointmentRepository(_db), new WorkScheduleRepository(_db), new DentistRepository(_db));
+        _sender = Substitute.For<ISender>();
+        _sender.Send(Arg.Any<GetWaitingQueueQuery>(), Arg.Any<CancellationToken>())
+            .Returns(ci => _waitingQueueHandler.Handle((GetWaitingQueueQuery)ci[0], (CancellationToken)ci[1]));
+        _handler = new GetPatientQueueHandler(
+            _patientRepository, _userRepository, _sender, new AppointmentRepository(_db));
     }
 
     [TearDown]
@@ -250,7 +258,7 @@ public class ReorderQueuePatientHandlerTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         _db = new AppDbContext(options);
-        _handler = new ReorderQueuePatientHandler(_db);
+        _handler = new ReorderQueuePatientHandler(new AppointmentRepository(_db));
     }
 
     [TearDown]

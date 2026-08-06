@@ -9,4 +9,7 @@ public interface IServiceRepository
     Task AddAsync(Service service, CancellationToken ct = default);
     Task UpdateAsync(Service service, CancellationToken ct = default);
     Task DeleteAsync(Service service, CancellationToken ct = default);
+
+    /// <summary>Dịch vụ đang hoạt động (IsActive), sắp theo tên — dùng cho chatbot/booking liệt kê dịch vụ khả dụng.</summary>
+    Task<IEnumerable<Service>> GetActiveAsync(CancellationToken ct = default);
 }

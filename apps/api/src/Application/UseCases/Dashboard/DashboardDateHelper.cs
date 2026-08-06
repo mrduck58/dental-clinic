@@ -3,7 +3,7 @@ using DentalClinic.API.Domain.Exceptions;
 namespace DentalClinic.API.Application.UseCases.Dashboard;
 
 /// <summary>Helper tính khoảng thời gian (giờ VN) dùng chung giữa các Dashboard Query handler.</summary>
-internal static class DashboardDateHelper
+public static class DashboardDateHelper
 {
     private static readonly TimeZoneInfo VietnamTz =
         TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");

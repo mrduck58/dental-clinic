@@ -1,11 +1,10 @@
 using DentalClinic.API.Application.DTOs.Inventory;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
+using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Domain.Constants;
-using DentalClinic.API.Infrastructure.Persistence;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.Inventory;
 
@@ -16,7 +15,11 @@ public record CreateSupplyTransactionCommand(
     string? Note,
     string CreatedBy) : IRequest<SupplyTransactionDto>;
 
-public class CreateSupplyTransactionHandler(AppDbContext db, IActivityLogService activityLogService, ICurrentUserService currentUser)
+public class CreateSupplyTransactionHandler(
+    ISupplyItemRepository supplyItemRepository,
+    ISupplyTransactionRepository supplyTransactionRepository,
+    IActivityLogService activityLogService,
+    ICurrentUserService currentUser)
     : IRequestHandler<CreateSupplyTransactionCommand, SupplyTransactionDto>
 {
     public async Task<SupplyTransactionDto> Handle(CreateSupplyTransactionCommand command, CancellationToken ct)
@@ -27,7 +30,7 @@ public class CreateSupplyTransactionHandler(AppDbContext db, IActivityLogService
         if (command.Type != "import" && command.Type != "export")
             throw new ValidationException("Loại giao dịch không hợp lệ.");
 
-        var item = await db.SupplyItems.FirstOrDefaultAsync(s => s.Id == command.SupplyItemId, ct)
+        var item = await supplyItemRepository.GetByIdAsync(command.SupplyItemId, ct)
             ?? throw new NotFoundException("Không tìm thấy vật tư.");
 
         if (command.Type == "export" && command.Quantity > item.Quantity)
@@ -37,10 +40,10 @@ public class CreateSupplyTransactionHandler(AppDbContext db, IActivityLogService
         item.AdjustQuantity(delta);
 
         var tx = SupplyTransaction.Create(item.Id, command.Type, command.Quantity, command.Note, command.CreatedBy);
-        db.SupplyTransactions.Add(tx);
 
-        // Một lần SaveChanges duy nhất — atomic
-        await db.SaveChangesAsync(ct);
+        // item đang được tracked (fetch không AsNoTracking) bởi cùng AppDbContext (scoped) — AddAsync bên dưới
+        // gọi SaveChangesAsync 1 lần duy nhất sẽ lưu luôn cả thay đổi AdjustQuantity() ở trên → atomic.
+        await supplyTransactionRepository.AddAsync(tx, ct);
 
         var actionType = command.Type == "import" ? "nhập kho" : "xuất kho";
         await activityLogService.LogAsync(

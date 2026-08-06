@@ -2,10 +2,9 @@ using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
+using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
-using DentalClinic.API.Infrastructure.Persistence;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.Booking;
 
@@ -30,7 +29,11 @@ public record CreateWalkInResult(
     string PatientName,
     string Status);
 
-public class CreateWalkInAppointmentHandler(AppDbContext dbContext, INotificationService notificationService)
+public class CreateWalkInAppointmentHandler(
+    IAppointmentRepository appointmentRepository,
+    IPatientRepository patientRepository,
+    IUserRepository userRepository,
+    INotificationService notificationService)
     : IRequestHandler<CreateWalkInCommand, CreateWalkInResult>
 {
     public async Task<CreateWalkInResult> Handle(CreateWalkInCommand cmd, CancellationToken ct)
@@ -40,10 +43,7 @@ public class CreateWalkInAppointmentHandler(AppDbContext dbContext, INotificatio
             throw new ValidationException("Không thể đặt lịch cho khung giờ đã qua.");
 
         // 2. Kiểm tra slot còn trống
-        var isBooked = await dbContext.Appointments.AnyAsync(a =>
-            a.DentistId == cmd.DentistId &&
-            a.AppointmentDate == cmd.AppointmentDate &&
-            a.Status != AppointmentStatus.Cancelled, ct);
+        var isBooked = await appointmentRepository.IsSlotBookedAsync(cmd.DentistId, cmd.AppointmentDate, ct);
 
         if (isBooked)
             throw new ConflictException("Khung giờ này đã được đặt. Vui lòng chọn giờ khác.");
@@ -57,25 +57,21 @@ public class CreateWalkInAppointmentHandler(AppDbContext dbContext, INotificatio
 
         if (cmd.PatientId is { } patientId)
         {
-            patient = await dbContext.Patients
-                .Include(p => p.User)
-                .FirstOrDefaultAsync(p => p.Id == patientId, ct)
+            patient = await patientRepository.GetByIdAsync(patientId, ct)
                 ?? throw new ValidationException("Không tìm thấy hồ sơ bệnh nhân đã chọn.");
         }
         else
         {
-            patient = await dbContext.Patients
-                .Include(p => p.User)
-                .FirstOrDefaultAsync(p => p.User != null && p.User.PhoneNumber == cmd.PatientPhone, ct);
+            patient = await patientRepository.GetByPhoneNumberAsync(cmd.PatientPhone, ct);
         }
 
         if (patient == null)
         {
             var placeholderUser = User.CreateEmployee(null, UserRole.Patient, cmd.PatientPhone, cmd.PatientName);
             placeholderUser.UpdateGender(cmd.Gender);
-            dbContext.Users.Add(placeholderUser);
+            await userRepository.AddAsync(placeholderUser, ct);
             patient = Patient.Create(placeholderUser.Id, cmd.DateOfBirth);
-            dbContext.Patients.Add(patient);
+            await patientRepository.AddAsync(patient, ct);
         }
         else
         {
@@ -84,6 +80,7 @@ public class CreateWalkInAppointmentHandler(AppDbContext dbContext, INotificatio
             patient.SetDateOfBirth(cmd.DateOfBirth);
             patient.SetGender(cmd.Gender);
             patient.SetFullName(cmd.PatientName);
+            await patientRepository.UpdateAsync(patient, ct);
         }
 
         // 4. Bệnh nhân đã có mặt tại quầy nên bỏ qua cả Pending lẫn Confirmed:
@@ -93,17 +90,13 @@ public class CreateWalkInAppointmentHandler(AppDbContext dbContext, INotificatio
             symptoms: cmd.Symptoms, serviceId: cmd.ServiceId);
         appointment.CheckIn();
 
-        dbContext.Appointments.Add(appointment);
-        await dbContext.SaveChangesAsync(ct);
+        await appointmentRepository.AddAsync(appointment, ct);
 
         var code = $"DK{cmd.AppointmentDate:yyyyMMdd}{appointment.Id.ToString("N")[..6].ToUpper()}";
 
         // Bệnh nhân đã ngồi chờ tại quầy (CheckedIn ngay) nên bác sĩ càng cần được báo ngay lập tức —
         // không báo Staff vì chính nhân viên đang thao tác đã biết rõ việc này rồi.
-        var dentistUserId = await dbContext.DentistProfiles
-            .Where(d => d.Id == cmd.DentistId)
-            .Select(d => (Guid?)d.Employee.UserId)
-            .FirstOrDefaultAsync(ct);
+        var dentistUserId = await appointmentRepository.GetDentistUserIdAsync(cmd.DentistId, ct);
         if (dentistUserId.HasValue)
         {
             await notificationService.CreateAsync(new CreateNotificationRequest(

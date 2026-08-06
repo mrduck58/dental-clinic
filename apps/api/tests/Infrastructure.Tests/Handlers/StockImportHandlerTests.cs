@@ -3,6 +3,7 @@ using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using NSubstitute;
@@ -27,7 +28,8 @@ public class StockImportHandlerTests
         _db = new AppDbContext(options);
         _activityLogService = Substitute.For<IActivityLogService>();
         _currentUser = Substitute.For<ICurrentUserService>();
-        _handler = new StockImportHandler(_db, _activityLogService, _currentUser);
+        _handler = new StockImportHandler(
+            new SupplyItemRepository(_db), new SupplyTransactionRepository(_db), _activityLogService, _currentUser);
     }
 
     [TearDown]

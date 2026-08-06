@@ -1,9 +1,7 @@
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Interfaces.Repositories;
-using DentalClinic.API.Infrastructure.Persistence;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.Queue;
 
@@ -30,15 +28,14 @@ public record PatientQueueResponse(
 public record GetPatientQueueQuery(Guid UserId, Guid? PatientId) : IRequest<PatientQueueResponse>;
 
 /// <remarks>
-/// Phụ thuộc trực tiếp vào <see cref="GetWaitingQueueHandler"/> (không qua <c>ISender</c>) vì phải
-/// dùng CHÍNH XÁC cùng thuật toán đánh số/xếp thứ tự hàng đợi phòng mà màn hình lễ tân đang thấy —
-/// nên hai handler bắt buộc nằm cùng bounded context Queue.
+/// Gọi <see cref="GetWaitingQueueQuery"/> qua <c>ISender</c> để dùng CHÍNH XÁC cùng thuật toán đánh
+/// số/xếp thứ tự hàng đợi phòng mà màn hình lễ tân đang thấy (cùng <see cref="GetWaitingQueueHandler"/>).
 /// </remarks>
 public class GetPatientQueueHandler(
     IPatientRepository patientRepository,
     IUserRepository userRepository,
-    GetWaitingQueueHandler getWaitingQueueHandler,
-    AppDbContext dbContext) : IRequestHandler<GetPatientQueueQuery, PatientQueueResponse>
+    ISender sender,
+    IAppointmentRepository appointmentRepository) : IRequestHandler<GetPatientQueueQuery, PatientQueueResponse>
 {
     private static readonly TimeZoneInfo VietnamTimeZone = TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
 
@@ -100,20 +97,11 @@ public class GetPatientQueueHandler(
         Console.WriteLine($"[PatientQueue] Date range: {utcStart:yyyy-MM-dd HH:mm:ss} to {utcEnd:yyyy-MM-dd HH:mm:ss} (VN Date: {date:yyyy-MM-dd})");
 
         // Find active appointment for today (CheckedIn or InProgress)
-        var appointment = await dbContext.Appointments
-            .Include(a => a.Patient)
-            .Include(a => a.Dentist)
-            .FirstOrDefaultAsync(a => a.PatientId == targetPatientId &&
-                                      a.AppointmentDate >= utcStart && a.AppointmentDate < utcEnd &&
-                                      (a.Status == AppointmentStatus.CheckedIn || a.Status == AppointmentStatus.InProgress),
-                                 ct);
+        var appointment = await appointmentRepository.GetActiveTodayByPatientAsync(targetPatientId, utcStart, utcEnd, ct);
 
         if (appointment is null)
         {
-            var anyAppointmentsToday = await dbContext.Appointments
-                .Where(a => a.PatientId == targetPatientId && a.AppointmentDate >= utcStart && a.AppointmentDate < utcEnd)
-                .Select(a => new { a.Id, a.Status, a.AppointmentDate })
-                .ToListAsync(ct);
+            var anyAppointmentsToday = await appointmentRepository.GetByPatientAndDateRangeAsync(targetPatientId, utcStart, utcEnd, ct);
 
             Console.WriteLine($"[PatientQueue] No CheckedIn/InProgress appointment today. Found {anyAppointmentsToday.Count} total appointments today:");
             foreach (var app in anyAppointmentsToday)
@@ -125,7 +113,7 @@ public class GetPatientQueueHandler(
         Console.WriteLine($"[PatientQueue] Found active appointment: Id={appointment.Id}, Status={appointment.Status}");
 
         // Get full clinic waiting queue for today
-        var clinicQueue = await getWaitingQueueHandler.Handle(new GetWaitingQueueQuery(date), ct);
+        var clinicQueue = await sender.Send(new GetWaitingQueueQuery(date), ct);
 
         // Find the room and the patient's queue entry
         RoomQueueDto? targetRoom = null;

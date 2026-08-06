@@ -1,9 +1,8 @@
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
+using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Schedules;
-using DentalClinic.API.Infrastructure.Persistence;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.Queue;
 
@@ -43,7 +42,10 @@ public record WaitingQueueResponse(
 
 public record GetWaitingQueueQuery(DateOnly Date) : IRequest<WaitingQueueResponse>;
 
-public class GetWaitingQueueHandler(AppDbContext dbContext)
+public class GetWaitingQueueHandler(
+    IAppointmentRepository appointmentRepository,
+    IWorkScheduleRepository workScheduleRepository,
+    IDentistRepository dentistRepository)
     : IRequestHandler<GetWaitingQueueQuery, WaitingQueueResponse>
 {
     private static readonly TimeZoneInfo VietnamTimeZone = TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
@@ -66,23 +68,11 @@ public class GetWaitingQueueHandler(AppDbContext dbContext)
         var isToday = date == DateOnly.FromDateTime(nowVietnam.DateTime);
         var nowMinutes = nowVietnam.Hour * 60 + nowVietnam.Minute;
 
-        var appointments = await dbContext.Appointments
-            .Include(a => a.Patient).ThenInclude(p => p.User)
-            .Include(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
-            .Include(a => a.Service)
-            .Where(a => a.AppointmentDate >= utcStart && a.AppointmentDate < utcEnd &&
-                        (a.Status == AppointmentStatus.CheckedIn ||
-                         a.Status == AppointmentStatus.InProgress ||
-                         a.Status == AppointmentStatus.Completed))
-            .ToListAsync(ct);
+        var appointments = await appointmentRepository.GetQueueAppointmentsByDateRangeAsync(utcStart, utcEnd, ct);
 
         // Ca làm việc của bác sĩ trong ngày. Chỉ chấp nhận mã ca hợp lệ — dữ liệu rác
         // với giá trị Shift khác không được coi là bác sĩ có ca làm việc thật.
-        var validShiftCodes = WorkShifts.AllValidCodes;
-        var daySchedules = await dbContext.WorkSchedules
-            .Where(ws => ws.Date == date && ws.Type == "dentist" && !ws.IsHoliday &&
-                         validShiftCodes.Contains(ws.Shift))
-            .ToListAsync(ct);
+        var daySchedules = await workScheduleRepository.GetDentistSchedulesForDateAsync(date, ct: ct);
 
         var schedulesByName = daySchedules
             .GroupBy(ws => ws.StaffName)
@@ -93,9 +83,7 @@ public class GetWaitingQueueHandler(AppDbContext dbContext)
         // Hàng đợi hiện MỌI phòng có bác sĩ đang hoạt động — kể cả phòng chưa có ai check-in,
         // để lễ tân thấy được phòng nào đang trống. "Đang hoạt động" = có ca làm việc trong
         // ngày và tài khoản còn Active.
-        var activeDentists = await dbContext.DentistProfiles
-            .Include(d => d.Employee).ThenInclude(e => e.User)
-            .ToListAsync(ct);
+        var activeDentists = await dentistRepository.GetAllWithUserAsync(ct);
 
         var dentistsToShow = activeDentists
             .Where(d => schedulesByName.ContainsKey(d.FullName) && IsEmployed(d.Employee.EmploymentStatus))

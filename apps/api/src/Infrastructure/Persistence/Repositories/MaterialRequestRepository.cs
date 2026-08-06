@@ -1,6 +1,7 @@
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace DentalClinic.API.Infrastructure.Persistence.Repositories;
 
@@ -45,5 +46,21 @@ public class MaterialRequestRepository(AppDbContext db) : IMaterialRequestReposi
     {
         db.MaterialRequests.Update(request);
         await db.SaveChangesAsync(ct);
+    }
+
+    public async Task<IMaterialRequestTransaction?> BeginTransactionAsync(CancellationToken ct = default)
+    {
+        // InMemory provider (dùng trong unit test) không hỗ trợ transaction — chỉ bọc transaction thật khi
+        // chạy trên provider quan hệ (Postgres).
+        if (!db.Database.IsRelational()) return null;
+
+        var tx = await db.Database.BeginTransactionAsync(ct);
+        return new EfMaterialRequestTransaction(tx);
+    }
+
+    private sealed class EfMaterialRequestTransaction(IDbContextTransaction tx) : IMaterialRequestTransaction
+    {
+        public Task CommitAsync(CancellationToken ct = default) => tx.CommitAsync(ct);
+        public ValueTask DisposeAsync() => tx.DisposeAsync();
     }
 }

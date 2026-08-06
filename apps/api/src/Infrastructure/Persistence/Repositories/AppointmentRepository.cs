@@ -1,4 +1,5 @@
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using Microsoft.EntityFrameworkCore;
 
@@ -149,6 +150,279 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
             .OrderByDescending(g => g.Count())
             .Select(g => g.Key!)
             .Take(take)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<bool> IsSlotBookedAsync(Guid dentistId, DateTimeOffset appointmentDate, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Appointments.AnyAsync(a =>
+            a.DentistId == dentistId &&
+            a.AppointmentDate == appointmentDate &&
+            a.Status != AppointmentStatus.Cancelled, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Appointment>> GetStaffAppointmentsAsync(
+        DateOnly? date, AppointmentStatus? status, CancellationToken cancellationToken = default)
+    {
+        var query = dbContext.Appointments
+            .Include(a => a.Patient).ThenInclude(p => p.User)
+            .Include(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
+            .Include(a => a.Service)
+            .AsQueryable();
+
+        if (date.HasValue)
+        {
+            var start = new DateTimeOffset(date.Value.Year, date.Value.Month, date.Value.Day, 0, 0, 0, TimeSpan.Zero);
+            var end = start.AddDays(1);
+            query = query.Where(a => a.AppointmentDate >= start && a.AppointmentDate < end);
+        }
+
+        if (status.HasValue)
+        {
+            query = query.Where(a => a.Status == status.Value);
+        }
+
+        return await query.OrderByDescending(a => a.CreatedAt).ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Appointment>> GetMyAppointmentsAsync(Guid patientId, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Appointments
+            .Include(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
+            .Include(a => a.Patient).ThenInclude(p => p.User)
+            .Include(a => a.Service)
+            .Where(a => a.PatientId == patientId || a.Patient.PrimaryPatientId == patientId)
+            .OrderByDescending(a => a.AppointmentDate)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Appointment>> GetActiveInRangeAsync(DateTimeOffset utcStart, DateTimeOffset utcEnd, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Appointments
+            .Include(a => a.Patient)
+            .Where(a => a.AppointmentDate >= utcStart && a.AppointmentDate < utcEnd &&
+                        a.Status != AppointmentStatus.Cancelled)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Appointment>> GetActiveByDentistIdAsync(Guid dentistId, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Appointments
+            .Include(a => a.Service)
+            .Where(a => a.DentistId == dentistId && a.Status != AppointmentStatus.Cancelled)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<Appointment?> GetExaminationDetailAsync(Guid appointmentId, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Appointments
+            .Include(a => a.Patient).ThenInclude(p => p.User)
+            .Include(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
+            .Include(a => a.Service)
+            .Include(a => a.Diagnoses)
+            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Service)
+            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Dentist)
+            .Include(a => a.Prescriptions).ThenInclude(p => p.Items)
+            .FirstOrDefaultAsync(a => a.Id == appointmentId, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Appointment>> GetCompletedHistoryByPatientAsync(Guid patientId, int take, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Appointments
+            .Include(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
+            .Include(a => a.Service)
+            .Include(a => a.Diagnoses)
+            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Service)
+            .Include(a => a.Prescriptions).ThenInclude(p => p.Items)
+            .Where(a => a.PatientId == patientId &&
+                        (a.Status == AppointmentStatus.Completed || a.Status == AppointmentStatus.PendingPayment))
+            .OrderByDescending(a => a.AppointmentDate)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Appointment>> GetCompletedHistoryForFamilyAsync(
+        Guid primaryPatientId, Guid? filterPatientId, int take, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Appointments
+            .Include(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
+            .Include(a => a.Patient)
+            .Include(a => a.Service)
+            .Include(a => a.Diagnoses)
+            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Service)
+            .Include(a => a.Prescriptions).ThenInclude(p => p.Items)
+            .Where(a => (a.PatientId == primaryPatientId || a.Patient.PrimaryPatientId == primaryPatientId) &&
+                        (filterPatientId == null || a.PatientId == filterPatientId) &&
+                        (a.Status == AppointmentStatus.Completed || a.Status == AppointmentStatus.PendingPayment))
+            .OrderByDescending(a => a.AppointmentDate)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<List<Guid>> GetFollowUpChainAsync(Guid appointmentId, CancellationToken cancellationToken = default)
+    {
+        var chain = new HashSet<Guid> { appointmentId };
+        bool added;
+        do
+        {
+            added = false;
+
+            var parents = await dbContext.Appointments
+                .Where(a => chain.Contains(a.Id) && a.FollowUpFromAppointmentId != null)
+                .Select(a => a.FollowUpFromAppointmentId!.Value)
+                .ToListAsync(cancellationToken);
+            foreach (var p in parents)
+            {
+                if (chain.Add(p)) added = true;
+            }
+
+            var children = await dbContext.Appointments
+                .Where(a => a.FollowUpFromAppointmentId != null && chain.Contains(a.FollowUpFromAppointmentId.Value))
+                .Select(a => a.Id)
+                .ToListAsync(cancellationToken);
+            foreach (var c in children)
+            {
+                if (chain.Add(c)) added = true;
+            }
+        } while (added);
+
+        chain.Remove(appointmentId);
+        return chain.ToList();
+    }
+
+    public async Task<IReadOnlyList<Appointment>> GetQueueAppointmentsByDateRangeAsync(DateTimeOffset utcStart, DateTimeOffset utcEnd, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Appointments
+            .Include(a => a.Patient).ThenInclude(p => p.User)
+            .Include(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
+            .Include(a => a.Service)
+            .Where(a => a.AppointmentDate >= utcStart && a.AppointmentDate < utcEnd &&
+                        (a.Status == AppointmentStatus.CheckedIn ||
+                         a.Status == AppointmentStatus.InProgress ||
+                         a.Status == AppointmentStatus.Completed))
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<Appointment?> GetActiveTodayByPatientAsync(Guid patientId, DateTimeOffset utcStart, DateTimeOffset utcEnd, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Appointments
+            .Include(a => a.Patient)
+            .Include(a => a.Dentist)
+            .FirstOrDefaultAsync(a => a.PatientId == patientId &&
+                                      a.AppointmentDate >= utcStart && a.AppointmentDate < utcEnd &&
+                                      (a.Status == AppointmentStatus.CheckedIn || a.Status == AppointmentStatus.InProgress),
+                                 cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Appointment>> GetByPatientAndDateRangeAsync(Guid patientId, DateTimeOffset utcStart, DateTimeOffset utcEnd, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Appointments
+            .Where(a => a.PatientId == patientId && a.AppointmentDate >= utcStart && a.AppointmentDate < utcEnd)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Appointment>> GetFollowUpScheduledAsync(CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Appointments
+            .AsNoTracking()
+            .Include(a => a.Patient).ThenInclude(p => p.User)
+            .Include(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
+            .Include(a => a.Service)
+            .Where(a => a.FollowUpDate != null &&
+                        (a.Status == AppointmentStatus.Completed || a.Status == AppointmentStatus.PendingPayment))
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<HashSet<Guid>> GetCheckedInFollowUpOriginalIdsAsync(List<Guid> originalAppointmentIds, CancellationToken cancellationToken = default)
+    {
+        return (await dbContext.Appointments
+            .AsNoTracking()
+            .Where(f => f.FollowUpFromAppointmentId != null &&
+                        originalAppointmentIds.Contains(f.FollowUpFromAppointmentId!.Value) &&
+                        f.Status != AppointmentStatus.Cancelled)
+            .Select(f => f.FollowUpFromAppointmentId!.Value)
+            .ToListAsync(cancellationToken)).ToHashSet();
+    }
+
+    public async Task<Dictionary<Guid, Guid?>> GetFollowUpParentMapAsync(List<Guid> patientIds, CancellationToken cancellationToken = default)
+    {
+        return (await dbContext.Appointments
+            .AsNoTracking()
+            .Where(a => patientIds.Contains(a.PatientId))
+            .Select(a => new { a.Id, a.FollowUpFromAppointmentId })
+            .ToListAsync(cancellationToken))
+            .ToDictionary(a => a.Id, a => a.FollowUpFromAppointmentId);
+    }
+
+    public async Task<bool> HasActiveFollowUpCheckInAsync(Guid originalAppointmentId, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Appointments.AnyAsync(f =>
+            f.FollowUpFromAppointmentId == originalAppointmentId && f.Status != AppointmentStatus.Cancelled, cancellationToken);
+    }
+
+    public async Task<Appointment?> GetForPrescriptionSuggestionAsync(Guid appointmentId, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Appointments
+            .Include(a => a.Service)
+            .Include(a => a.Diagnoses)
+            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Service)
+            .Include(a => a.Prescriptions).ThenInclude(p => p.Items)
+            .FirstOrDefaultAsync(a => a.Id == appointmentId, cancellationToken);
+    }
+
+    public async Task<Appointment?> GetForTreatmentSuggestionAsync(Guid appointmentId, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Appointments
+            .Include(a => a.Service)
+            .Include(a => a.Diagnoses)
+            .FirstOrDefaultAsync(a => a.Id == appointmentId, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Appointment>> GetPatientHistoryExcludingAsync(Guid patientId, Guid excludeAppointmentId, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Appointments
+            .Where(a => a.PatientId == patientId && a.Id != excludeAppointmentId)
+            .Include(a => a.Service)
+            .Include(a => a.Diagnoses)
+            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Service)
+            .Include(a => a.Prescriptions).ThenInclude(p => p.Items)
+            .OrderByDescending(a => a.AppointmentDate)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Appointment>> GetUpcomingForPatientsAsync(List<Guid> patientIds, DateTimeOffset fromUtc, int take, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Appointments
+            .Include(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
+            .Include(a => a.Patient).ThenInclude(p => p.User)
+            .Where(a => patientIds.Contains(a.PatientId) &&
+                (a.Status == AppointmentStatus.Pending || a.Status == AppointmentStatus.Confirmed) &&
+                a.AppointmentDate >= fromUtc)
+            .OrderBy(a => a.AppointmentDate)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<Appointment?> GetNextUpcomingForPatientsAsync(List<Guid> patientIds, DateTimeOffset fromUtc, DateTimeOffset toUtc, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Appointments
+            .Include(a => a.Dentist)
+            .Include(a => a.Patient)
+            .Where(a => patientIds.Contains(a.PatientId) &&
+                (a.Status == AppointmentStatus.Pending || a.Status == AppointmentStatus.Confirmed) &&
+                a.AppointmentDate >= fromUtc && a.AppointmentDate <= toUtc)
+            .OrderBy(a => a.AppointmentDate)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Appointment>> GetActiveByPatientOrUserAsync(Guid? patientId, Guid userId, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Appointments
+            .Include(a => a.Dentist)
+            .Include(a => a.Patient)
+            .AsNoTracking()
+            .Where(a => ((patientId != null && a.PatientId == patientId) || a.Patient.UserId == userId)
+                     && a.Status != AppointmentStatus.Cancelled)
             .ToListAsync(cancellationToken);
     }
 }

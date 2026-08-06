@@ -1,9 +1,7 @@
 using DentalClinic.API.Application.DTOs.Invoices;
 using DentalClinic.API.Domain.Entities;
-using DentalClinic.API.Domain.Enums;
-using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Domain.Interfaces.Repositories;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using static DentalClinic.API.Application.UseCases.Invoices.InvoiceHelpers;
 
 namespace DentalClinic.API.Application.UseCases.Invoices;
@@ -14,45 +12,25 @@ public record GetBillablePlansQuery : IRequest<List<BillablePlanDto>>;
 /// Tab "Liệu trình → Hóa đơn": lịch hẹn đã kết thúc điều trị, chưa xuất hóa đơn.
 /// Các dòng dịch vụ được gợi ý từ liệu trình điều trị (Description + EstimatedCost).
 /// </summary>
-public class GetBillablePlansHandler(AppDbContext dbContext, InvoiceQueryHelper invoiceQuery)
+public class GetBillablePlansHandler(IInvoiceRepository invoiceRepository, InvoiceQueryHelper invoiceQuery)
     : IRequestHandler<GetBillablePlansQuery, List<BillablePlanDto>>
 {
     public async Task<List<BillablePlanDto>> Handle(GetBillablePlansQuery query, CancellationToken ct)
     {
         // 1) Buổi đã kết thúc điều trị — cho phép xuất NHIỀU hóa đơn/buổi (mỗi dịch vụ một hóa đơn,
         // kiểu thanh toán riêng), nên KHÔNG lọc "buổi chưa có hóa đơn".
-        var appointments = await dbContext.Appointments
-            .AsNoTracking()
-            .Include(a => a.Patient).ThenInclude(p => p.User)
-            .Include(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
-            .Include(a => a.Diagnoses)
-            .Where(a => a.Status == AppointmentStatus.PendingPayment)
-            .OrderBy(a => a.AppointmentDate)
-            .ToListAsync(ct);
+        var appointments = (await invoiceRepository.GetPendingPaymentAppointmentsWithDetailsAsync(ct)).ToList();
 
         var patientIds = appointments.Select(a => a.PatientId).Distinct().ToList();
 
         // Tất cả liệu trình (chưa hủy) của các bệnh nhân liên quan — KHÔNG lọc theo trạng thái lâm sàng:
         // một dịch vụ chưa thu đủ tiền vẫn phải xuất hóa đơn dù bác sĩ đã đánh dấu "Hoàn thành".
-        var allPlans = patientIds.Count == 0
-            ? new List<TreatmentPlan>()
-            : await dbContext.TreatmentPlans
-                .AsNoTracking()
-                .Include(tp => tp.Service)
-                .Where(tp => patientIds.Contains(tp.PatientId) && tp.Status != TreatmentPlanStatus.Cancelled)
-                .ToListAsync(ct);
+        var allPlans = (await invoiceRepository.GetActiveTreatmentPlansByPatientIdsAsync(patientIds, ct)).ToList();
         var planIds = allPlans.Select(p => p.Id).ToList();
         var billedByPlan = await invoiceQuery.GetPlanBilledMapAsync(planIds, ct); // đã gắn vào hóa đơn (tránh xuất trùng)
 
         // Bản đồ cha-con để gom liệu trình theo ĐÚNG chuỗi tái khám của mỗi buổi.
-        var parentById = patientIds.Count == 0
-            ? new Dictionary<Guid, Guid?>()
-            : (await dbContext.Appointments
-                .AsNoTracking()
-                .Where(a => patientIds.Contains(a.PatientId))
-                .Select(a => new { a.Id, a.FollowUpFromAppointmentId })
-                .ToListAsync(ct))
-                .ToDictionary(a => a.Id, a => a.FollowUpFromAppointmentId);
+        var parentById = await invoiceRepository.GetFollowUpParentMapAsync(patientIds, ct);
 
         HashSet<Guid> ChainOf(Guid id)
         {
@@ -111,14 +89,7 @@ public class GetBillablePlansHandler(AppDbContext dbContext, InvoiceQueryHelper 
         }
 
         // 2) Hóa đơn đặt cọc đang được yêu cầu thu phần còn lại (chưa tạo hóa đơn con).
-        var remainingParents = await dbContext.Invoices
-            .AsNoTracking()
-            .Include(i => i.Appointment).ThenInclude(a => a.Patient).ThenInclude(p => p.User)
-            .Include(i => i.Appointment).ThenInclude(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
-            .Where(i => i.CollectingRemaining && !i.IsSettled && i.TotalAmount > i.DepositAmount
-                        && !dbContext.Invoices.Any(c => c.ParentInvoiceId == i.Id))
-            .OrderBy(i => i.CreatedAt)
-            .ToListAsync(ct);
+        var remainingParents = await invoiceRepository.GetCollectingRemainingParentsAsync(ct);
 
         foreach (var parent in remainingParents)
         {

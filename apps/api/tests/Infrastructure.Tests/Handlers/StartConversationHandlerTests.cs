@@ -46,7 +46,8 @@ public class StartConversationHandlerTests
         _userRepo = Substitute.For<IUserRepository>();
 
         _handler = new StartConversationHandler(
-            _patientRepo, _userRepo, new ChatConversationRepository(_db), new ChatMessageRepository(_db), _db);
+            _patientRepo, _userRepo, new ChatConversationRepository(_db), new ChatMessageRepository(_db),
+            new AppointmentRepository(_db));
     }
 
     [TearDown]

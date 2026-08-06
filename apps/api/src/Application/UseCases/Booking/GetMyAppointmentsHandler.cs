@@ -1,7 +1,5 @@
 using DentalClinic.API.Domain.Interfaces.Repositories;
-using DentalClinic.API.Infrastructure.Persistence;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.Booking;
 
@@ -24,20 +22,14 @@ public record GetMyAppointmentsQuery(Guid UserId) : IRequest<IEnumerable<MyAppoi
 
 public class GetMyAppointmentsHandler(
     IPatientRepository patientRepository,
-    AppDbContext dbContext) : IRequestHandler<GetMyAppointmentsQuery, IEnumerable<MyAppointmentDto>>
+    IAppointmentRepository appointmentRepository) : IRequestHandler<GetMyAppointmentsQuery, IEnumerable<MyAppointmentDto>>
 {
     public async Task<IEnumerable<MyAppointmentDto>> Handle(GetMyAppointmentsQuery request, CancellationToken ct)
     {
         var patient = await patientRepository.GetByUserIdAsync(request.UserId, ct);
         if (patient is null) return [];
 
-        var appointments = await dbContext.Appointments
-            .Include(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
-            .Include(a => a.Patient).ThenInclude(p => p.User)
-            .Include(a => a.Service)
-            .Where(a => a.PatientId == patient.Id || a.Patient.PrimaryPatientId == patient.Id)
-            .OrderByDescending(a => a.AppointmentDate)
-            .ToListAsync(ct);
+        var appointments = await appointmentRepository.GetMyAppointmentsAsync(patient.Id, ct);
 
         return appointments.Select(a => new MyAppointmentDto(
             a.Id,

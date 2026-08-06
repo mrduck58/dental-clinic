@@ -2,8 +2,6 @@ using System.Text.Json;
 using DentalClinic.API.Application.DTOs.ClinicalRecords;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
-using DentalClinic.API.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.ClinicalRecords;
 
@@ -168,44 +166,6 @@ public static class ClinicalRecordMappers
                 }
                 : null
         };
-    }
-
-    /// <summary>
-    /// Toàn bộ chuỗi tái khám của một buổi hẹn — cả buổi gốc (đi ngược FollowUpFromAppointmentId)
-    /// LẪN các buổi tái khám sau nó (đi xuôi). Trước đây chỉ đi ngược nên xem từ buổi hẹn GỐC sẽ
-    /// không thấy các liệu trình/đơn thuốc được ghi thêm ở các buổi TÁI KHÁM sau — chỉ xem từ buổi
-    /// tái khám mới nhất mới thấy đủ. Dò 2 chiều tới khi không còn buổi hẹn mới nào (chặn vòng lặp).
-    /// </summary>
-    public static async Task<List<Guid>> GetFollowUpChainAsync(
-        AppDbContext dbContext, Guid appointmentId, CancellationToken ct)
-    {
-        var chain = new HashSet<Guid> { appointmentId };
-        bool added;
-        do
-        {
-            added = false;
-
-            var parents = await dbContext.Appointments
-                .Where(a => chain.Contains(a.Id) && a.FollowUpFromAppointmentId != null)
-                .Select(a => a.FollowUpFromAppointmentId!.Value)
-                .ToListAsync(ct);
-            foreach (var p in parents)
-            {
-                if (chain.Add(p)) added = true;
-            }
-
-            var children = await dbContext.Appointments
-                .Where(a => a.FollowUpFromAppointmentId != null && chain.Contains(a.FollowUpFromAppointmentId.Value))
-                .Select(a => a.Id)
-                .ToListAsync(ct);
-            foreach (var c in children)
-            {
-                if (chain.Add(c)) added = true;
-            }
-        } while (added);
-
-        chain.Remove(appointmentId);
-        return chain.ToList();
     }
 
     // ── Lịch sử khám ─────────────────────────────────────────────────────────

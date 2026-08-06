@@ -2,10 +2,9 @@ using DentalClinic.API.Application.DTOs.Inventory;
 using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
+using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
-using DentalClinic.API.Infrastructure.Persistence;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Application.UseCases.Inventory;
 
@@ -19,7 +18,11 @@ public record StockImportCommand(
     string? OrderType,
     string CreatedBy) : IRequest<SupplyTransactionDto>;
 
-public class StockImportHandler(AppDbContext db, IActivityLogService activityLogService, ICurrentUserService currentUser)
+public class StockImportHandler(
+    ISupplyItemRepository supplyItemRepository,
+    ISupplyTransactionRepository supplyTransactionRepository,
+    IActivityLogService activityLogService,
+    ICurrentUserService currentUser)
     : IRequestHandler<StockImportCommand, SupplyTransactionDto>
 {
     public async Task<SupplyTransactionDto> Handle(StockImportCommand command, CancellationToken ct)
@@ -45,9 +48,9 @@ public class StockImportHandler(AppDbContext db, IActivityLogService activityLog
 
         var nameNorm = command.Name.Trim();
 
-        var item = await db.SupplyItems
-            .FirstOrDefaultAsync(s => s.Name.ToLower() == nameNorm.ToLower(), ct);
+        var item = await supplyItemRepository.GetByNameAsync(nameNorm, ct);
 
+        SupplyItem? newItem = null;
         if (item != null)
         {
             // Vật tư đã tồn tại — giữ nguyên đơn vị + loại vật tư đã phân, chỉ cộng số lượng.
@@ -64,14 +67,15 @@ public class StockImportHandler(AppDbContext db, IActivityLogService activityLog
             // Vật tư chưa tồn tại — tạo mới với đơn vị, loại vật tư, và giá được chọn.
             var code = "VT" + Guid.NewGuid().ToString("N")[..6].ToUpper();
             item = SupplyItem.Create(code, nameNorm, command.Category.Trim(), command.Unit, command.Quantity, 5, orderType, command.UnitPrice);
-            db.SupplyItems.Add(item);
+            newItem = item;
         }
 
         var tx = SupplyTransaction.Create(item.Id, "import", command.Quantity, command.Note, command.CreatedBy, command.UnitPrice);
-        db.SupplyTransactions.Add(tx);
 
-        // Một lần SaveChanges duy nhất — EF Core tự bao trong implicit transaction
-        await db.SaveChangesAsync(ct);
+        // Một lần SaveChanges duy nhất (bên trong AddImportAsync) — EF Core tự bao trong implicit transaction.
+        // item đã tồn tại thì đang được tracked (fetch không AsNoTracking) bởi cùng AppDbContext (scoped),
+        // nên thay đổi AdjustQuantity()/UpdatePrice() ở trên cũng được lưu chung, atomic với việc tạo tx.
+        await supplyTransactionRepository.AddImportAsync(newItem, tx, ct);
 
         await activityLogService.LogAsync(
             userId: currentUser.UserId,
