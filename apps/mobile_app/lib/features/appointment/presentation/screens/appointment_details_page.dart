@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/settings_manager.dart';
+import 'package:mobile_app/core/constants/api_constants.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/booking/data/booking_models.dart';
 import 'package:mobile_app/features/booking/data/booking_service.dart';
@@ -125,7 +126,7 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
               radius: 16,
               backgroundColor: context.divider,
               backgroundImage: item.dentistAvatarUrl != null
-                  ? NetworkImage(item.dentistAvatarUrl!)
+                  ? NetworkImage(ApiConstants.resolveAssetUrl(item.dentistAvatarUrl)!)
                   : null,
               child: item.dentistAvatarUrl == null
                   ? Icon(Icons.person, color: context.textSecondary, size: 18)
@@ -215,7 +216,7 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
                                 borderRadius: BorderRadius.circular(16),
                                 child: item.dentistAvatarUrl != null
                                     ? Image.network(
-                                        item.dentistAvatarUrl!,
+                                        ApiConstants.resolveAssetUrl(item.dentistAvatarUrl)!,
                                         width: 64,
                                         height: 64,
                                         fit: BoxFit.cover,

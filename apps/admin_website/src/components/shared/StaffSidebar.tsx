@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { getUser, clearSession, type AuthUser } from "../../lib/apiClient";
+import { getUser, clearSession, resolveAssetUrl, type AuthUser } from "../../lib/apiClient";
 
 interface StaffSidebarProps {
   activeMenu: string;
@@ -177,7 +177,7 @@ export default function StaffSidebar({ activeMenu }: StaffSidebarProps) {
           >
             {user?.profilePictureUrl ? (
               <img
-                src={user.profilePictureUrl}
+                src={resolveAssetUrl(user.profilePictureUrl)}
                 alt="Avatar"
                 className="w-10 h-10 rounded-full border-2 border-emerald-200 object-cover shrink-0"
               />

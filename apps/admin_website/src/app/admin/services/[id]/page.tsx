@@ -8,6 +8,7 @@ import { useRequireAdmin } from "../../../../hooks/useRequireAdmin";
 import {
   getServiceByIdApi,
   getServiceProceduresApi,
+  resolveAssetUrl,
   type ServiceDto,
   type TreatmentProcedureDto,
 } from "../../../../lib/apiClient";
@@ -157,7 +158,7 @@ export default function ServiceDetailPage({ params }: ServiceDetailPageProps) {
               <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden mb-6">
                 <div className="aspect-video w-full overflow-hidden bg-slate-100">
                   <img
-                    src={service.imageUrl}
+                    src={resolveAssetUrl(service.imageUrl)}
                     alt={service.name}
                     className="w-full h-full object-cover"
                   />

@@ -13,6 +13,7 @@ import {
   getPromotionsApi,
   togglePromotionStatusApi,
   deletePromotionApi,
+  resolveAssetUrl,
   type ServiceDto,
   type PromotionDto,
 } from "../../../lib/apiClient";
@@ -403,7 +404,7 @@ export default function ServicesPage() {
                           <div className="w-10 h-10 rounded-xl border border-slate-200 bg-slate-50/50 flex items-center justify-center overflow-hidden shrink-0">
                             {service.iconUrl ? (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={service.iconUrl} alt={service.name} className="w-6 h-6 object-contain" />
+                              <img src={resolveAssetUrl(service.iconUrl)} alt={service.name} className="w-6 h-6 object-contain" />
                             ) : (
                               <svg className="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />

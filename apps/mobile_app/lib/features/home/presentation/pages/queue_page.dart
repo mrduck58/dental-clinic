@@ -277,9 +277,7 @@ class _QueuePageState extends State<QueuePage> {
                                   ? (avatar.startsWith('assets/')
                                       ? Image.asset(avatar, fit: BoxFit.cover)
                                       : Image.network(
-                                          avatar.startsWith('http')
-                                              ? avatar
-                                              : '${ApiConstants.baseUrl.replaceAll('/api', '')}$avatar',
+                                          ApiConstants.resolveAssetUrl(avatar)!,
                                           fit: BoxFit.cover,
                                           errorBuilder: (_, __, ___) => _buildFallbackAvatar(isSelected),
                                         ))

@@ -244,9 +244,7 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
                                 child: ClipOval(
                                   child: p.avatarUrl != null && p.avatarUrl!.isNotEmpty
                                       ? Image.network(
-                                          p.avatarUrl!.startsWith('http')
-                                              ? p.avatarUrl!
-                                              : '${ApiConstants.baseUrl.replaceAll('/api', '')}${p.avatarUrl}',
+                                          ApiConstants.resolveAssetUrl(p.avatarUrl)!,
                                           fit: BoxFit.cover,
                                           errorBuilder: (_, __, ___) => _buildInitialsBadge(p.name, active, size: 60, fontSize: 20),
                                         )
@@ -362,9 +360,7 @@ class _PatientCard extends StatelessWidget {
           ),
         );
       }
-      final url = avatarUrl.startsWith('http')
-          ? avatarUrl
-          : '${ApiConstants.baseUrl.replaceAll('/api', '')}$avatarUrl';
+      final url = ApiConstants.resolveAssetUrl(avatarUrl)!;
       return Container(
         width: 28,
         height: 28,

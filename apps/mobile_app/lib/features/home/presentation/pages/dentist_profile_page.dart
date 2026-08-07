@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
+import 'package:mobile_app/core/constants/api_constants.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/booking/data/booking_models.dart';
 import 'package:mobile_app/features/home/data/home_service.dart';
@@ -118,7 +119,7 @@ class _DentistProfilePageState extends State<DentistProfilePage> {
                             child: ClipOval(
                               child: doc.profilePictureUrl != null
                                   ? Image.network(
-                                      doc.profilePictureUrl!,
+                                      ApiConstants.resolveAssetUrl(doc.profilePictureUrl)!,
                                       fit: BoxFit.cover,
                                       errorBuilder: (_, _, _) => _placeholderAvatar(),
                                     )

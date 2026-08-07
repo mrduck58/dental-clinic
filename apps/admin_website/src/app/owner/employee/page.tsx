@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import OwnerSidebar from "../../../components/shared/OwnerSidebar";
 import OwnerPageHeader from "../../../components/shared/OwnerPageHeader";
 import { useRequireOwner } from "../../../hooks/useRequireOwner";
-import { getStaffApi, getWeekScheduleApi, getLeaveRequestsAdminApi, type StaffDto, type StaffStatsDto, type ScheduleEntryDto } from "../../../lib/apiClient";
+import { getStaffApi, getWeekScheduleApi, getLeaveRequestsAdminApi, resolveAssetUrl, type StaffDto, type StaffStatsDto, type ScheduleEntryDto } from "../../../lib/apiClient";
 import { ROLE_LABELS, type UiRole } from "../../../lib/roles";
 import * as XLSX from "xlsx";
 
@@ -411,7 +411,7 @@ export default function OwnerStaffManagementPage() {
                           <td className="px-6 py-4.5">
                             <div className="flex items-center gap-3">
                               {item.profilePictureUrl ? (
-                                <img src={item.profilePictureUrl} alt="avatar" className="w-10 h-10 rounded-xl object-cover border border-slate-200" />
+                                <img src={resolveAssetUrl(item.profilePictureUrl)} alt="avatar" className="w-10 h-10 rounded-xl object-cover border border-slate-200" />
                               ) : (
                                 <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center font-black text-[13px] text-slate-500 shrink-0">
                                   {initials}

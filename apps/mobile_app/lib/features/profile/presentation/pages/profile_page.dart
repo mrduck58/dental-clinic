@@ -32,13 +32,8 @@ class _ProfilePageState extends State<ProfilePage> {
   String? _avatarUrl;
 
   ImageProvider? _getAvatarProvider() {
-    if (_avatarUrl != null && _avatarUrl!.isNotEmpty) {
-      if (_avatarUrl!.startsWith('http')) {
-        return NetworkImage(_avatarUrl!);
-      }
-      final baseUrlHost = ApiConstants.baseUrl.replaceAll('/api', '');
-      return NetworkImage('$baseUrlHost$_avatarUrl');
-    }
+    final resolved = ApiConstants.resolveAssetUrl(_avatarUrl);
+    if (resolved != null) return NetworkImage(resolved);
     return null;
   }
 

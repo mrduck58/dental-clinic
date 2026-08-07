@@ -5,7 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import OwnerSidebar from "../../../../../components/shared/OwnerSidebar";
 import OwnerPageHeader from "../../../../../components/shared/OwnerPageHeader";
 import { useRequireOwner } from "../../../../../hooks/useRequireOwner";
-import { getWeekScheduleApi, getStaffByIdApi, type StaffDto, type ScheduleEntryDto } from "../../../../../lib/apiClient";
+import { getWeekScheduleApi, getStaffByIdApi, resolveAssetUrl, type StaffDto, type ScheduleEntryDto } from "../../../../../lib/apiClient";
 import { periodOfShift } from "../../../../../lib/shifts";
 import { ROLE_LABELS, ROLE_BADGE_CLASSES, type UiRole } from "../../../../../lib/roles";
 
@@ -299,7 +299,7 @@ export default function StaffDetailPage() {
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
               <div className="flex items-start gap-5">
                 {staff.profilePictureUrl ? (
-                  <img src={staff.profilePictureUrl} alt={staff.fullName || ""} className="w-20 h-20 rounded-2xl object-cover border border-slate-200 shadow-sm shrink-0" />
+                  <img src={resolveAssetUrl(staff.profilePictureUrl)} alt={staff.fullName || ""} className="w-20 h-20 rounded-2xl object-cover border border-slate-200 shadow-sm shrink-0" />
                 ) : (
                   <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/10 flex items-center justify-center shrink-0 select-none">
                     <span className="text-2xl font-black text-primary">{initials}</span>

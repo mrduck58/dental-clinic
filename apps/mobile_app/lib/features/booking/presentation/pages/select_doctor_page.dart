@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
+import 'package:mobile_app/core/constants/api_constants.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/booking/data/booking_models.dart';
 import 'package:mobile_app/features/booking/data/booking_service.dart';
@@ -514,12 +515,13 @@ class _DoctorAvatar extends StatelessWidget {
       child: Icon(Iconsax.profile_circle, color: context.isDark ? Colors.white : AppColors.primary, size: 30),
     );
 
-    if (avatarUrl == null || avatarUrl!.isEmpty) return placeholder;
+    final resolved = ApiConstants.resolveAssetUrl(avatarUrl);
+    if (resolved == null) return placeholder;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
       child: Image.network(
-        avatarUrl!,
+        resolved,
         width: 60,
         height: 60,
         fit: BoxFit.cover,

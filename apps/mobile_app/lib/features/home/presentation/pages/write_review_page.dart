@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/settings_manager.dart';
+import 'package:mobile_app/core/constants/api_constants.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/core/network/api_client.dart';
 import 'package:mobile_app/features/home/data/models/doctor_model.dart';
@@ -257,7 +258,7 @@ class _WriteReviewPageState extends State<WriteReviewPage> {
                           child: ClipOval(
                             child: doc.profilePictureUrl != null
                                 ? Image.network(
-                                    doc.profilePictureUrl!,
+                                    ApiConstants.resolveAssetUrl(doc.profilePictureUrl)!,
                                     fit: BoxFit.cover,
                                     errorBuilder: (_, _, _) => _placeholderAvatar(),
                                   )

@@ -23,13 +23,7 @@ class _FamilyMembersPageState extends State<FamilyMembersPage> {
 
   static const _visitedStatuses = {'Completed', 'PendingPayment'};
 
-  String? _resolveAvatarUrl(String? url) {
-    if (url == null || url.trim().isEmpty) return null;
-    final trimmed = url.trim();
-    if (trimmed.startsWith('http')) return trimmed;
-    final baseUrlHost = ApiConstants.baseUrl.replaceAll('/api', '');
-    return '$baseUrlHost$trimmed';
-  }
+  String? _resolveAvatarUrl(String? url) => ApiConstants.resolveAssetUrl(url);
 
   @override
   void initState() {

@@ -727,7 +727,18 @@ export async function uploadFileApi(file: File): Promise<{ url: string }> {
     throw new Error((err as { title?: string }).title ?? "Upload file thất bại");
   }
   const data = await res.json() as { url: string };
-  return { url: data.url.startsWith("/") ? `${API_URL}${data.url}` : data.url };
+  return { url: data.url };
+}
+
+/**
+ * File upload trả về path tương đối (ví dụ "/uploads/xxx.svg") — cố ý không ghép sẵn API_URL của
+ * máy này vào lúc lưu, vì URL đó sẽ bị lưu thẳng vào DB và không load được từ máy khác (app di động,
+ * máy dev khác...). Dùng hàm này ở nơi HIỂN THỊ (src={resolveAssetUrl(url)}) để ghép đúng base URL của
+ * chính máy đang xem tại thời điểm render.
+ */
+export function resolveAssetUrl(url?: string | null): string | undefined {
+  if (!url) return undefined;
+  return url.startsWith("/") ? `${API_URL}${url}` : url;
 }
 
 // ── Promotion types ────────────────────────────────────────────────────────

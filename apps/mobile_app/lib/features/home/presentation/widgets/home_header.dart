@@ -66,14 +66,8 @@ class _Avatar extends StatelessWidget {
   }
 
   ImageProvider? _getAvatarProvider() {
-    if (avatarUrl != null && avatarUrl!.isNotEmpty) {
-      if (avatarUrl!.startsWith('http')) {
-        return NetworkImage(avatarUrl!);
-      }
-      final baseUrlHost = ApiConstants.baseUrl.replaceAll('/api', '');
-      return NetworkImage('$baseUrlHost$avatarUrl');
-    }
-    return null;
+    final resolved = ApiConstants.resolveAssetUrl(avatarUrl);
+    return resolved == null ? null : NetworkImage(resolved);
   }
 
   @override

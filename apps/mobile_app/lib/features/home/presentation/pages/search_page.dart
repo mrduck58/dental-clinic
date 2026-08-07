@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
+import 'package:mobile_app/core/constants/api_constants.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/home/data/home_service.dart';
 import 'package:mobile_app/features/home/data/models/doctor_model.dart';
@@ -338,7 +339,7 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
                                       : AppColors.primaryLight,
                                   child: doc.profilePictureUrl != null && doc.profilePictureUrl!.isNotEmpty
                                       ? Image.network(
-                                          doc.profilePictureUrl!,
+                                          ApiConstants.resolveAssetUrl(doc.profilePictureUrl)!,
                                           fit: BoxFit.cover,
                                           errorBuilder: (_, __, ___) => Icon(Iconsax.user, color: AppColors.primary, size: 30),
                                         )
