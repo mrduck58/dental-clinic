@@ -10,12 +10,18 @@ using static DentalClinic.API.Application.UseCases.Payments.PaymentHelpers;
 
 namespace DentalClinic.API.Application.UseCases.Payments;
 
-public record CreatePaymentRequestCommand(Guid InvoiceId, PaymentGateway Gateway) : IRequest<PaymentTransactionDto>;
+/// <param name="RestrictToUserId">
+/// Khi người gọi là bệnh nhân: id tài khoản của họ — hóa đơn phải thuộc hồ sơ chính chủ hoặc người nhà.
+/// <c>null</c> = nhân viên phòng khám, thao tác được trên mọi hóa đơn. Tham số bắt buộc (không có giá trị
+/// mặc định) để mọi nơi gọi buộc phải nêu rõ phạm vi thay vì vô tình bỏ qua kiểm tra.
+/// </param>
+public record CreatePaymentRequestCommand(Guid InvoiceId, PaymentGateway Gateway, Guid? RestrictToUserId) : IRequest<PaymentTransactionDto>;
 
 /// <summary>Tạo (hoặc tái sử dụng) một yêu cầu thanh toán cho hóa đơn qua cổng chỉ định.</summary>
 public class CreatePaymentRequestHandler(
     IInvoiceRepository invoiceRepository,
     IPaymentTransactionRepository paymentTransactionRepository,
+    IPatientRepository patientRepository,
     IUnitOfWork unitOfWork,
     IPaymentGatewayResolver gatewayResolver,
     IConfiguration configuration) : IRequestHandler<CreatePaymentRequestCommand, PaymentTransactionDto>
@@ -24,6 +30,9 @@ public class CreatePaymentRequestHandler(
     {
         var invoice = await invoiceRepository.GetByIdWithAppointmentAndPatientAsync(command.InvoiceId, ct)
             ?? throw new NotFoundException("Không tìm thấy hóa đơn.");
+
+        if (command.RestrictToUserId is Guid requesterId)
+            await EnsureInvoiceBelongsToUserAsync(invoice, requesterId, patientRepository, ct);
 
         if (invoice.Status == PaymentStatus.Paid)
             throw new ConflictException("Hóa đơn này đã được thanh toán.");

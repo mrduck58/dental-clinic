@@ -48,11 +48,11 @@ public class CancelLeaveRequestHandlerTests
     }
 
     /// <summary>
-    /// User khác cố hủy đơn không phải của mình phải ném ValidationException,
-    /// bảo vệ quyền sở hữu đơn nghỉ phép.
+    /// User khác cố hủy đơn không phải của mình phải ném NotFoundException — đơn của người khác
+    /// coi như không tồn tại, không được trả mã lỗi xác nhận id có thật.
     /// </summary>
     [Test]
-    public async Task HandleAsync_DifferentUser_ThrowsValidationException()
+    public async Task HandleAsync_DifferentUser_ThrowsNotFoundException()
     {
         var lr = MakeRequest(Guid.NewGuid());
         _repo.GetByIdAsync(lr.Id, Arg.Any<CancellationToken>()).Returns(lr);
@@ -60,7 +60,7 @@ public class CancelLeaveRequestHandlerTests
 
         Func<Task> act = () => handler.Handle(new CancelLeaveRequestCommand(lr.Id, Guid.NewGuid()), CancellationToken.None);
 
-        await act.Should().ThrowAsync<ValidationException>();
+        await act.Should().ThrowAsync<NotFoundException>();
     }
 
     /// <summary>
@@ -112,7 +112,7 @@ public class CancelLeaveRequestHandlerTests
 
         Func<Task> act = () => handler.Handle(new CancelLeaveRequestCommand(lr.Id, Guid.NewGuid()), CancellationToken.None);
 
-        await act.Should().ThrowAsync<ValidationException>();
+        await act.Should().ThrowAsync<NotFoundException>();
         await _repo.DidNotReceive().UpdateAsync(Arg.Any<LeaveRequest>(), Arg.Any<CancellationToken>());
     }
 

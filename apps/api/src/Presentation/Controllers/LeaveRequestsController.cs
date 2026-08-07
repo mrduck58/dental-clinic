@@ -10,7 +10,9 @@ namespace DentalClinic.API.Presentation.Controllers;
 
 [ApiController]
 [Route("api/leave-requests")]
-[Authorize]
+// Nghỉ phép là việc nội bộ của nhân sự. Trước đây class chỉ có [Authorize] nên bệnh nhân đăng nhập
+// cũng nộp và đọc được đơn nghỉ — liệt kê role ở đây loại Patient ra khỏi toàn bộ controller.
+[Authorize(Roles = "Owner,Admin,Dentist,Staff")]
 public class LeaveRequestsController(ISender sender) : ControllerBase
 {
     /// <summary>GET api/leave-requests — Tất cả đơn nghỉ (Admin)</summary>
@@ -34,11 +36,13 @@ public class LeaveRequestsController(ISender sender) : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>GET api/leave-requests/{id} — Chi tiết đơn nghỉ</summary>
+    /// <summary>GET api/leave-requests/{id} — Chi tiết đơn nghỉ (chính chủ, hoặc Owner duyệt đơn)</summary>
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
-        var result = await sender.Send(new GetLeaveRequestByIdQuery(id), ct);
+        var result = await sender.Send(
+            new GetLeaveRequestByIdQuery(id, GetCurrentUserId(), CanViewAll: User.IsInRole("Owner")),
+            ct);
         return Ok(result);
     }
 

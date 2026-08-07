@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using DentalClinic.API.Application.UseCases.Notifications;
 using DentalClinic.API.Domain.Interfaces.Services;
 using MediatR;
@@ -12,10 +11,11 @@ namespace DentalClinic.API.Presentation.Controllers;
 [Authorize]
 public class NotificationsController(
     ISender sender,
-    INotificationService notificationService) : ControllerBase
+    INotificationService notificationService,
+    ICurrentUserService currentUser) : ControllerBase
 {
     private Guid CurrentUserId =>
-        Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        currentUser.UserId ?? throw new UnauthorizedAccessException("Không xác định được người dùng từ token.");
 
     /// <summary>GET api/notifications — Lấy danh sách thông báo của user hiện tại</summary>
     [HttpGet]
@@ -39,7 +39,7 @@ public class NotificationsController(
     [HttpPut("{id:guid}/read")]
     public async Task<IActionResult> MarkAsRead(Guid id, CancellationToken cancellationToken)
     {
-        await notificationService.MarkAsReadAsync(id, cancellationToken);
+        await notificationService.MarkAsReadAsync(id, CurrentUserId, cancellationToken);
         return Ok(new { message = "Đã đánh dấu thông báo đã đọc." });
     }
 
@@ -55,7 +55,7 @@ public class NotificationsController(
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
     {
-        await notificationService.DeleteAsync(id, cancellationToken);
+        await notificationService.DeleteAsync(id, CurrentUserId, cancellationToken);
         return Ok(new { message = "Đã xóa thông báo." });
     }
 }
