@@ -91,16 +91,22 @@ public class SendChatMessageHandlerTests
         var getDentistsHandler = new GetDentistsHandler(_userRepo, new DentistRepository(_db));
         var getDentistSlotsHandler = new GetDentistSlotsHandler(
             new WorkScheduleRepository(_db), new DentistRepository(_db), _appointmentRepo);
+        var slotGuard = new AppointmentSlotGuard(_appointmentRepo, Substitute.For<IServiceRepository>());
+        var changeGuard = new AppointmentChangeGuard(currentUserService, _patientRepo);
         var createAppointmentHandler = new CreateAppointmentHandler(
-            _appointmentRepo, _patientRepo, _userRepo,
-            Substitute.For<IServiceRepository>(), Substitute.For<INotificationService>());
+            _appointmentRepo, _patientRepo, _userRepo, slotGuard, Substitute.For<INotificationService>());
         var cancelAppointmentHandler = new CancelAppointmentHandler(
             _appointmentRepo, Substitute.For<IActivityLogService>(), Substitute.For<INotificationService>(),
-            currentUserService, _patientRepo);
+            currentUserService, _patientRepo, changeGuard);
+        var rescheduleAppointmentHandler = new RescheduleAppointmentHandler(
+            _appointmentRepo, _patientRepo, changeGuard, slotGuard,
+            Substitute.For<IActivityLogService>(), Substitute.For<INotificationService>(), currentUserService);
 
-        // SendChatMessageHandler gọi 4 use case này qua ISender — fake sender chuyển tiếp sang đúng
+        // SendChatMessageHandler gọi 5 use case này qua ISender — fake sender chuyển tiếp sang đúng
         // instance handler đã dựng ở trên (không mock hành vi, chỉ thay cơ chế gọi trực tiếp bằng gọi
         // qua mediator, khớp với cách handler thật vận hành sau khi tách composition root).
+        // Thiếu một tuyến nào ở đây thì Substitute trả về mặc định và use case đó âm thầm không chạy —
+        // test vẫn thấy "thành công" trong khi thực tế không có gì thay đổi.
         var sender = Substitute.For<ISender>();
         sender.Send(Arg.Any<GetDentistsQuery>(), Arg.Any<CancellationToken>())
             .Returns(ci => getDentistsHandler.Handle((GetDentistsQuery)ci[0], (CancellationToken)ci[1]));
@@ -110,6 +116,8 @@ public class SendChatMessageHandlerTests
             .Returns(ci => createAppointmentHandler.Handle((CreateAppointmentCommand)ci[0], (CancellationToken)ci[1]));
         sender.Send(Arg.Any<CancelAppointmentCommand>(), Arg.Any<CancellationToken>())
             .Returns(ci => cancelAppointmentHandler.Handle((CancelAppointmentCommand)ci[0], (CancellationToken)ci[1]));
+        sender.Send(Arg.Any<RescheduleAppointmentCommand>(), Arg.Any<CancellationToken>())
+            .Returns(ci => rescheduleAppointmentHandler.Handle((RescheduleAppointmentCommand)ci[0], (CancellationToken)ci[1]));
 
         _handler = new SendChatMessageHandler(
             _patientRepo, _clinicInfoRepo, sender, _aiChatService,
@@ -146,8 +154,26 @@ public class SendChatMessageHandlerTests
     }
 
     /// <summary>Ngày mai theo giờ Việt Nam — mọi khung giờ trong ngày đều chưa trôi qua.</summary>
+    /// <summary>
+    /// Ngày mai theo giờ VN, nhảy qua Chủ Nhật: phòng khám nghỉ Chủ Nhật nên không có khung giờ nào
+    /// trống, khiến các test đặt lịch đỏ mỗi thứ Bảy dù code không có gì sai.
+    /// </summary>
     private static DateOnly TomorrowVn()
-        => DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)).AddDays(1);
+    {
+        var date = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)).AddDays(1);
+        return date.DayOfWeek == DayOfWeek.Sunday ? date.AddDays(1) : date;
+    }
+
+    /// <summary>
+    /// Ngày đủ xa để vượt hạn 24 giờ mà bệnh nhân được tự hủy/dời lịch, và không rơi vào Chủ Nhật
+    /// (phòng khám nghỉ nên không có khung giờ nào trống). TomorrowVn() không dùng được cho các test
+    /// hủy/dời: lịch "ngày mai lúc 08:00" nằm trong vòng 24 giờ nếu test chạy vào buổi chiều.
+    /// </summary>
+    private static DateOnly ChangeableDateVn()
+    {
+        var date = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)).AddDays(2);
+        return date.DayOfWeek == DayOfWeek.Sunday ? date.AddDays(1) : date;
+    }
 
     [TearDown]
     public async Task TearDown() => await _db.DisposeAsync();
@@ -423,10 +449,10 @@ public class SendChatMessageHandlerTests
     [Test]
     public async Task HandleAsync_ConfirmedCancelWithMatchingCode_CancelsAppointment()
     {
-        var tomorrow = TomorrowVn();
-        var dentist = await SeedDentistWithScheduleAsync(tomorrow);
+        var day = ChangeableDateVn();
+        var dentist = await SeedDentistWithScheduleAsync(day);
         var appointment = Appointment.Create(
-            _patient.Id, dentist.Id, new DateTimeOffset(tomorrow.ToDateTime(new TimeOnly(8, 0)), TimeSpan.FromHours(7)));
+            _patient.Id, dentist.Id, new DateTimeOffset(day.ToDateTime(new TimeOnly(8, 0)), TimeSpan.FromHours(7)));
         _db.Appointments.Add(appointment);
         await _db.SaveChangesAsync();
         var code = $"DK{appointment.AppointmentDate:yyyyMMdd}{appointment.Id.ToString("N")[..6].ToUpper()}";
@@ -475,26 +501,25 @@ public class SendChatMessageHandlerTests
         reloaded.Status.Should().Be(DentalClinic.API.Domain.Enums.AppointmentStatus.Pending);
     }
 
-    /// <summary>Xác nhận dời đúng lịch hẹn sang ngày/giờ mới còn trống phải: tạo lịch hẹn MỚI (cùng
-    /// bác sĩ), rồi hủy lịch hẹn GỐC — cả hai thao tác đều phải xảy ra thật trong DB.</summary>
+    /// <summary>
+    /// Xác nhận dời đúng lịch hẹn sang ngày/giờ mới còn trống phải SỬA TẠI CHỖ chính bản ghi đó:
+    /// giữ nguyên Id và mã lịch hẹn, không sinh thêm bản ghi nào. Trước đây bot tạo lịch mới rồi hủy
+    /// lịch cũ — cách đó để lại một bản ghi Cancelled mỗi lần dời và đổi mã lịch hẹn của bệnh nhân.
+    /// </summary>
     [Test]
-    public async Task HandleAsync_ConfirmedRescheduleWithFreeSlot_CreatesNewAppointmentAndCancelsOld()
+    public async Task HandleAsync_ConfirmedRescheduleWithFreeSlot_UpdatesAppointmentInPlace()
     {
-        var tomorrow = TomorrowVn();
-        // Chủ Nhật phòng khám nghỉ mặc định (GetDentistSlotsHandler), nên bỏ qua nếu "ngày kia" rơi
-        // vào Chủ Nhật để test không phụ thuộc vào ngày chạy thật.
-        var dayAfter = tomorrow.AddDays(1).DayOfWeek == DayOfWeek.Sunday
-            ? tomorrow.AddDays(2)
-            : tomorrow.AddDays(1);
-        var dentist = await SeedDentistWithScheduleAsync(tomorrow);
-        // Lịch hẹn gốc chỉ có ca làm việc ngày mai — cần thêm ca cho ngày kia để dời lịch sang đó.
+        var day = ChangeableDateVn();
+        var newDay = day.AddDays(1).DayOfWeek == DayOfWeek.Sunday ? day.AddDays(2) : day.AddDays(1);
+        var dentist = await SeedDentistWithScheduleAsync(day);
+        // Lịch hẹn gốc chỉ có ca làm việc ngày đầu — cần thêm ca cho ngày mới để dời sang đó.
         _db.WorkSchedules.Add(WorkSchedule.Create(
-            dayAfter, "08:00-10:00", "dentist", "Dentist",
+            newDay, "08:00-10:00", "dentist", "Dentist",
             staffName: dentist.FullName, room: "P1", roomColor: "#fff", isHoliday: false));
         await _db.SaveChangesAsync();
 
         var original = Appointment.Create(
-            _patient.Id, dentist.Id, new DateTimeOffset(tomorrow.ToDateTime(new TimeOnly(8, 0)), TimeSpan.FromHours(7)));
+            _patient.Id, dentist.Id, new DateTimeOffset(day.ToDateTime(new TimeOnly(8, 0)), TimeSpan.FromHours(7)));
         _db.Appointments.Add(original);
         await _db.SaveChangesAsync();
         var originalCode = $"DK{original.AppointmentDate:yyyyMMdd}{original.Id.ToString("N")[..6].ToUpper()}";
@@ -502,7 +527,7 @@ public class SendChatMessageHandlerTests
         _aiChatService.AskAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(new AiChatReply(
                 "Tôi sẽ dời lịch này.", false,
-                PreferredDate: dayAfter,
+                PreferredDate: newDay,
                 PreferredTime: new TimeOnly(8, 0),
                 ConfirmReschedule: true,
                 RescheduleAppointmentCodeHint: originalCode));
@@ -511,17 +536,19 @@ public class SendChatMessageHandlerTests
             new SendChatMessageCommand(_userId, _conversation.Id, "Đồng ý, dời sang ngày kia giúp tôi"), CancellationToken.None);
 
         result.BookingRescheduled.Should().BeTrue();
-        result.AppointmentCode.Should().NotBeNullOrEmpty();
-        result.AppointmentCode.Should().NotBe(originalCode);
+        result.AppointmentCode.Should().Be(originalCode, "mã lịch hẹn phải giữ nguyên vì bản ghi không đổi");
         result.Reply.Should().Contain("dời");
 
-        var reloadedOriginal = _db.Appointments.Single(a => a.Id == original.Id);
-        reloadedOriginal.Status.Should().Be(DentalClinic.API.Domain.Enums.AppointmentStatus.Cancelled);
+        _db.Appointments.Should().HaveCount(1, "dời lịch không được sinh thêm bản ghi nào");
 
-        await _appointmentRepo.Received(1).AddAsync(
-            Arg.Is<Appointment>(a => a.DentistId == dentist.Id && a.PatientId == _patient.Id &&
-                a.AppointmentDate.Date == dayAfter.ToDateTime(TimeOnly.MinValue).Date),
-            Arg.Any<CancellationToken>());
+        var reloaded = _db.Appointments.Single(a => a.Id == original.Id);
+        reloaded.AppointmentDate.UtcDateTime.AddHours(7).Date
+            .Should().Be(newDay.ToDateTime(TimeOnly.MinValue).Date);
+        reloaded.RescheduledCount.Should().Be(1);
+        // Bệnh nhân tự dời ⇒ quay về chờ phòng khám xác nhận lại.
+        reloaded.Status.Should().Be(DentalClinic.API.Domain.Enums.AppointmentStatus.Pending);
+
+        await _appointmentRepo.DidNotReceive().AddAsync(Arg.Any<Appointment>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>Mã lịch hẹn AI đọc không khớp lịch sắp tới nào → KHÔNG được tạo lịch mới hay hủy lịch

@@ -22,7 +22,7 @@ public class StartTreatmentHandler(
         if (appointment == null)
         {
             logger?.LogWarning("Appointment {Id} not found for StartTreatment", appointmentId);
-            throw new KeyNotFoundException($"Không tìm thấy lịch hẹn {appointmentId}.");
+            throw new NotFoundException($"Không tìm thấy lịch hẹn {appointmentId}.");
         }
 
         if (appointment.Status != AppointmentStatus.CheckedIn)

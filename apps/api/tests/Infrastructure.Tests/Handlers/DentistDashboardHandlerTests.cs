@@ -73,7 +73,7 @@ public class DentistDashboardHandlerTests
         completed.Complete();
         var pending = Appointment.Create(patient.Id, dentist.Id, now.AddHours(2));
         var cancelled = Appointment.Create(patient.Id, dentist.Id, now.AddHours(3));
-        cancelled.Cancel();
+        cancelled.Cancel(CancellationReason.ChangeOfPlans, null, cancelledByUserId: null, DateTimeOffset.UtcNow);
         _db.Appointments.AddRange(confirmed, inProgress, completed, pending, cancelled);
         await _db.SaveChangesAsync();
 

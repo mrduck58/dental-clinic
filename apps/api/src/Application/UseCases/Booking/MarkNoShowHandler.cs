@@ -1,4 +1,5 @@
 using DentalClinic.API.Domain.Constants;
+using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
@@ -25,7 +26,7 @@ public class MarkNoShowHandler(
         if (appointment == null)
         {
             logger?.LogWarning("Appointment {Id} not found for MarkNoShow", appointmentId);
-            throw new KeyNotFoundException($"Không tìm thấy lịch hẹn {appointmentId}.");
+            throw new NotFoundException($"Không tìm thấy lịch hẹn {appointmentId}.");
         }
 
         // Chỉ ghi nhận vắng với lịch đã xác nhận nhưng chưa check-in — đúng bối cảnh

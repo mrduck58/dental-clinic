@@ -102,7 +102,7 @@ public class StartConversationHandlerTests
     {
         var (dentist, _) = await SeedDentistAsync();
         var appointment = Appointment.Create(_patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddHours(10));
-        appointment.Cancel("Bệnh nhân bận");
+        appointment.Cancel(CancellationReason.ChangeOfPlans, "Bệnh nhân bận", cancelledByUserId: null, DateTimeOffset.UtcNow);
         _db.Appointments.Add(appointment);
         await _db.SaveChangesAsync();
 

@@ -1,4 +1,5 @@
 using DentalClinic.API.Domain.Enums;
+using DentalClinic.API.Domain.Exceptions;
 
 namespace DentalClinic.API.Domain.Entities;
 
@@ -48,6 +49,20 @@ public class Appointment
     public DateOnly? FollowUpDate { get; private set; }
     public string? FollowUpNote { get; private set; }
 
+    // ── Hủy lịch ──────────────────────────────────────────────────────────────
+    public Enums.CancellationReason? CancellationReason { get; private set; }
+
+    /// <summary>Ghi chú tự do bệnh nhân/nhân viên nhập kèm lý do hủy.</summary>
+    public string? CancellationNote { get; private set; }
+    public DateTimeOffset? CancelledAt { get; private set; }
+
+    /// <summary>Ai bấm hủy — phân biệt bệnh nhân tự hủy với phòng khám hủy, hai việc rất khác nhau khi làm báo cáo.</summary>
+    public Guid? CancelledByUserId { get; private set; }
+
+    // ── Dời lịch ──────────────────────────────────────────────────────────────
+    public int RescheduledCount { get; private set; }
+    public DateTimeOffset? LastRescheduledAt { get; private set; }
+
     private Appointment() { }
 
     public static Appointment Create(
@@ -83,13 +98,65 @@ public class Appointment
     public void StartTreatment() => Status = AppointmentStatus.InProgress;
     public void EndTreatment() => Status = AppointmentStatus.PendingPayment;
     public void Complete() => Status = AppointmentStatus.Completed;
-    public void Cancel(string? reason = null)
+    /// <summary>
+    /// Các trạng thái còn hủy hoặc dời được. Sau khi bệnh nhân đã check-in thì buổi khám đã bắt đầu
+    /// diễn ra trên thực tế — hủy lúc đó sẽ tạo ra lịch hẹn "đã hủy" nhưng vẫn kèm bệnh án và hóa đơn,
+    /// một trạng thái vô nghĩa mà phần còn lại của hệ thống không xử lý được.
+    /// </summary>
+    private static readonly AppointmentStatus[] ChangeableStatuses =
+        [AppointmentStatus.Pending, AppointmentStatus.Confirmed];
+
+    public bool CanBeChanged => ChangeableStatuses.Contains(Status);
+
+    /// <summary>
+    /// Hủy lịch. <paramref name="reason"/> là nhóm lý do để thống kê, <paramref name="note"/> là
+    /// ghi chú tự do (bắt buộc khi chọn <see cref="CancellationReason.Other"/> — chọn "lý do khác"
+    /// mà không nói khác thế nào thì không ghi nhận được gì).
+    /// </summary>
+    // Enums.CancellationReason chỉ đích danh vì thuộc tính cùng tên ở trên che khuất tên kiểu trong class này.
+    public void Cancel(Enums.CancellationReason reason, string? note, Guid? cancelledByUserId, DateTimeOffset now)
     {
+        if (!CanBeChanged)
+            throw new ConflictException(
+                $"Không thể hủy lịch hẹn đang ở trạng thái '{Status}'. Chỉ hủy được lịch chờ xác nhận hoặc đã xác nhận.");
+
+        if (reason == Enums.CancellationReason.Other && string.IsNullOrWhiteSpace(note))
+            throw new ValidationException("Vui lòng nhập lý do hủy cụ thể.");
+
         Status = AppointmentStatus.Cancelled;
-        if (!string.IsNullOrEmpty(reason))
-        {
-            Notes = string.IsNullOrEmpty(Notes) ? $"Lý do hủy: {reason}" : $"{Notes} | Lý do hủy: {reason}";
-        }
+        CancellationReason = reason;
+        CancellationNote = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
+        CancelledAt = now;
+        CancelledByUserId = cancelledByUserId;
+    }
+
+    /// <summary>
+    /// Dời lịch sang khung giờ (và có thể là bác sĩ / dịch vụ) khác. Việc khung giờ mới có trống hay
+    /// không do tầng ứng dụng kiểm tra trước khi gọi — entity không truy cập được lịch hẹn khác.
+    ///
+    /// <paramref name="requiresReconfirmation"/>: bệnh nhân tự dời thì lịch quay về Pending vì với
+    /// phòng khám đây là khung giờ mới cần sắp xếp lại nhân sự; nhân viên dời thì giữ nguyên trạng
+    /// thái vì chính họ đang là người sắp xếp.
+    /// </summary>
+    public void Reschedule(
+        DateTimeOffset newDate,
+        Guid newDentistId,
+        Guid? newServiceId,
+        bool requiresReconfirmation,
+        DateTimeOffset now)
+    {
+        if (!CanBeChanged)
+            throw new ConflictException(
+                $"Không thể dời lịch hẹn đang ở trạng thái '{Status}'. Chỉ dời được lịch chờ xác nhận hoặc đã xác nhận.");
+
+        AppointmentDate = newDate;
+        DentistId = newDentistId;
+        ServiceId = newServiceId;
+        RescheduledCount++;
+        LastRescheduledAt = now;
+
+        if (requiresReconfirmation)
+            Status = AppointmentStatus.Pending;
     }
 
     /// <summary>

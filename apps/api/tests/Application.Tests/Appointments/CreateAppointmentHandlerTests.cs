@@ -18,6 +18,7 @@ public class CreateAppointmentHandlerTests
     private IPatientRepository _patientRepo = null!;
     private IUserRepository _userRepo = null!;
     private IServiceRepository _serviceRepo = null!;
+    private AppointmentSlotGuard _slotGuard = null!;
     private INotificationService _notification = null!;
     private CreateAppointmentHandler _handler = null!;
 
@@ -29,7 +30,8 @@ public class CreateAppointmentHandlerTests
         _userRepo = Substitute.For<IUserRepository>();
         _serviceRepo = Substitute.For<IServiceRepository>();
         _notification = Substitute.For<INotificationService>();
-        _handler = new CreateAppointmentHandler(_appointmentRepo, _patientRepo, _userRepo, _serviceRepo, _notification);
+        _slotGuard = new AppointmentSlotGuard(_appointmentRepo, _serviceRepo);
+        _handler = new CreateAppointmentHandler(_appointmentRepo, _patientRepo, _userRepo, _slotGuard, _notification);
 
         // Mặc định: không có lịch hẹn nào khác trong ngày, không có dentist user, không có staff
         _appointmentRepo.GetByDateAsync(Arg.Any<DateOnly>(), Arg.Any<CancellationToken>())

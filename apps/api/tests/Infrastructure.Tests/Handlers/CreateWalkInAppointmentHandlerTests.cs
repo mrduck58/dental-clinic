@@ -178,7 +178,7 @@ public class CreateWalkInAppointmentHandlerTests
         var cancelledPatient = Patient.Create(Guid.Empty, new DateOnly(1988, 3, 3), "Nữ", phoneNumber: "0900000009");
         _db.Patients.Add(cancelledPatient);
         var cancelledAppointment = Appointment.Create(cancelledPatient.Id, _dentistId, futureDate);
-        cancelledAppointment.Cancel("Đổi ý");
+        cancelledAppointment.Cancel(CancellationReason.ChangeOfPlans, null, cancelledByUserId: null, DateTimeOffset.UtcNow);
         _db.Appointments.Add(cancelledAppointment);
         await _db.SaveChangesAsync();
 

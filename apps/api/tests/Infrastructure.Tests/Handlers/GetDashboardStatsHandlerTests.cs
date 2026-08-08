@@ -113,7 +113,7 @@ public class GetDashboardStatsHandlerTests
     {
         var (patient, dentist) = await SeedBasicDataAsync();
         var cancelled = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
-        cancelled.Cancel();
+        cancelled.Cancel(CancellationReason.ChangeOfPlans, null, cancelledByUserId: null, DateTimeOffset.UtcNow);
         var confirmed = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
         confirmed.Confirm();
         _db.Appointments.AddRange(cancelled, confirmed);

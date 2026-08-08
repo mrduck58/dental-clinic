@@ -3,6 +3,7 @@ using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using MediatR;
 using Microsoft.Extensions.Logging;
+using DentalClinic.API.Domain.Exceptions;
 
 namespace DentalClinic.API.Application.UseCases.ClinicalRecords;
 
@@ -23,7 +24,7 @@ public class CompleteAppointmentHandler(
         if (appointment == null)
         {
             logger?.LogWarning("Appointment {Id} not found for Complete", appointmentId);
-            throw new KeyNotFoundException($"Không tìm thấy lịch hẹn {appointmentId}.");
+            throw new NotFoundException($"Không tìm thấy lịch hẹn {appointmentId}.");
         }
 
         appointment.Complete();

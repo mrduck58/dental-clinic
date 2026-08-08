@@ -1579,16 +1579,79 @@ export async function confirmAppointmentApi(id: string): Promise<void> {
   }
 }
 
-export async function cancelAppointmentApi(id: string): Promise<void> {
+/** Một lựa chọn lý do hủy do backend cung cấp — client KHÔNG tự chép cứng danh sách này. */
+export interface CancellationReasonOption {
+  code: string;
+  labelVi: string;
+  labelEn: string;
+  /** Bắt buộc nhập ghi chú trước khi cho gửi. */
+  requiresNote: boolean;
+  staffOnly: boolean;
+}
+
+/**
+ * Danh sách lý do hủy. Lấy từ server thay vì hardcode để thêm/sửa lý do không phải build lại app,
+ * và để admin với mobile không lệch nhau. Server đã lọc theo vai trò của người đang đăng nhập.
+ */
+export async function getCancellationReasonsApi(): Promise<CancellationReasonOption[]> {
+  const res = await fetch(`${API_URL}/api/appointments/cancellation-reasons`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) throw new Error("Không tải được danh sách lý do hủy");
+  return res.json();
+}
+
+export async function cancelAppointmentApi(
+  id: string,
+  reason: string,
+  note?: string,
+): Promise<void> {
   const res = await fetch(`${API_URL}/api/appointments/${id}/cancel`, {
     method: "PUT",
-    headers: { ...authHeaders() },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ reason, note: note?.trim() || null }),
   });
   await checkAuth(res);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { title?: string }).title ?? "Hủy lịch hẹn thất bại");
   }
+}
+
+export interface RescheduleAppointmentResult {
+  appointmentId: string;
+  appointmentDate: string;
+  dentistId: string;
+  status: string;
+  rescheduledCount: number;
+}
+
+/**
+ * Dời lịch — sửa tại chỗ, giữ nguyên appointmentId và mã lịch hẹn.
+ * Bỏ trống dentistId/serviceId nghĩa là giữ nguyên giá trị hiện tại.
+ */
+export async function rescheduleAppointmentApi(
+  id: string,
+  appointmentDate: string,
+  options?: { dentistId?: string; serviceId?: string; reason?: string },
+): Promise<RescheduleAppointmentResult> {
+  const res = await fetch(`${API_URL}/api/appointments/${id}/reschedule`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({
+      appointmentDate,
+      dentistId: options?.dentistId ?? null,
+      serviceId: options?.serviceId ?? null,
+      reason: options?.reason?.trim() || null,
+    }),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Dời lịch hẹn thất bại");
+  }
+  return res.json();
 }
 
 export async function checkInAppointmentApi(id: string): Promise<void> {

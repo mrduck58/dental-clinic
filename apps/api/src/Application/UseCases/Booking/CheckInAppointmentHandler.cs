@@ -1,4 +1,5 @@
 using DentalClinic.API.Domain.Constants;
+using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
@@ -25,7 +26,7 @@ public class CheckInAppointmentHandler(
         if (appointment == null)
         {
             logger?.LogWarning("Appointment {Id} not found for CheckIn", appointmentId);
-            throw new KeyNotFoundException($"Không tìm thấy lịch hẹn {appointmentId}.");
+            throw new NotFoundException($"Không tìm thấy lịch hẹn {appointmentId}.");
         }
 
         logger?.LogInformation("CheckIn attempt for {Id}: current status = {Status}", appointmentId, appointment.Status);

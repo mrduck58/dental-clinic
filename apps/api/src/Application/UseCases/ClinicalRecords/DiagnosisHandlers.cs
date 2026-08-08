@@ -83,7 +83,7 @@ public class CreateDiagnosisHandler(
         var appointment = await appointmentRepository.GetByIdAsync(request.AppointmentId, ct);
 
         if (appointment == null)
-            throw new KeyNotFoundException("Không tìm thấy lịch hẹn.");
+            throw new NotFoundException("Không tìm thấy lịch hẹn.");
 
         if (appointment.Status is not (AppointmentStatus.InProgress or AppointmentStatus.PendingPayment or AppointmentStatus.Completed))
             throw new ValidationException("Chỉ có thể thêm chuẩn đoán khi buổi hẹn đang khám hoặc đã kết thúc điều trị.");
@@ -103,7 +103,7 @@ public class UpdateDiagnosisHandler(IDiagnosisRepository diagnosisRepository) : 
         var diagnosis = await diagnosisRepository.GetByIdAsync(request.DiagnosisId, ct);
 
         if (diagnosis == null)
-            throw new KeyNotFoundException("Không tìm thấy chuẩn đoán.");
+            throw new NotFoundException("Không tìm thấy chuẩn đoán.");
 
         diagnosis.Update(request.Description, DiagnosisDetailsMapper.ToDetails(request));
         await diagnosisRepository.UpdateAsync(diagnosis, ct);
@@ -119,7 +119,7 @@ public class DeleteDiagnosisHandler(IDiagnosisRepository diagnosisRepository) : 
         var diagnosis = await diagnosisRepository.GetByIdAsync(command.DiagnosisId, ct);
 
         if (diagnosis == null)
-            throw new KeyNotFoundException("Không tìm thấy chuẩn đoán.");
+            throw new NotFoundException("Không tìm thấy chuẩn đoán.");
 
         await diagnosisRepository.DeleteAsync(diagnosis, ct);
     }
