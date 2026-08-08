@@ -55,7 +55,7 @@ public class GetStaffDashboardStatsHandlerTests
         var confirmed = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
         confirmed.Confirm();
         var cancelled = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
-        cancelled.Cancel();
+        cancelled.Cancel(CancellationReason.ChangeOfPlans, null, cancelledByUserId: null, DateTimeOffset.UtcNow);
         _db.Appointments.AddRange(confirmed, cancelled);
         await _db.SaveChangesAsync();
 

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import AdminSidebar from "../../../components/shared/AdminSidebar";
 import AdminPageHeader from "../../../components/shared/AdminPageHeader";
-import { getAccountsApi, getStaffApi, toggleAccountStatusApi, type AccountDto, type StaffDto } from "../../../lib/apiClient";
+import { getAccountsApi, getStaffApi, toggleAccountStatusApi, resolveAssetUrl, type AccountDto, type StaffDto } from "../../../lib/apiClient";
 import { useRequireAdmin } from "../../../hooks/useRequireAdmin";
 import {
   normalizeRole,
@@ -289,7 +289,7 @@ function UsersPageContent() {
                             <td className="px-5 py-3">
                               <div className="flex items-center gap-2.5">
                                 {emp.profilePictureUrl ? (
-                                  <img src={emp.profilePictureUrl} alt={emp.fullName || emp.email}
+                                  <img src={resolveAssetUrl(emp.profilePictureUrl)} alt={emp.fullName || emp.email}
                                     className="w-8 h-8 rounded-full object-cover border border-amber-200 shrink-0" />
                                 ) : (
                                   <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-700 font-black text-[11px] flex items-center justify-center shrink-0">

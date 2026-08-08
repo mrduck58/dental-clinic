@@ -82,9 +82,15 @@ public class InvoiceHandlerTests
         return (appointment, patient, patientUser.Id);
     }
 
+    // "Trám răng" luôn có UnitPrice 500_000đ (Quantity=1) — khi paymentType="deposit", AmountCollected của
+    // dòng phải được set = deposit, nếu không Invoice.Issue() mặc định thu toàn bộ dòng (AmountCollected=null
+    // → full lineTotal), khiến mọi test "đặt cọc" vô tình trở thành thanh toán toàn bộ.
     private static IssueInvoiceCommand MakeIssueCommand(Guid appointmentId, string? paymentType = null, decimal deposit = 0) => new(
         appointmentId,
-        new List<IssueInvoiceItemRequest> { new("Trám răng", 1, 500_000m) },
+        new List<IssueInvoiceItemRequest>
+        {
+            new("Trám răng", 1, 500_000m, AmountCollected: paymentType == "deposit" ? deposit : null)
+        },
         Discount: 0,
         PaymentMethod: "cash",
         PaymentType: paymentType,
@@ -134,16 +140,19 @@ public class InvoiceHandlerTests
         await act.Should().ThrowAsync<ValidationException>();
     }
 
-    /// <summary>Lịch hẹn đã có hóa đơn rồi thì không cho xuất thêm.</summary>
+    /// <summary>Nhánh xuất hóa đơn thường (không gắn liệu trình) cho phép nhiều hóa đơn/buổi (ví dụ hóa
+    /// đơn đặt cọc + hóa đơn thu phần còn lại cho các dịch vụ không thuộc liệu trình nào) — chỉ chặn
+    /// vượt tổng tiền khi dòng hóa đơn có gắn TreatmentPlanId (xem test khác ở dưới).</summary>
     [Test]
-    public async Task IssueAsync_AppointmentAlreadyHasInvoice_ThrowsConflictException()
+    public async Task IssueAsync_AppointmentAlreadyHasInvoice_AllowsSecondAdHocInvoice()
     {
         var (appointment, _, _) = await SeedPendingPaymentAppointmentAsync();
         await _issueHandler.Handle(MakeIssueCommand(appointment.Id), CancellationToken.None);
 
-        Func<Task> act = () => _issueHandler.Handle(MakeIssueCommand(appointment.Id), CancellationToken.None);
+        var second = await _issueHandler.Handle(MakeIssueCommand(appointment.Id), CancellationToken.None);
 
-        await act.Should().ThrowAsync<ConflictException>();
+        second.Should().NotBeNull();
+        (await _db.Invoices.Where(i => i.AppointmentId == appointment.Id).CountAsync()).Should().Be(2);
     }
 
     /// <summary>Đặt cọc với số tiền vượt quá tổng hóa đơn phải bị từ chối.</summary>
@@ -435,7 +444,7 @@ public class InvoiceHandlerTests
     [Test]
     public async Task GetOutstandingPlansAsync_ReturnsInProgressPlansWithRemainingBalanceOnly()
     {
-        var (_, patient, _) = await SeedPendingPaymentAppointmentAsync();
+        var (appointmentA, patient, _) = await SeedPendingPaymentAppointmentAsync();
         var dentist = await _db.DentistProfiles.FirstAsync();
         var service = Service.Create("Trồng Implant", 15_000_000m, 90, "Cấy ghép implant");
         _db.Services.Add(service);
@@ -446,10 +455,25 @@ public class InvoiceHandlerTests
         _db.TreatmentPlans.AddRange(inProgressPlan, completedPlan);
         await _db.SaveChangesAsync();
 
+        // GetOutstandingPlansHandler chỉ tính là "công nợ" khi liệu trình ĐÃ thu một phần mà còn thiếu —
+        // liệu trình chưa thu đồng nào chỉ là "đang điều trị", chưa phải nợ (xem comment trong handler).
+        // Cần 1 hóa đơn đặt cọc thật gắn vào inProgressPlan để có AmountPaid > 0.
+        // GetPlanPaidMapAsync chỉ credit công nợ từ hóa đơn ĐÃ Paid (chưa Paid thì chưa tính là "đã thu")
+        // — phải MarkAsPaid thật, không chỉ Issue, mới khớp đúng luồng nghiệp vụ thật.
+        var deposit = service.Price / 3;
+        var partialInvoice = Invoice.Issue(
+            appointmentA.Id, "INV-OUTSTANDING-TEST",
+            [("Đặt cọc liệu trình", 1, service.Price, inProgressPlan.Id, deposit)],
+            discount: 0, PaymentMethod.Cash);
+        partialInvoice.MarkAsPaid(PaymentMethod.Cash);
+        _db.Invoices.Add(partialInvoice);
+        await _db.SaveChangesAsync();
+
         var result = await _getOutstandingPlansHandler.Handle(new GetOutstandingPlansQuery(), CancellationToken.None);
 
         result.Should().ContainSingle(p => p.TreatmentPlanId == inProgressPlan.Id);
-        result[0].RemainingAmount.Should().Be(service.Price);
+        result[0].AmountPaid.Should().Be(deposit);
+        result[0].RemainingAmount.Should().Be(service.Price - deposit);
     }
 
     /// <summary>Xác nhận thanh toán cho hóa đơn thu phần còn lại phải tất toán (Settle) hóa đơn gốc.</summary>

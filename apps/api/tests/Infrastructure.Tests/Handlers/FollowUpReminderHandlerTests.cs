@@ -45,7 +45,13 @@ public class FollowUpReminderHandlerTests
         employee.User = dentistUser;
         var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
         dentist.Employee = employee;
-        var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
+        // Patient.User là quan hệ IsRequired() — dùng UserId thật (không phải Guid.Empty) để
+        // .Include(a => a.Patient).ThenInclude(p => p.User) trong GetFollowUpDueHandler không bị EF Core
+        // InMemory provider loại bỏ hàng do FK "required" không khớp được User nào.
+        var patientUser = User.Create("fu1p", $"fu1p-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient);
+        _db.Users.Add(patientUser);
+        var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
+        patient.User = patientUser;
         var service = Service.Create("Niềng răng", 20_000_000m, 60, "Chỉnh nha");
         _db.Employees.Add(employee);
         _db.DentistProfiles.Add(dentist);
@@ -158,6 +164,7 @@ public class FollowUpReminderHandlerTests
         var (patient, dentist, service) = await SeedBaseDataAsync();
         var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddDays(-1));
         appointment.Complete();
+        appointment.SetFollowUpReminder(DateOnly.FromDateTime(DateTime.Today), null);
         _db.Appointments.Add(appointment);
         await _db.SaveChangesAsync();
 
@@ -179,6 +186,7 @@ public class FollowUpReminderHandlerTests
         var (patient, dentist, service) = await SeedBaseDataAsync();
         var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddDays(-1));
         appointment.Complete();
+        appointment.SetFollowUpReminder(DateOnly.FromDateTime(DateTime.Today), null);
         _db.Appointments.Add(appointment);
         await _db.SaveChangesAsync();
         var plan = TreatmentPlan.Create(patient.Id, dentist.Id, appointment.Id, service.Id, service.Price, 1);
@@ -223,6 +231,7 @@ public class FollowUpReminderHandlerTests
         var (patient, dentist, service) = await SeedBaseDataAsync();
         var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddDays(-1));
         appointment.Complete();
+        appointment.SetFollowUpReminder(DateOnly.FromDateTime(DateTime.Today), null);
         _db.Appointments.Add(appointment);
         await _db.SaveChangesAsync();
 
@@ -244,6 +253,7 @@ public class FollowUpReminderHandlerTests
         var (patient, dentist, service) = await SeedBaseDataAsync();
         var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddDays(-1));
         appointment.Complete();
+        appointment.SetFollowUpReminder(DateOnly.FromDateTime(DateTime.Today), null);
         _db.Appointments.Add(appointment);
         await _db.SaveChangesAsync();
 

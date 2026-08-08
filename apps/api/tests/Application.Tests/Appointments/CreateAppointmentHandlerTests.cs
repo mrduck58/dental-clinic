@@ -18,6 +18,7 @@ public class CreateAppointmentHandlerTests
     private IPatientRepository _patientRepo = null!;
     private IUserRepository _userRepo = null!;
     private IServiceRepository _serviceRepo = null!;
+    private AppointmentSlotGuard _slotGuard = null!;
     private INotificationService _notification = null!;
     private CreateAppointmentHandler _handler = null!;
 
@@ -29,7 +30,8 @@ public class CreateAppointmentHandlerTests
         _userRepo = Substitute.For<IUserRepository>();
         _serviceRepo = Substitute.For<IServiceRepository>();
         _notification = Substitute.For<INotificationService>();
-        _handler = new CreateAppointmentHandler(_appointmentRepo, _patientRepo, _userRepo, _serviceRepo, _notification);
+        _slotGuard = new AppointmentSlotGuard(_appointmentRepo, _serviceRepo);
+        _handler = new CreateAppointmentHandler(_appointmentRepo, _patientRepo, _userRepo, _slotGuard, _notification);
 
         // Mặc định: không có lịch hẹn nào khác trong ngày, không có dentist user, không có staff
         _appointmentRepo.GetByDateAsync(Arg.Any<DateOnly>(), Arg.Any<CancellationToken>())
@@ -140,8 +142,10 @@ public class CreateAppointmentHandlerTests
 
         await _handler.Handle(cmd, CancellationToken.None);
 
+        // Lọc thêm theo UserId của bác sĩ — handler còn gửi 1 thông báo khác cho chính bệnh nhân
+        // (cũng Type=Appointment) nên chỉ lọc theo Type sẽ khớp nhầm cả 2, ra "received 2" thay vì 1.
         await _notification.Received(1).CreateAsync(
-            Arg.Is<CreateNotificationRequest>(r => r.Type == NotificationType.Appointment),
+            Arg.Is<CreateNotificationRequest>(r => r.Type == NotificationType.Appointment && r.UserId == dentistUserId),
             Arg.Any<CancellationToken>());
     }
 
@@ -235,8 +239,12 @@ public class CreateAppointmentHandlerTests
 
         await _handler.Handle(cmd, CancellationToken.None);
 
+        // Không tìm được UserId của bác sĩ thì chỉ bỏ qua thông báo CHO BÁC SĨ ("Lịch hẹn mới") — bệnh
+        // nhân vẫn phải nhận thông báo xác nhận đặt lịch như thường, nên không thể assert chung
+        // "không gửi thông báo nào" (handler vẫn gọi CreateAsync 1 lần cho bệnh nhân).
         await _notification.DidNotReceive().CreateAsync(
-            Arg.Any<CreateNotificationRequest>(), Arg.Any<CancellationToken>());
+            Arg.Is<CreateNotificationRequest>(r => r.Title == "Lịch hẹn mới"),
+            Arg.Any<CancellationToken>());
     }
 
     private static CreateAppointmentCommand MakeCmd() =>

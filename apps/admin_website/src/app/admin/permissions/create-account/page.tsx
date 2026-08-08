@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import AdminSidebar from "../../../../components/shared/AdminSidebar";
 import AdminPageHeader from "../../../../components/shared/AdminPageHeader";
 import { useRequireAdmin } from "../../../../hooks/useRequireAdmin";
-import { createAccountApi, createStaffAccountApi } from "../../../../lib/apiClient";
+import { createAccountApi, createStaffAccountApi, resolveAssetUrl } from "../../../../lib/apiClient";
 import { ROLE_LABELS, ROLE_BADGE_CLASSES, type UiRole } from "../../../../lib/roles";
 
 interface Prefill {
@@ -135,7 +135,7 @@ export default function CreateAccountPage() {
                   {/* Avatar + name */}
                   <div className="flex items-center gap-4">
                     {prefill.profilePictureUrl ? (
-                      <img src={prefill.profilePictureUrl} alt={prefill.fullName}
+                      <img src={resolveAssetUrl(prefill.profilePictureUrl)} alt={prefill.fullName}
                         className="w-16 h-16 rounded-2xl object-cover border border-slate-200 shadow-sm shrink-0" />
                     ) : (
                       <div className="w-16 h-16 rounded-2xl bg-primary/10 text-primary font-black text-xl flex items-center justify-center shrink-0">

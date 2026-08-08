@@ -55,6 +55,26 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
             ? 'Lỗi đồng bộ: Vui lòng đăng xuất và đăng nhập lại để tải thông tin thành viên gia đình thực tế.'
             : 'Sync error: Please log out and log in again to load real family member profiles.');
       }
+      // Dời lịch sửa TẠI CHỖ lịch hẹn cũ nên mã lịch hẹn giữ nguyên — giữ lại draft cũ thay vì
+      // chờ mã mới từ server như luồng đặt lịch.
+      if (d.isRescheduling) {
+        await _bookingService.rescheduleAppointment(
+          d.reschedulingAppointmentId!,
+          BookingService.combineDateAndSlot(d.date!, d.timeSlot!.range),
+          dentistId: d.doctor!.id,
+          // null = giữ nguyên dịch vụ của lịch hẹn cũ. Không lấy d.service?.id vì draft dời lịch chỉ
+          // mang tên dịch vụ để hiển thị, id là chuỗi rỗng — gửi lên sẽ thành Guid không hợp lệ.
+          serviceId: null,
+          reason: _symptomCtrl.text.trim().isEmpty ? null : _symptomCtrl.text.trim(),
+        );
+        if (!mounted) return;
+        context.pushReplacement(
+          AppRoutes.bookingSuccess,
+          extra: d.copyWith(symptoms: _symptomCtrl.text.trim()),
+        );
+        return;
+      }
+
       final result = await _bookingService.createAppointment(
         dentistId: d.doctor!.id,
         date: d.date!,
@@ -124,7 +144,9 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
                           _InfoRow(
                             icon: Iconsax.health,
                             label: isVi ? 'Chuyên khoa' : 'Service',
-                            value: d.service!.name,
+                            // Không dùng d.service! — luồng dời lịch có thể tới đây mà không mang
+                            // dịch vụ (lịch cũ không gắn dịch vụ nào), null assertion sẽ làm crash màn hình.
+                            value: d.service?.name ?? (isVi ? 'Khám tổng quát' : 'General check-up'),
                             onEdit: () => context.push(AppRoutes.bookingSelectService, extra: d),
                           ),
                         if (d.date != null)

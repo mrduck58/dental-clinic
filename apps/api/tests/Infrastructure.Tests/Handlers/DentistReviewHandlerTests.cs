@@ -19,6 +19,7 @@ public class DentistReviewHandlerTests
     private PatientRepository _patientRepository = null!;
     private GetDentistReviewsHandler _getHandler = null!;
     private UpsertDentistReviewHandler _upsertHandler = null!;
+    private GetDentistReviewEligibilityHandler _eligibilityHandler = null!;
 
     [SetUp]
     public void SetUp()
@@ -34,6 +35,7 @@ public class DentistReviewHandlerTests
 
         _getHandler = new GetDentistReviewsHandler(_reviewRepository);
         _upsertHandler = new UpsertDentistReviewHandler(_reviewRepository, _appointmentRepository, _patientRepository);
+        _eligibilityHandler = new GetDentistReviewEligibilityHandler(_reviewRepository, _appointmentRepository, _patientRepository);
     }
 
     [TearDown]
@@ -126,7 +128,7 @@ public class DentistReviewHandlerTests
         var result = await _getHandler.Handle(new GetDentistReviewsQuery(dentist.Id), CancellationToken.None);
 
         var dto = result.Reviews.Should().ContainSingle().Subject;
-        dto.PatientName.Should().Be("Nguyễn Văn A");
+        dto.PatientName.Should().Be(NameMasker.MaskName("Nguyễn Văn A"));
         dto.Rating.Should().Be(4);
         dto.Comment.Should().Be("Bác sĩ tận tâm");
         dto.Tags.Should().BeEquivalentTo(["Không đau", "Chuyên nghiệp"]);
@@ -199,7 +201,7 @@ public class DentistReviewHandlerTests
 
         var result = await _upsertHandler.Handle(command, CancellationToken.None);
 
-        result.PatientName.Should().Be("Trần Thị B");
+        result.PatientName.Should().Be(NameMasker.MaskName("Trần Thị B"));
         result.Rating.Should().Be(5);
         result.Comment.Should().Be("Rất hài lòng");
         result.Tags.Should().BeEquivalentTo(["Chuyên nghiệp"]);
@@ -212,7 +214,7 @@ public class DentistReviewHandlerTests
     /// <summary>Gửi đánh giá lần 2 cho cùng cặp nha sĩ/bệnh nhân phải cập nhật bản ghi cũ (upsert),
     /// không tạo thêm bản ghi mới.</summary>
     [Test]
-    public async Task HandleAsync_ExistingReview_UpdatesInsteadOfCreatingDuplicate()
+    public async Task HandleAsync_SecondReviewWithoutNewCompletedVisit_ThrowsValidationException()
     {
         var dentist = await SeedDentistAsync("gr7");
         var patient = await SeedPatientAsync("gr7-p");
@@ -220,18 +222,140 @@ public class DentistReviewHandlerTests
 
         var firstCommand = new UpsertDentistReviewCommand(
             dentist.Id, patient.UserId, new CreateDentistReviewRequest(3, "Bình thường", null));
+        await _upsertHandler.Handle(firstCommand, CancellationToken.None);
+
+        // Không có AppointmentId (đánh giá "chung", không gắn 1 lượt khám cụ thể): số đánh giá đã gửi
+        // bị giới hạn bởi số lượt khám Completed — chưa có thêm lượt khám mới thì không được gửi thêm,
+        // KHÔNG phải cập nhật đè lên đánh giá cũ (handler này không thực sự "upsert" cho luồng này).
+        var secondCommand = new UpsertDentistReviewCommand(
+            dentist.Id, patient.UserId, new CreateDentistReviewRequest(5, "Đã quay lại và rất hài lòng", ["Không đau"]));
+        Func<Task> act = () => _upsertHandler.Handle(secondCommand, CancellationToken.None);
+
+        await act.Should().ThrowAsync<ValidationException>();
+        var allReviews = await _db.DentistReviews.Where(r => r.DentistId == dentist.Id && r.PatientId == patient.Id).ToListAsync();
+        allReviews.Should().ContainSingle();
+        allReviews[0].Rating.Should().Be(3);
+    }
+
+    /// <summary>Sau khi hoàn tất thêm 1 lượt khám mới, bệnh nhân được gửi thêm 1 đánh giá MỚI (không
+    /// đè lên đánh giá cũ) — đúng theo giới hạn "số đánh giá &lt;= số lượt khám Completed".</summary>
+    [Test]
+    public async Task HandleAsync_SecondReviewAfterAnotherCompletedVisit_CreatesSecondReview()
+    {
+        var dentist = await SeedDentistAsync("gr8");
+        var patient = await SeedPatientAsync("gr8-p");
+        await SeedCompletedVisitAsync(dentist.Id, patient.Id);
+
+        var firstCommand = new UpsertDentistReviewCommand(
+            dentist.Id, patient.UserId, new CreateDentistReviewRequest(3, "Bình thường", null));
         var firstResult = await _upsertHandler.Handle(firstCommand, CancellationToken.None);
+
+        await SeedCompletedVisitAsync(dentist.Id, patient.Id);
 
         var secondCommand = new UpsertDentistReviewCommand(
             dentist.Id, patient.UserId, new CreateDentistReviewRequest(5, "Đã quay lại và rất hài lòng", ["Không đau"]));
         var secondResult = await _upsertHandler.Handle(secondCommand, CancellationToken.None);
 
-        secondResult.Id.Should().Be(firstResult.Id);
+        secondResult.Id.Should().NotBe(firstResult.Id);
         secondResult.Rating.Should().Be(5);
         secondResult.Comment.Should().Be("Đã quay lại và rất hài lòng");
 
         var allReviews = await _db.DentistReviews.Where(r => r.DentistId == dentist.Id && r.PatientId == patient.Id).ToListAsync();
-        allReviews.Should().ContainSingle();
-        allReviews[0].Rating.Should().Be(5);
+        allReviews.Should().HaveCount(2);
+    }
+
+    // ---------- GetDentistReviewEligibilityHandler ----------
+
+    /// <summary>Tài khoản gọi chưa có hồ sơ bệnh nhân phải trả CanReview = false.</summary>
+    [Test]
+    public async Task EligibilityAsync_NoPatientProfile_ReturnsNotEligible()
+    {
+        var dentist = await SeedDentistAsync("gr9");
+
+        var result = await _eligibilityHandler.Handle(
+            new GetDentistReviewEligibilityQuery(dentist.Id, Guid.NewGuid()), CancellationToken.None);
+
+        result.CanReview.Should().BeFalse();
+        result.MyReview.Should().BeNull();
+    }
+
+    /// <summary>Chưa hoàn tất buổi khám nào với nha sĩ này thì chưa đủ điều kiện đánh giá (không gắn AppointmentId).</summary>
+    [Test]
+    public async Task EligibilityAsync_NoCompletedVisit_ReturnsNotEligible()
+    {
+        var dentist = await SeedDentistAsync("gr10");
+        var patient = await SeedPatientAsync("gr10-p");
+
+        var result = await _eligibilityHandler.Handle(
+            new GetDentistReviewEligibilityQuery(dentist.Id, patient.UserId), CancellationToken.None);
+
+        result.CanReview.Should().BeFalse();
+    }
+
+    /// <summary>Đã hoàn tất 1 buổi khám và chưa từng đánh giá nha sĩ này thì đủ điều kiện.</summary>
+    [Test]
+    public async Task EligibilityAsync_CompletedVisitAndNoExistingReview_ReturnsEligible()
+    {
+        var dentist = await SeedDentistAsync("gr11");
+        var patient = await SeedPatientAsync("gr11-p");
+        await SeedCompletedVisitAsync(dentist.Id, patient.Id);
+
+        var result = await _eligibilityHandler.Handle(
+            new GetDentistReviewEligibilityQuery(dentist.Id, patient.UserId), CancellationToken.None);
+
+        result.CanReview.Should().BeTrue();
+        result.MyReview.Should().BeNull();
+    }
+
+    /// <summary>Đã gửi đủ số đánh giá bằng số lượt khám hoàn tất thì không còn đủ điều kiện gửi thêm.</summary>
+    [Test]
+    public async Task EligibilityAsync_AlreadyReviewedUpToCompletedVisitCount_ReturnsNotEligible()
+    {
+        var dentist = await SeedDentistAsync("gr12");
+        var patient = await SeedPatientAsync("gr12-p");
+        await SeedCompletedVisitAsync(dentist.Id, patient.Id);
+        await _upsertHandler.Handle(
+            new UpsertDentistReviewCommand(dentist.Id, patient.UserId, new CreateDentistReviewRequest(4, "Tốt", null)),
+            CancellationToken.None);
+
+        var result = await _eligibilityHandler.Handle(
+            new GetDentistReviewEligibilityQuery(dentist.Id, patient.UserId), CancellationToken.None);
+
+        result.CanReview.Should().BeFalse();
+    }
+
+    /// <summary>Mã lịch hẹn không tồn tại phải trả CanReview = false, không ném lỗi.</summary>
+    [Test]
+    public async Task EligibilityAsync_UnknownAppointmentId_ReturnsNotEligible()
+    {
+        var dentist = await SeedDentistAsync("gr13");
+        var patient = await SeedPatientAsync("gr13-p");
+
+        var result = await _eligibilityHandler.Handle(
+            new GetDentistReviewEligibilityQuery(dentist.Id, patient.UserId, Guid.NewGuid()), CancellationToken.None);
+
+        result.CanReview.Should().BeFalse();
+    }
+
+    /// <summary>Lịch hẹn cụ thể đã có đánh giá rồi phải trả CanReview = false kèm đánh giá đã gửi (MyReview).</summary>
+    [Test]
+    public async Task EligibilityAsync_AppointmentAlreadyReviewed_ReturnsNotEligibleWithMyReview()
+    {
+        var dentist = await SeedDentistAsync("gr14");
+        var patient = await SeedPatientAsync("gr14-p");
+        var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddDays(-1));
+        appointment.Complete();
+        _db.Appointments.Add(appointment);
+        await _db.SaveChangesAsync();
+        await _upsertHandler.Handle(
+            new UpsertDentistReviewCommand(dentist.Id, patient.UserId,
+                new CreateDentistReviewRequest(4, "Tốt", null, appointment.Id)),
+            CancellationToken.None);
+
+        var result = await _eligibilityHandler.Handle(
+            new GetDentistReviewEligibilityQuery(dentist.Id, patient.UserId, appointment.Id), CancellationToken.None);
+
+        result.CanReview.Should().BeFalse();
+        result.MyReview.Should().NotBeNull();
     }
 }

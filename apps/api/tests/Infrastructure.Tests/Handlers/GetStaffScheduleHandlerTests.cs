@@ -271,7 +271,7 @@ public class GetStaffScheduleHandlerTests
 
         var appointmentDate = new DateTimeOffset(Today.Year, Today.Month, Today.Day, 8, 0, 0, TimeSpan.FromHours(7));
         var appt = Appointment.Create(patient.Id, dentist.Id, appointmentDate);
-        appt.Cancel("Bận việc");
+        appt.Cancel(CancellationReason.ChangeOfPlans, "Bận việc", cancelledByUserId: null, DateTimeOffset.UtcNow);
         _db.Appointments.Add(appt);
         await _db.SaveChangesAsync();
 

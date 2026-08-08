@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.DTOs.ClinicalRecords;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Domain.Exceptions;
 
 namespace DentalClinic.API.Application.UseCases.ClinicalRecords;
 
@@ -35,7 +36,7 @@ public class TreatmentPlanQueryHelper(
     public async Task<TreatmentPlanDto> LoadDtoAsync(Guid planId, CancellationToken ct)
     {
         var plan = await treatmentPlanRepository.GetByIdWithDetailsAsync(planId, ct)
-            ?? throw new KeyNotFoundException("Không tìm thấy liệu trình điều trị.");
+            ?? throw new NotFoundException("Không tìm thấy liệu trình điều trị.");
 
         var planIds = new List<Guid> { planId };
         var paid = (await GetAmountPaidMapAsync(planIds, ct)).GetValueOrDefault(planId, 0m);

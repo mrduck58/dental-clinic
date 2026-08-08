@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
+import 'package:mobile_app/core/constants/api_constants.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/home/data/models/post_model.dart';
 
@@ -48,7 +49,7 @@ class NewsCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(14),
                 child: post.thumbnailUrl != null
                     ? Image.network(
-                        post.thumbnailUrl!,
+                        ApiConstants.resolveAssetUrl(post.thumbnailUrl)!,
                         width: 90,
                         height: 90,
                         fit: BoxFit.cover,

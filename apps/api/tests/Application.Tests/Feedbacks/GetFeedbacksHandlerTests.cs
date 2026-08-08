@@ -1,3 +1,4 @@
+using DentalClinic.API.Application.UseCases.Dentists;
 using DentalClinic.API.Application.UseCases.Feedbacks;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Interfaces.Repositories;
@@ -85,7 +86,7 @@ public class GetFeedbacksHandlerTests
         var result = await handler.Handle(new GetFeedbacksQuery(null, "tuyệt vời"), CancellationToken.None);
 
         result.Should().ContainSingle();
-        result.First().CustomerName.Should().Be("A");
+        result.First().CustomerName.Should().Be(NameMasker.MaskName("A"));
     }
 
     /// <summary>

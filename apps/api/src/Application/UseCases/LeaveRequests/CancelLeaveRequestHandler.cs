@@ -11,11 +11,12 @@ public class CancelLeaveRequestHandler(ILeaveRequestRepository leaveRequestRepos
 {
     public async Task<LeaveRequestDto> Handle(CancelLeaveRequestCommand command, CancellationToken ct)
     {
-        var leaveRequest = await leaveRequestRepository.GetByIdAsync(command.Id, ct)
-            ?? throw new NotFoundException($"Không tìm thấy đơn nghỉ phép với ID: {command.Id}");
+        var leaveRequest = await leaveRequestRepository.GetByIdAsync(command.Id, ct);
 
-        if (leaveRequest.UserId != command.RequestingUserId)
-            throw new ValidationException("Bạn không có quyền hủy đơn nghỉ phép này.");
+        // Cùng quy ước với GetLeaveRequestByIdHandler: đơn của người khác = không tồn tại (404).
+        // Trước đây chỗ này ném ValidationException → trả 422, vừa sai ngữ nghĩa vừa xác nhận id có thật.
+        if (leaveRequest is null || leaveRequest.UserId != command.RequestingUserId)
+            throw new NotFoundException($"Không tìm thấy đơn nghỉ phép với ID: {command.Id}");
 
         leaveRequest.Cancel();
         await leaveRequestRepository.UpdateAsync(leaveRequest, ct);

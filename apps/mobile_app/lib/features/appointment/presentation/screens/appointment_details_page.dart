@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/settings_manager.dart';
+import 'package:mobile_app/core/constants/api_constants.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/booking/data/booking_models.dart';
 import 'package:mobile_app/features/booking/data/booking_service.dart';
@@ -125,7 +126,7 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
               radius: 16,
               backgroundColor: context.divider,
               backgroundImage: item.dentistAvatarUrl != null
-                  ? NetworkImage(item.dentistAvatarUrl!)
+                  ? NetworkImage(ApiConstants.resolveAssetUrl(item.dentistAvatarUrl)!)
                   : null,
               child: item.dentistAvatarUrl == null
                   ? Icon(Icons.person, color: context.textSecondary, size: 18)
@@ -215,7 +216,7 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
                                 borderRadius: BorderRadius.circular(16),
                                 child: item.dentistAvatarUrl != null
                                     ? Image.network(
-                                        item.dentistAvatarUrl!,
+                                        ApiConstants.resolveAssetUrl(item.dentistAvatarUrl)!,
                                         width: 64,
                                         height: 64,
                                         fit: BoxFit.cover,
@@ -597,11 +598,37 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
                     child: SizedBox(
                       height: 50,
                       child: OutlinedButton.icon(
+                        // Vào wizard đặt lịch từ bước CHỌN NGÀY GIỜ (thứ tự thật của wizard là
+                        // bệnh nhân → dịch vụ → ngày giờ → bác sĩ → xác nhận). Bỏ qua hai bước đầu
+                        // vì dời lịch không đổi bệnh nhân lẫn dịch vụ; chỉ bước xác nhận cuối gọi
+                        // API dời thay vì API đặt mới.
                         onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(isVi ? 'Đang chuyển đổi lịch hẹn...' : 'Rescheduling appointment...'),
-                              behavior: SnackBarBehavior.floating,
+                          context.push(
+                            AppRoutes.bookingSelectDatetime,
+                            extra: BookingDraft(
+                              reschedulingAppointmentId: item.appointmentId,
+                              // Mã lịch hẹn không đổi khi dời — mang theo để màn xác nhận và màn
+                              // hoàn tất hiển thị đúng mã cũ thay vì chỗ trống.
+                              appointmentCode: item.appointmentCode,
+                              // Làm nổi bật bác sĩ đang phụ trách ở bước chọn bác sĩ, nhưng vẫn cho
+                              // đổi sang người khác nếu họ không còn trống khung giờ mới.
+                              preferredDentistId: item.dentistId,
+                              // Chỉ để màn xác nhận hiển thị đúng tên bệnh nhân/dịch vụ hiện tại.
+                              // Id dịch vụ không có trong MyAppointmentItem, và cũng không cần:
+                              // luồng dời gửi serviceId = null nghĩa là giữ nguyên dịch vụ cũ.
+                              patient: PatientInfo(
+                                id: item.patientId ?? 'self',
+                                name: item.patientName ?? '',
+                                relationship: item.patientRelationship ?? '',
+                              ),
+                              service: item.serviceName == null
+                                  ? null
+                                  : ServiceInfo(
+                                      id: '',
+                                      name: item.serviceName!,
+                                      description: '',
+                                      price: '',
+                                    ),
                             ),
                           );
                         },
@@ -784,9 +811,55 @@ class _CancelReasonBottomSheet extends StatefulWidget {
 
 class _CancelReasonBottomSheetState extends State<_CancelReasonBottomSheet> {
   final _bookingService = BookingService();
-  String _selectedReason = 'Change of plans';
+  // Danh sách lý do lấy từ server thay vì hardcode: thêm/sửa một lý do không còn phải phát hành
+  // bản app mới, và mã gửi lên khớp đúng enum của backend nên thống kê gom được theo nhóm.
+  List<CancellationReasonOption> _reasons = [];
+  String? _selectedCode;
+  bool _loadingReasons = true;
+  String? _reasonsError;
   final _textController = TextEditingController();
   bool _submitting = false;
+
+  CancellationReasonOption? get _selectedReason =>
+      _reasons.where((r) => r.code == _selectedCode).firstOrNull;
+
+  /// Lý do bắt buộc ghi chú (ví dụ "Lý do khác") thì chưa nhập là chưa gửi được —
+  /// backend cũng từ chối, chặn sớm ở đây để người dùng không phải chờ một vòng mạng.
+  bool get _canSubmit =>
+      _selectedCode != null &&
+      (!(_selectedReason?.requiresNote ?? false) || _textController.text.trim().isNotEmpty);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadReasons();
+  }
+
+  /// Gọi từ initState (state khởi tạo đã là đang-tải) và từ nút "Thử lại" — nút tự reset state
+  /// trước khi gọi, nên ở đây không setState đầu hàm để tránh setState dư trong initState.
+  Future<void> _loadReasons() async {
+    try {
+      final reasons = await _bookingService.getCancellationReasons();
+      if (!mounted) return;
+      setState(() {
+        _reasons = reasons;
+        _selectedCode = reasons.isNotEmpty ? reasons.first.code : null;
+        _loadingReasons = false;
+      });
+    } catch (e) {
+      // Không nuốt lỗi: danh sách rỗng làm nút gửi bị vô hiệu hóa vĩnh viễn, người dùng chỉ thấy
+      // một nút xám không bấm được và không hiểu vì sao. Phải hiện lỗi kèm nút thử lại.
+      if (!mounted) return;
+      setState(() {
+        _loadingReasons = false;
+        _reasonsError = e is DioException
+            ? ApiClient.errorMessage(e)
+            : (widget.isVi
+                ? 'Không tải được danh sách lý do hủy.'
+                : 'Could not load cancellation reasons.');
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -795,23 +868,26 @@ class _CancelReasonBottomSheetState extends State<_CancelReasonBottomSheet> {
   }
 
   Future<void> _submit() async {
+    final reason = _selectedReason;
+    if (reason == null) return;
+
     setState(() => _submitting = true);
     try {
-      String finalReason = widget.isVi 
-          ? _translateToVi(_selectedReason) 
-          : _selectedReason;
-      
-      if (_selectedReason == 'Other' && _textController.text.trim().isNotEmpty) {
-        finalReason = _textController.text.trim();
-      } else if (_textController.text.trim().isNotEmpty) {
-        finalReason = '$finalReason: ${_textController.text.trim()}';
-      }
+      final note = _textController.text.trim();
+      await _bookingService.cancelAppointment(
+        widget.appointmentId,
+        reason.code,
+        note: note,
+      );
 
-      await _bookingService.cancelAppointment(widget.appointmentId, finalReason);
-      
       if (mounted) {
+        // Nhãn để hiển thị lại trên màn hình gọi; mã nhóm mới là thứ backend lưu.
+        final displayed = note.isNotEmpty
+            ? '${reason.label(widget.isVi)}: $note'
+            : reason.label(widget.isVi);
+
         Navigator.pop(context); // close bottom sheet
-        widget.onCancelled(finalReason);
+        widget.onCancelled(displayed);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(widget.isVi ? 'Đã hủy lịch khám thành công.' : 'Appointment cancelled successfully.'),
@@ -839,20 +915,7 @@ class _CancelReasonBottomSheetState extends State<_CancelReasonBottomSheet> {
     }
   }
 
-  String _translateToVi(String englishReason) {
-    switch (englishReason) {
-      case 'Change of plans':
-        return 'Thay đổi kế hoạch';
-      case 'Found another clinic':
-        return 'Tìm thấy phòng khám khác';
-      case 'Health issues':
-        return 'Vấn đề sức khỏe';
-      case 'Other':
-        return 'Lý do khác';
-      default:
-        return englishReason;
-    }
-  }
+  // _translateToVi đã bỏ: nhãn song ngữ nay do server trả về kèm mỗi lý do, app không tự dịch nữa.
 
   @override
   Widget build(BuildContext context) {
@@ -909,17 +972,48 @@ class _CancelReasonBottomSheetState extends State<_CancelReasonBottomSheet> {
             ),
           ),
           const SizedBox(height: 20),
-          _buildRadioOption('Change of plans', widget.isVi ? 'Thay đổi kế hoạch' : 'Change of plans'),
-          _buildRadioOption('Found another clinic', widget.isVi ? 'Tìm thấy phòng khám khác' : 'Found another clinic'),
-          _buildRadioOption('Health issues', widget.isVi ? 'Vấn đề sức khỏe' : 'Health issues'),
-          _buildRadioOption('Other', widget.isVi ? 'Lý do khác' : 'Other'),
+          if (_loadingReasons)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            )
+          else if (_reasonsError != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _reasonsError!,
+                    style: const TextStyle(color: Color(0xFFEF4444), fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _loadingReasons = true;
+                        _reasonsError = null;
+                      });
+                      _loadReasons();
+                    },
+                    child: Text(widget.isVi ? 'Thử lại' : 'Retry'),
+                  ),
+                ],
+              ),
+            )
+          else
+            ..._reasons.map((r) => _buildRadioOption(r.code, r.label(widget.isVi))),
           const SizedBox(height: 20),
           TextField(
             controller: _textController,
             maxLines: 4,
+            // Nút gửi bật/tắt theo nội dung ô này khi lý do đang chọn bắt buộc ghi chú.
+            onChanged: (_) => setState(() {}),
             style: TextStyle(color: context.textPrimary, fontSize: 14),
             decoration: InputDecoration(
-              hintText: widget.isVi ? 'Mô tả thêm (Không bắt buộc)' : 'Tell us more (Optional)',
+              hintText: (_selectedReason?.requiresNote ?? false)
+                  ? (widget.isVi ? 'Vui lòng nêu rõ lý do (Bắt buộc)' : 'Please specify (Required)')
+                  : (widget.isVi ? 'Mô tả thêm (Không bắt buộc)' : 'Tell us more (Optional)'),
               hintStyle: TextStyle(color: context.textMuted, fontSize: 14),
               filled: true,
               fillColor: context.isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
@@ -943,7 +1037,7 @@ class _CancelReasonBottomSheetState extends State<_CancelReasonBottomSheet> {
             width: double.infinity,
             height: 52,
             child: ElevatedButton(
-              onPressed: _submitting ? null : _submit,
+              onPressed: (_submitting || !_canSubmit) ? null : _submit,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFC2185B),
                 foregroundColor: Colors.white,
@@ -985,9 +1079,9 @@ class _CancelReasonBottomSheetState extends State<_CancelReasonBottomSheet> {
   }
 
   Widget _buildRadioOption(String value, String label) {
-    final isSelected = _selectedReason == value;
+    final isSelected = _selectedCode == value;
     return InkWell(
-      onTap: _submitting ? null : () => setState(() => _selectedReason = value),
+      onTap: _submitting ? null : () => setState(() => _selectedCode = value),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 10.0),
         child: Row(

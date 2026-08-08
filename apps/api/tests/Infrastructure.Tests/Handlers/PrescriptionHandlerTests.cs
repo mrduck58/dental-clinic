@@ -10,6 +10,7 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using NSubstitute;
 using NUnit.Framework;
+using DentalClinic.API.Domain.Exceptions;
 
 namespace DentalClinic.API.Infrastructure.Tests.Handlers;
 
@@ -141,13 +142,13 @@ public class PrescriptionHandlerTests
 
     // ── CreateAsync: validation ───────────────────────────────────────────────
 
-    /// <summary>appointmentId không tồn tại phải ném KeyNotFoundException.</summary>
+    /// <summary>appointmentId không tồn tại phải ném NotFoundException.</summary>
     [Test]
-    public async Task CreateAsync_AppointmentNotFound_ThrowsKeyNotFoundException()
+    public async Task CreateAsync_AppointmentNotFound_ThrowsNotFoundException()
     {
         Func<Task> act = () => _create.Handle(new CreatePrescriptionRequest(Guid.NewGuid(), null, null), CancellationToken.None);
 
-        await act.Should().ThrowAsync<KeyNotFoundException>();
+        await act.Should().ThrowAsync<NotFoundException>();
     }
 
     /// <summary>
@@ -164,7 +165,9 @@ public class PrescriptionHandlerTests
 
         Func<Task> act = () => _create.Handle(new CreatePrescriptionRequest(appointment.Id, null, null), CancellationToken.None);
 
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        // CreatePrescriptionHandler ném DentalClinic ValidationException riêng (không phải InvalidOperationException
+        // của .NET) khi buổi hẹn chưa đúng trạng thái — cập nhật theo đúng loại exception thật handler ném ra.
+        await act.Should().ThrowAsync<DentalClinic.API.Domain.Exceptions.ValidationException>();
     }
 
     /// <summary>Mỗi cuộc hẹn chỉ được có một đơn thuốc — tạo lần 2 phải ném InvalidOperationException.</summary>
@@ -201,13 +204,13 @@ public class PrescriptionHandlerTests
 
     // ── UpdateAsync ────────────────────────────────────────────────────────────
 
-    /// <summary>prescriptionId không tồn tại phải ném KeyNotFoundException.</summary>
+    /// <summary>prescriptionId không tồn tại phải ném NotFoundException.</summary>
     [Test]
-    public async Task UpdateAsync_NonExistentPrescription_ThrowsKeyNotFoundException()
+    public async Task UpdateAsync_NonExistentPrescription_ThrowsNotFoundException()
     {
         Func<Task> act = () => _update.Handle(new UpdatePrescriptionRequest(Guid.NewGuid(), "Ghi chú"), CancellationToken.None);
 
-        await act.Should().ThrowAsync<KeyNotFoundException>();
+        await act.Should().ThrowAsync<NotFoundException>();
     }
 
     /// <summary>Cập nhật đơn thuốc tồn tại phải lưu ghi chú mới.</summary>
@@ -227,14 +230,14 @@ public class PrescriptionHandlerTests
 
     // ── AddItemAsync ───────────────────────────────────────────────────────────
 
-    /// <summary>prescriptionId không tồn tại phải ném KeyNotFoundException.</summary>
+    /// <summary>prescriptionId không tồn tại phải ném NotFoundException.</summary>
     [Test]
-    public async Task AddItemAsync_NonExistentPrescription_ThrowsKeyNotFoundException()
+    public async Task AddItemAsync_NonExistentPrescription_ThrowsNotFoundException()
     {
         Func<Task> act = () => _addItem.Handle(
             new AddPrescriptionItemRequest(Guid.NewGuid(), "Panadol", "500mg", 10, "viên", "Uống sau ăn", null), CancellationToken.None);
 
-        await act.Should().ThrowAsync<KeyNotFoundException>();
+        await act.Should().ThrowAsync<NotFoundException>();
     }
 
     /// <summary>Thêm thuốc vào đơn tồn tại phải lưu thành công và trả về DTO có đủ thuốc mới.</summary>
@@ -255,14 +258,14 @@ public class PrescriptionHandlerTests
 
     // ── UpdateItemAsync ────────────────────────────────────────────────────────
 
-    /// <summary>itemId không tồn tại phải ném KeyNotFoundException.</summary>
+    /// <summary>itemId không tồn tại phải ném NotFoundException.</summary>
     [Test]
-    public async Task UpdateItemAsync_NonExistentItem_ThrowsKeyNotFoundException()
+    public async Task UpdateItemAsync_NonExistentItem_ThrowsNotFoundException()
     {
         Func<Task> act = () => _updateItem.Handle(
             new UpdatePrescriptionItemRequest(Guid.NewGuid(), "Panadol", "500mg", 10, "viên", "Uống sau ăn", null), CancellationToken.None);
 
-        await act.Should().ThrowAsync<KeyNotFoundException>();
+        await act.Should().ThrowAsync<NotFoundException>();
     }
 
     /// <summary>Cập nhật thuốc tồn tại trong đơn phải lưu đúng các trường mới.</summary>
@@ -289,13 +292,13 @@ public class PrescriptionHandlerTests
 
     // ── DeleteItemAsync ────────────────────────────────────────────────────────
 
-    /// <summary>itemId không tồn tại phải ném KeyNotFoundException.</summary>
+    /// <summary>itemId không tồn tại phải ném NotFoundException.</summary>
     [Test]
-    public async Task DeleteItemAsync_NonExistentItem_ThrowsKeyNotFoundException()
+    public async Task DeleteItemAsync_NonExistentItem_ThrowsNotFoundException()
     {
         Func<Task> act = () => _deleteItem.Handle(new DeletePrescriptionItemCommand(Guid.NewGuid()), CancellationToken.None);
 
-        await act.Should().ThrowAsync<KeyNotFoundException>();
+        await act.Should().ThrowAsync<NotFoundException>();
     }
 
     /// <summary>Xóa thuốc tồn tại phải loại bỏ khỏi đơn thuốc.</summary>

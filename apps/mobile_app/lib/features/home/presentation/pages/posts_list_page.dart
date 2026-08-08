@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
+import 'package:mobile_app/core/constants/api_constants.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/home/data/home_service.dart';
 import 'package:mobile_app/features/home/data/models/post_model.dart';
@@ -243,7 +244,7 @@ class _PostsListPageState extends State<PostsListPage> {
               borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
               child: post.thumbnailUrl != null
                   ? Image.network(
-                      post.thumbnailUrl!,
+                      ApiConstants.resolveAssetUrl(post.thumbnailUrl)!,
                       height: 180,
                       width: double.infinity,
                       fit: BoxFit.cover,

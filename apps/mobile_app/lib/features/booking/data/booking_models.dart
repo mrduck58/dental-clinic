@@ -103,6 +103,11 @@ class BookingDraft {
   /// không tự động chọn thay người dùng (vẫn cần xác nhận khung giờ thủ công).
   final String? preferredDentistId;
 
+  /// Khác null nghĩa là luồng này đang DỜI lịch hẹn đó chứ không đặt lịch mới. Cùng một wizard
+  /// (chọn bác sĩ → chọn giờ → xác nhận), chỉ khác thao tác ở bước cuối — nhờ vậy không phải dựng
+  /// thêm một màn chọn ngày giờ thứ hai chỉ để đổi lịch.
+  final String? reschedulingAppointmentId;
+
   const BookingDraft({
     this.patient,
     this.service,
@@ -115,7 +120,10 @@ class BookingDraft {
     this.appointmentId,
     this.appointmentCode,
     this.preferredDentistId,
+    this.reschedulingAppointmentId,
   });
+
+  bool get isRescheduling => reschedulingAppointmentId != null;
 
   BookingDraft copyWith({
     PatientInfo? patient,
@@ -129,6 +137,7 @@ class BookingDraft {
     String? appointmentId,
     String? appointmentCode,
     String? preferredDentistId,
+    String? reschedulingAppointmentId,
   }) {
     return BookingDraft(
       patient: patient ?? this.patient,
@@ -142,6 +151,7 @@ class BookingDraft {
       appointmentId: appointmentId ?? this.appointmentId,
       appointmentCode: appointmentCode ?? this.appointmentCode,
       preferredDentistId: preferredDentistId ?? this.preferredDentistId,
+      reschedulingAppointmentId: reschedulingAppointmentId ?? this.reschedulingAppointmentId,
     );
   }
 }

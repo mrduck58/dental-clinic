@@ -114,6 +114,9 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<InvoiceQueryHelper>();
         services.AddScoped<IPaymentConfirmationService, PaymentConfirmationService>();
         services.AddScoped<DentalClinic.API.Application.UseCases.ClinicalRecords.TreatmentPlanQueryHelper>();
+        services.AddScoped<DentalClinic.API.Application.UseCases.ClinicalRecords.ClinicalRecordWriteGuard>();
+        services.AddScoped<DentalClinic.API.Application.UseCases.Booking.AppointmentChangeGuard>();
+        services.AddScoped<DentalClinic.API.Application.UseCases.Booking.AppointmentSlotGuard>();
 
         return services;
     }

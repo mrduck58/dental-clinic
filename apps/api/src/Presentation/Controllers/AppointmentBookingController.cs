@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using DentalClinic.API.Application.UseCases.Booking;
+using DentalClinic.API.Domain.Enums;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -68,17 +69,46 @@ public class AppointmentBookingController(ISender sender) : ControllerBase
         return Ok(new { message = "Đã xác nhận lịch hẹn." });
     }
 
-    /// <summary>PUT api/appointments/{id}/cancel — Hủy lịch hẹn</summary>
+    /// <summary>
+    /// GET api/appointments/cancellation-reasons — Danh sách lý do hủy để client dựng danh sách chọn.
+    /// Trả về từ server thay vì mỗi app tự chép cứng, để thêm/sửa lý do không cần phát hành lại app
+    /// và hai client không lệch nhau. Bệnh nhân không thấy các lý do dành riêng cho phòng khám.
+    /// </summary>
+    [HttpGet("api/appointments/cancellation-reasons")]
+    [Authorize(Roles = "Patient,Staff,Admin,Owner")]
+    public async Task<IActionResult> GetCancellationReasons(CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new GetCancellationReasonsQuery(), cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>PUT api/appointments/{id}/cancel — Hủy lịch hẹn kèm lý do</summary>
     [HttpPut("api/appointments/{id}/cancel")]
     [Authorize(Roles = "Patient,Staff,Admin,Owner")]
     public async Task<IActionResult> CancelAppointment(
         Guid id,
-        [FromBody(EmptyBodyBehavior = Microsoft.AspNetCore.Mvc.ModelBinding.EmptyBodyBehavior.Allow)] CancelAppointmentRequest? request,
+        [FromBody] CancelAppointmentRequest request,
         CancellationToken cancellationToken)
     {
-        var reason = request?.Reason;
-        await sender.Send(new CancelAppointmentCommand(id, reason), cancellationToken);
+        var reason = CancellationReasonCatalog.Parse(request.Reason);
+        await sender.Send(new CancelAppointmentCommand(id, reason, request.Note), cancellationToken);
         return Ok(new { message = "Đã hủy lịch hẹn." });
+    }
+
+    /// <summary>PUT api/appointments/{id}/reschedule — Dời lịch sang khung giờ (và bác sĩ) khác</summary>
+    [HttpPut("api/appointments/{id}/reschedule")]
+    [Authorize(Roles = "Patient,Staff,Admin,Owner")]
+    public async Task<IActionResult> RescheduleAppointment(
+        Guid id,
+        [FromBody] RescheduleAppointmentRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new RescheduleAppointmentCommand(
+                id, request.AppointmentDate, request.DentistId, request.ServiceId, request.Reason),
+            cancellationToken);
+
+        return Ok(result);
     }
 
     /// <summary>PUT api/appointments/{id}/checkin — Check-in bệnh nhân (Staff/Admin)</summary>
@@ -158,4 +188,19 @@ public record CreateWalkInRequest(
     string? Symptoms,
     Guid? PatientId = null);
 
-public record CancelAppointmentRequest(string? Reason);
+/// <param name="Reason">
+/// Mã lý do lấy từ GET api/appointments/cancellation-reasons, ví dụ "PatientRequested".
+/// Khai báo là string chứ không phải enum: dự án không cấu hình JsonStringEnumConverter nên
+/// System.Text.Json chỉ bind được enum từ SỐ — để enum ở đây thì mọi mã chữ đều bị từ chối
+/// ngay ở bước bind, trả 400 trước khi vào controller.
+/// </param>
+/// <param name="Note">Ghi chú tự do; bắt buộc với các lý do có RequiresNote = true.</param>
+public record CancelAppointmentRequest(string Reason, string? Note);
+
+/// <param name="DentistId">Bỏ trống để giữ nguyên bác sĩ hiện tại.</param>
+/// <param name="ServiceId">Bỏ trống để giữ nguyên dịch vụ hiện tại.</param>
+public record RescheduleAppointmentRequest(
+    DateTimeOffset AppointmentDate,
+    Guid? DentistId,
+    Guid? ServiceId,
+    string? Reason);

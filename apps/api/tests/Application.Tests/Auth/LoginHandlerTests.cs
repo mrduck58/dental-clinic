@@ -343,6 +343,103 @@ public class LoginHandlerTests
 
     // ── Helper ────────────────────────────────────────────────────────────────
 
+    // ── Khóa tạm sau nhiều lần đăng nhập sai ──────────────────────────────────
+
+    /// <summary>Sai mật khẩu phải cộng bộ đếm và lưu lại, nếu không thì không có gì để khóa.</summary>
+    [Test]
+    public async Task HandleAsync_WrongPassword_IncrementsFailedAttempts()
+    {
+        var user = CreateActiveUserWithPassword("pass123");
+        _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
+
+        Func<Task> act = () => _handler.Handle(new LoginCommand(user.Email, "sai-mat-khau"), CancellationToken.None);
+
+        await act.Should().ThrowAsync<UnauthorizedAccessException>();
+        user.FailedLoginAttempts.Should().Be(1);
+        await _userRepo.Received(1).UpdateAsync(user, Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Đủ 5 lần sai liên tiếp thì tài khoản bị khóa và bộ đếm được đặt lại.</summary>
+    [Test]
+    public async Task HandleAsync_FiveWrongPasswords_LocksAccount()
+    {
+        var user = CreateActiveUserWithPassword("pass123");
+        _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
+
+        for (var i = 0; i < 5; i++)
+        {
+            Func<Task> attempt = () => _handler.Handle(new LoginCommand(user.Email, "sai"), CancellationToken.None);
+            await attempt.Should().ThrowAsync<UnauthorizedAccessException>();
+        }
+
+        user.IsLockedOut(DateTimeOffset.UtcNow).Should().BeTrue();
+        user.FailedLoginAttempts.Should().Be(0, "bộ đếm phải reset để sau khi hết khóa còn đủ lượt thử lại");
+    }
+
+    /// <summary>
+    /// Đang bị khóa thì từ chối NGAY, kể cả khi mật khẩu đúng — và tuyệt đối không băm mật khẩu,
+    /// vì BCrypt workFactor 12 rất chậm, để lọt sẽ biến chính cơ chế bảo vệ thành đòn bẩy gây nghẽn.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_LockedAccount_RejectsEvenWithCorrectPassword()
+    {
+        var user = CreateActiveUserWithPassword("pass123");
+        user.RegisterFailedLogin(DateTimeOffset.UtcNow, maxAttempts: 1, lockoutDuration: TimeSpan.FromMinutes(15));
+        _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
+
+        Func<Task> act = () => _handler.Handle(new LoginCommand(user.Email, "pass123"), CancellationToken.None);
+
+        (await act.Should().ThrowAsync<UnauthorizedAccessException>())
+            .WithMessage("*tạm khóa*");
+        _jwtService.DidNotReceive().GenerateToken(Arg.Any<User>());
+    }
+
+    /// <summary>Hết thời hạn khóa thì đăng nhập lại được, không cần ai can thiệp thủ công.</summary>
+    [Test]
+    public async Task HandleAsync_LockoutExpired_AllowsLogin()
+    {
+        var user = CreateActiveUserWithPassword("pass123");
+        user.RegisterFailedLogin(
+            DateTimeOffset.UtcNow.AddHours(-2), maxAttempts: 1, lockoutDuration: TimeSpan.FromMinutes(15));
+        _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
+        _jwtService.GenerateToken(user).Returns("jwt-token");
+
+        var result = await _handler.Handle(new LoginCommand(user.Email, "pass123"), CancellationToken.None);
+
+        result.AccessToken.Should().Be("jwt-token");
+    }
+
+    /// <summary>Đăng nhập đúng xóa sạch bộ đếm, để những lần gõ nhầm rải rác không cộng dồn khóa oan.</summary>
+    [Test]
+    public async Task HandleAsync_SuccessfulLogin_ClearsFailedAttempts()
+    {
+        var user = CreateActiveUserWithPassword("pass123");
+        user.RegisterFailedLogin(DateTimeOffset.UtcNow, maxAttempts: 5, lockoutDuration: TimeSpan.FromMinutes(15));
+        _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
+        _jwtService.GenerateToken(user).Returns("jwt-token");
+
+        await _handler.Handle(new LoginCommand(user.Email, "pass123"), CancellationToken.None);
+
+        user.FailedLoginAttempts.Should().Be(0);
+        user.LockoutEndAt.Should().BeNull();
+    }
+
+    /// <summary>
+    /// Email không tồn tại không được ghi gì xuống DB — không có tài khoản nào để khóa, và ghi vào
+    /// đây sẽ mở đường cho việc dò xem email nào có thật qua độ trễ phản hồi.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_UnknownEmail_DoesNotTouchRepository()
+    {
+        _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns((User?)null);
+
+        Func<Task> act = () => _handler.Handle(
+            new LoginCommand("khong-ton-tai@test.com", "bat-ky"), CancellationToken.None);
+
+        await act.Should().ThrowAsync<UnauthorizedAccessException>();
+        await _userRepo.DidNotReceive().UpdateAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
+    }
+
     private static User CreateActiveUserWithPassword(string plainPassword)
     {
         var hash = BCrypt.Net.BCrypt.HashPassword(plainPassword);

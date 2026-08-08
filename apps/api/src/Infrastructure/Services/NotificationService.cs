@@ -1,4 +1,5 @@
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using Microsoft.Extensions.Logging;
@@ -54,20 +55,18 @@ public class NotificationService(
         }
     }
 
-    public async Task MarkAsReadAsync(Guid notificationId, CancellationToken ct = default)
-    {
-        try
-        {
-            var notification = await repository.GetByIdAsync(notificationId, ct);
-            if (notification is null) return;
+    // MarkAsReadAsync/DeleteAsync do người dùng chủ động gọi — KHÔNG nuốt lỗi như các hàm Create*
+    // (vốn là side-effect fire-and-forget của luồng nghiệp vụ khác, hỏng thì không được làm hỏng luồng chính).
+    // Ở đây thất bại phải nổi lên thành mã lỗi HTTP, nếu không người dùng bấm xóa mà không có gì xảy ra.
 
-            notification.MarkAsRead();
-            await repository.UpdateAsync(notification, ct);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Failed to mark notification {Id} as read", notificationId);
-        }
+    public async Task MarkAsReadAsync(Guid notificationId, Guid userId, CancellationToken ct = default)
+    {
+        var notification = await LoadOwnedAsync(notificationId, userId, ct);
+
+        if (notification.IsRead) return;
+
+        notification.MarkAsRead();
+        await repository.UpdateAsync(notification, ct);
     }
 
     public async Task MarkAllAsReadAsync(Guid userId, CancellationToken ct = default)
@@ -88,15 +87,24 @@ public class NotificationService(
         }
     }
 
-    public async Task DeleteAsync(Guid notificationId, CancellationToken ct = default)
+    public async Task DeleteAsync(Guid notificationId, Guid userId, CancellationToken ct = default)
     {
-        try
-        {
-            await repository.DeleteAsync(notificationId, ct);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Failed to delete notification {Id}", notificationId);
-        }
+        await LoadOwnedAsync(notificationId, userId, ct);
+        await repository.DeleteAsync(notificationId, ct);
+    }
+
+    /// <summary>
+    /// Nạp thông báo và khẳng định nó thuộc về <paramref name="userId"/>. Thông báo của người khác
+    /// trả 404 chứ không phải 403: 403 xác nhận "id này có tồn tại", đủ để dò xem người khác có
+    /// thông báo nào — với người gọi thì tài nguyên không phải của họ là không tồn tại.
+    /// </summary>
+    private async Task<Notification> LoadOwnedAsync(Guid notificationId, Guid userId, CancellationToken ct)
+    {
+        var notification = await repository.GetByIdAsync(notificationId, ct);
+
+        if (notification is null || notification.UserId != userId)
+            throw new NotFoundException("Không tìm thấy thông báo.");
+
+        return notification;
     }
 }

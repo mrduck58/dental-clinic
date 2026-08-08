@@ -658,7 +658,13 @@ public class SendChatMessageHandler(
 
         try
         {
-            await sender.Send(new CancelAppointmentCommand(target.AppointmentId, reply.NotesHint), ct);
+            // Bệnh nhân hủy qua chatbot bằng câu nói tự do nên không chọn được nhóm lý do — xếp vào
+            // Other và giữ nguyên câu họ nói làm ghi chú. NotesHint có thể rỗng, khi đó ghi nhãn mặc định
+            // vì Cancel() bắt buộc phải có ghi chú đi kèm lý do Other.
+            await sender.Send(new CancelAppointmentCommand(
+                target.AppointmentId,
+                CancellationReason.Other,
+                string.IsNullOrWhiteSpace(reply.NotesHint) ? "Hủy qua trợ lý ảo" : reply.NotesHint), ct);
 
             var who = target.IsSelf ? (en ? "you" : "bạn") : target.PatientName;
             var confirmation = en
@@ -733,29 +739,29 @@ public class SendChatMessageHandler(
         }
 
         var newAppointmentDate = new DateTimeOffset(date.ToDateTime(time), TimeSpan.FromHours(7)).ToUniversalTime();
+        var who = target.IsSelf ? (en ? "you" : "bạn") : target.PatientName;
 
-        CreateAppointmentResult created;
+        // Dời TẠI CHỖ bằng một lệnh duy nhất. Trước đây bot tạo lịch mới rồi hủy lịch cũ, nên khi bước
+        // hủy hỏng thì bệnh nhân giữ hai lịch trùng nhau và phải chờ nhân viên dọn tay — chưa kể mỗi
+        // lần dời lại sinh thêm một bản ghi Cancelled làm tỉ lệ hủy trong báo cáo phồng lên giả tạo.
         try
         {
-            created = await sender.Send(new CreateAppointmentCommand(
-                userId,
-                target.DentistId,
+            await sender.Send(new RescheduleAppointmentCommand(
+                target.AppointmentId,
                 newAppointmentDate,
-                Symptoms: reply.NotesHint,
-                ServiceId: target.ServiceId,
-                PatientId: target.IsSelf ? null : target.PatientId), ct);
+                DentistId: null,   // bot không đổi bác sĩ
+                ServiceId: null,   // giữ nguyên dịch vụ đã chọn
+                Reason: reply.NotesHint), ct);
         }
-        catch (ConflictException)
+        catch (ConflictException ex)
         {
-            return new RescheduleOutcome(false,
-                en
-                    ? $"Sorry, the {timeText} slot on {date:dd/MM/yyyy} was just taken by someone else. Please pick another free slot and I'll reschedule for you."
-                    : $"Xin lỗi, khung giờ {timeText} ngày {date:dd/MM/yyyy} vừa có người khác đặt mất. Bạn chọn giúp tôi một khung giờ khác còn trống nhé, tôi sẽ dời lịch ngay.",
-                SuggestBooking: false, null);
+            // Bao gồm cả khung giờ vừa bị người khác đặt, quá hạn 24 giờ, và vượt số lần dời cho phép —
+            // thông điệp trong ConflictException đã đủ rõ để đọc thẳng cho bệnh nhân.
+            return new RescheduleOutcome(false, ex.Message, SuggestBooking: false, null);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Bot dời lịch thất bại khi tạo lịch mới cho appointment gốc {AppointmentId}", target.AppointmentId);
+            logger.LogError(ex, "Bot dời lịch thất bại cho appointment {AppointmentId}", target.AppointmentId);
             return new RescheduleOutcome(false,
                 en
                     ? "Sorry, something went wrong while rescheduling. Please try again or use My Appointments."
@@ -763,27 +769,13 @@ public class SendChatMessageHandler(
                 SuggestBooking: true, null);
         }
 
-        var who = target.IsSelf ? (en ? "you" : "bạn") : target.PatientName;
-        try
-        {
-            await sender.Send(
-                new CancelAppointmentCommand(target.AppointmentId, "Dời sang lịch hẹn mới"), ct);
-        }
-        catch (Exception ex)
-        {
-            // Lịch mới đã tạo thành công — chỉ log để staff xử lý thủ công lịch cũ, KHÔNG báo lỗi cho
-            // bệnh nhân (với họ, việc dời lịch coi như đã xong).
-            logger.LogError(ex,
-                "Dời lịch: tạo lịch mới {NewId} thành công nhưng hủy lịch cũ {OldId} thất bại",
-                created.AppointmentId, target.AppointmentId);
-        }
-
+        // Mã lịch hẹn giữ nguyên vì bản ghi không đổi — đúng ý bệnh nhân hơn hẳn việc phát mã mới.
         var confirmation = en
-            ? $"✅ Appointment for {who} with {target.DentistName} has been rescheduled to {timeText}, " +
-              $"{date:dd/MM/yyyy}.\n- New code: {created.AppointmentCode}"
-            : $"✅ Đã dời lịch hẹn của {who} với {target.DentistName} sang {timeText}, " +
-              $"{VietnameseDayOfWeek(date.DayOfWeek)} {date:dd/MM/yyyy}.\n- Mã lịch hẹn mới: {created.AppointmentCode}";
+            ? $"✅ Appointment {target.Code} for {who} with {target.DentistName} has been rescheduled to {timeText}, " +
+              $"{date:dd/MM/yyyy}."
+            : $"✅ Đã dời lịch hẹn {target.Code} của {who} với {target.DentistName} sang {timeText}, " +
+              $"{VietnameseDayOfWeek(date.DayOfWeek)} {date:dd/MM/yyyy}.";
 
-        return new RescheduleOutcome(true, confirmation, SuggestBooking: false, created.AppointmentCode);
+        return new RescheduleOutcome(true, confirmation, SuggestBooking: false, target.Code);
     }
 }

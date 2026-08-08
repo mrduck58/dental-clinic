@@ -176,9 +176,7 @@ class _AppointmentListScreenState extends State<AppointmentListScreen> {
           ),
         );
       }
-      final url = avatarUrl.startsWith('http')
-          ? avatarUrl
-          : '${ApiConstants.baseUrl.replaceAll('/api', '')}$avatarUrl';
+      final url = ApiConstants.resolveAssetUrl(avatarUrl)!;
       return Container(
         width: size,
         height: size,
@@ -690,11 +688,12 @@ class _DoctorAvatar extends StatelessWidget {
       ),
       child: Icon(Iconsax.profile_circle, color: AppColors.primary, size: 26),
     );
-    if (avatarUrl == null || avatarUrl!.isEmpty) return placeholder;
+    final resolved = ApiConstants.resolveAssetUrl(avatarUrl);
+    if (resolved == null) return placeholder;
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
       child: Image.network(
-        avatarUrl!,
+        resolved,
         width: 48,
         height: 48,
         fit: BoxFit.cover,

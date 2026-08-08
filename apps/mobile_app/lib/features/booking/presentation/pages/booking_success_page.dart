@@ -98,7 +98,9 @@ class _BookingSuccessPageState extends State<BookingSuccessPage>
                     const SizedBox(height: 20),
 
                     Text(
-                      isVi ? 'Đặt lịch thành công!' : 'Booking Success!',
+                      widget.draft.isRescheduling
+                          ? (isVi ? 'Dời lịch thành công!' : 'Reschedule Success!')
+                          : (isVi ? 'Đặt lịch thành công!' : 'Booking Success!'),
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.w800,

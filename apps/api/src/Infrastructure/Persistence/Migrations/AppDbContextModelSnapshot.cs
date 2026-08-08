@@ -130,6 +130,20 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("AppointmentDate")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("CancellationNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("CancellationReason")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTimeOffset?>("CancelledAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CancelledByUserId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTimeOffset?>("CheckedInAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -148,6 +162,9 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.Property<string>("FollowUpNote")
                         .HasColumnType("text");
 
+                    b.Property<DateTimeOffset?>("LastRescheduledAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("Notes")
                         .HasColumnType("text");
 
@@ -160,6 +177,11 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.Property<long?>("QueueOrder")
                         .HasColumnType("bigint");
 
+                    b.Property<int>("RescheduledCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
                     b.Property<Guid?>("ServiceId")
                         .HasColumnType("uuid");
 
@@ -170,6 +192,8 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CancellationReason");
 
                     b.HasIndex("DentistId");
 
@@ -1537,10 +1561,6 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
-                    b.Property<string>("InsuranceNote")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
@@ -1551,10 +1571,6 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 
                     b.Property<decimal>("Price")
                         .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("Unit")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1770,6 +1786,11 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
 
+                    b.Property<int>("FailedLoginAttempts")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -1781,6 +1802,9 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset?>("LockoutEndAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("PasswordHash")
                         .HasColumnType("text");
@@ -1928,12 +1952,11 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.DentistReview", b =>
                 {
-                    
                     b.HasOne("DentalClinic.API.Domain.Entities.Appointment", "Appointment")
                         .WithMany()
                         .HasForeignKey("AppointmentId")
                         .OnDelete(DeleteBehavior.SetNull);
-                        
+
                     b.HasOne("DentalClinic.API.Domain.Entities.DentistProfile", "Dentist")
                         .WithMany()
                         .HasForeignKey("DentistId")

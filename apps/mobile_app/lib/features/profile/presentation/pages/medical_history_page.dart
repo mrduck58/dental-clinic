@@ -79,9 +79,7 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
           ),
         );
       }
-      final url = avatarUrl.startsWith('http')
-          ? avatarUrl
-          : '${ApiConstants.baseUrl.replaceAll('/api', '')}$avatarUrl';
+      final url = ApiConstants.resolveAssetUrl(avatarUrl)!;
       return Container(
         width: size,
         height: size,

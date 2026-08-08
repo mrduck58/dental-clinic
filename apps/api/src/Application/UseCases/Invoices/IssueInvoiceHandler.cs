@@ -47,6 +47,11 @@ public class IssueInvoiceHandler(
         if (command.Items == null || command.Items.Count == 0)
             throw new ValidationException("Hóa đơn phải có ít nhất một dịch vụ.");
 
+        var totalAmount = command.Items.Sum(i => (i.Quantity < 1 ? 1 : i.Quantity) * i.UnitPrice) - command.Discount;
+        var depositAmount = command.Items.Sum(i => i.AmountCollected ?? (i.Quantity < 1 ? 1 : i.Quantity) * i.UnitPrice);
+        if (depositAmount > totalAmount)
+            throw new ValidationException("Số tiền thu không được vượt quá tổng tiền hóa đơn.");
+
         // Cho phép nhiều hóa đơn/buổi, nhưng chặn xuất vượt tổng tiền của mỗi liệu trình
         // (tránh xuất trùng dịch vụ đã có hóa đơn trước đó).
         var lineByPlan = command.Items

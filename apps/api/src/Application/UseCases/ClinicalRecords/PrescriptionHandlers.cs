@@ -74,7 +74,7 @@ public class CreatePrescriptionHandler(
         var appointment = await appointmentRepository.GetByIdAsync(request.AppointmentId, ct);
 
         if (appointment == null)
-            throw new KeyNotFoundException("Không tìm thấy lịch hẹn.");
+            throw new NotFoundException("Không tìm thấy lịch hẹn.");
 
         if (appointment.Status is not (AppointmentStatus.InProgress or AppointmentStatus.PendingPayment or AppointmentStatus.Completed))
             throw new ValidationException("Chỉ có thể tạo đơn thuốc khi buổi hẹn đang khám hoặc đã kết thúc điều trị.");
@@ -108,7 +108,7 @@ public class CreatePrescriptionHandler(
 
         // Reload with items
         var createdPrescription = await prescriptionRepository.GetByIdWithItemsAsync(prescription.Id, ct)
-            ?? throw new KeyNotFoundException("Không tìm thấy đơn thuốc.");
+            ?? throw new NotFoundException("Không tìm thấy đơn thuốc.");
 
         // Báo cho bệnh nhân có đơn thuốc mới (nếu tài khoản có liên kết User) — trước đây bệnh nhân
         // chỉ biết đơn thuốc khi tự vào xem hồ sơ, không được chủ động báo.
@@ -138,7 +138,7 @@ public class UpdatePrescriptionHandler(IPrescriptionRepository prescriptionRepos
         var prescription = await prescriptionRepository.GetByIdWithItemsAsync(request.PrescriptionId, ct);
 
         if (prescription == null)
-            throw new KeyNotFoundException("Không tìm thấy đơn thuốc.");
+            throw new NotFoundException("Không tìm thấy đơn thuốc.");
 
         prescription.UpdateNotes(request.Notes);
         await prescriptionRepository.UpdateAsync(prescription, ct);
@@ -156,7 +156,7 @@ public class AddPrescriptionItemHandler(
         var prescription = await prescriptionRepository.GetByIdWithItemsAsync(request.PrescriptionId, ct);
 
         if (prescription == null)
-            throw new KeyNotFoundException("Không tìm thấy đơn thuốc.");
+            throw new NotFoundException("Không tìm thấy đơn thuốc.");
 
         var item = PrescriptionItem.Create(
             request.PrescriptionId,
@@ -174,7 +174,7 @@ public class AddPrescriptionItemHandler(
 
         // Reload with items
         prescription = await prescriptionRepository.GetByIdWithItemsAsync(prescription.Id, ct)
-            ?? throw new KeyNotFoundException("Không tìm thấy đơn thuốc.");
+            ?? throw new NotFoundException("Không tìm thấy đơn thuốc.");
 
         return ClinicalRecordMappers.ToDto(prescription);
     }
@@ -189,7 +189,7 @@ public class UpdatePrescriptionItemHandler(
         var item = await prescriptionItemRepository.GetByIdAsync(request.ItemId, ct);
 
         if (item == null)
-            throw new KeyNotFoundException("Không tìm thấy thuốc trong đơn.");
+            throw new NotFoundException("Không tìm thấy thuốc trong đơn.");
 
         item.Update(
             request.MedicineName,
@@ -205,7 +205,7 @@ public class UpdatePrescriptionItemHandler(
         await prescriptionItemRepository.UpdateAsync(item, ct);
 
         var prescription = await prescriptionRepository.GetByIdWithItemsAsync(item.PrescriptionId, ct)
-            ?? throw new KeyNotFoundException("Không tìm thấy đơn thuốc.");
+            ?? throw new NotFoundException("Không tìm thấy đơn thuốc.");
 
         return ClinicalRecordMappers.ToDto(prescription);
     }
@@ -219,7 +219,7 @@ public class DeletePrescriptionItemHandler(IPrescriptionItemRepository prescript
         var item = await prescriptionItemRepository.GetByIdAsync(command.ItemId, ct);
 
         if (item == null)
-            throw new KeyNotFoundException("Không tìm thấy thuốc trong đơn.");
+            throw new NotFoundException("Không tìm thấy thuốc trong đơn.");
 
         await prescriptionItemRepository.DeleteAsync(item, ct);
     }

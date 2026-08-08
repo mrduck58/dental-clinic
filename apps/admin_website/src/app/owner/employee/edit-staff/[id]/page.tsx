@@ -5,7 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import OwnerSidebar from "../../../../../components/shared/OwnerSidebar";
 import OwnerPageHeader from "../../../../../components/shared/OwnerPageHeader";
 import { useRequireOwner } from "../../../../../hooks/useRequireOwner";
-import { updateStaffApi, uploadFileApi, ApiValidationError, type StaffDto, type UpdateStaffCommand } from "../../../../../lib/apiClient";
+import { updateStaffApi, uploadFileApi, resolveAssetUrl, ApiValidationError, type StaffDto, type UpdateStaffCommand } from "../../../../../lib/apiClient";
 
 interface StaffEditForm {
   fullName: string;
@@ -316,7 +316,7 @@ export default function EditStaffPage() {
                     <div className="w-32 h-32 rounded-2xl border-2 border-dashed border-slate-250 hover:border-primary bg-slate-50/70 hover:bg-red-50/10 flex flex-col items-center justify-center text-center cursor-pointer transition-all p-3 relative overflow-hidden group">
                       {formData.profilePictureUrl ? (
                         <>
-                          <img src={formData.profilePictureUrl} alt="avatar" className="absolute inset-0 w-full h-full object-cover" />
+                          <img src={resolveAssetUrl(formData.profilePictureUrl)} alt="avatar" className="absolute inset-0 w-full h-full object-cover" />
                           <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                             <span className="text-white text-[11px] font-bold">Thay đổi ảnh</span>
                           </div>

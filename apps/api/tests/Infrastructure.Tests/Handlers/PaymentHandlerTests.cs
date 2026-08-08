@@ -50,13 +50,15 @@ public class PaymentHandlerTests
         _confirmationService = new PaymentConfirmationService(
             invoiceRepository, paymentTransactionRepository, _db, notificationService, userRepo, invoiceQuery);
 
+        var patientRepository = new PatientRepository(_db);
+
         var configuration = Substitute.For<IConfiguration>();
         _createRequestHandler = new CreatePaymentRequestHandler(
-            invoiceRepository, paymentTransactionRepository, _db, _gatewayResolver, configuration);
+            invoiceRepository, paymentTransactionRepository, patientRepository, _db, _gatewayResolver, configuration);
         _webhookHandler = new HandlePaymentWebhookHandler(
             paymentTransactionRepository, _db, _gatewayResolver, _confirmationService, NullLogger<HandlePaymentWebhookHandler>.Instance);
         _getStatusHandler = new GetPaymentStatusHandler(
-            invoiceRepository, paymentTransactionRepository, _db, _gatewayResolver, _confirmationService,
+            invoiceRepository, paymentTransactionRepository, patientRepository, _db, _gatewayResolver, _confirmationService,
             NullLogger<GetPaymentStatusHandler>.Instance);
     }
 
@@ -90,12 +92,90 @@ public class PaymentHandlerTests
         return invoice;
     }
 
+    /// <summary>Một bệnh nhân độc lập, không liên quan gì tới hóa đơn do SeedUnpaidInvoiceAsync tạo ra.</summary>
+    private async Task<Patient> SeedPatientAsync()
+    {
+        var user = User.Create("pay-x", $"pay-x-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient);
+        _db.Users.Add(user);
+        var patient = Patient.Create(user.Id, new DateOnly(1985, 5, 5), "Nữ");
+        _db.Patients.Add(patient);
+        await _db.SaveChangesAsync();
+        return patient;
+    }
+
+    private async Task<Patient> GetInvoicePatientAsync(Invoice invoice)
+    {
+        var appointment = await _db.Appointments.FirstAsync(a => a.Id == invoice.AppointmentId);
+        return await _db.Patients.FirstAsync(p => p.Id == appointment.PatientId);
+    }
+
+    /// <summary>Bệnh nhân khác không được tạo yêu cầu thanh toán cho hóa đơn không thuộc phạm vi của mình.</summary>
+    [Test]
+    public async Task CreatePaymentRequestAsync_InvoiceOfAnotherPatient_ThrowsNotFoundException()
+    {
+        var invoice = await SeedUnpaidInvoiceAsync();
+        var intruder = await SeedPatientAsync();
+
+        Func<Task> act = () => _createRequestHandler.Handle(
+            new CreatePaymentRequestCommand(invoice.Id, PaymentGateway.PayOS, RestrictToUserId: intruder.UserId),
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<NotFoundException>();
+        await _gatewayService.DidNotReceive().CreatePaymentLinkAsync(Arg.Any<CreatePaymentLinkRequest>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Bệnh nhân khác không được xem trạng thái hóa đơn không thuộc phạm vi của mình.</summary>
+    [Test]
+    public async Task GetPaymentStatusAsync_InvoiceOfAnotherPatient_ThrowsNotFoundException()
+    {
+        var invoice = await SeedUnpaidInvoiceAsync();
+        var intruder = await SeedPatientAsync();
+
+        Func<Task> act = () => _getStatusHandler.Handle(
+            new GetPaymentStatusQuery(invoice.Id, RestrictToUserId: intruder.UserId), CancellationToken.None);
+
+        await act.Should().ThrowAsync<NotFoundException>();
+    }
+
+    /// <summary>Chính chủ vẫn xem được hóa đơn của mình khi bị giới hạn phạm vi.</summary>
+    [Test]
+    public async Task GetPaymentStatusAsync_OwnInvoice_ReturnsStatus()
+    {
+        var invoice = await SeedUnpaidInvoiceAsync();
+        var ownerUserId = (await GetInvoicePatientAsync(invoice)).UserId;
+
+        var result = await _getStatusHandler.Handle(
+            new GetPaymentStatusQuery(invoice.Id, RestrictToUserId: ownerUserId), CancellationToken.None);
+
+        result.InvoiceId.Should().Be(invoice.Id);
+    }
+
+    /// <summary>
+    /// Chủ hộ trả hộ hóa đơn của người nhà là luồng hợp lệ — kiểm tra phạm vi phải nới tới thành viên gia đình,
+    /// không chỉ hồ sơ chính chủ.
+    /// </summary>
+    [Test]
+    public async Task GetPaymentStatusAsync_FamilyMemberInvoice_ReturnsStatus()
+    {
+        var invoice = await SeedUnpaidInvoiceAsync();
+        var memberPatient = await GetInvoicePatientAsync(invoice);
+
+        var head = await SeedPatientAsync();
+        memberPatient.UpdateFamilyRelation(head.Id, "Con");
+        await _db.SaveChangesAsync();
+
+        var result = await _getStatusHandler.Handle(
+            new GetPaymentStatusQuery(invoice.Id, RestrictToUserId: head.UserId), CancellationToken.None);
+
+        result.InvoiceId.Should().Be(invoice.Id);
+    }
+
     /// <summary>Tạo yêu cầu thanh toán cho hóa đơn không tồn tại phải báo lỗi NotFoundException.</summary>
     [Test]
     public async Task CreatePaymentRequestAsync_InvoiceNotFound_ThrowsNotFoundException()
     {
         Func<Task> act = () => _createRequestHandler.Handle(
-            new CreatePaymentRequestCommand(Guid.NewGuid(), PaymentGateway.PayOS), CancellationToken.None);
+            new CreatePaymentRequestCommand(Guid.NewGuid(), PaymentGateway.PayOS, RestrictToUserId: null), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -109,7 +189,7 @@ public class PaymentHandlerTests
         await _db.SaveChangesAsync();
 
         Func<Task> act = () => _createRequestHandler.Handle(
-            new CreatePaymentRequestCommand(invoice.Id, PaymentGateway.PayOS), CancellationToken.None);
+            new CreatePaymentRequestCommand(invoice.Id, PaymentGateway.PayOS, RestrictToUserId: null), CancellationToken.None);
 
         await act.Should().ThrowAsync<ConflictException>();
     }
@@ -126,7 +206,7 @@ public class PaymentHandlerTests
         await _db.SaveChangesAsync();
 
         var result = await _createRequestHandler.Handle(
-            new CreatePaymentRequestCommand(invoice.Id, PaymentGateway.PayOS), CancellationToken.None);
+            new CreatePaymentRequestCommand(invoice.Id, PaymentGateway.PayOS, RestrictToUserId: null), CancellationToken.None);
 
         result.GatewayOrderCode.Should().Be("ORDER123");
         await _gatewayService.DidNotReceive().CreatePaymentLinkAsync(Arg.Any<CreatePaymentLinkRequest>(), Arg.Any<CancellationToken>());
@@ -141,7 +221,7 @@ public class PaymentHandlerTests
             .Returns(new CreatePaymentLinkResult("https://pay.url/new", "qr-code-data", "NEWORDER456", DateTimeOffset.UtcNow.AddMinutes(15), "{}"));
 
         var result = await _createRequestHandler.Handle(
-            new CreatePaymentRequestCommand(invoice.Id, PaymentGateway.PayOS), CancellationToken.None);
+            new CreatePaymentRequestCommand(invoice.Id, PaymentGateway.PayOS, RestrictToUserId: null), CancellationToken.None);
 
         result.GatewayOrderCode.Should().Be("NEWORDER456");
         result.CheckoutUrl.Should().Be("https://pay.url/new");
@@ -277,7 +357,7 @@ public class PaymentHandlerTests
     [Test]
     public async Task GetStatusAsync_InvoiceNotFound_ThrowsNotFoundException()
     {
-        Func<Task> act = () => _getStatusHandler.Handle(new GetPaymentStatusQuery(Guid.NewGuid()), CancellationToken.None);
+        Func<Task> act = () => _getStatusHandler.Handle(new GetPaymentStatusQuery(Guid.NewGuid(), RestrictToUserId: null), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -288,7 +368,7 @@ public class PaymentHandlerTests
     {
         var invoice = await SeedUnpaidInvoiceAsync();
 
-        var result = await _getStatusHandler.Handle(new GetPaymentStatusQuery(invoice.Id), CancellationToken.None);
+        var result = await _getStatusHandler.Handle(new GetPaymentStatusQuery(invoice.Id, RestrictToUserId: null), CancellationToken.None);
 
         result.LatestTransaction.Should().BeNull();
         result.InvoiceStatus.Should().Be(PaymentStatus.Unpaid.ToString());
@@ -306,7 +386,7 @@ public class PaymentHandlerTests
         _db.PaymentTransactions.Add(newer);
         await _db.SaveChangesAsync();
 
-        var result = await _getStatusHandler.Handle(new GetPaymentStatusQuery(invoice.Id), CancellationToken.None);
+        var result = await _getStatusHandler.Handle(new GetPaymentStatusQuery(invoice.Id, RestrictToUserId: null), CancellationToken.None);
 
         result.LatestTransaction.Should().NotBeNull();
         result.LatestTransaction!.GatewayOrderCode.Should().Be("ORDER-NEW");

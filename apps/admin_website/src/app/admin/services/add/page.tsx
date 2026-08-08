@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import AdminSidebar from "../../../../components/shared/AdminSidebar";
 import AdminPageHeader from "../../../../components/shared/AdminPageHeader";
 import { useRequireAdmin } from "../../../../hooks/useRequireAdmin";
-import { createServiceApi, uploadFileApi } from "../../../../lib/apiClient";
+import { createServiceApi, uploadFileApi, resolveAssetUrl } from "../../../../lib/apiClient";
 
 export default function AddServicePage() {
   useRequireAdmin();
@@ -213,7 +213,7 @@ export default function AddServicePage() {
                       /* Preview Image */
                       <div className="relative rounded-xl overflow-hidden border border-slate-200 group h-[50px]">
                         <img
-                          src={uploadedImage}
+                          src={resolveAssetUrl(uploadedImage)}
                           alt="Preview"
                           className="w-full h-full object-cover"
                         />
@@ -285,7 +285,7 @@ export default function AddServicePage() {
                     <div className="w-[50px] h-[50px] rounded-xl border border-slate-200 bg-slate-50/50 flex items-center justify-center overflow-hidden shrink-0">
                       {iconUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={iconUrl} alt="Icon dịch vụ" className="w-8 h-8 object-contain" />
+                        <img src={resolveAssetUrl(iconUrl)} alt="Icon dịch vụ" className="w-8 h-8 object-contain" />
                       ) : (
                         <svg className="w-5 h-5 text-slate-300" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />

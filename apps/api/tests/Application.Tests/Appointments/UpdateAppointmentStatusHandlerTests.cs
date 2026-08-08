@@ -3,6 +3,7 @@ using DentalClinic.API.Application.UseCases.ClinicalRecords;
 using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
+using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using FluentAssertions;
@@ -22,6 +23,7 @@ public class UpdateAppointmentStatusHandlerTests
     // God-handler UpdateAppointmentStatusHandler (7 method) đã được tách thành 7 handler MediatR:
     // Confirm/Cancel/CheckIn/MarkNoShow thuộc Booking, Start/Complete/EndTreatment thuộc ClinicalRecords.
     private ConfirmAppointmentHandler _confirm = null!;
+    private AppointmentChangeGuard _changeGuard = null!;
     private CancelAppointmentHandler _cancel = null!;
     private CheckInAppointmentHandler _checkIn = null!;
     private MarkNoShowHandler _noShow = null!;
@@ -38,7 +40,8 @@ public class UpdateAppointmentStatusHandlerTests
         _notification = Substitute.For<INotificationService>();
         _patientRepo = Substitute.For<IPatientRepository>();
         _confirm = new ConfirmAppointmentHandler(_repo, _activityLog, _notification, _currentUser, _patientRepo);
-        _cancel = new CancelAppointmentHandler(_repo, _activityLog, _notification, _currentUser, _patientRepo);
+        _changeGuard = new AppointmentChangeGuard(_currentUser, _patientRepo);
+        _cancel = new CancelAppointmentHandler(_repo, _activityLog, _notification, _currentUser, _patientRepo, _changeGuard);
         _checkIn = new CheckInAppointmentHandler(_repo, _activityLog, _notification, _currentUser, _patientRepo);
         _noShow = new MarkNoShowHandler(_repo, _activityLog, _notification, _currentUser, _patientRepo);
         _startTreatment = new StartTreatmentHandler(_repo);
@@ -47,7 +50,7 @@ public class UpdateAppointmentStatusHandlerTests
     }
 
     private static Appointment MakeAppointment() =>
-        Appointment.Create(Guid.NewGuid(), Guid.NewGuid(), DateTimeOffset.UtcNow.AddDays(1));
+        Appointment.Create(Guid.NewGuid(), Guid.NewGuid(), DateTimeOffset.UtcNow.AddDays(3));
 
     // ── ConfirmAsync ──────────────────────────────────────────────────────────
 
@@ -101,19 +104,18 @@ public class UpdateAppointmentStatusHandlerTests
     }
 
     /// <summary>
-    /// appointmentId không tồn tại phải ném KeyNotFoundException với message chứa id,
+    /// appointmentId không tồn tại phải ném NotFoundException với message chứa id,
     /// để controller tra về 404 và log đúng id bị thiếu để debug.
     /// </summary>
     [Test]
-    public async Task ConfirmAsync_NonExistentAppointment_ThrowsKeyNotFoundException()
+    public async Task ConfirmAsync_NonExistentAppointment_ThrowsNotFoundException()
     {
         var id = Guid.NewGuid();
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns((Appointment?)null);
 
         Func<Task> act = () => _confirm.Handle(new ConfirmAppointmentCommand(id), CancellationToken.None);
 
-        await act.Should().ThrowAsync<KeyNotFoundException>()
-            .WithMessage($"*{id}*");
+        await act.Should().ThrowAsync<NotFoundException>();
     }
 
     /// <summary>
@@ -162,7 +164,7 @@ public class UpdateAppointmentStatusHandlerTests
         var appt = MakeAppointment();
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
 
-        await _cancel.Handle(new CancelAppointmentCommand(id), CancellationToken.None);
+        await _cancel.Handle(new CancelAppointmentCommand(id, CancellationReason.ChangeOfPlans, null), CancellationToken.None);
 
         await _repo.Received(1).UpdateAsync(appt, Arg.Any<CancellationToken>());
     }
@@ -178,24 +180,23 @@ public class UpdateAppointmentStatusHandlerTests
         var appt = MakeAppointment();
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
 
-        await _cancel.Handle(new CancelAppointmentCommand(id), CancellationToken.None);
+        await _cancel.Handle(new CancelAppointmentCommand(id, CancellationReason.ChangeOfPlans, null), CancellationToken.None);
 
         appt.Status.Should().Be(AppointmentStatus.Cancelled);
     }
 
     /// <summary>
-    /// appointmentId không tồn tại khi hủy phải ném KeyNotFoundException với message chứa id.
+    /// appointmentId không tồn tại khi hủy phải ném NotFoundException với message chứa id.
     /// </summary>
     [Test]
-    public async Task CancelAsync_NonExistentAppointment_ThrowsKeyNotFoundException()
+    public async Task CancelAsync_NonExistentAppointment_ThrowsNotFoundException()
     {
         var id = Guid.NewGuid();
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns((Appointment?)null);
 
-        Func<Task> act = () => _cancel.Handle(new CancelAppointmentCommand(id), CancellationToken.None);
+        Func<Task> act = () => _cancel.Handle(new CancelAppointmentCommand(id, CancellationReason.ChangeOfPlans, null), CancellationToken.None);
 
-        await act.Should().ThrowAsync<KeyNotFoundException>()
-            .WithMessage($"*{id}*");
+        await act.Should().ThrowAsync<NotFoundException>();
     }
 
     /// <summary>
@@ -207,7 +208,7 @@ public class UpdateAppointmentStatusHandlerTests
         var id = Guid.NewGuid();
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns((Appointment?)null);
 
-        Assert.CatchAsync(() => _cancel.Handle(new CancelAppointmentCommand(id), CancellationToken.None));
+        Assert.CatchAsync(() => _cancel.Handle(new CancelAppointmentCommand(id, CancellationReason.ChangeOfPlans, null), CancellationToken.None));
 
         await _repo.DidNotReceive().UpdateAsync(Arg.Any<Appointment>(), Arg.Any<CancellationToken>());
     }
@@ -225,7 +226,7 @@ public class UpdateAppointmentStatusHandlerTests
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
         _repo.GetDentistUserIdAsync(appt.DentistId, Arg.Any<CancellationToken>()).Returns(dentistUserId);
 
-        await _cancel.Handle(new CancelAppointmentCommand(id), CancellationToken.None);
+        await _cancel.Handle(new CancelAppointmentCommand(id, CancellationReason.ChangeOfPlans, null), CancellationToken.None);
 
         await _notification.Received(1).CreateAsync(
             Arg.Is<CreateNotificationRequest>(r => r.Priority == NotificationPriority.High),
@@ -241,7 +242,7 @@ public class UpdateAppointmentStatusHandlerTests
         var id = Guid.NewGuid();
         var patientUserId = Guid.NewGuid();
         var patient = Patient.Create(patientUserId, new DateOnly(1990, 1, 1), "Nam");
-        var appt = Appointment.Create(patient.Id, Guid.NewGuid(), DateTimeOffset.UtcNow.AddDays(1));
+        var appt = Appointment.Create(patient.Id, Guid.NewGuid(), DateTimeOffset.UtcNow.AddDays(3));
 
         _currentUser.IsAuthenticated.Returns(true);
         _currentUser.UserId.Returns(patientUserId);
@@ -250,10 +251,11 @@ public class UpdateAppointmentStatusHandlerTests
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
         _patientRepo.GetByUserIdAsync(patientUserId, Arg.Any<CancellationToken>()).Returns(patient);
 
-        await _cancel.Handle(new CancelAppointmentCommand(id, "Bận việc đột xuất"), CancellationToken.None);
+        await _cancel.Handle(new CancelAppointmentCommand(id, CancellationReason.Other, "Bận việc đột xuất"), CancellationToken.None);
 
         appt.Status.Should().Be(AppointmentStatus.Cancelled);
-        appt.Notes.Should().Contain("Bận việc đột xuất");
+        appt.CancellationNote.Should().Be("Bận việc đột xuất");
+        appt.CancellationReason.Should().Be(CancellationReason.Other);
         await _repo.Received(1).UpdateAsync(appt, Arg.Any<CancellationToken>());
     }
 
@@ -267,7 +269,7 @@ public class UpdateAppointmentStatusHandlerTests
         var patientUserId = Guid.NewGuid();
         var patient = Patient.Create(patientUserId, new DateOnly(1990, 1, 1), "Nam");
         var familyMember = Patient.Create(Guid.Empty, new DateOnly(2015, 5, 5), "Nam", primaryPatientId: patient.Id, relationship: "Con trai");
-        var appt = Appointment.Create(familyMember.Id, Guid.NewGuid(), DateTimeOffset.UtcNow.AddDays(1));
+        var appt = Appointment.Create(familyMember.Id, Guid.NewGuid(), DateTimeOffset.UtcNow.AddDays(3));
 
         _currentUser.IsAuthenticated.Returns(true);
         _currentUser.UserId.Returns(patientUserId);
@@ -277,7 +279,7 @@ public class UpdateAppointmentStatusHandlerTests
         _patientRepo.GetByUserIdAsync(patientUserId, Arg.Any<CancellationToken>()).Returns(patient);
         _patientRepo.GetFamilyMembersAsync(patient.Id, Arg.Any<CancellationToken>()).Returns(new List<Patient> { familyMember });
 
-        await _cancel.Handle(new CancelAppointmentCommand(id, "Đổi lịch"), CancellationToken.None);
+        await _cancel.Handle(new CancelAppointmentCommand(id, CancellationReason.ScheduleConflict, null), CancellationToken.None);
 
         appt.Status.Should().Be(AppointmentStatus.Cancelled);
         await _repo.Received(1).UpdateAsync(appt, Arg.Any<CancellationToken>());
@@ -287,13 +289,13 @@ public class UpdateAppointmentStatusHandlerTests
     /// Bệnh nhân hủy lịch hẹn của người khác (không phải của mình hay người thân) sẽ bị từ chối.
     /// </summary>
     [Test]
-    public async Task CancelAsync_PatientCancelsOtherAppointment_ThrowsUnauthorizedAccessException()
+    public async Task CancelAsync_PatientCancelsOtherAppointment_ThrowsNotFoundException()
     {
         var id = Guid.NewGuid();
         var patientUserId = Guid.NewGuid();
         var patient = Patient.Create(patientUserId, new DateOnly(1990, 1, 1), "Nam");
         var otherPatient = Patient.Create(Guid.Empty, new DateOnly(1995, 2, 2), "Nữ");
-        var appt = Appointment.Create(otherPatient.Id, Guid.NewGuid(), DateTimeOffset.UtcNow.AddDays(1));
+        var appt = Appointment.Create(otherPatient.Id, Guid.NewGuid(), DateTimeOffset.UtcNow.AddDays(3));
 
         _currentUser.IsAuthenticated.Returns(true);
         _currentUser.UserId.Returns(patientUserId);
@@ -303,9 +305,9 @@ public class UpdateAppointmentStatusHandlerTests
         _patientRepo.GetByUserIdAsync(patientUserId, Arg.Any<CancellationToken>()).Returns(patient);
         _patientRepo.GetFamilyMembersAsync(patient.Id, Arg.Any<CancellationToken>()).Returns(new List<Patient>());
 
-        Func<Task> act = () => _cancel.Handle(new CancelAppointmentCommand(id, "Hủy lịch người khác"), CancellationToken.None);
+        Func<Task> act = () => _cancel.Handle(new CancelAppointmentCommand(id, CancellationReason.ChangeOfPlans, null), CancellationToken.None);
 
-        await act.Should().ThrowAsync<UnauthorizedAccessException>();
+        await act.Should().ThrowAsync<NotFoundException>();
         appt.Status.Should().NotBe(AppointmentStatus.Cancelled);
         await _repo.DidNotReceive().UpdateAsync(appt, Arg.Any<CancellationToken>());
     }
@@ -335,18 +337,18 @@ public class UpdateAppointmentStatusHandlerTests
     }
 
     /// <summary>
-    /// appointmentId không tồn tại khi check-in phải ném KeyNotFoundException, không được để lộ
+    /// appointmentId không tồn tại khi check-in phải ném NotFoundException, không được để lộ
     /// NullReferenceException ra ngoài.
     /// </summary>
     [Test]
-    public async Task CheckInAsync_NonExistentAppointment_ThrowsKeyNotFoundException()
+    public async Task CheckInAsync_NonExistentAppointment_ThrowsNotFoundException()
     {
         var id = Guid.NewGuid();
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns((Appointment?)null);
 
         Func<Task> act = () => _checkIn.Handle(new CheckInAppointmentCommand(id), CancellationToken.None);
 
-        await act.Should().ThrowAsync<KeyNotFoundException>();
+        await act.Should().ThrowAsync<NotFoundException>();
     }
 
     /// <summary>
@@ -368,16 +370,16 @@ public class UpdateAppointmentStatusHandlerTests
 
     // ── MarkNoShowAsync ───────────────────────────────────────────────────────
 
-    /// <summary>appointmentId không tồn tại phải ném KeyNotFoundException.</summary>
+    /// <summary>appointmentId không tồn tại phải ném NotFoundException.</summary>
     [Test]
-    public async Task MarkNoShowAsync_NonExistentAppointment_ThrowsKeyNotFoundException()
+    public async Task MarkNoShowAsync_NonExistentAppointment_ThrowsNotFoundException()
     {
         var id = Guid.NewGuid();
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns((Appointment?)null);
 
         Func<Task> act = () => _noShow.Handle(new MarkNoShowCommand(id), CancellationToken.None);
 
-        await act.Should().ThrowAsync<KeyNotFoundException>();
+        await act.Should().ThrowAsync<NotFoundException>();
     }
 
     /// <summary>
@@ -432,16 +434,16 @@ public class UpdateAppointmentStatusHandlerTests
 
     // ── StartTreatmentAsync ───────────────────────────────────────────────────
 
-    /// <summary>appointmentId không tồn tại phải ném KeyNotFoundException.</summary>
+    /// <summary>appointmentId không tồn tại phải ném NotFoundException.</summary>
     [Test]
-    public async Task StartTreatmentAsync_NonExistentAppointment_ThrowsKeyNotFoundException()
+    public async Task StartTreatmentAsync_NonExistentAppointment_ThrowsNotFoundException()
     {
         var id = Guid.NewGuid();
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns((Appointment?)null);
 
         Func<Task> act = () => _startTreatment.Handle(new StartTreatmentCommand(id), CancellationToken.None);
 
-        await act.Should().ThrowAsync<KeyNotFoundException>();
+        await act.Should().ThrowAsync<NotFoundException>();
     }
 
     /// <summary>Chỉ được bắt đầu khám khi lịch hẹn đã CheckedIn; lịch Pending phải bị từ chối.</summary>
@@ -454,7 +456,9 @@ public class UpdateAppointmentStatusHandlerTests
 
         Func<Task> act = () => _startTreatment.Handle(new StartTreatmentCommand(id), CancellationToken.None);
 
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        // StartTreatmentHandler ném DentalClinic ValidationException riêng (không phải InvalidOperationException
+        // của .NET) khi buổi hẹn chưa check-in — cập nhật theo đúng loại exception thật handler ném ra.
+        await act.Should().ThrowAsync<ValidationException>();
         await _repo.DidNotReceive().UpdateAsync(Arg.Any<Appointment>(), Arg.Any<CancellationToken>());
     }
 
@@ -476,16 +480,16 @@ public class UpdateAppointmentStatusHandlerTests
 
     // ── CompleteAsync ─────────────────────────────────────────────────────────
 
-    /// <summary>appointmentId không tồn tại phải ném KeyNotFoundException.</summary>
+    /// <summary>appointmentId không tồn tại phải ném NotFoundException.</summary>
     [Test]
-    public async Task CompleteAsync_NonExistentAppointment_ThrowsKeyNotFoundException()
+    public async Task CompleteAsync_NonExistentAppointment_ThrowsNotFoundException()
     {
         var id = Guid.NewGuid();
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns((Appointment?)null);
 
         Func<Task> act = () => _complete.Handle(new CompleteAppointmentCommand(id), CancellationToken.None);
 
-        await act.Should().ThrowAsync<KeyNotFoundException>();
+        await act.Should().ThrowAsync<NotFoundException>();
     }
 
     /// <summary>Hoàn thành lịch hẹn phải chuyển trạng thái sang Completed, persist và ghi activity log.</summary>
@@ -509,16 +513,16 @@ public class UpdateAppointmentStatusHandlerTests
 
     // ── EndTreatmentAsync ─────────────────────────────────────────────────────
 
-    /// <summary>appointmentId không tồn tại phải ném KeyNotFoundException.</summary>
+    /// <summary>appointmentId không tồn tại phải ném NotFoundException.</summary>
     [Test]
-    public async Task EndTreatmentAsync_NonExistentAppointment_ThrowsKeyNotFoundException()
+    public async Task EndTreatmentAsync_NonExistentAppointment_ThrowsNotFoundException()
     {
         var id = Guid.NewGuid();
         _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns((Appointment?)null);
 
         Func<Task> act = () => _endTreatment.Handle(new EndTreatmentCommand(id), CancellationToken.None);
 
-        await act.Should().ThrowAsync<KeyNotFoundException>();
+        await act.Should().ThrowAsync<NotFoundException>();
     }
 
     /// <summary>Chỉ được kết thúc điều trị khi đang InProgress; lịch Pending phải bị từ chối.</summary>
@@ -597,25 +601,9 @@ public class UpdateAppointmentStatusHandlerTests
 
     // ── CancelAsync: các nhánh quyền hạn khác ─────────────────────────────────
 
-    /// <summary>
-    /// Vai trò Patient nhưng handler không được cấu hình IPatientRepository (null) phải ném
-    /// InvalidOperationException — tránh NullReferenceException khi thiếu cấu hình DI.
-    /// </summary>
-    [Test]
-    public async Task CancelAsync_PatientRoleWithoutPatientRepositoryConfigured_ThrowsInvalidOperationException()
-    {
-        var handlerWithoutPatientRepo = new CancelAppointmentHandler(
-            _repo, _activityLog, _notification, _currentUser, patientRepository: null);
-        var id = Guid.NewGuid();
-        var appt = MakeAppointment();
-        _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
-        _currentUser.IsAuthenticated.Returns(true);
-        _currentUser.UserRole.Returns("Patient");
-
-        Func<Task> act = () => handlerWithoutPatientRepo.Handle(new CancelAppointmentCommand(id), CancellationToken.None);
-
-        await act.Should().ThrowAsync<InvalidOperationException>();
-    }
+    // Bỏ test "Patient role nhưng IPatientRepository = null": trước đây repository là tham số tùy chọn
+    // và handler tự ném InvalidOperationException lúc chạy nếu thiếu. Nay nó là tham số bắt buộc nên
+    // thiếu là lỗi biên dịch — không còn nhánh runtime nào để kiểm thử.
 
     /// <summary>
     /// Vai trò Patient nhưng currentUser.UserId là null (token thiếu claim) phải ném
@@ -631,7 +619,7 @@ public class UpdateAppointmentStatusHandlerTests
         _currentUser.UserRole.Returns("Patient");
         _currentUser.UserId.Returns((Guid?)null);
 
-        Func<Task> act = () => _cancel.Handle(new CancelAppointmentCommand(id), CancellationToken.None);
+        Func<Task> act = () => _cancel.Handle(new CancelAppointmentCommand(id, CancellationReason.ChangeOfPlans, null), CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
     }
@@ -641,7 +629,7 @@ public class UpdateAppointmentStatusHandlerTests
     /// UnauthorizedAccessException — tránh cho phép hủy khi không xác định được chủ sở hữu.
     /// </summary>
     [Test]
-    public async Task CancelAsync_PatientRoleWithNoMatchingPatientRecord_ThrowsUnauthorizedAccessException()
+    public async Task CancelAsync_PatientRoleWithNoMatchingPatientRecord_ThrowsNotFoundException()
     {
         var id = Guid.NewGuid();
         var patientUserId = Guid.NewGuid();
@@ -652,8 +640,8 @@ public class UpdateAppointmentStatusHandlerTests
         _currentUser.UserId.Returns(patientUserId);
         _patientRepo.GetByUserIdAsync(patientUserId, Arg.Any<CancellationToken>()).Returns((Patient?)null);
 
-        Func<Task> act = () => _cancel.Handle(new CancelAppointmentCommand(id), CancellationToken.None);
+        Func<Task> act = () => _cancel.Handle(new CancelAppointmentCommand(id, CancellationReason.ChangeOfPlans, null), CancellationToken.None);
 
-        await act.Should().ThrowAsync<UnauthorizedAccessException>();
+        await act.Should().ThrowAsync<NotFoundException>();
     }
 }

@@ -7,6 +7,7 @@ import {
   createPostApi,
   getServicesApi,
   generateMarketingContentApi,
+  resolveAssetUrl,
   type ServiceDto,
 } from "../../../../lib/apiClient";
 import StaffSidebar from "../../../../components/shared/StaffSidebar";
@@ -373,7 +374,7 @@ export default function CreatePostPage() {
                       // Selected Thumbnail Preview
                       <div className="relative border border-slate-200 rounded-xl overflow-hidden group">
                         <img
-                          src={thumbnail}
+                          src={resolveAssetUrl(thumbnail)}
                           alt="Thumbnail Preview"
                           className="w-full h-40 object-cover"
                         />

@@ -1,4 +1,6 @@
 using DentalClinic.API.Domain.Constants;
+using DentalClinic.API.Domain.Enums;
+using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using MediatR;
@@ -6,61 +8,38 @@ using Microsoft.Extensions.Logging;
 
 namespace DentalClinic.API.Application.UseCases.Booking;
 
-public record CancelAppointmentCommand(Guid AppointmentId, string? Reason = null) : IRequest;
+/// <param name="Reason">Nhóm lý do, để thống kê được vì sao bệnh nhân bỏ lịch.</param>
+/// <param name="Note">Ghi chú tự do; bắt buộc khi Reason = Other.</param>
+public record CancelAppointmentCommand(
+    Guid AppointmentId,
+    CancellationReason Reason,
+    string? Note) : IRequest;
 
 public class CancelAppointmentHandler(
     IAppointmentRepository appointmentRepository,
     IActivityLogService activityLogService,
     INotificationService notificationService,
     ICurrentUserService currentUser,
-    IPatientRepository? patientRepository = null,
+    IPatientRepository patientRepository,
+    AppointmentChangeGuard changeGuard,
     ILogger<CancelAppointmentHandler>? logger = null) : IRequestHandler<CancelAppointmentCommand>
 {
     public async Task Handle(CancelAppointmentCommand command, CancellationToken ct)
     {
         var appointmentId = command.AppointmentId;
-        var reason = command.Reason;
+        var now = DateTimeOffset.UtcNow;
 
-        var appointment = await appointmentRepository.GetByIdAsync(appointmentId, ct);
-        if (appointment == null)
-        {
-            logger?.LogWarning("Appointment {Id} not found for Cancel", appointmentId);
-            throw new KeyNotFoundException($"Không tìm thấy lịch hẹn {appointmentId}.");
-        }
+        var appointment = await appointmentRepository.GetByIdAsync(appointmentId, ct)
+            ?? throw new NotFoundException("Không tìm thấy lịch hẹn.");
 
-        // Validate permissions for Patient role
-        if (currentUser.IsAuthenticated && currentUser.UserRole == "Patient")
-        {
-            if (patientRepository == null)
-            {
-                throw new InvalidOperationException("Chưa cấu hình repository của bệnh nhân.");
-            }
+        await changeGuard.AuthorizeAsync(appointment, now, ct);
 
-            if (currentUser.UserId == null)
-            {
-                throw new UnauthorizedAccessException("Không xác định được ID người dùng.");
-            }
-
-            var patient = await patientRepository.GetByUserIdAsync(currentUser.UserId.Value, ct);
-            if (patient == null)
-            {
-                throw new UnauthorizedAccessException("Không tìm thấy hồ sơ bệnh nhân tương ứng với tài khoản.");
-            }
-
-            if (appointment.PatientId != patient.Id)
-            {
-                // Check if this appointment belongs to a family member
-                var familyMembers = await patientRepository.GetFamilyMembersAsync(patient.Id, ct);
-                if (!familyMembers.Any(f => f.Id == appointment.PatientId))
-                {
-                    throw new UnauthorizedAccessException("Bạn không có quyền hủy lịch hẹn này.");
-                }
-            }
-        }
-
-        appointment.Cancel(reason);
+        // Entity tự chặn các trạng thái không hủy được (đang khám, đã hoàn thành...).
+        appointment.Cancel(command.Reason, command.Note, currentUser.UserId, now);
         await appointmentRepository.UpdateAsync(appointment, ct);
-        logger?.LogInformation("Appointment {Id} cancelled with reason: {Reason}", appointmentId, reason ?? "N/A");
+
+        var reasonText = DescribeReason(command.Reason, command.Note);
+        logger?.LogInformation("Appointment {Id} cancelled: {Reason}", appointmentId, reasonText);
 
         await activityLogService.LogAsync(
             userId: currentUser.UserId,
@@ -68,7 +47,7 @@ public class CancelAppointmentHandler(
             userRole: currentUser.UserRole,
             action: ActivityAction.Cancel,
             module: ActivityModule.Appointment,
-            description: $"Hủy lịch hẹn ID: {appointmentId}. Lý do: {reason ?? "Không có"}",
+            description: $"Hủy lịch hẹn ID: {appointmentId}. Lý do: {reasonText}",
             status: ActivityStatus.Success,
             ipAddress: currentUser.IpAddress,
             targetId: appointmentId.ToString(),
@@ -84,11 +63,12 @@ public class CancelAppointmentHandler(
                 Type: NotificationType.Appointment,
                 Priority: NotificationPriority.High,
                 Title: "Lịch hẹn bị hủy",
-                Body: $"Lịch hẹn vào {vnDate:HH:mm dd/MM/yyyy} đã bị hủy. Lý do: {reason ?? "Không có"}.",
+                Body: $"Lịch hẹn vào {vnDate:HH:mm dd/MM/yyyy} đã bị hủy. Lý do: {reasonText}.",
                 RelatedEntityType: "Appointment",
                 RelatedEntityId: appointmentId.ToString()), ct);
         }
 
+        // Không tự gửi thông báo về cho chính người vừa bấm hủy — họ vừa thấy màn hình xác nhận rồi.
         var patientUserId = await AppointmentStatusHelper.GetPatientUserIdAsync(patientRepository, appointment.PatientId, ct);
         if (patientUserId.HasValue && patientUserId.Value != Guid.Empty && patientUserId.Value != currentUser.UserId)
         {
@@ -97,9 +77,16 @@ public class CancelAppointmentHandler(
                 Type: NotificationType.Appointment,
                 Priority: NotificationPriority.High,
                 Title: "Lịch hẹn đã bị hủy",
-                Body: $"Lịch hẹn khám vào lúc {vnDate:HH:mm} ngày {vnDate:dd/MM/yyyy} đã bị hủy. Lý do: {reason ?? "Theo yêu cầu"}.",
+                Body: $"Lịch hẹn khám vào lúc {vnDate:HH:mm} ngày {vnDate:dd/MM/yyyy} đã bị hủy. Lý do: {reasonText}.",
                 RelatedEntityType: "Appointment",
                 RelatedEntityId: appointmentId.ToString()), ct);
         }
+    }
+
+    /// <summary>Nhãn tiếng Việt của nhóm lý do, kèm ghi chú tự do nếu có — dùng cho nhật ký và thông báo.</summary>
+    private static string DescribeReason(CancellationReason reason, string? note)
+    {
+        var label = CancellationReasonCatalog.LabelOf(reason);
+        return string.IsNullOrWhiteSpace(note) ? label : $"{label} — {note.Trim()}";
     }
 }

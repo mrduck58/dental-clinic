@@ -163,4 +163,41 @@ public class User
     }
 
     public void SetActive(bool isActive) => IsActive = isActive;
+
+    // ── Khóa tạm sau nhiều lần đăng nhập sai ──────────────────────────────────
+    //
+    // Tách hẳn khỏi IsActive: IsActive là quyết định của quản trị viên (vô hiệu hóa tài khoản),
+    // LockoutEndAt là biện pháp tự động và tự hết hạn. Gộp chung thì việc dò mật khẩu của kẻ lạ
+    // sẽ trông y hệt việc admin cố ý khóa, và mở khóa tự động sẽ vô tình bật lại tài khoản đã bị cấm.
+    //
+    // Khóa CÓ THỜI HẠN chứ không vĩnh viễn: khóa vĩnh viễn biến chính cơ chế này thành công cụ để
+    // kẻ xấu chặn người dùng thật (chỉ cần gõ sai mật khẩu người khác vài lần). Hết hạn thì tự mở.
+
+    public int FailedLoginAttempts { get; private set; }
+    public DateTimeOffset? LockoutEndAt { get; private set; }
+
+    public bool IsLockedOut(DateTimeOffset now) => LockoutEndAt is { } until && until > now;
+
+    /// <summary>
+    /// Ghi nhận một lần đăng nhập sai. Đủ <paramref name="maxAttempts"/> lần thì khóa trong
+    /// <paramref name="lockoutDuration"/> và đặt lại bộ đếm, để sau khi hết khóa người dùng lại có
+    /// đủ số lần thử chứ không bị khóa lại ngay ở lần sai kế tiếp.
+    /// </summary>
+    public void RegisterFailedLogin(DateTimeOffset now, int maxAttempts, TimeSpan lockoutDuration)
+    {
+        FailedLoginAttempts++;
+
+        if (FailedLoginAttempts >= maxAttempts)
+        {
+            LockoutEndAt = now.Add(lockoutDuration);
+            FailedLoginAttempts = 0;
+        }
+    }
+
+    /// <summary>Đăng nhập thành công — xóa sạch dấu vết những lần sai trước đó.</summary>
+    public void ClearFailedLogins()
+    {
+        FailedLoginAttempts = 0;
+        LockoutEndAt = null;
+    }
 }

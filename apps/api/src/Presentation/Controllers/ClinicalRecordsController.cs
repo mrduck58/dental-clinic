@@ -13,18 +13,24 @@ namespace DentalClinic.API.Presentation.Controllers;
 /// Route ghi TUYỆT ĐỐI, y hệt path cũ trong AppointmentsController.
 /// </summary>
 [ApiController]
-public class ClinicalRecordsController(ISender sender) : ControllerBase
+public class ClinicalRecordsController(ISender sender, ClinicalRecordWriteGuard writeGuard) : ControllerBase
 {
-    /// <summary>PUT api/appointments/{id}/start — Bắt đầu khám (Dentist/Staff/Admin)</summary>
+    // [Authorize(Roles = ...)] chỉ trả lời "vai trò này được dùng chức năng không". Câu hỏi thứ hai —
+    // "bản ghi này có thuộc ca khám của bạn không" — role không trả lời được, nên MỌI endpoint GHI dưới
+    // đây phải gọi thêm writeGuard. Guard tự bỏ qua với Staff/Admin/Owner; chỉ bác sĩ mới bị giới hạn.
+    // Các endpoint ĐỌC cố ý không gọi guard: tra cứu bệnh án của đồng nghiệp là nhu cầu điều trị hợp lệ.
+
+    /// <summary>PUT api/appointments/{id}/start — Bắt đầu khám (Dentist, ca của chính mình)</summary>
     [HttpPut("api/appointments/{id}/start")]
     [Authorize(Roles = "Dentist")]
     public async Task<IActionResult> StartTreatment(Guid id, CancellationToken cancellationToken)
     {
+        await writeGuard.EnsureCanWriteAppointmentAsync(id, cancellationToken);
         await sender.Send(new StartTreatmentCommand(id), cancellationToken);
         return Ok(new { message = "Đã bắt đầu khám." });
     }
 
-    /// <summary>PUT api/appointments/{id}/complete — Hoàn thành khám (Staff/Admin)</summary>
+    /// <summary>PUT api/appointments/{id}/complete — Hoàn thành khám (Staff/Admin/Owner)</summary>
     [HttpPut("api/appointments/{id}/complete")]
     [Authorize(Roles = "Staff,Admin,Owner")]
     public async Task<IActionResult> CompleteTreatment(Guid id, CancellationToken cancellationToken)
@@ -38,6 +44,7 @@ public class ClinicalRecordsController(ISender sender) : ControllerBase
     [Authorize(Roles = "Staff,Admin,Dentist")]
     public async Task<IActionResult> EndTreatment(Guid id, CancellationToken cancellationToken)
     {
+        await writeGuard.EnsureCanWriteAppointmentAsync(id, cancellationToken);
         await sender.Send(new EndTreatmentCommand(id), cancellationToken);
         return Ok(new { message = "Đã kết thúc điều trị, chuyển sang chờ thanh toán." });
     }
@@ -63,6 +70,7 @@ public class ClinicalRecordsController(ISender sender) : ControllerBase
         [FromBody] CreateDiagnosisRequest request,
         CancellationToken cancellationToken)
     {
+        await writeGuard.EnsureCanWriteAppointmentAsync(id, cancellationToken);
         var diagnosisRequest = request with { AppointmentId = id };
         var result = await sender.Send(diagnosisRequest, cancellationToken);
         return CreatedAtAction(nameof(GetExamination), new { id }, result);
@@ -76,6 +84,7 @@ public class ClinicalRecordsController(ISender sender) : ControllerBase
         [FromBody] UpdateDiagnosisRequest request,
         CancellationToken cancellationToken)
     {
+        await writeGuard.EnsureCanWriteDiagnosisAsync(diagnosisId, cancellationToken);
         var updateRequest = request with { DiagnosisId = diagnosisId };
         var result = await sender.Send(updateRequest, cancellationToken);
         return Ok(result);
@@ -86,6 +95,7 @@ public class ClinicalRecordsController(ISender sender) : ControllerBase
     [Authorize(Roles = "Staff,Admin,Dentist")]
     public async Task<IActionResult> DeleteDiagnosis(Guid diagnosisId, CancellationToken cancellationToken)
     {
+        await writeGuard.EnsureCanWriteDiagnosisAsync(diagnosisId, cancellationToken);
         await sender.Send(new DeleteDiagnosisCommand(diagnosisId), cancellationToken);
         return Ok(new { message = "Đã xóa chuẩn đoán." });
     }
@@ -102,6 +112,7 @@ public class ClinicalRecordsController(ISender sender) : ControllerBase
         [FromBody] CreateTreatmentPlanRequest request,
         CancellationToken cancellationToken)
     {
+        await writeGuard.EnsureCanWriteAppointmentAsync(id, cancellationToken);
         var treatmentPlanRequest = request with { AppointmentId = id };
         var result = await sender.Send(treatmentPlanRequest, cancellationToken);
         return CreatedAtAction(nameof(GetExamination), new { id }, result);
@@ -115,6 +126,7 @@ public class ClinicalRecordsController(ISender sender) : ControllerBase
         [FromBody] UpdateTreatmentPlanRequest request,
         CancellationToken cancellationToken)
     {
+        await writeGuard.EnsureCanWriteTreatmentPlanAsync(treatmentPlanId, cancellationToken);
         var updateRequest = request with { TreatmentPlanId = treatmentPlanId };
         var result = await sender.Send(updateRequest, cancellationToken);
         return Ok(result);
@@ -125,6 +137,7 @@ public class ClinicalRecordsController(ISender sender) : ControllerBase
     [Authorize(Roles = "Staff,Admin,Dentist")]
     public async Task<IActionResult> DeleteTreatmentPlan(Guid treatmentPlanId, CancellationToken cancellationToken)
     {
+        await writeGuard.EnsureCanWriteTreatmentPlanAsync(treatmentPlanId, cancellationToken);
         await sender.Send(new DeleteTreatmentPlanCommand(treatmentPlanId), cancellationToken);
         return Ok(new { message = "Đã xóa liệu trình điều trị." });
     }
@@ -146,6 +159,7 @@ public class ClinicalRecordsController(ISender sender) : ControllerBase
         [FromBody] AddStepProgressRequest request,
         CancellationToken cancellationToken)
     {
+        await writeGuard.EnsureCanWriteTreatmentPlanAsync(treatmentPlanId, cancellationToken);
         var result = await sender.Send(new AddStepProgressCommand(treatmentPlanId, request), cancellationToken);
         return Ok(result);
     }
@@ -158,6 +172,7 @@ public class ClinicalRecordsController(ISender sender) : ControllerBase
         [FromBody] UpdateStepProgressRequest request,
         CancellationToken cancellationToken)
     {
+        await writeGuard.EnsureCanWriteTreatmentPlanAsync(treatmentPlanId, cancellationToken);
         var result = await sender.Send(new UpdateStepProgressCommand(treatmentPlanId, request), cancellationToken);
         return Ok(result);
     }
@@ -170,6 +185,7 @@ public class ClinicalRecordsController(ISender sender) : ControllerBase
         [FromBody] ReorderStepProgressRequest request,
         CancellationToken cancellationToken)
     {
+        await writeGuard.EnsureCanWriteTreatmentPlanAsync(treatmentPlanId, cancellationToken);
         var result = await sender.Send(new ReorderStepProgressCommand(treatmentPlanId, request), cancellationToken);
         return Ok(result);
     }
@@ -182,6 +198,7 @@ public class ClinicalRecordsController(ISender sender) : ControllerBase
         int entryIndex,
         CancellationToken cancellationToken)
     {
+        await writeGuard.EnsureCanWriteTreatmentPlanAsync(treatmentPlanId, cancellationToken);
         var result = await sender.Send(new DeleteStepProgressCommand(treatmentPlanId, entryIndex), cancellationToken);
         return Ok(result);
     }
@@ -198,6 +215,7 @@ public class ClinicalRecordsController(ISender sender) : ControllerBase
         [FromBody] CreatePrescriptionRequest request,
         CancellationToken cancellationToken)
     {
+        await writeGuard.EnsureCanWriteAppointmentAsync(id, cancellationToken);
         var prescriptionRequest = request with { AppointmentId = id };
         var result = await sender.Send(prescriptionRequest, cancellationToken);
         return CreatedAtAction(nameof(GetExamination), new { id }, result);
@@ -211,6 +229,7 @@ public class ClinicalRecordsController(ISender sender) : ControllerBase
         [FromBody] UpdatePrescriptionRequest request,
         CancellationToken cancellationToken)
     {
+        await writeGuard.EnsureCanWritePrescriptionAsync(prescriptionId, cancellationToken);
         var updateRequest = request with { PrescriptionId = prescriptionId };
         var result = await sender.Send(updateRequest, cancellationToken);
         return Ok(result);
@@ -224,6 +243,7 @@ public class ClinicalRecordsController(ISender sender) : ControllerBase
         [FromBody] AddPrescriptionItemRequest request,
         CancellationToken cancellationToken)
     {
+        await writeGuard.EnsureCanWritePrescriptionAsync(prescriptionId, cancellationToken);
         var itemRequest = request with { PrescriptionId = prescriptionId };
         var result = await sender.Send(itemRequest, cancellationToken);
         return Ok(result);
@@ -237,6 +257,7 @@ public class ClinicalRecordsController(ISender sender) : ControllerBase
         [FromBody] UpdatePrescriptionItemRequest request,
         CancellationToken cancellationToken)
     {
+        await writeGuard.EnsureCanWritePrescriptionItemAsync(itemId, cancellationToken);
         var updateRequest = request with { ItemId = itemId };
         var result = await sender.Send(updateRequest, cancellationToken);
         return Ok(result);
@@ -247,6 +268,7 @@ public class ClinicalRecordsController(ISender sender) : ControllerBase
     [Authorize(Roles = "Staff,Admin,Dentist")]
     public async Task<IActionResult> DeletePrescriptionItem(Guid itemId, CancellationToken cancellationToken)
     {
+        await writeGuard.EnsureCanWritePrescriptionItemAsync(itemId, cancellationToken);
         await sender.Send(new DeletePrescriptionItemCommand(itemId), cancellationToken);
         return Ok(new { message = "Đã xóa thuốc khỏi đơn." });
     }

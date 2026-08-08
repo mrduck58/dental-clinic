@@ -7,6 +7,25 @@ abstract class ApiConstants {
   // đổi giá trị trong Cài đặt thành 'http://10.0.2.2:5239/api'.
   static String get baseUrl => SettingsManager.instance.apiBaseUrl.value;
 
+  /// Backend trả về path tương đối cho ảnh upload (ví dụ "/uploads/xxx.jpg") — hàm này ghép
+  /// đúng host của APP (không phải host lưu trong DB) để ảnh load được trên mọi thiết bị.
+  ///
+  /// Xử lý thêm 1 trường hợp lỗi dữ liệu cũ: một số ảnh (dịch vụ, bài viết, avatar nhân viên)
+  /// từng bị web admin lưu nhầm thành URL tuyệt đối trỏ về "localhost" của máy dev — không app
+  /// nào tải được URL đó. Nhận diện host localhost/127.0.0.1 và tự ghép lại bằng host thật của
+  /// app thay vì tin theo host đã lưu trong DB.
+  static String? resolveAssetUrl(String? url) {
+    if (url == null || url.isEmpty) return null;
+    final host = baseUrl.replaceAll('/api', '');
+    if (url.startsWith('/')) return '$host$url';
+
+    final uri = Uri.tryParse(url);
+    final isLocalhost = uri != null && (uri.host == 'localhost' || uri.host == '127.0.0.1');
+    if (isLocalhost && uri.path.isNotEmpty) return '$host${uri.path}';
+
+    return url;
+  }
+
   static const String login = '/auth/login';
   static const String register = '/auth/register';
   static const String verifyOtp = '/auth/verify-otp';

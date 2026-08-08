@@ -425,10 +425,9 @@ public class TreatmentPlanHandlerTests
         var (patient, dentist) = await SeedPatientAndDentistAsync("p17", "d17");
         var service = Service.Create("Trám răng", 500_000m, 30, "Trám răng thẩm mỹ");
         _db.Services.Add(service);
-        // Cuộc hẹn đã kết thúc điều trị (không còn InProgress)
+        // HasActiveVisitAsync coi InProgress/PendingPayment/Completed là "đang có buổi khám hoạt động" —
+        // để trạng thái Pending (chưa check-in) mới thực sự là "không có buổi khám nào đang hoạt động".
         var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
-        appointment.StartTreatment();
-        appointment.EndTreatment();
         _db.Appointments.Add(appointment);
         var plan = TreatmentPlan.Create(patient.Id, dentist.Id, appointment.Id, service.Id, 500_000m, 1);
         _db.TreatmentPlans.Add(plan);

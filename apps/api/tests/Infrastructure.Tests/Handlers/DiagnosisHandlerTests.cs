@@ -7,6 +7,7 @@ using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using NUnit.Framework;
+using DentalClinic.API.Domain.Exceptions;
 
 namespace DentalClinic.API.Infrastructure.Tests.Handlers;
 
@@ -60,11 +61,11 @@ public class DiagnosisHandlerTests
 
     /// <summary>Tạo chẩn đoán cho lịch hẹn không tồn tại phải báo lỗi thay vì tạo dữ liệu mồ côi.</summary>
     [Test]
-    public async Task CreateAsync_AppointmentNotFound_ThrowsKeyNotFoundException()
+    public async Task CreateAsync_AppointmentNotFound_ThrowsNotFoundException()
     {
         Func<Task> act = () => _create.Handle(MakeCreateRequest(Guid.NewGuid()), CancellationToken.None);
 
-        await act.Should().ThrowAsync<KeyNotFoundException>();
+        await act.Should().ThrowAsync<NotFoundException>();
     }
 
     /// <summary>Chỉ được thêm chẩn đoán khi buổi hẹn đang trong trạng thái đang khám (InProgress).</summary>
@@ -88,7 +89,9 @@ public class DiagnosisHandlerTests
 
         Func<Task> act = () => _create.Handle(MakeCreateRequest(appointment.Id), CancellationToken.None);
 
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        // CreateDiagnosisHandler ném DentalClinic ValidationException riêng (không phải InvalidOperationException
+        // của .NET) khi buổi hẹn chưa đúng trạng thái — cập nhật theo đúng loại exception thật handler ném ra.
+        await act.Should().ThrowAsync<DentalClinic.API.Domain.Exceptions.ValidationException>();
     }
 
     /// <summary>Tạo chẩn đoán hợp lệ phải lưu vào DB và trả về đúng dữ liệu.</summary>
@@ -105,14 +108,14 @@ public class DiagnosisHandlerTests
 
     /// <summary>Cập nhật chẩn đoán không tồn tại phải báo lỗi.</summary>
     [Test]
-    public async Task UpdateAsync_DiagnosisNotFound_ThrowsKeyNotFoundException()
+    public async Task UpdateAsync_DiagnosisNotFound_ThrowsNotFoundException()
     {
         var request = new UpdateDiagnosisRequest(
             Guid.NewGuid(), "Mới", null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
 
         Func<Task> act = () => _update.Handle(request, CancellationToken.None);
 
-        await act.Should().ThrowAsync<KeyNotFoundException>();
+        await act.Should().ThrowAsync<NotFoundException>();
     }
 
     /// <summary>Cập nhật chẩn đoán hợp lệ phải ghi đè đúng các trường mới.</summary>
@@ -131,11 +134,11 @@ public class DiagnosisHandlerTests
 
     /// <summary>Xóa chẩn đoán không tồn tại phải báo lỗi.</summary>
     [Test]
-    public async Task DeleteAsync_DiagnosisNotFound_ThrowsKeyNotFoundException()
+    public async Task DeleteAsync_DiagnosisNotFound_ThrowsNotFoundException()
     {
         Func<Task> act = () => _delete.Handle(new DeleteDiagnosisCommand(Guid.NewGuid()), CancellationToken.None);
 
-        await act.Should().ThrowAsync<KeyNotFoundException>();
+        await act.Should().ThrowAsync<NotFoundException>();
     }
 
     /// <summary>Xóa chẩn đoán tồn tại phải loại bỏ khỏi DB.</summary>

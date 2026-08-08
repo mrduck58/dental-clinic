@@ -27,6 +27,16 @@ public class GetDentistSlotsHandlerTests
             new WorkScheduleRepository(_db), new DentistRepository(_db), new AppointmentRepository(_db));
     }
 
+    /// <summary>
+    /// Ngày mai, nhưng nhảy qua Chủ Nhật: GetDentistSlotsHandler mặc định coi Chủ Nhật là ngày nghỉ và
+    /// trả về rỗng, nên "ngày mai" cứng làm cả nhóm test này đỏ mỗi thứ Bảy dù code không có gì sai.
+    /// </summary>
+    private static DateOnly NextWorkingDate()
+    {
+        var date = DateOnly.FromDateTime(DateTime.Today.AddDays(1));
+        return date.DayOfWeek == DayOfWeek.Sunday ? date.AddDays(1) : date;
+    }
+
     [TearDown]
     public async Task TearDown() => await _db.DisposeAsync();
 
@@ -37,7 +47,7 @@ public class GetDentistSlotsHandlerTests
     [Test]
     public async Task HandleAsync_LongServiceBooking_BlocksAllOverlappingSlots()
     {
-        var date = DateOnly.FromDateTime(DateTime.Today.AddDays(1));
+        var date = NextWorkingDate();
 
         var dentistUser = User.Create("d1", "d1@test.com", "hash", UserRole.Dentist, fullName: "BS. Test");
         var patientUser = User.Create("p1", "p1@test.com", "hash", UserRole.Patient, fullName: "Bệnh nhân Test");
@@ -83,7 +93,7 @@ public class GetDentistSlotsHandlerTests
     [Test]
     public async Task HandleAsync_HolidaySchedule_ReturnsEmptyList()
     {
-        var date = DateOnly.FromDateTime(DateTime.Today.AddDays(1));
+        var date = NextWorkingDate();
         _db.WorkSchedules.Add(WorkSchedule.Create(date, "", "holiday", "holiday", "", "", "", true));
         await _db.SaveChangesAsync();
 
@@ -126,8 +136,8 @@ public class GetDentistSlotsHandlerTests
     [Test]
     public async Task HandleAsync_DentistScheduledWithNoBookings_ReturnsDentistWithAllSlotsFree()
     {
-        var date = DateOnly.FromDateTime(DateTime.Today.AddDays(1));
-        var dentistUser = User.Create("d2", "d2@test.com", "hash", UserRole.Dentist);
+        var date = NextWorkingDate();
+        var dentistUser = User.Create("d2", "d2@test.com", "hash", UserRole.Dentist, fullName: "BS. Free");
         _db.Users.Add(dentistUser);
         var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
         employee.User = dentistUser;
@@ -154,9 +164,9 @@ public class GetDentistSlotsHandlerTests
     [Test]
     public async Task HandleAsync_DentistWithoutScheduleOnThatDay_IsExcludedFromResult()
     {
-        var date = DateOnly.FromDateTime(DateTime.Today.AddDays(1));
-        var scheduledUser = User.Create("d3", "d3@test.com", "hash", UserRole.Dentist);
-        var unscheduledUser = User.Create("d4", "d4@test.com", "hash", UserRole.Dentist);
+        var date = NextWorkingDate();
+        var scheduledUser = User.Create("d3", "d3@test.com", "hash", UserRole.Dentist, fullName: "BS. Có ca");
+        var unscheduledUser = User.Create("d4", "d4@test.com", "hash", UserRole.Dentist, fullName: "BS. Không có ca");
         _db.Users.AddRange(scheduledUser, unscheduledUser);
         var scheduledEmployee = Employee.Create(scheduledUser.Id, $"DT-{Guid.NewGuid():N}");
         scheduledEmployee.User = scheduledUser;

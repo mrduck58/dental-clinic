@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
+import 'package:mobile_app/core/constants/api_constants.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/home/data/models/service_model.dart';
 import 'package:mobile_app/features/booking/data/booking_models.dart';
@@ -75,7 +76,7 @@ class ServiceCard extends StatelessWidget {
                     ? Padding(
                         padding: const EdgeInsets.all(10),
                         child: SvgPicture.network(
-                          service.iconUrl!,
+                          ApiConstants.resolveAssetUrl(service.iconUrl)!,
                           placeholderBuilder: (_) => const SizedBox(),
                         ),
                       )

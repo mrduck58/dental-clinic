@@ -2,9 +2,11 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using DentalClinic.API.Application.DTOs.Auth;
 using DentalClinic.API.Application.UseCases.Auth;
+using DentalClinic.API.Presentation.RateLimiting;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace DentalClinic.API.Presentation.Controllers;
 
@@ -12,9 +14,13 @@ namespace DentalClinic.API.Presentation.Controllers;
 [Route("api/auth")]
 public class AuthController(ISender sender) : ControllerBase
 {
+    // MỌI endpoint [AllowAnonymous] dưới đây đều phải mang một policy giới hạn tần suất: không có
+    // đăng nhập thì không có gì để đếm ngoài IP, và đây là bề mặt duy nhất kẻ tấn công chạm được
+    // mà không cần tài khoản. Endpoint đã [Authorize] thì không cần — token là chốt chặn rồi.
     /// <summary>POST api/auth/login — Bệnh nhân đăng nhập từ app di động (role: Patient)</summary>
     [HttpPost("login")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.AuthLogin)]
     public async Task<IActionResult> Login(
         [FromBody] LoginRequestDto request,
         CancellationToken cancellationToken)
@@ -30,6 +36,7 @@ public class AuthController(ISender sender) : ControllerBase
     /// <summary>POST api/auth/staff/login — Nhân viên đăng nhập từ web (role: Admin, Dentist, Staff)</summary>
     [HttpPost("staff/login")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.AuthLogin)]
     public async Task<IActionResult> StaffLogin(
         [FromBody] LoginRequestDto request,
         CancellationToken cancellationToken)
@@ -45,6 +52,7 @@ public class AuthController(ISender sender) : ControllerBase
     /// <summary>POST api/auth/register — Bệnh nhân tự đăng ký, gửi OTP về email</summary>
     [HttpPost("register")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.AuthEmail)]
     public async Task<IActionResult> Register(
         [FromBody] RegisterRequestDto request,
         CancellationToken cancellationToken)
@@ -59,6 +67,7 @@ public class AuthController(ISender sender) : ControllerBase
     /// <summary>POST api/auth/verify-otp — Xác thực mã OTP, kích hoạt tài khoản và cấp JWT</summary>
     [HttpPost("verify-otp")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.AuthOtp)]
     public async Task<IActionResult> VerifyOtp(
         [FromBody] VerifyOtpRequestDto request,
         CancellationToken cancellationToken)
@@ -73,6 +82,7 @@ public class AuthController(ISender sender) : ControllerBase
     /// <summary>POST api/auth/resend-otp — Gửi lại mã OTP</summary>
     [HttpPost("resend-otp")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.AuthEmail)]
     public async Task<IActionResult> ResendOtp(
         [FromBody] ResendOtpRequestDto request,
         CancellationToken cancellationToken)
@@ -194,6 +204,7 @@ public class AuthController(ISender sender) : ControllerBase
     /// <summary>POST api/auth/forgot-password — Gửi email đặt lại mật khẩu</summary>
     [HttpPost("forgot-password")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.AuthEmail)]
     public async Task<IActionResult> ForgotPassword(
         [FromBody] ForgotPasswordRequestDto request,
         CancellationToken cancellationToken)
@@ -208,6 +219,7 @@ public class AuthController(ISender sender) : ControllerBase
     /// <summary>POST api/auth/reset-password — Đặt lại mật khẩu bằng token</summary>
     [HttpPost("reset-password")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.AuthOtp)]
     public async Task<IActionResult> ResetPassword(
         [FromBody] ResetPasswordRequestDto request,
         CancellationToken cancellationToken)
@@ -222,6 +234,7 @@ public class AuthController(ISender sender) : ControllerBase
     /// <summary>POST api/auth/google-login — Đăng nhập/đăng ký bằng Google (bệnh nhân, mobile app)</summary>
     [HttpPost("google-login")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.AuthLogin)]
     public async Task<IActionResult> GoogleLogin(
         [FromBody] GoogleLoginRequestDto request,
         CancellationToken cancellationToken)
@@ -236,6 +249,7 @@ public class AuthController(ISender sender) : ControllerBase
     /// <summary>POST api/auth/patient/forgot-password — Gửi mã OTP quên mật khẩu về email (bệnh nhân)</summary>
     [HttpPost("patient/forgot-password")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.AuthEmail)]
     public async Task<IActionResult> ForgotPasswordOtp(
         [FromBody] ForgotPasswordOtpRequestDto request,
         CancellationToken cancellationToken)
@@ -250,6 +264,7 @@ public class AuthController(ISender sender) : ControllerBase
     /// <summary>POST api/auth/patient/verify-reset-otp — Xác thực OTP quên mật khẩu, cấp reset token</summary>
     [HttpPost("patient/verify-reset-otp")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.AuthOtp)]
     public async Task<IActionResult> VerifyResetOtp(
         [FromBody] VerifyResetOtpRequestDto request,
         CancellationToken cancellationToken)

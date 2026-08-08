@@ -10,7 +10,12 @@ using static DentalClinic.API.Application.UseCases.Payments.PaymentHelpers;
 
 namespace DentalClinic.API.Application.UseCases.Payments;
 
-public record GetPaymentStatusQuery(Guid InvoiceId) : IRequest<PaymentStatusDto>;
+/// <param name="RestrictToUserId">
+/// Khi người gọi là bệnh nhân: id tài khoản của họ — hóa đơn phải thuộc hồ sơ chính chủ hoặc người nhà.
+/// <c>null</c> = nhân viên phòng khám, xem được mọi hóa đơn. Tham số bắt buộc (không có giá trị mặc định)
+/// để mọi nơi gọi buộc phải nêu rõ phạm vi thay vì vô tình bỏ qua kiểm tra.
+/// </param>
+public record GetPaymentStatusQuery(Guid InvoiceId, Guid? RestrictToUserId) : IRequest<PaymentStatusDto>;
 
 /// <summary>
 /// Trạng thái thanh toán hiện tại của hóa đơn — dùng cho polling từ admin website / mobile app.
@@ -23,6 +28,7 @@ public record GetPaymentStatusQuery(Guid InvoiceId) : IRequest<PaymentStatusDto>
 public class GetPaymentStatusHandler(
     IInvoiceRepository invoiceRepository,
     IPaymentTransactionRepository paymentTransactionRepository,
+    IPatientRepository patientRepository,
     IUnitOfWork unitOfWork,
     IPaymentGatewayResolver gatewayResolver,
     IPaymentConfirmationService paymentConfirmationService,
@@ -30,8 +36,12 @@ public class GetPaymentStatusHandler(
 {
     public async Task<PaymentStatusDto> Handle(GetPaymentStatusQuery query, CancellationToken ct)
     {
-        var invoice = await invoiceRepository.GetByIdAsync(query.InvoiceId, ct)
+        // GetByIdWithAppointmentAsync (thay vì GetByIdAsync) vì kiểm tra phạm vi bệnh nhân cần Appointment.PatientId.
+        var invoice = await invoiceRepository.GetByIdWithAppointmentAsync(query.InvoiceId, ct)
             ?? throw new NotFoundException("Không tìm thấy hóa đơn.");
+
+        if (query.RestrictToUserId is Guid requesterId)
+            await EnsureInvoiceBelongsToUserAsync(invoice, requesterId, patientRepository, ct);
 
         var pendingTxns = await paymentTransactionRepository.GetPendingByInvoiceIdAsync(query.InvoiceId, ct);
         foreach (var pending in pendingTxns)
