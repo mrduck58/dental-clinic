@@ -24,6 +24,10 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         // External auth provider (null = local account)
         builder.Property(u => u.Provider).HasMaxLength(50);
 
+        // Brute-force lockout. Default 0 so the column backfills cleanly on existing rows.
+        builder.Property(u => u.FailedLoginAttempts).IsRequired().HasDefaultValue(0);
+        builder.Property(u => u.LockoutEndAt); // null = không bị khóa
+
         builder.HasIndex(u => u.Email).IsUnique().HasFilter("\"Email\" IS NOT NULL");
         builder.HasIndex(u => u.Username).IsUnique().HasFilter("\"Username\" IS NOT NULL");
     }
