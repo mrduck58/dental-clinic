@@ -18,19 +18,21 @@ public class GoogleLoginHandler(
     {
         var googleUser = await googleAuthService.VerifyIdTokenAsync(command.IdToken, ct);
 
-        var user = await userRepository.GetByEmailAsync(googleUser.Email, ct);
-        var isNewUser = user is null;
+        // Google là PHƯƠNG THỨC ĐĂNG NHẬP, không phải phương thức đăng ký. Trước đây lần đăng nhập
+        // đầu tiên tự tạo luôn tài khoản — không OTP, không xác minh gì — nên đây là đường lập tài
+        // khoản hàng loạt dễ hơn cả /auth/register, và nó vô hiệu hóa việc để lễ tân gác cửa.
+        // Tài khoản tạo bằng Google từ trước vẫn đăng nhập bình thường (họ không có mật khẩu,
+        // chặn ở đây là khóa cứng họ ra ngoài).
+        var user = await userRepository.GetByEmailAsync(googleUser.Email, ct)
+            ?? throw new UnauthorizedAccessException(
+                "Chưa có tài khoản dùng email này. Vui lòng liên hệ phòng khám để được tạo tài khoản.");
 
-        if (user is null)
-        {
-            user = User.CreateGoogleUser(googleUser.Email, googleUser.FullName, googleUser.PictureUrl);
-            await userRepository.AddAsync(user, ct);
-        }
-        else if (user.Role != UserRole.Patient)
+        if (user.Role != UserRole.Patient)
         {
             throw new UnauthorizedAccessException("Tài khoản này không thể đăng nhập bằng ứng dụng di động.");
         }
-        else if (!user.IsActive)
+
+        if (!user.IsActive)
         {
             throw new UnauthorizedAccessException("Tài khoản đã bị vô hiệu hóa. Vui lòng liên hệ quản trị viên.");
         }
@@ -44,7 +46,9 @@ public class GoogleLoginHandler(
         return new GoogleLoginResponseDto(
             AccessToken: token,
             ExpiresIn: 15 * 60,
-            IsNewUser: isNewUser,
+            // Luôn false: Google không còn tạo tài khoản mới. Giữ lại trường này thay vì bỏ khỏi DTO
+            // vì bản app đang chạy đọc json['isNewUser'] và sẽ nổ nếu thiếu.
+            IsNewUser: false,
             User: new AuthUserDto(user.Id, user.Username ?? user.Email, user.FullName, user.Email, user.Role.ToString(), user.IsActive, profilePic));
     }
 }

@@ -1898,6 +1898,35 @@ export interface CreateWalkInRequest {
   serviceId?: string;
   symptoms?: string;
   patientId?: string;    // hồ sơ đã chọn từ ô tra cứu — tránh tạo bệnh nhân trùng
+  /**
+   * Email của bệnh nhân MỚI. Có email thì hệ thống lập luôn tài khoản đăng nhập và gửi mật khẩu
+   * tạm về đó, để lần sau bệnh nhân tự đặt lịch trên app — sau khi bỏ tự đăng ký, đây là đường
+   * duy nhất sinh tài khoản. Bỏ trống vẫn khám được, chỉ là chưa dùng được app.
+   */
+  patientEmail?: string;
+  /**
+   * Mã bệnh nhân đọc từ hộp thư (lấy qua sendPatientEmailVerificationApi). Thiếu mã thì backend
+   * CHỈ tạo hồ sơ bệnh nhân, không cấp tài khoản — tránh gửi mật khẩu tới email gõ nhầm.
+   */
+  emailVerificationCode?: string;
+}
+
+/**
+ * Gửi mã xác thực tới email bệnh nhân vừa cung cấp. Bệnh nhân mở hộp thư và đọc mã cho lễ tân.
+ * Không có bước này thì gõ nhầm một ký tự là mật khẩu bay tới hộp thư người lạ, kèm quyền đăng
+ * nhập vào hồ sơ bệnh án của bệnh nhân thật.
+ */
+export async function sendPatientEmailVerificationApi(email: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/patients/accounts/verification`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ email }),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Gửi mã xác thực thất bại");
+  }
 }
 
 export interface PatientSearchResultDto {

@@ -156,7 +156,9 @@ public class AppointmentBookingController(ISender sender) : ControllerBase
             request.Gender,
             request.ServiceId,
             request.Symptoms,
-            request.PatientId);
+            request.PatientId,
+            request.PatientEmail,
+            request.EmailVerificationCode);
         var result = await sender.Send(cmd, cancellationToken);
         return Ok(result);
     }
@@ -186,7 +188,14 @@ public record CreateWalkInRequest(
     string Gender,
     Guid? ServiceId,
     string? Symptoms,
-    Guid? PatientId = null);
+    Guid? PatientId = null,
+    /// <summary>
+    /// Có email thì bệnh nhân mới được lập TÀI KHOẢN THẬT để lần sau tự đặt lịch trên app. Bỏ trống
+    /// vẫn khám được — chỉ tạo hồ sơ không tài khoản, dành cho người không dùng email.
+    /// </summary>
+    string? PatientEmail = null,
+    /// <summary>Mã bệnh nhân đọc từ hộp thư — thiếu nó thì chỉ tạo hồ sơ, không cấp tài khoản.</summary>
+    string? EmailVerificationCode = null);
 
 /// <param name="Reason">
 /// Mã lý do lấy từ GET api/appointments/cancellation-reasons, ví dụ "PatientRequested".

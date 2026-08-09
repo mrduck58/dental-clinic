@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import StaffSidebar from "../../../components/shared/StaffSidebar";
+import { Toast, useToast } from "../../../components/shared/Toast";
 import StaffPageHeader from "../../../components/shared/StaffPageHeader";
 import { useRequireStaff } from "../../../hooks/useRequireStaff";
 import {
@@ -47,17 +48,12 @@ function OnlineTab() {
   // Nhóm lý do lấy từ server (không hardcode) — nhờ đó thống kê "vì sao lịch bị hủy" mới gom được.
   const [reasonOptions, setReasonOptions] = useState<CancellationReasonOption[]>([]);
   const [reasonCode, setReasonCode] = useState("");
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const { toast, showToast } = useToast();
 
   const selectedReason = reasonOptions.find(o => o.code === reasonCode);
   const noteRequired = selectedReason?.requiresNote ?? false;
   const missingNote = noteRequired && rejectReason.trim() === "";
   const canSubmitCancel = reasonCode !== "" && !missingNote;
-
-  const showToast = (message: string, type: "success" | "error" = "success") => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 4000);
-  };
 
   useEffect(() => {
     getCancellationReasonsApi()
@@ -95,8 +91,11 @@ function OnlineTab() {
       setPending(prev => prev.filter(a => a.appointmentId !== appt.appointmentId));
       setProcessed(prev => [{ appt: { ...appt, status: "Confirmed" }, action: "confirmed" }, ...prev]);
       setExpanding(null);
-    } catch {
-      alert("Xác nhận thất bại. Vui lòng thử lại.");
+      showToast("Đã xác nhận lịch hẹn và thông báo cho bệnh nhân.");
+    } catch (e) {
+      // Hiện đúng thông điệp server trả về (trạng thái không hợp lệ, lịch đã bị hủy...) thay vì
+      // câu chung chung — người dùng cần biết vì sao mới biết làm gì tiếp.
+      showToast(e instanceof Error ? e.message : "Xác nhận thất bại. Vui lòng thử lại.", "error");
     } finally {
       setLoadingId(null);
     }
@@ -142,17 +141,7 @@ function OnlineTab() {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Toast — fixed theo viewport, cùng khuôn với các trang khác trong admin */}
-      {toast && (
-        <div className={`fixed top-6 right-6 z-[9999] px-5 py-3.5 rounded-xl shadow-xl flex items-center gap-3 border font-bold text-[14.5px] max-w-md ${
-          toast.type === "success"
-            ? "bg-emerald-900 text-white border-emerald-800"
-            : "bg-red-900 text-white border-red-800"
-        }`}>
-          <span className="text-lg">{toast.type === "success" ? "✓" : "⚠"}</span>
-          <span>{toast.message}</span>
-        </div>
-      )}
+      <Toast toast={toast} />
 
       {/* Pending */}
       {pending.length > 0 && (

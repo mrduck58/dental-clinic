@@ -31,7 +31,7 @@ public class OtpRepositoryTests
     [Test]
     public async Task AddAsync_ValidOtp_PersistsToDatabase()
     {
-        await _sut.AddAsync(OtpCode.Create("a@test.com"));
+        await _sut.AddAsync(OtpCode.Create("a@test.com", OtpPurpose.PasswordReset));
 
         (await _db.OtpCodes.CountAsync()).Should().Be(1);
     }
@@ -139,7 +139,7 @@ public class OtpRepositoryTests
     [Test]
     public async Task UpdateAsync_MarkedUsed_PersistsChange()
     {
-        var otp = OtpCode.Create("i@test.com");
+        var otp = OtpCode.Create("i@test.com", OtpPurpose.PasswordReset);
         _db.OtpCodes.Add(otp);
         await _db.SaveChangesAsync();
 

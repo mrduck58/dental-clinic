@@ -1,4 +1,5 @@
 using DentalClinic.API.Domain.Enums;
+using DentalClinic.API.Domain.Exceptions;
 
 namespace DentalClinic.API.Domain.Entities;
 
@@ -68,6 +69,36 @@ public class User
         };
     }
 
+    /// <summary>
+    /// Tạo tài khoản bệnh nhân do lễ tân lập hộ tại quầy. Bệnh nhân không tự đăng ký được nữa
+    /// (chặn kịch bản lập hàng loạt tài khoản để giữ kín khung giờ), nên đây là đường duy nhất
+    /// sinh ra tài khoản bệnh nhân mới.
+    ///
+    /// Mật khẩu do hệ thống sinh và gửi qua email, vì vậy tài khoản bị đánh dấu buộc đổi mật khẩu
+    /// ngay lần đăng nhập đầu tiên.
+    /// </summary>
+    public static User CreatePatientByClinic(
+        string username, string email, string passwordHash, string fullName, string? phoneNumber)
+    {
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Username = username,
+            Email = email,
+            PasswordHash = passwordHash,
+            Role = UserRole.Patient,
+            PhoneNumber = phoneNumber,
+            FullName = fullName,
+            // Lễ tân đã gặp/nói chuyện trực tiếp với bệnh nhân nên không cần xác thực OTP như luồng
+            // tự đăng ký cũ — chính con người đó là bước xác minh.
+            IsActive = true,
+            MustChangePassword = true,
+            CreatedAt = DateTimeOffset.UtcNow,
+        };
+
+        return user;
+    }
+
     /// <summary>Tạo tài khoản bệnh nhân từ đăng nhập Google — không có mật khẩu, email đã được Google xác thực.</summary>
     public static User CreateGoogleUser(string email, string? fullName, string? profilePictureUrl)
     {
@@ -92,6 +123,25 @@ public class User
     {
         Username = username;
         PasswordHash = passwordHash;
+    }
+
+    /// <summary>
+    /// Nâng một hồ sơ bệnh nhân CHƯA CÓ TÀI KHOẢN (tạo tại quầy, chỉ có tên + số điện thoại) thành
+    /// tài khoản đăng nhập được.
+    ///
+    /// Phải nâng tại chỗ chứ không tạo User mới: hồ sơ Patient và toàn bộ lịch sử khám, hóa đơn,
+    /// bệnh án đang trỏ vào User này. Tạo mới sẽ sinh hồ sơ bệnh nhân thứ hai và bỏ lại lịch sử cũ mồ côi.
+    /// </summary>
+    public void GrantClinicAccount(string username, string email, string passwordHash)
+    {
+        if (HasAccount)
+            throw new ConflictException("Tài khoản này đã có thông tin đăng nhập.");
+
+        Username = username;
+        Email = email;
+        PasswordHash = passwordHash;
+        IsActive = true;
+        MustChangePassword = true;
     }
 
     public void UpdateFullName(string name) => FullName = name;
@@ -148,6 +198,8 @@ public class User
         PasswordHash = newPasswordHash;
         PasswordResetToken = null;
         PasswordResetTokenExpiry = null;
+        // Người dùng vừa tự đặt mật khẩu mới ⇒ mật khẩu tạm trong email không còn giá trị.
+        MustChangePassword = false;
     }
 
     public void SetPasswordResetToken(string token, DateTimeOffset expiry)
@@ -163,6 +215,17 @@ public class User
     }
 
     public void SetActive(bool isActive) => IsActive = isActive;
+
+    // ── Mật khẩu tạm do phòng khám cấp ────────────────────────────────────────
+    //
+    // Tài khoản do lễ tân tạo hộ có mật khẩu sinh ngẫu nhiên và gửi qua email — tức mật khẩu đó nằm
+    // trong hộp thư của bệnh nhân vĩnh viễn. Cờ này buộc đổi ngay lần đăng nhập đầu để mật khẩu
+    // trong email hết giá trị.
+
+    public bool MustChangePassword { get; private set; }
+
+    /// <summary>Đánh dấu tài khoản đang dùng mật khẩu tạm do phòng khám cấp.</summary>
+    public void RequirePasswordChange() => MustChangePassword = true;
 
     // ── Khóa tạm sau nhiều lần đăng nhập sai ──────────────────────────────────
     //

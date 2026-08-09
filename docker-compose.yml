@@ -45,6 +45,11 @@ services:
       - PayOSSettings__ChecksumKey=${PAYOS_CHECKSUM_KEY}
       - GoogleAuthSettings__ClientId=${GOOGLE_CLIENT_ID}
       - GeminiSettings__ApiKey=${GEMINI_API_KEY}
+      # SMS (SpeedSMS). Bỏ trống thì API không gửi SMS: ở Development chỉ ghi log, ở Production ném lỗi.
+      - SmsSettings__ApiToken=${SPEEDSMS_API_TOKEN}
+      # 4 = brandname dùng chung "Verify" (~750đ/tin, không cần đăng ký tên định danh)
+      # 2 = đầu số ngẫu nhiên (~250-300đ/tin) · 3 = brandname riêng (phải đăng ký, cần SmsSettings__Sender)
+      - SmsSettings__SmsType=${SPEEDSMS_SMS_TYPE:-4}
     volumes:
       # Lưu file upload (icon dịch vụ, ảnh đại diện...) ra ngoài container —
       # không mất khi container bị recreate/rebuild.

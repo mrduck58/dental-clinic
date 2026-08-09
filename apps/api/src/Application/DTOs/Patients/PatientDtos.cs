@@ -39,3 +39,19 @@ public record UpdateFamilyMemberRequest(
     string? PhoneNumber,
     string? ProfilePictureUrl
 );
+
+/// <param name="Email">Bắt buộc — mật khẩu tạm được gửi về địa chỉ này.</param>
+/// <param name="PhoneNumber">
+/// Bắt buộc — là khóa nhận diện bệnh nhân cũ ở luồng đặt lịch tại quầy. Thiếu nó thì lần sau bệnh
+/// nhân quay lại sẽ bị tạo hồ sơ mới và lịch sử khám bị tách đôi.
+/// </param>
+/// <param name="VerificationCode">Mã bệnh nhân đọc từ hộp thư — bắt buộc, xem RequestPatientEmailVerification.</param>
+public record CreatePatientAccountRequest(
+    string FullName,
+    string Email,
+    string PhoneNumber,
+    DateOnly? DateOfBirth,
+    string? Gender,
+    string VerificationCode);
+
+public record RequestPatientEmailVerificationRequest(string Email);

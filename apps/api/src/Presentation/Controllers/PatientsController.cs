@@ -12,6 +12,43 @@ namespace DentalClinic.API.Presentation.Controllers;
 public class PatientsController(ISender sender, ICurrentUserService currentUser) : ControllerBase
 {
     /// <summary>
+    /// POST api/patients/accounts/verification — BƯỚC 1: gửi mã xác thực tới email bệnh nhân vừa
+    /// cung cấp. Bệnh nhân mở hộp thư, đọc mã cho lễ tân nhập lại ở bước tạo tài khoản.
+    ///
+    /// Không có bước này thì lễ tân gõ nhầm một ký tự là mật khẩu bay tới hộp thư người lạ, kèm
+    /// quyền đăng nhập vào hồ sơ bệnh án của bệnh nhân thật.
+    /// </summary>
+    [HttpPost("accounts/verification")]
+    [Authorize(Roles = "Staff,Admin,Owner")]
+    public async Task<IActionResult> RequestPatientEmailVerification(
+        [FromBody] RequestPatientEmailVerificationRequest request,
+        CancellationToken ct)
+    {
+        await sender.Send(new RequestPatientEmailVerificationCommand(request.Email), ct);
+        return Ok(new { message = "Đã gửi mã xác thực tới email của bệnh nhân." });
+    }
+
+    /// <summary>
+    /// POST api/patients/accounts — BƯỚC 2: lập tài khoản cho bệnh nhân, sau khi mã xác thực email
+    /// đã được nhập đúng. Đây là đường DUY NHẤT sinh tài khoản bệnh nhân sau khi bỏ tự đăng ký.
+    /// Mật khẩu tạm gửi về email và bệnh nhân bị buộc đổi ngay lần đăng nhập đầu tiên.
+    /// </summary>
+    [HttpPost("accounts")]
+    [Authorize(Roles = "Staff,Admin,Owner")]
+    public async Task<IActionResult> CreatePatientAccount(
+        [FromBody] CreatePatientAccountRequest request,
+        CancellationToken ct)
+    {
+        var result = await sender.Send(
+            new CreatePatientAccountCommand(
+                request.FullName, request.Email, request.PhoneNumber, request.DateOfBirth, request.Gender,
+                request.VerificationCode),
+            ct);
+
+        return Ok(result);
+    }
+
+    /// <summary>
     /// GET api/patients/search?q= — Tra cứu bệnh nhân đã có hồ sơ, dùng cho staff điền nhanh
     /// form đặt lịch tại quầy. Cần tối thiểu 2 ký tự để tránh quét toàn bảng.
     /// </summary>

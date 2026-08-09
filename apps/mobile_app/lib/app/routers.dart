@@ -6,7 +6,6 @@ import 'package:mobile_app/features/auth/presentation/pages/fill_profile_page.da
 import 'package:mobile_app/features/auth/presentation/pages/forgot_password_page.dart';
 import 'package:mobile_app/features/auth/presentation/pages/login_page.dart';
 import 'package:mobile_app/features/auth/presentation/pages/otp_page.dart';
-import 'package:mobile_app/features/auth/presentation/pages/register_page.dart';
 import 'package:mobile_app/features/auth/presentation/pages/reset_new_password_page.dart';
 import 'package:mobile_app/features/auth/presentation/pages/splash_page.dart';
 import 'package:mobile_app/features/appointment/presentation/screens/appointment_list_screen.dart';
@@ -70,14 +69,9 @@ final GoRouter appRouter = GoRouter(
       path: AppRoutes.login,
       builder: (context, state) => const LoginPage(),
     ),
-    GoRoute(
-      path: AppRoutes.register,
-      builder: (context, state) => const RegisterPage(),
-    ),
-    GoRoute(
-      path: AppRoutes.otp,
-      builder: (context, state) => OtpPage(email: state.extra as String),
-    ),
+    // Route đăng ký và OTP kích hoạt tài khoản đã bị BỎ: bệnh nhân không tự đăng ký được nữa,
+    // tài khoản do lễ tân lập khi đến khám lần đầu. OtpPage vẫn còn dùng cho luồng quên mật khẩu
+    // (route resetOtp bên dưới).
     GoRoute(
       path: AppRoutes.fillProfile,
       builder: (context, state) => const FillProfilePage(),
@@ -356,8 +350,7 @@ final GoRouter appRouter = GoRouter(
 abstract class AppRoutes {
   static const splash = '/splash';
   static const login = '/login';
-  static const register = '/register';
-  static const otp = '/otp';
+  // register / otp (kích hoạt tài khoản) đã bỏ cùng với việc tắt tự đăng ký.
   static const fillProfile = '/fill-profile';
   static const forgotPassword = '/forgot-password';
   static const resetOtp = '/reset-otp';
