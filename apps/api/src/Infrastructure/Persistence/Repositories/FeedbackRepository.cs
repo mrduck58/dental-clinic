@@ -8,11 +8,19 @@ public class FeedbackRepository(AppDbContext db) : IFeedbackRepository
 {
     public async Task<IEnumerable<Feedback>> GetAllAsync(CancellationToken ct = default)
         => await db.Feedbacks
+            .Include(f => f.Patient).ThenInclude(p => p!.User)
             .OrderByDescending(f => f.CreatedAt)
             .ToListAsync(ct);
 
     public async Task<Feedback?> GetByIdAsync(Guid id, CancellationToken ct = default)
-        => await db.Feedbacks.FirstOrDefaultAsync(f => f.Id == id, ct);
+        => await db.Feedbacks
+            .Include(f => f.Patient).ThenInclude(p => p!.User)
+            .FirstOrDefaultAsync(f => f.Id == id, ct);
+
+    public async Task<Feedback?> GetByPatientIdAsync(Guid patientId, CancellationToken ct = default)
+        => await db.Feedbacks
+            .Include(f => f.Patient).ThenInclude(p => p!.User)
+            .FirstOrDefaultAsync(f => f.PatientId == patientId, ct);
 
     public async Task AddAsync(Feedback feedback, CancellationToken ct = default)
     {

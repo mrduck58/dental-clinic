@@ -49,50 +49,13 @@ public class AuthController(ISender sender) : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>POST api/auth/register — Bệnh nhân tự đăng ký, gửi OTP về email</summary>
-    [HttpPost("register")]
-    [AllowAnonymous]
-    [EnableRateLimiting(RateLimitPolicies.AuthEmail)]
-    public async Task<IActionResult> Register(
-        [FromBody] RegisterRequestDto request,
-        CancellationToken cancellationToken)
-    {
-        var result = await sender.Send(
-            new RegisterCommand(request.Email, request.Password),
-            cancellationToken);
-
-        return Ok(result);
-    }
-
-    /// <summary>POST api/auth/verify-otp — Xác thực mã OTP, kích hoạt tài khoản và cấp JWT</summary>
-    [HttpPost("verify-otp")]
-    [AllowAnonymous]
-    [EnableRateLimiting(RateLimitPolicies.AuthOtp)]
-    public async Task<IActionResult> VerifyOtp(
-        [FromBody] VerifyOtpRequestDto request,
-        CancellationToken cancellationToken)
-    {
-        var result = await sender.Send(
-            new VerifyOtpCommand(request.Email, request.Code),
-            cancellationToken);
-
-        return Ok(result);
-    }
-
-    /// <summary>POST api/auth/resend-otp — Gửi lại mã OTP</summary>
-    [HttpPost("resend-otp")]
-    [AllowAnonymous]
-    [EnableRateLimiting(RateLimitPolicies.AuthEmail)]
-    public async Task<IActionResult> ResendOtp(
-        [FromBody] ResendOtpRequestDto request,
-        CancellationToken cancellationToken)
-    {
-        await sender.Send(
-            new ResendOtpCommand(request.Email),
-            cancellationToken);
-
-        return Ok(new { message = "Mã OTP mới đã được gửi đến email của bạn." });
-    }
+    // Tự đăng ký (register / verify-otp / resend-otp) đã bị BỎ. Bất kỳ ai cũng lập được hàng loạt
+    // tài khoản rồi giữ kín khung giờ, và giới hạn theo tài khoản không chặn được vì lập tài khoản
+    // mới là lách xong. Nay tài khoản bệnh nhân chỉ sinh ra từ POST api/patients/accounts do lễ tân
+    // gọi — người thật xác minh người thật. Xem thêm CreatePatientAccountHandler.
+    //
+    // Đăng nhập Google cũng đã siết tương ứng: chỉ đăng nhập được tài khoản ĐÃ tồn tại, không còn
+    // tự tạo tài khoản ở lần đăng nhập đầu (nếu không thì cửa gác này vô nghĩa).
 
     /// <summary>GET api/auth/me/profile — Lấy thông tin cá nhân của người dùng hiện tại</summary>
     [HttpGet("me/profile")]

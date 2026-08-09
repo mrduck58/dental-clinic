@@ -36,6 +36,14 @@ public class GetDentistPatientsHandlerTests
         return DateOnly.FromDateTime(vietnamNow);
     }
 
+    /// <summary>
+    /// Một mốc giờ CỐ ĐỊNH trong ngày hôm nay theo giờ VN. Không dùng DateTimeOffset.UtcNow rồi cộng
+    /// vài giờ: chạy test lúc tối muộn thì mốc cộng thêm rơi sang ngày hôm sau và bị handler lọc mất,
+    /// làm test đỏ theo giờ chạy chứ không theo code.
+    /// </summary>
+    private static DateTimeOffset VietnamTimeToday(int hour) =>
+        new(VietnamToday().ToDateTime(new TimeOnly(hour, 0)), TimeSpan.FromHours(7));
+
     /// <summary>Chỉ hiện bệnh nhân đã check-in trở đi (CheckedIn/InProgress/PendingPayment/Completed);
     /// Pending và Confirmed chưa check-in không được liệt kê.</summary>
     [Test]
@@ -59,11 +67,10 @@ public class GetDentistPatientsHandlerTests
         _db.Patients.Add(patient);
         await _db.SaveChangesAsync();
 
-        var now = DateTimeOffset.UtcNow;
-        var pending = Appointment.Create(patient.Id, dentist.Id, now);
-        var confirmed = Appointment.Create(patient.Id, dentist.Id, now.AddHours(1));
+        var pending = Appointment.Create(patient.Id, dentist.Id, VietnamTimeToday(9));
+        var confirmed = Appointment.Create(patient.Id, dentist.Id, VietnamTimeToday(10));
         confirmed.Confirm();
-        var checkedIn = Appointment.Create(patient.Id, dentist.Id, now.AddHours(2));
+        var checkedIn = Appointment.Create(patient.Id, dentist.Id, VietnamTimeToday(11));
         checkedIn.CheckIn();
         _db.Appointments.AddRange(pending, confirmed, checkedIn);
         await _db.SaveChangesAsync();

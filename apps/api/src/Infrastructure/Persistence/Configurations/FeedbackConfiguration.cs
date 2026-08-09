@@ -32,6 +32,13 @@ public class FeedbackConfiguration : IEntityTypeConfiguration<Feedback>
         builder.Property(f => f.ReplyText)
             .HasMaxLength(2000);
 
+        builder.HasOne(f => f.Patient)
+            .WithMany()
+            .HasForeignKey(f => f.PatientId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasIndex(f => f.PatientId);
+
         builder.HasData(
             new
             {

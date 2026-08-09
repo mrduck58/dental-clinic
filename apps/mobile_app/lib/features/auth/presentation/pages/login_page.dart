@@ -129,7 +129,21 @@ class _LoginPageState extends State<LoginPage> {
       if (result.fullName != null && result.fullName!.isNotEmpty) {
         await _auth.saveUserName(result.fullName!);
       }
-      if (mounted) context.go(AppRoutes.home);
+      if (!mounted) return;
+
+      // Tài khoản do phòng khám lập có mật khẩu tạm gửi qua email — mật khẩu đó nằm trong hộp thư
+      // của bệnh nhân vĩnh viễn, nên bắt đổi ngay trước khi vào app.
+      if (result.mustChangePassword) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Vui lòng đổi mật khẩu do phòng khám cấp trước khi tiếp tục.'),
+          ),
+        );
+        context.go(AppRoutes.changePassword);
+        return;
+      }
+
+      context.go(AppRoutes.home);
     } on DioException catch (e) {
       setState(() => _generalError = ApiClient.errorMessage(e));
     } finally {
@@ -394,15 +408,15 @@ class _LoginPageState extends State<LoginPage> {
                         fontSize: 14,
                       ),
                     ),
-                    GestureDetector(
-                      onTap: () => context.push(AppRoutes.register),
-                      child: const Text(
-                        'Tạo tài khoản',
-                        style: TextStyle(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                        ),
+                    // Bệnh nhân không tự đăng ký được nữa — tài khoản do phòng khám lập khi đến
+                    // khám lần đầu. Đây là chốt chặn duy nhất ngăn việc lập hàng loạt tài khoản
+                    // rồi giữ kín khung giờ của người khác.
+                    const Text(
+                      'Liên hệ phòng khám',
+                      style: TextStyle(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
                       ),
                     ),
                   ],

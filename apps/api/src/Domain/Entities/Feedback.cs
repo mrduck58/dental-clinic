@@ -11,17 +11,20 @@ public class Feedback
     public FeedbackStatus Status { get; private set; }
     public string? ReplyText { get; private set; }
     public DateTimeOffset? RepliedAt { get; private set; }
+    public Guid? PatientId { get; private set; }
+    public Patient? Patient { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
 
     private Feedback() { }
 
-    public static Feedback Create(string customerName, int rating, string comment)
+    public static Feedback Create(string customerName, int rating, string comment, Guid? patientId = null)
         => new()
         {
             Id = Guid.NewGuid(),
             CustomerName = customerName,
             Rating = rating,
             Comment = comment,
+            PatientId = patientId,
             Status = FeedbackStatus.Pending,
             CreatedAt = DateTimeOffset.UtcNow,
         };

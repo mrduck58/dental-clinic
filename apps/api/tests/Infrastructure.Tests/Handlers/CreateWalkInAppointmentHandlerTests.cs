@@ -7,6 +7,8 @@ using DentalClinic.API.Infrastructure.Persistence;
 using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using DentalClinic.API.Application.UseCases.Patients;
+using MediatR;
 using NSubstitute;
 using NUnit.Framework;
 
@@ -18,6 +20,8 @@ public class CreateWalkInAppointmentHandlerTests
     private AppDbContext _db = null!;
     private INotificationService _notificationService = null!;
     private CreateWalkInAppointmentHandler _handler = null!;
+    private IEmailService _emailService = null!;
+    private OtpRepository _otpRepo = null!;
     private Guid _dentistId;
     private Guid _dentistUserId;
 
@@ -29,8 +33,23 @@ public class CreateWalkInAppointmentHandlerTests
             .Options;
         _db = new AppDbContext(options);
         _notificationService = Substitute.For<INotificationService>();
+
+        // Bệnh nhân đến lần đầu MÀ CÓ email thì handler ủy thác cho CreatePatientAccountHandler qua
+        // ISender — nối tuyến thật để test luồng lập tài khoản chạy đúng như lúc chạy thật.
+        _emailService = Substitute.For<IEmailService>();
+        _otpRepo = new OtpRepository(_db);
+        var createPatientAccount = new CreatePatientAccountHandler(
+            new UserRepository(_db), new PatientRepository(_db), _otpRepo, _emailService,
+            Substitute.For<IActivityLogService>(), Substitute.For<ICurrentUserService>());
+
+        var sender = Substitute.For<ISender>();
+        sender.Send(Arg.Any<CreatePatientAccountCommand>(), Arg.Any<CancellationToken>())
+            .Returns(ci => createPatientAccount.Handle(
+                (CreatePatientAccountCommand)ci[0], (CancellationToken)ci[1]));
+
         _handler = new CreateWalkInAppointmentHandler(
-            new AppointmentRepository(_db), new PatientRepository(_db), new UserRepository(_db), _notificationService);
+            new AppointmentRepository(_db), new PatientRepository(_db), new UserRepository(_db),
+            _notificationService, sender);
 
         var dentistUser = User.Create("d1", $"d1-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: "BS. Nguyễn Văn Hùng");
         _db.Users.Add(dentistUser);
@@ -186,5 +205,83 @@ public class CreateWalkInAppointmentHandlerTests
 
         result.Status.Should().Be("CheckedIn");
         _db.Appointments.Should().HaveCount(2);
+    }
+
+    // ── Gộp luồng lập tài khoản vào đặt lịch tại quầy ─────────────────────────
+
+    /// <summary>Gửi mã xác thực cho email rồi trả lại mã — mô phỏng bước bệnh nhân đọc mã cho lễ tân.</summary>
+    private async Task<string> IssueVerificationCodeAsync(string email)
+    {
+        var otp = OtpCode.Create(email, OtpPurpose.PatientAccountEmail);
+        await _otpRepo.AddAsync(otp);
+        return otp.Code;
+    }
+
+    /// <summary>
+    /// Bệnh nhân đến lần đầu có email ĐÃ XÁC THỰC ⇒ lập luôn TÀI KHOẢN THẬT (đăng nhập được, buộc
+    /// đổi mật khẩu) để lần sau họ tự đặt lịch trên app.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_NewPatientWithVerifiedEmail_CreatesRealLoginAccount()
+    {
+        var code = await IssueVerificationCodeAsync("moi@gmail.com");
+        var cmd = MakeCommand(DateTimeOffset.UtcNow.AddHours(1))
+            with { PatientEmail = "moi@gmail.com", EmailVerificationCode = code };
+
+        var result = await _handler.Handle(cmd, CancellationToken.None);
+
+        result.Status.Should().Be("CheckedIn");
+
+        var created = await _db.Users.SingleAsync(u => u.Email == "moi@gmail.com");
+        created.Role.Should().Be(UserRole.Patient);
+        created.HasAccount.Should().BeTrue("có email thì phải lập tài khoản đăng nhập được");
+        created.MustChangePassword.Should().BeTrue();
+        created.IsActive.Should().BeTrue("lễ tân đã xác minh trực tiếp nên không cần OTP");
+
+        await _emailService.Received(1).SendStaffCredentialsAsync(
+            "moi@gmail.com", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Không có email vẫn phải khám được — người lớn tuổi thường không dùng email. Tạo hồ sơ không
+    /// tài khoản như trước, họ chỉ chưa dùng được app cho tới khi cung cấp email.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_NewPatientWithoutEmail_CreatesProfileWithoutAccount()
+    {
+        var result = await _handler.Handle(MakeCommand(DateTimeOffset.UtcNow.AddHours(1)), CancellationToken.None);
+
+        result.Status.Should().Be("CheckedIn");
+
+        var appointment = await _db.Appointments.SingleAsync();
+        var patient = await _db.Patients.SingleAsync(p => p.Id == appointment.PatientId);
+        var user = await _db.Users.SingleAsync(u => u.Id == patient.UserId);
+
+        user.HasAccount.Should().BeFalse("không có email thì không lập tài khoản đăng nhập");
+        await _emailService.DidNotReceive().SendStaffCredentialsAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Bệnh nhân đã có hồ sơ (khớp số điện thoại) thì đi thẳng vào đặt lịch, không lập tài khoản lần
+    /// hai — kể cả khi lễ tân có nhập email.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_ExistingPatient_DoesNotCreateAnotherAccount()
+    {
+        var user = User.CreateEmployee("cu@test.com", UserRole.Patient, "0901234567", "Nguyễn Văn A");
+        _db.Users.Add(user);
+        _db.Patients.Add(Patient.Create(user.Id, new DateOnly(1990, 1, 1), "Nam", phoneNumber: "0901234567"));
+        await _db.SaveChangesAsync();
+
+        var code = await IssueVerificationCodeAsync("moi@gmail.com");
+        var cmd = MakeCommand(DateTimeOffset.UtcNow.AddHours(1))
+            with { PatientEmail = "moi@gmail.com", EmailVerificationCode = code };
+        await _handler.Handle(cmd, CancellationToken.None);
+
+        _db.Patients.Should().HaveCount(1);
+        (await _db.Users.CountAsync(u => u.Email == "moi@gmail.com")).Should().Be(0);
+        await _emailService.DidNotReceive().SendStaffCredentialsAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 }

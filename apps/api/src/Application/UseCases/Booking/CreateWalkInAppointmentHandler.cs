@@ -4,6 +4,7 @@ using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
+using DentalClinic.API.Application.UseCases.Patients;
 using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Booking;
@@ -21,7 +22,11 @@ public record CreateWalkInCommand(
     string Gender,
     Guid? ServiceId,
     string? Symptoms,
-    Guid? PatientId = null) : IRequest<CreateWalkInResult>;
+    Guid? PatientId = null,
+    /// <summary>Có email thì bệnh nhân mới được lập tài khoản thật để lần sau tự đặt lịch trên app.</summary>
+    string? PatientEmail = null,
+    /// <summary>Mã bệnh nhân đọc từ hộp thư — thiếu nó thì chỉ tạo hồ sơ, không cấp tài khoản.</summary>
+    string? EmailVerificationCode = null) : IRequest<CreateWalkInResult>;
 
 public record CreateWalkInResult(
     Guid AppointmentId,
@@ -33,7 +38,8 @@ public class CreateWalkInAppointmentHandler(
     IAppointmentRepository appointmentRepository,
     IPatientRepository patientRepository,
     IUserRepository userRepository,
-    INotificationService notificationService)
+    INotificationService notificationService,
+    ISender sender)
     : IRequestHandler<CreateWalkInCommand, CreateWalkInResult>
 {
     public async Task<CreateWalkInResult> Handle(CreateWalkInCommand cmd, CancellationToken ct)
@@ -67,11 +73,31 @@ public class CreateWalkInAppointmentHandler(
 
         if (patient == null)
         {
-            var placeholderUser = User.CreateEmployee(null, UserRole.Patient, cmd.PatientPhone, cmd.PatientName);
-            placeholderUser.UpdateGender(cmd.Gender);
-            await userRepository.AddAsync(placeholderUser, ct);
-            patient = Patient.Create(placeholderUser.Id, cmd.DateOfBirth);
-            await patientRepository.AddAsync(patient, ct);
+            // Bệnh nhân đến lần đầu. Chỉ lập TÀI KHOẢN THẬT khi có CẢ email LẪN mã xác thực email —
+            // mã chứng minh địa chỉ đó có thật và đúng người, nếu không thì lễ tân gõ nhầm một ký tự
+            // là mật khẩu bay tới hộp thư người lạ kèm quyền vào hồ sơ bệnh án.
+            //
+            // Thiếu một trong hai thì vẫn phải khám được: tạo hồ sơ không tài khoản, cấp tài khoản sau.
+            if (!string.IsNullOrWhiteSpace(cmd.PatientEmail) &&
+                !string.IsNullOrWhiteSpace(cmd.EmailVerificationCode))
+            {
+                var created = await sender.Send(
+                    new CreatePatientAccountCommand(
+                        cmd.PatientName, cmd.PatientEmail, cmd.PatientPhone, cmd.DateOfBirth, cmd.Gender,
+                        cmd.EmailVerificationCode),
+                    ct);
+
+                patient = await patientRepository.GetByIdAsync(created.PatientId, ct)
+                    ?? throw new ValidationException("Không tạo được hồ sơ bệnh nhân.");
+            }
+            else
+            {
+                var placeholderUser = User.CreateEmployee(null, UserRole.Patient, cmd.PatientPhone, cmd.PatientName);
+                placeholderUser.UpdateGender(cmd.Gender);
+                await userRepository.AddAsync(placeholderUser, ct);
+                patient = Patient.Create(placeholderUser.Id, cmd.DateOfBirth);
+                await patientRepository.AddAsync(patient, ct);
+            }
         }
         else
         {

@@ -3,17 +3,20 @@ using System;
 using DentalClinic.API.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
+namespace DentalClinic.API.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260809061501_AddOtpAttemptCount")]
+    partial class AddOtpAttemptCount
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -645,9 +648,6 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
-                    b.Property<Guid?>("PatientId")
-                        .HasColumnType("uuid");
-
                     b.Property<int>("Rating")
                         .HasColumnType("integer");
 
@@ -664,8 +664,6 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(20)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("PatientId");
 
                     b.ToTable("Feedbacks");
 
@@ -2009,16 +2007,6 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("DentalClinic.API.Domain.Entities.Feedback", b =>
-                {
-                    b.HasOne("DentalClinic.API.Domain.Entities.Patient", "Patient")
-                        .WithMany()
-                        .HasForeignKey("PatientId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Patient");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Invoice", b =>

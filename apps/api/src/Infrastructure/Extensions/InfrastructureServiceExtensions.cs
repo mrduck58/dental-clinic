@@ -39,6 +39,7 @@ public static class InfrastructureServiceExtensions
         services.Configure<PayOSSettings>(configuration.GetSection("PayOSSettings"));
         services.Configure<GeminiSettings>(configuration.GetSection("GeminiSettings"));
         services.Configure<GoogleAuthSettings>(configuration.GetSection("GoogleAuthSettings"));
+        services.Configure<SmsSettings>(configuration.GetSection("SmsSettings"));
 
         // ── Repositories ────────────────────────────────────────────────────
         services.AddScoped<IAppointmentRepository, AppointmentRepository>();
@@ -100,6 +101,13 @@ public static class InfrastructureServiceExtensions
             client.BaseAddress = new Uri(payOsSettings.BaseUrl);
         });
         services.AddScoped<IPaymentGatewayResolver, PaymentGatewayResolver>();
+
+        // ── SMS ─────────────────────────────────────────────────────────────
+        services.AddHttpClient<ISmsService, SpeedSmsService>((sp, client) =>
+        {
+            var smsSettings = sp.GetRequiredService<IOptions<SmsSettings>>().Value;
+            client.BaseAddress = new Uri(smsSettings.BaseUrl);
+        });
 
         // ── AI chatbot ──────────────────────────────────────────────────────
         services.AddScoped<IAiChatService, GeminiChatService>();

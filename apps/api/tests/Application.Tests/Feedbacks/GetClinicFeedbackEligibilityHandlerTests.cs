@@ -67,7 +67,7 @@ public class GetClinicFeedbackEligibilityHandlerTests
         var patient = MakePatient("Trần Thị B");
         _patientRepo.GetByUserIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(patient);
         _appointmentRepo.CountOverallCompletedVisitsAsync(patient.Id, Arg.Any<CancellationToken>()).Returns(1);
-        _feedbackRepo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<Feedback>());
+        _feedbackRepo.GetByPatientIdAsync(patient.Id, Arg.Any<CancellationToken>()).Returns((Feedback?)null);
 
         var result = await _handler.Handle(new GetClinicFeedbackEligibilityQuery(patient.UserId), CancellationToken.None);
 
@@ -76,7 +76,7 @@ public class GetClinicFeedbackEligibilityHandlerTests
         result.MyFeedback.Should().BeNull();
     }
 
-    /// <summary>Đã gửi đánh giá phòng khám trước đó (khớp theo tên) thì không được gửi thêm, trả kèm
+    /// <summary>Đã gửi đánh giá phòng khám trước đó (khớp theo PatientId) thì không được gửi thêm, trả kèm
     /// đánh giá cũ trong MyFeedback.</summary>
     [Test]
     public async Task HandleAsync_AlreadySubmittedFeedback_ReturnsNotEligibleWithMyFeedback()
@@ -84,8 +84,8 @@ public class GetClinicFeedbackEligibilityHandlerTests
         var patient = MakePatient("Lê Văn C");
         _patientRepo.GetByUserIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(patient);
         _appointmentRepo.CountOverallCompletedVisitsAsync(patient.Id, Arg.Any<CancellationToken>()).Returns(2);
-        var existingFeedback = Feedback.Create("Lê Văn C", 5, "Rất hài lòng");
-        _feedbackRepo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<Feedback> { existingFeedback });
+        var existingFeedback = Feedback.Create("Lê Văn C", 5, "Rất hài lòng", patient.Id);
+        _feedbackRepo.GetByPatientIdAsync(patient.Id, Arg.Any<CancellationToken>()).Returns(existingFeedback);
 
         var result = await _handler.Handle(new GetClinicFeedbackEligibilityQuery(patient.UserId), CancellationToken.None);
 

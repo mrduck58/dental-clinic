@@ -28,6 +28,10 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.FailedLoginAttempts).IsRequired().HasDefaultValue(0);
         builder.Property(u => u.LockoutEndAt); // null = không bị khóa
 
+        // Mật khẩu tạm do phòng khám cấp. Default false để các tài khoản đã tồn tại (bệnh nhân tự
+        // đăng ký trước đây) không bị bắt đổi mật khẩu oan khi migration chạy.
+        builder.Property(u => u.MustChangePassword).IsRequired().HasDefaultValue(false);
+
         builder.HasIndex(u => u.Email).IsUnique().HasFilter("\"Email\" IS NOT NULL");
         builder.HasIndex(u => u.Username).IsUnique().HasFilter("\"Username\" IS NOT NULL");
     }
