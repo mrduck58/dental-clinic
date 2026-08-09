@@ -3771,3 +3771,45 @@ export async function payAllPayrollApi(data: {
   }
   return res.json() as Promise<PayAllPayrollResult>;
 }
+
+// ── Dentist Reviews APIs ───────────────────────────────────────────────────
+
+export interface DentistReviewItemDto {
+  id: string;
+  patientName: string;
+  rating: number;
+  comment: string;
+  tags: string[];
+  createdAt: string;
+  serviceName?: string | null;
+}
+
+export interface DentistReviewsResultDto {
+  averageRating: number;
+  reviewCount: number;
+  reviews: DentistReviewItemDto[];
+}
+
+export interface PublicDentistDto {
+  id: string;
+  fullName: string;
+  specialization?: string;
+  experienceYears?: number;
+  biography?: string;
+  averageRating: number;
+  reviewCount: number;
+}
+
+export async function getPublicDentistsApi(): Promise<PublicDentistDto[]> {
+  const res = await fetch(`${API_URL}/api/dentists`);
+  if (!res.ok) return [];
+  return res.json() as Promise<PublicDentistDto[]>;
+}
+
+export async function getDentistReviewsApi(dentistId: string): Promise<DentistReviewsResultDto> {
+  const res = await fetch(`${API_URL}/api/dentists/${dentistId}/reviews`);
+  if (!res.ok) {
+    return { averageRating: 0, reviewCount: 0, reviews: [] };
+  }
+  return res.json() as Promise<DentistReviewsResultDto>;
+}

@@ -52,13 +52,16 @@ public class FeedbacksController(ISender sender) : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>POST api/feedbacks — Khách hàng gửi phản hồi (Public)</summary>
+    /// <summary>POST api/feedbacks — Bệnh nhân gửi phản hồi phòng khám</summary>
     [HttpPost]
-    [AllowAnonymous]
+    [Authorize]
     public async Task<IActionResult> Create([FromBody] CreateFeedbackRequest request, CancellationToken ct)
     {
+        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (!Guid.TryParse(userIdClaim, out var userId)) return Unauthorized();
+
         var result = await sender.Send(
-            new CreateFeedbackCommand(request.CustomerName, request.Rating, request.Comment), ct);
+            new CreateFeedbackCommand(userId, request.Rating, request.Comment), ct);
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
 

@@ -6,9 +6,11 @@ using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Feedbacks;
 
-public record CreateFeedbackCommand(string CustomerName, int Rating, string Comment) : IRequest<FeedbackDto>;
+public record CreateFeedbackCommand(Guid UserId, int Rating, string Comment) : IRequest<FeedbackDto>;
 
-public class CreateFeedbackHandler(IFeedbackRepository feedbackRepository)
+public class CreateFeedbackHandler(
+    IFeedbackRepository feedbackRepository,
+    IPatientRepository patientRepository)
     : IRequestHandler<CreateFeedbackCommand, FeedbackDto>
 {
     public async Task<FeedbackDto> Handle(CreateFeedbackCommand request, CancellationToken cancellationToken)
@@ -16,10 +18,14 @@ public class CreateFeedbackHandler(IFeedbackRepository feedbackRepository)
         if (request.Rating < 1 || request.Rating > 5)
             throw new ValidationException("Đánh giá phải từ 1 đến 5 sao.");
 
+        var patient = await patientRepository.GetByUserIdAsync(request.UserId, cancellationToken)
+            ?? throw new NotFoundException("Không tìm thấy hồ sơ bệnh nhân.");
+
         var feedback = Feedback.Create(
-            request.CustomerName,
+            patient.FullName,
             request.Rating,
-            request.Comment);
+            request.Comment,
+            patient.Id);
 
         await feedbackRepository.AddAsync(feedback, cancellationToken);
         return GetFeedbacksHandler.ToDto(feedback);
@@ -54,19 +60,10 @@ public class GetClinicFeedbackEligibilityHandler(
             return new ClinicFeedbackEligibilityDto(false, "Bạn cần hoàn thành lần khám hoặc điều trị đầu tiên tại phòng khám để gửi đánh giá.", false);
         }
 
-        var allFeedbacks = await feedbackRepository.GetAllAsync(ct);
-        var existing = allFeedbacks.FirstOrDefault(f => f.CustomerName.Equals(patient.FullName, StringComparison.OrdinalIgnoreCase));
+        var existing = await feedbackRepository.GetByPatientIdAsync(patient.Id, ct);
         if (existing != null)
         {
-            var myFeedbackDto = new FeedbackDto(
-                existing.Id,
-                patient.FullName,
-                existing.Rating,
-                existing.Comment,
-                existing.Status.ToString(),
-                existing.ReplyText,
-                existing.RepliedAt,
-                existing.CreatedAt);
+            var myFeedbackDto = GetFeedbacksHandler.ToDto(existing);
 
             return new ClinicFeedbackEligibilityDto(
                 false,

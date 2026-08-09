@@ -93,4 +93,19 @@ public class FeedbackRepositoryTests
         var reloaded = await _db.Feedbacks.FindAsync(feedback.Id);
         reloaded!.ReplyText.Should().Be("Cảm ơn bạn đã đánh giá!");
     }
+
+    /// <summary>GetByPatientIdAsync phải trả về đúng feedback của bệnh nhân.</summary>
+    [Test]
+    public async Task GetByPatientIdAsync_ExistingPatientId_ReturnsFeedback()
+    {
+        var patientId = Guid.NewGuid();
+        var feedback = Feedback.Create("Phạm Văn D", 5, "Hài lòng", patientId);
+        _db.Feedbacks.Add(feedback);
+        await _db.SaveChangesAsync();
+
+        var result = await _sut.GetByPatientIdAsync(patientId);
+
+        result.Should().NotBeNull();
+        result!.PatientId.Should().Be(patientId);
+    }
 }

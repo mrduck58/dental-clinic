@@ -23,20 +23,8 @@ public static class NameMasker
 {
     public static string MaskName(string fullName)
     {
-        if (string.IsNullOrWhiteSpace(fullName)) return "***";
-        var parts = fullName.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length == 1)
-        {
-            var word = parts[0];
-            if (word.Length <= 2) return word[0] + "*";
-            return word[0] + new string('*', word.Length - 2) + word[^1];
-        }
-
-        return string.Join(" ", parts.Select(w =>
-        {
-            if (w.Length <= 2) return w[0] + "*";
-            return w[0] + new string('*', w.Length - 2) + w[^1];
-        }));
+        if (string.IsNullOrWhiteSpace(fullName)) return "Khách hàng";
+        return fullName.Trim();
     }
 }
 
