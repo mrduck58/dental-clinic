@@ -83,6 +83,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IDashboardQueryService, DashboardQueryService>();
         services.AddScoped<IStaffDashboardQueryService, StaffDashboardQueryService>();
         services.AddScoped<IDentistDashboardQueryService, DentistDashboardQueryService>();
+        services.AddScoped<IOwnerDashboardQueryService, OwnerDashboardQueryService>();
 
         // ── Services ────────────────────────────────────────────────────────
         services.AddScoped<IJwtService, JwtService>();
