@@ -3813,3 +3813,54 @@ export async function getDentistReviewsApi(dentistId: string): Promise<DentistRe
   }
   return res.json() as Promise<DentistReviewsResultDto>;
 }
+
+// ── Owner Dashboard APIs ───────────────────────────────────────────────────
+
+export interface OwnerDashboardWeeklyTrendDto {
+  dateStr: string;
+  dayName: string;
+  revenue: number;
+  expense: number;
+}
+
+export interface OwnerOutstandingEmployeeDto {
+  name: string;
+  role: string;
+  cases: number;
+  rating: number;
+  status: string;
+}
+
+export interface OwnerRatingBreakdownDto {
+  averageRating: number;
+  totalReviews: number;
+  fiveStar: number;
+  fourStar: number;
+  threeStar: number;
+  twoStar: number;
+  oneStar: number;
+}
+
+export interface OwnerDashboardDto {
+  totalRevenue: number;
+  revenueGrowthPercent: number;
+  totalExpense: number;
+  expenseGrowthPercent: number;
+  newPatientsCount: number;
+  newPatientsThisWeekCount: number;
+  weeklyTrend: OwnerDashboardWeeklyTrendDto[];
+  ratingStats: OwnerRatingBreakdownDto;
+  outstandingEmployees: OwnerOutstandingEmployeeDto[];
+}
+
+export async function getOwnerDashboardApi(): Promise<OwnerDashboardDto> {
+  const res = await fetch(`${API_URL}/api/owner/dashboard`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải báo cáo Owner Dashboard");
+  }
+  return res.json() as Promise<OwnerDashboardDto>;
+}
