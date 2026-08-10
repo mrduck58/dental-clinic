@@ -14,6 +14,9 @@ public class MaterialRequestItem
     public string Unit { get; private set; } = string.Empty;
     public Guid? SupplyTransactionId { get; private set; }
 
+    public Guid? SupplyItemId { get; private set; }
+    public SupplyItem? SupplyItem { get; private set; }
+
     private MaterialRequestItem() { }
 
     public static MaterialRequestItem Create(Guid materialRequestId, string itemName, int quantity, string unit)

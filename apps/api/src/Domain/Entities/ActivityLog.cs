@@ -15,6 +15,8 @@ public class ActivityLog
     public string? TargetId { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
 
+    public User? User { get; private set; }
+
     private ActivityLog() { }
 
     public static ActivityLog Create(

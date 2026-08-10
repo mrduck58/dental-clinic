@@ -18,6 +18,9 @@ public class PrescriptionItem
     public DateOnly? StartDate { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
 
+    public Guid? MedicineId { get; private set; }
+    public Medicine? Medicine { get; private set; }
+
     // Navigation property
     public Prescription Prescription { get; private set; } = null!;
 

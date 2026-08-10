@@ -9,6 +9,7 @@ public class ChatConversation
     public DateTimeOffset UpdatedAt { get; private set; }
 
     public ICollection<ChatMessage> Messages { get; private set; } = new List<ChatMessage>();
+    public Patient Patient { get; private set; } = null!;
 
     private ChatConversation() { }
 

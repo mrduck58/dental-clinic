@@ -14,6 +14,9 @@ public class Room
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset? UpdatedAt { get; private set; }
 
+    public Guid? ClinicInfoId { get; private set; }
+    public ClinicInfo? ClinicInfo { get; private set; }
+
     private Room() { }
 
     public static Room Create(
