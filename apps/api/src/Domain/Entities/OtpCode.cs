@@ -22,6 +22,9 @@ public class OtpCode
     /// <summary>Số lần đã nhập sai mã này.</summary>
     public int AttemptCount { get; private set; }
 
+    public Guid? UserId { get; private set; }
+    public User? User { get; private set; }
+
     private OtpCode() { }
 
     public static OtpCode Create(string email, OtpPurpose purpose, int expiryMinutes = 5)

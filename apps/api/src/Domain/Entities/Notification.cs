@@ -14,6 +14,8 @@ public class Notification
     public string? RelatedEntityId { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
 
+    public User User { get; private set; } = null!;
+
     private Notification() { }
 
     public static Notification Create(

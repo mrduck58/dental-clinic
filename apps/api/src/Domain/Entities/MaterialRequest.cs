@@ -22,6 +22,9 @@ public class MaterialRequest
     public DateTimeOffset? HandledAt { get; private set; }
     public string? HandledBy { get; private set; }
 
+    public Guid? DentistId { get; private set; }
+    public DentistProfile? Dentist { get; private set; }
+
     private readonly List<MaterialRequestItem> _items = [];
     public IReadOnlyCollection<MaterialRequestItem> Items => _items;
 

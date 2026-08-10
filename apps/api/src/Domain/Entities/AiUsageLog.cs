@@ -17,6 +17,9 @@ public class AiUsageLog
     public string? ErrorMessage { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
 
+    public Guid? UserId { get; private set; }
+    public User? User { get; private set; }
+
     private AiUsageLog() { }
 
     public static AiUsageLog Create(string feature, bool success, int durationMs, string? errorMessage) => new()

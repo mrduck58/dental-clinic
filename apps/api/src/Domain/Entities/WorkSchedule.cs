@@ -12,6 +12,11 @@ public class WorkSchedule
     public string RoomColor { get; private set; } = "";   // Tailwind border class e.g. "border-primary"
     public bool IsHoliday { get; private set; }
 
+    public Guid? EmployeeId { get; private set; }
+    public Guid? RoomId { get; private set; }
+    public Employee? Employee { get; private set; }
+    public Room? RoomNavigation { get; private set; }
+
     private WorkSchedule() { }
 
     public static WorkSchedule Create(

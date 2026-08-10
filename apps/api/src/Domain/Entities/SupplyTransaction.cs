@@ -13,6 +13,9 @@ public class SupplyTransaction
     public string CreatedBy { get; private set; } = string.Empty;
     public DateTimeOffset CreatedAt { get; private set; }
 
+    public Guid? EmployeeId { get; private set; }
+    public Employee? Employee { get; private set; }
+
     private SupplyTransaction() { }
 
     public static SupplyTransaction Create(
