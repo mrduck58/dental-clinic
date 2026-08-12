@@ -17,4 +17,12 @@ public class OwnerDashboardController(ISender sender) : ControllerBase
         var result = await sender.Send(new GetOwnerDashboardQuery(), cancellationToken);
         return Ok(result);
     }
+
+    /// <summary>GET api/owner/dashboard/revenue — Danh sách chi tiết từng khoản thu/chi, lọc theo khoảng ngày (from/to).</summary>
+    [HttpGet("revenue")]
+    public async Task<IActionResult> GetRevenueReport([FromQuery] DateOnly? from, [FromQuery] DateOnly? to, CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new GetOwnerRevenueReportQuery(from, to), cancellationToken);
+        return Ok(result);
+    }
 }

@@ -125,6 +125,7 @@ export default function InventoryPage() {
   const [selectedItemId, setSelectedItemId] = useState("");
   const [txType,         setTxType]         = useState<"import" | "export">("import");
   const [txItemSearch,   setTxItemSearch]   = useState(""); // text input for import
+  const [txItemFocused,  setTxItemFocused]  = useState(false); // dropdown gợi ý tên vật tư khi nhập kho
   const [txUnit,         setTxUnit]         = useState("Cái");
   const [txCategory,     setTxCategory]     = useState(ITEM_CATEGORIES[0]);
   const [txOrderType,    setTxOrderType]    = useState<"standard" | "custom">("standard");
@@ -235,6 +236,12 @@ export default function InventoryPage() {
     const matchSearch = !search || s.name.toLowerCase().includes(search.toLowerCase());
     return matchOrderType && matchCat && matchSearch;
   });
+
+  // Gợi ý tên vật tư khi nhập kho — click vào gợi ý sẽ điền tên đó vào ô input
+  const txItemSuggestions = txItemSearch.trim()
+    ? items.filter(s => s.name.toLowerCase().includes(txItemSearch.trim().toLowerCase())).slice(0, 6)
+    : [];
+  const showTxItemSuggestions = txItemFocused && !selectedItemId && txItemSuggestions.length > 0;
 
   useEffect(() => { setStockPage(1); }, [search, cat, orderTypeTab, stockPageSize]);
 
@@ -520,17 +527,46 @@ export default function InventoryPage() {
                       <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">Vật tư *</label>
                       {txType === "import" ? (
                         <>
-                          <input
-                            value={txItemSearch}
-                            onChange={e => {
-                              setTxItemSearch(e.target.value);
-                              setTxErrors(prev => ({ ...prev, name: undefined }));
-                              const match = items.find(s => s.name.toLowerCase() === e.target.value.toLowerCase().trim());
-                              setSelectedItemId(match ? match.id : "");
-                            }}
-                            placeholder="Nhập tên vật tư..."
-                            className={`${inputCls} ${txErrors.name ? "!border-red-300 focus:!border-red-400 focus:!ring-red-200" : ""}`}
-                          />
+                          <div className="relative">
+                            <input
+                              value={txItemSearch}
+                              onChange={e => {
+                                setTxItemSearch(e.target.value);
+                                setTxErrors(prev => ({ ...prev, name: undefined }));
+                                const match = items.find(s => s.name.toLowerCase() === e.target.value.toLowerCase().trim());
+                                setSelectedItemId(match ? match.id : "");
+                              }}
+                              onFocus={() => setTxItemFocused(true)}
+                              onBlur={() => setTimeout(() => setTxItemFocused(false), 150)}
+                              placeholder="Nhập tên vật tư..."
+                              autoComplete="off"
+                              className={`${inputCls} ${txErrors.name ? "!border-red-300 focus:!border-red-400 focus:!ring-red-200" : ""}`}
+                            />
+                            {showTxItemSuggestions && (
+                              <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+                                {txItemSuggestions.map(s => (
+                                  <button
+                                    key={s.id}
+                                    type="button"
+                                    onMouseDown={e => e.preventDefault()}
+                                    onClick={() => {
+                                      setTxItemSearch(s.name);
+                                      setSelectedItemId(s.id);
+                                      setTxUnit(s.unit);
+                                      setTxCategory(s.category);
+                                      setTxOrderType(s.orderType === "custom" ? "custom" : "standard");
+                                      setTxErrors(prev => ({ ...prev, name: undefined }));
+                                      setTxItemFocused(false);
+                                    }}
+                                    className="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-left hover:bg-slate-50 transition-colors cursor-pointer"
+                                  >
+                                    <span className="text-[13px] font-semibold text-slate-700 truncate">{s.name}</span>
+                                    <span className="text-[11px] font-bold text-slate-400 shrink-0">Tồn: {s.quantity} {s.unit}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                           {txErrors.name && <p className="text-[12px] text-red-500 font-semibold">{txErrors.name}</p>}
                           {txItemSearch && !selectedItemId && !txErrors.name && (
                             <p className="text-[12px] text-emerald-600 font-semibold">Vật tư mới — sẽ được tạo tự động khi xác nhận.</p>
@@ -605,6 +641,7 @@ export default function InventoryPage() {
                       <input type="number" min={0}
                         value={txQtyStr}
                         onChange={e => { setTxQtyStr(e.target.value); setTxErrors(prev => ({ ...prev, qty: undefined })); }}
+                        onWheel={e => e.currentTarget.blur()}
                         placeholder="Nhập số lượng..."
                         className={`${inputCls} [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${txErrors.qty ? "!border-red-300 focus:!border-red-400 focus:!ring-red-200" : ""}`} />
                       {txErrors.qty && <p className="text-[12px] text-red-500 font-semibold">{txErrors.qty}</p>}
@@ -616,6 +653,7 @@ export default function InventoryPage() {
                         <input type="number" min={0}
                           value={txPriceStr}
                           onChange={e => { setTxPriceStr(e.target.value); setTxErrors(prev => ({ ...prev, price: undefined })); }}
+                          onWheel={e => e.currentTarget.blur()}
                           placeholder="Giá nhập / 1 đơn vị — bỏ trống nếu không rõ"
                           className={`${inputCls} [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${txErrors.price ? "!border-red-300 focus:!border-red-400 focus:!ring-red-200" : ""}`} />
                         {txErrors.price && <p className="text-[12px] text-red-500 font-semibold">{txErrors.price}</p>}
@@ -792,6 +830,7 @@ export default function InventoryPage() {
                                       setPriceDrafts(prev => ({ ...prev, [it.id]: e.target.value }));
                                       setPriceErrors(prev => ({ ...prev, [it.id]: false }));
                                     }}
+                                    onWheel={e => e.currentTarget.blur()}
                                     placeholder="₫"
                                     className={`w-28 px-2.5 py-1.5 text-[13px] bg-white border rounded-lg focus:outline-none focus:border-primary font-semibold text-slate-700 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${priceErrors[it.id] ? "border-red-300" : "border-slate-200"}`}
                                   />
@@ -890,11 +929,11 @@ export default function InventoryPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[12px] font-extrabold text-slate-500 uppercase tracking-wider">Tồn kho ban đầu</label>
-                  <input type="number" min={0} value={addForm.quantity} onChange={e => setAddForm(f => ({ ...f, quantity: Number(e.target.value) }))} className={inputCls} />
+                  <input type="number" min={0} value={addForm.quantity} onChange={e => setAddForm(f => ({ ...f, quantity: Number(e.target.value) }))} onWheel={e => e.currentTarget.blur()} className={inputCls} />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[12px] font-extrabold text-slate-500 uppercase tracking-wider">Tối thiểu</label>
-                  <input type="number" min={0} value={addForm.minQuantity} onChange={e => setAddForm(f => ({ ...f, minQuantity: Number(e.target.value) }))} className={inputCls} />
+                  <input type="number" min={0} value={addForm.minQuantity} onChange={e => setAddForm(f => ({ ...f, minQuantity: Number(e.target.value) }))} onWheel={e => e.currentTarget.blur()} className={inputCls} />
                 </div>
               </div>
 
@@ -902,6 +941,7 @@ export default function InventoryPage() {
                 <label className="text-[12px] font-extrabold text-slate-500 uppercase tracking-wider">Giá (₫)</label>
                 <input type="number" min={0} value={addForm.priceStr}
                   onChange={e => setAddForm(f => ({ ...f, priceStr: e.target.value }))}
+                  onWheel={e => e.currentTarget.blur()}
                   placeholder="Bỏ trống nếu chưa rõ giá" className={inputCls} />
               </div>
 

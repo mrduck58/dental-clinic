@@ -66,6 +66,21 @@ export default function OwnerSidebar({ activeMenu }: SidebarProps) {
             Tổng quan
           </Link>
 
+          {/* Doanh thu */}
+          <Link
+            href="/owner/revenue"
+            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold text-[13px] transition-all ${
+              activeMenu === "revenue"
+                ? "bg-primary text-white shadow-md shadow-primary/25"
+                : "text-slate-500 hover:bg-red-50/50 hover:text-primary"
+            }`}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18L9 11.25l4.306 4.306a11.95 11.95 0 015.814-5.518l2.74-1.22m0 0l-5.94-2.281m5.94 2.28l-2.28 5.941" />
+            </svg>
+            Doanh thu
+          </Link>
+
           {/* Quản lý nhân viên */}
           <Link
             href="/owner/employee"

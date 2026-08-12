@@ -30,6 +30,10 @@ public record OwnerDashboardDto(
     double RevenueGrowthPercent,
     decimal TotalExpense,
     double ExpenseGrowthPercent,
+    // Chi phí mua vật tư (nhập kho) — thành phần con của TotalExpense, tách riêng cho tab "Doanh thu".
+    decimal StockExpense,
+    // Chi phí lương nhân viên (từ bảng lương đã chốt) — thành phần con còn lại của TotalExpense.
+    decimal PayrollExpense,
     int NewPatientsCount,
     int NewPatientsThisWeekCount,
     List<OwnerDashboardWeeklyTrendDto> WeeklyTrend,

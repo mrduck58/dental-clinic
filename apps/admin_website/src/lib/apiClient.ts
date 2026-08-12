@@ -3846,6 +3846,8 @@ export interface OwnerDashboardDto {
   revenueGrowthPercent: number;
   totalExpense: number;
   expenseGrowthPercent: number;
+  stockExpense: number;
+  payrollExpense: number;
   newPatientsCount: number;
   newPatientsThisWeekCount: number;
   weeklyTrend: OwnerDashboardWeeklyTrendDto[];
@@ -3863,4 +3865,52 @@ export async function getOwnerDashboardApi(): Promise<OwnerDashboardDto> {
     throw new Error((err as { title?: string }).title ?? "Không thể tải báo cáo Owner Dashboard");
   }
   return res.json() as Promise<OwnerDashboardDto>;
+}
+
+// ── Owner: Doanh thu chi tiết (trang riêng, có filter theo khoảng thời gian) ─
+
+export interface OwnerRevenueIncomeItemDto {
+  invoiceId: string;
+  invoiceNumber: string;
+  patientName: string;
+  dentistName: string;
+  paymentMethod: string;
+  amount: number;
+  date: string;
+}
+
+export interface OwnerRevenueExpenseItemDto {
+  id: string;
+  category: "supply" | "payroll";
+  description: string;
+  subDescription: string;
+  status: string;
+  amount: number;
+  date: string;
+}
+
+export interface OwnerRevenueReportDto {
+  periodStart: string;
+  periodEnd: string;
+  totalIncome: number;
+  totalStockExpense: number;
+  totalPayrollExpense: number;
+  incomeItems: OwnerRevenueIncomeItemDto[];
+  expenseItems: OwnerRevenueExpenseItemDto[];
+}
+
+export async function getOwnerRevenueReportApi(from?: string, to?: string): Promise<OwnerRevenueReportDto> {
+  const params = new URLSearchParams();
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  const qs = params.toString();
+  const res = await fetch(`${API_URL}/api/owner/dashboard/revenue${qs ? `?${qs}` : ""}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải báo cáo doanh thu");
+  }
+  return res.json() as Promise<OwnerRevenueReportDto>;
 }

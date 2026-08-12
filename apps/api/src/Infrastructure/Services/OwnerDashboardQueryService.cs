@@ -210,12 +210,17 @@ public class OwnerDashboardQueryService(AppDbContext db) : IOwnerDashboardQueryS
 
         var finalRevenue = totalRevenueAllTime > 0 ? totalRevenueAllTime : revenueCurrentMonth;
         var finalExpense = totalExpenseCurrent > 0 ? totalExpenseCurrent : totalExpenseAllTime;
+        // Cùng quy tắc "tháng này nếu có, không thì cả thời gian" như finalExpense — áp riêng cho từng thành phần.
+        var finalStockExpense = stockExpenseCurrent > 0 ? stockExpenseCurrent : totalStockAllTime;
+        var finalPayrollExpense = payrollExpenseCurrent > 0 ? payrollExpenseCurrent : totalPayrollAllTime;
 
         return new OwnerDashboardDto(
             TotalRevenue: finalRevenue,
             RevenueGrowthPercent: revenueGrowth,
             TotalExpense: finalExpense,
             ExpenseGrowthPercent: expenseGrowth,
+            StockExpense: finalStockExpense,
+            PayrollExpense: finalPayrollExpense,
             NewPatientsCount: displayPatientsCount,
             NewPatientsThisWeekCount: newPatientsWeek,
             WeeklyTrend: weeklyTrend,
@@ -229,4 +234,94 @@ public class OwnerDashboardQueryService(AppDbContext db) : IOwnerDashboardQueryS
         if (previous == 0) return current == 0 ? 0 : 100;
         return (double)Math.Round((current - previous) / previous * 100, 1);
     }
+
+    // ── Báo cáo thu/chi chi tiết (trang "Doanh thu") ────────────────────────
+
+    public async Task<OwnerRevenueReportDto> GetRevenueReportAsync(DateOnly? from, DateOnly? to, CancellationToken ct)
+    {
+        var todayVn = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, VietnamTz).DateTime);
+        var toDate = to ?? todayVn;
+        var fromDate = from ?? new DateOnly(toDate.Year, toDate.Month, 1);
+        if (fromDate > toDate) (fromDate, toDate) = (toDate, fromDate);
+
+        var start = ToVn(fromDate);
+        var end = ToVn(toDate.AddDays(1)); // mốc "Đến ngày" bao trọn cả ngày đó
+
+        // ── Thu: hóa đơn đã thanh toán trong kỳ ──────────────────────────
+        var paidInvoices = await db.Invoices
+            .AsNoTracking()
+            .Include(i => i.Appointment).ThenInclude(a => a.Patient).ThenInclude(p => p.User)
+            .Include(i => i.Appointment).ThenInclude(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
+            .Where(i => i.Status == PaymentStatus.Paid && i.PaymentDate >= start && i.PaymentDate < end)
+            .OrderByDescending(i => i.PaymentDate)
+            .Select(i => new OwnerRevenueIncomeItemDto(
+                i.Id,
+                i.InvoiceNumber,
+                i.Appointment.Patient.User.FullName ?? "Bệnh nhân",
+                i.Appointment.Dentist.Employee.User.FullName ?? "Bác sĩ",
+                i.PaymentMethod == PaymentMethod.Cash ? "Tiền mặt"
+                    : i.PaymentMethod == PaymentMethod.BankTransfer ? "Chuyển khoản" : "Thanh toán online",
+                i.DepositAmount > 0 ? i.DepositAmount : i.TotalAmount,
+                i.PaymentDate!.Value))
+            .ToListAsync(ct);
+
+        // ── Chi vật tư: giao dịch nhập kho có đơn giá trong kỳ ───────────
+        // "Chi tiết" hiển thị tên đầy đủ của nhân viên đã nhập kho — CreatedBy trên SupplyTransaction
+        // chỉ lưu username đăng nhập, nên cần join sang User để lấy FullName (left join vì có thể
+        // username không khớp user nào, ví dụ tài khoản đã bị xoá).
+        var stockItems = await db.SupplyTransactions
+            .AsNoTracking()
+            .Include(t => t.SupplyItem)
+            .Where(t => t.Type == "import" && t.UnitPrice != null && t.CreatedAt >= start && t.CreatedAt < end)
+            .GroupJoin(db.Users.AsNoTracking(), t => t.CreatedBy, u => u.Username, (t, creators) => new { t, creators })
+            .SelectMany(x => x.creators.DefaultIfEmpty(), (x, creator) => new { x.t, creator })
+            .OrderByDescending(x => x.t.CreatedAt)
+            .Select(x => new OwnerRevenueExpenseItemDto(
+                x.t.Id,
+                "supply",
+                $"Nhập kho: {x.t.SupplyItem.Name} x{x.t.Quantity}",
+                x.creator != null && x.creator.FullName != ""
+                    ? x.creator.FullName
+                    : (x.t.CreatedBy == null || x.t.CreatedBy == "" ? "Nhân viên kho" : x.t.CreatedBy),
+                "Đã chi",
+                (x.t.UnitPrice ?? 0m) * x.t.Quantity,
+                x.t.CreatedAt))
+            .ToListAsync(ct);
+
+        // ── Chi lương: bảng lương có kỳ (Năm/Tháng) rơi vào khoảng lọc ───
+        var allPayrolls = await db.PayrollRecords
+            .AsNoTracking()
+            .Include(p => p.User)
+            .Select(p => new { p.Id, p.Year, p.Month, p.NetSalary, p.User.FullName, p.Status })
+            .ToListAsync(ct);
+
+        var payrollItems = allPayrolls
+            .Select(p => new { p.Id, p.NetSalary, p.FullName, p.Status, p.Year, p.Month, PeriodDate = new DateTimeOffset(new DateTime(p.Year, p.Month, 1), TimeSpan.FromHours(7)) })
+            .Where(p => p.PeriodDate >= start && p.PeriodDate < end)
+            .OrderByDescending(p => p.PeriodDate)
+            .Select(p => new OwnerRevenueExpenseItemDto(
+                p.Id,
+                "payroll",
+                $"Lương nhân viên: {p.FullName ?? "Nhân viên"}",
+                $"Kỳ lương {p.Month}/{p.Year}",
+                p.Status == PayrollStatus.Paid ? "Đã thanh toán" : "Chưa thanh toán",
+                p.NetSalary,
+                p.PeriodDate))
+            .ToList();
+
+        var expenseItems = stockItems.Concat(payrollItems).OrderByDescending(e => e.Date).ToList();
+
+        return new OwnerRevenueReportDto(
+            PeriodStart: start,
+            PeriodEnd: end,
+            TotalIncome: paidInvoices.Sum(i => i.Amount),
+            TotalStockExpense: stockItems.Sum(i => i.Amount),
+            TotalPayrollExpense: payrollItems.Sum(i => i.Amount),
+            IncomeItems: paidInvoices,
+            ExpenseItems: expenseItems);
+    }
+
+    /// <summary>Nửa đêm (giờ VN) của một ngày, quy về UTC — khớp kiểu "timestamp with time zone" của Postgres.</summary>
+    private static DateTimeOffset ToVn(DateOnly date) =>
+        new DateTimeOffset(date.Year, date.Month, date.Day, 0, 0, 0, VietnamTz.BaseUtcOffset).ToUniversalTime();
 }
