@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import Link from "next/link";
 import AdminSidebar from "../../../components/shared/AdminSidebar";
 import AdminPageHeader from "../../../components/shared/AdminPageHeader";
 import { getAccountsApi, getStaffApi, toggleAccountStatusApi, resolveAssetUrl, type AccountDto, type StaffDto } from "../../../lib/apiClient";
@@ -99,7 +100,7 @@ function UsersPageContent() {
       phoneNumber: staff.phoneNumber || "",
       profilePictureUrl: staff.profilePictureUrl,
     }));
-    router.push("/admin/permissions/create-account");
+    router.push(`/admin/permissions/create-account?staffId=${staff.id}`);
   };
 
   const stats = useMemo(() => {
@@ -306,7 +307,8 @@ function UsersPageContent() {
                             </td>
                             <td className="px-5 py-3 text-slate-500 font-semibold text-[12px]">{emp.email}</td>
                             <td className="px-5 py-3 text-right">
-                              <button
+                              <Link
+                                href={`/admin/permissions/create-account?staffId=${emp.id}`}
                                 onClick={() => handleGoToCreateAccount(emp)}
                                 className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-[12px] font-extrabold rounded-lg shadow-sm transition-all cursor-pointer"
                               >
@@ -314,7 +316,7 @@ function UsersPageContent() {
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                                 </svg>
                                 Tạo ngay
-                              </button>
+                              </Link>
                             </td>
                           </tr>
                         );
@@ -362,15 +364,15 @@ function UsersPageContent() {
                   </svg>
                 </div>
               </div>
-              <button
-                onClick={() => router.push("/admin/permissions/create-account")}
+              <Link
+                href="/admin/permissions/create-account"
                 className="inline-flex items-center gap-2 bg-primary hover:bg-primary-hover text-white font-bold text-[14px] px-5 py-2.5 rounded-xl transition-all shadow-md shadow-primary/25 shrink-0"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                 </svg>
                 Thêm tài khoản
-              </button>
+              </Link>
             </div>
 
             {/* Row 2: per-page + result count */}

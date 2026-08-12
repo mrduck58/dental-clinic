@@ -145,10 +145,25 @@ public class GetStaffScheduleHandler(
             hour, minute, 0,
             VietnamTz.BaseUtcOffset);
         var utcSlot = vnSlot.ToUniversalTime();
+        var slotStartMinutes = hour * 60 + minute;
 
-        var time   = $"{hour:D2}:{minute:D2}";
-        var booked = appts.FirstOrDefault(a => a.AppointmentDate == utcSlot);
+        var time = $"{hour:D2}:{minute:D2}";
+
+        // 1. Tìm lịch hẹn bắt đầu đúng khung giờ này (ưu tiên lấy thông tin bệnh nhân chính)
+        var exactMatch = appts.FirstOrDefault(a => a.AppointmentDate == utcSlot);
+
+        // 2. Nếu không có lịch hẹn bắt đầu đúng khung giờ này, kiểm tra xem có lịch hẹn nào trước đó kéo dài trùm qua khung giờ này không
+        var overlappingMatch = exactMatch ?? appts.FirstOrDefault(a =>
+        {
+            var aLocal = a.AppointmentDate.UtcDateTime.AddHours(7);
+            var aStart = aLocal.Hour * 60 + aLocal.Minute;
+            var duration = (a.Service != null && a.Service.DurationMinutes > 0) ? a.Service.DurationMinutes : SlotCalculator.SlotMinutes;
+            var aEnd = aStart + duration;
+            return slotStartMinutes >= aStart && slotStartMinutes < aEnd;
+        });
+
+        var isBooked = overlappingMatch != null;
         var isPast = utcSlot < DateTimeOffset.UtcNow;
-        return new StaffScheduleSlot(time, booked != null, booked?.Patient.FullName, isPast);
+        return new StaffScheduleSlot(time, isBooked, overlappingMatch?.Patient.FullName, isPast);
     }
 }

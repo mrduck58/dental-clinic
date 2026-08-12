@@ -61,7 +61,12 @@ public class QueueController(ISender sender) : ControllerBase
         [FromBody] ReorderQueuePatientRequest request,
         CancellationToken cancellationToken)
     {
-        await sender.Send(new ReorderQueuePatientCommand(id, request.SwapWithAppointmentId), cancellationToken);
+        if (request == null || !request.SwapWithAppointmentId.HasValue || request.SwapWithAppointmentId.Value == Guid.Empty)
+        {
+            throw new DentalClinic.API.Domain.Exceptions.ValidationException("Thiếu ID bệnh nhân thứ hai để đổi chỗ (Cần có ít nhất 2 bệnh nhân trong hàng đợi).");
+        }
+
+        await sender.Send(new ReorderQueuePatientCommand(id, request.SwapWithAppointmentId.Value), cancellationToken);
         return Ok(new { message = "Đã đổi thứ tự hàng đợi." });
     }
 
@@ -76,4 +81,4 @@ public class QueueController(ISender sender) : ControllerBase
 
 public record TransferQueuePatientRequest(string RoomName, Guid? DentistId = null);
 
-public record ReorderQueuePatientRequest(Guid SwapWithAppointmentId);
+public record ReorderQueuePatientRequest(Guid? SwapWithAppointmentId = null);

@@ -44,12 +44,19 @@ public class CreateWalkInAppointmentHandler(
 {
     public async Task<CreateWalkInResult> Handle(CreateWalkInCommand cmd, CancellationToken ct)
     {
+        var utcAppointmentDate = cmd.AppointmentDate.ToUniversalTime();
+
         // 1. Không cho đặt lịch cho khung giờ đã qua (chặn cả trường hợp bypass UI).
-        if (cmd.AppointmentDate < DateTimeOffset.UtcNow)
+        if (utcAppointmentDate < DateTimeOffset.UtcNow)
             throw new ValidationException("Không thể đặt lịch cho khung giờ đã qua.");
 
+        // 1b. Kiểm tra bác sĩ có tồn tại không
+        var dentistUserId = await appointmentRepository.GetDentistUserIdAsync(cmd.DentistId, ct);
+        if (!dentistUserId.HasValue)
+            throw new ValidationException($"Không tìm thấy bác sĩ với ID: '{cmd.DentistId}'.");
+
         // 2. Kiểm tra slot còn trống
-        var isBooked = await appointmentRepository.IsSlotBookedAsync(cmd.DentistId, cmd.AppointmentDate, ct);
+        var isBooked = await appointmentRepository.IsSlotBookedAsync(cmd.DentistId, utcAppointmentDate, ct);
 
         if (isBooked)
             throw new ConflictException("Khung giờ này đã được đặt. Vui lòng chọn giờ khác.");
@@ -112,7 +119,7 @@ public class CreateWalkInAppointmentHandler(
         // 4. Bệnh nhân đã có mặt tại quầy nên bỏ qua cả Pending lẫn Confirmed:
         //    lịch hẹn vào thẳng CheckedIn để xuất hiện ngay ở hàng đợi, không phải check-in lại.
         var appointment = Appointment.Create(
-            patient.Id, cmd.DentistId, cmd.AppointmentDate,
+            patient.Id, cmd.DentistId, utcAppointmentDate,
             symptoms: cmd.Symptoms, serviceId: cmd.ServiceId);
         appointment.CheckIn();
 
@@ -122,7 +129,6 @@ public class CreateWalkInAppointmentHandler(
 
         // Bệnh nhân đã ngồi chờ tại quầy (CheckedIn ngay) nên bác sĩ càng cần được báo ngay lập tức —
         // không báo Staff vì chính nhân viên đang thao tác đã biết rõ việc này rồi.
-        var dentistUserId = await appointmentRepository.GetDentistUserIdAsync(cmd.DentistId, ct);
         if (dentistUserId.HasValue)
         {
             await notificationService.CreateAsync(new CreateNotificationRequest(

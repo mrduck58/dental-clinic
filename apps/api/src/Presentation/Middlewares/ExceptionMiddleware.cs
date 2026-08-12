@@ -26,7 +26,8 @@ public class ExceptionMiddleware(RequestDelegate next, ILogger<ExceptionMiddlewa
             ForbiddenException          => (StatusCodes.Status403Forbidden,              ex.Message),
             ConflictException           => (StatusCodes.Status409Conflict,               ex.Message),
             NotFoundException           => (StatusCodes.Status404NotFound,               ex.Message),
-            ValidationException         => (StatusCodes.Status422UnprocessableEntity,    ex.Message),
+            ValidationException or InvalidOperationException => (StatusCodes.Status422UnprocessableEntity, ex.Message),
+            FormatException or JsonException or BadHttpRequestException => (StatusCodes.Status400BadRequest, ex.Message),
             _                           => (StatusCodes.Status500InternalServerError,    "Đã xảy ra lỗi hệ thống.")
         };
 

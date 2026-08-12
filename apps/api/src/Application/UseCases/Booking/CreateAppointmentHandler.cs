@@ -30,12 +30,14 @@ public class CreateAppointmentHandler(
 {
     public async Task<CreateAppointmentResult> Handle(CreateAppointmentCommand cmd, CancellationToken ct)
     {
+        var utcAppointmentDate = cmd.AppointmentDate.ToUniversalTime();
+
         var primaryPatient = await patientRepository.GetByUserIdAsync(cmd.UserId, ct);
 
         if (primaryPatient is null)
         {
             var user = await userRepository.GetByIdAsync(cmd.UserId, ct)
-                ?? throw new InvalidOperationException("Không tìm thấy tài khoản.");
+                ?? throw new ValidationException("Không tìm thấy tài khoản.");
 
             primaryPatient = Patient.Create(
                 userId: cmd.UserId,
@@ -51,18 +53,22 @@ public class CreateAppointmentHandler(
             var member = await patientRepository.GetByIdAsync(cmd.PatientId.Value, ct);
             if (member == null || member.PrimaryPatientId != primaryPatient.Id)
             {
-                throw new InvalidOperationException("Hồ sơ bệnh nhân không hợp lệ hoặc không thuộc gia đình bạn.");
+                throw new ValidationException("Hồ sơ bệnh nhân không hợp lệ hoặc không thuộc gia đình bạn.");
             }
             targetPatientId = member.Id;
         }
 
+        var dentistUserId = await appointmentRepository.GetDentistUserIdAsync(cmd.DentistId, ct);
+        if (!dentistUserId.HasValue)
+            throw new ValidationException($"Không tìm thấy bác sĩ với ID: '{cmd.DentistId}'.");
+
         await slotGuard.EnsureSlotAvailableAsync(
-            cmd.DentistId, cmd.AppointmentDate, cmd.ServiceId, excludeAppointmentId: null, ct);
+            cmd.DentistId, utcAppointmentDate, cmd.ServiceId, excludeAppointmentId: null, ct);
 
         var appointment = Appointment.Create(
             targetPatientId,
             cmd.DentistId,
-            cmd.AppointmentDate,
+            utcAppointmentDate,
             symptoms: cmd.Symptoms,
             serviceId: cmd.ServiceId);
 
@@ -82,7 +88,6 @@ public class CreateAppointmentHandler(
             RelatedEntityType: "Appointment",
             RelatedEntityId: appointment.Id.ToString()), ct);
 
-        var dentistUserId = await appointmentRepository.GetDentistUserIdAsync(cmd.DentistId, ct);
         if (dentistUserId.HasValue)
         {
             await notificationService.CreateAsync(new CreateNotificationRequest(

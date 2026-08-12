@@ -1,11 +1,11 @@
-﻿"use client";
+"use client";
 
-import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import AdminSidebar from "../../../../components/shared/AdminSidebar";
 import AdminPageHeader from "../../../../components/shared/AdminPageHeader";
 import { useRequireAdmin } from "../../../../hooks/useRequireAdmin";
-import { createAccountApi, createStaffAccountApi, resolveAssetUrl } from "../../../../lib/apiClient";
+import { createAccountApi, createStaffAccountApi, getStaffByIdApi, resolveAssetUrl } from "../../../../lib/apiClient";
 import { ROLE_LABELS, ROLE_BADGE_CLASSES, type UiRole } from "../../../../lib/roles";
 
 interface Prefill {
@@ -17,9 +17,11 @@ interface Prefill {
   profilePictureUrl?: string | null;
 }
 
-export default function CreateAccountPage() {
+function CreateAccountPageContent() {
   useRequireAdmin();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const staffIdFromUrl = searchParams.get("staffId");
 
   const [prefill, setPrefill] = useState<Prefill | null>(null);
 
@@ -38,8 +40,23 @@ export default function CreateAccountPage() {
       const data: Prefill = JSON.parse(raw);
       setPrefill(data);
       sessionStorage.removeItem("createAccountPrefill");
+    } else if (staffIdFromUrl) {
+      getStaffByIdApi(staffIdFromUrl)
+        .then((staff) => {
+          setPrefill({
+            staffId: staff.id,
+            fullName: staff.fullName || staff.email,
+            email: staff.email,
+            role: staff.role,
+            phoneNumber: staff.phoneNumber || "",
+            profilePictureUrl: staff.profilePictureUrl,
+          });
+        })
+        .catch((err: unknown) => {
+          setErrors({ api: err instanceof Error ? err.message : "Không thể tải thông tin nhân viên" });
+        });
     }
-  }, []);
+  }, [staffIdFromUrl]);
 
   const validateNew = () => {
     const e: Record<string, string> = {};
@@ -270,5 +287,13 @@ export default function CreateAccountPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function CreateAccountPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center font-bold text-slate-500">Đang tải...</div>}>
+      <CreateAccountPageContent />
+    </Suspense>
   );
 }
