@@ -67,7 +67,9 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: AppRoutes.login,
-      builder: (context, state) => const LoginPage(),
+      builder: (context, state) => LoginPage(
+        expiredNotice: state.extra == 'expired',
+      ),
     ),
     // Route đăng ký và OTP kích hoạt tài khoản đã bị BỎ: bệnh nhân không tự đăng ký được nữa,
     // tài khoản do lễ tân lập khi đến khám lần đầu. OtpPage vẫn còn dùng cho luồng quên mật khẩu

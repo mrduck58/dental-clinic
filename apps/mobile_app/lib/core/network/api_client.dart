@@ -1,5 +1,7 @@
 import 'package:dio/dio.dart';
+import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/core/constants/api_constants.dart';
+import 'package:mobile_app/features/auth/data/auth_service.dart';
 
 class ApiClient {
   static final ApiClient _instance = ApiClient._internal();
@@ -15,7 +17,21 @@ class ApiClient {
             receiveTimeout: const Duration(seconds: 10),
             headers: {'Content-Type': 'application/json'},
           ),
-        );
+        ) {
+    _dio.interceptors.add(
+      InterceptorsWrapper(
+        onError: (DioException e, handler) async {
+          if (e.response?.statusCode == 401 &&
+              !e.requestOptions.path.contains('/auth/login') &&
+              !e.requestOptions.path.contains('/auth/verify-otp')) {
+            await AuthService().clearToken();
+            appRouter.go(AppRoutes.login, extra: 'expired');
+          }
+          return handler.next(e);
+        },
+      ),
+    );
+  }
 
   Future<Response<dynamic>> post(
     String path,
