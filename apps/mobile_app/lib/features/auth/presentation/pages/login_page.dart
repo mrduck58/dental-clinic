@@ -7,7 +7,6 @@ import 'package:go_router/go_router.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
-import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/core/network/api_client.dart';
 import 'package:mobile_app/features/auth/data/auth_service.dart';
@@ -15,7 +14,8 @@ import 'package:mobile_app/features/auth/presentation/widgets/auth_widgets.dart'
 import 'package:mobile_app/features/auth/presentation/widgets/google_signin_web_button.dart';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  final bool expiredNotice;
+  const LoginPage({super.key, this.expiredNotice = false});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -50,6 +50,9 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void initState() {
     super.initState();
+    if (widget.expiredNotice) {
+      _generalError = 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
+    }
     _loadSavedCredentials();
     if (kIsWeb) {
       // Trên Web, nút Google (renderButton) tự xử lý popup/consent và phát
@@ -158,64 +161,7 @@ class _LoginPageState extends State<LoginPage> {
     await _handleGoogleAccount(googleUser);
   }
 
-  /// Cho phép đổi URL gốc của API TRƯỚC KHI đăng nhập (vd: dán URL Cloudflare Tunnel khi
-  /// test không qua cáp USB) — bắt buộc phải sửa được ở đây vì màn Cá nhân (nơi tính năng
-  /// này ban đầu được đặt) chỉ vào được SAU KHI đăng nhập thành công.
-  void _showServerUrlDialog() {
-    final controller = TextEditingController(text: SettingsManager.instance.apiBaseUrl.value);
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Địa chỉ máy chủ (API)', style: TextStyle(fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Dùng khi test qua Cloudflare Tunnel/ngrok — dán URL kèm "/api" ở cuối, vd: https://xxxx.trycloudflare.com/api',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5),
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: controller,
-              autofocus: true,
-              keyboardType: TextInputType.url,
-              decoration: InputDecoration(
-                hintText: kDefaultApiBaseUrl,
-                border: const OutlineInputBorder(),
-                isDense: true,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              await SettingsManager.instance.resetApiBaseUrl();
-              ApiClient().refreshBaseUrl();
-              if (ctx.mounted) Navigator.of(ctx).pop();
-              setState(() {});
-            },
-            child: const Text('Đặt lại mặc định'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Huỷ'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              await SettingsManager.instance.setApiBaseUrl(controller.text);
-              ApiClient().refreshBaseUrl();
-              if (ctx.mounted) Navigator.of(ctx).pop();
-              setState(() {});
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-            child: const Text('Lưu', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
+
 
   /// Xử lý chung sau khi có tài khoản Google (từ signIn() native hoặc nút render trên Web).
   Future<void> _handleGoogleAccount(GoogleSignInAccount googleUser) async {
@@ -272,20 +218,10 @@ class _LoginPageState extends State<LoginPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  AuthBackButton(
-                    onTap: () {
-                      if (context.canPop()) context.pop();
-                    },
-                  ),
-                  IconButton(
-                    onPressed: _showServerUrlDialog,
-                    tooltip: 'Địa chỉ máy chủ (API)',
-                    icon: const Icon(Iconsax.setting_2, color: AppColors.textSecondary, size: 22),
-                  ),
-                ],
+              AuthBackButton(
+                onTap: () {
+                  if (context.canPop()) context.pop();
+                },
               ),
               const SizedBox(height: 32),
               const SizedBox(
