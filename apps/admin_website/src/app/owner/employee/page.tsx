@@ -89,12 +89,12 @@ export default function OwnerStaffManagementPage() {
 
   const fetchStaff = useCallback(() => {
     setIsLoading(true);
-    const combinedSearch = [searchQuery, specialtyFilter].filter(Boolean).join(" ");
     getStaffApi({
-      search:   combinedSearch || undefined,
-      role:     tab.scopeRoles,
-      status:   statusFilter !== "All" ? statusFilter : undefined,
-      page:     currentPage,
+      search:    searchQuery || undefined,
+      role:      tab.scopeRoles,
+      status:    statusFilter !== "All" ? statusFilter : undefined,
+      specialty: specialtyFilter || undefined,
+      page:      currentPage,
       pageSize,
     })
       .then((res) => {

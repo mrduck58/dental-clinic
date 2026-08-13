@@ -300,6 +300,48 @@ public class GetActivityLogsHandlerTests
             Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
     }
 
+    /// <summary>
+    /// Client gửi mốc ngày theo giờ VN (offset +07:00). Npgsql chỉ chấp nhận DateTimeOffset với
+    /// Offset=0, nên handler phải quy về UTC — giữ nguyên thời điểm, chỉ đổi offset.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_DatesWithVietnamOffset_NormalizedToUtc()
+    {
+        var vnOffset = TimeSpan.FromHours(7);
+        var start = new DateTimeOffset(2026, 8, 13, 0, 0, 0, vnOffset);
+        var end   = new DateTimeOffset(2026, 8, 20, 14, 30, 0, vnOffset);
+
+        await _handler.Handle(
+            new GetActivityLogsQuery(null, null, null, null, null, start, end), CancellationToken.None);
+
+        await _repo.Received(1).GetPagedAsync(
+            Arg.Any<Guid?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
+            Arg.Is<DateTimeOffset?>(d => d!.Value.Offset == TimeSpan.Zero && d.Value == start),
+            Arg.Is<DateTimeOffset?>(d => d!.Value.Offset == TimeSpan.Zero && d.Value == end),
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// EndDate là nửa đêm giờ VN phải được mở rộng đến hết ngày đó theo giờ VN (không phải hết ngày UTC),
+    /// rồi mới quy về UTC.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_EndDateAtVietnamMidnight_ExtendedToEndOfVietnamDay()
+    {
+        var vnOffset = TimeSpan.FromHours(7);
+        var end      = new DateTimeOffset(2026, 8, 13, 0, 0, 0, vnOffset);
+        var expected = new DateTimeOffset(2026, 8, 14, 0, 0, 0, vnOffset).AddTicks(-1).ToUniversalTime();
+
+        await _handler.Handle(
+            new GetActivityLogsQuery(null, null, null, null, null, null, end), CancellationToken.None);
+
+        await _repo.Received(1).GetPagedAsync(
+            Arg.Any<Guid?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
+            Arg.Any<DateTimeOffset?>(),
+            Arg.Is<DateTimeOffset?>(d => d!.Value.Offset == TimeSpan.Zero && d.Value == expected),
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private void SetupRepo(IList<ActivityLog> items, int total)

@@ -79,8 +79,9 @@ export default function LoginHistoryPage() {
         action:    "login",
         status:    statusFilter !== "all" ? statusFilter : undefined,
         search:    searchQuery || undefined,
+        // Mốc nửa đêm giờ VN — API tự mở rộng endDate đến hết ngày đó
         startDate: dateFrom ? `${dateFrom}T00:00:00+07:00` : undefined,
-        endDate:   dateTo ? `${dateTo}T23:59:59+07:00` : undefined,
+        endDate:   dateTo ? `${dateTo}T00:00:00+07:00` : undefined,
         page:      currentPage,
         pageSize,
       });
@@ -100,8 +101,8 @@ export default function LoginHistoryPage() {
       const todayData = await getActivityLogsApi({
         action: "login",
         startDate: `${today}T00:00:00+07:00`,
-        endDate: `${today}T23:59:59+07:00`,
-        pageSize: 1000,
+        endDate: `${today}T00:00:00+07:00`,
+        pageSize: 100,
       });
       const todayItems = todayData.items;
       const distinctUsers = new Set(todayItems.map((l) => l.userId ?? l.userName)).size;
@@ -171,8 +172,8 @@ export default function LoginHistoryPage() {
         status:    statusFilter !== "all" ? statusFilter : undefined,
         search:    searchQuery || undefined,
         startDate: dateFrom ? `${dateFrom}T00:00:00+07:00` : undefined,
-        endDate:   dateTo ? `${dateTo}T23:59:59+07:00` : undefined,
-        pageSize: 10000,
+        endDate:   dateTo ? `${dateTo}T00:00:00+07:00` : undefined,
+        pageSize: 100,
         page: 1,
       });
       const headers = "ID,Thoi gian,Nguoi dung,Vai tro,Mo ta,Dia chi IP,Trang thai\n";

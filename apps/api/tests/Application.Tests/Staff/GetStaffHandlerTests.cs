@@ -17,7 +17,7 @@ public class GetStaffHandlerTests
     public void SetUp()
     {
         _userRepo = Substitute.For<IUserRepository>();
-        _userRepo.GetStaffPagedAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
+        _userRepo.GetStaffPagedAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
             Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns((new List<User>().AsReadOnly(), 0));
         _userRepo.GetStaffStatsAsync(Arg.Any<CancellationToken>())
@@ -32,7 +32,7 @@ public class GetStaffHandlerTests
     {
         var handler = new GetStaffHandler(_userRepo);
 
-        var result = await handler.HandleAsync(new GetStaffQuery(null, null, null, Page: 0, PageSize: 10));
+        var result = await handler.HandleAsync(new GetStaffQuery(null, null, null, null, Page: 0, PageSize: 10));
 
         result.Page.Should().Be(1);
     }
@@ -45,10 +45,10 @@ public class GetStaffHandlerTests
     {
         var handler = new GetStaffHandler(_userRepo);
 
-        await handler.HandleAsync(new GetStaffQuery(null, null, null, Page: 1, PageSize: 999));
+        await handler.HandleAsync(new GetStaffQuery(null, null, null, null, Page: 1, PageSize: 999));
 
         await _userRepo.Received(1).GetStaffPagedAsync(
-            Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
+            Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
             1, 100, Arg.Any<CancellationToken>());
     }
 
@@ -63,14 +63,14 @@ public class GetStaffHandlerTests
             User.Create("u1", "a@test.com", "h", UserRole.Staff),
             User.Create("u2", "b@test.com", "h", UserRole.Dentist),
         };
-        _userRepo.GetStaffPagedAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
+        _userRepo.GetStaffPagedAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
             Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns((users.AsReadOnly(), 20));
         _userRepo.GetStaffStatsAsync(Arg.Any<CancellationToken>())
             .Returns(new StaffStatsResult(20, 5, 3));
         var handler = new GetStaffHandler(_userRepo);
 
-        var result = await handler.HandleAsync(new GetStaffQuery(null, null, null, 1, 10));
+        var result = await handler.HandleAsync(new GetStaffQuery(null, null, null, null, 1, 10));
 
         result.TotalCount.Should().Be(20);
         result.Items.Should().HaveCount(2);
@@ -86,7 +86,7 @@ public class GetStaffHandlerTests
             .Returns(new StaffStatsResult(10, 3, 2));
         var handler = new GetStaffHandler(_userRepo);
 
-        var result = await handler.HandleAsync(new GetStaffQuery(null, null, null, 1, 10));
+        var result = await handler.HandleAsync(new GetStaffQuery(null, null, null, null, 1, 10));
 
         result.Statistics.TotalEmployees.Should().Be(10);
         result.Statistics.TotalDentists.Should().Be(3);
@@ -101,7 +101,7 @@ public class GetStaffHandlerTests
     {
         var handler = new GetStaffHandler(_userRepo);
 
-        var result = await handler.HandleAsync(new GetStaffQuery(null, null, null, Page: 1, PageSize: 0));
+        var result = await handler.HandleAsync(new GetStaffQuery(null, null, null, null, Page: 1, PageSize: 0));
 
         result.PageSize.Should().Be(1);
     }
@@ -114,13 +114,13 @@ public class GetStaffHandlerTests
     {
         var handler = new GetStaffHandler(_userRepo);
 
-        var result = await handler.HandleAsync(new GetStaffQuery(null, null, null, Page: -999, PageSize: 10));
+        var result = await handler.HandleAsync(new GetStaffQuery(null, null, null, null, Page: -999, PageSize: 10));
 
         result.Page.Should().Be(1);
     }
 
     /// <summary>
-    /// Các tham số Search/Role/Status phải được truyền nguyên vẹn xuống repository,
+    /// Các tham số Search/Role/Status/Specialty phải được truyền nguyên vẹn xuống repository,
     /// không bị handler biến đổi hay lọc bớt.
     /// </summary>
     [Test]
@@ -128,9 +128,10 @@ public class GetStaffHandlerTests
     {
         var handler = new GetStaffHandler(_userRepo);
 
-        await handler.HandleAsync(new GetStaffQuery(Search: "nguyen", Role: "Dentist", Status: "Active", Page: 2, PageSize: 5));
+        await handler.HandleAsync(new GetStaffQuery(
+            Search: "nguyen", Role: "Dentist", Status: "Active", Specialty: "Nha chu", Page: 2, PageSize: 5));
 
         await _userRepo.Received(1).GetStaffPagedAsync(
-            "nguyen", "Dentist", "Active", 2, 5, Arg.Any<CancellationToken>());
+            "nguyen", "Dentist", "Active", "Nha chu", 2, 5, Arg.Any<CancellationToken>());
     }
 }

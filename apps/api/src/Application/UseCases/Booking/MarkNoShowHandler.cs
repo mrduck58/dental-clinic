@@ -53,6 +53,9 @@ public class MarkNoShowHandler(
             targetId: appointmentId.ToString(),
             ct: ct);
 
+        // AppointmentDate lưu UTC — phải quy về giờ VN trước khi ghép vào nội dung cho người đọc.
+        var vnDate = TimeZoneInfo.ConvertTime(appointment.AppointmentDate, AppointmentStatusHelper.VietnamTz);
+
         var dentistUserId = await appointmentRepository.GetDentistUserIdAsync(appointment.DentistId, ct);
         if (dentistUserId.HasValue)
         {
@@ -61,7 +64,7 @@ public class MarkNoShowHandler(
                 Type: NotificationType.Appointment,
                 Priority: NotificationPriority.Medium,
                 Title: "Bệnh nhân vắng mặt",
-                Body: $"Bệnh nhân không đến khám lịch hẹn vào {appointment.AppointmentDate:dd/MM/yyyy HH:mm}.",
+                Body: $"Bệnh nhân không đến khám lịch hẹn vào {vnDate:dd/MM/yyyy HH:mm}.",
                 RelatedEntityType: "Appointment",
                 RelatedEntityId: appointmentId.ToString()), ct);
         }

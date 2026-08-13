@@ -13,14 +13,13 @@ import {
   type NotificationDto,
 } from "../../../lib/apiClient";
 
+// key phải trùng NotificationType ở API (chữ thường) — API so sánh chính xác, không bỏ qua hoa/thường.
 const FILTERS = [
   { key: "all",         label: "Tất cả"        },
   { key: "unread",      label: "Chưa đọc"      },
   { key: "appointment", label: "Đặt lịch"      },
   { key: "invoice",     label: "Hóa đơn"       },
   { key: "schedule",    label: "Lịch làm việc" },
-  { key: "reminder",    label: "Nhắc nhở"      },
-  { key: "system",      label: "Hệ thống"      },
 ];
 
 function getNotifHref(relatedEntityType: string | null, relatedEntityId: string | null): string | null {
@@ -97,7 +96,7 @@ export default function NotificationsPage() {
     setLoading(true);
     try {
       const res = await getNotificationsApi({
-        type:   filter !== "all" && filter !== "unread" ? filter.charAt(0).toUpperCase() + filter.slice(1) : undefined,
+        type:   filter !== "all" && filter !== "unread" ? filter : undefined,
         isRead: filter === "unread" ? false : undefined,
         pageSize: 50,
         page: 1,

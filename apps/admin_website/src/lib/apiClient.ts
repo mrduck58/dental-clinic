@@ -335,13 +335,16 @@ export async function getStaffApi(params?: {
   search?: string;
   role?: string;
   status?: string;
+  /** Chuyên khoa (nha sĩ) hoặc chức vụ / bộ phận (nhân viên) */
+  specialty?: string;
   page?: number;
   pageSize?: number;
 }): Promise<StaffListResponse> {
   const qs = new URLSearchParams();
-  if (params?.search)   qs.set("search",   params.search);
-  if (params?.role)     qs.set("role",     params.role);
-  if (params?.status)   qs.set("status",   params.status);
+  if (params?.search)    qs.set("search",    params.search);
+  if (params?.role)      qs.set("role",      params.role);
+  if (params?.status)    qs.set("status",    params.status);
+  if (params?.specialty) qs.set("specialty", params.specialty);
   if (params?.page)     qs.set("page",     String(params.page));
   if (params?.pageSize) qs.set("pageSize", String(params.pageSize));
   const query = qs.toString() ? `?${qs.toString()}` : "";

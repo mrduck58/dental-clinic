@@ -9,6 +9,7 @@ public record GetStaffQuery(
     string? Search,
     string? Role,
     string? Status,
+    string? Specialty,
     int Page,
     int PageSize);
 
@@ -63,7 +64,7 @@ public class GetStaffHandler(IUserRepository userRepository)
         var pageSize = Math.Clamp(query.PageSize, 1, 100);
 
         var (items, total) = await userRepository.GetStaffPagedAsync(
-            query.Search, query.Role, query.Status, page, pageSize, ct);
+            query.Search, query.Role, query.Status, query.Specialty, page, pageSize, ct);
 
         var stats = await userRepository.GetStaffStatsAsync(ct);
 

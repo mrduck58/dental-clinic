@@ -18,12 +18,13 @@ public class StaffController(
         [FromQuery] string? search,
         [FromQuery] string? role,
         [FromQuery] string? status,
+        [FromQuery] string? specialty,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10,
         CancellationToken cancellationToken = default)
     {
         var result = await getStaffHandler.HandleAsync(
-            new GetStaffQuery(search, role, status, page, pageSize),
+            new GetStaffQuery(search, role, status, specialty, page, pageSize),
             cancellationToken);
 
         return Ok(result);
