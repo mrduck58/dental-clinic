@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback, Suspense } fr
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import OwnerSidebar from "../../../../components/shared/OwnerSidebar";
-import NotificationBell from "../../../../components/shared/NotificationBell";
+import OwnerPageHeader from "../../../../components/shared/OwnerPageHeader";
 import { useRequireOwner } from "../../../../hooks/useRequireOwner";
 import { getWeekScheduleApi, saveWeekScheduleApi, getStaffApi, getRoomsApi, type RoomDto } from "../../../../lib/apiClient";
 import { SHIFTS, SHIFT_PERIODS, shiftsByPeriod, shiftLabel, type ShiftDef } from "../../../../lib/shifts";
@@ -1288,16 +1288,10 @@ function EditScheduleContent() {
       <main className="flex-1 flex flex-col min-w-0">
 
         {/* HEADER */}
-        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-16 flex items-center justify-between shrink-0 font-sans shadow-sm shadow-slate-100/50">
-          <div className="flex flex-col">
-            <h1 className="text-[18px] font-black text-slate-900 leading-tight">Chỉnh sửa lịch làm việc</h1>
-            <p className="text-[12.5px] text-slate-400 font-semibold mt-0.5">Quản lý ca trực và lịch làm việc nhân sự</p>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <NotificationBell />
-          </div>
-        </header>
+        <OwnerPageHeader
+          title="Chỉnh sửa lịch làm việc"
+          subtitle="Quản lý ca trực và lịch làm việc nhân sự"
+        />
 
         {/* TOAST SYSTEM */}
         {toast && (

@@ -1,4 +1,5 @@
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Infrastructure.Persistence;
 using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
@@ -28,7 +29,7 @@ public class PatientRepositoryTests
 
     private async Task<Patient> SeedWalkInPatientAsync(string fullName, string phone)
     {
-        var user = User.CreateEmployee($"walkin-{Guid.NewGuid()}@songiangdental.com", "Patient", phoneNumber: phone, fullName: fullName);
+        var user = User.CreateEmployee($"walkin-{Guid.NewGuid()}@songiangdental.com", UserRole.Patient, phoneNumber: phone, fullName: fullName);
         _db.Users.Add(user);
         var patient = Patient.Create(user.Id, new DateOnly(1990, 1, 1), "Nam", phoneNumber: phone);
         _db.Patients.Add(patient);
@@ -67,7 +68,7 @@ public class PatientRepositoryTests
     [Test]
     public async Task SearchAsync_MatchesPhoneOfLinkedUserAccount()
     {
-        var user = User.Create("u1", "u1@test.com", "hash", "Patient",
+        var user = User.Create("u1", "u1@test.com", "hash", UserRole.Patient,
             phoneNumber: "0903333333", fullName: "Lê Minh Quân");
         _db.Users.Add(user);
         var patient = Patient.Create(user.Id, new DateOnly(1992, 3, 3), "Nam");

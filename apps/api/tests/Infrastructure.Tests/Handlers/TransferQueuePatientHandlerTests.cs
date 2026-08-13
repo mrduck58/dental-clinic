@@ -1,8 +1,10 @@
-using DentalClinic.API.Application.UseCases.Appointments;
+using DentalClinic.API.Application.UseCases.Queue;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using NSubstitute;
@@ -34,20 +36,33 @@ public class TransferQueuePatientHandlerTests
         _currentUser.UserId.Returns(Guid.NewGuid());
         _currentUser.UserName.Returns("Lễ tân Test");
         _currentUser.UserRole.Returns("Staff");
-        _handler = new TransferQueuePatientHandler(_db, _activityLogService, _notificationService, _currentUser);
+        _handler = new TransferQueuePatientHandler(
+            new AppointmentRepository(_db), new WorkScheduleRepository(_db), new DentistRepository(_db),
+            _activityLogService, _notificationService, _currentUser);
     }
 
     [TearDown]
     public async Task TearDown() => await _db.DisposeAsync();
 
     private static DateTimeOffset NowVietnam() => TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, VietnamTz);
-    private static string CurrentShiftCode() => NowVietnam().Hour < 12 ? "morning" : "afternoon";
+
+    /// <summary>Ca legacy ("morning"/"afternoon") mà <c>WorkShifts.ShiftCovers</c> THẬT SỰ coi là bao trùm
+    /// thời điểm hiện tại (08:00-12:00 / 13:30-17:30) — không phải suy diễn "trước/sau 12h" như cũ (sai vì bỏ
+    /// sót giờ nghỉ trưa 12:00-13:30 và sau 17:30, khiến test flaky ngoài giờ làm). Trả null nếu đang trong
+    /// khung không ca nào che phủ — khi đó test phụ thuộc giờ thật nên tự bỏ qua qua <see cref="Assert.Ignore"/>.</summary>
+    private static string? CurrentShiftCodeOrNull()
+    {
+        var minutesOfDay = NowVietnam().Hour * 60 + NowVietnam().Minute;
+        if (minutesOfDay >= 8 * 60 && minutesOfDay < 12 * 60) return "morning";
+        if (minutesOfDay >= 13 * 60 + 30 && minutesOfDay < 17 * 60 + 30) return "afternoon";
+        return null;
+    }
 
     /// <summary>Thiếu tên phòng đích phải báo lỗi ValidationException.</summary>
     [Test]
     public async Task HandleAsync_EmptyRoomName_ThrowsValidationException()
     {
-        Func<Task> act = () => _handler.HandleAsync(Guid.NewGuid(), "  ");
+        Func<Task> act = () => _handler.Handle(new TransferQueuePatientCommand(Guid.NewGuid(), "  "), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -56,7 +71,7 @@ public class TransferQueuePatientHandlerTests
     [Test]
     public async Task HandleAsync_AppointmentNotFound_ThrowsNotFoundException()
     {
-        Func<Task> act = () => _handler.HandleAsync(Guid.NewGuid(), "Phòng 101");
+        Func<Task> act = () => _handler.Handle(new TransferQueuePatientCommand(Guid.NewGuid(), "Phòng 101"), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -66,18 +81,22 @@ public class TransferQueuePatientHandlerTests
     [Test]
     public async Task HandleAsync_AppointmentNotCheckedIn_ThrowsConflictException()
     {
-        var dentistUser = User.Create("tq1", $"tq1-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        var dentistUser = User.Create("tq1", $"tq1-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist);
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
         var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         _db.Patients.Add(patient);
         var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
         appointment.Confirm();
         _db.Appointments.Add(appointment);
         await _db.SaveChangesAsync();
 
-        Func<Task> act = () => _handler.HandleAsync(appointment.Id, "Phòng 101");
+        Func<Task> act = () => _handler.Handle(new TransferQueuePatientCommand(appointment.Id, "Phòng 101"), CancellationToken.None);
 
         await act.Should().ThrowAsync<ConflictException>();
     }
@@ -86,18 +105,22 @@ public class TransferQueuePatientHandlerTests
     [Test]
     public async Task HandleAsync_NoDentistOnShiftAtTargetRoom_ThrowsConflictException()
     {
-        var dentistUser = User.Create("tq2", $"tq2-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        var dentistUser = User.Create("tq2", $"tq2-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist);
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
         var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         _db.Patients.Add(patient);
         var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
         appointment.CheckIn();
         _db.Appointments.Add(appointment);
         await _db.SaveChangesAsync();
 
-        Func<Task> act = () => _handler.HandleAsync(appointment.Id, "Phòng Không Có Ai");
+        Func<Task> act = () => _handler.Handle(new TransferQueuePatientCommand(appointment.Id, "Phòng Không Có Ai"), CancellationToken.None);
 
         await act.Should().ThrowAsync<ConflictException>();
     }
@@ -107,18 +130,25 @@ public class TransferQueuePatientHandlerTests
     [Test]
     public async Task HandleAsync_ValidTransfer_ReassignsDentistLogsAndNotifies()
     {
+        var shift = CurrentShiftCodeOrNull();
+        if (shift is null)
+            Assert.Ignore("Đang ngoài giờ làm (giờ nghỉ trưa/tối) — không có ca legacy nào che phủ 'bây giờ' để test.");
         var today = DateOnly.FromDateTime(NowVietnam().Date);
-        var shift = CurrentShiftCode();
 
-        var sourceDentistUser = User.Create("tq3", $"tq3-{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: "BS Nguồn");
-        var targetDentistUser = User.Create("tq4", $"tq4-{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: "BS Đích");
+        var sourceDentistUser = User.Create("tq3", $"tq3-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: "BS Nguồn");
+        var targetDentistUser = User.Create("tq4", $"tq4-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: "BS Đích");
         _db.Users.AddRange(sourceDentistUser, targetDentistUser);
-        var sourceDentist = Dentist.Create(sourceDentistUser.Id, "Nha khoa tổng quát", 5);
-        var targetDentist = Dentist.Create(targetDentistUser.Id, "Nha khoa tổng quát", 5);
-        sourceDentist.User = sourceDentistUser;
-        targetDentist.User = targetDentistUser;
+        var sourceEmployee = Employee.Create(sourceDentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        var targetEmployee = Employee.Create(targetDentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        sourceEmployee.User = sourceDentistUser;
+        targetEmployee.User = targetDentistUser;
+        var sourceDentist = DentistProfile.Create(sourceEmployee.Id, "Nha khoa tổng quát", "N/A", 5);
+        var targetDentist = DentistProfile.Create(targetEmployee.Id, "Nha khoa tổng quát", "N/A", 5);
+        sourceDentist.Employee = sourceEmployee;
+        targetDentist.Employee = targetEmployee;
         var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
-        _db.Dentists.AddRange(sourceDentist, targetDentist);
+        _db.Employees.AddRange(sourceEmployee, targetEmployee);
+        _db.DentistProfiles.AddRange(sourceDentist, targetDentist);
         _db.Patients.Add(patient);
         _db.WorkSchedules.Add(WorkSchedule.Create(
             today, shift, "dentist", "dentist", targetDentist.FullName, "Phòng Đích", "border-primary", false));
@@ -127,7 +157,7 @@ public class TransferQueuePatientHandlerTests
         _db.Appointments.Add(appointment);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(appointment.Id, "Phòng Đích");
+        var result = await _handler.Handle(new TransferQueuePatientCommand(appointment.Id, "Phòng Đích"), CancellationToken.None);
 
         result.DentistId.Should().Be(targetDentist.Id);
         (await _db.Appointments.SingleAsync(a => a.Id == appointment.Id)).DentistId.Should().Be(targetDentist.Id);
@@ -144,14 +174,19 @@ public class TransferQueuePatientHandlerTests
     [Test]
     public async Task HandleAsync_TargetIsSameAsCurrentDentist_IsNoOp()
     {
+        var shift = CurrentShiftCodeOrNull();
+        if (shift is null)
+            Assert.Ignore("Đang ngoài giờ làm (giờ nghỉ trưa/tối) — không có ca legacy nào che phủ 'bây giờ' để test.");
         var today = DateOnly.FromDateTime(NowVietnam().Date);
-        var shift = CurrentShiftCode();
-        var dentistUser = User.Create("tq5", $"tq5-{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: "BS Trực");
+        var dentistUser = User.Create("tq5", $"tq5-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: "BS Trực");
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
-        dentist.User = dentistUser;
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
         var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         _db.Patients.Add(patient);
         _db.WorkSchedules.Add(WorkSchedule.Create(
             today, shift, "dentist", "dentist", dentist.FullName, "Phòng Hiện Tại", "border-primary", false));
@@ -160,7 +195,7 @@ public class TransferQueuePatientHandlerTests
         _db.Appointments.Add(appointment);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(appointment.Id, "Phòng Hiện Tại");
+        var result = await _handler.Handle(new TransferQueuePatientCommand(appointment.Id, "Phòng Hiện Tại"), CancellationToken.None);
 
         result.DentistId.Should().Be(dentist.Id);
         await _activityLogService.DidNotReceive().LogAsync(

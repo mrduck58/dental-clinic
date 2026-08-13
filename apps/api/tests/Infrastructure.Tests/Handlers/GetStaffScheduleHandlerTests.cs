@@ -1,6 +1,8 @@
-using DentalClinic.API.Application.UseCases.Appointments;
+using DentalClinic.API.Application.UseCases.Booking;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using NUnit.Framework;
@@ -21,7 +23,9 @@ public class GetStaffScheduleHandlerTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         _db = new AppDbContext(options);
-        _handler = new GetStaffScheduleHandler(_db);
+        _handler = new GetStaffScheduleHandler(
+            new WorkScheduleRepository(_db), new UserRepository(_db), new EmployeeRepository(_db),
+            new DentistRepository(_db), new AppointmentRepository(_db));
     }
 
     [TearDown]
@@ -29,15 +33,12 @@ public class GetStaffScheduleHandlerTests
 
     private async Task<User> SeedActiveDentistUserAsync(string fullName, string employmentStatus = "Active")
     {
-        var user = User.Create($"u-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: fullName);
-        user.SetStaffProfile(new StaffProfileData(
-            EmployeeId: null, Department: null, EmploymentStatus: employmentStatus, ProfilePictureUrl: null,
-            ProfessionalNotes: null, Specialty: null, LicenseNumber: null, YearsOfExperience: null,
-            Gender: null, DateOfBirth: null, Address: null, StartDate: null, ServicesHandled: null,
-            CertificateIssuedDate: null, CertificateIssuedBy: null, Education: null, Bio: null,
-            Position: null, EmploymentType: null, BaseSalary: null, SalaryUnit: null,
-            LeaveAccrued: null, Allowance: null));
+        var user = User.Create($"u-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: fullName);
         _db.Users.Add(user);
+        var employee = Employee.Create(user.Id, $"DT-{Guid.NewGuid():N}", employmentStatus: employmentStatus);
+        employee.User = user;
+        user.AttachEmployee(employee);
+        _db.Employees.Add(employee);
         await _db.SaveChangesAsync();
         return user;
     }
@@ -55,7 +56,7 @@ public class GetStaffScheduleHandlerTests
             Today, "ca-khong-ton-tai", "dentist", "dentist", user.FullName!, "Phòng 2", "border-primary", false));
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(Today);
+        var result = await _handler.Handle(new GetStaffScheduleQuery(Today), CancellationToken.None);
 
         result.Dentists.Should().BeEmpty();
     }
@@ -72,7 +73,7 @@ public class GetStaffScheduleHandlerTests
             Today, "08:00-10:00", "dentist", "dentist", user.FullName!, "Phòng 1", "border-primary", false));
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(Today);
+        var result = await _handler.Handle(new GetStaffScheduleQuery(Today), CancellationToken.None);
 
         var dentist = result.Dentists.Should().ContainSingle().Subject;
         dentist.Name.Should().Be("BS. Nguyễn Văn Hùng");
@@ -91,7 +92,7 @@ public class GetStaffScheduleHandlerTests
             Today, "10:00-12:00", "dentist", "dentist", user.FullName!, "Phòng 3", "border-primary", false));
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(Today);
+        var result = await _handler.Handle(new GetStaffScheduleQuery(Today), CancellationToken.None);
 
         var dentist = result.Dentists.Should().ContainSingle().Subject;
         dentist.Slots.Select(s => s.Time).Should().Equal("10:00", "10:30", "11:00", "11:30");
@@ -109,7 +110,7 @@ public class GetStaffScheduleHandlerTests
             WorkSchedule.Create(Today, "10:00-12:00", "dentist", "dentist", user.FullName!, "Phòng 4", "border-primary", false));
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(Today);
+        var result = await _handler.Handle(new GetStaffScheduleQuery(Today), CancellationToken.None);
 
         var dentist = result.Dentists.Should().ContainSingle().Subject;
         dentist.Slots.Select(s => s.Time).Should()
@@ -134,7 +135,7 @@ public class GetStaffScheduleHandlerTests
             WorkSchedule.Create(Today, "08:00-10:00", "dentist", "dentist", d.FullName!, "Phòng 10", "border-primary", false));
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(Today);
+        var result = await _handler.Handle(new GetStaffScheduleQuery(Today), CancellationToken.None);
 
         result.Dentists.Select(x => x.Room).Should().Equal("Phòng 1", "Phòng 3", "Phòng 10", "Phòng Test");
     }
@@ -148,7 +149,7 @@ public class GetStaffScheduleHandlerTests
             Today, "19:30-21:30", "dentist", "dentist", user.FullName!, "Phòng 5", "border-primary", false));
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(Today);
+        var result = await _handler.Handle(new GetStaffScheduleQuery(Today), CancellationToken.None);
 
         var dentist = result.Dentists.Should().ContainSingle().Subject;
         dentist.Slots.Select(s => s.Time).Should().Equal("19:30", "20:00", "20:30", "21:00");
@@ -167,7 +168,7 @@ public class GetStaffScheduleHandlerTests
             WorkSchedule.Create(Today, "ca-khong-ton-tai", "dentist", "dentist", user.FullName!, "Phòng 2", "border-secondary", false));
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(Today);
+        var result = await _handler.Handle(new GetStaffScheduleQuery(Today), CancellationToken.None);
 
         var dentist = result.Dentists.Should().ContainSingle().Subject;
         dentist.Slots.Should().NotBeEmpty();
@@ -177,7 +178,7 @@ public class GetStaffScheduleHandlerTests
     [Test]
     public async Task HandleAsync_NoWorkSchedulesToday_ReturnsEmptyDentistList()
     {
-        var result = await _handler.HandleAsync(Today);
+        var result = await _handler.Handle(new GetStaffScheduleQuery(Today), CancellationToken.None);
 
         result.Dentists.Should().BeEmpty();
     }
@@ -192,7 +193,7 @@ public class GetStaffScheduleHandlerTests
             yesterday, "morning", "dentist", "dentist", user.FullName!, "Phòng 1", "border-primary", false));
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(yesterday);
+        var result = await _handler.Handle(new GetStaffScheduleQuery(yesterday), CancellationToken.None);
 
         var dentist = result.Dentists.Should().ContainSingle().Subject;
         dentist.Slots.Should().OnlyContain(s => s.IsPast);
@@ -208,7 +209,7 @@ public class GetStaffScheduleHandlerTests
             nextWeek, "morning", "dentist", "dentist", user.FullName!, "Phòng 1", "border-primary", false));
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(nextWeek);
+        var result = await _handler.Handle(new GetStaffScheduleQuery(nextWeek), CancellationToken.None);
 
         var dentist = result.Dentists.Should().ContainSingle().Subject;
         dentist.Slots.Should().OnlyContain(s => !s.IsPast);
@@ -225,21 +226,21 @@ public class GetStaffScheduleHandlerTests
         _db.WorkSchedules.Add(WorkSchedule.Create(
             Today, "08:00-10:00", "dentist", "dentist", user.FullName!, "Phòng 1", "border-primary", false));
 
-        var patientUser = User.Create("bn1", $"{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: "Nguyễn Văn Bệnh Nhân");
+        var patientUser = User.Create("bn1", $"{Guid.NewGuid()}@test.com", "hash", UserRole.Patient, fullName: "Nguyễn Văn Bệnh Nhân");
         _db.Users.Add(patientUser);
         var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
         patient.User = patientUser;
         _db.Patients.Add(patient);
-        var dentist = Dentist.Create(user.Id, "Nha khoa tổng quát", 5);
-        dentist.User = user;
-        _db.Dentists.Add(dentist);
+        var dentist = DentistProfile.Create(user.Employee!.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = user.Employee!;
+        _db.DentistProfiles.Add(dentist);
         await _db.SaveChangesAsync();
 
         var appointmentDate = new DateTimeOffset(Today.Year, Today.Month, Today.Day, 8, 0, 0, TimeSpan.FromHours(7));
         _db.Appointments.Add(Appointment.Create(patient.Id, dentist.Id, appointmentDate));
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(Today);
+        var result = await _handler.Handle(new GetStaffScheduleQuery(Today), CancellationToken.None);
 
         var dto = result.Dentists.Should().ContainSingle().Subject;
         var slot = dto.Slots.Single(s => s.Time == "08:00");
@@ -258,23 +259,23 @@ public class GetStaffScheduleHandlerTests
         var user = await SeedActiveDentistUserAsync("BS. Có lịch hủy");
         _db.WorkSchedules.Add(WorkSchedule.Create(
             Today, "08:00-10:00", "dentist", "dentist", user.FullName!, "Phòng 1", "border-primary", false));
-        var patientUser = User.Create("bn2", $"{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: "Nguyễn Bệnh Nhân Hủy");
+        var patientUser = User.Create("bn2", $"{Guid.NewGuid()}@test.com", "hash", UserRole.Patient, fullName: "Nguyễn Bệnh Nhân Hủy");
         _db.Users.Add(patientUser);
         var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
         patient.User = patientUser;
         _db.Patients.Add(patient);
-        var dentist = Dentist.Create(user.Id, "Nha khoa tổng quát", 5);
-        dentist.User = user;
-        _db.Dentists.Add(dentist);
+        var dentist = DentistProfile.Create(user.Employee!.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = user.Employee!;
+        _db.DentistProfiles.Add(dentist);
         await _db.SaveChangesAsync();
 
         var appointmentDate = new DateTimeOffset(Today.Year, Today.Month, Today.Day, 8, 0, 0, TimeSpan.FromHours(7));
         var appt = Appointment.Create(patient.Id, dentist.Id, appointmentDate);
-        appt.Cancel("Bận việc");
+        appt.Cancel(CancellationReason.ChangeOfPlans, "Bận việc", cancelledByUserId: null, DateTimeOffset.UtcNow);
         _db.Appointments.Add(appt);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(Today);
+        var result = await _handler.Handle(new GetStaffScheduleQuery(Today), CancellationToken.None);
 
         var dto = result.Dentists.Should().ContainSingle().Subject;
         dto.Slots.Single(s => s.Time == "08:00").IsBooked.Should().BeFalse();
@@ -292,7 +293,7 @@ public class GetStaffScheduleHandlerTests
             Today, "08:00-10:00", "dentist", "dentist", user.FullName!, "Phòng 1", "border-primary", false));
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(Today);
+        var result = await _handler.Handle(new GetStaffScheduleQuery(Today), CancellationToken.None);
 
         result.Dentists.Should().BeEmpty();
     }
@@ -302,14 +303,14 @@ public class GetStaffScheduleHandlerTests
     [Test]
     public async Task HandleAsync_UserWithDoctorRole_IncludedInResult()
     {
-        var user = User.Create($"u-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", "Doctor", fullName: "BS. Vai trò Doctor");
+        var user = User.Create($"u-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: "BS. Vai trò Doctor");
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
         _db.WorkSchedules.Add(WorkSchedule.Create(
             Today, "08:00-10:00", "dentist", "dentist", user.FullName!, "Phòng 1", "border-primary", false));
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(Today);
+        var result = await _handler.Handle(new GetStaffScheduleQuery(Today), CancellationToken.None);
 
         result.Dentists.Should().ContainSingle(d => d.Name == "BS. Vai trò Doctor");
     }
@@ -325,7 +326,7 @@ public class GetStaffScheduleHandlerTests
             vietnamToday, "08:00-10:00", "dentist", "dentist", user.FullName!, "Phòng 1", "border-primary", false));
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(null);
+        var result = await _handler.Handle(new GetStaffScheduleQuery(null), CancellationToken.None);
 
         result.Date.Should().Be(vietnamToday);
         result.Dentists.Should().ContainSingle(d => d.Name == "BS. Hôm nay");

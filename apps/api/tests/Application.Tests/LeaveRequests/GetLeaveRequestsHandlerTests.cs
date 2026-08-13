@@ -26,7 +26,7 @@ public class GetLeaveRequestsHandlerTests
             .Returns(new List<LeaveRequest> { MakeRequest(), MakeRequest(), MakeRequest() });
         var handler = new GetLeaveRequestsHandler(_repo);
 
-        var result = await handler.HandleAsync(null, null);
+        var result = await handler.Handle(new GetLeaveRequestsQuery(null, null), CancellationToken.None);
 
         result.Should().HaveCount(3);
     }
@@ -43,7 +43,7 @@ public class GetLeaveRequestsHandlerTests
         _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<LeaveRequest> { pending, approved });
         var handler = new GetLeaveRequestsHandler(_repo);
 
-        var result = await handler.HandleAsync(status: "Pending", null);
+        var result = await handler.Handle(new GetLeaveRequestsQuery("Pending", null), CancellationToken.None);
 
         result.Should().HaveCount(1);
         result.Single().Status.Should().Be("Pending");
@@ -58,7 +58,7 @@ public class GetLeaveRequestsHandlerTests
         _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<LeaveRequest> { MakeRequest() });
         var handler = new GetLeaveRequestsHandler(_repo);
 
-        var result = await handler.HandleAsync(status: "Approved", null);
+        var result = await handler.Handle(new GetLeaveRequestsQuery("Approved", null), CancellationToken.None);
 
         result.Should().BeEmpty();
     }
@@ -74,7 +74,7 @@ public class GetLeaveRequestsHandlerTests
             .Returns(new List<LeaveRequest> { MakeRequest(), MakeRequest() });
         var handler = new GetLeaveRequestsHandler(_repo);
 
-        var result = await handler.HandleAsync(status: "   ", null);
+        var result = await handler.Handle(new GetLeaveRequestsQuery("   ", null), CancellationToken.None);
 
         result.Should().HaveCount(2);
     }
@@ -90,7 +90,7 @@ public class GetLeaveRequestsHandlerTests
         _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<LeaveRequest> { match, other });
         var handler = new GetLeaveRequestsHandler(_repo);
 
-        var result = await handler.HandleAsync(null, search: "văn a");
+        var result = await handler.Handle(new GetLeaveRequestsQuery(null, "văn a"), CancellationToken.None);
 
         result.Should().ContainSingle(r => r.Id == match.Id);
     }
@@ -107,7 +107,7 @@ public class GetLeaveRequestsHandlerTests
         _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<LeaveRequest> { match, other });
         var handler = new GetLeaveRequestsHandler(_repo);
 
-        var result = await handler.HandleAsync(null, search: "khám sức khỏe");
+        var result = await handler.Handle(new GetLeaveRequestsQuery(null, "khám sức khỏe"), CancellationToken.None);
 
         result.Should().ContainSingle(r => r.Id == match.Id);
     }
@@ -127,7 +127,7 @@ public class GetLeaveRequestsHandlerTests
             .Returns(new List<LeaveRequest> { matchBoth, wrongStatus, wrongSearch });
         var handler = new GetLeaveRequestsHandler(_repo);
 
-        var result = await handler.HandleAsync(status: "Pending", search: "ốm");
+        var result = await handler.Handle(new GetLeaveRequestsQuery("Pending", "ốm"), CancellationToken.None);
 
         result.Should().ContainSingle(r => r.Id == matchBoth.Id);
     }
@@ -143,7 +143,7 @@ public class GetLeaveRequestsHandlerTests
         _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<LeaveRequest> { lr });
         var handler = new GetLeaveRequestsHandler(_repo);
 
-        var result = await handler.HandleAsync(null, null);
+        var result = await handler.Handle(new GetLeaveRequestsQuery(null, null), CancellationToken.None);
 
         result.Single().UserFullName.Should().Be(lr.User.Email);
     }
@@ -152,7 +152,7 @@ public class GetLeaveRequestsHandlerTests
     {
         var today = DateOnly.FromDateTime(DateTime.Today);
         var lr = LeaveRequest.Create(Guid.NewGuid(), LeaveType.Annual, today, today.AddDays(2), reason);
-        var user = User.Create("emp", "emp@test.com", "hash", "Staff", null, fullName);
+        var user = User.Create("emp", "emp@test.com", "hash", UserRole.Staff, null, fullName);
         typeof(LeaveRequest).GetProperty("User")!.SetValue(lr, user);
         return lr;
     }

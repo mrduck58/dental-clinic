@@ -107,7 +107,12 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.Property<bool>("Success")
                         .HasColumnType("boolean");
 
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("UserId");
 
                     b.ToTable("AiUsageLogs");
                 });
@@ -130,6 +135,20 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("AppointmentDate")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("CancellationNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("CancellationReason")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTimeOffset?>("CancelledAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CancelledByUserId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTimeOffset?>("CheckedInAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -148,6 +167,9 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.Property<string>("FollowUpNote")
                         .HasColumnType("text");
 
+                    b.Property<DateTimeOffset?>("LastRescheduledAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("Notes")
                         .HasColumnType("text");
 
@@ -160,6 +182,11 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.Property<long?>("QueueOrder")
                         .HasColumnType("bigint");
 
+                    b.Property<int>("RescheduledCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
                     b.Property<Guid?>("ServiceId")
                         .HasColumnType("uuid");
 
@@ -170,6 +197,8 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CancellationReason");
 
                     b.HasIndex("DentistId");
 
@@ -345,23 +374,11 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("DentalClinic.API.Domain.Entities.Dentist", b =>
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.DentistProfile", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
-
-                    b.Property<string>("Address")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<decimal?>("Allowance")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal?>("BaseSalary")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
 
                     b.Property<string>("Biography")
                         .HasMaxLength(2000)
@@ -374,53 +391,20 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.Property<DateOnly?>("CertificateIssuedDate")
                         .HasColumnType("date");
 
-                    b.Property<DateOnly?>("DateOfBirth")
-                        .HasColumnType("date");
-
-                    b.Property<string>("Department")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
                     b.Property<string>("Education")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
-                    b.Property<string>("EmployeeId")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<string>("EmploymentStatus")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<string>("EmploymentType")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uuid");
 
                     b.Property<int?>("ExperienceYears")
                         .HasColumnType("integer");
-
-                    b.Property<decimal?>("LeaveAccrued")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("numeric(5,2)");
 
                     b.Property<string>("LicenseNumber")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
-
-                    b.Property<string>("Position")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("ProfilePictureUrl")
-                        .HasColumnType("text");
-
-                    b.Property<string>("SalaryUnit")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
 
                     b.Property<string>("Shift")
                         .IsRequired()
@@ -432,24 +416,21 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
-                    b.Property<DateOnly?>("StartDate")
-                        .HasColumnType("date");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId")
+                    b.HasIndex("EmployeeId")
                         .IsUnique();
 
-                    b.ToTable("Dentists");
+                    b.ToTable("DentistProfiles");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.DentistReview", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AppointmentId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("Comment")
@@ -478,10 +459,11 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("AppointmentId");
+
                     b.HasIndex("PatientId");
 
-                    b.HasIndex("DentistId", "PatientId")
-                        .IsUnique();
+                    b.HasIndex("DentistId", "PatientId");
 
                     b.ToTable("DentistReviews");
                 });
@@ -581,6 +563,74 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.ToTable("Diagnoses", (string)null);
                 });
 
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.Employee", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<decimal?>("Allowance")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal?>("BaseSalary")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateOnly?>("DateOfBirth")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Department")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("EmployeeId")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("EmploymentStatus")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("EmploymentType")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<decimal?>("LeaveAccrued")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<string>("Position")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("ProfilePictureUrl")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SalaryUnit")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateOnly?>("StartDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.ToTable("Employees");
+                });
+
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Feedback", b =>
                 {
                     b.Property<Guid>("Id")
@@ -600,6 +650,9 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<Guid?>("PatientId")
+                        .HasColumnType("uuid");
+
                     b.Property<int>("Rating")
                         .HasColumnType("integer");
 
@@ -616,6 +669,8 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(20)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("PatientId");
 
                     b.ToTable("Feedbacks");
 
@@ -747,6 +802,9 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.Property<int>("PaymentType")
                         .HasColumnType("integer");
 
+                    b.Property<Guid?>("PromotionId")
+                        .HasColumnType("uuid");
+
                     b.Property<int>("Status")
                         .HasColumnType("integer");
 
@@ -769,6 +827,8 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.HasIndex("ParentInvoiceId");
+
+                    b.HasIndex("PromotionId");
 
                     b.HasIndex("TreatmentPlanId");
 
@@ -868,11 +928,6 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("Content")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
                     b.Property<Guid?>("CourseId")
                         .HasColumnType("uuid");
 
@@ -883,6 +938,9 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DentistId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("DentistName")
                         .IsRequired()
@@ -908,9 +966,48 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("DentistId");
+
                     b.HasIndex("Status");
 
                     b.ToTable("MaterialRequests", (string)null);
+                });
+
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.MaterialRequestItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ItemName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<Guid>("MaterialRequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("SupplyItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("SupplyTransactionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MaterialRequestId");
+
+                    b.HasIndex("SupplyItemId");
+
+                    b.ToTable("MaterialRequestItems", (string)null);
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Medicine", b =>
@@ -1021,6 +1118,9 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(6)
@@ -1045,7 +1145,12 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("UserId");
 
                     b.HasIndex("Email", "Purpose", "IsUsed", "ExpiresAt");
 
@@ -1157,6 +1262,76 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.ToTable("PaymentTransactions", (string)null);
                 });
 
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.PayrollRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Allowance")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("AllowedLeaveDays")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<decimal>("BaseSalary")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("Deduction")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("ExceededDays")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<int>("LeaveDays")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Month")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("NetSalary")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTimeOffset?>("PaidAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Year", "Month");
+
+                    b.HasIndex("UserId", "Year", "Month")
+                        .IsUnique();
+
+                    b.ToTable("PayrollRecords");
+                });
+
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Post", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1247,6 +1422,9 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.Property<int?>("DurationDays")
                         .HasColumnType("integer");
 
+                    b.Property<Guid?>("MedicineId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("MedicineName")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -1279,6 +1457,8 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(500)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("MedicineId");
 
                     b.HasIndex("PrescriptionId");
 
@@ -1348,6 +1528,9 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("ClinicInfoId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -1384,6 +1567,8 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ClinicInfoId");
 
                     b.HasIndex("Code")
                         .IsUnique();
@@ -1441,74 +1626,6 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.ToTable("Services");
                 });
 
-            modelBuilder.Entity("DentalClinic.API.Domain.Entities.Staff", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Address")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<decimal?>("Allowance")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal?>("BaseSalary")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<DateOnly?>("DateOfBirth")
-                        .HasColumnType("date");
-
-                    b.Property<string>("Department")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("EmployeeId")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<string>("EmploymentStatus")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<string>("EmploymentType")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<decimal?>("LeaveAccrued")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("numeric(5,2)");
-
-                    b.Property<string>("Position")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("ProfilePictureUrl")
-                        .HasColumnType("text");
-
-                    b.Property<string>("SalaryUnit")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<DateOnly?>("StartDate")
-                        .HasColumnType("date");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId")
-                        .IsUnique();
-
-                    b.ToTable("Staffs");
-                });
-
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.SupplyItem", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1540,6 +1657,17 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<string>("OrderType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("standard");
+
+                    b.Property<decimal?>("Price")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<int>("Quantity")
                         .HasColumnType("integer");
@@ -1574,6 +1702,9 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<Guid?>("EmployeeId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Note")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
@@ -1589,7 +1720,13 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)");
 
+                    b.Property<decimal?>("UnitPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("EmployeeId");
 
                     b.HasIndex("SupplyItemId");
 
@@ -1697,6 +1834,11 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
 
+                    b.Property<int>("FailedLoginAttempts")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -1708,6 +1850,14 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset?>("LockoutEndAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("MustChangePassword")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
 
                     b.Property<string>("PasswordHash")
                         .HasColumnType("text");
@@ -1758,6 +1908,9 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.Property<DateOnly>("Date")
                         .HasColumnType("date");
 
+                    b.Property<Guid?>("EmployeeId")
+                        .HasColumnType("uuid");
+
                     b.Property<bool>("IsHoliday")
                         .HasColumnType("boolean");
 
@@ -1775,6 +1928,9 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<Guid?>("RoomId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Shift")
                         .IsRequired()
@@ -1795,12 +1951,34 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Date");
 
+                    b.HasIndex("EmployeeId");
+
+                    b.HasIndex("RoomId");
+
                     b.ToTable("WorkSchedules");
+                });
+
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.ActivityLog", b =>
+                {
+                    b.HasOne("DentalClinic.API.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.AiUsageLog", b =>
+                {
+                    b.HasOne("DentalClinic.API.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Appointment", b =>
                 {
-                    b.HasOne("DentalClinic.API.Domain.Entities.Dentist", "Dentist")
+                    b.HasOne("DentalClinic.API.Domain.Entities.DentistProfile", "Dentist")
                         .WithMany("Appointments")
                         .HasForeignKey("DentistId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1831,6 +2009,17 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.Navigation("Service");
                 });
 
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.ChatConversation", b =>
+                {
+                    b.HasOne("DentalClinic.API.Domain.Entities.Patient", "Patient")
+                        .WithMany()
+                        .HasForeignKey("PatientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Patient");
+                });
+
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.ChatMessage", b =>
                 {
                     b.HasOne("DentalClinic.API.Domain.Entities.ChatConversation", "Conversation")
@@ -1842,20 +2031,25 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.Navigation("Conversation");
                 });
 
-            modelBuilder.Entity("DentalClinic.API.Domain.Entities.Dentist", b =>
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.DentistProfile", b =>
                 {
-                    b.HasOne("DentalClinic.API.Domain.Entities.User", "User")
-                        .WithOne("Dentist")
-                        .HasForeignKey("DentalClinic.API.Domain.Entities.Dentist", "UserId")
+                    b.HasOne("DentalClinic.API.Domain.Entities.Employee", "Employee")
+                        .WithOne("DentistProfile")
+                        .HasForeignKey("DentalClinic.API.Domain.Entities.DentistProfile", "EmployeeId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("User");
+                    b.Navigation("Employee");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.DentistReview", b =>
                 {
-                    b.HasOne("DentalClinic.API.Domain.Entities.Dentist", "Dentist")
+                    b.HasOne("DentalClinic.API.Domain.Entities.Appointment", "Appointment")
+                        .WithMany()
+                        .HasForeignKey("AppointmentId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("DentalClinic.API.Domain.Entities.DentistProfile", "Dentist")
                         .WithMany()
                         .HasForeignKey("DentistId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1866,6 +2060,8 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                         .HasForeignKey("PatientId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Appointment");
 
                     b.Navigation("Dentist");
 
@@ -1883,6 +2079,27 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.Navigation("Appointment");
                 });
 
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.Employee", b =>
+                {
+                    b.HasOne("DentalClinic.API.Domain.Entities.User", "User")
+                        .WithOne("Employee")
+                        .HasForeignKey("DentalClinic.API.Domain.Entities.Employee", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.Feedback", b =>
+                {
+                    b.HasOne("DentalClinic.API.Domain.Entities.Patient", "Patient")
+                        .WithMany()
+                        .HasForeignKey("PatientId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Patient");
+                });
+
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Invoice", b =>
                 {
                     b.HasOne("DentalClinic.API.Domain.Entities.Appointment", "Appointment")
@@ -1896,12 +2113,18 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                         .HasForeignKey("ParentInvoiceId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("DentalClinic.API.Domain.Entities.Promotion", "Promotion")
+                        .WithMany()
+                        .HasForeignKey("PromotionId");
+
                     b.HasOne("DentalClinic.API.Domain.Entities.TreatmentPlan", null)
                         .WithMany("Invoices")
                         .HasForeignKey("TreatmentPlanId")
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Appointment");
+
+                    b.Navigation("Promotion");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.InvoiceItem", b =>
@@ -1922,6 +2145,50 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.MaterialRequest", b =>
+                {
+                    b.HasOne("DentalClinic.API.Domain.Entities.DentistProfile", "Dentist")
+                        .WithMany()
+                        .HasForeignKey("DentistId");
+
+                    b.Navigation("Dentist");
+                });
+
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.MaterialRequestItem", b =>
+                {
+                    b.HasOne("DentalClinic.API.Domain.Entities.MaterialRequest", null)
+                        .WithMany("Items")
+                        .HasForeignKey("MaterialRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("DentalClinic.API.Domain.Entities.SupplyItem", "SupplyItem")
+                        .WithMany()
+                        .HasForeignKey("SupplyItemId");
+
+                    b.Navigation("SupplyItem");
+                });
+
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.Notification", b =>
+                {
+                    b.HasOne("DentalClinic.API.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.OtpCode", b =>
+                {
+                    b.HasOne("DentalClinic.API.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId");
 
                     b.Navigation("User");
                 });
@@ -1955,6 +2222,17 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.Navigation("Invoice");
                 });
 
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.PayrollRecord", b =>
+                {
+                    b.HasOne("DentalClinic.API.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Post", b =>
                 {
                     b.HasOne("DentalClinic.API.Domain.Entities.Service", "Service")
@@ -1978,33 +2256,43 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.PrescriptionItem", b =>
                 {
+                    b.HasOne("DentalClinic.API.Domain.Entities.Medicine", "Medicine")
+                        .WithMany()
+                        .HasForeignKey("MedicineId");
+
                     b.HasOne("DentalClinic.API.Domain.Entities.Prescription", "Prescription")
                         .WithMany("Items")
                         .HasForeignKey("PrescriptionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("Medicine");
+
                     b.Navigation("Prescription");
                 });
 
-            modelBuilder.Entity("DentalClinic.API.Domain.Entities.Staff", b =>
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.Room", b =>
                 {
-                    b.HasOne("DentalClinic.API.Domain.Entities.User", "User")
-                        .WithOne("Staff")
-                        .HasForeignKey("DentalClinic.API.Domain.Entities.Staff", "UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                    b.HasOne("DentalClinic.API.Domain.Entities.ClinicInfo", "ClinicInfo")
+                        .WithMany()
+                        .HasForeignKey("ClinicInfoId");
 
-                    b.Navigation("User");
+                    b.Navigation("ClinicInfo");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.SupplyTransaction", b =>
                 {
+                    b.HasOne("DentalClinic.API.Domain.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId");
+
                     b.HasOne("DentalClinic.API.Domain.Entities.SupplyItem", "SupplyItem")
                         .WithMany("Transactions")
                         .HasForeignKey("SupplyItemId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Employee");
 
                     b.Navigation("SupplyItem");
                 });
@@ -2016,7 +2304,7 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                         .HasForeignKey("AppointmentId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("DentalClinic.API.Domain.Entities.Dentist", "Dentist")
+                    b.HasOne("DentalClinic.API.Domain.Entities.DentistProfile", "Dentist")
                         .WithMany()
                         .HasForeignKey("DentistId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -2054,6 +2342,21 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.Navigation("Service");
                 });
 
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.WorkSchedule", b =>
+                {
+                    b.HasOne("DentalClinic.API.Domain.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId");
+
+                    b.HasOne("DentalClinic.API.Domain.Entities.Room", "RoomNavigation")
+                        .WithMany()
+                        .HasForeignKey("RoomId");
+
+                    b.Navigation("Employee");
+
+                    b.Navigation("RoomNavigation");
+                });
+
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Appointment", b =>
                 {
                     b.Navigation("Diagnoses");
@@ -2072,9 +2375,14 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.Navigation("Messages");
                 });
 
-            modelBuilder.Entity("DentalClinic.API.Domain.Entities.Dentist", b =>
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.DentistProfile", b =>
                 {
                     b.Navigation("Appointments");
+                });
+
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.Employee", b =>
+                {
+                    b.Navigation("DentistProfile");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Invoice", b =>
@@ -2082,6 +2390,11 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
                     b.Navigation("Items");
 
                     b.Navigation("PaymentTransactions");
+                });
+
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.MaterialRequest", b =>
+                {
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.Patient", b =>
@@ -2108,11 +2421,9 @@ namespace DentalClinic.API.src.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.User", b =>
                 {
-                    b.Navigation("Dentist");
+                    b.Navigation("Employee");
 
                     b.Navigation("Patient");
-
-                    b.Navigation("Staff");
                 });
 #pragma warning restore 612, 618
         }

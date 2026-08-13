@@ -71,6 +71,21 @@ export default async function PostDetailPage({ params }: Props) {
                 {post.content}
               </div>
 
+              {/* Dịch vụ liên quan */}
+              {post.serviceId && (
+                <div className="mt-10">
+                  <Link
+                    href={`/dich-vu/${post.serviceId}`}
+                    className="inline-flex items-center gap-2 rounded-full bg-primary/10 hover:bg-primary/20 text-primary font-bold text-[14px] px-5 py-3 transition-colors"
+                  >
+                    Xem dịch vụ liên quan: {post.serviceName}
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                    </svg>
+                  </Link>
+                </div>
+              )}
+
               <div className="mt-12 pt-8 border-t border-slate-100">
                 <Link href="/tin-tuc" className="text-[14px] font-bold text-slate-500 hover:text-primary transition-colors inline-flex items-center gap-1.5">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">

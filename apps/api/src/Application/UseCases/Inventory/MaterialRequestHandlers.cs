@@ -1,9 +1,18 @@
+using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
-using DentalClinic.API.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
+using DentalClinic.API.Domain.Interfaces.Repositories;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Inventory;
+
+public class MaterialRequestItemDto
+{
+    public Guid Id { get; set; }
+    public string ItemName { get; set; } = string.Empty;
+    public int Quantity { get; set; }
+    public string Unit { get; set; } = string.Empty;
+}
 
 public class MaterialRequestDto
 {
@@ -11,40 +20,49 @@ public class MaterialRequestDto
     public string CourseName { get; set; } = string.Empty;
     public string PatientName { get; set; } = string.Empty;
     public string DentistName { get; set; } = string.Empty;
-    public string Content { get; set; } = string.Empty;
+    public List<MaterialRequestItemDto> Items { get; set; } = [];
     public string Status { get; set; } = string.Empty;
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? HandledAt { get; set; }
     public string? HandledBy { get; set; }
 }
 
-public record CreateMaterialRequestRequest(Guid AppointmentId, string Content);
+public record MaterialRequestItemInput(string ItemName, int Quantity, string Unit);
 
-/// <summary>Bác sĩ gửi yêu cầu vật tư từ buổi khám → sang trang nhập–xuất vật tư của staff.</summary>
-public class CreateMaterialRequestHandler(AppDbContext dbContext)
+public record CreateMaterialRequestRequest(Guid AppointmentId, List<MaterialRequestItemInput> Items) : IRequest<MaterialRequestDto>;
+
+/// <summary>Bác sĩ gửi yêu cầu vật tư (nhiều dòng) từ buổi khám → sang trang nhập–xuất vật tư của staff.</summary>
+public class CreateMaterialRequestHandler(
+    IAppointmentSummaryReader appointmentSummaryReader,
+    IMaterialRequestRepository materialRequestRepository)
+    : IRequestHandler<CreateMaterialRequestRequest, MaterialRequestDto>
 {
-    public async Task<MaterialRequestDto> HandleAsync(CreateMaterialRequestRequest request, CancellationToken ct = default)
+    public async Task<MaterialRequestDto> Handle(CreateMaterialRequestRequest request, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(request.Content))
-            throw new ValidationException("Nội dung yêu cầu vật tư không được để trống.");
+        if (request.Items is not { Count: > 0 })
+            throw new ValidationException("Yêu cầu vật tư phải có ít nhất 1 vật tư.");
 
-        var appt = await dbContext.Appointments
-            .AsNoTracking()
-            .Include(a => a.Patient)
-            .Include(a => a.Dentist)
-            .Include(a => a.Service)
-            .FirstOrDefaultAsync(a => a.Id == request.AppointmentId, ct)
+        foreach (var item in request.Items)
+        {
+            if (string.IsNullOrWhiteSpace(item.ItemName))
+                throw new ValidationException("Tên vật tư không được để trống.");
+            if (item.Quantity <= 0)
+                throw new ValidationException($"Số lượng của \"{item.ItemName}\" phải lớn hơn 0.");
+            if (!InventoryConstants.AllowedUnits.Contains(item.Unit))
+                throw new ValidationException($"Đơn vị của \"{item.ItemName}\" không hợp lệ. Vui lòng chọn từ danh sách.");
+        }
+
+        var appt = await appointmentSummaryReader.GetSummaryAsync(request.AppointmentId, ct)
             ?? throw new NotFoundException("Không tìm thấy lịch hẹn.");
 
         var mr = MaterialRequest.Create(
-            courseName: appt.Service?.Name ?? "Khám tổng quát",
-            patientName: appt.Patient.FullName,
-            dentistName: appt.Dentist.FullName,
-            content: request.Content.Trim(),
+            courseName: appt.ServiceName ?? "Khám tổng quát",
+            patientName: appt.PatientName,
+            dentistName: appt.DentistName,
+            items: request.Items.Select(i => (i.ItemName.Trim(), i.Quantity, i.Unit)),
             courseId: appt.PatientId); // dùng CourseId (cột cũ, không còn dùng cho course) để lưu PatientId
 
-        dbContext.MaterialRequests.Add(mr);
-        await dbContext.SaveChangesAsync(ct);
+        await materialRequestRepository.AddAsync(mr, ct);
 
         return new MaterialRequestDto
         {
@@ -52,36 +70,26 @@ public class CreateMaterialRequestHandler(AppDbContext dbContext)
             CourseName = mr.CourseName,
             PatientName = mr.PatientName,
             DentistName = mr.DentistName,
-            Content = mr.Content,
+            Items = mr.Items.Select(i => new MaterialRequestItemDto { Id = i.Id, ItemName = i.ItemName, Quantity = i.Quantity, Unit = i.Unit }).ToList(),
             Status = mr.Status.ToString(),
             CreatedAt = mr.CreatedAt
         };
     }
 }
 
+public record GetMaterialRequestsQuery(
+    string? Status = null,
+    Guid? PatientId = null,
+    string? PatientName = null) : IRequest<List<MaterialRequestDto>>;
+
 /// <summary>Danh sách yêu cầu vật tư từ bác sĩ (cho trang nhập–xuất vật tư của staff).</summary>
-public class GetMaterialRequestsHandler(AppDbContext dbContext)
+public class GetMaterialRequestsHandler(IMaterialRequestRepository materialRequestRepository)
+    : IRequestHandler<GetMaterialRequestsQuery, List<MaterialRequestDto>>
 {
-    public async Task<List<MaterialRequestDto>> HandleAsync(string? status, Guid? patientId = null, string? patientName = null, CancellationToken ct = default)
+    public async Task<List<MaterialRequestDto>> Handle(GetMaterialRequestsQuery query, CancellationToken ct)
     {
-        var query = dbContext.MaterialRequests.AsNoTracking().AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<MaterialRequestStatus>(status, true, out var st))
-            query = query.Where(m => m.Status == st);
-
-        // Lọc theo bệnh nhân: khớp PatientId (lưu ở CourseId) HOẶC tên (bao gồm dữ liệu cũ chưa có id).
-        var hasId = patientId is Guid;
-        var hasName = !string.IsNullOrWhiteSpace(patientName);
-        if (hasId && hasName)
-            query = query.Where(m => m.CourseId == patientId || m.PatientName == patientName);
-        else if (hasId)
-            query = query.Where(m => m.CourseId == patientId);
-        else if (hasName)
-            query = query.Where(m => m.PatientName == patientName);
-
-        var rows = await query
-            .OrderByDescending(m => m.CreatedAt)
-            .ToListAsync(ct);
+        var rows = await materialRequestRepository.SearchAsync(
+            query.Status, query.PatientId, query.PatientName, ct);
 
         return rows.Select(m => new MaterialRequestDto
         {
@@ -89,7 +97,7 @@ public class GetMaterialRequestsHandler(AppDbContext dbContext)
             CourseName = m.CourseName,
             PatientName = m.PatientName,
             DentistName = m.DentistName,
-            Content = m.Content,
+            Items = m.Items.Select(i => new MaterialRequestItemDto { Id = i.Id, ItemName = i.ItemName, Quantity = i.Quantity, Unit = i.Unit }).ToList(),
             Status = m.Status.ToString(),
             CreatedAt = m.CreatedAt,
             HandledAt = m.HandledAt,
@@ -98,15 +106,67 @@ public class GetMaterialRequestsHandler(AppDbContext dbContext)
     }
 }
 
-/// <summary>Đánh dấu một yêu cầu vật tư đã được kho xử lý.</summary>
-public class MarkMaterialRequestDoneHandler(AppDbContext dbContext)
+public record MaterialRequestItemPriceInput(Guid MaterialRequestItemId, decimal UnitPrice);
+
+public record MarkMaterialRequestDoneCommand(Guid Id, string HandledBy, List<MaterialRequestItemPriceInput> ItemPrices) : IRequest;
+
+/// <summary>
+/// Đánh dấu một yêu cầu vật tư đã được kho xử lý — staff phải nhập giá cho TỪNG item trước, sau đó
+/// nhập thẳng từng vật tư vào kho (tái dùng StockImportHandler cho mỗi dòng) với OrderType "custom"
+/// (đặt riêng cho bệnh nhân — vật tư này gắn với 1 yêu cầu điều trị cụ thể, không phải hàng tồn dùng chung),
+/// trong 1 transaction để không nửa vời nếu lỗi giữa chừng.
+/// </summary>
+public class MarkMaterialRequestDoneHandler(
+    IMaterialRequestRepository materialRequestRepository,
+    ISender sender) : IRequestHandler<MarkMaterialRequestDoneCommand>
 {
-    public async Task HandleAsync(Guid id, string handledBy, CancellationToken ct = default)
+    private const string DefaultCategory = "Vật liệu"; // chỉ dùng khi vật tư chưa từng có trong kho (xem StockImportHandler)
+    private const string PatientOrderType = "custom"; // "Đặt riêng cho bệnh nhân" — xem SupplyItem.OrderType
+
+    public async Task Handle(MarkMaterialRequestDoneCommand command, CancellationToken ct)
     {
-        var request = await dbContext.MaterialRequests.FirstOrDefaultAsync(m => m.Id == id, ct)
+        var request = await materialRequestRepository.GetByIdAsync(command.Id, ct)
             ?? throw new NotFoundException("Không tìm thấy yêu cầu vật tư.");
 
-        request.MarkDone(handledBy);
-        await dbContext.SaveChangesAsync(ct);
+        var priceByItemId = command.ItemPrices.ToDictionary(p => p.MaterialRequestItemId, p => p.UnitPrice);
+        foreach (var item in request.Items)
+        {
+            if (!priceByItemId.TryGetValue(item.Id, out var price))
+                throw new ValidationException($"Thiếu đơn giá cho vật tư \"{item.ItemName}\".");
+            if (price < 0)
+                throw new ValidationException($"Đơn giá của \"{item.ItemName}\" không được âm.");
+        }
+
+        // BeginTransactionAsync trả về null trên InMemory provider (dùng trong unit test, không hỗ trợ
+        // transaction) — chỉ bọc transaction thật khi chạy trên Postgres, tránh nửa vời nếu 1 item lỗi giữa
+        // vòng lặp.
+        var transaction = await materialRequestRepository.BeginTransactionAsync(ct);
+        try
+        {
+            foreach (var item in request.Items)
+            {
+                var tx = await sender.Send(
+                    new StockImportCommand(
+                        item.ItemName,
+                        item.Unit,
+                        DefaultCategory,
+                        item.Quantity,
+                        $"Theo yêu cầu vật tư: {request.CourseName} · BS {request.DentistName}",
+                        priceByItemId[item.Id],
+                        PatientOrderType,
+                        command.HandledBy),
+                    ct);
+                item.LinkSupplyTransaction(tx.Id);
+            }
+
+            request.MarkDone(command.HandledBy);
+            await materialRequestRepository.UpdateAsync(request, ct);
+
+            if (transaction is not null) await transaction.CommitAsync(ct);
+        }
+        finally
+        {
+            if (transaction is not null) await transaction.DisposeAsync();
+        }
     }
 }

@@ -1,6 +1,10 @@
 # Bỏ qua thư mục build output và dependencies — KHÔNG copy vào Docker image
-bin/
-obj/
+# "bin/"/"obj/" (không có "**/") chỉ khớp ở gốc build context, KHÔNG loại được
+# src/Domain/obj, src/Application/obj, src/Infrastructure/obj... — nếu sót, project.assets.json
+# restore trên Windows (trỏ fallback folder "C:\Program Files (x86)\..." chỉ có trên Windows) bị
+# copy nhầm vào image Linux, làm "dotnet publish --no-restore" báo lỗi ResolvePackageAssets.
+**/bin/
+**/obj/
 
 # Bỏ qua các file cấu hình môi trường nhạy cảm
 appsettings.Development.json

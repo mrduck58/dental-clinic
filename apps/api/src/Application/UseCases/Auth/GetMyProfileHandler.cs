@@ -1,7 +1,11 @@
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Auth;
+
+public record GetMyProfileQuery(Guid UserId) : IRequest<UserProfileDto>;
 
 public record UserProfileDto(
     Guid Id,
@@ -33,102 +37,48 @@ public record UserProfileDto(
     DateTimeOffset CreatedAt
 );
 
-public class GetMyProfileHandler(IUserRepository userRepository)
+public class GetMyProfileHandler(IUserRepository userRepository) : IRequestHandler<GetMyProfileQuery, UserProfileDto>
 {
-    public async Task<UserProfileDto> HandleAsync(Guid userId, CancellationToken ct = default)
+    public async Task<UserProfileDto> Handle(GetMyProfileQuery request, CancellationToken ct)
     {
-        var user = await userRepository.GetByIdAsync(userId, ct)
+        var user = await userRepository.GetByIdAsync(request.UserId, ct)
             ?? throw new NotFoundException("Không tìm thấy tài khoản.");
 
-        DateOnly? dob = user.Role switch
-        {
-            "Patient" => user.Patient?.DateOfBirth,
-            "Dentist" => user.Dentist?.DateOfBirth,
-            "Staff" => user.Staff?.DateOfBirth,
-            _ => null
-        };
-        string? address = user.Role switch
-        {
-            "Patient" => user.Patient?.Address,
-            "Dentist" => user.Dentist?.Address,
-            "Staff" => user.Staff?.Address,
-            _ => null
-        };
-        string? profilePic = user.Role switch
-        {
-            "Patient" => user.Patient?.ProfilePictureUrl,
-            "Dentist" => user.Dentist?.ProfilePictureUrl,
-            "Staff" => user.Staff?.ProfilePictureUrl,
-            _ => null
-        };
-        string? employeeId = user.Role switch
-        {
-            "Dentist" => user.Dentist?.EmployeeId,
-            "Staff" => user.Staff?.EmployeeId,
-            _ => null
-        };
-        string? department = user.Role switch
-        {
-            "Dentist" => user.Dentist?.Department,
-            "Staff" => user.Staff?.Department,
-            _ => null
-        };
-        string? employmentStatus = user.Role switch
-        {
-            "Dentist" => user.Dentist?.EmploymentStatus,
-            "Staff" => user.Staff?.EmploymentStatus,
-            _ => null
-        };
-        string? position = user.Role switch
-        {
-            "Dentist" => user.Dentist?.Position,
-            "Staff" => user.Staff?.Position,
-            _ => null
-        };
-        DateOnly? startDate = user.Role switch
-        {
-            "Dentist" => user.Dentist?.StartDate,
-            "Staff" => user.Staff?.StartDate,
-            _ => null
-        };
-        string? education = user.Role switch
-        {
-            "Dentist" => user.Dentist?.Education,
-            _ => null
-        };
-        string? bio = user.Role switch
-        {
-            "Dentist" => user.Dentist?.Biography,
-            _ => null
-        };
-        DateOnly? certIssuedDate = user.Role switch
-        {
-            "Dentist" => user.Dentist?.CertificateIssuedDate,
-            _ => null
-        };
-        string? certIssuedBy = user.Role switch
-        {
-            "Dentist" => user.Dentist?.CertificateIssuedBy,
-            _ => null
-        };
+        var employee = user.Employee;
+        var dentist = employee?.DentistProfile;
+        var isPatient = user.Role == UserRole.Patient;
+
+        DateOnly? dob = isPatient ? user.Patient?.DateOfBirth : employee?.DateOfBirth;
+        string? address = isPatient ? user.Patient?.Address : employee?.Address;
+        string? profilePic = isPatient ? user.Patient?.ProfilePictureUrl : employee?.ProfilePictureUrl;
+
+        string? employeeId = employee?.EmployeeId;
+        string? department = employee?.Department;
+        string? employmentStatus = employee?.EmploymentStatus;
+        string? position = employee?.Position;
+        DateOnly? startDate = employee?.StartDate;
+        string? education = dentist?.Education;
+        string? bio = dentist?.Biography;
+        DateOnly? certIssuedDate = dentist?.CertificateIssuedDate;
+        string? certIssuedBy = dentist?.CertificateIssuedBy;
 
         decimal baseSalary = 0;
         decimal allowance = 0;
         string salaryNote = string.Empty;
 
-        if (user.Role == "Dentist")
+        if (user.Role == UserRole.Dentist)
         {
             baseSalary = 40000000;
-            allowance = (user.Dentist?.ExperienceYears ?? 0) * 2000000;
+            allowance = (dentist?.ExperienceYears ?? 0) * 2000000;
             salaryNote = "Lương cơ bản bác sĩ + Phụ cấp theo số ca điều trị thực tế (phụ cấp chuyên môn)";
         }
-        else if (user.Role == "Admin")
+        else if (user.Role == UserRole.Admin)
         {
             baseSalary = 25000000;
             allowance = 5000000;
             salaryNote = "Lương cơ bản quản lý + Phụ cấp thâm niên";
         }
-        else if (user.Role == "Staff")
+        else if (user.Role == UserRole.Staff)
         {
             baseSalary = 12000000;
             allowance = 2000000;
@@ -143,15 +93,15 @@ public class GetMyProfileHandler(IUserRepository userRepository)
             dob,
             user.Gender,
             profilePic,
-            user.Role,
+            user.Role.ToString(),
             employeeId,
             department,
             employmentStatus,
             position,
             startDate,
-            user.Dentist?.Specialization,
-            user.Dentist?.LicenseNumber,
-            user.Dentist?.ExperienceYears,
+            dentist?.Specialization,
+            dentist?.LicenseNumber,
+            dentist?.ExperienceYears,
             education,
             bio,
             address,

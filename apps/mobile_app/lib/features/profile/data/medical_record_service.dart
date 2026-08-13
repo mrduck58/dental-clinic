@@ -120,6 +120,7 @@ class MedicalHistoryEvent {
   final String appointmentId;
   final String appointmentCode;
   final DateTime appointmentDate;
+  final String dentistId;
   final String dentistName;
   final String serviceName;
   final String? symptoms;
@@ -128,8 +129,6 @@ class MedicalHistoryEvent {
   final String patientRelationship; // "Tôi" cho chính bệnh nhân
   final DateTime? followUpDate;
   final String? followUpNote;
-  /// Chuỗi buổi hẹn gốc của lượt tái khám (đi ngược) — dùng để gộp liệu trình điều trị dài hạn
-  /// (niềng răng, cấy ghép...) xuyên suốt nhiều buổi tái khám thay vì chỉ khớp đúng 1 buổi hẹn.
   final List<String> relatedAppointmentIds;
   final List<MedicalHistoryDiagnosisItem> diagnoses;
   final List<MedicalHistoryPlanSummary> treatmentPlans;
@@ -139,6 +138,7 @@ class MedicalHistoryEvent {
     required this.appointmentId,
     required this.appointmentCode,
     required this.appointmentDate,
+    required this.dentistId,
     required this.dentistName,
     required this.serviceName,
     this.symptoms,
@@ -155,8 +155,6 @@ class MedicalHistoryEvent {
 
   bool get isJourney => treatmentPlans.any((p) => p.status == 'InProgress');
 
-  /// Buổi hẹn này + toàn bộ chuỗi tái khám gốc của nó — dùng khi cần gộp dữ liệu (liệu trình,
-  /// đơn thuốc...) thuộc cùng 1 quá trình điều trị dài hạn, không chỉ riêng buổi hẹn hiện tại.
   Set<String> get treatmentChainIds => {appointmentId, ...relatedAppointmentIds};
 
   factory MedicalHistoryEvent.fromJson(Map<String, dynamic> json) =>
@@ -164,6 +162,7 @@ class MedicalHistoryEvent {
         appointmentId: json['appointmentId'].toString(),
         appointmentCode: json['appointmentCode'] as String? ?? '',
         appointmentDate: DateTime.parse(json['appointmentDate'] as String),
+        dentistId: json['dentistId']?.toString() ?? '',
         dentistName: json['dentistName'] as String? ?? '',
         serviceName: json['serviceName'] as String? ?? '',
         symptoms: json['symptoms'] as String?,

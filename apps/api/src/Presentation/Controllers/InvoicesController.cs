@@ -1,4 +1,6 @@
+using DentalClinic.API.Application.DTOs.Invoices;
 using DentalClinic.API.Application.UseCases.Invoices;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -7,23 +9,23 @@ namespace DentalClinic.API.Presentation.Controllers;
 [ApiController]
 [Route("api/invoices")]
 [Authorize(Roles = "Staff,Admin,Owner")]
-public class InvoicesController(InvoiceHandler invoiceHandler) : ControllerBase
+public class InvoicesController(ISender sender) : ControllerBase
 {
     /// <summary>GET api/invoices/billable-plans — Liệu trình điều trị chờ xuất hóa đơn (lịch hẹn đã kết thúc điều trị).</summary>
     [HttpGet("billable-plans")]
     public async Task<IActionResult> GetBillablePlans(CancellationToken cancellationToken)
     {
-        var result = await invoiceHandler.GetBillablePlansAsync(cancellationToken);
+        var result = await sender.Send(new GetBillablePlansQuery(), cancellationToken);
         return Ok(result);
     }
 
     /// <summary>POST api/invoices — Xuất hóa đơn từ liệu trình điều trị.</summary>
     [HttpPost]
     public async Task<IActionResult> IssueInvoice(
-        [FromBody] IssueInvoiceRequest request,
+        [FromBody] IssueInvoiceCommand command,
         CancellationToken cancellationToken)
     {
-        var result = await invoiceHandler.IssueAsync(request, cancellationToken);
+        var result = await sender.Send(command, cancellationToken);
         return CreatedAtAction(nameof(GetPending), new { }, result);
     }
 
@@ -31,7 +33,7 @@ public class InvoicesController(InvoiceHandler invoiceHandler) : ControllerBase
     [HttpGet("pending")]
     public async Task<IActionResult> GetPending(CancellationToken cancellationToken)
     {
-        var result = await invoiceHandler.GetPendingAsync(cancellationToken);
+        var result = await sender.Send(new GetPendingInvoicesQuery(), cancellationToken);
         return Ok(result);
     }
 
@@ -39,7 +41,7 @@ public class InvoicesController(InvoiceHandler invoiceHandler) : ControllerBase
     [HttpGet("history")]
     public async Task<IActionResult> GetHistory(CancellationToken cancellationToken)
     {
-        var result = await invoiceHandler.GetHistoryAsync(cancellationToken);
+        var result = await sender.Send(new GetInvoiceHistoryQuery(), cancellationToken);
         return Ok(result);
     }
 
@@ -47,7 +49,7 @@ public class InvoicesController(InvoiceHandler invoiceHandler) : ControllerBase
     [HttpGet("outstanding")]
     public async Task<IActionResult> GetOutstanding(CancellationToken cancellationToken)
     {
-        var result = await invoiceHandler.GetOutstandingAsync(cancellationToken);
+        var result = await sender.Send(new GetOutstandingInvoicesQuery(), cancellationToken);
         return Ok(result);
     }
 
@@ -55,7 +57,7 @@ public class InvoicesController(InvoiceHandler invoiceHandler) : ControllerBase
     [HttpGet("outstanding-plans")]
     public async Task<IActionResult> GetOutstandingPlans(CancellationToken cancellationToken)
     {
-        var result = await invoiceHandler.GetOutstandingPlansAsync(cancellationToken);
+        var result = await sender.Send(new GetOutstandingPlansQuery(), cancellationToken);
         return Ok(result);
     }
 
@@ -66,7 +68,7 @@ public class InvoicesController(InvoiceHandler invoiceHandler) : ControllerBase
         [FromBody] ConfirmPaymentRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await invoiceHandler.ConfirmPaymentAsync(id, request, cancellationToken);
+        var result = await sender.Send(new ConfirmInvoicePaymentCommand(id, request.PaymentMethod), cancellationToken);
         return Ok(result);
     }
 
@@ -74,7 +76,7 @@ public class InvoicesController(InvoiceHandler invoiceHandler) : ControllerBase
     [HttpPut("{id}/collect-remaining")]
     public async Task<IActionResult> CollectRemaining(Guid id, CancellationToken cancellationToken)
     {
-        var result = await invoiceHandler.CollectRemainingAsync(id, cancellationToken);
+        var result = await sender.Send(new CollectRemainingInvoiceCommand(id), cancellationToken);
         return Ok(result);
     }
 }

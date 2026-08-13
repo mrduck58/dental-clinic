@@ -1,27 +1,33 @@
 using System.Text;
-using DentalClinic.API.Application.UseCases.Appointments;
+using DentalClinic.API.Application.UseCases.Booking;
+using DentalClinic.API.Application.UseCases.Dentists;
 using DentalClinic.API.Application.UseCases.Staff;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
-using DentalClinic.API.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
+using MediatR;
 using Microsoft.Extensions.Logging;
 
 namespace DentalClinic.API.Application.UseCases.Chat;
 
+public record SendChatMessageCommand(
+    Guid UserId, Guid ConversationId, string Message, string? Language = null) : IRequest<SendChatMessageResult>;
+
 public class SendChatMessageHandler(
     IPatientRepository patientRepository,
     IClinicInfoRepository clinicInfoRepository,
-    GetDentistsHandler getDentistsHandler,
-    GetDentistSlotsHandler getDentistSlotsHandler,
-    CreateAppointmentHandler createAppointmentHandler,
-    UpdateAppointmentStatusHandler updateAppointmentStatusHandler,
+    ISender sender,
     IAiChatService aiChatService,
-    AppDbContext dbContext,
-    ILogger<SendChatMessageHandler> logger)
+    IChatConversationRepository chatConversationRepository,
+    IChatMessageRepository chatMessageRepository,
+    IServiceRepository serviceRepository,
+    IPromotionRepository promotionRepository,
+    IDentistRepository dentistRepository,
+    IPostRepository postRepository,
+    IAppointmentRepository appointmentRepository,
+    ILogger<SendChatMessageHandler> logger) : IRequestHandler<SendChatMessageCommand, SendChatMessageResult>
 {
     private const int MaxMessageLength = 2000;
     private const int MaxMessagesPerMinute = 10;
@@ -37,10 +43,13 @@ public class SendChatMessageHandler(
     private static readonly TimeZoneInfo VietnamTz =
         TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
 
-    public async Task<SendChatMessageResult> HandleAsync(
-        Guid userId, Guid conversationId, string message, string? language = null, CancellationToken ct = default)
+    public async Task<SendChatMessageResult> Handle(SendChatMessageCommand command, CancellationToken ct)
     {
-        message = message?.Trim() ?? string.Empty;
+        var userId = command.UserId;
+        var conversationId = command.ConversationId;
+        var language = command.Language;
+
+        var message = command.Message?.Trim() ?? string.Empty;
         if (message.Length == 0)
         {
             throw new ValidationException("Tin nhắn không được để trống.");
@@ -53,8 +62,7 @@ public class SendChatMessageHandler(
         var patient = await patientRepository.GetByUserIdAsync(userId, ct)
             ?? throw new NotFoundException("Không tìm thấy hồ sơ bệnh nhân.");
 
-        var conversation = await dbContext.ChatConversations
-            .FirstOrDefaultAsync(c => c.Id == conversationId, ct);
+        var conversation = await chatConversationRepository.GetByIdAsync(conversationId, ct);
 
         if (conversation is null || conversation.PatientId != patient.Id)
         {
@@ -64,29 +72,22 @@ public class SendChatMessageHandler(
         // Chatbot là endpoint tốn phí theo từng request AI — chặn spam ở mức bệnh nhân,
         // đếm trên DB để hoạt động đúng cả khi API chạy nhiều instance.
         var oneMinuteAgo = DateTimeOffset.UtcNow.AddMinutes(-1);
-        var recentUserMessageCount = await dbContext.ChatMessages.CountAsync(
-            m => m.Role == "user" && m.CreatedAt >= oneMinuteAgo &&
-                 dbContext.ChatConversations.Any(c => c.Id == m.ConversationId && c.PatientId == patient.Id),
-            ct);
+        var recentUserMessageCount = await chatMessageRepository.CountRecentUserMessagesByPatientAsync(
+            patient.Id, oneMinuteAgo, ct);
         if (recentUserMessageCount >= MaxMessagesPerMinute)
         {
             throw new ValidationException("Bạn đang gửi tin nhắn quá nhanh. Vui lòng chờ một chút rồi thử lại.");
         }
 
-        var recentHistory = await dbContext.ChatMessages
-            .Where(m => m.ConversationId == conversation.Id)
-            .OrderByDescending(m => m.CreatedAt)
-            .Take(HistoryMessageCount)
-            .ToListAsync(ct);
-        recentHistory.Reverse();
+        var recentHistory = await chatMessageRepository.GetRecentByConversationAsync(
+            conversation.Id, HistoryMessageCount, ct);
 
         var snapshot = await BuildSnapshotAsync(patient, ct);
         var systemInstruction = BuildSystemInstruction(snapshot, recentHistory, language);
 
         // Lưu tin nhắn của bệnh nhân TRƯỚC khi gọi AI — nếu AI lỗi thì hội thoại không bị mất tin nhắn.
-        dbContext.ChatMessages.Add(ChatMessage.Create(conversation.Id, "user", message));
         conversation.Touch();
-        await dbContext.SaveChangesAsync(ct);
+        await chatMessageRepository.AddAsync(ChatMessage.Create(conversation.Id, "user", message), ct);
 
         AiChatReply reply;
         try
@@ -136,12 +137,11 @@ public class SendChatMessageHandler(
             appointmentCode = outcome.AppointmentCode;
         }
 
-        dbContext.ChatMessages.Add(ChatMessage.Create(
+        conversation.Touch();
+        await chatMessageRepository.AddAsync(ChatMessage.Create(
             conversation.Id, "assistant", reply.Reply,
             suggestBooking: reply.SuggestBooking,
-            bookingActionTaken: bookingCreated || bookingCancelled || bookingRescheduled));
-        conversation.Touch();
-        await dbContext.SaveChangesAsync(ct);
+            bookingActionTaken: bookingCreated || bookingCancelled || bookingRescheduled), ct);
 
         return new SendChatMessageResult(
             reply.Reply, reply.SuggestBooking, bookingHint, bookingCreated, appointmentCode,
@@ -171,7 +171,7 @@ public class SendChatMessageHandler(
         List<Service> Services,
         List<Promotion> Promotions,
         IEnumerable<DentistSummaryDto> Dentists,
-        List<Dentist> DentistEntities,
+        List<DentistProfile> DentistEntities,
         List<Post> Posts,
         DateOnly Today,
         TimeOnly NowTime,
@@ -189,29 +189,19 @@ public class SendChatMessageHandler(
 
         var clinicInfo = await clinicInfoRepository.GetAsync(ct);
 
-        var services = await dbContext.Services
-            .Where(s => s.IsActive)
-            .OrderBy(s => s.Name)
-            .ToListAsync(ct);
+        var services = (await serviceRepository.GetActiveAsync(ct)).ToList();
 
         // GetPromotionsHandler hiện không lọc theo IsActive/khoảng ngày nên không dùng lại được —
         // tự lọc trực tiếp ở đây để chatbot không nhắc tới ưu đãi đã hết hạn hoặc bị tắt.
-        var promotions = await dbContext.Promotions
-            .Where(p => p.IsActive && p.StartDate <= today && p.EndDate >= today)
-            .OrderBy(p => p.EndDate)
-            .ToListAsync(ct);
+        var promotions = (await promotionRepository.GetActiveOnDateAsync(today, ct)).ToList();
 
-        var dentists = await getDentistsHandler.HandleAsync(ct);
+        var dentists = await sender.Send(new GetDentistsQuery(), ct);
 
         // Bảng Dentists là nguồn Id thật cho lịch hẹn/slot (DentistSummaryDto.Id là User.Id,
         // không dùng được cho CreateAppointment) — cần cho việc đối chiếu tên → DentistId.
-        var dentistEntities = await dbContext.Dentists.Include(d => d.User).ToListAsync(ct);
+        var dentistEntities = await dentistRepository.GetAllWithUserAsync(ct);
 
-        var posts = await dbContext.Posts
-            .Where(p => p.IsPublished)
-            .OrderByDescending(p => p.PublishedAt)
-            .Take(5)
-            .ToListAsync(ct);
+        var posts = (await postRepository.GetRecentPublishedAsync(5, ct)).ToList();
 
         var availability = await BuildAvailabilityAsync(today, nowTime, ct);
 
@@ -232,15 +222,8 @@ public class SendChatMessageHandler(
         relevantPatientIds.AddRange(familyMembers.Select(f => f.Id));
 
         var nowUtc = DateTimeOffset.UtcNow;
-        var upcoming = await dbContext.Appointments
-            .Include(a => a.Dentist).ThenInclude(d => d.User)
-            .Include(a => a.Patient).ThenInclude(p => p.User)
-            .Where(a => relevantPatientIds.Contains(a.PatientId) &&
-                (a.Status == AppointmentStatus.Pending || a.Status == AppointmentStatus.Confirmed) &&
-                a.AppointmentDate >= nowUtc)
-            .OrderBy(a => a.AppointmentDate)
-            .Take(MaxUpcomingAppointments)
-            .ToListAsync(ct);
+        var upcoming = await appointmentRepository.GetUpcomingForPatientsAsync(
+            relevantPatientIds, nowUtc, MaxUpcomingAppointments, ct);
 
         return upcoming.Select(a => new UpcomingAppointmentInfo(
             a.Id,
@@ -273,7 +256,7 @@ public class SendChatMessageHandler(
         for (var offset = 0; offset < AvailabilityDays; offset++)
         {
             var date = today.AddDays(offset);
-            var dentistsOfDay = await getDentistSlotsHandler.HandleAsync(date, ct);
+            var dentistsOfDay = await sender.Send(new GetDentistSlotsQuery(date), ct);
 
             var entries = dentistsOfDay
                 .Select(d => new DentistDayAvailability(
@@ -562,7 +545,7 @@ public class SendChatMessageHandler(
 
         // Đối chiếu với lịch trống thật ngay tại thời điểm đặt (không dùng snapshot đã build trước đó) —
         // chặn được cả ngày nghỉ, bác sĩ không có ca, slot vừa bị người khác đặt và giờ đã trôi qua.
-        var dentistsOfDay = await getDentistSlotsHandler.HandleAsync(date, ct);
+        var dentistsOfDay = await sender.Send(new GetDentistSlotsQuery(date), ct);
         var dentist = dentistsOfDay.FirstOrDefault(d => d.DentistId == hint.DentistId.Value);
         var timeText = time.ToString("HH:mm");
         var slotFree = dentist is not null && dentist.Slots.Any(
@@ -582,7 +565,7 @@ public class SendChatMessageHandler(
 
         try
         {
-            var result = await createAppointmentHandler.HandleAsync(new CreateAppointmentCommand(
+            var result = await sender.Send(new CreateAppointmentCommand(
                 userId,
                 dentist.DentistId,
                 appointmentDate,
@@ -651,7 +634,7 @@ public class SendChatMessageHandler(
     /// Thực sự hủy lịch hẹn khi AI báo bệnh nhân đã xác nhận (confirmCancel = true). Mã lịch hẹn AI đọc
     /// lại chỉ được chấp nhận nếu khớp CHÍNH XÁC với một lịch hẹn sắp tới trong snapshot (của chính chủ
     /// hoặc người thân) — tránh AI bịa mã hoặc hủy nhầm lịch không thuộc về bệnh nhân đang chat.
-    /// Việc kiểm tra quyền sở hữu cuối cùng vẫn do <see cref="UpdateAppointmentStatusHandler.CancelAsync"/>
+    /// Việc kiểm tra quyền sở hữu cuối cùng vẫn do <see cref="CancelAppointmentHandler"/>
     /// đảm nhiệm (dựa trên JWT của request hiện tại), đây chỉ là lớp đối chiếu dữ liệu ở tầng chatbot.
     /// </summary>
     private async Task<CancelOutcome> TryCancelBookingAsync(
@@ -675,7 +658,13 @@ public class SendChatMessageHandler(
 
         try
         {
-            await updateAppointmentStatusHandler.CancelAsync(target.AppointmentId, reason: reply.NotesHint, ct);
+            // Bệnh nhân hủy qua chatbot bằng câu nói tự do nên không chọn được nhóm lý do — xếp vào
+            // Other và giữ nguyên câu họ nói làm ghi chú. NotesHint có thể rỗng, khi đó ghi nhãn mặc định
+            // vì Cancel() bắt buộc phải có ghi chú đi kèm lý do Other.
+            await sender.Send(new CancelAppointmentCommand(
+                target.AppointmentId,
+                CancellationReason.Other,
+                string.IsNullOrWhiteSpace(reply.NotesHint) ? "Hủy qua trợ lý ảo" : reply.NotesHint), ct);
 
             var who = target.IsSelf ? (en ? "you" : "bạn") : target.PatientName;
             var confirmation = en
@@ -733,7 +722,7 @@ public class SendChatMessageHandler(
         }
 
         // Đối chiếu với lịch trống thật của ĐÚNG bác sĩ đang phụ trách lịch hẹn gốc — không đổi bác sĩ.
-        var dentistsOfDay = await getDentistSlotsHandler.HandleAsync(date, ct);
+        var dentistsOfDay = await sender.Send(new GetDentistSlotsQuery(date), ct);
         var dentist = dentistsOfDay.FirstOrDefault(d => d.DentistId == target.DentistId);
         var timeText = time.ToString("HH:mm");
         var slotFree = dentist is not null && dentist.Slots.Any(
@@ -750,29 +739,29 @@ public class SendChatMessageHandler(
         }
 
         var newAppointmentDate = new DateTimeOffset(date.ToDateTime(time), TimeSpan.FromHours(7)).ToUniversalTime();
+        var who = target.IsSelf ? (en ? "you" : "bạn") : target.PatientName;
 
-        CreateAppointmentResult created;
+        // Dời TẠI CHỖ bằng một lệnh duy nhất. Trước đây bot tạo lịch mới rồi hủy lịch cũ, nên khi bước
+        // hủy hỏng thì bệnh nhân giữ hai lịch trùng nhau và phải chờ nhân viên dọn tay — chưa kể mỗi
+        // lần dời lại sinh thêm một bản ghi Cancelled làm tỉ lệ hủy trong báo cáo phồng lên giả tạo.
         try
         {
-            created = await createAppointmentHandler.HandleAsync(new CreateAppointmentCommand(
-                userId,
-                target.DentistId,
+            await sender.Send(new RescheduleAppointmentCommand(
+                target.AppointmentId,
                 newAppointmentDate,
-                Symptoms: reply.NotesHint,
-                ServiceId: target.ServiceId,
-                PatientId: target.IsSelf ? null : target.PatientId), ct);
+                DentistId: null,   // bot không đổi bác sĩ
+                ServiceId: null,   // giữ nguyên dịch vụ đã chọn
+                Reason: reply.NotesHint), ct);
         }
-        catch (ConflictException)
+        catch (ConflictException ex)
         {
-            return new RescheduleOutcome(false,
-                en
-                    ? $"Sorry, the {timeText} slot on {date:dd/MM/yyyy} was just taken by someone else. Please pick another free slot and I'll reschedule for you."
-                    : $"Xin lỗi, khung giờ {timeText} ngày {date:dd/MM/yyyy} vừa có người khác đặt mất. Bạn chọn giúp tôi một khung giờ khác còn trống nhé, tôi sẽ dời lịch ngay.",
-                SuggestBooking: false, null);
+            // Bao gồm cả khung giờ vừa bị người khác đặt, quá hạn 24 giờ, và vượt số lần dời cho phép —
+            // thông điệp trong ConflictException đã đủ rõ để đọc thẳng cho bệnh nhân.
+            return new RescheduleOutcome(false, ex.Message, SuggestBooking: false, null);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Bot dời lịch thất bại khi tạo lịch mới cho appointment gốc {AppointmentId}", target.AppointmentId);
+            logger.LogError(ex, "Bot dời lịch thất bại cho appointment {AppointmentId}", target.AppointmentId);
             return new RescheduleOutcome(false,
                 en
                     ? "Sorry, something went wrong while rescheduling. Please try again or use My Appointments."
@@ -780,27 +769,13 @@ public class SendChatMessageHandler(
                 SuggestBooking: true, null);
         }
 
-        var who = target.IsSelf ? (en ? "you" : "bạn") : target.PatientName;
-        try
-        {
-            await updateAppointmentStatusHandler.CancelAsync(
-                target.AppointmentId, reason: "Dời sang lịch hẹn mới", ct);
-        }
-        catch (Exception ex)
-        {
-            // Lịch mới đã tạo thành công — chỉ log để staff xử lý thủ công lịch cũ, KHÔNG báo lỗi cho
-            // bệnh nhân (với họ, việc dời lịch coi như đã xong).
-            logger.LogError(ex,
-                "Dời lịch: tạo lịch mới {NewId} thành công nhưng hủy lịch cũ {OldId} thất bại",
-                created.AppointmentId, target.AppointmentId);
-        }
-
+        // Mã lịch hẹn giữ nguyên vì bản ghi không đổi — đúng ý bệnh nhân hơn hẳn việc phát mã mới.
         var confirmation = en
-            ? $"✅ Appointment for {who} with {target.DentistName} has been rescheduled to {timeText}, " +
-              $"{date:dd/MM/yyyy}.\n- New code: {created.AppointmentCode}"
-            : $"✅ Đã dời lịch hẹn của {who} với {target.DentistName} sang {timeText}, " +
-              $"{VietnameseDayOfWeek(date.DayOfWeek)} {date:dd/MM/yyyy}.\n- Mã lịch hẹn mới: {created.AppointmentCode}";
+            ? $"✅ Appointment {target.Code} for {who} with {target.DentistName} has been rescheduled to {timeText}, " +
+              $"{date:dd/MM/yyyy}."
+            : $"✅ Đã dời lịch hẹn {target.Code} của {who} với {target.DentistName} sang {timeText}, " +
+              $"{VietnameseDayOfWeek(date.DayOfWeek)} {date:dd/MM/yyyy}.";
 
-        return new RescheduleOutcome(true, confirmation, SuggestBooking: false, created.AppointmentCode);
+        return new RescheduleOutcome(true, confirmation, SuggestBooking: false, target.Code);
     }
 }

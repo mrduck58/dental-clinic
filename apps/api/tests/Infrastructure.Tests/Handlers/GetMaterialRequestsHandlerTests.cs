@@ -1,6 +1,7 @@
 using DentalClinic.API.Application.UseCases.Inventory;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using NUnit.Framework;
@@ -20,7 +21,7 @@ public class GetMaterialRequestsHandlerTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         _db = new AppDbContext(options);
-        _handler = new GetMaterialRequestsHandler(_db);
+        _handler = new GetMaterialRequestsHandler(new MaterialRequestRepository(_db));
     }
 
     [TearDown]
@@ -30,12 +31,12 @@ public class GetMaterialRequestsHandlerTests
     [Test]
     public async Task HandleAsync_NoStatusFilter_ReturnsAllOrderedByNewestFirst()
     {
-        var older = MaterialRequest.Create(Guid.NewGuid(), "Niềng răng", "Bệnh nhân A", "BS X", "Cần thêm khay niềng");
-        var newer = MaterialRequest.Create(Guid.NewGuid(), "Trồng Implant", "Bệnh nhân B", "BS Y", "Cần trụ implant");
+        var older = MaterialRequest.Create("Niềng răng", "Bệnh nhân A", "BS X", [("Khay niềng", 1, "Cái")]);
+        var newer = MaterialRequest.Create("Trồng Implant", "Bệnh nhân B", "BS Y", [("Trụ implant", 2, "Cái")]);
         _db.MaterialRequests.AddRange(older, newer);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(null);
+        var result = await _handler.Handle(new GetMaterialRequestsQuery(null), CancellationToken.None);
 
         result.Should().HaveCount(2);
         result[0].Id.Should().Be(newer.Id);
@@ -45,13 +46,13 @@ public class GetMaterialRequestsHandlerTests
     [Test]
     public async Task HandleAsync_FilterByDoneStatus_ReturnsOnlyDoneRequests()
     {
-        var pending = MaterialRequest.Create(Guid.NewGuid(), "Niềng răng", "Bệnh nhân A", "BS X", "Yêu cầu 1");
-        var done = MaterialRequest.Create(Guid.NewGuid(), "Trồng Implant", "Bệnh nhân B", "BS Y", "Yêu cầu 2");
+        var pending = MaterialRequest.Create("Niềng răng", "Bệnh nhân A", "BS X", [("Khay niềng", 1, "Cái")]);
+        var done = MaterialRequest.Create("Trồng Implant", "Bệnh nhân B", "BS Y", [("Trụ implant", 2, "Cái")]);
         done.MarkDone("staff1");
         _db.MaterialRequests.AddRange(pending, done);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync("Done");
+        var result = await _handler.Handle(new GetMaterialRequestsQuery("Done"), CancellationToken.None);
 
         result.Should().ContainSingle(r => r.Id == done.Id);
     }
@@ -60,11 +61,11 @@ public class GetMaterialRequestsHandlerTests
     [Test]
     public async Task HandleAsync_InvalidStatusValue_IgnoresFilterAndReturnsAll()
     {
-        var request = MaterialRequest.Create(Guid.NewGuid(), "Niềng răng", "Bệnh nhân A", "BS X", "Yêu cầu 1");
+        var request = MaterialRequest.Create("Niềng răng", "Bệnh nhân A", "BS X", [("Khay niềng", 1, "Cái")]);
         _db.MaterialRequests.Add(request);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync("not-a-real-status");
+        var result = await _handler.Handle(new GetMaterialRequestsQuery("not-a-real-status"), CancellationToken.None);
 
         result.Should().ContainSingle();
     }
@@ -73,13 +74,13 @@ public class GetMaterialRequestsHandlerTests
     [Test]
     public async Task HandleAsync_FilterByPendingStatus_ReturnsOnlyPendingRequests()
     {
-        var pending = MaterialRequest.Create(Guid.NewGuid(), "Niềng răng", "Bệnh nhân A", "BS X", "Yêu cầu 1");
-        var done = MaterialRequest.Create(Guid.NewGuid(), "Trồng Implant", "Bệnh nhân B", "BS Y", "Yêu cầu 2");
+        var pending = MaterialRequest.Create("Niềng răng", "Bệnh nhân A", "BS X", [("Khay niềng", 1, "Cái")]);
+        var done = MaterialRequest.Create("Trồng Implant", "Bệnh nhân B", "BS Y", [("Trụ implant", 2, "Cái")]);
         done.MarkDone("staff1");
         _db.MaterialRequests.AddRange(pending, done);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync("Pending");
+        var result = await _handler.Handle(new GetMaterialRequestsQuery("Pending"), CancellationToken.None);
 
         result.Should().ContainSingle(r => r.Id == pending.Id);
     }
@@ -88,13 +89,13 @@ public class GetMaterialRequestsHandlerTests
     [Test]
     public async Task HandleAsync_StatusFilterLowerCase_MatchesEnumCaseInsensitively()
     {
-        var pending = MaterialRequest.Create(Guid.NewGuid(), "Niềng răng", "Bệnh nhân A", "BS X", "Yêu cầu 1");
-        var done = MaterialRequest.Create(Guid.NewGuid(), "Trồng Implant", "Bệnh nhân B", "BS Y", "Yêu cầu 2");
+        var pending = MaterialRequest.Create("Niềng răng", "Bệnh nhân A", "BS X", [("Khay niềng", 1, "Cái")]);
+        var done = MaterialRequest.Create("Trồng Implant", "Bệnh nhân B", "BS Y", [("Trụ implant", 2, "Cái")]);
         done.MarkDone("staff1");
         _db.MaterialRequests.AddRange(pending, done);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync("done");
+        var result = await _handler.Handle(new GetMaterialRequestsQuery("done"), CancellationToken.None);
 
         result.Should().ContainSingle(r => r.Id == done.Id);
     }
@@ -103,13 +104,13 @@ public class GetMaterialRequestsHandlerTests
     [Test]
     public async Task HandleAsync_WhitespaceStatusFilter_IgnoresFilterAndReturnsAll()
     {
-        var pending = MaterialRequest.Create(Guid.NewGuid(), "Niềng răng", "Bệnh nhân A", "BS X", "Yêu cầu 1");
-        var done = MaterialRequest.Create(Guid.NewGuid(), "Trồng Implant", "Bệnh nhân B", "BS Y", "Yêu cầu 2");
+        var pending = MaterialRequest.Create("Niềng răng", "Bệnh nhân A", "BS X", [("Khay niềng", 1, "Cái")]);
+        var done = MaterialRequest.Create("Trồng Implant", "Bệnh nhân B", "BS Y", [("Trụ implant", 2, "Cái")]);
         done.MarkDone("staff1");
         _db.MaterialRequests.AddRange(pending, done);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync("   ");
+        var result = await _handler.Handle(new GetMaterialRequestsQuery("   "), CancellationToken.None);
 
         result.Should().HaveCount(2);
     }

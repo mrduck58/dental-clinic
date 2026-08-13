@@ -98,12 +98,6 @@ export default async function KhuyenMaiPage({ searchParams }: Props) {
                   ? "Không tìm thấy chương trình khuyến mãi phù hợp."
                   : "Hiện chưa có chương trình khuyến mãi nào."}
               </p>
-              <Link href="/tai-ung-dung" className="inline-flex items-center gap-2 mt-6 text-primary font-bold text-[14px] hover:gap-3 transition-all">
-                Tải app để nhận thông báo ưu đãi sớm nhất
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                </svg>
-              </Link>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

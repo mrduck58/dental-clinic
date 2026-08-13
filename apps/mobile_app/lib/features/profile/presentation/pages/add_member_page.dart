@@ -45,13 +45,8 @@ class _AddMemberPageState extends State<AddMemberPage> {
   }
 
   ImageProvider? _getAvatarProvider() {
-    if (_profilePictureUrl != null && _profilePictureUrl!.isNotEmpty) {
-      if (_profilePictureUrl!.startsWith('http')) {
-        return NetworkImage(_profilePictureUrl!);
-      }
-      final baseUrlHost = ApiConstants.baseUrl.replaceAll('/api', '');
-      return NetworkImage('$baseUrlHost$_profilePictureUrl');
-    }
+    final resolved = ApiConstants.resolveAssetUrl(_profilePictureUrl);
+    if (resolved != null) return NetworkImage(resolved);
     return null;
   }
 

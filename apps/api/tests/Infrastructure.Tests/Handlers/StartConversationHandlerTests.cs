@@ -1,8 +1,10 @@
 using DentalClinic.API.Application.UseCases.Chat;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using NSubstitute;
@@ -28,7 +30,7 @@ public class StartConversationHandlerTests
             .Options;
         _db = new AppDbContext(options);
 
-        var user = User.Create($"patient-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: "Bệnh nhân Test");
+        var user = User.Create($"patient-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", UserRole.Patient, fullName: "Bệnh nhân Test");
         _db.Users.Add(user);
         _userId = user.Id;
 
@@ -43,7 +45,9 @@ public class StartConversationHandlerTests
 
         _userRepo = Substitute.For<IUserRepository>();
 
-        _handler = new StartConversationHandler(_patientRepo, _userRepo, _db);
+        _handler = new StartConversationHandler(
+            _patientRepo, _userRepo, new ChatConversationRepository(_db), new ChatMessageRepository(_db),
+            new AppointmentRepository(_db));
     }
 
     [TearDown]
@@ -53,7 +57,7 @@ public class StartConversationHandlerTests
     [Test]
     public async Task HandleAsync_NoUpcomingAppointment_ReturnsNullInitialMessage()
     {
-        var result = await _handler.HandleAsync(_userId);
+        var result = await _handler.Handle(new StartConversationCommand(_userId), CancellationToken.None);
 
         result.InitialMessage.Should().BeNull();
     }
@@ -68,7 +72,7 @@ public class StartConversationHandlerTests
         _db.Appointments.Add(appointment);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(_userId);
+        var result = await _handler.Handle(new StartConversationCommand(_userId), CancellationToken.None);
 
         result.InitialMessage.Should().NotBeNull();
         result.InitialMessage.Should().Contain(dentist.FullName);
@@ -87,7 +91,7 @@ public class StartConversationHandlerTests
         _db.Appointments.Add(appointment);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(_userId);
+        var result = await _handler.Handle(new StartConversationCommand(_userId), CancellationToken.None);
 
         result.InitialMessage.Should().BeNull();
     }
@@ -98,21 +102,25 @@ public class StartConversationHandlerTests
     {
         var (dentist, _) = await SeedDentistAsync();
         var appointment = Appointment.Create(_patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddHours(10));
-        appointment.Cancel("Bệnh nhân bận");
+        appointment.Cancel(CancellationReason.ChangeOfPlans, "Bệnh nhân bận", cancelledByUserId: null, DateTimeOffset.UtcNow);
         _db.Appointments.Add(appointment);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(_userId);
+        var result = await _handler.Handle(new StartConversationCommand(_userId), CancellationToken.None);
 
         result.InitialMessage.Should().BeNull();
     }
 
-    private async Task<(Dentist dentist, User user)> SeedDentistAsync()
+    private async Task<(DentistProfile dentist, User user)> SeedDentistAsync()
     {
-        var dentistUser = User.Create($"dentist-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: "BS Nguyễn Văn A");
+        var dentistUser = User.Create($"dentist-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: "BS Nguyễn Văn A");
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Chỉnh nha", 5);
-        _db.Dentists.Add(dentist);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Chỉnh nha", "N/A", 5);
+        dentist.Employee = employee;
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         await _db.SaveChangesAsync();
         return (dentist, dentistUser);
     }
@@ -123,7 +131,7 @@ public class StartConversationHandlerTests
     public async Task HandleAsync_NoPatientProfileYet_LazilyCreatesPatientFromUser()
     {
         var newUser = User.Create(
-            $"newpatient-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", "Patient",
+            $"newpatient-{Guid.NewGuid()}", $"{Guid.NewGuid()}@test.com", "hash", UserRole.Patient,
             fullName: "Người Dùng Mới");
         newUser.UpdatePatientProfile("Người Dùng Mới", "0900000000", new DateOnly(2000, 6, 15), "Nam");
         _db.Users.Add(newUser);
@@ -134,7 +142,7 @@ public class StartConversationHandlerTests
         _patientRepo.GetFamilyMembersAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(new List<Patient>());
 
-        var result = await _handler.HandleAsync(newUser.Id);
+        var result = await _handler.Handle(new StartConversationCommand(newUser.Id), CancellationToken.None);
 
         result.ConversationId.Should().NotBeEmpty();
         await _patientRepo.Received(1).AddAsync(
@@ -149,7 +157,7 @@ public class StartConversationHandlerTests
         _patientRepo.GetByUserIdAsync(unknownUserId, Arg.Any<CancellationToken>()).Returns((Patient?)null);
         _userRepo.GetByIdAsync(unknownUserId, Arg.Any<CancellationToken>()).Returns((User?)null);
 
-        var act = () => _handler.HandleAsync(unknownUserId);
+        var act = () => _handler.Handle(new StartConversationCommand(unknownUserId), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }

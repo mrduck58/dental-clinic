@@ -17,4 +17,13 @@ public class SupplyTransactionRepository(AppDbContext db) : ISupplyTransactionRe
         await db.SupplyTransactions.AddAsync(transaction, ct);
         await db.SaveChangesAsync(ct);
     }
+
+    public async Task AddImportAsync(SupplyItem? newItem, SupplyTransaction transaction, CancellationToken ct = default)
+    {
+        if (newItem is not null)
+            await db.SupplyItems.AddAsync(newItem, ct);
+
+        await db.SupplyTransactions.AddAsync(transaction, ct);
+        await db.SaveChangesAsync(ct);
+    }
 }

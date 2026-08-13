@@ -7,6 +7,7 @@ import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/auth/data/auth_service.dart';
 import 'package:mobile_app/features/profile/data/family_member.dart';
 import 'package:mobile_app/features/profile/data/medical_record_service.dart';
+import 'package:mobile_app/features/home/data/models/doctor_model.dart';
 import 'package:mobile_app/core/constants/api_constants.dart';
 
 class _SelectablePatient {
@@ -587,16 +588,66 @@ class _ExamineHistoryPageState extends State<ExamineHistoryPage> {
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      Icon(Iconsax.briefcase, size: 14, color: context.textMuted),
-                      const SizedBox(width: 8),
-                      Text(
-                        event.dentistName,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: context.textSecondary,
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Icon(Iconsax.briefcase, size: 14, color: context.textMuted),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                event.dentistName,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: context.textSecondary,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
+                      if (event.dentistId.isNotEmpty)
+                        InkWell(
+                          onTap: () {
+                            final doctor = DoctorModel(
+                              id: event.dentistId,
+                              fullName: event.dentistName,
+                              specialty: '',
+                            );
+                            context.push(
+                              AppRoutes.writeReview,
+                              extra: {
+                                'doctor': doctor,
+                                'appointmentId': event.appointmentId,
+                              },
+                            );
+                          },
+                          borderRadius: BorderRadius.circular(20),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryLight,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.star_rounded, size: 14, color: Colors.amber),
+                                const SizedBox(width: 4),
+                                Text(
+                                  isVi ? 'Đánh giá' : 'Review',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                   const SizedBox(height: 6),

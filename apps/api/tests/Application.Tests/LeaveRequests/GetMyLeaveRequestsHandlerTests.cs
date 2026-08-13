@@ -26,7 +26,7 @@ public class GetMyLeaveRequestsHandlerTests
         _repo.GetByUserIdAsync(userId, Arg.Any<CancellationToken>()).Returns(new List<LeaveRequest>());
         var handler = new GetMyLeaveRequestsHandler(_repo);
 
-        var result = await handler.HandleAsync(userId);
+        var result = await handler.Handle(new GetMyLeaveRequestsQuery(userId), CancellationToken.None);
 
         result.Stats.TotalAnnualDays.Should().Be(12);
     }
@@ -49,7 +49,7 @@ public class GetMyLeaveRequestsHandlerTests
             .Returns(new List<LeaveRequest> { approvedAnnual, pendingAnnual, approvedSick });
         var handler = new GetMyLeaveRequestsHandler(_repo);
 
-        var result = await handler.HandleAsync(userId);
+        var result = await handler.Handle(new GetMyLeaveRequestsQuery(userId), CancellationToken.None);
 
         result.Stats.UsedAnnualDays.Should().Be(3);
     }
@@ -70,7 +70,7 @@ public class GetMyLeaveRequestsHandlerTests
             .Returns(new List<LeaveRequest> { pending1, pending2, approved });
         var handler = new GetMyLeaveRequestsHandler(_repo);
 
-        var result = await handler.HandleAsync(userId);
+        var result = await handler.Handle(new GetMyLeaveRequestsQuery(userId), CancellationToken.None);
 
         result.Stats.PendingCount.Should().Be(2);
     }
@@ -89,7 +89,7 @@ public class GetMyLeaveRequestsHandlerTests
             .Returns(new List<LeaveRequest> { approvedAnnual });
         var handler = new GetMyLeaveRequestsHandler(_repo);
 
-        var result = await handler.HandleAsync(userId);
+        var result = await handler.Handle(new GetMyLeaveRequestsQuery(userId), CancellationToken.None);
 
         result.Stats.RemainingAnnualDays.Should().Be(7);
     }
@@ -112,7 +112,7 @@ public class GetMyLeaveRequestsHandlerTests
             .Returns(new List<LeaveRequest> { approvedAnnual, approvedSick, pendingAnnual });
         var handler = new GetMyLeaveRequestsHandler(_repo);
 
-        var result = await handler.HandleAsync(userId);
+        var result = await handler.Handle(new GetMyLeaveRequestsQuery(userId), CancellationToken.None);
 
         result.Stats.ApprovedThisYear.Should().Be(2);
     }
@@ -136,7 +136,7 @@ public class GetMyLeaveRequestsHandlerTests
             .Returns(new List<LeaveRequest> { lastYearApproved, thisYearApproved });
         var handler = new GetMyLeaveRequestsHandler(_repo);
 
-        var result = await handler.HandleAsync(userId);
+        var result = await handler.Handle(new GetMyLeaveRequestsQuery(userId), CancellationToken.None);
 
         result.Stats.UsedAnnualDays.Should().Be(4);
     }
@@ -152,7 +152,7 @@ public class GetMyLeaveRequestsHandlerTests
         _repo.GetByUserIdAsync(userId, Arg.Any<CancellationToken>()).Returns(new List<LeaveRequest>());
         var handler = new GetMyLeaveRequestsHandler(_repo);
 
-        var result = await handler.HandleAsync(userId);
+        var result = await handler.Handle(new GetMyLeaveRequestsQuery(userId), CancellationToken.None);
 
         result.Stats.UsedAnnualDays.Should().Be(0);
         result.Stats.RemainingAnnualDays.Should().Be(12);
@@ -175,7 +175,7 @@ public class GetMyLeaveRequestsHandlerTests
             .Returns(new List<LeaveRequest> { r1, r2 });
         var handler = new GetMyLeaveRequestsHandler(_repo);
 
-        var result = await handler.HandleAsync(userId);
+        var result = await handler.Handle(new GetMyLeaveRequestsQuery(userId), CancellationToken.None);
 
         result.Requests.Should().HaveCount(2);
         result.Requests.Select(r => r.Id).Should().BeEquivalentTo(new[] { r1.Id, r2.Id });
@@ -185,7 +185,7 @@ public class GetMyLeaveRequestsHandlerTests
     {
         var today = DateOnly.FromDateTime(DateTime.Today);
         var lr = LeaveRequest.Create(userId, type, today, today.AddDays(daysCount - 1), "Lý do test");
-        var user = User.Create("emp", "emp@test.com", "hash", "Staff", null, "Test");
+        var user = User.Create("emp", "emp@test.com", "hash", UserRole.Staff, null, "Test");
         typeof(LeaveRequest).GetProperty("User")!.SetValue(lr, user);
         return lr;
     }

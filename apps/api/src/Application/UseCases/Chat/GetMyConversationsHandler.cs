@@ -1,21 +1,20 @@
 using DentalClinic.API.Domain.Interfaces.Repositories;
-using DentalClinic.API.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Chat;
 
-public class GetMyConversationsHandler(IPatientRepository patientRepository, AppDbContext dbContext)
+public record GetMyConversationsQuery(Guid UserId) : IRequest<IReadOnlyList<ChatConversationSummaryDto>>;
+
+public class GetMyConversationsHandler(
+    IPatientRepository patientRepository, IChatConversationRepository chatConversationRepository)
+    : IRequestHandler<GetMyConversationsQuery, IReadOnlyList<ChatConversationSummaryDto>>
 {
-    public async Task<IReadOnlyList<ChatConversationSummaryDto>> HandleAsync(Guid userId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<ChatConversationSummaryDto>> Handle(GetMyConversationsQuery request, CancellationToken ct)
     {
-        var patient = await patientRepository.GetByUserIdAsync(userId, ct);
+        var patient = await patientRepository.GetByUserIdAsync(request.UserId, ct);
         if (patient is null) return [];
 
-        var conversations = await dbContext.ChatConversations
-            .Include(c => c.Messages)
-            .Where(c => c.PatientId == patient.Id)
-            .OrderByDescending(c => c.UpdatedAt)
-            .ToListAsync(ct);
+        var conversations = await chatConversationRepository.GetByPatientIdWithMessagesAsync(patient.Id, ct);
 
         return conversations
             .Select(c =>

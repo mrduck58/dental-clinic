@@ -1,10 +1,12 @@
 ﻿using System.Security.Cryptography;
 using DentalClinic.API.Application.DTOs.Auth;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Domain.Constants;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Auth;
 
@@ -12,11 +14,11 @@ public record CreateAccountCommand(
     string FullName,
     string Email,
     string PhoneNumber,
-    string Role);
+    string Role) : IRequest<CreateAccountResponseDto>;
 
-public class CreateAccountHandler(IUserRepository userRepository, IEmailService emailService, IActivityLogService activityLogService, ICurrentUserService currentUser)
+public class CreateAccountHandler(IUserRepository userRepository, IEmailService emailService, IActivityLogService activityLogService, ICurrentUserService currentUser) : IRequestHandler<CreateAccountCommand, CreateAccountResponseDto>
 {
-    public async Task<CreateAccountResponseDto> HandleAsync(CreateAccountCommand command, CancellationToken ct = default)
+    public async Task<CreateAccountResponseDto> Handle(CreateAccountCommand command, CancellationToken ct)
     {
         if (await userRepository.ExistsByEmailAsync(command.Email, ct))
             throw new ConflictException($"Email '{command.Email}' đã được sử dụng bởi tài khoản khác.");
@@ -26,10 +28,13 @@ public class CreateAccountHandler(IUserRepository userRepository, IEmailService 
         if (await userRepository.ExistsByUsernameAsync(username, ct))
             username = $"{username}_{RandomNumberGenerator.GetHexString(4, lowercase: true)}";
 
+        if (!Enum.TryParse<UserRole>(command.Role, true, out var role))
+            throw new ValidationException($"Vai trò '{command.Role}' không hợp lệ.");
+
         var rawPassword = GenerateSecurePassword();
         var passwordHash = BCrypt.Net.BCrypt.HashPassword(rawPassword, workFactor: 12);
 
-        var user = User.Create(username, command.Email, passwordHash, command.Role, command.PhoneNumber, command.FullName);
+        var user = User.Create(username, command.Email, passwordHash, role, command.PhoneNumber, command.FullName);
         await userRepository.AddAsync(user, ct);
 
         await emailService.SendStaffCredentialsAsync(command.Email, command.FullName, rawPassword, ct);
@@ -46,7 +51,7 @@ public class CreateAccountHandler(IUserRepository userRepository, IEmailService 
             targetId: user.Id.ToString(),
             ct: ct);
 
-        return new CreateAccountResponseDto(user.Id, user.Username!, user.Email, user.Role, user.CreatedAt);
+        return new CreateAccountResponseDto(user.Id, user.Username!, user.Email, user.Role.ToString(), user.CreatedAt);
     }
 
     private static string BuildUsername(string email) =>

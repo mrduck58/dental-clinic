@@ -2,8 +2,8 @@ using System.Diagnostics;
 using System.Net;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
+using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
-using DentalClinic.API.Infrastructure.Persistence;
 using DentalClinic.API.Infrastructure.Settings;
 using Google.GenAI;
 using Google.GenAI.Types;
@@ -23,7 +23,7 @@ namespace DentalClinic.API.Infrastructure.Services;
 /// </summary>
 public class GeminiChatService(
     IOptions<GeminiSettings> options,
-    AppDbContext dbContext,
+    IAiUsageLogRepository aiUsageLogRepository,
     ILogger<GeminiChatService> logger) : IAiChatService
 {
     private const string ChatFeature = "ChatBot";
@@ -148,9 +148,8 @@ public class GeminiChatService(
         try
         {
             var trimmedError = error is { Length: > 500 } ? error[..500] : error;
-            dbContext.AiUsageLogs.Add(
-                AiUsageLog.Create(feature, success, (int)duration.TotalMilliseconds, trimmedError));
-            await dbContext.SaveChangesAsync(ct);
+            await aiUsageLogRepository.AddAsync(
+                AiUsageLog.Create(feature, success, (int)duration.TotalMilliseconds, trimmedError), ct);
         }
         catch (Exception logEx)
         {

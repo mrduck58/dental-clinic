@@ -6,6 +6,7 @@ public interface IFeedbackRepository
 {
     Task<IEnumerable<Feedback>> GetAllAsync(CancellationToken ct = default);
     Task<Feedback?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    Task<Feedback?> GetByPatientIdAsync(Guid patientId, CancellationToken ct = default);
     Task AddAsync(Feedback feedback, CancellationToken ct = default);
     Task UpdateAsync(Feedback feedback, CancellationToken ct = default);
 }

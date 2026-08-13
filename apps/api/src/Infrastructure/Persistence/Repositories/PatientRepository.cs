@@ -53,6 +53,13 @@ public class PatientRepository(AppDbContext dbContext) : IPatientRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<Patient?> GetByPhoneNumberAsync(string phoneNumber, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Patients
+            .Include(p => p.User)
+            .FirstOrDefaultAsync(p => p.User != null && p.User.PhoneNumber == phoneNumber, cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Patient>> SearchAsync(string term, int limit, CancellationToken cancellationToken = default)
     {
         var needle = term.Trim().ToLower();

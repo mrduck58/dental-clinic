@@ -1,6 +1,7 @@
 # DentalClinic — Project Overview
 > Fast-load context doc. Read this before starting a Claude session.
-> Updated: 2026-07-19 | Active branch: `feature/mobile-app`
+> Updated: 2026-08-07 | Active branch: `test/fix-nunit-suite-and-coverage`
+> Kiến trúc đầy đủ: [`docs/architecture.md`](docs/architecture.md)
 
 ---
 
@@ -8,31 +9,47 @@
 
 | App | Path | Technology | Notes |
 |-----|------|------------|-------|
-| REST API | `apps/api/` | .NET 9, ASP.NET Core, EF Core, Npgsql/PostgreSQL | Clean Architecture; primary backend |
-| Admin Dashboard | `apps/admin_website/` | Next.js 14, TypeScript, Tailwind CSS, Supabase client | 70+ pages; Admin/Owner/Dentist/Staff |
-| Clinic Website | `apps/clinic_website/` | Next.js, TypeScript | Patient-facing; ~10 pages |
-| Mobile App | `apps/mobile/` | Flutter | Patient app; ~10 features |
+| REST API | `apps/api/` | .NET 9, ASP.NET Core, EF Core 9, Npgsql/PostgreSQL, MediatR 14 | Clean Architecture, 4 separate .csproj; primary backend |
+| Admin Dashboard | `apps/admin_website/` | Next.js 16.2.7, React 19.2.4, TypeScript 5, Tailwind v4, Supabase client | 70+ pages; route tree per role: Admin/Owner/Dentist/Staff |
+| Clinic Website | `apps/clinic_website/` | Next.js 16.2.7, React 19.2.4, TypeScript 5, Tailwind v4 | Patient-facing, SEO-first; Vietnamese routes |
+| Mobile App | `apps/mobile_app/` | Flutter 3, go_router, Dio | Patient app; 6 features |
 
 **Database**: PostgreSQL via Supabase (connection string in `appsettings.json`)  
-**Realtime**: Supabase Realtime (`postgres_changes`) — enabled on `ActivityLogs` and `Notifications` tables  
-**Auth**: JWT (access + refresh tokens), roles stored per-user in DB
+**Realtime**: Supabase Realtime (`postgres_changes`, INSERT only) — enabled on `ActivityLogs` and `Notifications`; `admin_website` subscribes directly, not through the API  
+**Auth**: JWT Bearer — **access token only**, `JwtSettings:ExpiryMinutes = 150`. No refresh-token endpoint or entity exists. Web stores it in `localStorage`/`sessionStorage`, mobile in `SharedPreferences`. Roles stored per-user in DB  
+**External services**: Google Gemini (chat + analytics), PayOS (VietQR/online payment), Google OAuth, SMTP via MailKit
 
 ---
 
 ## API Architecture
 
+Four separate projects — the layer boundary is enforced by the compiler, not just by convention:
+
 ```
-Domain/          ← Entities, Interfaces (Repos + Services), Constants, Enums — no dependencies
-Application/     ← Use Cases (Handlers), DTOs — depends on Domain only
-Infrastructure/  ← EF Core (AppDbContext), Repository impls, Services
-Presentation/    ← 19 Controllers, JWT Middleware, DI Registration
-tests/           ← Domain.Tests / Application.Tests / Infrastructure.Tests
+src/Domain/Domain.csproj                 ← Entities, Interfaces (Repos + Services), Constants, Enums,
+                                            Exceptions — ZERO dependencies, not even NuGet
+src/Application/Application.csproj       ← MediatR handlers, DTOs, Validators, ValidationBehavior
+                                            → Domain only (+ BCrypt, deliberate exception)
+src/Infrastructure/Infrastructure.csproj ← EF Core (AppDbContext, also IUnitOfWork), Repository impls,
+                                            Services → Application, Domain
+DentalClinic.API.csproj (Web SDK)        ← 31 Controllers, Middlewares, Program.cs → all three
+tests/                                   ← Domain.Tests / Application.Tests / Infrastructure.Tests
 ```
 
+Request pipeline (`Program.cs`):
+`ExceptionMiddleware → CORS → StaticFiles → [HttpsRedirection if !Dev] → Authentication →
+AccountStatusMiddleware → Authorization → Controller → ISender.Send() → ValidationBehavior → Handler`
+On startup the app runs `MigrateAsync()` + `DataSeeder.SeedAsync()`.
+
 **Patterns**:
-- One handler per use case: `Application/UseCases/<Module>/<Action>Handler.cs`
+- **MediatR** — one `IRequestHandler<,>` per use case: `Application/UseCases/<Module>/<Action>Handler.cs`.
+  Registered by scanning the Application assembly in `AddApplication()`; controllers only inject `ISender`
+- `ValidationBehavior<,>` open behavior runs FluentValidation validators before the handler; requests
+  with no registered validator (most of them today) pass through unchanged
 - Repository interfaces in `Domain/Interfaces/Repositories/`, impls in `Infrastructure/Persistence/Repositories/`
-- Service interfaces in `Domain/Interfaces/Services/`
+- Service interfaces in `Domain/Interfaces/Services/`; multi-entity read-only query services
+  (`IDashboardQueryService`, ...) live in `Application/Interfaces/` instead — they are not CRUD repositories
+- `AppDbContext` implements `IUnitOfWork` and is resolved to the *same* scoped instance
 - String constants (not CLR enums) in `Domain/Constants/` — used with `switch`/comparison on strings
 - CLR enums in `Domain/Enums/`
 - Primary constructor DI (C# 12) used throughout
@@ -41,44 +58,68 @@ tests/           ← Domain.Tests / Application.Tests / Infrastructure.Tests
 
 ---
 
-## Domain Entities (25)
+## Domain Entities (34)
+
+All `Guid` PK **except `ActivityLog`**.
+
+| Group | Entities |
+|-------|----------|
+| Identity & people | User (5 roles: Admin, Owner, Dentist, Staff, Patient), Patient, Employee, DentistProfile, OtpCode |
+| Scheduling | Appointment, WorkSchedule, Room, LeaveRequest |
+| Clinical | Diagnosis, TreatmentPlan, TreatmentProcedure, Prescription, PrescriptionItem |
+| Billing | Invoice, InvoiceItem, PaymentTransaction, PayrollRecord, Promotion |
+| Inventory | Medicine, SupplyItem, SupplyTransaction, MaterialRequest, MaterialRequestItem |
+| Content & feedback | Service, Post, ClinicInfo, Feedback, DentistReview |
+| AI & chat | ChatConversation, ChatMessage, AiUsageLog |
+| Cross-cutting | **ActivityLog (`int` PK)**, Notification |
 
 | Entity | PK Type | Notes |
 |--------|---------|-------|
-| User / Account | `Guid` | 5 roles: Admin, Owner, Dentist, Staff, Patient |
-| Appointment | `Guid` | links Dentist + Patient + Service + Room |
-| Service | `Guid` | dental services catalog |
-| Post | `Guid` | blog / news |
-| Schedule | `Guid` | dentist working hours |
-| Room | `Guid` | treatment rooms |
-| Medicine | `Guid` | medicines catalog |
-| Inventory / Stock | `Guid` | stock-in/out transactions (#126) |
-| Leave | `Guid` | staff leave requests + approvals |
-| Invoice | `Guid` | billing + payment |
-| Feedback | `Guid` | patient feedback on services |
-| Promotion | `Guid` | discount promotions |
 | **ActivityLog** | **`int`** | audit trail — int PK intentional: sequential, insert-ordered, avoids UUID fragmentation |
 | **Notification** | **`Guid`** | per-user notifications with type, priority, read state, optional relatedEntity |
+| Appointment | `Guid` | links Dentist + Patient + Service + Room |
+| PaymentTransaction | `Guid` | PayOS gateway transaction; `TransactionStatus` Pending/Success/Failed/Cancelled/Expired |
 
 ---
 
-## API Controllers (19)
+## API Controllers (31)
+
+Six of them (`AppointmentBooking`, `ClinicalRecords`, `Queue`, `Reminders`, `DentistDashboard`,
+`AiAssist`) were split out of the old `AppointmentsController` and therefore declare **absolute**
+routes under `api/appointments/...` per action instead of a class-level `[Route]` — the 3 frontends
+hardcode those paths, so they must not change.
 
 | Controller | Route | Key Operations |
 |-----------|-------|---------------|
-| Auth | `/api/auth` | login, refresh-token, logout |
-| Accounts | `/api/accounts` | CRUD, role-based, profile fill |
-| Appointments | `/api/appointments` | CRUD, filter by role, status transitions |
+| Auth | `/api/auth` | login, staff/login, google-login, register, OTP verify/resend, forgot/reset password, me/profile, change-password, logout, accounts CRUD |
+| AppointmentBooking | `/api/appointments` (absolute) | create, list/filter by role, status transitions |
+| ClinicalRecords | `/api/appointments/{id}/...` | start exam, diagnosis, treatment plan, prescription |
+| Queue | `/api/appointments/queue` | today's queue, reorder, transfer |
+| Reminders | `/api/appointments/{id}/follow-up-reminder`, `/my/medication-reminders` | follow-up + medication reminders |
+| DentistDashboard | `/api/appointments/dentist/dashboard` | dentist's day view |
+| AiAssist | `/api/appointments/{id}/ai-summary` | Gemini-generated visit summary |
+| Patients | `/api/patients` | CRUD, family members, medical history |
+| Dentists | `/api/dentists` | list, detail (+patientCount), reviews GET/POST |
+| Staff | `/api/staff` | employee CRUD |
 | Services | `/api/services` | CRUD |
 | Posts | `/api/posts` | CRUD, filter by serviceId |
 | Schedules | `/api/schedules` | CRUD, dentist working hours |
 | Rooms | `/api/rooms` | CRUD |
 | Medicines | `/api/medicines` | CRUD |
 | Inventory | `/api/inventory` | stock-in, stock-out, transaction history |
-| Leave | `/api/leave` | request, approve, reject |
-| Invoices | `/api/invoices` | CRUD, payment recording |
-| Feedback | `/api/feedback` | CRUD |
+| MaterialRequests | `/api/inventory/material-requests` | request, approve, fulfil |
+| LeaveRequests | `/api/leave-requests` | request, approve, reject |
+| Payrolls | `/api/payrolls` | payroll records, status |
+| Invoices | `/api/invoices` | CRUD, issue, my/unpaid, my/history |
+| Payments | `/api/payments` | PayOS checkout link/QR, webhook confirmation |
+| Feedbacks | `/api/feedbacks` | CRUD |
 | Promotions | `/api/promotions` | CRUD |
+| ClinicInfo | `/api/clinic-info` | clinic profile shown on public site |
+| Files | `/api/files` | upload (served back under `/uploads/`) |
+| Chat | `/api/chat` | Gemini Q&A conversations + messages |
+| AiAnalytics | `/api/ai-analytics` | AI-generated report summaries |
+| Dashboard | `/api/dashboard` | admin/owner KPIs |
+| StaffDashboard | `/api/staff-dashboard` | receptionist day view |
 | **ActivityLogs** | `/api/activity-logs` | GET paged+filtered; params: action, module, status, search, startDate, endDate, page, pageSize |
 | **Notifications** | `/api/notifications` | GET paged+filtered, PUT read, PUT read-all, DELETE |
 
@@ -282,15 +323,16 @@ after it, not just the one migration you're trying to undo.
 
 ## Test Coverage
 
-| Project | Files | Tests |
+| Project | Files | Notes |
 |---------|-------|-------|
-| Domain.Tests | ~20 | ~80 |
-| Application.Tests | ~48 | ~197 |
-| Infrastructure.Tests | ~23 | ~62 |
-| **Total** | **~91** | **~339** |
+| Domain.Tests | 1 | only `ActivityLogs/ActivityLogTests.cs` — biggest coverage gap |
+| Application.Tests | 79 | handler unit tests, repositories/services mocked |
+| Infrastructure.Tests | 67 | integration-style — no DB mocks |
+| **Total** | **147 files** | **1,123 test cases** (`dotnet test --list-tests`) |
 
 **Stack**: NUnit 4 + NSubstitute + FluentAssertions  
-**Run**: `dotnet test` from `apps/api/`  
+**Run**: `dotnet test DentalClinic.sln` from `apps/api/` — plain `dotnet test` fails with MSB1011
+(the folder holds both `DentalClinic.API.csproj` and `DentalClinic.sln`)  
 **Rule**: All must pass before merge. Infrastructure tests are integration-style — no DB mocks.
 
 ---
@@ -299,6 +341,13 @@ after it, not just the one migration you're trying to undo.
 
 | Decision | Rationale |
 |----------|-----------|
+| MediatR + `ISender` instead of injecting handlers | Controllers stay thin and stop growing a constructor parameter per use case; cross-cutting concerns land in one pipeline behavior instead of every handler |
+| `AddMediatR` scans the **Application** assembly explicitly | Once Application became its own project, scanning the wrong assembly made `ISender.Send` find zero handlers at runtime — with no compile error |
+| `BCrypt` referenced from Application | Pure hashing, no I/O — not treated as an Infrastructure-boundary violation |
+| Dashboard query services in `Application/Interfaces/` | Multi-entity read-only projections, not CRUD repositories — they do not belong in `Domain/Interfaces/Repositories/` |
+| `AppDbContext` implements `IUnitOfWork` | Repositories stage changes and the unit of work commits once; resolved to the same scoped instance, never a second DbContext |
+| No refresh token (access token only, 150 min) | Current state, not a design goal — a `RefreshToken`/`UserSession` entity is the known next step and touches the whole auth flow |
+| 6 controllers keep absolute `api/appointments/...` routes | Split out of the old god-controller without breaking 3 frontends that hardcode those paths |
 | `int` PK on ActivityLog | Sequential, insert-ordered; no UUID index fragmentation on append-only audit table |
 | `EF.Functions.ILike` for search | Native PostgreSQL case-insensitive; faster than `ToLower().Contains()` (which forces full-scan) |
 | `endDate` normalization | If `TimeOfDay == TimeSpan.Zero` (date-only input), extend to `AddDays(1).AddTicks(-1)` — full day included |
@@ -319,30 +368,48 @@ after it, not just the one migration you're trying to undo.
 ## File Quick-Reference
 
 ```
-apps/api/src/
-  Domain/
-    Entities/               ← 25 entities (incl. ActivityLog, Notification)
-    Interfaces/
-      Repositories/         ← 17 interfaces (IActivityLogRepository, INotificationRepository, ...)
-      Services/             ← IActivityLogService, INotificationService, IJwtService, IEmailService, ICurrentUserService
-    Constants/              ← ActivityAction/Module/Status, NotificationType, NotificationPriority (string values)
-    Enums/                  ← EmploymentType, SalaryUnit, ... (CLR enums)
-  Application/
-    UseCases/               ← 90+ handlers, one per use case
-    DTOs/                   ← request/response records
-  Infrastructure/
-    Persistence/
-      AppDbContext.cs
-      Repositories/         ← EF Core implementations
-    Services/               ← ActivityLogService, NotificationService, JwtService, EmailService
-  Presentation/
-    Controllers/            ← 19 thin controllers
-    Middleware/             ← JWT auth
-    DependencyInjection/    ← service registration
-tests/
-  Domain.Tests/
-  Application.Tests/
-  Infrastructure.Tests/
+apps/api/
+  Program.cs                ← DI, JWT, CORS, middleware order, auto-migrate + seed
+  DentalClinic.sln
+  src/
+    Domain/                 ← Domain.csproj (zero dependencies)
+      Entities/             ← 34 entities (incl. ActivityLog, Notification)
+      Interfaces/
+        Repositories/       ← 34 interfaces (IActivityLogRepository, INotificationRepository, ...)
+        Services/           ← 10: IJwtService, IEmailService, ICurrentUserService, IActivityLogService,
+                              INotificationService, IFileStorageService, IGoogleAuthService,
+                              IAiChatService, IPaymentGatewayService, IPaymentConfirmationService
+      Constants/            ← ActivityAction/Module/Status, NotificationType + NotificationPriority
+                              (same file), InventoryConstants — string values
+      Enums/                ← UserRole, AppointmentStatus, PaymentMethod/Status/Type/Gateway,
+                              TransactionStatus, LeaveStatus/Type, PayrollStatus, ... (CLR enums)
+      Exceptions/           ← NotFound, Validation, Conflict, Forbidden
+    Application/            ← Application.csproj → Domain
+      UseCases/             ← ~154 MediatR handlers, one per use case
+      DTOs/                 ← request/response records, per module
+      Validators/           ← FluentValidation — Auth, Invoices, Queue
+      Behaviors/            ← ValidationBehavior<,> (MediatR open behavior)
+      Interfaces/           ← IDashboardQueryService, IStaffDashboardQueryService,
+                              IDentistDashboardQueryService
+      DependencyInjection/  ← AddApplication()
+    Infrastructure/         ← Infrastructure.csproj → Application, Domain
+      Persistence/
+        AppDbContext.cs     ← also implements IUnitOfWork
+        Configurations/ Migrations/ DataSeeder.cs
+        Repositories/       ← EF Core implementations
+      Services/             ← JwtService, EmailService, GeminiChatService + GeminiReplyParser,
+                              GoogleAuthService, PayOSGatewayService + PaymentGatewayResolver,
+                              LocalFileStorageService, ActivityLogService, NotificationService,
+                              CurrentUserService, 3x *DashboardQueryService
+      Settings/             ← Jwt/Email/PayOS/Gemini/GoogleAuth
+      Extensions/           ← AddInfrastructure()
+    Presentation/
+      Controllers/          ← 31 thin controllers
+      Middlewares/          ← ExceptionMiddleware, AccountStatusMiddleware
+  tests/
+    Domain.Tests/           ← 1 file
+    Application.Tests/      ← 79 files
+    Infrastructure.Tests/   ← 67 files
 
 apps/admin_website/src/
   app/

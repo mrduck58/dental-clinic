@@ -26,7 +26,7 @@ public class GetPostByIdHandlerTests
         _repo.GetByIdAsync(post.Id, Arg.Any<CancellationToken>()).Returns(post);
         var handler = new GetPostByIdHandler(_repo);
 
-        var result = await handler.HandleAsync(post.Id);
+        var result = await handler.Handle(new GetPostByIdQuery(post.Id), CancellationToken.None);
 
         result.Id.Should().Be(post.Id);
         result.Title.Should().Be("Bài viết A");
@@ -41,7 +41,7 @@ public class GetPostByIdHandlerTests
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Post?)null);
         var handler = new GetPostByIdHandler(_repo);
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid());
+        Func<Task> act = () => handler.Handle(new GetPostByIdQuery(Guid.NewGuid()), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }

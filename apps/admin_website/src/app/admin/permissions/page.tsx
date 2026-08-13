@@ -1,174 +1,94 @@
-﻿"use client";
+"use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense } from "react";
+import Link from "next/link";
 import AdminSidebar from "../../../components/shared/AdminSidebar";
-import NotificationBell from "../../../components/shared/NotificationBell";
-import { getAccountsApi, getStaffApi, type StaffDto } from "../../../lib/apiClient";
+import AdminPageHeader from "../../../components/shared/AdminPageHeader";
+import { getAccountsApi, getStaffApi, toggleAccountStatusApi, resolveAssetUrl, type AccountDto, type StaffDto } from "../../../lib/apiClient";
 import { useRequireAdmin } from "../../../hooks/useRequireAdmin";
+import {
+  normalizeRole,
+  ROLE_LABELS as ROLE_LABEL,
+  ROLE_BADGE_CLASSES as ROLE_BADGE,
+  type UiRole,
+} from "../../../lib/roles";
 
-interface AccountPermissions {
-  appointmentsRead: boolean;
-  appointmentsWrite: boolean;
-  appointmentsCancel: boolean;
-  recordsRead: boolean;
-  recordsWrite: boolean;
-  recordsDelete: boolean;
-  revenueView: boolean;
-  systemManage: boolean;
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  return (parts[parts.length - 1]?.[0] ?? "?").toUpperCase();
 }
 
-interface Account {
+const PAGE_SIZE_OPTIONS = [5, 10, 20];
+
+interface Row {
   id: string;
   name: string;
   email: string;
   phone: string;
-  role: "Admin" | "Bác sĩ" | "Lễ tân" | "Kế toán";
-  status: "Active" | "Inactive";
-  avatar: string;
-  permissions: AccountPermissions;
-  // Thông tin nhân sự chi tiết
-  gender: "Nam" | "Nữ" | "Khác";
-  dateOfBirth: string;
-  nationalId: string;
-  address: string;
-  specialization: string;
-  startDate: string;
+  role: UiRole;
+  isActive: boolean;
+  createdAt: string;
 }
 
-const getDefaultPermissions = (role: Account["role"]): AccountPermissions => {
-  switch (role) {
-    case "Admin":
-      return {
-        appointmentsRead: true,
-        appointmentsWrite: true,
-        appointmentsCancel: true,
-        recordsRead: true,
-        recordsWrite: true,
-        recordsDelete: true,
-        revenueView: true,
-        systemManage: true,
-      };
-    case "Bác sĩ":
-      return {
-        appointmentsRead: true,
-        appointmentsWrite: true,
-        appointmentsCancel: false,
-        recordsRead: true,
-        recordsWrite: true,
-        recordsDelete: false,
-        revenueView: false,
-        systemManage: false,
-      };
-    case "Lễ tân":
-      return {
-        appointmentsRead: true,
-        appointmentsWrite: true,
-        appointmentsCancel: true,
-        recordsRead: true,
-        recordsWrite: false,
-        recordsDelete: false,
-        revenueView: false,
-        systemManage: false,
-      };
-    case "Kế toán":
-      return {
-        appointmentsRead: true,
-        appointmentsWrite: false,
-        appointmentsCancel: false,
-        recordsRead: false,
-        recordsWrite: false,
-        recordsDelete: false,
-        revenueView: true,
-        systemManage: false,
-      };
-  }
-};
-
-const ROLE_API_MAP: Record<Account["role"], string> = {
-  Admin: "Admin",
-  "Bác sĩ": "Doctor",
-  "Lễ tân": "Receptionist",
-  "Kế toán": "Accountant",
-};
-
-const ROLE_UI_MAP: Record<string, Account["role"]> = {
-  Admin: "Admin",
-  Doctor: "Bác sĩ",
-  Receptionist: "Lễ tân",
-  Accountant: "Kế toán",
-};
-
-export default function PermissionsPage() {
+function UsersPageContent() {
   useRequireAdmin();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [accounts, setAccounts] = useState<Row[]>([]);
   const [isFetching, setIsFetching] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [roleFilter, setRoleFilter] = useState<string>("All");
+  const [roleFilter, setRoleFilter] = useState<string>(searchParams.get("role") ?? "All");
+  const [pageSize, setPageSize] = useState(5);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [employeesWithoutAccount, setEmployeesWithoutAccount] = useState<StaffDto[]>([]);
   const [noAccountBannerOpen, setNoAccountBannerOpen] = useState(true);
 
-  // Modals state
-  const [isPermModalOpen, setIsPermModalOpen] = useState(false);
-  const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
-
-  // Toast notification
   const [toast, setToast] = useState<{ show: boolean; message: string } | null>(null);
+  const showToast = (message: string) => {
+    setToast({ show: true, message });
+    setTimeout(() => setToast(null), 6000);
+  };
 
   const loadEmployeesWithoutAccount = () => {
-    getStaffApi({ role: "Doctor,Dentist,Staff,Admin", pageSize: 200 })
+    getStaffApi({ role: "Dentist,Staff,Admin", pageSize: 200 })
       .then((res) => setEmployeesWithoutAccount(res.items.filter((s) => !s.hasAccount)))
       .catch(() => {});
   };
 
-  // Fetch accounts từ API khi mount
+  const mapToRows = (data: AccountDto[]): Row[] =>
+    data
+      .filter((u) => u.role !== "Patient")
+      .map((u) => ({
+        id: u.id,
+        name: u.fullName ?? u.username,
+        email: u.email,
+        phone: u.phoneNumber ?? "",
+        role: normalizeRole(u.role),
+        isActive: u.isActive,
+        createdAt: u.createdAt,
+      }));
+
   useEffect(() => {
     getAccountsApi()
-      .then((data) =>
-        setAccounts(
-          data.map((u) => ({
-            id: u.id,
-            name: u.fullName ?? u.username,
-            email: u.email,
-            phone: u.phoneNumber ?? "",
-            role: (ROLE_UI_MAP[u.role] ?? "Bác sĩ") as Account["role"],
-            status: u.isActive ? ("Active" as const) : ("Inactive" as const),
-            avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80",
-            permissions: getDefaultPermissions((ROLE_UI_MAP[u.role] ?? "Bác sĩ") as Account["role"]),
-            gender: "Nam" as const,
-            dateOfBirth: "",
-            nationalId: "",
-            address: "",
-            specialization: "",
-            startDate: u.createdAt.slice(0, 10),
-          }))
-        )
-      )
+      .then((data) => setAccounts(mapToRows(data)))
       .catch((err: unknown) =>
         setFetchError(err instanceof Error ? err.message : "Không thể tải danh sách tài khoản")
       )
       .finally(() => setIsFetching(false));
 
     loadEmployeesWithoutAccount();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Custom permissions local state for edit
-  const [tempPermissions, setTempPermissions] = useState<AccountPermissions | null>(null);
-
-  const showToast = (message: string) => {
-    setToast({ show: true, message });
-    setTimeout(() => setToast(null), 6000);
-  };
 
   useEffect(() => {
     const msg = sessionStorage.getItem("permSuccessMsg");
     if (msg) { showToast(msg); sessionStorage.removeItem("permSuccessMsg"); }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleGoToCreateAccount = (staff: StaffDto) => {
@@ -180,19 +100,17 @@ export default function PermissionsPage() {
       phoneNumber: staff.phoneNumber || "",
       profilePictureUrl: staff.profilePictureUrl,
     }));
-    router.push("/admin/permissions/create-account");
+    router.push(`/admin/permissions/create-account?staffId=${staff.id}`);
   };
 
-  // Calculate statistics
   const stats = useMemo(() => {
     const total = accounts.length;
-    const active = accounts.filter((a) => a.status === "Active").length;
-    const doctors = accounts.filter((a) => a.role === "Bác sĩ").length;
-    const staff = accounts.filter((a) => a.role === "Lễ tân" || a.role === "Kế toán").length;
+    const active = accounts.filter((a) => a.isActive).length;
+    const doctors = accounts.filter((a) => a.role === "Dentist").length;
+    const staff = accounts.filter((a) => a.role === "Staff").length;
     return { total, active, doctors, staff };
   }, [accounts]);
 
-  // Filtered accounts
   const filteredAccounts = useMemo(() => {
     return accounts.filter((account) => {
       const matchesSearch =
@@ -204,58 +122,41 @@ export default function PermissionsPage() {
     });
   }, [accounts, searchQuery, roleFilter]);
 
-  const handleToggleStatus = (id: string) => {
-    setAccounts((prev) =>
-      prev.map((acc) =>
-        acc.id === id ? { ...acc, status: acc.status === "Active" ? "Inactive" : "Active" } : acc
-      )
-    );
-  };
+  const filterKey = `${searchQuery}|${roleFilter}|${pageSize}`;
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey);
+    setCurrentPage(1);
+  }
 
+  const totalCount = filteredAccounts.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIndex = (safePage - 1) * pageSize;
+  const pagedAccounts = filteredAccounts.slice(startIndex, startIndex + pageSize);
 
-  const openPermissionsModal = (account: Account) => {
-    setSelectedAccount(account);
-    setTempPermissions({ ...account.permissions });
-    setIsPermModalOpen(true);
-  };
-
-  const handlePermissionChange = (key: keyof AccountPermissions) => {
-    if (tempPermissions) {
-      setTempPermissions({ ...tempPermissions, [key]: !tempPermissions[key] });
-    }
-  };
-
-  const handleSavePermissions = () => {
-    if (selectedAccount && tempPermissions) {
+  const handleToggleStatus = async (id: string) => {
+    try {
+      const updated = await toggleAccountStatusApi(id);
       setAccounts((prev) =>
-        prev.map((acc) =>
-          acc.id === selectedAccount.id ? { ...acc, permissions: tempPermissions } : acc
-        )
+        prev.map((acc) => (acc.id === id ? { ...acc, isActive: updated.isActive } : acc))
       );
-      setIsPermModalOpen(false);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Không thể cập nhật trạng thái tài khoản");
     }
   };
-
-  const inputClass =
-    "w-full px-4 py-2.5 text-[14px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-bold text-slate-800";
-  const labelClass = "block text-[12px] font-extrabold text-slate-500 uppercase tracking-wide mb-1.5";
 
   return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
-      <AdminSidebar activeMenu="permissions" />
+      <AdminSidebar activeMenu="permissions-users" />
 
       <main className="flex-1 flex flex-col min-w-0">
-        {/* HEADER */}
-        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 font-sans shadow-sm shadow-slate-100/50">
-          <div>
-            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Tài Khoản & Phân Quyền</h1>
-            <p className="text-[13px] text-slate-400 font-semibold mt-0.5">Quản lý thành viên hệ thống và cấu hình chi tiết quyền hạn.</p>
-          </div>
-          <NotificationBell />
-        </header>
+        <AdminPageHeader
+          title="Người Dùng"
+          subtitle="Danh sách tài khoản nhân sự trong hệ thống."
+        />
 
         <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-8">
-          {/* TOAST NOTIFICATION */}
           {toast?.show && (
             <div className="fixed top-6 right-6 z-[100] animate-fade-in">
               <div className="bg-white border border-green-200 rounded-2xl shadow-xl shadow-slate-200/60 p-4 flex items-start gap-3.5 max-w-sm">
@@ -270,10 +171,7 @@ export default function PermissionsPage() {
                     {toast.message}
                   </p>
                 </div>
-                <button
-                  onClick={() => setToast(null)}
-                  className="text-slate-300 hover:text-slate-500 shrink-0 cursor-pointer"
-                >
+                <button onClick={() => setToast(null)} className="text-slate-300 hover:text-slate-500 shrink-0 cursor-pointer">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                   </svg>
@@ -299,7 +197,7 @@ export default function PermissionsPage() {
 
             <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm hover-lift flex items-center justify-between hover:border-primary/40 transition-all duration-200">
               <div>
-                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Bác sĩ trực</span>
+                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Bác sĩ</span>
                 <span className="text-3xl font-black text-slate-900 block mt-1">{stats.doctors}</span>
                 <span className="text-[12px] text-slate-400 font-semibold block mt-0.5">Khám điều trị chính</span>
               </div>
@@ -312,9 +210,9 @@ export default function PermissionsPage() {
 
             <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm hover-lift flex items-center justify-between hover:border-primary/40 transition-all duration-200">
               <div>
-                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Lễ tân & Kế toán</span>
+                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Nhân viên</span>
                 <span className="text-3xl font-black text-slate-900 block mt-1">{stats.staff}</span>
-                <span className="text-[12px] text-slate-400 font-semibold block mt-0.5">Tiếp đón và Thu ngân</span>
+                <span className="text-[12px] text-slate-400 font-semibold block mt-0.5">Tiếp đón và hỗ trợ</span>
               </div>
               <div className="w-12 h-12 rounded-xl bg-amber-50 text-accent flex items-center justify-center shrink-0">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -383,41 +281,34 @@ export default function PermissionsPage() {
                     </thead>
                     <tbody className="divide-y divide-amber-100 font-semibold text-slate-700">
                       {employeesWithoutAccount.map((emp) => {
-                        const initials = emp.fullName
+                        const empInitials = emp.fullName
                           ? emp.fullName.trim().split(/\s+/).slice(-2).map((w) => w[0]).join("").toUpperCase()
                           : emp.email.slice(0, 2).toUpperCase();
-                        const ROLE_LABELS_MAP: Record<string, string> = {
-                          Admin: "Quản trị viên", Doctor: "Bác sĩ CK", Dentist: "Nha sĩ", Staff: "Lễ tân",
-                        };
-                        const ROLE_BADGE_MAP: Record<string, string> = {
-                          Admin: "bg-purple-50 text-purple-700 border-purple-200",
-                          Doctor: "bg-emerald-50 text-emerald-700 border-emerald-200",
-                          Dentist: "bg-sky-50 text-sky-700 border-sky-200",
-                          Staff: "bg-green-50 text-green-700 border-green-200",
-                        };
+                        const role = normalizeRole(emp.role);
                         return (
                           <tr key={emp.id} className="hover:bg-amber-50/60 transition-colors">
                             <td className="px-5 py-3">
                               <div className="flex items-center gap-2.5">
                                 {emp.profilePictureUrl ? (
-                                  <img src={emp.profilePictureUrl} alt={emp.fullName || emp.email}
+                                  <img src={resolveAssetUrl(emp.profilePictureUrl)} alt={emp.fullName || emp.email}
                                     className="w-8 h-8 rounded-full object-cover border border-amber-200 shrink-0" />
                                 ) : (
                                   <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-700 font-black text-[11px] flex items-center justify-center shrink-0">
-                                    {initials}
+                                    {empInitials}
                                   </div>
                                 )}
                                 <span className="font-bold text-slate-800 truncate max-w-[140px]">{emp.fullName || emp.email}</span>
                               </div>
                             </td>
                             <td className="px-5 py-3">
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-black border ${ROLE_BADGE_MAP[emp.role] || "bg-slate-50 border-slate-200 text-slate-600"}`}>
-                                {ROLE_LABELS_MAP[emp.role] || emp.role}
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-black ${ROLE_BADGE[role]}`}>
+                                {ROLE_LABEL[role]}
                               </span>
                             </td>
                             <td className="px-5 py-3 text-slate-500 font-semibold text-[12px]">{emp.email}</td>
                             <td className="px-5 py-3 text-right">
-                              <button
+                              <Link
+                                href={`/admin/permissions/create-account?staffId=${emp.id}`}
                                 onClick={() => handleGoToCreateAccount(emp)}
                                 className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-[12px] font-extrabold rounded-lg shadow-sm transition-all cursor-pointer"
                               >
@@ -425,7 +316,7 @@ export default function PermissionsPage() {
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                                 </svg>
                                 Tạo ngay
-                              </button>
+                              </Link>
                             </td>
                           </tr>
                         );
@@ -438,8 +329,9 @@ export default function PermissionsPage() {
           )}
 
           {/* TOOLBAR */}
-          <div className="bg-white p-4.5 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3.5 flex-1 max-w-2xl">
+          <div className="bg-white px-5 py-4 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col gap-3">
+            {/* Row 1: search + filter + create */}
+            <div className="flex flex-col md:flex-row md:items-center gap-3">
               <div className="relative flex-1">
                 <span className="absolute inset-y-0 left-3 flex items-center text-slate-400">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -451,161 +343,143 @@ export default function PermissionsPage() {
                   placeholder="Tìm theo tên, email, số điện thoại..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9.5 pr-4 py-2.5 text-[14px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-semibold"
+                  className="w-full pl-9.5 pr-4 py-2.5 text-[14px] bg-slate-100/80 border border-transparent rounded-xl focus:bg-white focus:border-slate-200 focus:outline-none transition-all font-semibold"
                 />
               </div>
-              <div className="relative">
+              <div className="relative shrink-0">
                 <select
                   value={roleFilter}
                   onChange={(e) => setRoleFilter(e.target.value)}
-                  className="w-full sm:w-44 px-4 py-2.5 text-[14px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-bold text-slate-600 appearance-none pr-8 cursor-pointer"
+                  className="appearance-none bg-white text-slate-700 font-bold text-[14px] pl-4 pr-9 py-2.5 rounded-xl border border-slate-200 focus:outline-none transition-all cursor-pointer"
                 >
                   <option value="All">Tất cả vai trò</option>
-                  <option value="Admin">Admin</option>
-                  <option value="Bác sĩ">Bác sĩ</option>
-                  <option value="Lễ tân">Lễ tân</option>
-                  <option value="Kế toán">Kế toán</option>
+                  <option value="Admin">{ROLE_LABEL.Admin}</option>
+                  <option value="Owner">{ROLE_LABEL.Owner}</option>
+                  <option value="Dentist">{ROLE_LABEL.Dentist}</option>
+                  <option value="Staff">{ROLE_LABEL.Staff}</option>
                 </select>
-                <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-500">
+                <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
                   </svg>
-                </span>
+                </div>
               </div>
+              <Link
+                href="/admin/permissions/create-account"
+                className="inline-flex items-center gap-2 bg-primary hover:bg-primary-hover text-white font-bold text-[14px] px-5 py-2.5 rounded-xl transition-all shadow-md shadow-primary/25 shrink-0"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+                Thêm tài khoản
+              </Link>
             </div>
-            <button
-              onClick={() => router.push("/admin/permissions/create-account")}
-              className="flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-white text-[14px] font-extrabold px-5 py-2.5 rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all hover:translate-y-[-1px] cursor-pointer"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-              </svg>
-              Thêm tài khoản
-            </button>
+
+            {/* Row 2: per-page + result count */}
+            <div className="flex items-center gap-2 text-[13px] text-slate-400 font-semibold border-t border-slate-100 pt-3">
+              <span>Hiển thị</span>
+              <div className="relative">
+                <select
+                  value={pageSize}
+                  onChange={(e) => setPageSize(Number(e.target.value))}
+                  className="appearance-none bg-white text-slate-700 font-bold text-[13px] pl-3 pr-7 py-1 rounded-lg border border-slate-200 focus:outline-none cursor-pointer"
+                >
+                  {PAGE_SIZE_OPTIONS.map((n) => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-slate-400">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                  </svg>
+                </div>
+              </div>
+              <span>/ trang</span>
+              <span className="text-slate-300 mx-1">·</span>
+              <span>
+                Tìm thấy{" "}
+                <span className="text-slate-600 font-bold">{totalCount}</span>
+                {" "}kết quả
+              </span>
+            </div>
           </div>
 
           {/* TABLE */}
           <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden flex flex-col w-full">
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-[13px] sm:text-[14px]">
+              <table className="w-full text-left border-collapse text-[14px]">
                 <thead>
-                  <tr className="bg-slate-50/70 font-extrabold text-slate-400 uppercase tracking-wider border-b border-slate-200/80 select-none">
+                  <tr className="bg-slate-50/50 font-extrabold text-slate-400 uppercase tracking-wider border-b border-slate-150">
                     <th className="px-6 py-4">Nhân viên</th>
                     <th className="px-6 py-4">Liên hệ</th>
-                    <th className="px-6 py-4">Ngày vào làm</th>
+                    <th className="px-6 py-4">Ngày tạo tài khoản</th>
                     <th className="px-6 py-4">Vai trò</th>
                     <th className="px-6 py-4 text-center">Trạng thái</th>
-                    <th className="px-6 py-4 text-right">Hành động</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-150/70 font-semibold text-slate-600">
+                <tbody className="divide-y divide-slate-100 font-semibold text-slate-600">
                   {isFetching ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-10 text-center text-slate-400 font-bold">
+                      <td colSpan={5} className="px-6 py-10 text-center text-slate-400 font-bold">
                         Đang tải danh sách tài khoản...
                       </td>
                     </tr>
                   ) : fetchError ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-10 text-center text-red-500 font-bold">
+                      <td colSpan={5} className="px-6 py-10 text-center text-red-500 font-bold">
                         {fetchError}
                       </td>
                     </tr>
-                  ) : filteredAccounts.length > 0 ? (
-                    filteredAccounts.map((account) => {
-                      let roleBadgeClass = "";
-                      switch (account.role) {
-                        case "Admin":
-                          roleBadgeClass = "bg-red-50 text-primary border border-red-100";
-                          break;
-                        case "Bác sĩ":
-                          roleBadgeClass = "bg-sky-50 text-secondary border border-sky-100";
-                          break;
-                        case "Lễ tân":
-                          roleBadgeClass = "bg-green-50 text-green-600 border border-green-100";
-                          break;
-                        case "Kế toán":
-                          roleBadgeClass = "bg-amber-50 text-amber-600 border border-amber-100";
-                          break;
-                      }
-
-                      return (
-                        <tr key={account.id} className="hover:bg-slate-50/20 transition-colors">
-                          {/* Name & Avatar */}
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-3">
-                              <img
-                                src={account.avatar}
-                                alt={account.name}
-                                className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0 shadow-sm"
-                              />
-                              <div className="min-w-0">
-                                <div className="font-extrabold text-slate-900 truncate">{account.name}</div>
-                                {account.specialization && (
-                                  <div className="text-[11px] text-slate-400 font-semibold truncate mt-0.5">{account.specialization}</div>
-                                )}
-                              </div>
+                  ) : pagedAccounts.length > 0 ? (
+                    pagedAccounts.map((account) => (
+                      <tr key={account.id} className="hover:bg-slate-50/40 transition-colors">
+                        <td className="px-6 py-4.5">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-red-50 text-primary font-black flex items-center justify-center shrink-0 border border-red-100">
+                              {initials(account.name)}
                             </div>
-                          </td>
+                            <div className="min-w-0">
+                              <div className="font-extrabold text-slate-900 truncate">{account.name}</div>
+                            </div>
+                          </div>
+                        </td>
 
-                          {/* Contact */}
-                          <td className="px-6 py-4">
-                            <div className="font-bold text-slate-800 text-[13px]">{account.phone}</div>
-                            <div className="text-[11px] text-slate-400 font-medium mt-0.5 truncate max-w-[160px]">{account.email}</div>
-                          </td>
+                        <td className="px-6 py-4.5">
+                          <div className="font-bold text-slate-800 text-[13px]">{account.phone || "—"}</div>
+                          <div className="text-[11px] text-slate-400 font-medium mt-0.5 truncate max-w-[160px]">{account.email}</div>
+                        </td>
 
-                          {/* Start date */}
-                          <td className="px-6 py-4 font-bold text-slate-600 text-[13px]">
-                            {account.startDate
-                              ? new Date(account.startDate).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })
-                              : "—"}
-                          </td>
+                        <td className="px-6 py-4.5 font-bold text-slate-600 text-[13px]">
+                          {new Date(account.createdAt).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                        </td>
 
-                          {/* Role Tag */}
-                          <td className="px-6 py-4">
-                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[12px] font-black ${roleBadgeClass}`}>
-                              {account.role}
-                            </span>
-                          </td>
+                        <td className="px-6 py-4.5">
+                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[12px] font-black ${ROLE_BADGE[account.role]}`}>
+                            {ROLE_LABEL[account.role]}
+                          </span>
+                        </td>
 
-                          {/* Toggle Switch */}
-                          <td className="px-6 py-4 text-center">
-                            <div className="inline-flex items-center justify-center">
-                              <button
-                                onClick={() => handleToggleStatus(account.id)}
-                                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                                  account.status === "Active" ? "bg-green-500" : "bg-slate-250"
+                        <td className="px-6 py-4.5 text-center">
+                          <div className="inline-flex items-center justify-center">
+                            <button
+                              onClick={() => void handleToggleStatus(account.id)}
+                              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                account.isActive ? "bg-green-500" : "bg-slate-400"
+                              }`}
+                            >
+                              <span
+                                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                                  account.isActive ? "translate-x-5" : "translate-x-0"
                                 }`}
-                              >
-                                <span
-                                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                                    account.status === "Active" ? "translate-x-5" : "translate-x-0"
-                                  }`}
-                                />
-                              </button>
-                            </div>
-                          </td>
-
-                          {/* Action Buttons */}
-                          <td className="px-6 py-4 text-right">
-                            <div className="flex items-center justify-end gap-2.5">
-                              <button
-                                onClick={() => openPermissionsModal(account)}
-                                title="Cấu hình quyền chi tiết"
-                                className="p-2 text-slate-400 hover:text-primary hover:bg-red-50 rounded-lg transition-all cursor-pointer"
-                              >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.57-.598-3.751A11.956 11.956 0 0112 2.714z" />
-                                </svg>
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
+                              />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
                   ) : (
                     <tr>
-                      <td colSpan={6} className="px-6 py-10 text-center text-slate-400 font-bold">
+                      <td colSpan={5} className="px-6 py-10 text-center text-slate-400 font-bold">
                         {accounts.length === 0
                           ? "Chưa có tài khoản nào. Hãy thêm tài khoản đầu tiên."
                           : "Không tìm thấy tài khoản nhân viên nào khớp với bộ lọc."}
@@ -615,133 +489,95 @@ export default function PermissionsPage() {
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination bar */}
+            {totalCount > 0 && (
+              <div className="p-4 border-t border-slate-100 flex items-center justify-between gap-2.5">
+                <span className="text-[13px] text-slate-400 font-semibold">
+                  Hiển thị{" "}
+                  <span className="text-slate-600 font-bold">{startIndex + 1}–{Math.min(startIndex + pageSize, totalCount)}</span>
+                  {" "}trong{" "}
+                  <span className="text-slate-600 font-bold">{totalCount}</span>
+                  {" "}tài khoản
+                </span>
+                <div className="flex items-center gap-2.5">
+                  <button
+                    onClick={() => setCurrentPage(1)}
+                    disabled={safePage === 1}
+                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
+                      safePage === 1
+                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
+                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
+                    }`}
+                  >
+                    &lt;|
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={safePage === 1}
+                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
+                      safePage === 1
+                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
+                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
+                    }`}
+                  >
+                    &lt;
+                  </button>
+
+                  {Array.from({ length: totalPages }).map((_, idx) => {
+                    const p = idx + 1;
+                    const isActive = safePage === p;
+                    return (
+                      <button
+                        key={p}
+                        onClick={() => setCurrentPage(p)}
+                        className={`w-9 h-9 rounded-xl border flex items-center justify-center font-extrabold text-[14px] transition-all cursor-pointer ${
+                          isActive
+                            ? "bg-white border-primary text-primary shadow-sm font-black"
+                            : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    );
+                  })}
+
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={safePage === totalPages}
+                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
+                      safePage === totalPages
+                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
+                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
+                    }`}
+                  >
+                    &gt;
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={safePage === totalPages}
+                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
+                      safePage === totalPages
+                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
+                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
+                    }`}
+                  >
+                    |&gt;
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </main>
-
-      {/* ── MODAL: PHÂN QUYỀN CHI TIẾT ─────────────────────────────────────── */}
-      {isPermModalOpen && selectedAccount && tempPermissions && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto animate-fade-in">
-          <div className="bg-white rounded-2xl border border-slate-200 w-full max-w-2xl shadow-2xl p-6 relative flex flex-col gap-5">
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-3">
-                <img
-                  src={selectedAccount.avatar}
-                  alt={selectedAccount.name}
-                  className="w-11 h-11 rounded-full object-cover border border-slate-200 shadow-sm"
-                />
-                <div>
-                  <h3 className="text-[18px] font-black text-slate-900 leading-tight">Phân Quyền Chi Tiết</h3>
-                  <p className="text-[12px] text-slate-400 font-bold mt-0.5">
-                    Nhân viên: <span className="text-slate-600 font-extrabold">{selectedAccount.name}</span> • Vai trò: <span className="text-primary font-extrabold">{selectedAccount.role}</span>
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsPermModalOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {/* Matrix of Permissions */}
-            <div className="flex flex-col gap-4 max-h-[380px] overflow-y-auto pr-1">
-              <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-100">
-                <p className="text-[12px] text-slate-500 font-bold leading-relaxed">
-                  💡 Hệ thống tự động thiết lập các quyền mặc định dựa trên vai trò. Bạn có thể bật/tắt thủ công từng quyền dưới đây để tuỳ chỉnh riêng cho nhân viên này.
-                </p>
-              </div>
-
-              <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                <table className="w-full text-left border-collapse text-[13.5px]">
-                  <thead>
-                    <tr className="bg-slate-50 font-extrabold text-slate-500 border-b border-slate-250 select-none">
-                      <th className="px-5 py-3">Danh mục tính năng</th>
-                      <th className="px-4 py-3 text-center w-24">Xem / Đọc</th>
-                      <th className="px-4 py-3 text-center w-24">Thêm / Sửa</th>
-                      <th className="px-4 py-3 text-center w-24">Hủy / Quản lý</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-150 font-bold text-slate-700">
-                    <tr className="hover:bg-slate-50/30 transition-colors">
-                      <td className="px-5 py-3.5">
-                        <div className="font-extrabold text-slate-900">Quản lý lịch hẹn</div>
-                        <div className="text-[11px] text-slate-400 font-semibold mt-0.5">Đặt lịch khám, điều phối ca trực bác sĩ.</div>
-                      </td>
-                      <td className="px-4 py-3.5 text-center">
-                        <input type="checkbox" checked={tempPermissions.appointmentsRead} onChange={() => handlePermissionChange("appointmentsRead")} className="w-4.5 h-4.5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer" />
-                      </td>
-                      <td className="px-4 py-3.5 text-center">
-                        <input type="checkbox" checked={tempPermissions.appointmentsWrite} onChange={() => handlePermissionChange("appointmentsWrite")} className="w-4.5 h-4.5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer" />
-                      </td>
-                      <td className="px-4 py-3.5 text-center">
-                        <input type="checkbox" checked={tempPermissions.appointmentsCancel} onChange={() => handlePermissionChange("appointmentsCancel")} className="w-4.5 h-4.5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer" />
-                      </td>
-                    </tr>
-                    <tr className="hover:bg-slate-50/30 transition-colors">
-                      <td className="px-5 py-3.5">
-                        <div className="font-extrabold text-slate-900">Hồ sơ bệnh án</div>
-                        <div className="text-[11px] text-slate-400 font-semibold mt-0.5">Bệnh lịch, chẩn đoán, lịch sử răng và phác đồ.</div>
-                      </td>
-                      <td className="px-4 py-3.5 text-center">
-                        <input type="checkbox" checked={tempPermissions.recordsRead} onChange={() => handlePermissionChange("recordsRead")} className="w-4.5 h-4.5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer" />
-                      </td>
-                      <td className="px-4 py-3.5 text-center">
-                        <input type="checkbox" checked={tempPermissions.recordsWrite} onChange={() => handlePermissionChange("recordsWrite")} className="w-4.5 h-4.5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer" />
-                      </td>
-                      <td className="px-4 py-3.5 text-center">
-                        <input type="checkbox" checked={tempPermissions.recordsDelete} onChange={() => handlePermissionChange("recordsDelete")} className="w-4.5 h-4.5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer" />
-                      </td>
-                    </tr>
-                    <tr className="hover:bg-slate-50/30 transition-colors">
-                      <td className="px-5 py-3.5">
-                        <div className="font-extrabold text-slate-900">Báo cáo & Doanh thu</div>
-                        <div className="text-[11px] text-slate-400 font-semibold mt-0.5">Biểu đồ doanh số ngày/tháng/năm và hóa đơn.</div>
-                      </td>
-                      <td className="px-4 py-3.5 text-center">
-                        <input type="checkbox" checked={tempPermissions.revenueView} onChange={() => handlePermissionChange("revenueView")} className="w-4.5 h-4.5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer" />
-                      </td>
-                      <td className="px-4 py-3.5 text-center text-slate-300 text-[12px] select-none">-</td>
-                      <td className="px-4 py-3.5 text-center text-slate-300 text-[12px] select-none">-</td>
-                    </tr>
-                    <tr className="hover:bg-slate-50/30 transition-colors">
-                      <td className="px-5 py-3.5">
-                        <div className="font-extrabold text-slate-900">Quản trị hệ thống</div>
-                        <div className="text-[11px] text-slate-400 font-semibold mt-0.5">Cài đặt thiết bị, phòng khám và phân quyền.</div>
-                      </td>
-                      <td className="px-4 py-3.5 text-center">
-                        <input type="checkbox" checked={tempPermissions.systemManage} onChange={() => handlePermissionChange("systemManage")} className="w-4.5 h-4.5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer" />
-                      </td>
-                      <td className="px-4 py-3.5 text-center text-slate-300 text-[12px] select-none">-</td>
-                      <td className="px-4 py-3.5 text-center text-slate-300 text-[12px] select-none">-</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Buttons */}
-            <div className="flex items-center justify-end gap-3 border-t border-slate-100 pt-4 mt-2">
-              <button
-                onClick={() => setIsPermModalOpen(false)}
-                className="px-5 py-2.5 text-[14px] font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-50 border border-slate-200 rounded-xl transition-all cursor-pointer"
-              >
-                Hủy bỏ
-              </button>
-              <button
-                onClick={handleSavePermissions}
-                className="px-5 py-2.5 bg-primary hover:bg-primary-hover text-white text-[14px] font-extrabold rounded-xl shadow-md shadow-primary/20 hover:shadow-lg transition-all cursor-pointer"
-              >
-                Lưu cấu hình
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
+  );
+}
+
+export default function PermissionsPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center font-bold text-slate-500">Đang tải...</div>}>
+      <UsersPageContent />
+    </Suspense>
   );
 }

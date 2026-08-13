@@ -17,26 +17,36 @@ public class MaterialRequest
     public string CourseName { get; private set; } = string.Empty;
     public string PatientName { get; private set; } = string.Empty;
     public string DentistName { get; private set; } = string.Empty;
-    public string Content { get; private set; } = string.Empty; // danh sách vật liệu (text)
     public MaterialRequestStatus Status { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset? HandledAt { get; private set; }
     public string? HandledBy { get; private set; }
 
+    public Guid? DentistId { get; private set; }
+    public DentistProfile? Dentist { get; private set; }
+
+    private readonly List<MaterialRequestItem> _items = [];
+    public IReadOnlyCollection<MaterialRequestItem> Items => _items;
+
     private MaterialRequest() { }
 
-    public static MaterialRequest Create(string courseName, string patientName, string dentistName, string content, Guid? courseId = null)
-        => new()
+    public static MaterialRequest Create(
+        string courseName, string patientName, string dentistName,
+        IEnumerable<(string ItemName, int Quantity, string Unit)> items, Guid? courseId = null)
+    {
+        var request = new MaterialRequest
         {
             Id = Guid.NewGuid(),
             CourseId = courseId,
             CourseName = courseName,
             PatientName = patientName,
             DentistName = dentistName,
-            Content = content,
             Status = MaterialRequestStatus.Pending,
             CreatedAt = DateTimeOffset.UtcNow
         };
+        request._items.AddRange(items.Select(i => MaterialRequestItem.Create(request.Id, i.ItemName, i.Quantity, i.Unit)));
+        return request;
+    }
 
     public void MarkDone(string handledBy)
     {

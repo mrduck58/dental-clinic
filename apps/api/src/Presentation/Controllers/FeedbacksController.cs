@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.DTOs.Feedbacks;
 using DentalClinic.API.Application.UseCases.Feedbacks;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -7,14 +8,7 @@ namespace DentalClinic.API.Presentation.Controllers;
 
 [ApiController]
 [Route("api/feedbacks")]
-public class FeedbacksController(
-    GetFeedbacksHandler getFeedbacks,
-    GetFeedbackByIdHandler getById,
-    CreateFeedbackHandler create,
-    ApproveFeedbackHandler approve,
-    HideFeedbackHandler hide,
-    ReplyFeedbackHandler reply,
-    GenerateFeedbackReplyHandler generateAiReply) : ControllerBase
+public class FeedbacksController(ISender sender) : ControllerBase
 {
     /// <summary>GET api/feedbacks — Danh sách phản hồi (Admin)</summary>
     [HttpGet]
@@ -24,7 +18,7 @@ public class FeedbacksController(
         [FromQuery] string? search,
         CancellationToken ct)
     {
-        var result = await getFeedbacks.HandleAsync(status, search, ct);
+        var result = await sender.Send(new GetFeedbacksQuery(status, search), ct);
         return Ok(result);
     }
 
@@ -33,7 +27,19 @@ public class FeedbacksController(
     [AllowAnonymous]
     public async Task<IActionResult> GetFeatured(CancellationToken ct)
     {
-        var result = await getFeedbacks.HandleAsync("Featured", null, ct);
+        var result = await sender.Send(new GetFeedbacksQuery("Featured", null), ct);
+        return Ok(result);
+    }
+
+    /// <summary>GET api/feedbacks/eligibility — Kiểm tra điều kiện đánh giá phòng khám của bệnh nhân</summary>
+    [HttpGet("eligibility")]
+    [Authorize]
+    public async Task<IActionResult> GetEligibility(CancellationToken ct)
+    {
+        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (!Guid.TryParse(userIdClaim, out var userId)) return Unauthorized();
+
+        var result = await sender.Send(new GetClinicFeedbackEligibilityQuery(userId), ct);
         return Ok(result);
     }
 
@@ -42,16 +48,20 @@ public class FeedbacksController(
     [Authorize(Roles = "Staff,Owner")]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
-        var result = await getById.HandleAsync(id, ct);
+        var result = await sender.Send(new GetFeedbackByIdQuery(id), ct);
         return Ok(result);
     }
 
-    /// <summary>POST api/feedbacks — Khách hàng gửi phản hồi (Public)</summary>
+    /// <summary>POST api/feedbacks — Bệnh nhân gửi phản hồi phòng khám</summary>
     [HttpPost]
-    [AllowAnonymous]
+    [Authorize]
     public async Task<IActionResult> Create([FromBody] CreateFeedbackRequest request, CancellationToken ct)
     {
-        var result = await create.HandleAsync(request, ct);
+        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (!Guid.TryParse(userIdClaim, out var userId)) return Unauthorized();
+
+        var result = await sender.Send(
+            new CreateFeedbackCommand(userId, request.Rating, request.Comment), ct);
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
 
@@ -60,7 +70,7 @@ public class FeedbacksController(
     [Authorize(Roles = "Staff,Owner")]
     public async Task<IActionResult> Feature(Guid id, CancellationToken ct)
     {
-        var result = await approve.HandleAsync(id, ct);
+        var result = await sender.Send(new ApproveFeedbackCommand(id), ct);
         return Ok(result);
     }
 
@@ -69,7 +79,7 @@ public class FeedbacksController(
     [Authorize(Roles = "Staff,Owner")]
     public async Task<IActionResult> Hide(Guid id, CancellationToken ct)
     {
-        var result = await hide.HandleAsync(id, ct);
+        var result = await sender.Send(new HideFeedbackCommand(id), ct);
         return Ok(result);
     }
 
@@ -78,7 +88,7 @@ public class FeedbacksController(
     [Authorize(Roles = "Staff,Owner")]
     public async Task<IActionResult> Reply(Guid id, [FromBody] ReplyFeedbackRequest request, CancellationToken ct)
     {
-        var result = await reply.HandleAsync(id, request, ct);
+        var result = await sender.Send(new ReplyFeedbackCommand(id, request.ReplyText), ct);
         return Ok(result);
     }
 
@@ -88,7 +98,7 @@ public class FeedbacksController(
     [Authorize(Roles = "Staff,Owner")]
     public async Task<IActionResult> GenerateAiReply(Guid id, CancellationToken ct)
     {
-        var result = await generateAiReply.HandleAsync(id, ct);
+        var result = await sender.Send(new GenerateFeedbackReplyQuery(id), ct);
         return Ok(result);
     }
 }

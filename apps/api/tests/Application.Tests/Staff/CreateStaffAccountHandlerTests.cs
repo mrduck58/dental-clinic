@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.UseCases.Staff;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
@@ -28,11 +29,11 @@ public class CreateStaffAccountHandlerTests
     [Test]
     public async Task HandleAsync_EmployeeWithoutAccount_UpdatesAndSendsEmail()
     {
-        var user = User.CreateEmployee("emp@test.com", "Staff");
+        var user = User.CreateEmployee("emp@test.com", UserRole.Staff);
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
         var handler = new CreateStaffAccountHandler(_userRepo, _emailService);
 
-        await handler.HandleAsync(user.Id);
+        await handler.Handle(new CreateStaffAccountCommand(user.Id), CancellationToken.None);
 
         await _userRepo.Received(1).UpdateAsync(user, Arg.Any<CancellationToken>());
         await _emailService.Received(1).SendStaffCredentialsAsync(
@@ -48,7 +49,7 @@ public class CreateStaffAccountHandlerTests
         _userRepo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((User?)null);
         var handler = new CreateStaffAccountHandler(_userRepo, _emailService);
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid());
+        Func<Task> act = () => handler.Handle(new CreateStaffAccountCommand(Guid.NewGuid()), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -59,11 +60,11 @@ public class CreateStaffAccountHandlerTests
     [Test]
     public async Task HandleAsync_AlreadyHasAccount_ThrowsConflictException()
     {
-        var user = User.Create("user1", "emp@test.com", "hash", "Staff");
+        var user = User.Create("user1", "emp@test.com", "hash", UserRole.Staff);
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
         var handler = new CreateStaffAccountHandler(_userRepo, _emailService);
 
-        Func<Task> act = () => handler.HandleAsync(user.Id);
+        Func<Task> act = () => handler.Handle(new CreateStaffAccountCommand(user.Id), CancellationToken.None);
 
         await act.Should().ThrowAsync<ConflictException>().WithMessage("*đã có tài khoản*");
     }
@@ -74,11 +75,11 @@ public class CreateStaffAccountHandlerTests
     [Test]
     public async Task HandleAsync_Success_ReturnedDtoHasAccount()
     {
-        var user = User.CreateEmployee("emp@test.com", "Staff");
+        var user = User.CreateEmployee("emp@test.com", UserRole.Staff);
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
         var handler = new CreateStaffAccountHandler(_userRepo, _emailService);
 
-        var result = await handler.HandleAsync(user.Id);
+        var result = await handler.Handle(new CreateStaffAccountCommand(user.Id), CancellationToken.None);
 
         result.HasAccount.Should().BeTrue();
     }
@@ -90,11 +91,11 @@ public class CreateStaffAccountHandlerTests
     [Test]
     public async Task HandleAsync_GeneratesUsernameFromEmailLocalPart()
     {
-        var user = User.CreateEmployee("First.Last-Name@Test.com", "Staff");
+        var user = User.CreateEmployee("First.Last-Name@Test.com", UserRole.Staff);
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
         var handler = new CreateStaffAccountHandler(_userRepo, _emailService);
 
-        var result = await handler.HandleAsync(user.Id);
+        var result = await handler.Handle(new CreateStaffAccountCommand(user.Id), CancellationToken.None);
 
         result.Username.Should().Be("first_last_name");
     }
@@ -106,12 +107,12 @@ public class CreateStaffAccountHandlerTests
     [Test]
     public async Task HandleAsync_UsernameCollision_AppendsRandomSuffix()
     {
-        var user = User.CreateEmployee("emp@test.com", "Staff");
+        var user = User.CreateEmployee("emp@test.com", UserRole.Staff);
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
         _userRepo.ExistsByUsernameAsync("emp", Arg.Any<CancellationToken>()).Returns(true);
         var handler = new CreateStaffAccountHandler(_userRepo, _emailService);
 
-        var result = await handler.HandleAsync(user.Id);
+        var result = await handler.Handle(new CreateStaffAccountCommand(user.Id), CancellationToken.None);
 
         result.Username.Should().StartWith("emp_");
         result.Username.Should().NotBe("emp");
@@ -124,11 +125,11 @@ public class CreateStaffAccountHandlerTests
     [Test]
     public async Task HandleAsync_NoFullName_EmailUsesUsernameAsDisplayName()
     {
-        var user = User.CreateEmployee("emp@test.com", "Staff", fullName: null);
+        var user = User.CreateEmployee("emp@test.com", UserRole.Staff, fullName: null);
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
         var handler = new CreateStaffAccountHandler(_userRepo, _emailService);
 
-        await handler.HandleAsync(user.Id);
+        await handler.Handle(new CreateStaffAccountCommand(user.Id), CancellationToken.None);
 
         await _emailService.Received(1).SendStaffCredentialsAsync(
             user.Email, user.Username!, Arg.Any<string>(), Arg.Any<CancellationToken>());

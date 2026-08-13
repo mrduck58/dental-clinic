@@ -28,7 +28,7 @@ public class TreatmentPlan
 
     // Navigation properties
     public Patient Patient { get; private set; } = null!;
-    public Dentist Dentist { get; private set; } = null!;
+    public DentistProfile Dentist { get; private set; } = null!;
     public Appointment? Appointment { get; private set; }
     public Service Service { get; private set; } = null!;
     public ICollection<Invoice> Invoices { get; private set; } = new List<Invoice>();

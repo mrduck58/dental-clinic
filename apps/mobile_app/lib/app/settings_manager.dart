@@ -1,20 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// URL API mặc định — dùng cho USB/emulator (xem ghi chú trong api_constants.dart).
+/// Có thể đổi runtime qua trang Cài đặt (vd: khi test qua Cloudflare Tunnel), không
+/// cần build lại app.
+const String kDefaultApiBaseUrl = 'http://localhost:5239/api';
+
 class SettingsManager {
   static final SettingsManager instance = SettingsManager._internal();
   SettingsManager._internal();
 
   late SharedPreferences _prefs;
-  
+
   final ValueNotifier<bool> isDarkMode = ValueNotifier<bool>(false);
   final ValueNotifier<Locale> locale = ValueNotifier<Locale>(const Locale('vi'));
+  final ValueNotifier<String> apiBaseUrl = ValueNotifier<String>(kDefaultApiBaseUrl);
 
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
     isDarkMode.value = _prefs.getBool('is_dark_mode') ?? false;
     final langCode = _prefs.getString('language_code') ?? 'vi';
     locale.value = Locale(langCode);
+    apiBaseUrl.value = _prefs.getString('api_base_url') ?? kDefaultApiBaseUrl;
   }
 
   Future<void> setDarkMode(bool value) async {
@@ -26,6 +33,17 @@ class SettingsManager {
     locale.value = Locale(languageCode);
     await _prefs.setString('language_code', languageCode);
   }
+
+  /// Đổi URL gốc của API lúc đang chạy (vd: URL Cloudflare Tunnel mới) — không cần
+  /// build lại app. [url] nên có dạng "https://xxxx.trycloudflare.com/api" (có "/api").
+  Future<void> setApiBaseUrl(String url) async {
+    final trimmed = url.trim();
+    final normalized = trimmed.isEmpty ? kDefaultApiBaseUrl : trimmed;
+    apiBaseUrl.value = normalized;
+    await _prefs.setString('api_base_url', normalized);
+  }
+
+  Future<void> resetApiBaseUrl() => setApiBaseUrl(kDefaultApiBaseUrl);
 }
 
 class AppLocalizations {

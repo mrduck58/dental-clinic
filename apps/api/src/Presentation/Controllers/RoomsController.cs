@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.DTOs.Rooms;
 using DentalClinic.API.Application.UseCases.Rooms;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -8,13 +9,7 @@ namespace DentalClinic.API.Presentation.Controllers;
 [ApiController]
 [Route("api/rooms")]
 [Authorize(Roles = "Admin,Owner")]
-public class RoomsController(
-    GetRoomsHandler getRooms,
-    GetRoomByIdHandler getById,
-    CreateRoomHandler create,
-    UpdateRoomHandler update,
-    DeleteRoomHandler delete,
-    ChangeRoomStatusHandler changeStatus) : ControllerBase
+public class RoomsController(ISender sender) : ControllerBase
 {
     /// <summary>GET api/rooms — Danh sách phòng (có lọc theo tầng, trạng thái, tìm kiếm)</summary>
     [HttpGet]
@@ -24,7 +19,7 @@ public class RoomsController(
         [FromQuery] string? search,
         CancellationToken ct)
     {
-        var result = await getRooms.HandleAsync(floor, status, search, ct);
+        var result = await sender.Send(new GetRoomsQuery(floor, status, search), ct);
         return Ok(result);
     }
 
@@ -32,7 +27,7 @@ public class RoomsController(
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
-        var result = await getById.HandleAsync(id, ct);
+        var result = await sender.Send(new GetRoomByIdQuery(id), ct);
         return Ok(result);
     }
 
@@ -40,7 +35,7 @@ public class RoomsController(
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateRoomRequest request, CancellationToken ct)
     {
-        var result = await create.HandleAsync(request, ct);
+        var result = await sender.Send(new CreateRoomCommand(request), ct);
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
 
@@ -48,7 +43,7 @@ public class RoomsController(
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateRoomRequest request, CancellationToken ct)
     {
-        var result = await update.HandleAsync(id, request, ct);
+        var result = await sender.Send(new UpdateRoomCommand(id, request), ct);
         return Ok(result);
     }
 
@@ -56,7 +51,7 @@ public class RoomsController(
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
-        await delete.HandleAsync(id, ct);
+        await sender.Send(new DeleteRoomCommand(id), ct);
         return Ok(new { message = "Đã xóa phòng." });
     }
 
@@ -64,7 +59,7 @@ public class RoomsController(
     [HttpPatch("{id:guid}/status")]
     public async Task<IActionResult> ChangeStatus(Guid id, [FromBody] ChangeRoomStatusRequest request, CancellationToken ct)
     {
-        var result = await changeStatus.HandleAsync(id, request, ct);
+        var result = await sender.Send(new ChangeRoomStatusCommand(id, request), ct);
         return Ok(result);
     }
 }

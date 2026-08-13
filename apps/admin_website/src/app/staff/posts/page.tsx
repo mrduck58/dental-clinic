@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { getPostsApi, deletePostApi, type PostDto } from "../../../lib/apiClient";
+import { getPostsApi, deletePostApi, resolveAssetUrl, type PostDto } from "../../../lib/apiClient";
 import StaffSidebar from "../../../components/shared/StaffSidebar";
 import { useRequireStaff } from "../../../hooks/useRequireStaff";
 import NotificationBell from "../../../components/shared/NotificationBell";
@@ -305,7 +305,7 @@ export default function PostsListPage() {
                           <td className="px-4 py-3">
                             {post.thumbnailUrl ? (
                               <img
-                                src={post.thumbnailUrl}
+                                src={resolveAssetUrl(post.thumbnailUrl)}
                                 alt={post.title}
                                 className="w-12 h-12 rounded-lg object-cover border border-slate-100 shrink-0"
                               />

@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import AdminSidebar from "../../../components/shared/AdminSidebar";
-import NotificationBell from "../../../components/shared/NotificationBell";
+import AdminPageHeader from "../../../components/shared/AdminPageHeader";
 import { useRequireAdmin } from "../../../hooks/useRequireAdmin";
 import { useRouter } from "next/navigation";
 import {
@@ -13,6 +13,7 @@ import {
   getPromotionsApi,
   togglePromotionStatusApi,
   deletePromotionApi,
+  resolveAssetUrl,
   type ServiceDto,
   type PromotionDto,
 } from "../../../lib/apiClient";
@@ -191,16 +192,10 @@ export default function ServicesPage() {
 
       <main className="flex-1 flex flex-col min-w-0">
         {/* HEADER */}
-        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 font-sans shadow-sm shadow-slate-100/50">
-          <div>
-            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Quản Lí Dịch Vụ</h1>
-            <p className="text-[13px] text-slate-400 font-semibold mt-0.5">
-              Quản lý danh sách dịch vụ và cấu hình thông tin.
-            </p>
-          </div>
-
-          <NotificationBell />
-        </header>
+        <AdminPageHeader
+          title="Quản Lí Dịch Vụ"
+          subtitle="Quản lý danh sách dịch vụ và cấu hình thông tin."
+        />
 
         {/* BODY */}
         <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-8">
@@ -409,7 +404,7 @@ export default function ServicesPage() {
                           <div className="w-10 h-10 rounded-xl border border-slate-200 bg-slate-50/50 flex items-center justify-center overflow-hidden shrink-0">
                             {service.iconUrl ? (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={service.iconUrl} alt={service.name} className="w-6 h-6 object-contain" />
+                              <img src={resolveAssetUrl(service.iconUrl)} alt={service.name} className="w-6 h-6 object-contain" />
                             ) : (
                               <svg className="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />

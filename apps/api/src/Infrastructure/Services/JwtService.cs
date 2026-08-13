@@ -4,14 +4,13 @@ using System.Text;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Infrastructure.Settings;
-using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
 namespace DentalClinic.API.Infrastructure.Services;
 
-public class JwtService(IOptions<JwtSettings> options) : IJwtService
+public class JwtService(JwtSettings settings) : IJwtService
 {
-    private readonly JwtSettings _settings = options.Value;
+    private readonly JwtSettings _settings = settings;
 
     public string GenerateToken(User user)
     {
@@ -23,7 +22,7 @@ public class JwtService(IOptions<JwtSettings> options) : IJwtService
             new Claim(JwtRegisteredClaimNames.Sub,   user.Id.ToString()),
             new Claim(JwtRegisteredClaimNames.Email, user.Email),
             new Claim(JwtRegisteredClaimNames.Jti,   Guid.NewGuid().ToString()),
-            new Claim(ClaimTypes.Role,               user.Role),
+            new Claim(ClaimTypes.Role,               user.Role.ToString()),
             new Claim("username",                    user.Username ?? user.Email),
         };
 

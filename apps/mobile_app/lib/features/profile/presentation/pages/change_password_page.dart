@@ -5,6 +5,7 @@ import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/core/network/api_client.dart';
+import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/features/auth/data/auth_service.dart';
 
 class ChangePasswordPage extends StatefulWidget {
@@ -147,6 +148,10 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         newPassword: newPass,
       );
 
+      // Mật khẩu đã lưu cho "ghi nhớ đăng nhập" giờ là mật khẩu CŨ — không xóa thì lần đăng nhập
+      // sau app tự điền mật khẩu sai và người dùng tưởng tài khoản hỏng.
+      await _auth.clearSavedEmail();
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -162,7 +167,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
-        context.pop(); // Return
+        _leave();
       }
     } on DioException catch (e) {
       _showSnackbar(ApiClient.errorMessage(e));
@@ -172,6 +177,23 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
       if (mounted) setState(() => _isSaving = false);
     }
   }
+
+  /// Màn này vào được từ hai đường: bấm từ trang cá nhân (push — quay lại được), hoặc bị đẩy tới
+  /// ngay sau khi đăng nhập bằng mật khẩu tạm do phòng khám cấp (go — thay cả stack, không còn gì
+  /// để quay lại). Gọi thẳng context.pop() ở trường hợp thứ hai sẽ NÉM LỖI, và vì nó nằm trong
+  /// khối try nên lỗi đó bị bắt rồi hiện thành "Đã xảy ra lỗi khi cập nhật mật khẩu" — dù mật khẩu
+  /// đã đổi xong. Người dùng thấy vừa báo thành công vừa báo lỗi.
+  void _leave() {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go(AppRoutes.home);
+    }
+  }
+
+  /// Bị buộc đổi mật khẩu (vào bằng go, không quay lại được) thì không cho thoát ra giữa chừng —
+  /// thoát được nghĩa là vẫn dùng app với mật khẩu tạm còn nằm trong hộp thư.
+  bool get _isForced => !context.canPop();
 
   void _showSnackbar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -196,10 +218,13 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
       appBar: AppBar(
         backgroundColor: context.card,
         elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: context.textPrimary, size: 20),
-          onPressed: () => context.pop(),
-        ),
+        automaticallyImplyLeading: false,
+        leading: _isForced
+            ? null
+            : IconButton(
+                icon: Icon(Icons.arrow_back_ios_new_rounded, color: context.textPrimary, size: 20),
+                onPressed: _leave,
+              ),
         title: Text(
           isVi ? 'Đổi mật khẩu' : 'Change Password',
           style: TextStyle(
@@ -419,27 +444,31 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
               ),
               child: Row(
                 children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _isSaving ? null : () => context.pop(),
-                      style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: context.divider),
-                        padding: EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(999),
+                  // Không hiện nút Huỷ khi đang bị buộc đổi mật khẩu — bấm được nghĩa là thoát ra
+                  // mà vẫn giữ mật khẩu tạm còn nằm trong hộp thư.
+                  if (!_isForced) ...[
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: _isSaving ? null : _leave,
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: context.divider),
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(999),
+                          ),
                         ),
-                      ),
-                      child: Text(
-                        context.l10n('cancel'),
-                        style: TextStyle(
-                          color: context.textSecondary,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
+                        child: Text(
+                          context.l10n('cancel'),
+                          style: TextStyle(
+                            color: context.textSecondary,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  SizedBox(width: 16),
+                    SizedBox(width: 16),
+                  ],
                   Expanded(
                     child: ElevatedButton(
                       onPressed: _isSaving ? null : _submit,

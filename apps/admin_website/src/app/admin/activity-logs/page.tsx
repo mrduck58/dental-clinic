@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import AdminSidebar from "../../../components/shared/AdminSidebar";
-import NotificationBell from "../../../components/shared/NotificationBell";
+import AdminPageHeader from "../../../components/shared/AdminPageHeader";
 import { useRequireAdmin } from "../../../hooks/useRequireAdmin";
 import { getActivityLogsApi, type ActivityLogItemDto } from "../../../lib/apiClient";
 import { supabase } from "../../../lib/supabaseClient";
@@ -164,6 +164,8 @@ export default function ActivityLogsPage() {
   const [actionFilter, setActionFilter] = useState("all");
   const [moduleFilter, setModuleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [newCount, setNewCount] = useState(0);
@@ -181,11 +183,13 @@ export default function ActivityLogsPage() {
     setError(null);
     try {
       const data = await getActivityLogsApi({
-        action:   actionFilter !== "all" ? actionFilter : undefined,
-        module:   moduleFilter !== "all" ? moduleFilter : undefined,
-        status:   statusFilter !== "all" ? statusFilter : undefined,
-        search:   searchQuery || undefined,
-        page:     currentPage,
+        action:    actionFilter !== "all" ? actionFilter : undefined,
+        module:    moduleFilter !== "all" ? moduleFilter : undefined,
+        status:    statusFilter !== "all" ? statusFilter : undefined,
+        search:    searchQuery || undefined,
+        startDate: dateFrom ? `${dateFrom}T00:00:00+07:00` : undefined,
+        endDate:   dateTo ? `${dateTo}T23:59:59+07:00` : undefined,
+        page:      currentPage,
         pageSize,
       });
       setLogs(data.items);
@@ -196,7 +200,7 @@ export default function ActivityLogsPage() {
     } finally {
       setLoading(false);
     }
-  }, [actionFilter, moduleFilter, statusFilter, searchQuery, currentPage, pageSize]);
+  }, [actionFilter, moduleFilter, statusFilter, searchQuery, dateFrom, dateTo, currentPage, pageSize]);
 
   const fetchStats = useCallback(async () => {
     const today = getTodayIso();
@@ -273,10 +277,12 @@ export default function ActivityLogsPage() {
   const handleExport = async () => {
     try {
       const all = await getActivityLogsApi({
-        action: actionFilter !== "all" ? actionFilter : undefined,
-        module: moduleFilter !== "all" ? moduleFilter : undefined,
-        status: statusFilter !== "all" ? statusFilter : undefined,
-        search: searchQuery || undefined,
+        action:    actionFilter !== "all" ? actionFilter : undefined,
+        module:    moduleFilter !== "all" ? moduleFilter : undefined,
+        status:    statusFilter !== "all" ? statusFilter : undefined,
+        search:    searchQuery || undefined,
+        startDate: dateFrom ? `${dateFrom}T00:00:00+07:00` : undefined,
+        endDate:   dateTo ? `${dateTo}T23:59:59+07:00` : undefined,
         pageSize: 10000,
         page: 1,
       });
@@ -293,7 +299,7 @@ export default function ActivityLogsPage() {
       const csv = "data:text/csv;charset=utf-8,﻿" + encodeURIComponent(headers + rows);
       const link = document.createElement("a");
       link.setAttribute("href", csv);
-      link.setAttribute("download", "LichSuHoatDong.csv");
+      link.setAttribute("download", "AuditLog.csv");
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -311,30 +317,27 @@ export default function ActivityLogsPage() {
 
   return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
-      <AdminSidebar activeMenu="history" />
+      <AdminSidebar activeMenu="history-audit" />
 
       <main className="flex-1 flex flex-col min-w-0">
         {/* HEADER */}
-        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-16 flex items-center justify-between shrink-0 shadow-sm shadow-slate-100/50">
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2.5">
-              <h1 className="text-[18px] font-black text-slate-900 leading-tight">Lịch Sử Hoạt Động</h1>
-              <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-green-50 border border-green-100 text-[10.5px] font-extrabold text-green-600 uppercase tracking-wider">
-                <span className="relative flex h-1.5 w-1.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500"></span>
-                </span>
-                Realtime
+        <AdminPageHeader
+          title="Audit Log"
+          subtitle="Theo dõi toàn bộ thao tác và sự kiện hệ thống"
+          right={
+            <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-green-50 border border-green-100 text-[10.5px] font-extrabold text-green-600 uppercase tracking-wider">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500"></span>
               </span>
-            </div>
-            <p className="text-[12.5px] text-slate-400 font-semibold mt-0.5">Theo dõi toàn bộ thao tác và sự kiện hệ thống</p>
-          </div>
-          <NotificationBell />
-        </header>
+              Realtime
+            </span>
+          }
+        />
 
         {/* NEW ACTIVITY BANNER — shown when user is not on page 1 */}
         {newCount > 0 && (
-          <div className="sticky top-16 z-10 mx-8 mt-0">
+          <div className="sticky top-20 z-10 mx-8 mt-0">
             <button
               onClick={handleGoToLatest}
               className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white text-[13px] font-bold rounded-b-2xl shadow-lg hover:bg-primary/90 transition-all animate-fade-in cursor-pointer"
@@ -491,6 +494,37 @@ export default function ActivityLogsPage() {
                 <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
                 </span>
+              </div>
+
+              {/* Date range */}
+              <div className="flex items-center gap-1.5 sm:w-auto">
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => { setDateFrom(e.target.value); resetPage(); }}
+                  max={dateTo || undefined}
+                  className="px-3 py-2.5 text-[13px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-bold text-slate-600 cursor-pointer"
+                />
+                <span className="text-slate-300 font-bold text-[13px]">–</span>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => { setDateTo(e.target.value); resetPage(); }}
+                  min={dateFrom || undefined}
+                  className="px-3 py-2.5 text-[13px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-bold text-slate-600 cursor-pointer"
+                />
+                {(dateFrom || dateTo) && (
+                  <button
+                    type="button"
+                    onClick={() => { setDateFrom(""); setDateTo(""); resetPage(); }}
+                    title="Xóa bộ lọc ngày"
+                    className="p-1.5 text-slate-400 hover:text-primary hover:bg-red-50 rounded-lg transition-all cursor-pointer shrink-0"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
               </div>
             </div>
 

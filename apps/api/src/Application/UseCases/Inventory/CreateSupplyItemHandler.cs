@@ -1,34 +1,54 @@
 using DentalClinic.API.Application.DTOs.Inventory;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
-using DentalClinic.API.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
+using DentalClinic.API.Domain.Interfaces.Repositories;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Inventory;
 
-public class CreateSupplyItemHandler(AppDbContext db)
+public record CreateSupplyItemCommand(
+    string Code,
+    string Name,
+    string Category,
+    string Unit,
+    int Quantity,
+    int MinQuantity,
+    string? OrderType = null,
+    decimal? Price = null) : IRequest<SupplyItemDto>;
+
+public class CreateSupplyItemHandler(ISupplyItemRepository supplyItemRepository) : IRequestHandler<CreateSupplyItemCommand, SupplyItemDto>
 {
-    public async Task<SupplyItemDto> HandleAsync(CreateSupplyItemRequest request, CancellationToken ct = default)
+    private static readonly string[] AllowedOrderTypes = ["standard", "custom"];
+
+    public async Task<SupplyItemDto> Handle(CreateSupplyItemCommand command, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(request.Name))
+        if (string.IsNullOrWhiteSpace(command.Name))
             throw new ValidationException("Tên vật tư không được để trống.");
 
-        if (string.IsNullOrWhiteSpace(request.Code))
+        if (string.IsNullOrWhiteSpace(command.Code))
             throw new ValidationException("Mã vật tư không được để trống.");
 
-        if (await db.SupplyItems.AnyAsync(s => s.Code == request.Code.Trim().ToUpper(), ct))
-            throw new ConflictException($"Mã vật tư '{request.Code}' đã tồn tại.");
+        var orderType = string.IsNullOrWhiteSpace(command.OrderType) ? "standard" : command.OrderType.Trim();
+        if (!AllowedOrderTypes.Contains(orderType))
+            throw new ValidationException("Loại vật tư không hợp lệ. Chỉ chấp nhận: standard, custom.");
+
+        if (command.Price is < 0)
+            throw new ValidationException("Giá tiền không được âm.");
+
+        if (await supplyItemRepository.ExistsByCodeAsync(command.Code.Trim().ToUpper(), ct))
+            throw new ConflictException($"Mã vật tư '{command.Code}' đã tồn tại.");
 
         var item = SupplyItem.Create(
-            request.Code.Trim().ToUpper(),
-            request.Name.Trim(),
-            request.Category.Trim(),
-            request.Unit.Trim(),
-            request.Quantity,
-            request.MinQuantity);
+            command.Code.Trim().ToUpper(),
+            command.Name.Trim(),
+            command.Category.Trim(),
+            command.Unit.Trim(),
+            command.Quantity,
+            command.MinQuantity,
+            orderType,
+            command.Price);
 
-        db.SupplyItems.Add(item);
-        await db.SaveChangesAsync(ct);
+        await supplyItemRepository.AddAsync(item, ct);
 
         return GetSupplyItemsHandler.ToDto(item);
     }

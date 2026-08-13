@@ -6,6 +6,7 @@ import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/auth/data/auth_service.dart';
 import 'package:mobile_app/core/constants/api_constants.dart';
+import 'package:mobile_app/core/network/api_client.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -31,13 +32,8 @@ class _ProfilePageState extends State<ProfilePage> {
   String? _avatarUrl;
 
   ImageProvider? _getAvatarProvider() {
-    if (_avatarUrl != null && _avatarUrl!.isNotEmpty) {
-      if (_avatarUrl!.startsWith('http')) {
-        return NetworkImage(_avatarUrl!);
-      }
-      final baseUrlHost = ApiConstants.baseUrl.replaceAll('/api', '');
-      return NetworkImage('$baseUrlHost$_avatarUrl');
-    }
+    final resolved = ApiConstants.resolveAssetUrl(_avatarUrl);
+    if (resolved != null) return NetworkImage(resolved);
     return null;
   }
 
@@ -146,6 +142,67 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  /// Cho phép đổi URL gốc của API lúc đang chạy (vd: dán URL Cloudflare Tunnel khi
+  /// test không qua cáp USB) — áp dụng ngay, không cần build/khởi động lại app.
+  void _showServerUrlDialog() {
+    final controller = TextEditingController(text: SettingsManager.instance.apiBaseUrl.value);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: context.card,
+        surfaceTintColor: Colors.transparent,
+        title: Text('Địa chỉ máy chủ (API)', style: TextStyle(color: context.textPrimary, fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Dùng khi test qua Cloudflare Tunnel/ngrok — dán URL kèm "/api" ở cuối, vd: https://xxxx.trycloudflare.com/api',
+              style: TextStyle(color: context.textSecondary, fontSize: 12.5),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              keyboardType: TextInputType.url,
+              style: TextStyle(color: context.textPrimary, fontSize: 14),
+              decoration: InputDecoration(
+                hintText: kDefaultApiBaseUrl,
+                border: const OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              await SettingsManager.instance.resetApiBaseUrl();
+              ApiClient().refreshBaseUrl();
+              if (ctx.mounted) Navigator.of(ctx).pop();
+              setState(() {});
+            },
+            child: const Text('Đặt lại mặc định'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(context.l10n('cancel')),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              await SettingsManager.instance.setApiBaseUrl(controller.text);
+              ApiClient().refreshBaseUrl();
+              if (ctx.mounted) Navigator.of(ctx).pop();
+              setState(() {});
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+            child: const Text('Lưu', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -240,6 +297,31 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
                 onTap: _showLanguageDialog,
               ),
+              _SettingsTile(
+                icon: Iconsax.data_2,
+                label: 'Địa chỉ máy chủ (API)',
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 110),
+                      child: Text(
+                        SettingsManager.instance.apiBaseUrl.value,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: context.textMuted, fontSize: 11.5),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      size: 14,
+                      color: context.textMuted.withValues(alpha: 0.7),
+                    ),
+                  ],
+                ),
+                onTap: _showServerUrlDialog,
+              ),
 
               // ── Section 3: SECURITY ──────────────────────────────────────
               _buildSectionHeader(context.l10n('security')),
@@ -256,6 +338,11 @@ class _ProfilePageState extends State<ProfilePage> {
 
               // ── Section 4: SUPPORT & LEGAL ────────────────────────────────
               _buildSectionHeader(context.l10n('support_legal')),
+              _SettingsTile(
+                icon: Iconsax.hospital,
+                label: SettingsManager.instance.locale.value.languageCode == 'vi' ? 'Đánh giá phòng khám' : 'Clinic Review',
+                onTap: () => context.push(AppRoutes.clinicFeedback),
+              ),
               _SettingsTile(
                 icon: Iconsax.info_circle,
                 label: context.l10n('help_faq'),

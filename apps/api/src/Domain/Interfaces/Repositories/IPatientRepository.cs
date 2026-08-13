@@ -18,4 +18,8 @@ public interface IPatientRepository
     /// tài khoản) lẫn ở tài khoản liên kết — hai nguồn này không phải lúc nào cũng trùng nhau.
     /// </summary>
     Task<IReadOnlyList<Patient>> SearchAsync(string term, int limit, CancellationToken cancellationToken = default);
+
+    /// <summary>Tìm bệnh nhân theo số điện thoại của TÀI KHOẢN liên kết (User.PhoneNumber) — dùng khi
+    /// đặt lịch vãng lai để tránh tạo trùng hồ sơ cho người đã có tài khoản.</summary>
+    Task<Patient?> GetByPhoneNumberAsync(string phoneNumber, CancellationToken cancellationToken = default);
 }

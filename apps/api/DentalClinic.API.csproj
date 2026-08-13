@@ -5,18 +5,21 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>efd51a2e-a779-4fb7-8c44-d7188504cb26</UserSecretsId>
-    <DefaultItemExcludes>$(DefaultItemExcludes);DentalClinic.API.Tests\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="tests/**" />
-    <Content Remove="tests/**" />
-    <None Remove="tests/**" />
-    <EmbeddedResource Remove="tests/**" />
-    <Compile Remove="DentalClinic.API.Tests/**" />
-    <Content Remove="DentalClinic.API.Tests/**" />
-    <None Remove="DentalClinic.API.Tests/**" />
-    <EmbeddedResource Remove="DentalClinic.API.Tests/**" />
+    <!-- src/Domain, src/Application, src/Infrastructure giờ là project riêng (xem ProjectReference dưới) —
+         loại khỏi glob mặc định của project này để tránh biên dịch trùng. -->
+    <Compile Remove="tests/**;*Tests/**;src/Domain/**;src/Application/**;src/Infrastructure/**" />
+    <Content Remove="tests/**;*Tests/**;src/Domain/**;src/Application/**;src/Infrastructure/**" />
+    <None Remove="tests/**;*Tests/**;src/Domain/**;src/Application/**;src/Infrastructure/**" />
+    <EmbeddedResource Remove="tests/**;*Tests/**;src/Domain/**;src/Infrastructure/**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="src\Domain\Domain.csproj" />
+    <ProjectReference Include="src\Application\Application.csproj" />
+    <ProjectReference Include="src\Infrastructure\Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -25,6 +28,7 @@
     <PackageReference Include="Google.GenAI" Version="1.13.0" />
     <PackageReference Include="Google.Apis.Auth" Version="1.75.0" />
     <PackageReference Include="MailKit" Version="4.17.0" />
+    <PackageReference Include="MediatR" Version="14.2.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.5" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.5" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.2" />

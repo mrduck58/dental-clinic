@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import OwnerSidebar from "../../../components/shared/OwnerSidebar";
-import NotificationBell from "../../../components/shared/NotificationBell";
+import OwnerPageHeader from "../../../components/shared/OwnerPageHeader";
 import { useRequireOwner } from "../../../hooks/useRequireOwner";
 
 /* ─── constants ─────────────────────────────────────────── */
@@ -551,14 +551,10 @@ export default function OwnerAppointmentsPage() {
       <main className="flex-1 flex flex-col min-w-0">
         
         {/* HEADER */}
-        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 shadow-sm shadow-slate-100/50">
-          <div>
-            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Ca khám & điều trị</h1>
-            <p className="text-[13px] text-slate-400 font-semibold mt-0.5">
-              Xác nhận đặt lịch online và tạo lịch hẹn tại quầy
-            </p>
-          </div>
-          <div className="flex items-center gap-4">
+        <OwnerPageHeader
+          title="Ca khám & điều trị"
+          subtitle="Xác nhận đặt lịch online và tạo lịch hẹn tại quầy"
+          right={
             <div className="flex items-center gap-2 text-[12.5px] font-bold">
               {online > 0 && (
                 <span className="flex items-center gap-1 px-2.5 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl">
@@ -573,9 +569,8 @@ export default function OwnerAppointmentsPage() {
                 {TODAY_APPOINTMENTS.length} lịch hôm nay
               </span>
             </div>
-            <NotificationBell />
-          </div>
-        </header>
+          }
+        />
 
         <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-5">
           {/* Tabs */}

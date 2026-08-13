@@ -1,3 +1,4 @@
+using DentalClinic.API.Application.DTOs.Invoices;
 using DentalClinic.API.Application.UseCases.Invoices;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
@@ -5,6 +6,7 @@ using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using NSubstitute;
@@ -18,7 +20,17 @@ public class InvoiceHandlerTests
     private AppDbContext _db = null!;
     private INotificationService _notificationService = null!;
     private IUserRepository _userRepo = null!;
-    private InvoiceHandler _handler = null!;
+    private InvoiceQueryHelper _invoiceQuery = null!;
+    private IPaymentConfirmationService _confirmationService = null!;
+
+    private GetBillablePlansHandler _getBillablePlansHandler = null!;
+    private IssueInvoiceHandler _issueHandler = null!;
+    private GetPendingInvoicesHandler _getPendingHandler = null!;
+    private GetOutstandingInvoicesHandler _getOutstandingHandler = null!;
+    private GetOutstandingPlansHandler _getOutstandingPlansHandler = null!;
+    private ConfirmInvoicePaymentHandler _confirmPaymentHandler = null!;
+    private CollectRemainingInvoiceHandler _collectRemainingHandler = null!;
+    private GetInvoiceHistoryHandler _getHistoryHandler = null!;
 
     [SetUp]
     public void SetUp()
@@ -30,7 +42,20 @@ public class InvoiceHandlerTests
         _notificationService = Substitute.For<INotificationService>();
         _userRepo = Substitute.For<IUserRepository>();
         _userRepo.GetUserIdsByRoleAsync("Staff", Arg.Any<CancellationToken>()).Returns(new List<Guid>());
-        _handler = new InvoiceHandler(_db, _notificationService, _userRepo);
+        var invoiceRepository = new InvoiceRepository(_db);
+        var paymentTransactionRepository = new PaymentTransactionRepository(_db);
+        _invoiceQuery = new InvoiceQueryHelper(invoiceRepository, new TreatmentPlanRepository(_db));
+        _confirmationService = new PaymentConfirmationService(
+            invoiceRepository, paymentTransactionRepository, _db, _notificationService, _userRepo, _invoiceQuery);
+
+        _getBillablePlansHandler = new GetBillablePlansHandler(invoiceRepository, _invoiceQuery);
+        _issueHandler = new IssueInvoiceHandler(invoiceRepository, _db, _notificationService, _invoiceQuery);
+        _getPendingHandler = new GetPendingInvoicesHandler(invoiceRepository);
+        _getOutstandingHandler = new GetOutstandingInvoicesHandler(invoiceRepository);
+        _getOutstandingPlansHandler = new GetOutstandingPlansHandler(invoiceRepository, _invoiceQuery);
+        _confirmPaymentHandler = new ConfirmInvoicePaymentHandler(invoiceRepository, _db, _confirmationService, _invoiceQuery);
+        _collectRemainingHandler = new CollectRemainingInvoiceHandler(invoiceRepository, _db, _invoiceQuery);
+        _getHistoryHandler = new GetInvoiceHistoryHandler(invoiceRepository);
     }
 
     [TearDown]
@@ -38,13 +63,17 @@ public class InvoiceHandlerTests
 
     private async Task<(Appointment appointment, Patient patient, Guid patientUserId)> SeedPendingPaymentAppointmentAsync()
     {
-        var patientUser = User.Create("inv-p", $"inv-p-{Guid.NewGuid()}@test.com", "hash", "Patient");
-        var dentistUser = User.Create("inv-d", $"inv-d-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        var patientUser = User.Create("inv-p", $"inv-p-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient);
+        var dentistUser = User.Create("inv-d", $"inv-d-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist);
         _db.Users.AddRange(patientUser, dentistUser);
         var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
         _db.Patients.Add(patient);
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
         appointment.StartTreatment();
         appointment.EndTreatment();
@@ -53,9 +82,15 @@ public class InvoiceHandlerTests
         return (appointment, patient, patientUser.Id);
     }
 
-    private static IssueInvoiceRequest MakeIssueRequest(Guid appointmentId, string? paymentType = null, decimal deposit = 0) => new(
+    // "Trám răng" luôn có UnitPrice 500_000đ (Quantity=1) — khi paymentType="deposit", AmountCollected của
+    // dòng phải được set = deposit, nếu không Invoice.Issue() mặc định thu toàn bộ dòng (AmountCollected=null
+    // → full lineTotal), khiến mọi test "đặt cọc" vô tình trở thành thanh toán toàn bộ.
+    private static IssueInvoiceCommand MakeIssueCommand(Guid appointmentId, string? paymentType = null, decimal deposit = 0) => new(
         appointmentId,
-        new List<IssueInvoiceItemRequest> { new("Trám răng", 1, 500_000m) },
+        new List<IssueInvoiceItemRequest>
+        {
+            new("Trám răng", 1, 500_000m, AmountCollected: paymentType == "deposit" ? deposit : null)
+        },
         Discount: 0,
         PaymentMethod: "cash",
         PaymentType: paymentType,
@@ -68,7 +103,7 @@ public class InvoiceHandlerTests
     [Test]
     public async Task GetBillablePlansAsync_NoPendingPaymentAppointments_ReturnsEmpty()
     {
-        var result = await _handler.GetBillablePlansAsync();
+        var result = await _getBillablePlansHandler.Handle(new GetBillablePlansQuery(), CancellationToken.None);
 
         result.Should().BeEmpty();
     }
@@ -77,7 +112,7 @@ public class InvoiceHandlerTests
     [Test]
     public async Task IssueAsync_AppointmentNotFound_ThrowsNotFoundException()
     {
-        Func<Task> act = () => _handler.IssueAsync(MakeIssueRequest(Guid.NewGuid()));
+        Func<Task> act = () => _issueHandler.Handle(MakeIssueCommand(Guid.NewGuid()), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -86,31 +121,38 @@ public class InvoiceHandlerTests
     [Test]
     public async Task IssueAsync_AppointmentNotPendingPayment_ThrowsValidationException()
     {
-        var dentistUser = User.Create("inv1", $"inv1-{Guid.NewGuid()}@test.com", "hash", "Dentist");
+        var dentistUser = User.Create("inv1", $"inv1-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist);
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
         var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         _db.Patients.Add(patient);
         var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
         _db.Appointments.Add(appointment);
         await _db.SaveChangesAsync();
 
-        Func<Task> act = () => _handler.IssueAsync(MakeIssueRequest(appointment.Id));
+        Func<Task> act = () => _issueHandler.Handle(MakeIssueCommand(appointment.Id), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
 
-    /// <summary>Lịch hẹn đã có hóa đơn rồi thì không cho xuất thêm.</summary>
+    /// <summary>Nhánh xuất hóa đơn thường (không gắn liệu trình) cho phép nhiều hóa đơn/buổi (ví dụ hóa
+    /// đơn đặt cọc + hóa đơn thu phần còn lại cho các dịch vụ không thuộc liệu trình nào) — chỉ chặn
+    /// vượt tổng tiền khi dòng hóa đơn có gắn TreatmentPlanId (xem test khác ở dưới).</summary>
     [Test]
-    public async Task IssueAsync_AppointmentAlreadyHasInvoice_ThrowsConflictException()
+    public async Task IssueAsync_AppointmentAlreadyHasInvoice_AllowsSecondAdHocInvoice()
     {
         var (appointment, _, _) = await SeedPendingPaymentAppointmentAsync();
-        await _handler.IssueAsync(MakeIssueRequest(appointment.Id));
+        await _issueHandler.Handle(MakeIssueCommand(appointment.Id), CancellationToken.None);
 
-        Func<Task> act = () => _handler.IssueAsync(MakeIssueRequest(appointment.Id));
+        var second = await _issueHandler.Handle(MakeIssueCommand(appointment.Id), CancellationToken.None);
 
-        await act.Should().ThrowAsync<ConflictException>();
+        second.Should().NotBeNull();
+        (await _db.Invoices.Where(i => i.AppointmentId == appointment.Id).CountAsync()).Should().Be(2);
     }
 
     /// <summary>Đặt cọc với số tiền vượt quá tổng hóa đơn phải bị từ chối.</summary>
@@ -119,7 +161,8 @@ public class InvoiceHandlerTests
     {
         var (appointment, _, _) = await SeedPendingPaymentAppointmentAsync();
 
-        Func<Task> act = () => _handler.IssueAsync(MakeIssueRequest(appointment.Id, "deposit", deposit: 10_000_000m));
+        Func<Task> act = () => _issueHandler.Handle(
+            MakeIssueCommand(appointment.Id, "deposit", deposit: 10_000_000m), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -130,7 +173,7 @@ public class InvoiceHandlerTests
     {
         var (appointment, _, patientUserId) = await SeedPendingPaymentAppointmentAsync();
 
-        var result = await _handler.IssueAsync(MakeIssueRequest(appointment.Id));
+        var result = await _issueHandler.Handle(MakeIssueCommand(appointment.Id), CancellationToken.None);
 
         result.TotalAmount.Should().Be(500_000m);
         result.Status.Should().Be(PaymentStatus.Unpaid.ToString());
@@ -143,9 +186,9 @@ public class InvoiceHandlerTests
     public async Task GetPendingAsync_ReturnsOnlyUnpaidInvoices()
     {
         var (appointment, _, _) = await SeedPendingPaymentAppointmentAsync();
-        var invoice = await _handler.IssueAsync(MakeIssueRequest(appointment.Id));
+        var invoice = await _issueHandler.Handle(MakeIssueCommand(appointment.Id), CancellationToken.None);
 
-        var result = await _handler.GetPendingAsync();
+        var result = await _getPendingHandler.Handle(new GetPendingInvoicesQuery(), CancellationToken.None);
 
         result.Should().ContainSingle(i => i.Id == invoice.Id);
     }
@@ -155,9 +198,10 @@ public class InvoiceHandlerTests
     public async Task GetOutstandingAsync_ReturnsOnlyUnsettledDepositInvoices()
     {
         var (appointment, _, _) = await SeedPendingPaymentAppointmentAsync();
-        var invoice = await _handler.IssueAsync(MakeIssueRequest(appointment.Id, "deposit", deposit: 200_000m));
+        var invoice = await _issueHandler.Handle(
+            MakeIssueCommand(appointment.Id, "deposit", deposit: 200_000m), CancellationToken.None);
 
-        var result = await _handler.GetOutstandingAsync();
+        var result = await _getOutstandingHandler.Handle(new GetOutstandingInvoicesQuery(), CancellationToken.None);
 
         result.Should().ContainSingle(i => i.Id == invoice.Id);
         result[0].RemainingAmount.Should().Be(300_000m);
@@ -167,7 +211,8 @@ public class InvoiceHandlerTests
     [Test]
     public async Task ConfirmPaymentAsync_InvoiceNotFound_ThrowsNotFoundException()
     {
-        Func<Task> act = () => _handler.ConfirmPaymentAsync(Guid.NewGuid(), new ConfirmPaymentRequest(null));
+        Func<Task> act = () => _confirmPaymentHandler.Handle(
+            new ConfirmInvoicePaymentCommand(Guid.NewGuid(), null), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -177,10 +222,11 @@ public class InvoiceHandlerTests
     public async Task ConfirmPaymentAsync_AlreadyPaid_ThrowsConflictException()
     {
         var (appointment, _, _) = await SeedPendingPaymentAppointmentAsync();
-        var invoice = await _handler.IssueAsync(MakeIssueRequest(appointment.Id));
-        await _handler.ConfirmPaymentAsync(invoice.Id, new ConfirmPaymentRequest(null));
+        var invoice = await _issueHandler.Handle(MakeIssueCommand(appointment.Id), CancellationToken.None);
+        await _confirmPaymentHandler.Handle(new ConfirmInvoicePaymentCommand(invoice.Id, null), CancellationToken.None);
 
-        Func<Task> act = () => _handler.ConfirmPaymentAsync(invoice.Id, new ConfirmPaymentRequest(null));
+        Func<Task> act = () => _confirmPaymentHandler.Handle(
+            new ConfirmInvoicePaymentCommand(invoice.Id, null), CancellationToken.None);
 
         await act.Should().ThrowAsync<ConflictException>();
     }
@@ -192,9 +238,9 @@ public class InvoiceHandlerTests
         var staffUserId = Guid.NewGuid();
         _userRepo.GetUserIdsByRoleAsync("Staff", Arg.Any<CancellationToken>()).Returns(new List<Guid> { staffUserId });
         var (appointment, _, patientUserId) = await SeedPendingPaymentAppointmentAsync();
-        var invoice = await _handler.IssueAsync(MakeIssueRequest(appointment.Id));
+        var invoice = await _issueHandler.Handle(MakeIssueCommand(appointment.Id), CancellationToken.None);
 
-        var result = await _handler.ConfirmPaymentAsync(invoice.Id, new ConfirmPaymentRequest(null));
+        var result = await _confirmPaymentHandler.Handle(new ConfirmInvoicePaymentCommand(invoice.Id, null), CancellationToken.None);
 
         result.Status.Should().Be(PaymentStatus.Paid.ToString());
         (await _db.Appointments.SingleAsync(a => a.Id == appointment.Id)).Status.Should().Be(AppointmentStatus.Completed);
@@ -205,14 +251,38 @@ public class InvoiceHandlerTests
             Arg.Is<IEnumerable<Guid>>(ids => ids.Contains(staffUserId)), Arg.Any<CreateNotificationRequest>(), Arg.Any<CancellationToken>());
     }
 
+    /// <summary>
+    /// Tái hiện báo cáo lỗi 500 "Đã xảy ra lỗi hệ thống." khi bấm "Xác nhận thủ công" cho hóa đơn đang chờ thanh
+    /// toán online (đã có sẵn 1 giao dịch PayOS Pending do admin_website tự tạo QR khi mở hóa đơn) — xác nhận
+    /// ConfirmInvoicePaymentAsync có tự đóng giao dịch Pending đó mà không throw.
+    /// </summary>
+    [Test]
+    public async Task ConfirmPaymentAsync_InvoiceHasPendingPaymentTransaction_MarksPaidAndClosesTransaction()
+    {
+        var (appointment, _, _) = await SeedPendingPaymentAppointmentAsync();
+        var command = MakeIssueCommand(appointment.Id) with { PaymentMethod = "app" };
+        var invoice = await _issueHandler.Handle(command, CancellationToken.None);
+
+        var txn = PaymentTransaction.Create(
+            invoice.Id, PaymentGateway.PayOS, "ORDER123", invoice.DepositAmount,
+            "https://pay.example/checkout", "00020101...", "{}", DateTimeOffset.UtcNow.AddMinutes(15));
+        _db.PaymentTransactions.Add(txn);
+        await _db.SaveChangesAsync();
+
+        var result = await _confirmPaymentHandler.Handle(new ConfirmInvoicePaymentCommand(invoice.Id, null), CancellationToken.None);
+
+        result.Status.Should().Be(PaymentStatus.Paid.ToString());
+        (await _db.PaymentTransactions.SingleAsync(t => t.Id == txn.Id)).Status.Should().Be(TransactionStatus.Failed);
+    }
+
     /// <summary>Bắt đầu thu phần còn lại cho hóa đơn không có công nợ phải bị từ chối.</summary>
     [Test]
     public async Task CollectRemainingAsync_NoRemainingDebt_ThrowsValidationException()
     {
         var (appointment, _, _) = await SeedPendingPaymentAppointmentAsync();
-        var invoice = await _handler.IssueAsync(MakeIssueRequest(appointment.Id)); // thanh toán toàn bộ, không còn nợ
+        var invoice = await _issueHandler.Handle(MakeIssueCommand(appointment.Id), CancellationToken.None); // thanh toán toàn bộ, không còn nợ
 
-        Func<Task> act = () => _handler.CollectRemainingAsync(invoice.Id);
+        Func<Task> act = () => _collectRemainingHandler.Handle(new CollectRemainingInvoiceCommand(invoice.Id), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -222,9 +292,10 @@ public class InvoiceHandlerTests
     public async Task CollectRemainingAsync_ValidRequest_MarksCollectingRemaining()
     {
         var (appointment, _, _) = await SeedPendingPaymentAppointmentAsync();
-        var invoice = await _handler.IssueAsync(MakeIssueRequest(appointment.Id, "deposit", deposit: 200_000m));
+        var invoice = await _issueHandler.Handle(
+            MakeIssueCommand(appointment.Id, "deposit", deposit: 200_000m), CancellationToken.None);
 
-        var result = await _handler.CollectRemainingAsync(invoice.Id);
+        var result = await _collectRemainingHandler.Handle(new CollectRemainingInvoiceCommand(invoice.Id), CancellationToken.None);
 
         result.CollectingRemaining.Should().BeTrue();
     }
@@ -234,9 +305,9 @@ public class InvoiceHandlerTests
     public async Task IssueAsync_EmptyItems_ThrowsValidationException()
     {
         var (appointment, _, _) = await SeedPendingPaymentAppointmentAsync();
-        var request = MakeIssueRequest(appointment.Id) with { Items = new List<IssueInvoiceItemRequest>() };
+        var command = MakeIssueCommand(appointment.Id) with { Items = new List<IssueInvoiceItemRequest>() };
 
-        Func<Task> act = () => _handler.IssueAsync(request);
+        Func<Task> act = () => _issueHandler.Handle(command, CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -246,9 +317,9 @@ public class InvoiceHandlerTests
     public async Task IssueAsync_InvalidPaymentMethod_ThrowsValidationException()
     {
         var (appointment, _, _) = await SeedPendingPaymentAppointmentAsync();
-        var request = MakeIssueRequest(appointment.Id) with { PaymentMethod = "bitcoin" };
+        var command = MakeIssueCommand(appointment.Id) with { PaymentMethod = "bitcoin" };
 
-        Func<Task> act = () => _handler.IssueAsync(request);
+        Func<Task> act = () => _issueHandler.Handle(command, CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -259,7 +330,8 @@ public class InvoiceHandlerTests
     {
         var (appointment, _, _) = await SeedPendingPaymentAppointmentAsync();
 
-        var result = await _handler.IssueAsync(MakeIssueRequest(appointment.Id, "deposit", deposit: 150_000m));
+        var result = await _issueHandler.Handle(
+            MakeIssueCommand(appointment.Id, "deposit", deposit: 150_000m), CancellationToken.None);
 
         result.DepositAmount.Should().Be(150_000m);
         result.RemainingAmount.Should().Be(350_000m);
@@ -272,11 +344,11 @@ public class InvoiceHandlerTests
     {
         var (appointment1, _, _) = await SeedPendingPaymentAppointmentAsync();
         var (appointment2, _, _) = await SeedPendingPaymentAppointmentAsync();
-        var pending = await _handler.IssueAsync(MakeIssueRequest(appointment1.Id));
-        var paid = await _handler.IssueAsync(MakeIssueRequest(appointment2.Id));
-        await _handler.ConfirmPaymentAsync(paid.Id, new ConfirmPaymentRequest(null));
+        var pending = await _issueHandler.Handle(MakeIssueCommand(appointment1.Id), CancellationToken.None);
+        var paid = await _issueHandler.Handle(MakeIssueCommand(appointment2.Id), CancellationToken.None);
+        await _confirmPaymentHandler.Handle(new ConfirmInvoicePaymentCommand(paid.Id, null), CancellationToken.None);
 
-        var result = await _handler.GetHistoryAsync();
+        var result = await _getHistoryHandler.Handle(new GetInvoiceHistoryQuery(), CancellationToken.None);
 
         result.Should().ContainSingle(i => i.Id == paid.Id);
         result.Should().NotContain(i => i.Id == pending.Id);
@@ -287,16 +359,16 @@ public class InvoiceHandlerTests
     public async Task IssueAsync_PlanInstallment_PlanNotInProgress_ThrowsValidationException()
     {
         var (appointment, patient, _) = await SeedPendingPaymentAppointmentAsync();
-        var dentist = await _db.Dentists.FirstAsync();
+        var dentist = await _db.DentistProfiles.FirstAsync();
         var service = Service.Create("Niềng răng", 20_000_000m, 60, "Chỉnh nha");
         _db.Services.Add(service);
         var plan = TreatmentPlan.Create(patient.Id, dentist.Id, null, service.Id, service.Price, 1);
         plan.SetStatus(TreatmentPlanStatus.Completed); // không còn đang điều trị
         _db.TreatmentPlans.Add(plan);
         await _db.SaveChangesAsync();
-        var request = MakeIssueRequest(appointment.Id) with { TreatmentPlanId = plan.Id };
+        var command = MakeIssueCommand(appointment.Id) with { TreatmentPlanId = plan.Id };
 
-        Func<Task> act = () => _handler.IssueAsync(request);
+        Func<Task> act = () => _issueHandler.Handle(command, CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -306,16 +378,16 @@ public class InvoiceHandlerTests
     public async Task IssueAsync_PlanInstallment_ValidRequest_CreatesInstallmentInvoice()
     {
         var (appointment, patient, _) = await SeedPendingPaymentAppointmentAsync();
-        var dentist = await _db.Dentists.FirstAsync();
+        var dentist = await _db.DentistProfiles.FirstAsync();
         var service = Service.Create("Niềng răng", 20_000_000m, 60, "Chỉnh nha");
         _db.Services.Add(service);
         var plan = TreatmentPlan.Create(patient.Id, dentist.Id, null, service.Id, service.Price, 1);
         plan.SetStatus(TreatmentPlanStatus.InProgress);
         _db.TreatmentPlans.Add(plan);
         await _db.SaveChangesAsync();
-        var request = MakeIssueRequest(appointment.Id) with { TreatmentPlanId = plan.Id };
+        var command = MakeIssueCommand(appointment.Id) with { TreatmentPlanId = plan.Id };
 
-        var result = await _handler.IssueAsync(request);
+        var result = await _issueHandler.Handle(command, CancellationToken.None);
 
         result.TotalAmount.Should().Be(500_000m);
         (await _db.Invoices.SingleAsync(i => i.Id == result.Id)).TreatmentPlanId.Should().Be(plan.Id);
@@ -326,13 +398,14 @@ public class InvoiceHandlerTests
     public async Task IssueAsync_RemainingCollection_ParentAlreadySettled_ThrowsValidationException()
     {
         var (appointment, _, _) = await SeedPendingPaymentAppointmentAsync();
-        var parent = await _handler.IssueAsync(MakeIssueRequest(appointment.Id, "deposit", deposit: 200_000m));
+        var parent = await _issueHandler.Handle(
+            MakeIssueCommand(appointment.Id, "deposit", deposit: 200_000m), CancellationToken.None);
         var parentEntity = await _db.Invoices.SingleAsync(i => i.Id == parent.Id);
         parentEntity.Settle();
         await _db.SaveChangesAsync();
-        var request = MakeIssueRequest(appointment.Id) with { ParentInvoiceId = parent.Id };
+        var command = MakeIssueCommand(appointment.Id) with { ParentInvoiceId = parent.Id };
 
-        Func<Task> act = () => _handler.IssueAsync(request);
+        Func<Task> act = () => _issueHandler.Handle(command, CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -342,10 +415,11 @@ public class InvoiceHandlerTests
     public async Task IssueAsync_RemainingCollection_ValidRequest_CreatesChildInvoiceWithRemainingAmount()
     {
         var (appointment, _, _) = await SeedPendingPaymentAppointmentAsync();
-        var parent = await _handler.IssueAsync(MakeIssueRequest(appointment.Id, "deposit", deposit: 200_000m));
-        var request = MakeIssueRequest(appointment.Id) with { ParentInvoiceId = parent.Id };
+        var parent = await _issueHandler.Handle(
+            MakeIssueCommand(appointment.Id, "deposit", deposit: 200_000m), CancellationToken.None);
+        var command = MakeIssueCommand(appointment.Id) with { ParentInvoiceId = parent.Id };
 
-        var result = await _handler.IssueAsync(request);
+        var result = await _issueHandler.Handle(command, CancellationToken.None);
 
         result.ParentInvoiceId.Should().Be(parent.Id);
         result.TotalAmount.Should().Be(300_000m); // 500_000 - 200_000 đã đặt cọc
@@ -356,10 +430,12 @@ public class InvoiceHandlerTests
     public async Task IssueAsync_RemainingCollection_AlreadyHasChildInvoice_ThrowsConflictException()
     {
         var (appointment, _, _) = await SeedPendingPaymentAppointmentAsync();
-        var parent = await _handler.IssueAsync(MakeIssueRequest(appointment.Id, "deposit", deposit: 200_000m));
-        await _handler.IssueAsync(MakeIssueRequest(appointment.Id) with { ParentInvoiceId = parent.Id });
+        var parent = await _issueHandler.Handle(
+            MakeIssueCommand(appointment.Id, "deposit", deposit: 200_000m), CancellationToken.None);
+        await _issueHandler.Handle(MakeIssueCommand(appointment.Id) with { ParentInvoiceId = parent.Id }, CancellationToken.None);
 
-        Func<Task> act = () => _handler.IssueAsync(MakeIssueRequest(appointment.Id) with { ParentInvoiceId = parent.Id });
+        Func<Task> act = () => _issueHandler.Handle(
+            MakeIssueCommand(appointment.Id) with { ParentInvoiceId = parent.Id }, CancellationToken.None);
 
         await act.Should().ThrowAsync<ConflictException>();
     }
@@ -368,8 +444,8 @@ public class InvoiceHandlerTests
     [Test]
     public async Task GetOutstandingPlansAsync_ReturnsInProgressPlansWithRemainingBalanceOnly()
     {
-        var (_, patient, _) = await SeedPendingPaymentAppointmentAsync();
-        var dentist = await _db.Dentists.FirstAsync();
+        var (appointmentA, patient, _) = await SeedPendingPaymentAppointmentAsync();
+        var dentist = await _db.DentistProfiles.FirstAsync();
         var service = Service.Create("Trồng Implant", 15_000_000m, 90, "Cấy ghép implant");
         _db.Services.Add(service);
         var inProgressPlan = TreatmentPlan.Create(patient.Id, dentist.Id, null, service.Id, service.Price, 1);
@@ -379,10 +455,25 @@ public class InvoiceHandlerTests
         _db.TreatmentPlans.AddRange(inProgressPlan, completedPlan);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.GetOutstandingPlansAsync();
+        // GetOutstandingPlansHandler chỉ tính là "công nợ" khi liệu trình ĐÃ thu một phần mà còn thiếu —
+        // liệu trình chưa thu đồng nào chỉ là "đang điều trị", chưa phải nợ (xem comment trong handler).
+        // Cần 1 hóa đơn đặt cọc thật gắn vào inProgressPlan để có AmountPaid > 0.
+        // GetPlanPaidMapAsync chỉ credit công nợ từ hóa đơn ĐÃ Paid (chưa Paid thì chưa tính là "đã thu")
+        // — phải MarkAsPaid thật, không chỉ Issue, mới khớp đúng luồng nghiệp vụ thật.
+        var deposit = service.Price / 3;
+        var partialInvoice = Invoice.Issue(
+            appointmentA.Id, "INV-OUTSTANDING-TEST",
+            [("Đặt cọc liệu trình", 1, service.Price, inProgressPlan.Id, deposit)],
+            discount: 0, PaymentMethod.Cash);
+        partialInvoice.MarkAsPaid(PaymentMethod.Cash);
+        _db.Invoices.Add(partialInvoice);
+        await _db.SaveChangesAsync();
+
+        var result = await _getOutstandingPlansHandler.Handle(new GetOutstandingPlansQuery(), CancellationToken.None);
 
         result.Should().ContainSingle(p => p.TreatmentPlanId == inProgressPlan.Id);
-        result[0].RemainingAmount.Should().Be(service.Price);
+        result[0].AmountPaid.Should().Be(deposit);
+        result[0].RemainingAmount.Should().Be(service.Price - deposit);
     }
 
     /// <summary>Xác nhận thanh toán cho hóa đơn thu phần còn lại phải tất toán (Settle) hóa đơn gốc.</summary>
@@ -390,10 +481,12 @@ public class InvoiceHandlerTests
     public async Task ConfirmPaymentAsync_RemainingCollectionInvoice_SettlesParentInvoice()
     {
         var (appointment, _, _) = await SeedPendingPaymentAppointmentAsync();
-        var parent = await _handler.IssueAsync(MakeIssueRequest(appointment.Id, "deposit", deposit: 200_000m));
-        var child = await _handler.IssueAsync(MakeIssueRequest(appointment.Id) with { ParentInvoiceId = parent.Id });
+        var parent = await _issueHandler.Handle(
+            MakeIssueCommand(appointment.Id, "deposit", deposit: 200_000m), CancellationToken.None);
+        var child = await _issueHandler.Handle(
+            MakeIssueCommand(appointment.Id) with { ParentInvoiceId = parent.Id }, CancellationToken.None);
 
-        await _handler.ConfirmPaymentAsync(child.Id, new ConfirmPaymentRequest(null));
+        await _confirmPaymentHandler.Handle(new ConfirmInvoicePaymentCommand(child.Id, null), CancellationToken.None);
 
         (await _db.Invoices.SingleAsync(i => i.Id == parent.Id)).IsSettled.Should().BeTrue();
     }
@@ -403,16 +496,17 @@ public class InvoiceHandlerTests
     public async Task ConfirmPaymentAsync_PlanInstallmentFullyPaid_CompletesTreatmentPlan()
     {
         var (appointment, patient, _) = await SeedPendingPaymentAppointmentAsync();
-        var dentist = await _db.Dentists.FirstAsync();
+        var dentist = await _db.DentistProfiles.FirstAsync();
         var service = Service.Create("Trồng Implant", 500_000m, 90, "Cấy ghép implant");
         _db.Services.Add(service);
         var plan = TreatmentPlan.Create(patient.Id, dentist.Id, null, service.Id, service.Price, 1);
         plan.SetStatus(TreatmentPlanStatus.InProgress);
         _db.TreatmentPlans.Add(plan);
         await _db.SaveChangesAsync();
-        var invoice = await _handler.IssueAsync(MakeIssueRequest(appointment.Id) with { TreatmentPlanId = plan.Id });
+        var invoice = await _issueHandler.Handle(
+            MakeIssueCommand(appointment.Id) with { TreatmentPlanId = plan.Id }, CancellationToken.None);
 
-        await _handler.ConfirmPaymentAsync(invoice.Id, new ConfirmPaymentRequest(null));
+        await _confirmPaymentHandler.Handle(new ConfirmInvoicePaymentCommand(invoice.Id, null), CancellationToken.None);
 
         (await _db.TreatmentPlans.SingleAsync(p => p.Id == plan.Id)).Status.Should().Be(TreatmentPlanStatus.Completed);
     }

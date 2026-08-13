@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.UseCases.Auth;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using FluentAssertions;
@@ -12,6 +13,8 @@ namespace DentalClinic.API.Application.Tests.Auth;
 public class FillProfileHandlerTests
 {
     private IUserRepository _userRepo = null!;
+    private IEmployeeRepository _employeeRepo = null!;
+    private IDentistRepository _dentistRepo = null!;
     private FillProfileHandler _handler = null!;
 
     private static readonly Guid TestUserId = Guid.NewGuid();
@@ -29,7 +32,9 @@ public class FillProfileHandlerTests
     public void SetUp()
     {
         _userRepo = Substitute.For<IUserRepository>();
-        _handler = new FillProfileHandler(_userRepo);
+        _employeeRepo = Substitute.For<IEmployeeRepository>();
+        _dentistRepo = Substitute.For<IDentistRepository>();
+        _handler = new FillProfileHandler(_userRepo, _employeeRepo, _dentistRepo);
     }
 
     // ── Happy path ────────────────────────────────────────────────────────────
@@ -43,7 +48,7 @@ public class FillProfileHandlerTests
         var user = CreatePatientUser();
         _userRepo.GetByIdAsync(TestUserId, Arg.Any<CancellationToken>()).Returns(user);
 
-        await _handler.HandleAsync(ValidCommand);
+        await _handler.Handle(ValidCommand, CancellationToken.None);
 
         await _userRepo.Received(1).UpdateAsync(user, Arg.Any<CancellationToken>());
     }
@@ -58,7 +63,7 @@ public class FillProfileHandlerTests
         var user = CreatePatientUser();
         _userRepo.GetByIdAsync(TestUserId, Arg.Any<CancellationToken>()).Returns(user);
 
-        await _handler.HandleAsync(ValidCommand);
+        await _handler.Handle(ValidCommand, CancellationToken.None);
 
         user.FullName.Should().Be("Nguyễn An");
     }
@@ -72,7 +77,7 @@ public class FillProfileHandlerTests
         var user = CreatePatientUser();
         _userRepo.GetByIdAsync(TestUserId, Arg.Any<CancellationToken>()).Returns(user);
 
-        await _handler.HandleAsync(ValidCommand);
+        await _handler.Handle(ValidCommand, CancellationToken.None);
 
         user.PhoneNumber.Should().Be(ValidCommand.PhoneNumber);
     }
@@ -86,7 +91,7 @@ public class FillProfileHandlerTests
         var user = CreatePatientUser();
         _userRepo.GetByIdAsync(TestUserId, Arg.Any<CancellationToken>()).Returns(user);
 
-        await _handler.HandleAsync(ValidCommand);
+        await _handler.Handle(ValidCommand, CancellationToken.None);
 
         user.Patient?.DateOfBirth.Should().Be(ValidCommand.DateOfBirth);
         user.Gender.Should().Be(ValidCommand.Gender);
@@ -102,7 +107,7 @@ public class FillProfileHandlerTests
     [Test]
     public async Task HandleAsync_DentistRole_UpdatesPersonalProfileWithAllFields()
     {
-        var user = User.Create("dr1", "dr1@test.com", "hash", "Dentist");
+        var user = User.Create("dr1", "dr1@test.com", "hash", UserRole.Dentist);
         _userRepo.GetByIdAsync(TestUserId, Arg.Any<CancellationToken>()).Returns(user);
 
         var command = new FillProfileCommand(
@@ -120,15 +125,21 @@ public class FillProfileHandlerTests
             Specialty: "Nha chu",
             YearsOfExperience: 8);
 
-        await _handler.HandleAsync(command);
+        await _handler.Handle(command, CancellationToken.None);
 
         user.FullName.Should().Be("Trần An");
         user.PhoneNumber.Should().Be("0909876543");
-        user.Dentist?.Address.Should().Be("123 Lê Lợi");
-        user.Dentist?.Biography.Should().Be("Bác sĩ giỏi");
-        user.Dentist?.Education.Should().Be("Đại học Y Dược");
-        user.Dentist?.Specialization.Should().Be("Nha chu");
-        user.Dentist?.ExperienceYears.Should().Be(8);
+
+        await _employeeRepo.Received(1).AddAsync(
+            Arg.Is<Employee>(e => e.UserId == user.Id && e.Address == "123 Lê Lợi"),
+            Arg.Any<CancellationToken>());
+        await _dentistRepo.Received(1).AddAsync(
+            Arg.Is<DentistProfile>(d =>
+                d.Biography == "Bác sĩ giỏi" &&
+                d.Education == "Đại học Y Dược" &&
+                d.Specialization == "Nha chu" &&
+                d.ExperienceYears == 8),
+            Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -138,7 +149,7 @@ public class FillProfileHandlerTests
     [Test]
     public async Task HandleAsync_StaffRole_NoNameProvided_FallsBackToExistingFullName()
     {
-        var user = User.Create("staff1", "staff1@test.com", "hash", "Staff", fullName: "Tên Cũ");
+        var user = User.Create("staff1", "staff1@test.com", "hash", UserRole.Staff, fullName: "Tên Cũ");
         _userRepo.GetByIdAsync(TestUserId, Arg.Any<CancellationToken>()).Returns(user);
 
         var command = new FillProfileCommand(
@@ -150,7 +161,7 @@ public class FillProfileHandlerTests
             DateOfBirth: null,
             Gender: null);
 
-        await _handler.HandleAsync(command);
+        await _handler.Handle(command, CancellationToken.None);
 
         user.FullName.Should().Be("Tên Cũ");
     }
@@ -169,7 +180,7 @@ public class FillProfileHandlerTests
 
         var command = ValidCommand with { FullName = "Tên Trực Tiếp" };
 
-        await _handler.HandleAsync(command);
+        await _handler.Handle(command, CancellationToken.None);
 
         user.FullName.Should().Be("Tên Trực Tiếp");
     }
@@ -186,7 +197,7 @@ public class FillProfileHandlerTests
 
         var command = ValidCommand with { FullName = null, FirstName = null, LastName = null };
 
-        await _handler.HandleAsync(command);
+        await _handler.Handle(command, CancellationToken.None);
 
         user.FullName.Should().BeEmpty();
     }
@@ -203,7 +214,7 @@ public class FillProfileHandlerTests
 
         var command = ValidCommand with { PhoneNumber = null };
 
-        await _handler.HandleAsync(command);
+        await _handler.Handle(command, CancellationToken.None);
 
         user.PhoneNumber.Should().BeEmpty();
     }
@@ -219,7 +230,7 @@ public class FillProfileHandlerTests
     {
         _userRepo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((User?)null);
 
-        Func<Task> act = () => _handler.HandleAsync(ValidCommand);
+        Func<Task> act = () => _handler.Handle(ValidCommand, CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -232,7 +243,7 @@ public class FillProfileHandlerTests
     {
         _userRepo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((User?)null);
 
-        Assert.CatchAsync(() => _handler.HandleAsync(ValidCommand));
+        Assert.CatchAsync(() => _handler.Handle(ValidCommand, CancellationToken.None));
 
         await _userRepo.DidNotReceive().UpdateAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
     }
@@ -240,5 +251,5 @@ public class FillProfileHandlerTests
     // ── Helper ────────────────────────────────────────────────────────────────
 
     private static User CreatePatientUser() =>
-        User.Create("patient1", "patient@test.com", "hash", "Patient");
+        User.Create("patient1", "patient@test.com", "hash", UserRole.Patient);
 }

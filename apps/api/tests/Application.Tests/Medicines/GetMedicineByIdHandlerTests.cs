@@ -26,7 +26,7 @@ public class GetMedicineByIdHandlerTests
         _repo.GetByIdAsync(medicine.Id, Arg.Any<CancellationToken>()).Returns(medicine);
         var handler = new GetMedicineByIdHandler(_repo);
 
-        var result = await handler.HandleAsync(medicine.Id);
+        var result = await handler.Handle(new GetMedicineByIdQuery(medicine.Id), CancellationToken.None);
 
         result.Id.Should().Be(medicine.Id);
         result.Name.Should().Be("Amoxicillin");
@@ -41,7 +41,7 @@ public class GetMedicineByIdHandlerTests
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Medicine?)null);
         var handler = new GetMedicineByIdHandler(_repo);
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid());
+        Func<Task> act = () => handler.Handle(new GetMedicineByIdQuery(Guid.NewGuid()), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }

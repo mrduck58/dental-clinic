@@ -8,6 +8,7 @@ import {
   updateMyProfileApi,
   changePasswordApi,
   uploadFileApi,
+  resolveAssetUrl,
   type UserProfileDto,
   getActivityLogsApi,
   type ActivityLogItemDto
@@ -414,7 +415,7 @@ export default function ProfilePageContent({ sidebar, notificationHref = "/admin
                   >
                     {profilePictureUrl ? (
                       <img
-                        src={profilePictureUrl}
+                        src={resolveAssetUrl(profilePictureUrl)}
                         alt={fullName}
                         className="w-full h-full object-cover transition-transform group-hover:scale-110"
                       />

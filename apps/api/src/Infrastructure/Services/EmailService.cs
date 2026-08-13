@@ -161,6 +161,75 @@ public class EmailService(IOptions<EmailSettings> options, ILogger<EmailService>
         await smtp.DisconnectAsync(quit: true, ct);
     }
 
+    public async Task SendPatientAccountVerificationAsync(
+        string recipientEmail,
+        string code,
+        CancellationToken ct = default)
+    {
+        if (!_settings.IsConfigured)
+        {
+            logger.LogWarning("[DEV-EMAIL] Mã xác thực email cho {Email}: {Code}", recipientEmail, code);
+            return;
+        }
+
+        var message = new MimeMessage();
+        message.From.Add(new MailboxAddress(_settings.FromName, _settings.FromEmail));
+        message.To.Add(new MailboxAddress(recipientEmail, recipientEmail));
+        message.Subject = $"[{_settings.ClinicName}] Mã xác thực email";
+
+        message.Body = new BodyBuilder
+        {
+            HtmlBody = BuildPatientAccountVerificationHtml(code),
+            TextBody = $"Mã xác thực email của bạn là: {code}\n"
+                     + "Đọc mã này cho nhân viên phòng khám để hoàn tất việc tạo tài khoản.\n"
+                     + "Mã có hiệu lực trong 5 phút.",
+        }.ToMessageBody();
+
+        using var smtp = new SmtpClient();
+        await smtp.ConnectAsync(
+            _settings.SmtpHost,
+            _settings.SmtpPort,
+            _settings.UseSsl ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTls,
+            ct);
+
+        if (!string.IsNullOrWhiteSpace(_settings.Username))
+            await smtp.AuthenticateAsync(_settings.Username, _settings.Password, ct);
+
+        await smtp.SendAsync(message, ct);
+        await smtp.DisconnectAsync(quit: true, ct);
+    }
+
+    private string BuildPatientAccountVerificationHtml(string code) => $"""
+        <!DOCTYPE html>
+        <html lang="vi">
+        <head><meta charset="utf-8"/></head>
+        <body style="font-family:Arial,sans-serif;color:#333;max-width:600px;margin:0 auto;padding:20px;">
+          <div style="background:#c0392b;padding:24px 20px;border-radius:10px 10px 0 0;text-align:center;">
+            <h1 style="color:#fff;margin:0;font-size:22px;">🦷 {_settings.ClinicName}</h1>
+            <p style="color:rgba(255,255,255,.8);margin:6px 0 0;font-size:13px;">Xác thực địa chỉ email</p>
+          </div>
+          <div style="background:#fff;padding:32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">
+            <h2 style="color:#1e293b;margin-top:0;">Mã xác thực email</h2>
+            <p style="color:#475569;">Nhân viên phòng khám đang tạo tài khoản cho bạn. Vui lòng <strong>đọc mã bên dưới cho nhân viên</strong> để xác nhận đây đúng là email của bạn. Mã có hiệu lực trong <strong>5 phút</strong>.</p>
+
+            <div style="background:#fef2f2;border:2px solid #fca5a5;border-radius:12px;padding:28px;margin:28px 0;text-align:center;">
+              <p style="margin:0 0 8px;color:#64748b;font-size:13px;text-transform:uppercase;letter-spacing:2px;">Mã xác thực</p>
+              <p style="margin:0;font-size:48px;font-weight:700;color:#c0392b;letter-spacing:12px;font-family:monospace;">{code}</p>
+            </div>
+
+            <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:16px;margin-bottom:24px;">
+              <p style="color:#9a3412;font-size:13px;margin:0;">⚠️ Nếu bạn <strong>không</strong> đang ở phòng khám và không yêu cầu tạo tài khoản, hãy bỏ qua email này và <strong>không đọc mã cho ai</strong>.</p>
+            </div>
+
+            <p style="color:#94a3b8;font-size:12px;border-top:1px solid #f1f5f9;padding-top:16px;margin-bottom:0;">
+              Email này được gửi tự động — vui lòng không trả lời.<br/>
+              <strong>{_settings.ClinicName}</strong>
+            </p>
+          </div>
+        </body>
+        </html>
+        """;
+
     private string BuildPasswordResetOtpHtml(string code) => $"""
         <!DOCTYPE html>
         <html lang="vi">

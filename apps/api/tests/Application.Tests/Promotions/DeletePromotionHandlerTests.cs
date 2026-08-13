@@ -33,7 +33,7 @@ public class DeletePromotionHandlerTests
         _repo.GetByIdAsync(promo.Id, Arg.Any<CancellationToken>()).Returns(promo);
         var handler = new DeletePromotionHandler(_repo, _activityLog, _currentUser);
 
-        var result = await handler.HandleAsync(promo.Id);
+        var result = await handler.Handle(new DeletePromotionCommand(promo.Id), CancellationToken.None);
 
         await _repo.Received(1).DeleteAsync(promo, Arg.Any<CancellationToken>());
         result.Should().BeTrue();
@@ -49,7 +49,7 @@ public class DeletePromotionHandlerTests
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((Promotion?)null);
         var handler = new DeletePromotionHandler(_repo, _activityLog, _currentUser);
 
-        var result = await handler.HandleAsync(Guid.NewGuid());
+        var result = await handler.Handle(new DeletePromotionCommand(Guid.NewGuid()), CancellationToken.None);
 
         result.Should().BeFalse();
         await _repo.DidNotReceive().DeleteAsync(Arg.Any<Promotion>(), Arg.Any<CancellationToken>());

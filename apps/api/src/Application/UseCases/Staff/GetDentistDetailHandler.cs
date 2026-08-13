@@ -1,6 +1,5 @@
-using DentalClinic.API.Domain.Enums;
-using DentalClinic.API.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
+using DentalClinic.API.Domain.Interfaces.Repositories;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Staff;
 
@@ -13,24 +12,46 @@ public record DentistDetailDto(
     string? Bio,
     string? Education,
     string? CertificateIssuedBy,
-    int PatientCount);
+    int PatientCount,
+    // ── Hồ sơ chuyên môn mở rộng ────────────────────────────────────────────
+    string? Gender,
+    string? Department,
+    string? Position,
+    string? LicenseNumber,
+    DateOnly? CertificateIssuedDate,
+    DateOnly? StartDate,
+    string? EmploymentType,
+    string? Shift,
+    // ── Số liệu hoạt động ───────────────────────────────────────────────────
+    int AppointmentCount,
+    double AverageRating,
+    int ReviewCount,
+    IReadOnlyList<string> Services);
 
-public class GetDentistDetailHandler(AppDbContext dbContext)
+public record GetDentistDetailQuery(Guid DentistId) : IRequest<DentistDetailDto?>;
+
+public class GetDentistDetailHandler(
+    IDentistRepository dentistRepository,
+    IAppointmentRepository appointmentRepository,
+    IDentistReviewRepository dentistReviewRepository)
+    : IRequestHandler<GetDentistDetailQuery, DentistDetailDto?>
 {
-    public async Task<DentistDetailDto?> HandleAsync(Guid dentistId, CancellationToken ct = default)
+    /// <summary>Số dịch vụ tiêu biểu hiển thị trên trang chi tiết nha sĩ.</summary>
+    private const int TopServiceCount = 8;
+
+    public async Task<DentistDetailDto?> Handle(GetDentistDetailQuery request, CancellationToken ct)
     {
-        var dentist = await dbContext.Dentists
-            .AsNoTracking()
-            .Include(d => d.User)
-            .FirstOrDefaultAsync(d => d.Id == dentistId || d.UserId == dentistId, ct);
+        var dentist = await dentistRepository.GetByIdOrUserIdAsync(request.DentistId, ct);
         if (dentist is null) return null;
 
-        var patientCount = await dbContext.Appointments
-            .Where(a => a.DentistId == dentist.Id &&
-                        (a.Status == AppointmentStatus.Completed || a.Status == AppointmentStatus.PendingPayment))
-            .Select(a => a.PatientId)
-            .Distinct()
-            .CountAsync(ct);
+        var patientCount = await appointmentRepository.CountDistinctPatientsWithCompletedVisitAsync(dentist.Id, ct);
+        var appointmentCount = await appointmentRepository.CountCompletedVisitsAsync(dentist.Id, ct);
+
+        // Dịch vụ bác sĩ đã thực hiện, xếp theo số ca giảm dần.
+        var services = await appointmentRepository.GetTopServiceNamesByDentistAsync(dentist.Id, TopServiceCount, ct);
+
+        var ratings = await dentistReviewRepository.GetRatingsByDentistIdAsync(dentist.Id, ct);
+        var averageRating = ratings.Count == 0 ? 0 : Math.Round(ratings.Average(), 1);
 
         return new DentistDetailDto(
             dentist.Id,
@@ -41,6 +62,18 @@ public class GetDentistDetailHandler(AppDbContext dbContext)
             dentist.Biography,
             dentist.Education,
             dentist.CertificateIssuedBy,
-            patientCount);
+            patientCount,
+            dentist.Employee.User?.Gender,
+            dentist.Employee.Department,
+            dentist.Employee.Position,
+            dentist.LicenseNumber,
+            dentist.CertificateIssuedDate,
+            dentist.Employee.StartDate,
+            dentist.Employee.EmploymentType,
+            dentist.Shift,
+            appointmentCount,
+            averageRating,
+            ratings.Count,
+            services);
     }
 }

@@ -4,6 +4,7 @@ import 'package:iconsax/iconsax.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
+import 'package:mobile_app/core/constants/api_constants.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/auth/data/auth_service.dart';
 import 'package:mobile_app/features/home/data/home_service.dart';
@@ -183,7 +184,7 @@ class _HomePageState extends State<HomePage> {
                                             color: context.isDark ? AppColors.primary.withValues(alpha: 0.15) : AppColors.primaryLight,
                                             child: doc.profilePictureUrl != null && doc.profilePictureUrl!.isNotEmpty
                                                 ? Image.network(
-                                                    doc.profilePictureUrl!,
+                                                    ApiConstants.resolveAssetUrl(doc.profilePictureUrl)!,
                                                     fit: BoxFit.cover,
                                                     errorBuilder: (_, __, ___) => Icon(Iconsax.user, color: AppColors.primary, size: 28),
                                                   )
@@ -995,7 +996,7 @@ class _UpcomingAppointmentCard extends StatelessWidget {
                       ? (item.dentistAvatarUrl!.startsWith('assets/')
                           ? Image.asset(item.dentistAvatarUrl!, fit: BoxFit.cover)
                           : Image.network(
-                              item.dentistAvatarUrl!,
+                              ApiConstants.resolveAssetUrl(item.dentistAvatarUrl)!,
                               fit: BoxFit.cover,
                               errorBuilder: (_, __, ___) => const Icon(Iconsax.user, size: 20),
                             ))
@@ -1026,6 +1027,7 @@ class _UpcomingAppointmentCard extends StatelessWidget {
                   ],
                 ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(

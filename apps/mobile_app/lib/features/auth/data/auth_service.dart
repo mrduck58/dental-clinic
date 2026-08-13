@@ -11,12 +11,17 @@ class LoginResult {
   final String email;
   final String? fullName;
 
+  /// Tài khoản đang dùng mật khẩu tạm do phòng khám cấp qua email — phải đưa thẳng người dùng
+  /// vào màn đổi mật khẩu, không cho vào app cho tới khi đổi xong.
+  final bool mustChangePassword;
+
   const LoginResult({
     required this.accessToken,
     required this.role,
     required this.id,
     required this.email,
     this.fullName,
+    this.mustChangePassword = false,
   });
 
   factory LoginResult.fromJson(Map<String, dynamic> json) {
@@ -27,6 +32,8 @@ class LoginResult {
       id: user['id'].toString(),
       email: user['email'] as String,
       fullName: user['fullName'] as String?,
+      // Trường mới ở cuối response — bản API cũ không trả về thì mặc định false.
+      mustChangePassword: json['mustChangePassword'] as bool? ?? false,
     );
   }
 }

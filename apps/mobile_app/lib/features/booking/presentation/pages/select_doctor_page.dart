@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
+import 'package:mobile_app/core/constants/api_constants.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/booking/data/booking_models.dart';
 import 'package:mobile_app/features/booking/data/booking_service.dart';
@@ -296,24 +297,6 @@ class _DoctorSlotCard extends StatelessWidget {
                               ),
                             ),
                           ),
-                          if (isPreferred) ...[
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: AppColors.primary,
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Text(
-                                isVi ? 'Gợi ý AI' : 'AI pick',
-                                style: const TextStyle(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ],
                         ],
                       ),
                       const SizedBox(height: 2),
@@ -532,12 +515,13 @@ class _DoctorAvatar extends StatelessWidget {
       child: Icon(Iconsax.profile_circle, color: context.isDark ? Colors.white : AppColors.primary, size: 30),
     );
 
-    if (avatarUrl == null || avatarUrl!.isEmpty) return placeholder;
+    final resolved = ApiConstants.resolveAssetUrl(avatarUrl);
+    if (resolved == null) return placeholder;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
       child: Image.network(
-        avatarUrl!,
+        resolved,
         width: 60,
         height: 60,
         fit: BoxFit.cover,

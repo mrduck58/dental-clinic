@@ -5,9 +5,12 @@ import {
   getExaminationApi,
   createMaterialRequestApi,
   getMaterialRequestsByPatientApi,
+  getSupplyItemsApi,
   type ExaminationDto,
   type MaterialRequestDto,
+  type SupplyItemDto,
 } from "../../../../lib/apiClient";
+import { SUPPLY_UNITS } from "../../../../lib/inventoryConstants";
 
 interface MaterialWorkspaceProps {
   appointmentId: string;
@@ -42,8 +45,33 @@ export default function MaterialWorkspace({ appointmentId, editMode = false }: M
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [content, setContent] = useState("");
+  const emptyRow = () => ({ itemName: "", quantity: "", unit: SUPPLY_UNITS[0] });
+  const [rows, setRows] = useState<{ itemName: string; quantity: string; unit: string }[]>([emptyRow()]);
   const [saving, setSaving] = useState(false);
+
+  // Vật tư "đặt riêng cho bệnh nhân" đã có sẵn trong kho — dùng để gợi ý tên + khoá đơn vị theo kho.
+  const [customItems, setCustomItems] = useState<SupplyItemDto[]>([]);
+  const [focusedRow, setFocusedRow] = useState<number | null>(null);
+
+  useEffect(() => {
+    getSupplyItemsApi({ orderType: "custom" }).then(setCustomItems).catch(() => {});
+  }, []);
+
+  const findExactMatch = (itemName: string) =>
+    customItems.find(ci => ci.name.toLowerCase() === itemName.trim().toLowerCase());
+  const findSuggestions = (itemName: string) =>
+    itemName.trim()
+      ? customItems.filter(ci => ci.name.toLowerCase().includes(itemName.trim().toLowerCase())).slice(0, 6)
+      : [];
+
+  const updateRow = (index: number, patch: Partial<{ itemName: string; quantity: string; unit: string }>) => {
+    setRows(prev => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)));
+  };
+  const addRow = () => setRows(prev => [...prev, emptyRow()]);
+  const removeRow = (index: number) => setRows(prev => prev.length === 1 ? prev : prev.filter((_, i) => i !== index));
+
+  const effectiveUnit = (row: { itemName: string; unit: string }) => findExactMatch(row.itemName)?.unit ?? row.unit;
+  const validRows = rows.filter(r => r.itemName.trim() && Number(r.quantity) > 0);
 
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const showToast = (message: string, type: "success" | "error" = "success") => {
@@ -77,12 +105,15 @@ export default function MaterialWorkspace({ appointmentId, editMode = false }: M
   }, [appointmentId, loadRequests]);
 
   const handleSubmit = async () => {
-    if (!content.trim() || !examination) return;
+    if (validRows.length === 0 || !examination) return;
     try {
       setSaving(true);
-      await createMaterialRequestApi({ appointmentId, content: content.trim() });
+      await createMaterialRequestApi({
+        appointmentId,
+        items: validRows.map(r => ({ itemName: r.itemName.trim(), quantity: Number(r.quantity), unit: effectiveUnit(r) })),
+      });
       showToast("Đã gửi yêu cầu vật tư sang kho");
-      setContent("");
+      setRows([emptyRow()]);
       await loadRequests(examination.patient.id, examination.patient.fullName);
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Không thể gửi yêu cầu", "error");
@@ -166,7 +197,13 @@ export default function MaterialWorkspace({ appointmentId, editMode = false }: M
                         </span>
                         <span className="ml-auto text-[11.5px] font-semibold text-slate-400 font-mono">{fmtDateTime(r.createdAt)}</span>
                       </div>
-                      <p className="text-[13px] font-semibold text-slate-600 whitespace-pre-wrap bg-slate-50 border border-slate-100 rounded-xl px-3.5 py-2.5">{r.content}</p>
+                      <div className="flex flex-col gap-1 bg-slate-50 border border-slate-100 rounded-xl px-3.5 py-2.5">
+                        {r.items.map(it => (
+                          <div key={it.id} className="text-[13px] font-semibold text-slate-600">
+                            {it.itemName} — {it.quantity} {it.unit}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -179,21 +216,90 @@ export default function MaterialWorkspace({ appointmentId, editMode = false }: M
         <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
           <CardHeader color="text-emerald-600" title="Gửi yêu cầu vật tư" icon={BOX_ICON} />
           <div className="p-5 flex flex-col gap-4">
-            <div>
+            <div className="flex flex-col gap-2.5">
               <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Danh sách vật tư cần dùng</label>
-              <textarea
-                value={content}
-                onChange={e => setContent(e.target.value)}
-                rows={7}
-                placeholder={"VD:\n- Composite A2 x 2\n- Kim tiêm nha khoa x 5\n- Chỉ khâu 4/0 x 1"}
+              {rows.map((row, i) => {
+                const exactMatch = findExactMatch(row.itemName);
+                const suggestions = findSuggestions(row.itemName);
+                const showSuggestions = canEdit && focusedRow === i && !exactMatch && suggestions.length > 0;
+                return (
+                <div key={i} className="flex flex-col gap-1">
+                  <div className="flex items-start gap-1.5">
+                    <div className="relative flex-[2] min-w-0">
+                      <input
+                        value={row.itemName}
+                        onChange={e => updateRow(i, { itemName: e.target.value })}
+                        onFocus={() => setFocusedRow(i)}
+                        onBlur={() => setTimeout(() => setFocusedRow(f => (f === i ? null : f)), 150)}
+                        placeholder="Tên vật tư"
+                        disabled={!canEdit}
+                        className="w-full px-3 py-2 text-[13px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:outline-none font-semibold text-slate-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                      />
+                      {showSuggestions && (
+                        <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+                          {suggestions.map(s => (
+                            <button
+                              key={s.id}
+                              type="button"
+                              onMouseDown={e => e.preventDefault()}
+                              onClick={() => { updateRow(i, { itemName: s.name, unit: s.unit }); setFocusedRow(null); }}
+                              className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-slate-50 transition-colors cursor-pointer"
+                            >
+                              <span className="text-[12.5px] font-semibold text-slate-700 truncate">{s.name}</span>
+                              <span className="text-[11px] font-bold text-slate-400 shrink-0">{s.unit}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <input
+                      type="number" min={0}
+                      value={row.quantity}
+                      onChange={e => updateRow(i, { quantity: e.target.value })}
+                      placeholder="SL"
+                      disabled={!canEdit}
+                      className="w-16 shrink-0 px-2.5 py-2 text-[13px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:outline-none font-semibold text-slate-700 disabled:opacity-60 disabled:cursor-not-allowed [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                    <select
+                      value={exactMatch ? exactMatch.unit : row.unit}
+                      onChange={e => updateRow(i, { unit: e.target.value })}
+                      disabled={!canEdit || !!exactMatch}
+                      title={exactMatch ? "Vật tư đã có trong kho — dùng đơn vị đã lưu" : undefined}
+                      className="w-[76px] shrink-0 px-2 py-2 text-[13px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:outline-none font-semibold text-slate-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {SUPPLY_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => removeRow(i)}
+                      disabled={!canEdit || rows.length === 1}
+                      title="Xoá dòng"
+                      className="w-9 h-9 shrink-0 flex items-center justify-center rounded-xl border border-slate-200 text-slate-400 hover:text-red-500 hover:border-red-200 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                  </div>
+                  {exactMatch ? (
+                    <p className="text-[11px] font-semibold text-emerald-600 pl-0.5">✓ Vật tư đã có trong kho — đơn vị: {exactMatch.unit}</p>
+                  ) : row.itemName.trim() && (
+                    <p className="text-[11px] font-semibold text-slate-400 pl-0.5">Vật tư mới</p>
+                  )}
+                </div>
+                );
+              })}
+              <button
+                type="button"
+                onClick={addRow}
                 disabled={!canEdit}
-                className="w-full mt-1.5 px-3.5 py-2.5 text-[13px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:outline-none font-semibold text-slate-700 resize-none disabled:opacity-60 disabled:cursor-not-allowed"
-              />
+                className="self-start text-[12.5px] font-bold text-emerald-600 hover:text-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                + Thêm vật tư
+              </button>
             </div>
 
             <button
               onClick={() => void handleSubmit()}
-              disabled={!canEdit || !content.trim() || saving}
+              disabled={!canEdit || validRows.length === 0 || saving}
               title={canEdit ? undefined : "Chỉ gửi yêu cầu khi buổi hẹn đang khám"}
               className="w-full py-3 bg-emerald-600 text-white text-[14px] font-black rounded-xl hover:bg-emerald-700 transition-all shadow-sm shadow-emerald-500/25 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none disabled:cursor-not-allowed cursor-pointer"
             >

@@ -33,14 +33,34 @@ services:
       - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__DefaultConnection=${SUPABASE_DB_URL}
       - JwtSettings__Secret=${JWT_SECRET}
+      # Issuer/Audience are only defined in appsettings.Development.json, which is skipped when
+      # ASPNETCORE_ENVIRONMENT=Production — without these, tokens get signed with no iss/aud and
+      # every subsequent authenticated request fails with 401 "audience invalid".
+      - JwtSettings__Issuer=DentalClinicAPI
+      - JwtSettings__Audience=DentalClinicClients
       - Supabase__Url=${SUPABASE_URL}
       - Supabase__AnonKey=${SUPABASE_ANON_KEY}
       - PayOSSettings__ClientId=${PAYOS_CLIENT_ID}
       - PayOSSettings__ApiKey=${PAYOS_API_KEY}
       - PayOSSettings__ChecksumKey=${PAYOS_CHECKSUM_KEY}
       - GoogleAuthSettings__ClientId=${GOOGLE_CLIENT_ID}
+      - GeminiSettings__ApiKey=${GEMINI_API_KEY}
+      # SMS (SpeedSMS). Bỏ trống thì API không gửi SMS: ở Development chỉ ghi log, ở Production ném lỗi.
+      - SmsSettings__ApiToken=${SPEEDSMS_API_TOKEN}
+      # 4 = brandname dùng chung "Verify" (~750đ/tin, không cần đăng ký tên định danh)
+      # 2 = đầu số ngẫu nhiên (~250-300đ/tin) · 3 = brandname riêng (phải đăng ký, cần SmsSettings__Sender)
+      - SmsSettings__SmsType=${SPEEDSMS_SMS_TYPE:-4}
+    volumes:
+      # Lưu file upload (icon dịch vụ, ảnh đại diện...) ra ngoài container —
+      # không mất khi container bị recreate/rebuild.
+      - api_uploads:/app/wwwroot/uploads
     expose:
       - "8080"
+    ports:
+      # Lộ thêm ra cổng 5239 trên host — giữ nguyên ApiConstants.baseUrl (mobile app) và
+      # lệnh "adb reverse tcp:5239 tcp:5239" khi test mobile qua USB, dù API chạy bằng
+      # Docker hay tự `dotnet run` trực tiếp đều dùng chung 1 cổng quen thuộc.
+      - "5239:8080"
     networks:
       - dental_network
 
@@ -52,7 +72,13 @@ services:
       context: ./apps/clinic_website
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost/api}
+        # QUAN TRỌNG: toàn bộ lib/api.ts của clinic_website chỉ được gọi từ Server
+        # Component (chạy phía server, bên TRONG container) — không có component phía
+        # trình duyệt nào dùng biến này. Vì vậy phải trỏ vào tên service Docker nội bộ
+        # ("api", cổng 8080 — đúng như khai báo ASPNETCORE_URLS ở service api bên trên),
+        # KHÔNG dùng "localhost" (sẽ trỏ vào chính container clinic_website, không phải
+        # container api, gây lỗi "fetch failed/ECONNREFUSED" dù nginx/docker vẫn chạy tốt).
+        NEXT_PUBLIC_API_URL: http://api:8080/api
         NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
     container_name: dental_clinic_website
@@ -70,10 +96,11 @@ services:
       context: ./apps/admin_website
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost/api}
+        # apps/admin_website/src/lib/apiClient.ts tự ghép "${API_URL}/api/xxx" mỗi lần gọi
+        # — nên base URL truyền vào đây KHÔNG được có sẵn "/api" (khác clinic_website).
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost}
         NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-        NEXT_BASE_PATH: /admin
     container_name: dental_admin_website
     restart: unless-stopped
     expose:
@@ -84,3 +111,6 @@ services:
 networks:
   dental_network:
     driver: bridge
+
+volumes:
+  api_uploads:

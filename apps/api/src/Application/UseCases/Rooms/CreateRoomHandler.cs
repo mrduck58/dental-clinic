@@ -1,16 +1,21 @@
-﻿using DentalClinic.API.Application.DTOs.Rooms;
+using DentalClinic.API.Application.DTOs.Rooms;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Domain.Constants;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Rooms;
 
-public class CreateRoomHandler(IRoomRepository roomRepository, IActivityLogService activityLogService, ICurrentUserService currentUser)
+public record CreateRoomCommand(CreateRoomRequest Request) : IRequest<RoomDto>;
+
+public class CreateRoomHandler(IRoomRepository roomRepository, IActivityLogService activityLogService, ICurrentUserService currentUser) : IRequestHandler<CreateRoomCommand, RoomDto>
 {
-    public async Task<RoomDto> HandleAsync(CreateRoomRequest request, CancellationToken ct = default)
+    public async Task<RoomDto> Handle(CreateRoomCommand command, CancellationToken ct)
     {
+        var request = command.Request;
+
         if (await roomRepository.ExistsByCodeAsync(request.Code, ct: ct))
             throw new ConflictException($"Mã phòng '{request.Code.ToUpperInvariant()}' đã tồn tại.");
 

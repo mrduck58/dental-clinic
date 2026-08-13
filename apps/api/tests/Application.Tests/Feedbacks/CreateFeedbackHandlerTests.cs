@@ -1,6 +1,8 @@
 using DentalClinic.API.Application.DTOs.Feedbacks;
+using DentalClinic.API.Application.UseCases.Dentists;
 using DentalClinic.API.Application.UseCases.Feedbacks;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using FluentAssertions;
@@ -12,23 +14,36 @@ namespace DentalClinic.API.Application.Tests.Feedbacks;
 [TestFixture]
 public class CreateFeedbackHandlerTests
 {
-    private IFeedbackRepository _repo = null!;
+    private IFeedbackRepository _feedbackRepo = null!;
+    private IPatientRepository _patientRepo = null!;
+    private Patient _patient = null!;
 
     [SetUp]
-    public void SetUp() => _repo = Substitute.For<IFeedbackRepository>();
+    public void SetUp()
+    {
+        _feedbackRepo = Substitute.For<IFeedbackRepository>();
+        _patientRepo = Substitute.For<IPatientRepository>();
+
+        var user = User.Create("patient1", "patient1@test.com", "hash", UserRole.Patient, fullName: "Nguyễn Văn A");
+        _patient = Patient.Create(user.Id, new DateOnly(1990, 1, 1));
+        _patient.User = user;
+
+        _patientRepo.GetByUserIdAsync(_patient.UserId, Arg.Any<CancellationToken>()).Returns(_patient);
+    }
 
     /// <summary>
-    /// Tạo feedback hợp lệ (rating 1-5) phải gọi AddAsync 1 lần và trả về DTO.
+    /// Tạo feedback hợp lệ (rating 1-5) phải gọi AddAsync 1 lần và trả về DTO — tên khách hàng trong DTO
+    /// đã bị che 1 phần (NameMasker.MaskName) vì lý do riêng tư.
     /// </summary>
     [Test]
     public async Task HandleAsync_ValidRating_CallsAddAsyncAndReturnsDto()
     {
-        var handler = new CreateFeedbackHandler(_repo);
+        var handler = new CreateFeedbackHandler(_feedbackRepo, _patientRepo);
 
-        var result = await handler.HandleAsync(new CreateFeedbackRequest("Nguyễn Văn A", 5, "Rất tốt!"));
+        var result = await handler.Handle(new CreateFeedbackCommand(_patient.UserId, 5, "Rất tốt!"), CancellationToken.None);
 
-        await _repo.Received(1).AddAsync(Arg.Any<Feedback>(), Arg.Any<CancellationToken>());
-        result.CustomerName.Should().Be("Nguyễn Văn A");
+        await _feedbackRepo.Received(1).AddAsync(Arg.Any<Feedback>(), Arg.Any<CancellationToken>());
+        result.CustomerName.Should().Be(NameMasker.MaskName("Nguyễn Văn A"));
         result.Rating.Should().Be(5);
     }
 
@@ -38,9 +53,9 @@ public class CreateFeedbackHandlerTests
     [Test]
     public async Task HandleAsync_NewFeedback_StatusIsPending()
     {
-        var handler = new CreateFeedbackHandler(_repo);
+        var handler = new CreateFeedbackHandler(_feedbackRepo, _patientRepo);
 
-        var result = await handler.HandleAsync(new CreateFeedbackRequest("Khách Hàng", 4, "Ổn"));
+        var result = await handler.Handle(new CreateFeedbackCommand(_patient.UserId, 4, "Ổn"), CancellationToken.None);
 
         result.Status.Should().Be("Pending");
     }
@@ -51,12 +66,12 @@ public class CreateFeedbackHandlerTests
     [Test]
     public async Task HandleAsync_RatingBelowOne_ThrowsValidationException()
     {
-        var handler = new CreateFeedbackHandler(_repo);
+        var handler = new CreateFeedbackHandler(_feedbackRepo, _patientRepo);
 
-        Func<Task> act = () => handler.HandleAsync(new CreateFeedbackRequest("A", 0, "Quá tệ"));
+        Func<Task> act = () => handler.Handle(new CreateFeedbackCommand(_patient.UserId, 0, "Quá tệ"), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
-        await _repo.DidNotReceive().AddAsync(Arg.Any<Feedback>(), Arg.Any<CancellationToken>());
+        await _feedbackRepo.DidNotReceive().AddAsync(Arg.Any<Feedback>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -65,12 +80,12 @@ public class CreateFeedbackHandlerTests
     [Test]
     public async Task HandleAsync_RatingAboveFive_ThrowsValidationException()
     {
-        var handler = new CreateFeedbackHandler(_repo);
+        var handler = new CreateFeedbackHandler(_feedbackRepo, _patientRepo);
 
-        Func<Task> act = () => handler.HandleAsync(new CreateFeedbackRequest("A", 6, "Xuất sắc"));
+        Func<Task> act = () => handler.Handle(new CreateFeedbackCommand(_patient.UserId, 6, "Xuất sắc"), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
-        await _repo.DidNotReceive().AddAsync(Arg.Any<Feedback>(), Arg.Any<CancellationToken>());
+        await _feedbackRepo.DidNotReceive().AddAsync(Arg.Any<Feedback>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -79,12 +94,12 @@ public class CreateFeedbackHandlerTests
     [Test]
     public async Task HandleAsync_RatingBoundaryOne_IsValid()
     {
-        var handler = new CreateFeedbackHandler(_repo);
+        var handler = new CreateFeedbackHandler(_feedbackRepo, _patientRepo);
 
-        var result = await handler.HandleAsync(new CreateFeedbackRequest("A", 1, "Tệ"));
+        var result = await handler.Handle(new CreateFeedbackCommand(_patient.UserId, 1, "Tệ"), CancellationToken.None);
 
         result.Rating.Should().Be(1);
-        await _repo.Received(1).AddAsync(Arg.Any<Feedback>(), Arg.Any<CancellationToken>());
+        await _feedbackRepo.Received(1).AddAsync(Arg.Any<Feedback>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -93,11 +108,11 @@ public class CreateFeedbackHandlerTests
     [Test]
     public async Task HandleAsync_RatingBoundaryFive_IsValid()
     {
-        var handler = new CreateFeedbackHandler(_repo);
+        var handler = new CreateFeedbackHandler(_feedbackRepo, _patientRepo);
 
-        var result = await handler.HandleAsync(new CreateFeedbackRequest("A", 5, "Xuất sắc"));
+        var result = await handler.Handle(new CreateFeedbackCommand(_patient.UserId, 5, "Xuất sắc"), CancellationToken.None);
 
         result.Rating.Should().Be(5);
-        await _repo.Received(1).AddAsync(Arg.Any<Feedback>(), Arg.Any<CancellationToken>());
+        await _feedbackRepo.Received(1).AddAsync(Arg.Any<Feedback>(), Arg.Any<CancellationToken>());
     }
 }

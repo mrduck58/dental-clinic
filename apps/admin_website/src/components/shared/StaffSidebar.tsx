@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { getUser, clearSession, type AuthUser } from "../../lib/apiClient";
+import { getUser, clearSession, resolveAssetUrl, type AuthUser } from "../../lib/apiClient";
 
 interface StaffSidebarProps {
   activeMenu: string;
@@ -100,7 +100,7 @@ export default function StaffSidebar({ activeMenu }: StaffSidebarProps) {
           <span className="text-3xl text-primary shrink-0">🦷</span>
           <div className="flex flex-col">
             <span className="text-[12px] font-black tracking-widest text-primary uppercase leading-none mb-1">SơnGiang</span>
-            <span className="font-extrabold text-xl tracking-tight text-slate-900 leading-none">
+            <span className="font-extrabold text-lg tracking-tight text-slate-900 leading-none">
               Dental<span className="text-primary font-bold">Clinic</span>
             </span>
           </div>
@@ -109,7 +109,7 @@ export default function StaffSidebar({ activeMenu }: StaffSidebarProps) {
         {/* Role badge */}
         <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 rounded-xl border border-emerald-100">
           <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-          <span className="text-[12.5px] font-bold text-emerald-700">Cổng thông tin Nhân viên</span>
+          <span className="text-[11.5px] font-bold text-emerald-700">Cổng thông tin Nhân viên</span>
         </div>
 
         {/* Nav */}
@@ -124,7 +124,7 @@ export default function StaffSidebar({ activeMenu }: StaffSidebarProps) {
                 <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth={sw} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d={icon} />
                 </svg>
-                <span className="text-[13.5px]">{label}</span>
+                <span className="text-[13px]">{label}</span>
               </Link>
             );
           })}
@@ -140,7 +140,7 @@ export default function StaffSidebar({ activeMenu }: StaffSidebarProps) {
               <Link
                 href="/staff/profile?tab=personal"
                 onClick={() => setDropdownOpen(false)}
-                className="flex items-center gap-2.5 px-3.5 py-2.5 text-[13.5px] font-bold text-slate-700 hover:text-emerald-600 hover:bg-emerald-50/40 rounded-lg transition-all"
+                className="flex items-center gap-2.5 px-3.5 py-2.5 text-[12.5px] font-bold text-slate-700 hover:text-emerald-600 hover:bg-emerald-50/40 rounded-lg transition-all"
               >
                 <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
@@ -150,7 +150,7 @@ export default function StaffSidebar({ activeMenu }: StaffSidebarProps) {
               <Link
                 href="/staff/profile?tab=password"
                 onClick={() => setDropdownOpen(false)}
-                className="flex items-center gap-2.5 px-3.5 py-2.5 text-[13.5px] font-bold text-slate-700 hover:text-emerald-600 hover:bg-emerald-50/40 rounded-lg transition-all"
+                className="flex items-center gap-2.5 px-3.5 py-2.5 text-[12.5px] font-bold text-slate-700 hover:text-emerald-600 hover:bg-emerald-50/40 rounded-lg transition-all"
               >
                 <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
@@ -160,7 +160,7 @@ export default function StaffSidebar({ activeMenu }: StaffSidebarProps) {
               <Link
                 href="/staff/profile?tab=activities"
                 onClick={() => setDropdownOpen(false)}
-                className="flex items-center gap-2.5 px-3.5 py-2.5 text-[13.5px] font-bold text-slate-700 hover:text-emerald-600 hover:bg-emerald-50/40 rounded-lg transition-all"
+                className="flex items-center gap-2.5 px-3.5 py-2.5 text-[12.5px] font-bold text-slate-700 hover:text-emerald-600 hover:bg-emerald-50/40 rounded-lg transition-all"
               >
                 <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -177,7 +177,7 @@ export default function StaffSidebar({ activeMenu }: StaffSidebarProps) {
           >
             {user?.profilePictureUrl ? (
               <img
-                src={user.profilePictureUrl}
+                src={resolveAssetUrl(user.profilePictureUrl)}
                 alt="Avatar"
                 className="w-10 h-10 rounded-full border-2 border-emerald-200 object-cover shrink-0"
               />
@@ -187,10 +187,10 @@ export default function StaffSidebar({ activeMenu }: StaffSidebarProps) {
               </div>
             )}
             <div className="min-w-0 flex-1">
-              <div className="text-[14px] font-bold text-slate-900 leading-tight truncate">
+              <div className="text-[13px] font-bold text-slate-900 leading-tight truncate">
                 {user?.fullName ?? user?.username ?? "..."}
               </div>
-              <div className="text-[12px] font-semibold text-slate-400 mt-0.5">Nhân viên</div>
+              <div className="text-[11px] font-semibold text-slate-400 mt-0.5">Nhân viên</div>
             </div>
             {/* Arrow up/down */}
             <svg
@@ -206,7 +206,7 @@ export default function StaffSidebar({ activeMenu }: StaffSidebarProps) {
         </div>
         <button
           onClick={() => { clearSession(); router.push("/auth/login"); }}
-          className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl text-[13px] font-bold text-slate-500 hover:text-primary hover:bg-red-50 border border-slate-100 hover:border-primary/20 transition-all cursor-pointer"
+          className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl text-[12px] font-bold text-slate-500 hover:text-primary hover:bg-red-50 border border-slate-100 hover:border-primary/20 transition-all cursor-pointer"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />

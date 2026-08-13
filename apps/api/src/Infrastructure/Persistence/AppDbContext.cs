@@ -1,4 +1,5 @@
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Interfaces.Repositories;
 using Microsoft.EntityFrameworkCore;
 
 namespace DentalClinic.API.Infrastructure.Persistence;
@@ -6,14 +7,16 @@ namespace DentalClinic.API.Infrastructure.Persistence;
 /// <summary>
 /// Đây là DbContext chính của ứng dụng.
 /// Cấu hình Entity được đặt trong thư mục Configurations/ theo chuẩn IEntityTypeConfiguration&lt;T&gt;.
+/// Implement <see cref="IUnitOfWork"/> trực tiếp (chữ ký <c>SaveChangesAsync</c> đã khớp sẵn với DbContext)
+/// để các luồng xuyên nhiều entity (xem PaymentConfirmationService) có 1 điểm chốt lưu duy nhất.
 /// </summary>
-public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
+public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options), IUnitOfWork
 {
     public DbSet<User> Users => Set<User>();
     public DbSet<OtpCode> OtpCodes => Set<OtpCode>();
     public DbSet<Patient> Patients => Set<Patient>();
-    public DbSet<Dentist> Dentists => Set<Dentist>();
-    public DbSet<Staff> Staffs => Set<Staff>();
+    public DbSet<Employee> Employees => Set<Employee>();
+    public DbSet<DentistProfile> DentistProfiles => Set<DentistProfile>();
     public DbSet<Appointment> Appointments => Set<Appointment>();
     public DbSet<Invoice> Invoices => Set<Invoice>();
     public DbSet<InvoiceItem> InvoiceItems => Set<InvoiceItem>();
@@ -29,6 +32,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<SupplyItem> SupplyItems => Set<SupplyItem>();
     public DbSet<SupplyTransaction> SupplyTransactions => Set<SupplyTransaction>();
     public DbSet<MaterialRequest> MaterialRequests => Set<MaterialRequest>();
+    public DbSet<MaterialRequestItem> MaterialRequestItems => Set<MaterialRequestItem>();
     public DbSet<Diagnosis> Diagnoses => Set<Diagnosis>();
     public DbSet<TreatmentPlan> TreatmentPlans => Set<TreatmentPlan>();
     public DbSet<TreatmentProcedure> TreatmentProcedures => Set<TreatmentProcedure>();
@@ -41,6 +45,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
     public DbSet<AiUsageLog> AiUsageLogs => Set<AiUsageLog>();
     public DbSet<DentistReview> DentistReviews => Set<DentistReview>();
+    public DbSet<PayrollRecord> PayrollRecords => Set<PayrollRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

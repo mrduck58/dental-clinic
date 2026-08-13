@@ -1,25 +1,25 @@
 using DentalClinic.API.Application.DTOs.LeaveRequests;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.LeaveRequests;
 
-public class GetLeaveRequestsHandler(ILeaveRequestRepository leaveRequestRepository)
+public record GetLeaveRequestsQuery(string? Status, string? Search) : IRequest<IEnumerable<LeaveRequestDto>>;
+
+public class GetLeaveRequestsHandler(ILeaveRequestRepository leaveRequestRepository) : IRequestHandler<GetLeaveRequestsQuery, IEnumerable<LeaveRequestDto>>
 {
-    public async Task<IEnumerable<LeaveRequestDto>> HandleAsync(
-        string? status,
-        string? search,
-        CancellationToken ct = default)
+    public async Task<IEnumerable<LeaveRequestDto>> Handle(GetLeaveRequestsQuery query, CancellationToken ct)
     {
         var requests = await leaveRequestRepository.GetAllAsync(ct);
 
-        if (!string.IsNullOrWhiteSpace(status))
+        if (!string.IsNullOrWhiteSpace(query.Status))
             requests = requests.Where(r =>
-                r.Status.ToString().Equals(status, StringComparison.OrdinalIgnoreCase));
+                r.Status.ToString().Equals(query.Status, StringComparison.OrdinalIgnoreCase));
 
-        if (!string.IsNullOrWhiteSpace(search))
+        if (!string.IsNullOrWhiteSpace(query.Search))
         {
-            var q = search.ToLower();
+            var q = query.Search.ToLower();
             requests = requests.Where(r =>
                 (r.User.FullName ?? string.Empty).ToLower().Contains(q) ||
                 r.Reason.ToLower().Contains(q));
@@ -32,7 +32,7 @@ public class GetLeaveRequestsHandler(ILeaveRequestRepository leaveRequestReposit
         r.Id,
         r.UserId,
         !string.IsNullOrWhiteSpace(r.User.FullName) ? r.User.FullName : (r.User.Email ?? string.Empty),
-        r.User.Role == "Dentist" || r.User.Role == "Doctor" ? r.User.Dentist?.Department : r.User.Staff?.Department,
+        r.User.Employee?.Department,
         r.LeaveType.ToString(),
         r.StartDate,
         r.EndDate,

@@ -2,13 +2,16 @@
 
 import { useState, useEffect, useCallback } from "react";
 import StaffSidebar from "../../../components/shared/StaffSidebar";
+import { Toast, useToast } from "../../../components/shared/Toast";
 import StaffPageHeader from "../../../components/shared/StaffPageHeader";
 import { useRequireStaff } from "../../../hooks/useRequireStaff";
 import {
   getStaffAppointmentsApi,
   confirmAppointmentApi,
   cancelAppointmentApi,
+  getCancellationReasonsApi,
   type StaffAppointmentDto,
+  type CancellationReasonOption,
 } from "../../../lib/apiClient";
 import { supabase } from "../../../lib/supabaseClient";
 import { SHIFT_PERIODS, periodOfTime, type ShiftPeriod } from "../../../lib/shifts";
@@ -42,6 +45,24 @@ function OnlineTab() {
   const [expanding,  setExpanding]  = useState<string | null>(null);
   const [rejectTarget, setRejectTarget] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+  // Nhóm lý do lấy từ server (không hardcode) — nhờ đó thống kê "vì sao lịch bị hủy" mới gom được.
+  const [reasonOptions, setReasonOptions] = useState<CancellationReasonOption[]>([]);
+  const [reasonCode, setReasonCode] = useState("");
+  const { toast, showToast } = useToast();
+
+  const selectedReason = reasonOptions.find(o => o.code === reasonCode);
+  const noteRequired = selectedReason?.requiresNote ?? false;
+  const missingNote = noteRequired && rejectReason.trim() === "";
+  const canSubmitCancel = reasonCode !== "" && !missingNote;
+
+  useEffect(() => {
+    getCancellationReasonsApi()
+      .then(options => {
+        setReasonOptions(options);
+        setReasonCode(options[0]?.code ?? "");
+      })
+      .catch(() => showToast("Không tải được danh sách lý do hủy.", "error"));
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -70,24 +91,33 @@ function OnlineTab() {
       setPending(prev => prev.filter(a => a.appointmentId !== appt.appointmentId));
       setProcessed(prev => [{ appt: { ...appt, status: "Confirmed" }, action: "confirmed" }, ...prev]);
       setExpanding(null);
-    } catch {
-      alert("Xác nhận thất bại. Vui lòng thử lại.");
+      showToast("Đã xác nhận lịch hẹn và thông báo cho bệnh nhân.");
+    } catch (e) {
+      // Hiện đúng thông điệp server trả về (trạng thái không hợp lệ, lịch đã bị hủy...) thay vì
+      // câu chung chung — người dùng cần biết vì sao mới biết làm gì tiếp.
+      showToast(e instanceof Error ? e.message : "Xác nhận thất bại. Vui lòng thử lại.", "error");
     } finally {
       setLoadingId(null);
     }
   };
 
   const doCancel = async (appt: StaffAppointmentDto) => {
-    if (!rejectReason.trim()) return;
+    // Nút đã bị vô hiệu hóa khi chưa hợp lệ nên nhánh này không tới được từ UI — giữ lại làm chốt
+    // chặn nếu sau này nút được bật ở nơi khác, và để hàm an toàn khi gọi trực tiếp.
+    if (!canSubmitCancel) return;
+
     setLoadingId(appt.appointmentId);
     try {
-      await cancelAppointmentApi(appt.appointmentId);
+      await cancelAppointmentApi(appt.appointmentId, reasonCode, rejectReason);
       setPending(prev => prev.filter(a => a.appointmentId !== appt.appointmentId));
       setProcessed(prev => [{ appt: { ...appt, status: "Cancelled" }, action: "cancelled" }, ...prev]);
       setRejectTarget(null);
       setRejectReason("");
-    } catch {
-      alert("Hủy lịch thất bại. Vui lòng thử lại.");
+      showToast("Đã từ chối lịch hẹn và thông báo cho bệnh nhân.");
+    } catch (e) {
+      // Hiển thị đúng thông điệp của server (trạng thái không hủy được, đã hủy rồi...) thay vì
+      // câu chung chung — người dùng cần biết vì sao mới biết phải làm gì tiếp.
+      showToast(e instanceof Error ? e.message : "Hủy lịch thất bại. Vui lòng thử lại.", "error");
     } finally {
       setLoadingId(null);
     }
@@ -111,6 +141,8 @@ function OnlineTab() {
 
   return (
     <div className="flex flex-col gap-6">
+      <Toast toast={toast} />
+
       {/* Pending */}
       {pending.length > 0 && (
         <div className="flex flex-col gap-3">
@@ -194,11 +226,26 @@ function OnlineTab() {
                 {isRejecting && (
                   <div className="border-t border-slate-100 bg-slate-50/60 px-6 py-5">
                     <p className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider mb-3">Lý do từ chối</p>
+                    <select value={reasonCode} onChange={e => setReasonCode(e.target.value)}
+                      className="w-full px-4 py-3 text-[13.5px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-semibold text-slate-700 mb-3 cursor-pointer">
+                      {reasonOptions.map(o => (
+                        <option key={o.code} value={o.code}>{o.labelVi}</option>
+                      ))}
+                    </select>
                     <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} rows={2}
-                      placeholder="Nêu lý do để bệnh nhân được biết (lịch đầy, bác sĩ nghỉ...)"
+                      placeholder={noteRequired
+                        ? "Nêu rõ lý do để bệnh nhân được biết"
+                        : "Ghi chú thêm (không bắt buộc)"}
                       className="w-full px-4 py-3 text-[13.5px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-semibold text-slate-700 placeholder:text-slate-400 resize-none mb-3" />
+                    {/* Nút bị vô hiệu hóa phải nói được VÌ SAO, không thì người dùng chỉ thấy nút xám
+                        và không biết còn thiếu gì. */}
+                    {missingNote && (
+                      <p className="text-[12.5px] font-bold text-amber-600 mb-3">
+                        Chọn &ldquo;Lý do khác&rdquo; thì cần ghi rõ nội dung để bệnh nhân hiểu.
+                      </p>
+                    )}
                     <div className="flex gap-3">
-                      <button onClick={() => doCancel(appt)} disabled={!rejectReason.trim() || isLoading}
+                      <button onClick={() => doCancel(appt)} disabled={!canSubmitCancel || isLoading}
                         className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-[13px] font-black cursor-pointer transition-all shadow-sm shadow-primary/25">
                         {isLoading ? <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>}
                         Xác nhận từ chối

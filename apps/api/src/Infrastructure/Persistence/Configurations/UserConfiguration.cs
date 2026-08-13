@@ -13,7 +13,7 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.Username).HasMaxLength(100);   // nullable
         builder.Property(u => u.Email).HasMaxLength(255);       // nullable now
         builder.Property(u => u.PasswordHash);                 // nullable
-        builder.Property(u => u.Role).IsRequired().HasMaxLength(50);
+        builder.Property(u => u.Role).IsRequired().HasConversion<string>().HasMaxLength(50);
         builder.Property(u => u.FullName).IsRequired().HasMaxLength(200);
         builder.Property(u => u.Gender).HasMaxLength(20);
         builder.Property(u => u.PhoneNumber).HasMaxLength(20);
@@ -23,6 +23,14 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
 
         // External auth provider (null = local account)
         builder.Property(u => u.Provider).HasMaxLength(50);
+
+        // Brute-force lockout. Default 0 so the column backfills cleanly on existing rows.
+        builder.Property(u => u.FailedLoginAttempts).IsRequired().HasDefaultValue(0);
+        builder.Property(u => u.LockoutEndAt); // null = không bị khóa
+
+        // Mật khẩu tạm do phòng khám cấp. Default false để các tài khoản đã tồn tại (bệnh nhân tự
+        // đăng ký trước đây) không bị bắt đổi mật khẩu oan khi migration chạy.
+        builder.Property(u => u.MustChangePassword).IsRequired().HasDefaultValue(false);
 
         builder.HasIndex(u => u.Email).IsUnique().HasFilter("\"Email\" IS NOT NULL");
         builder.HasIndex(u => u.Username).IsUnique().HasFilter("\"Username\" IS NOT NULL");

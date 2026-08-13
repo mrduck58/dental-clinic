@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import StaffSidebar from "../../../components/shared/StaffSidebar";
+import { Toast, useToast } from "../../../components/shared/Toast";
 import StaffPageHeader from "../../../components/shared/StaffPageHeader";
 import { useRequireStaff } from "../../../hooks/useRequireStaff";
 import {
@@ -10,6 +11,7 @@ import {
   markNoShowAppointmentApi,
   getStaffScheduleApi,
   createWalkInAppointmentApi,
+  sendPatientEmailVerificationApi,
   getServicesApi,
   searchPatientsApi,
   getFollowUpDueApi,
@@ -95,7 +97,13 @@ function WalkinTab() {
   const [selected,  setSelected]  = useState<{
     dentistId: string; dentistName: string; room: string; time: string;
   } | null>(null);
-  const [form,      setForm]      = useState({ name: "", phone: "", dob: "", gender: "Nam", serviceId: "", note: "" });
+  const [form,      setForm]      = useState({ name: "", phone: "", email: "", dob: "", gender: "Nam", serviceId: "", note: "" });
+  // Xác thực email trước khi cấp tài khoản: bệnh nhân mở hộp thư, đọc mã cho lễ tân nhập lại.
+  // Không có bước này thì gõ nhầm một ký tự là mật khẩu bay tới hộp thư người lạ.
+  const [verifyCode, setVerifyCode] = useState("");
+  const [verifySentTo, setVerifySentTo] = useState<string | null>(null);
+  const [sendingCode, setSendingCode] = useState(false);
+  const { toast, showToast } = useToast();
   const [saving,    setSaving]    = useState(false);
   const [saved,     setSaved]     = useState(false);
   const [bookError, setBookError] = useState<string | null>(null);
@@ -146,7 +154,7 @@ function WalkinTab() {
 
   const unlinkPatient = () => {
     setLinked(null);
-    setForm(prev => ({ ...prev, name: "", phone: "", dob: "", gender: "Nam" }));
+    setForm(prev => ({ ...prev, name: "", phone: "", email: "", dob: "", gender: "Nam" }));
   };
 
   const dobPickerRef = useRef<HTMLInputElement>(null);
@@ -292,6 +300,12 @@ function WalkinTab() {
         serviceId:       form.serviceId || undefined,
         symptoms:        form.note || undefined,
         patientId:       linked?.id,
+        // Chỉ gửi khi đây là bệnh nhân MỚI: hồ sơ đã tồn tại thì backend bỏ qua, không lập tài khoản lần hai.
+        patientEmail:    linked ? undefined : (form.email.trim() || undefined),
+        // Chỉ gửi mã khi nó thuộc về đúng email đang nhập — sửa email sau khi gửi mã thì mã cũ
+        // không còn đúng địa chỉ nào, gửi lên sẽ tạo tài khoản cho email chưa xác thực.
+        emailVerificationCode:
+          !linked && verifySentTo === form.email.trim() ? verifyCode.trim() || undefined : undefined,
       });
 
       // Cập nhật lưới ngay lập tức, không chờ API refresh
@@ -315,7 +329,9 @@ function WalkinTab() {
       setSelected(null);
       setTimeout(() => {
         setSaved(false);
-        setForm(p => ({ name: "", phone: "", dob: "", gender: "Nam", serviceId: p.serviceId, note: "" }));
+        setForm(p => ({ name: "", phone: "", email: "", dob: "", gender: "Nam", serviceId: p.serviceId, note: "" }));
+        setVerifyCode("");
+        setVerifySentTo(null);
         setPhoneError(null);
         setDobError(null);
         setLinked(null);
@@ -364,6 +380,8 @@ function WalkinTab() {
 
   return (
     <div className="flex gap-6 flex-1 min-h-0">
+      <Toast toast={toast} />
+
       {/* Availability grid */}
       <div className="flex-1 flex flex-col gap-4 min-w-0 min-h-0">
         <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden flex flex-col flex-1 min-h-0">
@@ -561,6 +579,68 @@ function WalkinTab() {
                   />
                   {phoneError && <p className="text-[11.5px] font-semibold text-red-500">{phoneError}</p>}
                 </div>
+                {/* Chỉ hỏi email khi đây là bệnh nhân MỚI — hồ sơ đã tra cứu ra thì họ đã có sẵn
+                    tài khoản (hoặc đã từ chối cung cấp email), hỏi lại chỉ làm rối lễ tân. */}
+                {!linked && (
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">
+                      Email <span className="text-slate-400 normal-case font-bold">(để lập tài khoản cho bệnh nhân)</span>
+                    </label>
+                    <input
+                      type="email"
+                      value={form.email}
+                      onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
+                      placeholder="benhnhan@gmail.com"
+                      className={inputCls}
+                    />
+                    <p className="text-[11.5px] font-semibold text-slate-400">
+                      Có email thì hệ thống gửi mật khẩu đăng nhập để bệnh nhân tự đặt lịch lần sau.
+                      Bỏ trống vẫn khám được bình thường.
+                    </p>
+
+                    {form.email.trim() !== "" && (
+                      <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3 flex flex-col gap-2">
+                        <div className="flex items-center gap-2">
+                          <input
+                            value={verifyCode}
+                            onChange={e => setVerifyCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                            placeholder="Mã 6 số"
+                            inputMode="numeric"
+                            className={`${inputCls} flex-1`}
+                          />
+                          <button
+                            type="button"
+                            disabled={sendingCode}
+                            onClick={async () => {
+                              const email = form.email.trim();
+                              setSendingCode(true);
+                              try {
+                                await sendPatientEmailVerificationApi(email);
+                                setVerifySentTo(email);
+                                setVerifyCode("");
+                                showToast(`Đã gửi mã xác thực tới ${email}. Nhờ bệnh nhân mở hộp thư và đọc mã.`);
+                              } catch (err) {
+                                showToast(
+                                  err instanceof Error ? err.message : "Gửi mã xác thực thất bại.",
+                                  "error");
+                              } finally {
+                                setSendingCode(false);
+                              }
+                            }}
+                            className="px-4 py-3 rounded-xl bg-slate-800 text-white text-[13px] font-bold whitespace-nowrap cursor-pointer hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                          >
+                            {sendingCode ? "Đang gửi…" : "Gửi mã"}
+                          </button>
+                        </div>
+                        <p className="text-[11.5px] font-semibold text-slate-500">
+                          {verifySentTo === form.email.trim()
+                            ? "Đã gửi mã — nhờ bệnh nhân đọc lại mã trong hộp thư."
+                            : "Bấm “Gửi mã” rồi nhờ bệnh nhân đọc mã trong hộp thư. Chưa xác thực thì vẫn khám được, chỉ chưa có tài khoản."}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="flex gap-3">
                   <div className="flex flex-col gap-1.5 flex-1 min-w-0">
                     <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">Ngày sinh *</label>
@@ -804,6 +884,7 @@ export default function CheckinPage() {
   const [busyKind,  setBusyKind]  = useState<"checkin" | "noshow" | null>(null);
   // Bước xác nhận trong app trước khi ghi nhận vắng (thay cho hộp thoại confirm mặc định).
   const [confirmingNoShow, setConfirmingNoShow] = useState(false);
+  const { toast, showToast } = useToast();
 
   // Date filter - default to today (local timezone)
   const [dateFilter, setDateFilter] = useState(() => {
@@ -894,8 +975,7 @@ export default function CheckinPage() {
       await loadAppointments();
       setSelected(null);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Check-in thất bại";
-      alert(`${message}. Vui lòng thử lại.`);
+      showToast(err instanceof Error ? err.message : "Check-in thất bại. Vui lòng thử lại.", "error");
     } finally {
       setLoadingId(null);
       setBusyKind(null);
@@ -910,8 +990,7 @@ export default function CheckinPage() {
       await loadAppointments();
       setSelected(null);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Ghi nhận vắng thất bại";
-      alert(`${message}. Vui lòng thử lại.`);
+      showToast(err instanceof Error ? err.message : "Ghi nhận vắng thất bại. Vui lòng thử lại.", "error");
     } finally {
       setLoadingId(null);
       setBusyKind(null);
@@ -926,6 +1005,7 @@ export default function CheckinPage() {
     // Chuỗi `min-h-0` bên dưới là bắt buộc: flex item mặc định có min-height:auto
     // nên sẽ nở theo nội dung và phá vỡ giới hạn chiều cao của cha.
     <div className="animate-fade-in flex h-screen overflow-hidden bg-slate-50 font-sans text-slate-800">
+      <Toast toast={toast} />
       <StaffSidebar activeMenu="checkin" />
       <main className="flex-1 flex flex-col min-w-0 min-h-0">
         <StaffPageHeader

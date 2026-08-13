@@ -1,4 +1,5 @@
 using DentalClinic.API.Application.UseCases.Inventory;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -8,15 +9,13 @@ namespace DentalClinic.API.Presentation.Controllers;
 [ApiController]
 [Route("api/inventory/material-requests")]
 [Authorize(Roles = "Dentist")]
-public class MaterialRequestsController(
-    CreateMaterialRequestHandler createHandler,
-    GetMaterialRequestsHandler getHandler) : ControllerBase
+public class MaterialRequestsController(ISender sender) : ControllerBase
 {
     /// <summary>POST api/inventory/material-requests — Bác sĩ gửi yêu cầu vật tư.</summary>
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateMaterialRequestRequest request, CancellationToken ct)
     {
-        var result = await createHandler.HandleAsync(request, ct);
+        var result = await sender.Send(request, ct);
         return Ok(result);
     }
 
@@ -24,7 +23,7 @@ public class MaterialRequestsController(
     [HttpGet("by-patient")]
     public async Task<IActionResult> ByPatient([FromQuery] Guid patientId, [FromQuery] string? name, CancellationToken ct)
     {
-        var result = await getHandler.HandleAsync(status: null, patientId: patientId, patientName: name, ct: ct);
+        var result = await sender.Send(new GetMaterialRequestsQuery(Status: null, PatientId: patientId, PatientName: name), ct);
         return Ok(result);
     }
 }

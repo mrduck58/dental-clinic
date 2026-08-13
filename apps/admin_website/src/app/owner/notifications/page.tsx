@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import OwnerSidebar from "../../../components/shared/OwnerSidebar";
-import NotificationBell from "../../../components/shared/NotificationBell";
+import OwnerPageHeader from "../../../components/shared/OwnerPageHeader";
 import { useRequireOwner } from "../../../hooks/useRequireOwner";
 import {
   getNotificationsApi,
@@ -138,14 +138,10 @@ export default function NotificationsPage() {
       <OwnerSidebar activeMenu="notifications" />
       <main className="flex-1 flex flex-col min-w-0">
 
-        {/* Header — inline như các trang owner khác */}
-        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 shadow-sm shadow-slate-100/50">
-          <div>
-            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Thông Báo</h1>
-            <p className="text-[13px] text-slate-400 font-semibold mt-0.5">Tất cả thông báo của bạn.</p>
-          </div>
-          <NotificationBell href="/owner/notifications" />
-        </header>
+        <OwnerPageHeader
+          title="Thông Báo"
+          subtitle="Tất cả thông báo của bạn."
+        />
 
         <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-5">
 

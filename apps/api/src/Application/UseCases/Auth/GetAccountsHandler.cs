@@ -1,4 +1,5 @@
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Auth;
 
@@ -12,15 +13,17 @@ public record AccountDto(
     bool IsActive,
     DateTimeOffset CreatedAt);
 
-public class GetAccountsHandler(IUserRepository userRepository)
+public record GetAccountsQuery : IRequest<IEnumerable<AccountDto>>;
+
+public class GetAccountsHandler(IUserRepository userRepository) : IRequestHandler<GetAccountsQuery, IEnumerable<AccountDto>>
 {
-    public async Task<IEnumerable<AccountDto>> HandleAsync(CancellationToken ct = default)
+    public async Task<IEnumerable<AccountDto>> Handle(GetAccountsQuery request, CancellationToken ct)
     {
         var users = await userRepository.GetAllAsync(ct);
         return users
             .Where(u => u.HasAccount)
             .Select(u => new AccountDto(
                 u.Id, u.Username!, u.FullName, u.Email,
-                u.PhoneNumber, u.Role, u.IsActive, u.CreatedAt));
+                u.PhoneNumber, u.Role.ToString(), u.IsActive, u.CreatedAt));
     }
 }

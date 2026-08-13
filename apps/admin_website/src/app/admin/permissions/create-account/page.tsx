@@ -1,11 +1,12 @@
-﻿"use client";
+"use client";
 
-import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import AdminSidebar from "../../../../components/shared/AdminSidebar";
-import NotificationBell from "../../../../components/shared/NotificationBell";
+import AdminPageHeader from "../../../../components/shared/AdminPageHeader";
 import { useRequireAdmin } from "../../../../hooks/useRequireAdmin";
-import { createAccountApi, createStaffAccountApi } from "../../../../lib/apiClient";
+import { createAccountApi, createStaffAccountApi, getStaffByIdApi, resolveAssetUrl } from "../../../../lib/apiClient";
+import { ROLE_LABELS, ROLE_BADGE_CLASSES, type UiRole } from "../../../../lib/roles";
 
 interface Prefill {
   staffId: string;
@@ -16,19 +17,11 @@ interface Prefill {
   profilePictureUrl?: string | null;
 }
 
-const ROLE_LABELS: Record<string, string> = {
-  Admin: "Admin", Dentist: "Bác sĩ", Staff: "Nhân viên", Owner: "Chủ cửa hàng",
-};
-const ROLE_BADGES: Record<string, string> = {
-  Admin: "bg-purple-50 text-purple-700 border-purple-200",
-  Dentist: "bg-sky-50 text-sky-700 border-sky-200",
-  Staff: "bg-green-50 text-green-700 border-green-200",
-  Owner: "bg-amber-50 text-amber-700 border-amber-200",
-};
-
-export default function CreateAccountPage() {
+function CreateAccountPageContent() {
   useRequireAdmin();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const staffIdFromUrl = searchParams.get("staffId");
 
   const [prefill, setPrefill] = useState<Prefill | null>(null);
 
@@ -47,8 +40,23 @@ export default function CreateAccountPage() {
       const data: Prefill = JSON.parse(raw);
       setPrefill(data);
       sessionStorage.removeItem("createAccountPrefill");
+    } else if (staffIdFromUrl) {
+      getStaffByIdApi(staffIdFromUrl)
+        .then((staff) => {
+          setPrefill({
+            staffId: staff.id,
+            fullName: staff.fullName || staff.email,
+            email: staff.email,
+            role: staff.role,
+            phoneNumber: staff.phoneNumber || "",
+            profilePictureUrl: staff.profilePictureUrl,
+          });
+        })
+        .catch((err: unknown) => {
+          setErrors({ api: err instanceof Error ? err.message : "Không thể tải thông tin nhân viên" });
+        });
     }
-  }, []);
+  }, [staffIdFromUrl]);
 
   const validateNew = () => {
     const e: Record<string, string> = {};
@@ -99,12 +107,14 @@ export default function CreateAccountPage() {
 
   return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
-      <AdminSidebar activeMenu="permissions" />
+      <AdminSidebar activeMenu="permissions-users" />
 
       <main className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 shadow-sm shadow-slate-100/50">
-          <div className="flex items-center gap-4">
+        <AdminPageHeader
+          title={prefill ? `Tạo tài khoản cho ${prefill.fullName}` : "Thêm tài khoản mới"}
+          subtitle="Hệ thống sẽ tạo mật khẩu ngẫu nhiên và gửi qua email."
+          left={
             <button
               onClick={() => router.back()}
               className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all cursor-pointer"
@@ -113,17 +123,8 @@ export default function CreateAccountPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
               </svg>
             </button>
-            <div>
-              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
-                {prefill ? `Tạo tài khoản cho ${prefill.fullName}` : "Thêm tài khoản mới"}
-              </h1>
-              <p className="text-[13px] text-slate-400 font-semibold mt-0.5">
-                Hệ thống sẽ tạo mật khẩu ngẫu nhiên và gửi qua email.
-              </p>
-            </div>
-          </div>
-          <NotificationBell />
-        </header>
+          }
+        />
 
         {/* Content */}
         <div className="flex-1 p-8 flex justify-center">
@@ -151,7 +152,7 @@ export default function CreateAccountPage() {
                   {/* Avatar + name */}
                   <div className="flex items-center gap-4">
                     {prefill.profilePictureUrl ? (
-                      <img src={prefill.profilePictureUrl} alt={prefill.fullName}
+                      <img src={resolveAssetUrl(prefill.profilePictureUrl)} alt={prefill.fullName}
                         className="w-16 h-16 rounded-2xl object-cover border border-slate-200 shadow-sm shrink-0" />
                     ) : (
                       <div className="w-16 h-16 rounded-2xl bg-primary/10 text-primary font-black text-xl flex items-center justify-center shrink-0">
@@ -160,8 +161,8 @@ export default function CreateAccountPage() {
                     )}
                     <div>
                       <div className="text-[17px] font-black text-slate-900">{prefill.fullName}</div>
-                      <span className={`mt-1.5 inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-black border ${ROLE_BADGES[prefill.role] || "bg-slate-50 border-slate-200 text-slate-600"}`}>
-                        {ROLE_LABELS[prefill.role] || prefill.role}
+                      <span className={`mt-1.5 inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-black border ${ROLE_BADGE_CLASSES[prefill.role as UiRole] || "bg-slate-50 border-slate-200 text-slate-600"}`}>
+                        {ROLE_LABELS[prefill.role as UiRole] || prefill.role}
                       </span>
                     </div>
                   </div>
@@ -229,10 +230,10 @@ export default function CreateAccountPage() {
                       <div className="relative">
                         <select value={role} onChange={(e) => setRole(e.target.value)}
                           className="w-full px-4 py-3 text-[14px] bg-white border border-slate-200 rounded-xl focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-semibold appearance-none pr-8 cursor-pointer">
-                          <option value="Admin">Admin</option>
-                          <option value="Dentist">Bác sĩ</option>
-                          <option value="Staff">Nhân viên</option>
-                          <option value="Owner">Chủ cửa hàng</option>
+                          <option value="Admin">{ROLE_LABELS.Admin}</option>
+                          <option value="Dentist">{ROLE_LABELS.Dentist}</option>
+                          <option value="Staff">{ROLE_LABELS.Staff}</option>
+                          <option value="Owner">{ROLE_LABELS.Owner}</option>
                         </select>
                         <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -286,5 +287,13 @@ export default function CreateAccountPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function CreateAccountPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center font-bold text-slate-500">Đang tải...</div>}>
+      <CreateAccountPageContent />
+    </Suspense>
   );
 }

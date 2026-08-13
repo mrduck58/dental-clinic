@@ -29,4 +29,10 @@ public class PromotionRepository(AppDbContext db) : IPromotionRepository
         db.Promotions.Remove(promotion);
         await db.SaveChangesAsync(ct);
     }
+
+    public async Task<IEnumerable<Promotion>> GetActiveOnDateAsync(DateOnly date, CancellationToken ct = default)
+        => await db.Promotions
+            .Where(p => p.IsActive && p.StartDate <= date && p.EndDate >= date)
+            .OrderBy(p => p.EndDate)
+            .ToListAsync(ct);
 }

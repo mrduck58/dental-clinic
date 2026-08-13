@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/settings_manager.dart';
+import 'package:mobile_app/core/constants/api_constants.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/core/network/api_client.dart';
 import 'package:mobile_app/features/home/data/models/doctor_model.dart';
@@ -10,7 +11,8 @@ import 'package:mobile_app/features/home/data/review_service.dart';
 
 class WriteReviewPage extends StatefulWidget {
   final DoctorModel doctor;
-  const WriteReviewPage({super.key, required this.doctor});
+  final String? appointmentId;
+  const WriteReviewPage({super.key, required this.doctor, this.appointmentId});
 
   @override
   State<WriteReviewPage> createState() => _WriteReviewPageState();
@@ -23,6 +25,34 @@ class _WriteReviewPageState extends State<WriteReviewPage> {
   double _rating = 0.0;
   final List<String> _selectedTags = [];
   bool _isSubmitting = false;
+  bool _isCheckingEligibility = true;
+  bool _canReview = true;
+  String _ineligibilityReason = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _checkEligibility();
+  }
+
+  Future<void> _checkEligibility() async {
+    final result = await _reviewService.checkEligibility(
+      widget.doctor.id,
+      appointmentId: widget.appointmentId,
+    );
+    if (!mounted) return;
+    setState(() {
+      _canReview = result.canReview;
+      _ineligibilityReason = result.reason;
+      _isCheckingEligibility = false;
+      if (result.myReview != null) {
+        _rating = result.myReview!.rating;
+        _commentCtrl.text = result.myReview!.comment;
+        _selectedTags.clear();
+        _selectedTags.addAll(result.myReview!.tags);
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -31,6 +61,7 @@ class _WriteReviewPageState extends State<WriteReviewPage> {
   }
 
   void _toggleTag(String tag) {
+    if (!_canReview) return;
     setState(() {
       if (_selectedTags.contains(tag)) {
         _selectedTags.remove(tag);
@@ -44,6 +75,14 @@ class _WriteReviewPageState extends State<WriteReviewPage> {
     final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     final comment = _commentCtrl.text.trim();
 
+    if (!_canReview) {
+      _showSnackbar(_ineligibilityReason.isNotEmpty
+          ? _ineligibilityReason
+          : (isVi
+              ? 'Bạn chỉ có thể đánh giá nha sĩ sau khi hoàn tất cuộc khám.'
+              : 'You can only review after completing a visit.'));
+      return;
+    }
     if (_rating == 0.0) {
       _showSnackbar(isVi ? 'Vui lòng chọn số sao đánh giá (1 - 5 sao).' : 'Please select a star rating (1-5 stars).');
       return;
@@ -60,6 +99,7 @@ class _WriteReviewPageState extends State<WriteReviewPage> {
         rating: _rating,
         comment: comment,
         tags: _selectedTags,
+        appointmentId: widget.appointmentId,
       );
       if (!mounted) return;
       _showSuccessDialog();
@@ -155,8 +195,26 @@ class _WriteReviewPageState extends State<WriteReviewPage> {
     final doc = widget.doctor;
 
     final tags = isVi
-        ? ['Không đau', 'Bác sĩ thân thiện', 'Cơ sở sạch sẽ', 'Chi phí hợp lý', 'Chuyên nghiệp', 'Nhiệt tình', 'Nhẹ nhàng']
-        : ['Painless', 'Friendly Doctor', 'Clean Facility', 'Affordable', 'Professional', 'Attentive', 'Gentle'];
+        ? [
+            'Bác sĩ tận tâm',
+            'Thao tác nhẹ nhàng',
+            'Không đau',
+            'Tư vấn kỹ lưỡng',
+            'Chuyên môn cao',
+            'Thái độ ân cần',
+            'Lắng nghe bệnh nhân',
+            'Giải thích dễ hiểu'
+          ]
+        : [
+            'Attentive Doctor',
+            'Gentle Touch',
+            'Painless',
+            'Thorough Consultation',
+            'Highly Skilled',
+            'Caring Attitude',
+            'Good Listener',
+            'Clear Explanation'
+          ];
 
     return Scaffold(
       backgroundColor: context.bg,
@@ -169,7 +227,7 @@ class _WriteReviewPageState extends State<WriteReviewPage> {
           onPressed: () => context.pop(),
         ),
         title: Text(
-          isVi ? 'Viết đánh giá' : 'Write a Review',
+          isVi ? 'Đánh giá nha sĩ' : 'Rate Dentist',
           style: TextStyle(color: context.textPrimary, fontWeight: FontWeight.w800, fontSize: 18),
         ),
         centerTitle: true,
@@ -200,7 +258,7 @@ class _WriteReviewPageState extends State<WriteReviewPage> {
                           child: ClipOval(
                             child: doc.profilePictureUrl != null
                                 ? Image.network(
-                                    doc.profilePictureUrl!,
+                                    ApiConstants.resolveAssetUrl(doc.profilePictureUrl)!,
                                     fit: BoxFit.cover,
                                     errorBuilder: (_, _, _) => _placeholderAvatar(),
                                   )
@@ -230,10 +288,45 @@ class _WriteReviewPageState extends State<WriteReviewPage> {
                     Divider(height: 1, color: context.divider),
                     const SizedBox(height: 24),
 
+                    if (!_canReview) ...[
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: context.isDark ? const Color(0xFF332A15) : const Color(0xFFFEF3C7),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: context.isDark ? const Color(0xFF78350F) : const Color(0xFFFDE68A),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.info_outline_rounded, color: Color(0xFFD97706), size: 22),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                _ineligibilityReason.isNotEmpty
+                                    ? _ineligibilityReason
+                                    : (isVi
+                                        ? 'Bạn chỉ có thể đánh giá nha sĩ sau khi hoàn tất cuộc khám với nha sĩ này.'
+                                        : 'You can only review a dentist after completing a visit with them.'),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: context.isDark ? const Color(0xFFFDE68A) : const Color(0xFF92400E),
+                                  height: 1.4,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+
                     // Star Rating Picker
                     Center(
                       child: Text(
-                        isVi ? 'Bạn đánh giá thế nào về trải nghiệm của mình?' : 'How would you rate your experience?',
+                        isVi ? 'Bạn đánh giá thế nào về tay nghề & thái độ của nha sĩ?' : 'How would you rate the dentist\'s service & skill?',
                         style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: context.textPrimary),
                         textAlign: TextAlign.center,
                       ),
@@ -246,7 +339,7 @@ class _WriteReviewPageState extends State<WriteReviewPage> {
                           final score = index + 1.0;
                           final active = score <= _rating;
                           return GestureDetector(
-                            onTap: () => setState(() => _rating = score),
+                            onTap: _canReview ? () => setState(() => _rating = score) : null,
                             child: Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 6),
                               child: Icon(
@@ -263,7 +356,7 @@ class _WriteReviewPageState extends State<WriteReviewPage> {
 
                     // Comment Input
                     Text(
-                      isVi ? 'Chia sẻ chi tiết trải nghiệm khám' : 'Share Your Experience',
+                      isVi ? 'Chia sẻ chi tiết về nha sĩ' : 'Share Details About the Dentist',
                       style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: context.textPrimary),
                     ),
                     const SizedBox(height: 10),
@@ -275,13 +368,14 @@ class _WriteReviewPageState extends State<WriteReviewPage> {
                       ),
                       child: TextField(
                         controller: _commentCtrl,
+                        enabled: _canReview,
                         maxLines: 6,
                         minLines: 4,
                         style: TextStyle(fontSize: 14, color: context.textPrimary),
                         decoration: InputDecoration(
                           hintText: isVi
-                              ? 'Hãy chia sẻ về thái độ phục vụ, mức độ hài lòng, thời gian chờ khám...'
-                              : 'Share about service quality, satisfaction level, waiting time...',
+                              ? 'Nhận xét về tay nghề, thái độ giao tiếp, mức độ nhẹ nhàng khi thao tác...'
+                              : 'Share about doctor skill, attitude, gentleness during treatment...',
                           hintStyle: TextStyle(color: context.textMuted, fontSize: 13, height: 1.4),
                           contentPadding: const EdgeInsets.all(16),
                           border: InputBorder.none,
@@ -342,9 +436,10 @@ class _WriteReviewPageState extends State<WriteReviewPage> {
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: _isSubmitting ? null : _submit,
+                  onPressed: (_isSubmitting || !_canReview) ? null : _submit,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
+                    disabledBackgroundColor: context.isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
                     elevation: 0,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                   ),
@@ -356,7 +451,11 @@ class _WriteReviewPageState extends State<WriteReviewPage> {
                         )
                       : Text(
                           isVi ? 'Gửi đánh giá' : 'Submit Review',
-                          style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700),
+                          style: TextStyle(
+                            color: _canReview ? Colors.white : (context.isDark ? Colors.white38 : Colors.black38),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                 ),
               ),

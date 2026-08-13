@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { getPostByIdApi, updatePostApi } from "../../../../../lib/apiClient";
+import { getPostByIdApi, updatePostApi, resolveAssetUrl } from "../../../../../lib/apiClient";
 import StaffSidebar from "../../../../../components/shared/StaffSidebar";
 import { useRequireStaff } from "../../../../../hooks/useRequireStaff";
 import NotificationBell from "../../../../../components/shared/NotificationBell";
@@ -303,7 +303,7 @@ export default function EditPostPage({ params }: EditPostPageProps) {
                     <div className="flex items-center gap-4">
                       <div className="w-24 h-16 rounded-lg overflow-hidden border border-slate-200 bg-slate-50 shrink-0">
                         {thumbnail ? (
-                          <img src={thumbnail} alt="Thumbnail" className="w-full h-full object-cover" />
+                          <img src={resolveAssetUrl(thumbnail)} alt="Thumbnail" className="w-full h-full object-cover" />
                         ) : (
                           <span className="w-full h-full flex items-center justify-center text-slate-350 text-xs">No Image</span>
                         )}
@@ -355,7 +355,7 @@ export default function EditPostPage({ params }: EditPostPageProps) {
                   <div className="w-full h-48 rounded-xl overflow-hidden bg-slate-100 border border-slate-200/40 shadow-inner flex items-center justify-center relative">
                     {thumbnail ? (
                       <img
-                        src={thumbnail}
+                        src={resolveAssetUrl(thumbnail)}
                         alt="Post Cover"
                         className="w-full h-full object-cover"
                       />

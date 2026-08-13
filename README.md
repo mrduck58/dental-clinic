@@ -43,10 +43,10 @@ dental-clinic/
 │   ├── admin_website/         # Next.js — Web vận hành nội bộ
 │   └── mobile_app/            # Flutter — App bệnh nhân
 │       └── lib/
-│           ├── app/           # Router, App widget gốc
-│           ├── core/          # Constants, Network, Utils
-│           ├── features/      # Feature-First: appointment, auth, payment...
-│           └── shared/        # Theme, Widgets dùng chung
+│           ├── app/           # GoRouter, App widget gốc, MainShell, SettingsManager
+│           ├── core/          # Constants (API, màu), Network (Dio client), Utils
+│           └── features/      # Feature-First: appointment, auth, booking, home,
+│                              #   payment, profile — mỗi feature có data/ + presentation/
 ├── nginx/
 │   └── nginx.conf             # Reverse proxy định tuyến traffic
 ├── docs/                      # Tài liệu kỹ thuật cho team

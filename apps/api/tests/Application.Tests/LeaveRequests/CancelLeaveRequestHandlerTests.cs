@@ -28,7 +28,7 @@ public class CancelLeaveRequestHandlerTests
         _repo.GetByIdAsync(lr.Id, Arg.Any<CancellationToken>()).Returns(lr);
         var handler = new CancelLeaveRequestHandler(_repo);
 
-        var result = await handler.HandleAsync(lr.Id, userId);
+        var result = await handler.Handle(new CancelLeaveRequestCommand(lr.Id, userId), CancellationToken.None);
 
         result.Status.Should().Be("Cancelled");
     }
@@ -42,25 +42,25 @@ public class CancelLeaveRequestHandlerTests
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((LeaveRequest?)null);
         var handler = new CancelLeaveRequestHandler(_repo);
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid(), Guid.NewGuid());
+        Func<Task> act = () => handler.Handle(new CancelLeaveRequestCommand(Guid.NewGuid(), Guid.NewGuid()), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
 
     /// <summary>
-    /// User khác cố hủy đơn không phải của mình phải ném ValidationException,
-    /// bảo vệ quyền sở hữu đơn nghỉ phép.
+    /// User khác cố hủy đơn không phải của mình phải ném NotFoundException — đơn của người khác
+    /// coi như không tồn tại, không được trả mã lỗi xác nhận id có thật.
     /// </summary>
     [Test]
-    public async Task HandleAsync_DifferentUser_ThrowsValidationException()
+    public async Task HandleAsync_DifferentUser_ThrowsNotFoundException()
     {
         var lr = MakeRequest(Guid.NewGuid());
         _repo.GetByIdAsync(lr.Id, Arg.Any<CancellationToken>()).Returns(lr);
         var handler = new CancelLeaveRequestHandler(_repo);
 
-        Func<Task> act = () => handler.HandleAsync(lr.Id, Guid.NewGuid());
+        Func<Task> act = () => handler.Handle(new CancelLeaveRequestCommand(lr.Id, Guid.NewGuid()), CancellationToken.None);
 
-        await act.Should().ThrowAsync<ValidationException>();
+        await act.Should().ThrowAsync<NotFoundException>();
     }
 
     /// <summary>
@@ -76,7 +76,7 @@ public class CancelLeaveRequestHandlerTests
         _repo.GetByIdAsync(lr.Id, Arg.Any<CancellationToken>()).Returns(lr);
         var handler = new CancelLeaveRequestHandler(_repo);
 
-        Func<Task> act = () => handler.HandleAsync(lr.Id, userId);
+        Func<Task> act = () => handler.Handle(new CancelLeaveRequestCommand(lr.Id, userId), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -94,7 +94,7 @@ public class CancelLeaveRequestHandlerTests
         _repo.GetByIdAsync(lr.Id, Arg.Any<CancellationToken>()).Returns(lr);
         var handler = new CancelLeaveRequestHandler(_repo);
 
-        Func<Task> act = () => handler.HandleAsync(lr.Id, userId);
+        Func<Task> act = () => handler.Handle(new CancelLeaveRequestCommand(lr.Id, userId), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -110,9 +110,9 @@ public class CancelLeaveRequestHandlerTests
         _repo.GetByIdAsync(lr.Id, Arg.Any<CancellationToken>()).Returns(lr);
         var handler = new CancelLeaveRequestHandler(_repo);
 
-        Func<Task> act = () => handler.HandleAsync(lr.Id, Guid.NewGuid());
+        Func<Task> act = () => handler.Handle(new CancelLeaveRequestCommand(lr.Id, Guid.NewGuid()), CancellationToken.None);
 
-        await act.Should().ThrowAsync<ValidationException>();
+        await act.Should().ThrowAsync<NotFoundException>();
         await _repo.DidNotReceive().UpdateAsync(Arg.Any<LeaveRequest>(), Arg.Any<CancellationToken>());
     }
 
@@ -120,7 +120,7 @@ public class CancelLeaveRequestHandlerTests
     {
         var today = DateOnly.FromDateTime(DateTime.Today);
         var lr = LeaveRequest.Create(userId, LeaveType.Annual, today, today.AddDays(2), "Lý do test");
-        var user = User.Create("emp", "emp@test.com", "hash", "Staff", null, "Test");
+        var user = User.Create("emp", "emp@test.com", "hash", UserRole.Staff, null, "Test");
         typeof(LeaveRequest).GetProperty("User")!.SetValue(lr, user);
         return lr;
     }

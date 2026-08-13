@@ -51,7 +51,7 @@ public class LeaveRequestRepositoryTests
     [Test]
     public async Task GetAllAsync_OrdersByCreatedAtDescending()
     {
-        var user = User.Create("emp1", "emp1@clinic.com", "hash", "Staff");
+        var user = User.Create("emp1", "emp1@clinic.com", "hash", UserRole.Staff);
         await _db.Users.AddAsync(user);
         var today = DateOnly.FromDateTime(DateTime.Today);
         var older = LeaveRequest.Create(user.Id, LeaveType.Annual, today, today.AddDays(1), "Cũ");
@@ -74,8 +74,8 @@ public class LeaveRequestRepositoryTests
     [Test]
     public async Task GetByUserIdAsync_ReturnsOnlyRequestsForSpecificUser()
     {
-        var user1 = User.Create("emp1", "emp1@clinic.com", "hash", "Staff");
-        var user2 = User.Create("emp2", "emp2@clinic.com", "hash", "Staff");
+        var user1 = User.Create("emp1", "emp1@clinic.com", "hash", UserRole.Staff);
+        var user2 = User.Create("emp2", "emp2@clinic.com", "hash", UserRole.Staff);
         await _db.Users.AddRangeAsync(user1, user2);
         var today = DateOnly.FromDateTime(DateTime.Today);
         await _db.LeaveRequests.AddRangeAsync(
@@ -128,7 +128,7 @@ public class LeaveRequestRepositoryTests
     [Test]
     public async Task AddAsync_LoadsUserNavigationAfterSave()
     {
-        var user = User.Create("emp1", "emp1@clinic.com", "hash", "Staff");
+        var user = User.Create("emp1", "emp1@clinic.com", "hash", UserRole.Staff);
         await _db.Users.AddAsync(user);
         await _db.SaveChangesAsync();
         var today = DateOnly.FromDateTime(DateTime.Today);
@@ -142,7 +142,7 @@ public class LeaveRequestRepositoryTests
 
     private async Task<(User user, LeaveRequest lr)> SeedUserAndRequest()
     {
-        var user = User.Create("emp1", "emp1@clinic.com", "hash", "Staff");
+        var user = User.Create("emp1", "emp1@clinic.com", "hash", UserRole.Staff);
         await _db.Users.AddAsync(user);
         var today = DateOnly.FromDateTime(DateTime.Today);
         var lr = LeaveRequest.Create(user.Id, LeaveType.Annual, today, today.AddDays(2), "Lý do test");

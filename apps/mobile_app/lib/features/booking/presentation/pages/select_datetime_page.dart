@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
+import 'package:mobile_app/core/constants/api_constants.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/booking/data/booking_models.dart';
 import 'package:mobile_app/features/booking/presentation/widgets/booking_widgets.dart';
@@ -155,7 +156,7 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
                         color: AppColors.primaryLight,
                         child: widget.draft.doctor!.avatarUrl != null && widget.draft.doctor!.avatarUrl!.isNotEmpty
                             ? Image.network(
-                                widget.draft.doctor!.avatarUrl!,
+                                ApiConstants.resolveAssetUrl(widget.draft.doctor!.avatarUrl)!,
                                 fit: BoxFit.cover,
                                 errorBuilder: (_, __, ___) => const Icon(Iconsax.user, color: AppColors.primary, size: 20),
                               )
@@ -173,11 +174,7 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            widget.draft.doctor!.fullName.toLowerCase().startsWith('bs') ||
-                                    widget.draft.doctor!.fullName.toLowerCase().startsWith('bác sĩ') ||
-                                    widget.draft.doctor!.fullName.toLowerCase().startsWith('dr')
-                                ? widget.draft.doctor!.fullName
-                                : 'BS. ${widget.draft.doctor!.fullName}',
+                            widget.draft.doctor!.fullName,
                             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: context.textPrimary),
                           ),
                         ],

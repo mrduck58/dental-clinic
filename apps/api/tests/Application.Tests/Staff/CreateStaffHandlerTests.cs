@@ -12,12 +12,16 @@ namespace DentalClinic.API.Application.Tests.Staff;
 public class CreateStaffHandlerTests
 {
     private IUserRepository _userRepo = null!;
+    private IEmployeeRepository _employeeRepo = null!;
+    private IDentistRepository _dentistRepo = null!;
 
     [SetUp]
     public void SetUp()
     {
         _userRepo = Substitute.For<IUserRepository>();
         _userRepo.ExistsByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(false);
+        _employeeRepo = Substitute.For<IEmployeeRepository>();
+        _dentistRepo = Substitute.For<IDentistRepository>();
     }
 
     /// <summary>
@@ -26,9 +30,9 @@ public class CreateStaffHandlerTests
     [Test]
     public async Task HandleAsync_NewEmail_CallsAddAsyncOnce()
     {
-        var handler = new CreateStaffHandler(_userRepo, null!);
+        var handler = new CreateStaffHandler(_userRepo, _employeeRepo, _dentistRepo);
 
-        await handler.HandleAsync(BuildCommand());
+        await handler.Handle(BuildCommand(), CancellationToken.None);
 
         await _userRepo.Received(1).AddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
     }
@@ -40,9 +44,9 @@ public class CreateStaffHandlerTests
     [Test]
     public async Task HandleAsync_NewEmail_ReturnedDtoHasNoAccount()
     {
-        var handler = new CreateStaffHandler(_userRepo, null!);
+        var handler = new CreateStaffHandler(_userRepo, _employeeRepo, _dentistRepo);
 
-        var result = await handler.HandleAsync(BuildCommand());
+        var result = await handler.Handle(BuildCommand(), CancellationToken.None);
 
         result.HasAccount.Should().BeFalse();
     }
@@ -54,9 +58,9 @@ public class CreateStaffHandlerTests
     public async Task HandleAsync_DuplicateEmail_ThrowsConflictException()
     {
         _userRepo.ExistsByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(true);
-        var handler = new CreateStaffHandler(_userRepo, null!);
+        var handler = new CreateStaffHandler(_userRepo, _employeeRepo, _dentistRepo);
 
-        Func<Task> act = () => handler.HandleAsync(BuildCommand());
+        Func<Task> act = () => handler.Handle(BuildCommand(), CancellationToken.None);
 
         await act.Should().ThrowAsync<ConflictException>();
     }
@@ -68,9 +72,9 @@ public class CreateStaffHandlerTests
     public async Task HandleAsync_DuplicateEmail_DoesNotCallAddAsync()
     {
         _userRepo.ExistsByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(true);
-        var handler = new CreateStaffHandler(_userRepo, null!);
+        var handler = new CreateStaffHandler(_userRepo, _employeeRepo, _dentistRepo);
 
-        Assert.CatchAsync(() => handler.HandleAsync(BuildCommand()));
+        Assert.CatchAsync(() => handler.Handle(BuildCommand(), CancellationToken.None));
 
         await _userRepo.DidNotReceive().AddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
     }
@@ -82,9 +86,9 @@ public class CreateStaffHandlerTests
     [Test]
     public async Task HandleAsync_InvalidFullName_ThrowsValidationExceptionBeforeAnyRepoCall()
     {
-        var handler = new CreateStaffHandler(_userRepo, null!);
+        var handler = new CreateStaffHandler(_userRepo, _employeeRepo, _dentistRepo);
 
-        Func<Task> act = () => handler.HandleAsync(BuildCommand() with { FullName = "" });
+        Func<Task> act = () => handler.Handle(BuildCommand() with { FullName = "" }, CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
         await _userRepo.DidNotReceive().ExistsByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
@@ -98,9 +102,9 @@ public class CreateStaffHandlerTests
     [Test]
     public async Task HandleAsync_DentistRoleWithoutSpecialtyOrLicense_ThrowsValidationException()
     {
-        var handler = new CreateStaffHandler(_userRepo, null!);
+        var handler = new CreateStaffHandler(_userRepo, _employeeRepo, _dentistRepo);
 
-        Func<Task> act = () => handler.HandleAsync(BuildCommand() with { Role = "Dentist", Specialty = null, LicenseNumber = null });
+        Func<Task> act = () => handler.Handle(BuildCommand() with { Role = "Dentist", Specialty = null, LicenseNumber = null }, CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -111,9 +115,9 @@ public class CreateStaffHandlerTests
     [Test]
     public async Task HandleAsync_InvalidPhoneNumber_ThrowsValidationException()
     {
-        var handler = new CreateStaffHandler(_userRepo, null!);
+        var handler = new CreateStaffHandler(_userRepo, _employeeRepo, _dentistRepo);
 
-        Func<Task> act = () => handler.HandleAsync(BuildCommand() with { PhoneNumber = "abc-not-a-phone" });
+        Func<Task> act = () => handler.Handle(BuildCommand() with { PhoneNumber = "abc-not-a-phone" }, CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }

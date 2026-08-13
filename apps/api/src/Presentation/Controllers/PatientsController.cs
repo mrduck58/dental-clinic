@@ -1,6 +1,7 @@
-using DentalClinic.API.Domain.Entities;
-using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Application.DTOs.Patients;
+using DentalClinic.API.Application.UseCases.Patients;
 using DentalClinic.API.Domain.Interfaces.Services;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -8,28 +9,43 @@ namespace DentalClinic.API.Presentation.Controllers;
 
 [ApiController]
 [Route("api/patients")]
-public class PatientsController(
-    IPatientRepository patientRepository,
-    IUserRepository userRepository,
-    ICurrentUserService currentUser) : ControllerBase
+public class PatientsController(ISender sender, ICurrentUserService currentUser) : ControllerBase
 {
-    private async Task<Patient?> GetOrCreatePrimaryPatientAsync(Guid userId, CancellationToken ct)
+    /// <summary>
+    /// POST api/patients/accounts/verification — BƯỚC 1: gửi mã xác thực tới email bệnh nhân vừa
+    /// cung cấp. Bệnh nhân mở hộp thư, đọc mã cho lễ tân nhập lại ở bước tạo tài khoản.
+    ///
+    /// Không có bước này thì lễ tân gõ nhầm một ký tự là mật khẩu bay tới hộp thư người lạ, kèm
+    /// quyền đăng nhập vào hồ sơ bệnh án của bệnh nhân thật.
+    /// </summary>
+    [HttpPost("accounts/verification")]
+    [Authorize(Roles = "Staff,Admin,Owner")]
+    public async Task<IActionResult> RequestPatientEmailVerification(
+        [FromBody] RequestPatientEmailVerificationRequest request,
+        CancellationToken ct)
     {
-        var patient = await patientRepository.GetByUserIdAsync(userId, ct);
-        if (patient == null)
-        {
-            var user = await userRepository.GetByIdAsync(userId, ct);
-            if (user == null) return null;
+        await sender.Send(new RequestPatientEmailVerificationCommand(request.Email), ct);
+        return Ok(new { message = "Đã gửi mã xác thực tới email của bệnh nhân." });
+    }
 
-            patient = Patient.Create(
-                userId: user.Id,
-                dateOfBirth: null
-            );
-            patient.User = user;
+    /// <summary>
+    /// POST api/patients/accounts — BƯỚC 2: lập tài khoản cho bệnh nhân, sau khi mã xác thực email
+    /// đã được nhập đúng. Đây là đường DUY NHẤT sinh tài khoản bệnh nhân sau khi bỏ tự đăng ký.
+    /// Mật khẩu tạm gửi về email và bệnh nhân bị buộc đổi ngay lần đăng nhập đầu tiên.
+    /// </summary>
+    [HttpPost("accounts")]
+    [Authorize(Roles = "Staff,Admin,Owner")]
+    public async Task<IActionResult> CreatePatientAccount(
+        [FromBody] CreatePatientAccountRequest request,
+        CancellationToken ct)
+    {
+        var result = await sender.Send(
+            new CreatePatientAccountCommand(
+                request.FullName, request.Email, request.PhoneNumber, request.DateOfBirth, request.Gender,
+                request.VerificationCode),
+            ct);
 
-            await patientRepository.AddAsync(patient, ct);
-        }
-        return patient;
+        return Ok(result);
     }
 
     /// <summary>
@@ -43,20 +59,8 @@ public class PatientsController(
         [FromQuery] int limit,
         CancellationToken ct)
     {
-        var term = (q ?? string.Empty).Trim();
-        if (term.Length < 2) return Ok(Array.Empty<PatientSearchResultDto>());
-
-        var take = limit is > 0 and <= 20 ? limit : 8;
-        var patients = await patientRepository.SearchAsync(term, take, ct);
-
-        return Ok(patients.Select(p => new PatientSearchResultDto(
-            p.Id,
-            p.FullName,
-            p.PhoneNumber ?? p.User?.PhoneNumber,
-            p.DateOfBirth,
-            p.Gender,
-            p.User != null && p.User.PasswordHash != null
-        )));
+        var result = await sender.Send(new SearchPatientsQuery(q, limit), ct);
+        return Ok(result);
     }
 
     [HttpGet("my-medical-history")]
@@ -66,10 +70,8 @@ public class PatientsController(
         var userId = currentUser.UserId;
         if (userId == null) return Unauthorized();
 
-        var patient = await GetOrCreatePrimaryPatientAsync(userId.Value, ct);
-        if (patient == null) return NotFound("Patient profile not found.");
-
-        return Ok(new { medicalHistory = patient.MedicalHistory });
+        var medicalHistory = await sender.Send(new GetMyMedicalHistoryQuery(userId.Value), ct);
+        return Ok(new { medicalHistory });
     }
 
     [HttpPut("my-medical-history")]
@@ -79,12 +81,7 @@ public class PatientsController(
         var userId = currentUser.UserId;
         if (userId == null) return Unauthorized();
 
-        var patient = await GetOrCreatePrimaryPatientAsync(userId.Value, ct);
-        if (patient == null) return NotFound("Patient profile not found.");
-
-        patient.UpdateMedicalHistory(request.MedicalHistory ?? string.Empty);
-        await patientRepository.UpdateAsync(patient, ct);
-
+        await sender.Send(new UpdateMyMedicalHistoryCommand(userId.Value, request.MedicalHistory), ct);
         return Ok(new { message = "Đã cập nhật tiền sử bệnh lý." });
     }
 
@@ -95,17 +92,8 @@ public class PatientsController(
         var userId = currentUser.UserId;
         if (userId == null) return Unauthorized();
 
-        var primaryPatient = await GetOrCreatePrimaryPatientAsync(userId.Value, ct);
-        if (primaryPatient == null) return NotFound("Patient profile not found.");
-
-        var patient = await patientRepository.GetByIdAsync(patientId, ct);
-        if (patient == null) return NotFound("Patient not found.");
-
-        // Security check: must be self or family member
-        if (patient.Id != primaryPatient.Id && patient.PrimaryPatientId != primaryPatient.Id)
-            return Forbid();
-
-        return Ok(new { medicalHistory = patient.MedicalHistory });
+        var medicalHistory = await sender.Send(new GetFamilyMemberMedicalHistoryQuery(userId.Value, patientId), ct);
+        return Ok(new { medicalHistory });
     }
 
     [HttpPut("{patientId:guid}/medical-history")]
@@ -115,19 +103,7 @@ public class PatientsController(
         var userId = currentUser.UserId;
         if (userId == null) return Unauthorized();
 
-        var primaryPatient = await GetOrCreatePrimaryPatientAsync(userId.Value, ct);
-        if (primaryPatient == null) return NotFound("Patient profile not found.");
-
-        var patient = await patientRepository.GetByIdAsync(patientId, ct);
-        if (patient == null) return NotFound("Patient not found.");
-
-        // Security check: must be self or family member
-        if (patient.Id != primaryPatient.Id && patient.PrimaryPatientId != primaryPatient.Id)
-            return Forbid();
-
-        patient.UpdateMedicalHistory(request.MedicalHistory ?? string.Empty);
-        await patientRepository.UpdateAsync(patient, ct);
-
+        await sender.Send(new UpdateFamilyMemberMedicalHistoryCommand(userId.Value, patientId, request.MedicalHistory), ct);
         return Ok(new { message = "Đã cập nhật tiền sử bệnh lý." });
     }
 
@@ -138,20 +114,8 @@ public class PatientsController(
         var userId = currentUser.UserId;
         if (userId == null) return Unauthorized();
 
-        var primaryPatient = await GetOrCreatePrimaryPatientAsync(userId.Value, ct);
-        if (primaryPatient == null) return NotFound("Patient profile not found.");
-
-        var members = await patientRepository.GetFamilyMembersAsync(primaryPatient.Id, ct);
-        
-        return Ok(members.Select(m => new FamilyMemberDto(
-            m.Id,
-            m.FullName,
-            m.Relationship ?? string.Empty,
-            m.DateOfBirth,
-            m.Gender,
-            m.PhoneNumber,
-            m.ProfilePictureUrl
-        )));
+        var members = await sender.Send(new GetFamilyMembersQuery(userId.Value), ct);
+        return Ok(members);
     }
 
     [HttpPost("family-members")]
@@ -161,39 +125,18 @@ public class PatientsController(
         var userId = currentUser.UserId;
         if (userId == null) return Unauthorized();
 
-        var primaryPatient = await GetOrCreatePrimaryPatientAsync(userId.Value, ct);
-        if (primaryPatient == null) return NotFound("Patient profile not found.");
+        var member = await sender.Send(
+            new CreateFamilyMemberCommand(
+                userId.Value,
+                request.FullName,
+                request.Relationship,
+                request.DateOfBirth,
+                request.Gender,
+                request.PhoneNumber,
+                request.ProfilePictureUrl),
+            ct);
 
-        // Create a placeholder user for the family member
-        var placeholderUser = DentalClinic.API.Domain.Entities.User.CreateEmployee(
-            email: $"family-{Guid.NewGuid()}@songiangdental.com",
-            role: "Patient",
-            phoneNumber: request.PhoneNumber,
-            fullName: request.FullName
-        );
-        placeholderUser.UpdateGender(request.Gender);
-        await userRepository.AddAsync(placeholderUser, ct);
-
-        var member = Patient.Create(
-            userId: placeholderUser.Id,
-            dateOfBirth: request.DateOfBirth,
-            address: null,
-            profilePictureUrl: request.ProfilePictureUrl,
-            primaryPatientId: primaryPatient.Id,
-            relationship: request.Relationship
-        );
-
-        await patientRepository.AddAsync(member, ct);
-
-        return CreatedAtAction(null, new FamilyMemberDto(
-            member.Id,
-            member.FullName,
-            member.Relationship ?? string.Empty,
-            member.DateOfBirth,
-            member.Gender,
-            member.PhoneNumber,
-            member.ProfilePictureUrl
-        ));
+        return CreatedAtAction(null, member);
     }
 
     [HttpPut("family-members/{id:guid}")]
@@ -203,21 +146,17 @@ public class PatientsController(
         var userId = currentUser.UserId;
         if (userId == null) return Unauthorized();
 
-        var primaryPatient = await GetOrCreatePrimaryPatientAsync(userId.Value, ct);
-        if (primaryPatient == null) return NotFound("Patient profile not found.");
-
-        var member = await patientRepository.GetByIdAsync(id, ct);
-        if (member == null || member.PrimaryPatientId != primaryPatient.Id)
-            return NotFound("Family member not found.");
-
-        member.SetFullName(request.FullName);
-        member.SetDateOfBirth(request.DateOfBirth);
-        member.SetGender(request.Gender);
-        member.SetPhoneNumber(request.PhoneNumber);
-        member.UpdateFamilyRelation(primaryPatient.Id, request.Relationship);
-        member.UpdateProfilePicture(request.ProfilePictureUrl);
-
-        await patientRepository.UpdateAsync(member, ct);
+        await sender.Send(
+            new UpdateFamilyMemberCommand(
+                userId.Value,
+                id,
+                request.FullName,
+                request.Relationship,
+                request.DateOfBirth,
+                request.Gender,
+                request.PhoneNumber,
+                request.ProfilePictureUrl),
+            ct);
 
         return Ok(new { message = "Đã cập nhật thông tin thành viên gia đình." });
     }
@@ -229,55 +168,7 @@ public class PatientsController(
         var userId = currentUser.UserId;
         if (userId == null) return Unauthorized();
 
-        var primaryPatient = await GetOrCreatePrimaryPatientAsync(userId.Value, ct);
-        if (primaryPatient == null) return NotFound("Patient profile not found.");
-
-        var member = await patientRepository.GetByIdAsync(id, ct);
-        if (member == null || member.PrimaryPatientId != primaryPatient.Id)
-            return NotFound("Family member not found.");
-
-        await patientRepository.DeleteAsync(member, ct);
-
+        await sender.Send(new DeleteFamilyMemberCommand(userId.Value, id), ct);
         return Ok(new { message = "Đã xóa thành viên gia đình." });
     }
 }
-
-public record UpdateMedicalHistoryRequest(string? MedicalHistory);
-
-/// <summary><c>HasAccount</c> phân biệt bệnh nhân có tài khoản với bệnh nhân chỉ được tạo tại quầy.</summary>
-public record PatientSearchResultDto(
-    Guid Id,
-    string FullName,
-    string? PhoneNumber,
-    DateOnly? DateOfBirth,
-    string Gender,
-    bool HasAccount
-);
-
-public record FamilyMemberDto(
-    Guid Id,
-    string FullName,
-    string Relationship,
-    DateOnly? DateOfBirth,
-    string Gender,
-    string? PhoneNumber,
-    string? ProfilePictureUrl
-);
-
-public record CreateFamilyMemberRequest(
-    string FullName,
-    string Relationship,
-    DateOnly? DateOfBirth,
-    string Gender,
-    string? PhoneNumber,
-    string? ProfilePictureUrl
-);
-
-public record UpdateFamilyMemberRequest(
-    string FullName,
-    string Relationship,
-    DateOnly? DateOfBirth,
-    string Gender,
-    string? PhoneNumber,
-    string? ProfilePictureUrl
-);

@@ -1,7 +1,8 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using DentalClinic.API.Application.UseCases.Appointments;
+using DentalClinic.API.Application.UseCases.Dentists;
 using DentalClinic.API.Application.UseCases.Staff;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -9,18 +10,14 @@ namespace DentalClinic.API.Presentation.Controllers;
 
 [ApiController]
 [Route("api/dentists")]
-public class DentistsController(
-    GetDentistsHandler getDentistsHandler,
-    GetDentistSlotsHandler getDentistSlotsHandler,
-    GetDentistDetailHandler getDentistDetailHandler,
-    DentistReviewHandler dentistReviewHandler) : ControllerBase
+public class DentistsController(ISender sender) : ControllerBase
 {
     /// <summary>GET api/dentists — Danh sách nha sĩ cho trang chủ mobile</summary>
     [HttpGet]
     [AllowAnonymous]
     public async Task<IActionResult> GetDentists(CancellationToken cancellationToken)
     {
-        var result = await getDentistsHandler.HandleAsync(cancellationToken);
+        var result = await sender.Send(new GetDentistsQuery(), cancellationToken);
         return Ok(result);
     }
 
@@ -31,7 +28,7 @@ public class DentistsController(
         [FromQuery] DateOnly date,
         CancellationToken cancellationToken)
     {
-        var result = await getDentistSlotsHandler.HandleAsync(date, cancellationToken);
+        var result = await sender.Send(new GetDentistSlotsQuery(date), cancellationToken);
         return Ok(result);
     }
 
@@ -48,7 +45,7 @@ public class DentistsController(
         {
             return Ok(Enumerable.Empty<string>());
         }
-        var dates = await getDentistSlotsHandler.GetWorkingDatesForDentistAsync(dentistGuid, year, month, cancellationToken);
+        var dates = await sender.Send(new GetDentistWorkingDatesQuery(dentistGuid, year, month), cancellationToken);
         return Ok(dates);
     }
 
@@ -57,7 +54,7 @@ public class DentistsController(
     [AllowAnonymous]
     public async Task<IActionResult> GetDentistDetail(Guid id, CancellationToken cancellationToken)
     {
-        var result = await getDentistDetailHandler.HandleAsync(id, cancellationToken);
+        var result = await sender.Send(new GetDentistDetailQuery(id), cancellationToken);
         if (result is null) return NotFound(new { title = "Không tìm thấy nha sĩ." });
         return Ok(result);
     }
@@ -67,7 +64,7 @@ public class DentistsController(
     [AllowAnonymous]
     public async Task<IActionResult> GetDentistReviews(Guid id, CancellationToken cancellationToken)
     {
-        var result = await dentistReviewHandler.GetForDentistAsync(id, cancellationToken);
+        var result = await sender.Send(new GetDentistReviewsQuery(id), cancellationToken);
         return Ok(result);
     }
 
@@ -78,9 +75,23 @@ public class DentistsController(
         Guid id, [FromBody] CreateDentistReviewRequest request, CancellationToken cancellationToken)
     {
         var userId = GetCurrentUserId();
-        var result = await dentistReviewHandler.UpsertAsync(id, userId, request, cancellationToken);
+        var result = await sender.Send(new UpsertDentistReviewCommand(id, userId, request), cancellationToken);
         return Ok(result);
     }
+
+    /// <summary>GET api/dentists/{id}/review-eligibility — Kiểm tra bệnh nhân có đủ điều kiện đánh giá nha sĩ không và trả về review cũ (nếu có)</summary>
+    [HttpGet("{id:guid}/review-eligibility")]
+    [Authorize(Roles = "Patient")]
+    public async Task<IActionResult> GetReviewEligibility(
+        Guid id,
+        [FromQuery] Guid? appointmentId,
+        CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        var result = await sender.Send(new GetDentistReviewEligibilityQuery(id, userId, appointmentId), cancellationToken);
+        return Ok(result);
+    }
+
 
     private Guid GetCurrentUserId()
     {

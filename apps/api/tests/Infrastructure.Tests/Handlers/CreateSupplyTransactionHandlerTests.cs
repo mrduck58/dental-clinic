@@ -1,9 +1,9 @@
-using DentalClinic.API.Application.DTOs.Inventory;
 using DentalClinic.API.Application.UseCases.Inventory;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using NSubstitute;
@@ -28,7 +28,8 @@ public class CreateSupplyTransactionHandlerTests
         _db = new AppDbContext(options);
         _activityLogService = Substitute.For<IActivityLogService>();
         _currentUser = Substitute.For<ICurrentUserService>();
-        _handler = new CreateSupplyTransactionHandler(_db, _activityLogService, _currentUser);
+        _handler = new CreateSupplyTransactionHandler(
+            new SupplyItemRepository(_db), new SupplyTransactionRepository(_db), _activityLogService, _currentUser);
     }
 
     [TearDown]
@@ -48,8 +49,8 @@ public class CreateSupplyTransactionHandlerTests
     {
         var item = await SeedItemAsync();
 
-        Func<Task> act = () => _handler.HandleAsync(
-            new CreateSupplyTransactionRequest(item.Id, "import", 0, null), "staff1");
+        Func<Task> act = () => _handler.Handle(
+            new CreateSupplyTransactionCommand(item.Id, "import", 0, null, "staff1"), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -60,8 +61,8 @@ public class CreateSupplyTransactionHandlerTests
     {
         var item = await SeedItemAsync();
 
-        Func<Task> act = () => _handler.HandleAsync(
-            new CreateSupplyTransactionRequest(item.Id, "invalid-type", 10, null), "staff1");
+        Func<Task> act = () => _handler.Handle(
+            new CreateSupplyTransactionCommand(item.Id, "invalid-type", 10, null, "staff1"), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -70,8 +71,8 @@ public class CreateSupplyTransactionHandlerTests
     [Test]
     public async Task HandleAsync_ItemNotFound_ThrowsNotFoundException()
     {
-        Func<Task> act = () => _handler.HandleAsync(
-            new CreateSupplyTransactionRequest(Guid.NewGuid(), "import", 10, null), "staff1");
+        Func<Task> act = () => _handler.Handle(
+            new CreateSupplyTransactionCommand(Guid.NewGuid(), "import", 10, null, "staff1"), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -82,8 +83,8 @@ public class CreateSupplyTransactionHandlerTests
     {
         var item = await SeedItemAsync(quantity: 5);
 
-        Func<Task> act = () => _handler.HandleAsync(
-            new CreateSupplyTransactionRequest(item.Id, "export", 10, null), "staff1");
+        Func<Task> act = () => _handler.Handle(
+            new CreateSupplyTransactionCommand(item.Id, "export", 10, null, "staff1"), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -94,7 +95,7 @@ public class CreateSupplyTransactionHandlerTests
     {
         var item = await SeedItemAsync(quantity: 50);
 
-        await _handler.HandleAsync(new CreateSupplyTransactionRequest(item.Id, "import", 20, "Nhập thêm"), "staff1");
+        await _handler.Handle(new CreateSupplyTransactionCommand(item.Id, "import", 20, "Nhập thêm", "staff1"), CancellationToken.None);
 
         (await _db.SupplyItems.SingleAsync(i => i.Id == item.Id)).Quantity.Should().Be(70);
     }
@@ -105,7 +106,7 @@ public class CreateSupplyTransactionHandlerTests
     {
         var item = await SeedItemAsync(quantity: 50);
 
-        await _handler.HandleAsync(new CreateSupplyTransactionRequest(item.Id, "export", 20, null), "staff1");
+        await _handler.Handle(new CreateSupplyTransactionCommand(item.Id, "export", 20, null, "staff1"), CancellationToken.None);
 
         (await _db.SupplyItems.SingleAsync(i => i.Id == item.Id)).Quantity.Should().Be(30);
         await _activityLogService.Received(1).LogAsync(
@@ -119,7 +120,7 @@ public class CreateSupplyTransactionHandlerTests
     {
         var item = await SeedItemAsync(quantity: 5);
 
-        await _handler.HandleAsync(new CreateSupplyTransactionRequest(item.Id, "export", 5, null), "staff1");
+        await _handler.Handle(new CreateSupplyTransactionCommand(item.Id, "export", 5, null, "staff1"), CancellationToken.None);
 
         (await _db.SupplyItems.SingleAsync(i => i.Id == item.Id)).Quantity.Should().Be(0);
     }
@@ -130,8 +131,8 @@ public class CreateSupplyTransactionHandlerTests
     {
         var item = await SeedItemAsync(quantity: 5);
 
-        Func<Task> act = () => _handler.HandleAsync(
-            new CreateSupplyTransactionRequest(item.Id, "export", 6, null), "staff1");
+        Func<Task> act = () => _handler.Handle(
+            new CreateSupplyTransactionCommand(item.Id, "export", 6, null, "staff1"), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -142,8 +143,8 @@ public class CreateSupplyTransactionHandlerTests
     {
         var item = await SeedItemAsync();
 
-        Func<Task> act = () => _handler.HandleAsync(
-            new CreateSupplyTransactionRequest(item.Id, "import", -5, null), "staff1");
+        Func<Task> act = () => _handler.Handle(
+            new CreateSupplyTransactionCommand(item.Id, "import", -5, null, "staff1"), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -154,8 +155,8 @@ public class CreateSupplyTransactionHandlerTests
     {
         var item = await SeedItemAsync();
 
-        Func<Task> act = () => _handler.HandleAsync(
-            new CreateSupplyTransactionRequest(item.Id, "Import", 10, null), "staff1");
+        Func<Task> act = () => _handler.Handle(
+            new CreateSupplyTransactionCommand(item.Id, "Import", 10, null, "staff1"), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }

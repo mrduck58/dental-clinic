@@ -1,20 +1,22 @@
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using Microsoft.Extensions.Configuration;
 using System.Security.Cryptography;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Auth;
 
-public record ForgotPasswordCommand(string Email);
+public record ForgotPasswordCommand(string Email) : IRequest;
 
 public class ForgotPasswordHandler(
     IUserRepository userRepository,
     IEmailService emailService,
-    IConfiguration configuration)
+    IConfiguration configuration) : IRequestHandler<ForgotPasswordCommand>
 {
-    private static readonly string[] StaffRoles = ["Admin", "Owner", "Dentist", "Staff"];
+    private static readonly UserRole[] StaffRoles = [UserRole.Admin, UserRole.Owner, UserRole.Dentist, UserRole.Staff];
 
-    public async Task HandleAsync(ForgotPasswordCommand command, CancellationToken ct = default)
+    public async Task Handle(ForgotPasswordCommand command, CancellationToken ct)
     {
         var email = command.Email.Trim().ToLower();
         var user = await userRepository.GetByEmailAsync(email, ct);

@@ -1,5 +1,6 @@
 using DentalClinic.API.Application.UseCases.Auth;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using FluentAssertions;
@@ -36,10 +37,10 @@ public class ForgotPasswordHandlerTests
     [Test]
     public async Task HandleAsync_ValidStaffEmail_SavesTokenAndSendsEmail()
     {
-        var user = CreateActiveStaff("staff@test.com", "Admin");
+        var user = CreateActiveStaff("staff@test.com", UserRole.Admin);
         _userRepo.GetByEmailAsync("staff@test.com", Arg.Any<CancellationToken>()).Returns(user);
 
-        await _handler.HandleAsync(new ForgotPasswordCommand("staff@test.com"));
+        await _handler.Handle(new ForgotPasswordCommand("staff@test.com"), CancellationToken.None);
 
         await _userRepo.Received(1).UpdateAsync(user, Arg.Any<CancellationToken>());
         await _emailService.Received(1).SendPasswordResetAsync(
@@ -56,10 +57,10 @@ public class ForgotPasswordHandlerTests
     [Test]
     public async Task HandleAsync_ValidStaffEmail_SendsLinkWithCorrectBaseUrl()
     {
-        var user = CreateActiveStaff("staff@clinic.com", "Dentist");
+        var user = CreateActiveStaff("staff@clinic.com", UserRole.Dentist);
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(user);
 
-        await _handler.HandleAsync(new ForgotPasswordCommand("staff@clinic.com"));
+        await _handler.Handle(new ForgotPasswordCommand("staff@clinic.com"), CancellationToken.None);
 
         await _emailService.Received(1).SendPasswordResetAsync(
             Arg.Any<string>(),
@@ -75,10 +76,10 @@ public class ForgotPasswordHandlerTests
     [Test]
     public async Task HandleAsync_ValidStaffEmail_SetsPasswordResetTokenOnUser()
     {
-        var user = CreateActiveStaff("staff@test.com", "Staff");
+        var user = CreateActiveStaff("staff@test.com", UserRole.Staff);
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(user);
 
-        await _handler.HandleAsync(new ForgotPasswordCommand("staff@test.com"));
+        await _handler.Handle(new ForgotPasswordCommand("staff@test.com"), CancellationToken.None);
 
         user.PasswordResetToken.Should().NotBeNullOrEmpty();
         user.PasswordResetTokenExpiry.Should().BeAfter(DateTimeOffset.UtcNow);
@@ -92,10 +93,10 @@ public class ForgotPasswordHandlerTests
     public async Task HandleAsync_NoFrontendBaseUrlConfigured_UsesDefaultLocalhostInLink()
     {
         _configuration["FrontendBaseUrl"].Returns((string?)null);
-        var user = CreateActiveStaff("staff@test.com", "Admin");
+        var user = CreateActiveStaff("staff@test.com", UserRole.Admin);
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(user);
 
-        await _handler.HandleAsync(new ForgotPasswordCommand("staff@test.com"));
+        await _handler.Handle(new ForgotPasswordCommand("staff@test.com"), CancellationToken.None);
 
         await _emailService.Received(1).SendPasswordResetAsync(
             Arg.Any<string>(),
@@ -113,10 +114,10 @@ public class ForgotPasswordHandlerTests
     public async Task HandleAsync_UserHasFullName_SendsEmailWithFullNameAsDisplayName()
     {
         var hash = BCrypt.Net.BCrypt.HashPassword("anypass");
-        var user = User.Create("user1", "staff@test.com", hash, "Admin", fullName: "Nguyễn Văn A");
+        var user = User.Create("user1", "staff@test.com", hash, UserRole.Admin, fullName: "Nguyễn Văn A");
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(user);
 
-        await _handler.HandleAsync(new ForgotPasswordCommand("staff@test.com"));
+        await _handler.Handle(new ForgotPasswordCommand("staff@test.com"), CancellationToken.None);
 
         await _emailService.Received(1).SendPasswordResetAsync(
             Arg.Any<string>(), "Nguyễn Văn A", Arg.Any<string>(), Arg.Any<CancellationToken>());
@@ -129,10 +130,10 @@ public class ForgotPasswordHandlerTests
     [Test]
     public async Task HandleAsync_UserHasNoFullNameButHasUsername_SendsEmailWithUsernameAsDisplayName()
     {
-        var user = CreateActiveStaff("staff@test.com", "Staff"); // FullName null, Username = "user1"
+        var user = CreateActiveStaff("staff@test.com", UserRole.Staff); // FullName null, Username = "user1"
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(user);
 
-        await _handler.HandleAsync(new ForgotPasswordCommand("staff@test.com"));
+        await _handler.Handle(new ForgotPasswordCommand("staff@test.com"), CancellationToken.None);
 
         await _emailService.Received(1).SendPasswordResetAsync(
             Arg.Any<string>(), "user1", Arg.Any<string>(), Arg.Any<CancellationToken>());
@@ -145,10 +146,10 @@ public class ForgotPasswordHandlerTests
     [Test]
     public async Task HandleAsync_UserHasNoFullNameAndNoUsername_SendsEmailWithEmailAsDisplayName()
     {
-        var user = User.CreateEmployee("staff@test.com", "Staff"); // Username null, FullName null
+        var user = User.CreateEmployee("staff@test.com", UserRole.Staff); // Username null, FullName null
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(user);
 
-        await _handler.HandleAsync(new ForgotPasswordCommand("staff@test.com"));
+        await _handler.Handle(new ForgotPasswordCommand("staff@test.com"), CancellationToken.None);
 
         await _emailService.Received(1).SendPasswordResetAsync(
             Arg.Any<string>(), "staff@test.com", Arg.Any<string>(), Arg.Any<CancellationToken>());
@@ -166,7 +167,7 @@ public class ForgotPasswordHandlerTests
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns((User?)null);
 
-        Func<Task> act = () => _handler.HandleAsync(new ForgotPasswordCommand("notfound@test.com"));
+        Func<Task> act = () => _handler.Handle(new ForgotPasswordCommand("notfound@test.com"), CancellationToken.None);
 
         await act.Should().NotThrowAsync();
         await _emailService.DidNotReceive().SendPasswordResetAsync(
@@ -180,10 +181,10 @@ public class ForgotPasswordHandlerTests
     [Test]
     public async Task HandleAsync_PatientRole_CompletesWithoutSendingEmail()
     {
-        var patient = CreateActiveStaff("patient@test.com", "Patient");
+        var patient = CreateActiveStaff("patient@test.com", UserRole.Patient);
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(patient);
 
-        Func<Task> act = () => _handler.HandleAsync(new ForgotPasswordCommand("patient@test.com"));
+        Func<Task> act = () => _handler.Handle(new ForgotPasswordCommand("patient@test.com"), CancellationToken.None);
 
         await act.Should().NotThrowAsync();
         await _emailService.DidNotReceive().SendPasswordResetAsync(
@@ -197,11 +198,11 @@ public class ForgotPasswordHandlerTests
     [Test]
     public async Task HandleAsync_InactiveUser_CompletesWithoutSendingEmail()
     {
-        var user = CreateActiveStaff("staff@test.com", "Admin");
+        var user = CreateActiveStaff("staff@test.com", UserRole.Admin);
         user.SetActive(false);
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(user);
 
-        Func<Task> act = () => _handler.HandleAsync(new ForgotPasswordCommand("staff@test.com"));
+        Func<Task> act = () => _handler.Handle(new ForgotPasswordCommand("staff@test.com"), CancellationToken.None);
 
         await act.Should().NotThrowAsync();
         await _emailService.DidNotReceive().SendPasswordResetAsync(
@@ -215,17 +216,17 @@ public class ForgotPasswordHandlerTests
     [Test]
     public async Task HandleAsync_EmailWithWhitespaceAndUpperCase_NormalizesBeforeLookup()
     {
-        var user = CreateActiveStaff("staff@test.com", "Staff");
+        var user = CreateActiveStaff("staff@test.com", UserRole.Staff);
         _userRepo.GetByEmailAsync("staff@test.com", Arg.Any<CancellationToken>()).Returns(user);
 
-        await _handler.HandleAsync(new ForgotPasswordCommand("  Staff@Test.COM  "));
+        await _handler.Handle(new ForgotPasswordCommand("  Staff@Test.COM  "), CancellationToken.None);
 
         await _userRepo.Received(1).GetByEmailAsync("staff@test.com", Arg.Any<CancellationToken>());
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static User CreateActiveStaff(string email, string role)
+    private static User CreateActiveStaff(string email, UserRole role)
     {
         var hash = BCrypt.Net.BCrypt.HashPassword("anypass");
         return User.Create("user1", email, hash, role);

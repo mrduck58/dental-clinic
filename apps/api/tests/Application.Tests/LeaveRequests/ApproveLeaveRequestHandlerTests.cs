@@ -37,7 +37,7 @@ public class ApproveLeaveRequestHandlerTests
         _repo.GetByIdAsync(lr.Id, Arg.Any<CancellationToken>()).Returns(lr);
         var handler = new ApproveLeaveRequestHandler(_repo, _activityLog, _notification, _currentUser);
 
-        var result = await handler.HandleAsync(lr.Id);
+        var result = await handler.Handle(new ApproveLeaveRequestCommand(lr.Id), CancellationToken.None);
 
         await _repo.Received(1).UpdateAsync(lr, Arg.Any<CancellationToken>());
         result.Status.Should().Be("Approved");
@@ -52,7 +52,7 @@ public class ApproveLeaveRequestHandlerTests
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((LeaveRequest?)null);
         var handler = new ApproveLeaveRequestHandler(_repo, _activityLog, _notification, _currentUser);
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid());
+        Func<Task> act = () => handler.Handle(new ApproveLeaveRequestCommand(Guid.NewGuid()), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -69,7 +69,7 @@ public class ApproveLeaveRequestHandlerTests
         _repo.GetByIdAsync(lr.Id, Arg.Any<CancellationToken>()).Returns(lr);
         var handler = new ApproveLeaveRequestHandler(_repo, _activityLog, _notification, _currentUser);
 
-        Func<Task> act = () => handler.HandleAsync(lr.Id);
+        Func<Task> act = () => handler.Handle(new ApproveLeaveRequestCommand(lr.Id), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -86,7 +86,7 @@ public class ApproveLeaveRequestHandlerTests
         _repo.GetByIdAsync(lr.Id, Arg.Any<CancellationToken>()).Returns(lr);
         var handler = new ApproveLeaveRequestHandler(_repo, _activityLog, _notification, _currentUser);
 
-        Func<Task> act = () => handler.HandleAsync(lr.Id);
+        Func<Task> act = () => handler.Handle(new ApproveLeaveRequestCommand(lr.Id), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
     }
@@ -102,7 +102,7 @@ public class ApproveLeaveRequestHandlerTests
         _repo.GetByIdAsync(lr.Id, Arg.Any<CancellationToken>()).Returns(lr);
         var handler = new ApproveLeaveRequestHandler(_repo, _activityLog, _notification, _currentUser);
 
-        await handler.HandleAsync(lr.Id);
+        await handler.Handle(new ApproveLeaveRequestCommand(lr.Id), CancellationToken.None);
 
         await _notification.Received(1).CreateAsync(
             Arg.Is<CreateNotificationRequest>(n => n.UserId == lr.UserId),
@@ -113,7 +113,7 @@ public class ApproveLeaveRequestHandlerTests
     {
         var today = DateOnly.FromDateTime(DateTime.Today);
         var lr = LeaveRequest.Create(Guid.NewGuid(), LeaveType.Annual, today, today.AddDays(2), "Lý do test");
-        var user = User.Create("emp", "emp@test.com", "hash", "Staff", null, "Test");
+        var user = User.Create("emp", "emp@test.com", "hash", UserRole.Staff, null, "Test");
         typeof(LeaveRequest).GetProperty("User")!.SetValue(lr, user);
         return lr;
     }

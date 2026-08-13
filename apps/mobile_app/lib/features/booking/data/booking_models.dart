@@ -76,7 +76,11 @@ class DoctorInfo {
     this.avatarUrl,
   });
 
-  String get fullName => '$title. $name';
+  String get fullName {
+    final cleanName = name.replaceAll(RegExp(r'^[.\s,:-]+'), '').trim();
+    if (title.isEmpty) return cleanName;
+    return '$title $cleanName';
+  }
   String get sessionLabel =>
       session == DoctorSession.morning ? 'Buổi sáng' : 'Buổi chiều';
 }
@@ -99,6 +103,11 @@ class BookingDraft {
   /// không tự động chọn thay người dùng (vẫn cần xác nhận khung giờ thủ công).
   final String? preferredDentistId;
 
+  /// Khác null nghĩa là luồng này đang DỜI lịch hẹn đó chứ không đặt lịch mới. Cùng một wizard
+  /// (chọn bác sĩ → chọn giờ → xác nhận), chỉ khác thao tác ở bước cuối — nhờ vậy không phải dựng
+  /// thêm một màn chọn ngày giờ thứ hai chỉ để đổi lịch.
+  final String? reschedulingAppointmentId;
+
   const BookingDraft({
     this.patient,
     this.service,
@@ -111,7 +120,10 @@ class BookingDraft {
     this.appointmentId,
     this.appointmentCode,
     this.preferredDentistId,
+    this.reschedulingAppointmentId,
   });
+
+  bool get isRescheduling => reschedulingAppointmentId != null;
 
   BookingDraft copyWith({
     PatientInfo? patient,
@@ -125,6 +137,7 @@ class BookingDraft {
     String? appointmentId,
     String? appointmentCode,
     String? preferredDentistId,
+    String? reschedulingAppointmentId,
   }) {
     return BookingDraft(
       patient: patient ?? this.patient,
@@ -138,6 +151,7 @@ class BookingDraft {
       appointmentId: appointmentId ?? this.appointmentId,
       appointmentCode: appointmentCode ?? this.appointmentCode,
       preferredDentistId: preferredDentistId ?? this.preferredDentistId,
+      reschedulingAppointmentId: reschedulingAppointmentId ?? this.reschedulingAppointmentId,
     );
   }
 }
@@ -214,6 +228,7 @@ class ApiDoctorWithSlots {
 class MyAppointmentItem {
   final String appointmentId;
   final String appointmentCode;
+  final String dentistId;
   final String dentistName;
   final String? dentistAvatarUrl;
   final String specialization;
@@ -228,6 +243,7 @@ class MyAppointmentItem {
   const MyAppointmentItem({
     required this.appointmentId,
     required this.appointmentCode,
+    this.dentistId = '',
     required this.dentistName,
     this.dentistAvatarUrl,
     required this.specialization,
@@ -244,6 +260,7 @@ class MyAppointmentItem {
       MyAppointmentItem(
         appointmentId: json['appointmentId'].toString(),
         appointmentCode: json['appointmentCode'] as String,
+        dentistId: json['dentistId']?.toString() ?? '',
         dentistName: json['dentistName'] as String? ?? '',
         dentistAvatarUrl: json['dentistAvatarUrl'] as String?,
         specialization: json['specialization'] as String? ?? '',

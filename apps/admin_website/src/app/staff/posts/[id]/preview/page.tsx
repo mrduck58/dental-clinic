@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { getPostByIdApi, type PostDto } from "../../../../../lib/apiClient";
+import { getPostByIdApi, resolveAssetUrl, type PostDto } from "../../../../../lib/apiClient";
 import StaffSidebar from "../../../../../components/shared/StaffSidebar";
 import { useRequireStaff } from "../../../../../hooks/useRequireStaff";
 import NotificationBell from "../../../../../components/shared/NotificationBell";
@@ -114,7 +114,7 @@ export default function PreviewPostPage({ params }: PreviewPostPageProps) {
                 {/* Thumbnail */}
                 {post.thumbnailUrl ? (
                   <img
-                    src={post.thumbnailUrl}
+                    src={resolveAssetUrl(post.thumbnailUrl)}
                     alt={post.title}
                     className="w-full h-72 object-cover"
                   />

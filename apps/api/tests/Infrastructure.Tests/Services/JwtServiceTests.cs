@@ -1,10 +1,10 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Infrastructure.Services;
 using DentalClinic.API.Infrastructure.Settings;
 using FluentAssertions;
-using Microsoft.Extensions.Options;
 using NUnit.Framework;
 
 namespace DentalClinic.API.Infrastructure.Tests.Services;
@@ -26,7 +26,7 @@ public class JwtServiceTests
         };
     }
 
-    private JwtService CreateSut() => new(Options.Create(_settings));
+    private JwtService CreateSut() => new(_settings);
 
     /// <summary>
     /// Token hợp lệ phải là chuỗi không rỗng, đúng định dạng JWT 3 phần cách nhau bởi dấu chấm.
@@ -34,7 +34,7 @@ public class JwtServiceTests
     [Test]
     public void GenerateToken_ValidUser_ReturnsWellFormedJwt()
     {
-        var user = User.Create("testuser", "test@clinic.com", "hash", "Staff");
+        var user = User.Create("testuser", "test@clinic.com", "hash", UserRole.Staff);
 
         var token = CreateSut().GenerateToken(user);
 
@@ -48,7 +48,7 @@ public class JwtServiceTests
     [Test]
     public void GenerateToken_ContainsCorrectEmailClaim()
     {
-        var user = User.Create("testuser", "test@clinic.com", "hash", "Staff");
+        var user = User.Create("testuser", "test@clinic.com", "hash", UserRole.Staff);
 
         var claims = GetClaims(CreateSut().GenerateToken(user));
 
@@ -61,7 +61,7 @@ public class JwtServiceTests
     [Test]
     public void GenerateToken_ContainsCorrectRoleClaim()
     {
-        var user = User.Create("dentist01", "dentist@clinic.com", "hash", "Dentist");
+        var user = User.Create("dentist01", "dentist@clinic.com", "hash", UserRole.Dentist);
 
         var claims = GetClaims(CreateSut().GenerateToken(user));
 
@@ -74,7 +74,7 @@ public class JwtServiceTests
     [Test]
     public void GenerateToken_ContainsSubClaimWithUserId()
     {
-        var user = User.Create("testuser", "test@clinic.com", "hash", "Staff");
+        var user = User.Create("testuser", "test@clinic.com", "hash", UserRole.Staff);
 
         var claims = GetClaims(CreateSut().GenerateToken(user));
 
@@ -87,7 +87,7 @@ public class JwtServiceTests
     [Test]
     public void GenerateToken_UserHasUsername_UsernameClaimContainsUsername()
     {
-        var user = User.Create("bsnguyenvan", "nguyenvan@clinic.com", "hash", "Staff");
+        var user = User.Create("bsnguyenvan", "nguyenvan@clinic.com", "hash", UserRole.Staff);
 
         var claims = GetClaims(CreateSut().GenerateToken(user));
 
@@ -101,7 +101,7 @@ public class JwtServiceTests
     [Test]
     public void GenerateToken_NullUsername_UsernameClaimFallsBackToEmail()
     {
-        var user = User.CreateEmployee("noname@clinic.com", "Staff");
+        var user = User.CreateEmployee("noname@clinic.com", UserRole.Staff);
 
         var claims = GetClaims(CreateSut().GenerateToken(user));
 
@@ -115,7 +115,7 @@ public class JwtServiceTests
     public void GenerateToken_TokenExpiresAfterConfiguredMinutes()
     {
         _settings = _settings with { ExpiryMinutes = 90 };
-        var user = User.Create("testuser", "test@clinic.com", "hash", "Staff");
+        var user = User.Create("testuser", "test@clinic.com", "hash", UserRole.Staff);
 
         var jwt = ReadJwt(CreateSut().GenerateToken(user));
 
@@ -128,7 +128,7 @@ public class JwtServiceTests
     [Test]
     public void GenerateToken_IssuerAndAudienceMatchSettings()
     {
-        var user = User.Create("testuser", "test@clinic.com", "hash", "Staff");
+        var user = User.Create("testuser", "test@clinic.com", "hash", UserRole.Staff);
 
         var jwt = ReadJwt(CreateSut().GenerateToken(user));
 

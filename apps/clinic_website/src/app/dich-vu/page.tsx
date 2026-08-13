@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import PageHeader from "@/components/shared/PageHeader";
 import ServicesSection from "@/components/sections/ServicesSection";
 import ProcessSection from "@/components/sections/ProcessSection";
-import AppDownload from "@/components/sections/AppDownload";
 import FilterBar from "@/components/shared/FilterBar";
 import Pagination from "@/components/shared/Pagination";
 import { getServices } from "@/lib/api";
@@ -94,7 +93,6 @@ export default async function DichVuPage({ searchParams }: Props) {
         }
       />
       <ProcessSection />
-      <AppDownload />
     </div>
   );
 }

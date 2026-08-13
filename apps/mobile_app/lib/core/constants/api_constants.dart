@@ -1,11 +1,30 @@
-import 'package:flutter/foundation.dart';
+import 'package:mobile_app/app/settings_manager.dart';
 
 abstract class ApiConstants {
-  // Web/desktop → localhost | Android emulator → 10.0.2.2 | iOS simulator → localhost
-  // Điện thoại thật qua cáp USB → localhost (cần chạy `adb reverse tcp:5239 tcp:5239` trước).
-  // ⚠️ Nếu quay lại test bằng Android Emulator, phải đổi lại thành 'http://10.0.2.2:5239/api'.
-  static final String baseUrl =
-      kIsWeb ? 'http://localhost:5239/api' : 'http://localhost:5239/api';
+  // Mặc định (USB/emulator): xem kDefaultApiBaseUrl trong settings_manager.dart.
+  // Có thể đổi runtime qua trang Cài đặt > Địa chỉ máy chủ (vd: test qua Cloudflare
+  // Tunnel) — không cần build lại app. ⚠️ Nếu quay lại test bằng Android Emulator,
+  // đổi giá trị trong Cài đặt thành 'http://10.0.2.2:5239/api'.
+  static String get baseUrl => SettingsManager.instance.apiBaseUrl.value;
+
+  /// Backend trả về path tương đối cho ảnh upload (ví dụ "/uploads/xxx.jpg") — hàm này ghép
+  /// đúng host của APP (không phải host lưu trong DB) để ảnh load được trên mọi thiết bị.
+  ///
+  /// Xử lý thêm 1 trường hợp lỗi dữ liệu cũ: một số ảnh (dịch vụ, bài viết, avatar nhân viên)
+  /// từng bị web admin lưu nhầm thành URL tuyệt đối trỏ về "localhost" của máy dev — không app
+  /// nào tải được URL đó. Nhận diện host localhost/127.0.0.1 và tự ghép lại bằng host thật của
+  /// app thay vì tin theo host đã lưu trong DB.
+  static String? resolveAssetUrl(String? url) {
+    if (url == null || url.isEmpty) return null;
+    final host = baseUrl.replaceAll('/api', '');
+    if (url.startsWith('/')) return '$host$url';
+
+    final uri = Uri.tryParse(url);
+    final isLocalhost = uri != null && (uri.host == 'localhost' || uri.host == '127.0.0.1');
+    if (isLocalhost && uri.path.isNotEmpty) return '$host${uri.path}';
+
+    return url;
+  }
 
   static const String login = '/auth/login';
   static const String register = '/auth/register';
@@ -23,6 +42,10 @@ abstract class ApiConstants {
   static const String dentistSlots = '/dentists/slots';
   static String dentistDetail(String id) => '/dentists/$id';
   static String dentistReviews(String id) => '/dentists/$id/reviews';
+  static String dentistReviewEligibility(String id) => '/dentists/$id/review-eligibility';
+  static const String feedbacks = '/feedbacks';
+  static const String featuredFeedbacks = '/feedbacks/featured';
+  static const String clinicFeedbackEligibility = '/feedbacks/eligibility';
   static const String services = '/services';
   static const String posts = '/posts';
   static const String appointments = '/appointments';

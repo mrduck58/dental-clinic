@@ -15,7 +15,6 @@ public class MaterialRequestConfiguration : IEntityTypeConfiguration<MaterialReq
         builder.Property(m => m.CourseName).HasMaxLength(300);
         builder.Property(m => m.PatientName).HasMaxLength(200);
         builder.Property(m => m.DentistName).HasMaxLength(200);
-        builder.Property(m => m.Content).HasMaxLength(2000).IsRequired();
         builder.Property(m => m.HandledBy).HasMaxLength(200);
 
         builder.Property(m => m.Status)
@@ -23,5 +22,13 @@ public class MaterialRequestConfiguration : IEntityTypeConfiguration<MaterialReq
             .HasMaxLength(20);
 
         builder.HasIndex(m => m.Status);
+
+        builder.HasMany(m => m.Items)
+            .WithOne()
+            .HasForeignKey(i => i.MaterialRequestId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Metadata.FindNavigation(nameof(MaterialRequest.Items))!
+            .SetPropertyAccessMode(PropertyAccessMode.Field);
     }
 }

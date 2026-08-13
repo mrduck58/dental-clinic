@@ -1,6 +1,7 @@
 using DentalClinic.API.Application.UseCases.Auth;
 using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using FluentAssertions;
@@ -39,7 +40,7 @@ public class LoginHandlerTests
         _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
         _jwtService.GenerateToken(user).Returns("jwt-token");
 
-        var result = await _handler.HandleAsync(new LoginCommand(user.Email, "pass123"));
+        var result = await _handler.Handle(new LoginCommand(user.Email, "pass123"), CancellationToken.None);
 
         result.AccessToken.Should().Be("jwt-token");
     }
@@ -55,7 +56,7 @@ public class LoginHandlerTests
         _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
         _jwtService.GenerateToken(user).Returns("token");
 
-        var result = await _handler.HandleAsync(new LoginCommand(user.Email, "pass123"));
+        var result = await _handler.Handle(new LoginCommand(user.Email, "pass123"), CancellationToken.None);
 
         result.User.Email.Should().Be(user.Email);
         result.User.Role.Should().Be("Staff");
@@ -73,7 +74,7 @@ public class LoginHandlerTests
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(user);
         _jwtService.GenerateToken(Arg.Any<User>()).Returns("token");
 
-        var result = await _handler.HandleAsync(new LoginCommand(user.Email, "pass"));
+        var result = await _handler.Handle(new LoginCommand(user.Email, "pass"), CancellationToken.None);
 
         result.ExpiresIn.Should().Be(900); // 15 * 60
     }
@@ -89,7 +90,7 @@ public class LoginHandlerTests
         _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
         _jwtService.GenerateToken(Arg.Any<User>()).Returns("token");
 
-        await _handler.HandleAsync(new LoginCommand(user.Email, "pass123"));
+        await _handler.Handle(new LoginCommand(user.Email, "pass123"), CancellationToken.None);
 
         _jwtService.Received(1).GenerateToken(user);
     }
@@ -105,12 +106,12 @@ public class LoginHandlerTests
         _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
         _jwtService.GenerateToken(Arg.Any<User>()).Returns("token");
 
-        await _handler.HandleAsync(new LoginCommand(user.Email, "pass123"));
+        await _handler.Handle(new LoginCommand(user.Email, "pass123"), CancellationToken.None);
 
         await _activityLog.Received(1).LogAsync(
             user.Id,
             Arg.Any<string>(),
-            user.Role,
+            user.Role.ToString(),
             ActivityAction.Login,
             ActivityModule.Account,
             Arg.Any<string>(),
@@ -130,7 +131,7 @@ public class LoginHandlerTests
         var user = CreateActiveUserWithPassword("correctpass");
         _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
 
-        Assert.CatchAsync(() => _handler.HandleAsync(new LoginCommand(user.Email, "wrongpass")));
+        Assert.CatchAsync(() => _handler.Handle(new LoginCommand(user.Email, "wrongpass"), CancellationToken.None));
 
         await _activityLog.Received(1).LogAsync(
             null,
@@ -156,12 +157,12 @@ public class LoginHandlerTests
         user.SetActive(false);
         _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
 
-        Assert.CatchAsync(() => _handler.HandleAsync(new LoginCommand(user.Email, "pass123")));
+        Assert.CatchAsync(() => _handler.Handle(new LoginCommand(user.Email, "pass123"), CancellationToken.None));
 
         await _activityLog.Received(1).LogAsync(
             user.Id,
             Arg.Any<string>(),
-            user.Role,
+            user.Role.ToString(),
             ActivityAction.Login,
             ActivityModule.Account,
             Arg.Any<string>(),
@@ -184,8 +185,8 @@ public class LoginHandlerTests
         _userRepo.GetByEmailAsync(staff.Email, Arg.Any<CancellationToken>()).Returns(staff);
         _jwtService.GenerateToken(Arg.Any<User>()).Returns("jwt-token");
 
-        var result = await _handler.HandleAsync(
-            new LoginCommand(staff.Email, "pass123", AllowedRoles: ["Admin", "Dentist", "Staff"]));
+        var result = await _handler.Handle(
+            new LoginCommand(staff.Email, "pass123", AllowedRoles: ["Admin", "Dentist", "Staff"]), CancellationToken.None);
 
         result.AccessToken.Should().Be("jwt-token");
     }
@@ -201,8 +202,8 @@ public class LoginHandlerTests
         _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
         _jwtService.GenerateToken(Arg.Any<User>()).Returns("jwt-token");
 
-        var result = await _handler.HandleAsync(
-            new LoginCommand(user.Email, "pass123", AllowedRoles: []));
+        var result = await _handler.Handle(
+            new LoginCommand(user.Email, "pass123", AllowedRoles: []), CancellationToken.None);
 
         result.AccessToken.Should().Be("jwt-token");
     }
@@ -219,7 +220,7 @@ public class LoginHandlerTests
         _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns((User?)null);
 
-        Func<Task> act = () => _handler.HandleAsync(new LoginCommand("notfound@test.com", "pass"));
+        Func<Task> act = () => _handler.Handle(new LoginCommand("notfound@test.com", "pass"), CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
     }
@@ -235,7 +236,7 @@ public class LoginHandlerTests
         user.SetActive(false);
         _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
 
-        Func<Task> act = () => _handler.HandleAsync(new LoginCommand(user.Email, "pass123"));
+        Func<Task> act = () => _handler.Handle(new LoginCommand(user.Email, "pass123"), CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>()
             .WithMessage("*vô hiệu hóa*");
@@ -252,7 +253,7 @@ public class LoginHandlerTests
         user.SetActive(false);
         _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
 
-        Assert.CatchAsync(() => _handler.HandleAsync(new LoginCommand(user.Email, "pass123")));
+        Assert.CatchAsync(() => _handler.Handle(new LoginCommand(user.Email, "pass123"), CancellationToken.None));
 
         _jwtService.DidNotReceive().GenerateToken(Arg.Any<User>());
     }
@@ -267,7 +268,7 @@ public class LoginHandlerTests
         var user = CreateActiveUserWithPassword("correctpass");
         _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
 
-        Func<Task> act = () => _handler.HandleAsync(new LoginCommand(user.Email, "wrongpass"));
+        Func<Task> act = () => _handler.Handle(new LoginCommand(user.Email, "wrongpass"), CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
     }
@@ -279,10 +280,10 @@ public class LoginHandlerTests
     [Test]
     public async Task HandleAsync_EmployeeWithNoPasswordHash_ThrowsUnauthorizedAccessException()
     {
-        var user = User.CreateEmployee("emp@test.com", "Staff");
+        var user = User.CreateEmployee("emp@test.com", UserRole.Staff);
         _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
 
-        Func<Task> act = () => _handler.HandleAsync(new LoginCommand(user.Email, "anypass"));
+        Func<Task> act = () => _handler.Handle(new LoginCommand(user.Email, "anypass"), CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
     }
@@ -300,8 +301,8 @@ public class LoginHandlerTests
         _userRepo.GetByEmailAsync(patient.Email, Arg.Any<CancellationToken>()).Returns(patient);
         _jwtService.GenerateToken(Arg.Any<User>()).Returns("token");
 
-        Func<Task> act = () => _handler.HandleAsync(
-            new LoginCommand(patient.Email, "pass123", AllowedRoles: ["Admin", "Dentist", "Staff"]));
+        Func<Task> act = () => _handler.Handle(
+            new LoginCommand(patient.Email, "pass123", AllowedRoles: ["Admin", "Dentist", "Staff"]), CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
     }
@@ -317,8 +318,8 @@ public class LoginHandlerTests
         _userRepo.GetByEmailAsync(staff.Email, Arg.Any<CancellationToken>()).Returns(staff);
         _jwtService.GenerateToken(Arg.Any<User>()).Returns("token");
 
-        Func<Task> act = () => _handler.HandleAsync(
-            new LoginCommand(staff.Email, "pass123", AllowedRoles: ["Patient"]));
+        Func<Task> act = () => _handler.Handle(
+            new LoginCommand(staff.Email, "pass123", AllowedRoles: ["Patient"]), CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>();
     }
@@ -334,7 +335,7 @@ public class LoginHandlerTests
         patient.SetActive(false);
         _userRepo.GetByEmailAsync(patient.Email, Arg.Any<CancellationToken>()).Returns(patient);
 
-        Func<Task> act = () => _handler.HandleAsync(new LoginCommand(patient.Email, "pass123"));
+        Func<Task> act = () => _handler.Handle(new LoginCommand(patient.Email, "pass123"), CancellationToken.None);
 
         await act.Should().ThrowAsync<UnauthorizedAccessException>()
             .WithMessage("*xác thực*");
@@ -342,15 +343,112 @@ public class LoginHandlerTests
 
     // ── Helper ────────────────────────────────────────────────────────────────
 
+    // ── Khóa tạm sau nhiều lần đăng nhập sai ──────────────────────────────────
+
+    /// <summary>Sai mật khẩu phải cộng bộ đếm và lưu lại, nếu không thì không có gì để khóa.</summary>
+    [Test]
+    public async Task HandleAsync_WrongPassword_IncrementsFailedAttempts()
+    {
+        var user = CreateActiveUserWithPassword("pass123");
+        _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
+
+        Func<Task> act = () => _handler.Handle(new LoginCommand(user.Email, "sai-mat-khau"), CancellationToken.None);
+
+        await act.Should().ThrowAsync<UnauthorizedAccessException>();
+        user.FailedLoginAttempts.Should().Be(1);
+        await _userRepo.Received(1).UpdateAsync(user, Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Đủ 5 lần sai liên tiếp thì tài khoản bị khóa và bộ đếm được đặt lại.</summary>
+    [Test]
+    public async Task HandleAsync_FiveWrongPasswords_LocksAccount()
+    {
+        var user = CreateActiveUserWithPassword("pass123");
+        _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
+
+        for (var i = 0; i < 5; i++)
+        {
+            Func<Task> attempt = () => _handler.Handle(new LoginCommand(user.Email, "sai"), CancellationToken.None);
+            await attempt.Should().ThrowAsync<UnauthorizedAccessException>();
+        }
+
+        user.IsLockedOut(DateTimeOffset.UtcNow).Should().BeTrue();
+        user.FailedLoginAttempts.Should().Be(0, "bộ đếm phải reset để sau khi hết khóa còn đủ lượt thử lại");
+    }
+
+    /// <summary>
+    /// Đang bị khóa thì từ chối NGAY, kể cả khi mật khẩu đúng — và tuyệt đối không băm mật khẩu,
+    /// vì BCrypt workFactor 12 rất chậm, để lọt sẽ biến chính cơ chế bảo vệ thành đòn bẩy gây nghẽn.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_LockedAccount_RejectsEvenWithCorrectPassword()
+    {
+        var user = CreateActiveUserWithPassword("pass123");
+        user.RegisterFailedLogin(DateTimeOffset.UtcNow, maxAttempts: 1, lockoutDuration: TimeSpan.FromMinutes(15));
+        _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
+
+        Func<Task> act = () => _handler.Handle(new LoginCommand(user.Email, "pass123"), CancellationToken.None);
+
+        (await act.Should().ThrowAsync<UnauthorizedAccessException>())
+            .WithMessage("*tạm khóa*");
+        _jwtService.DidNotReceive().GenerateToken(Arg.Any<User>());
+    }
+
+    /// <summary>Hết thời hạn khóa thì đăng nhập lại được, không cần ai can thiệp thủ công.</summary>
+    [Test]
+    public async Task HandleAsync_LockoutExpired_AllowsLogin()
+    {
+        var user = CreateActiveUserWithPassword("pass123");
+        user.RegisterFailedLogin(
+            DateTimeOffset.UtcNow.AddHours(-2), maxAttempts: 1, lockoutDuration: TimeSpan.FromMinutes(15));
+        _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
+        _jwtService.GenerateToken(user).Returns("jwt-token");
+
+        var result = await _handler.Handle(new LoginCommand(user.Email, "pass123"), CancellationToken.None);
+
+        result.AccessToken.Should().Be("jwt-token");
+    }
+
+    /// <summary>Đăng nhập đúng xóa sạch bộ đếm, để những lần gõ nhầm rải rác không cộng dồn khóa oan.</summary>
+    [Test]
+    public async Task HandleAsync_SuccessfulLogin_ClearsFailedAttempts()
+    {
+        var user = CreateActiveUserWithPassword("pass123");
+        user.RegisterFailedLogin(DateTimeOffset.UtcNow, maxAttempts: 5, lockoutDuration: TimeSpan.FromMinutes(15));
+        _userRepo.GetByEmailAsync(user.Email, Arg.Any<CancellationToken>()).Returns(user);
+        _jwtService.GenerateToken(user).Returns("jwt-token");
+
+        await _handler.Handle(new LoginCommand(user.Email, "pass123"), CancellationToken.None);
+
+        user.FailedLoginAttempts.Should().Be(0);
+        user.LockoutEndAt.Should().BeNull();
+    }
+
+    /// <summary>
+    /// Email không tồn tại không được ghi gì xuống DB — không có tài khoản nào để khóa, và ghi vào
+    /// đây sẽ mở đường cho việc dò xem email nào có thật qua độ trễ phản hồi.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_UnknownEmail_DoesNotTouchRepository()
+    {
+        _userRepo.GetByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns((User?)null);
+
+        Func<Task> act = () => _handler.Handle(
+            new LoginCommand("khong-ton-tai@test.com", "bat-ky"), CancellationToken.None);
+
+        await act.Should().ThrowAsync<UnauthorizedAccessException>();
+        await _userRepo.DidNotReceive().UpdateAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
+    }
+
     private static User CreateActiveUserWithPassword(string plainPassword)
     {
         var hash = BCrypt.Net.BCrypt.HashPassword(plainPassword);
-        return User.Create("user1", "test@test.com", hash, "Staff");
+        return User.Create("user1", "test@test.com", hash, UserRole.Staff);
     }
 
     private static User CreateActivePatientWithPassword(string plainPassword)
     {
         var hash = BCrypt.Net.BCrypt.HashPassword(plainPassword);
-        return User.Create("patient1", "patient@test.com", hash, "Patient");
+        return User.Create("patient1", "patient@test.com", hash, UserRole.Patient);
     }
 }

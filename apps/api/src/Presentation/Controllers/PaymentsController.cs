@@ -1,9 +1,12 @@
+using DentalClinic.API.Application.DTOs.Invoices;
+using DentalClinic.API.Application.DTOs.Payments;
 using DentalClinic.API.Application.UseCases.Invoices;
 using DentalClinic.API.Application.UseCases.Payments;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -12,8 +15,7 @@ namespace DentalClinic.API.Presentation.Controllers;
 [ApiController]
 [Route("api/payments")]
 public class PaymentsController(
-    PaymentHandler paymentHandler,
-    InvoiceHandler invoiceHandler,
+    ISender sender,
     IPatientRepository patientRepository,
     ICurrentUserService currentUser) : ControllerBase
 {
@@ -27,7 +29,7 @@ public class PaymentsController(
             : null;
         if (patient is null) return Ok(new List<InvoiceDto>());
 
-        var result = await invoiceHandler.GetPendingByPatientAsync(patient.Id, cancellationToken);
+        var result = await sender.Send(new GetPendingInvoicesByPatientQuery(patient.Id), cancellationToken);
         return Ok(result);
     }
 
@@ -41,7 +43,7 @@ public class PaymentsController(
             : null;
         if (patient is null) return Ok(new List<InvoiceDto>());
 
-        var result = await invoiceHandler.GetPaidByPatientAsync(patient.Id, cancellationToken);
+        var result = await sender.Send(new GetPaidInvoicesByPatientQuery(patient.Id), cancellationToken);
         return Ok(result);
     }
 
@@ -52,7 +54,8 @@ public class PaymentsController(
         Guid invoiceId, [FromBody] CreatePaymentRequestRequest request, CancellationToken cancellationToken)
     {
         var gateway = ParseGateway(request.Gateway);
-        var result = await paymentHandler.CreatePaymentRequestAsync(invoiceId, gateway, cancellationToken);
+        var result = await sender.Send(
+            new CreatePaymentRequestCommand(invoiceId, gateway, PatientScopeOrNull()), cancellationToken);
         return Ok(result);
     }
 
@@ -61,7 +64,8 @@ public class PaymentsController(
     [Authorize(Roles = "Patient,Staff,Admin,Owner")]
     public async Task<IActionResult> GetStatus(Guid invoiceId, CancellationToken cancellationToken)
     {
-        var result = await paymentHandler.GetStatusAsync(invoiceId, cancellationToken);
+        var result = await sender.Send(
+            new GetPaymentStatusQuery(invoiceId, PatientScopeOrNull()), cancellationToken);
         return Ok(result);
     }
 
@@ -74,9 +78,22 @@ public class PaymentsController(
         var raw = await reader.ReadToEndAsync(cancellationToken);
 
         var headers = Request.Headers.ToDictionary(h => h.Key, h => h.Value.ToString());
-        await paymentHandler.HandleWebhookAsync(PaymentGateway.PayOS, raw, headers, cancellationToken);
+        await sender.Send(new HandlePaymentWebhookCommand(PaymentGateway.PayOS, raw, headers), cancellationToken);
 
         return Ok();
+    }
+
+    /// <summary>
+    /// Hai endpoint dưới đây mở cho cả bệnh nhân lẫn nhân viên. Bệnh nhân chỉ được thao tác trên hóa đơn
+    /// của mình/người nhà nên trả về id tài khoản để handler giới hạn phạm vi; nhân viên trả null (không giới hạn).
+    /// Ném 401 thay vì lặng lẽ trả null nếu token thiếu claim — thiếu id mà coi như nhân viên là mở toang.
+    /// </summary>
+    private Guid? PatientScopeOrNull()
+    {
+        if (!User.IsInRole("Patient")) return null;
+
+        return currentUser.UserId
+            ?? throw new UnauthorizedAccessException("Không xác định được người dùng từ token.");
     }
 
     private static PaymentGateway ParseGateway(string? value) => value?.Trim().ToLowerInvariant() switch

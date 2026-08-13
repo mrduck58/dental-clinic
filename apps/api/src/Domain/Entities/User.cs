@@ -1,14 +1,19 @@
+using DentalClinic.API.Domain.Enums;
+using DentalClinic.API.Domain.Exceptions;
+
 namespace DentalClinic.API.Domain.Entities;
 
+/// <summary>
+/// Định danh + thông tin đăng nhập. KHÔNG chứa logic dựng Employee/DentistProfile — việc đó thuộc
+/// về tầng Application (CreateStaffHandler/UpdateStaffHandler...), User chỉ là identity thuần.
+/// </summary>
 public class User
 {
-    public const string DefaultEmploymentStatus = "Active";
-
     public Guid Id { get; private set; }
     public string? Username { get; private set; }
     public string? Email { get; private set; }
     public string? PasswordHash { get; private set; }
-    public string Role { get; private set; } = string.Empty;
+    public UserRole Role { get; private set; }
     public string FullName { get; private set; } = string.Empty;
     public string? Gender { get; private set; }
     public string? PhoneNumber { get; private set; }
@@ -26,14 +31,13 @@ public class User
 
     // Navigation properties
     public Patient? Patient { get; private set; }
-    public Dentist? Dentist { get; private set; }
-    public Staff? Staff { get; private set; }
+    public Employee? Employee { get; private set; }
 
     private User() { }
 
     /// <summary>Tạo user có tài khoản đăng nhập (dùng cho Admin/tạo tài khoản trực tiếp).</summary>
     public static User Create(
-        string username, string email, string passwordHash, string role,
+        string username, string email, string passwordHash, UserRole role,
         string? phoneNumber = null, string? fullName = null)
     {
         return new User
@@ -50,7 +54,7 @@ public class User
     }
 
     /// <summary>Tạo hồ sơ nhân viên chưa có tài khoản đăng nhập.</summary>
-    public static User CreateEmployee(string email, string role, string? phoneNumber = null, string? fullName = null)
+    public static User CreateEmployee(string email, UserRole role, string? phoneNumber = null, string? fullName = null)
     {
         return new User
         {
@@ -65,6 +69,36 @@ public class User
         };
     }
 
+    /// <summary>
+    /// Tạo tài khoản bệnh nhân do lễ tân lập hộ tại quầy. Bệnh nhân không tự đăng ký được nữa
+    /// (chặn kịch bản lập hàng loạt tài khoản để giữ kín khung giờ), nên đây là đường duy nhất
+    /// sinh ra tài khoản bệnh nhân mới.
+    ///
+    /// Mật khẩu do hệ thống sinh và gửi qua email, vì vậy tài khoản bị đánh dấu buộc đổi mật khẩu
+    /// ngay lần đăng nhập đầu tiên.
+    /// </summary>
+    public static User CreatePatientByClinic(
+        string username, string email, string passwordHash, string fullName, string? phoneNumber)
+    {
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Username = username,
+            Email = email,
+            PasswordHash = passwordHash,
+            Role = UserRole.Patient,
+            PhoneNumber = phoneNumber,
+            FullName = fullName,
+            // Lễ tân đã gặp/nói chuyện trực tiếp với bệnh nhân nên không cần xác thực OTP như luồng
+            // tự đăng ký cũ — chính con người đó là bước xác minh.
+            IsActive = true,
+            MustChangePassword = true,
+            CreatedAt = DateTimeOffset.UtcNow,
+        };
+
+        return user;
+    }
+
     /// <summary>Tạo tài khoản bệnh nhân từ đăng nhập Google — không có mật khẩu, email đã được Google xác thực.</summary>
     public static User CreateGoogleUser(string email, string? fullName, string? profilePictureUrl)
     {
@@ -74,13 +108,13 @@ public class User
             Username = null,
             Email = email,
             PasswordHash = null,
-            Role = "Patient",
+            Role = UserRole.Patient,
             FullName = fullName ?? string.Empty,
             Provider = "Google",
             IsActive = true,
             CreatedAt = DateTimeOffset.UtcNow
         };
-        
+
         user.Patient = Patient.Create(user.Id, profilePictureUrl: profilePictureUrl);
         return user;
     }
@@ -91,165 +125,42 @@ public class User
         PasswordHash = passwordHash;
     }
 
+    /// <summary>
+    /// Nâng một hồ sơ bệnh nhân CHƯA CÓ TÀI KHOẢN (tạo tại quầy, chỉ có tên + số điện thoại) thành
+    /// tài khoản đăng nhập được.
+    ///
+    /// Phải nâng tại chỗ chứ không tạo User mới: hồ sơ Patient và toàn bộ lịch sử khám, hóa đơn,
+    /// bệnh án đang trỏ vào User này. Tạo mới sẽ sinh hồ sơ bệnh nhân thứ hai và bỏ lại lịch sử cũ mồ côi.
+    /// </summary>
+    public void GrantClinicAccount(string username, string email, string passwordHash)
+    {
+        if (HasAccount)
+            throw new ConflictException("Tài khoản này đã có thông tin đăng nhập.");
+
+        Username = username;
+        Email = email;
+        PasswordHash = passwordHash;
+        IsActive = true;
+        MustChangePassword = true;
+    }
+
     public void UpdateFullName(string name) => FullName = name;
     public void UpdatePhoneNumber(string? phone) => PhoneNumber = phone;
     public void UpdateGender(string? gender) => Gender = gender;
 
-    public void SetStaffProfile(StaffProfileData profile)
+    /// <summary>Gắn hồ sơ Employee cho User này (được gọi từ CreateStaffHandler sau khi đã tạo Employee).</summary>
+    public void AttachEmployee(Employee employee) => Employee = employee;
+
+    /// <summary>Cập nhật thông tin định danh cơ bản (không đụng tới Employee/DentistProfile — do
+    /// UpdateStaffHandler tự cập nhật Employee/DentistProfile riêng qua repository tương ứng).</summary>
+    public void Update(string fullName, string email, string? phoneNumber, UserRole role, bool isActive, string? gender)
     {
-        Gender = profile.Gender;
-
-        if (Role == "Staff")
-        {
-            Staff = Staff.Create(
-                Id,
-                profile.EmployeeId ?? $"ST-{Guid.NewGuid().ToString("N")[..8].ToUpper()}",
-                profile.Department,
-                profile.Position,
-                profile.EmploymentStatus ?? DefaultEmploymentStatus,
-                profile.EmploymentType,
-                profile.StartDate,
-                profile.DateOfBirth,
-                profile.Address,
-                profile.ProfilePictureUrl,
-                profile.BaseSalary,
-                profile.SalaryUnit,
-                profile.Allowance,
-                profile.LeaveAccrued
-            );
-        }
-        else if (Role == "Dentist" || Role == "Doctor")
-        {
-            Dentist = Dentist.Create(
-                Id,
-                profile.EmployeeId ?? $"DT-{Guid.NewGuid().ToString("N")[..8].ToUpper()}",
-                profile.Specialty ?? "Nha khoa tổng quát",
-                profile.LicenseNumber ?? "N/A",
-                profile.YearsOfExperience,
-                profile.Department,
-                profile.Position,
-                profile.EmploymentStatus ?? DefaultEmploymentStatus,
-                profile.EmploymentType,
-                profile.StartDate,
-                profile.DateOfBirth,
-                profile.Address,
-                profile.ProfilePictureUrl,
-                profile.BaseSalary,
-                profile.SalaryUnit,
-                profile.Allowance,
-                profile.LeaveAccrued,
-                profile.Education,
-                profile.Bio,
-                profile.CertificateIssuedDate,
-                profile.CertificateIssuedBy,
-                "morning"
-            );
-        }
-    }
-
-    public void Update(UpdateStaffData data)
-    {
-        FullName = data.FullName;
-        Email = data.Email;
-        PhoneNumber = data.PhoneNumber;
-        Role = data.Role;
-        IsActive = data.IsActive;
-        Gender = data.Gender;
-
-        if (Role == "Staff")
-        {
-            if (Staff == null)
-            {
-                Staff = Staff.Create(
-                    Id,
-                    data.EmployeeId ?? $"ST-{Guid.NewGuid().ToString("N")[..8].ToUpper()}",
-                    data.Department,
-                    data.Position,
-                    data.EmploymentStatus ?? DefaultEmploymentStatus,
-                    data.EmploymentType,
-                    data.StartDate,
-                    data.DateOfBirth,
-                    data.Address,
-                    data.ProfilePictureUrl,
-                    data.BaseSalary,
-                    data.SalaryUnit,
-                    data.Allowance,
-                    data.LeaveAccrued
-                );
-            }
-            else
-            {
-                Staff.Update(
-                    data.Department,
-                    data.Position,
-                    data.EmploymentStatus ?? DefaultEmploymentStatus,
-                    data.EmploymentType,
-                    data.StartDate,
-                    data.DateOfBirth,
-                    data.Address,
-                    data.ProfilePictureUrl,
-                    data.BaseSalary,
-                    data.SalaryUnit,
-                    data.Allowance,
-                    data.LeaveAccrued
-                );
-            }
-        }
-        else if (Role == "Dentist" || Role == "Doctor")
-        {
-            if (Dentist == null)
-            {
-                Dentist = Dentist.Create(
-                    Id,
-                    data.EmployeeId ?? $"DT-{Guid.NewGuid().ToString("N")[..8].ToUpper()}",
-                    data.Specialty ?? "Nha khoa tổng quát",
-                    data.LicenseNumber ?? "N/A",
-                    data.YearsOfExperience,
-                    data.Department,
-                    data.Position,
-                    data.EmploymentStatus ?? DefaultEmploymentStatus,
-                    data.EmploymentType,
-                    data.StartDate,
-                    data.DateOfBirth,
-                    data.Address,
-                    data.ProfilePictureUrl,
-                    data.BaseSalary,
-                    data.SalaryUnit,
-                    data.Allowance,
-                    data.LeaveAccrued,
-                    data.Education,
-                    data.Bio,
-                    data.CertificateIssuedDate,
-                    data.CertificateIssuedBy,
-                    "morning"
-                );
-            }
-            else
-            {
-                Dentist.Update(
-                    data.Specialty ?? "Nha khoa tổng quát",
-                    data.LicenseNumber ?? "N/A",
-                    data.YearsOfExperience,
-                    data.Department,
-                    data.Position,
-                    data.EmploymentStatus ?? DefaultEmploymentStatus,
-                    data.EmploymentType,
-                    data.StartDate,
-                    data.DateOfBirth,
-                    data.Address,
-                    data.ProfilePictureUrl,
-                    data.BaseSalary,
-                    data.SalaryUnit,
-                    data.Allowance,
-                    data.LeaveAccrued,
-                    data.Education,
-                    data.Bio,
-                    data.CertificateIssuedDate,
-                    data.CertificateIssuedBy,
-                    Dentist.Shift
-                );
-            }
-        }
+        FullName = fullName;
+        Email = email;
+        PhoneNumber = phoneNumber;
+        Role = role;
+        IsActive = isActive;
+        Gender = gender;
     }
 
     public void UpdatePatientProfile(string fullName, string phoneNumber, DateOnly? dateOfBirth, string? gender, string? profilePictureUrl = null)
@@ -257,7 +168,7 @@ public class User
         FullName = fullName;
         PhoneNumber = phoneNumber;
         Gender = gender;
-        
+
         if (Patient == null)
         {
             Patient = Patient.Create(Id, dateOfBirth, profilePictureUrl: profilePictureUrl);
@@ -272,109 +183,14 @@ public class User
         }
     }
 
-    public void UpdatePersonalProfile(
-        string fullName,
-        string? phoneNumber,
-        DateOnly? dateOfBirth,
-        string? gender,
-        string? address,
-        string? profilePictureUrl,
-        string? bio,
-        string? education,
-        string? specialty = null,
-        int? yearsOfExperience = null)
+    /// <summary>Cập nhật thông tin định danh cơ bản khi tự sửa hồ sơ cá nhân (self-service). Với
+    /// Dentist/Staff, phần field mở rộng (address/bio/education/specialty...) do FillProfileHandler
+    /// tự cập nhật riêng qua Employee/DentistProfile repository sau khi gọi method này.</summary>
+    public void UpdatePersonalProfile(string fullName, string? phoneNumber, string? gender)
     {
         FullName = fullName;
         PhoneNumber = phoneNumber;
         Gender = gender;
-
-        if (Role == "Dentist" || Role == "Doctor")
-        {
-            if (Dentist == null)
-            {
-                Dentist = Dentist.Create(
-                    Id,
-                    $"DT-{Guid.NewGuid().ToString("N")[..8].ToUpper()}",
-                    specialty ?? "Nha khoa tổng quát",
-                    "N/A",
-                    yearsOfExperience,
-                    null,
-                    null,
-                    DefaultEmploymentStatus,
-                    null,
-                    null,
-                    dateOfBirth,
-                    address,
-                    profilePictureUrl,
-                    null,
-                    null,
-                    null,
-                    null,
-                    education,
-                    bio
-                );
-            }
-            else
-            {
-                Dentist.Update(
-                    specialty ?? Dentist.Specialization,
-                    Dentist.LicenseNumber,
-                    yearsOfExperience ?? Dentist.ExperienceYears,
-                    Dentist.Department,
-                    Dentist.Position,
-                    Dentist.EmploymentStatus,
-                    Dentist.EmploymentType,
-                    Dentist.StartDate,
-                    dateOfBirth ?? Dentist.DateOfBirth,
-                    address ?? Dentist.Address,
-                    profilePictureUrl ?? Dentist.ProfilePictureUrl,
-                    Dentist.BaseSalary,
-                    Dentist.SalaryUnit,
-                    Dentist.Allowance,
-                    Dentist.LeaveAccrued,
-                    education ?? Dentist.Education,
-                    bio ?? Dentist.Biography,
-                    Dentist.CertificateIssuedDate,
-                    Dentist.CertificateIssuedBy,
-                    Dentist.Shift
-                );
-            }
-        }
-        else if (Role == "Staff")
-        {
-            if (Staff == null)
-            {
-                Staff = Staff.Create(
-                    Id,
-                    $"ST-{Guid.NewGuid().ToString("N")[..8].ToUpper()}",
-                    null,
-                    null,
-                    DefaultEmploymentStatus,
-                    null,
-                    null,
-                    dateOfBirth,
-                    address,
-                    profilePictureUrl
-                );
-            }
-            else
-            {
-                Staff.Update(
-                    Staff.Department,
-                    Staff.Position,
-                    Staff.EmploymentStatus,
-                    Staff.EmploymentType,
-                    Staff.StartDate,
-                    dateOfBirth ?? Staff.DateOfBirth,
-                    address ?? Staff.Address,
-                    profilePictureUrl ?? Staff.ProfilePictureUrl,
-                    Staff.BaseSalary,
-                    Staff.SalaryUnit,
-                    Staff.Allowance,
-                    Staff.LeaveAccrued
-                );
-            }
-        }
     }
 
     public void ResetPassword(string newPasswordHash)
@@ -382,6 +198,8 @@ public class User
         PasswordHash = newPasswordHash;
         PasswordResetToken = null;
         PasswordResetTokenExpiry = null;
+        // Người dùng vừa tự đặt mật khẩu mới ⇒ mật khẩu tạm trong email không còn giá trị.
+        MustChangePassword = false;
     }
 
     public void SetPasswordResetToken(string token, DateTimeOffset expiry)
@@ -397,59 +215,52 @@ public class User
     }
 
     public void SetActive(bool isActive) => IsActive = isActive;
+
+    // ── Mật khẩu tạm do phòng khám cấp ────────────────────────────────────────
+    //
+    // Tài khoản do lễ tân tạo hộ có mật khẩu sinh ngẫu nhiên và gửi qua email — tức mật khẩu đó nằm
+    // trong hộp thư của bệnh nhân vĩnh viễn. Cờ này buộc đổi ngay lần đăng nhập đầu để mật khẩu
+    // trong email hết giá trị.
+
+    public bool MustChangePassword { get; private set; }
+
+    /// <summary>Đánh dấu tài khoản đang dùng mật khẩu tạm do phòng khám cấp.</summary>
+    public void RequirePasswordChange() => MustChangePassword = true;
+
+    // ── Khóa tạm sau nhiều lần đăng nhập sai ──────────────────────────────────
+    //
+    // Tách hẳn khỏi IsActive: IsActive là quyết định của quản trị viên (vô hiệu hóa tài khoản),
+    // LockoutEndAt là biện pháp tự động và tự hết hạn. Gộp chung thì việc dò mật khẩu của kẻ lạ
+    // sẽ trông y hệt việc admin cố ý khóa, và mở khóa tự động sẽ vô tình bật lại tài khoản đã bị cấm.
+    //
+    // Khóa CÓ THỜI HẠN chứ không vĩnh viễn: khóa vĩnh viễn biến chính cơ chế này thành công cụ để
+    // kẻ xấu chặn người dùng thật (chỉ cần gõ sai mật khẩu người khác vài lần). Hết hạn thì tự mở.
+
+    public int FailedLoginAttempts { get; private set; }
+    public DateTimeOffset? LockoutEndAt { get; private set; }
+
+    public bool IsLockedOut(DateTimeOffset now) => LockoutEndAt is { } until && until > now;
+
+    /// <summary>
+    /// Ghi nhận một lần đăng nhập sai. Đủ <paramref name="maxAttempts"/> lần thì khóa trong
+    /// <paramref name="lockoutDuration"/> và đặt lại bộ đếm, để sau khi hết khóa người dùng lại có
+    /// đủ số lần thử chứ không bị khóa lại ngay ở lần sai kế tiếp.
+    /// </summary>
+    public void RegisterFailedLogin(DateTimeOffset now, int maxAttempts, TimeSpan lockoutDuration)
+    {
+        FailedLoginAttempts++;
+
+        if (FailedLoginAttempts >= maxAttempts)
+        {
+            LockoutEndAt = now.Add(lockoutDuration);
+            FailedLoginAttempts = 0;
+        }
+    }
+
+    /// <summary>Đăng nhập thành công — xóa sạch dấu vết những lần sai trước đó.</summary>
+    public void ClearFailedLogins()
+    {
+        FailedLoginAttempts = 0;
+        LockoutEndAt = null;
+    }
 }
-
-public record StaffProfileData(
-    string? EmployeeId,
-    string? Department,
-    string? EmploymentStatus,
-    string? ProfilePictureUrl,
-    string? ProfessionalNotes,
-    string? Specialty,
-    string? LicenseNumber,
-    int? YearsOfExperience,
-    string? Gender,
-    DateOnly? DateOfBirth,
-    string? Address,
-    DateOnly? StartDate,
-    string? ServicesHandled,
-    DateOnly? CertificateIssuedDate,
-    string? CertificateIssuedBy,
-    string? Education,
-    string? Bio,
-    string? Position,
-    string? EmploymentType,
-    decimal? BaseSalary,
-    string? SalaryUnit,
-    decimal? LeaveAccrued,
-    decimal? Allowance);
-
-public record UpdateStaffData(
-    string FullName,
-    string Email,
-    string PhoneNumber,
-    string Role,
-    string? Department,
-    string? EmploymentStatus,
-    string? ProfilePictureUrl,
-    string? ProfessionalNotes,
-    bool IsActive,
-    string? Specialty,
-    string? LicenseNumber,
-    int? YearsOfExperience,
-    string? Gender,
-    DateOnly? DateOfBirth,
-    string? Address,
-    DateOnly? StartDate,
-    string? ServicesHandled,
-    DateOnly? CertificateIssuedDate,
-    string? CertificateIssuedBy,
-    string? Education,
-    string? Bio,
-    string? Position,
-    string? EmploymentType,
-    decimal? BaseSalary,
-    string? SalaryUnit,
-    decimal? LeaveAccrued,
-    decimal? Allowance,
-    string? EmployeeId = null);

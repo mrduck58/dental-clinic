@@ -67,6 +67,15 @@ class BookingService {
         .toList();
   }
 
+  /// Ghép ngày đã chọn với giờ bắt đầu của khung giờ, ví dụ "07:30 - 08:30" → 07:30 của ngày đó.
+  /// Dùng chung cho cả đặt lịch và dời lịch — hai bản sao chép tay của cùng phép ghép này sẽ lệch
+  /// nhau ngay lần đầu ai đó đổi định dạng khung giờ.
+  static DateTime combineDateAndSlot(DateTime date, String timeSlotRange) {
+    final timePart = timeSlotRange.split(' - ').first.trim();
+    final parts = timePart.split(':');
+    return DateTime(date.year, date.month, date.day, int.parse(parts[0]), int.parse(parts[1]));
+  }
+
   /// Đặt lịch khám — yêu cầu JWT của bệnh nhân.
   Future<ApiAppointmentResult> createAppointment({
     required String dentistId,
@@ -79,22 +88,8 @@ class BookingService {
     final token = await _auth.getToken();
     if (token == null) throw Exception('Chưa đăng nhập.');
 
-    // Parse time from slot range, e.g. "07:30 - 08:30" → 07:30
-    final timePart = timeSlotRange.split(' - ').first.trim();
-    final parts = timePart.split(':');
-    final hour = int.parse(parts[0]);
-    final minute = int.parse(parts[1]);
-
-    final appointmentDate = DateTime(
-      date.year,
-      date.month,
-      date.day,
-      hour,
-      minute,
-    );
-
     // Format as ISO 8601 with UTC offset
-    final isoDate = appointmentDate.toUtc().toIso8601String();
+    final isoDate = combineDateAndSlot(date, timeSlotRange).toUtc().toIso8601String();
 
     final effectiveSymptoms = (symptoms?.isEmpty ?? true) ? null : symptoms;
     final body = <String, dynamic>{
@@ -119,17 +114,93 @@ class BookingService {
     return ApiAppointmentResult.fromJson(res.data as Map<String, dynamic>);
   }
 
-  /// Hủy lịch khám
-  Future<void> cancelAppointment(String appointmentId, String reason) async {
+  /// Danh sách lý do hủy do server cung cấp — không hardcode trong app để thêm/sửa lý do
+  /// không phải phát hành bản mới, và để app với web admin không lệch nhau.
+  Future<List<CancellationReasonOption>> getCancellationReasons() async {
+    final token = await _auth.getToken();
+    if (token == null) throw Exception('Chưa đăng nhập.');
+
+    final res = await _client.get(
+      '${ApiConstants.appointments}/cancellation-reasons',
+      token: token,
+    );
+
+    return (res.data as List<dynamic>)
+        .map((e) => CancellationReasonOption.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Hủy lịch khám.
+  /// [reasonCode] là mã nhóm lý do lấy từ [getCancellationReasons]; [note] là ghi chú tự do,
+  /// bắt buộc với những lý do có requiresNote = true.
+  Future<void> cancelAppointment(
+    String appointmentId,
+    String reasonCode, {
+    String? note,
+  }) async {
     final token = await _auth.getToken();
     if (token == null) throw Exception('Chưa đăng nhập.');
 
     await _client.put(
       '${ApiConstants.appointments}/$appointmentId/cancel',
       {
-        'reason': reason,
+        'reason': reasonCode,
+        'note': (note != null && note.trim().isNotEmpty) ? note.trim() : null,
       },
       token: token,
     );
   }
+
+  /// Dời lịch khám sang khung giờ (và có thể là bác sĩ) khác.
+  ///
+  /// Sửa TẠI CHỖ lịch hẹn hiện có nên mã lịch hẹn giữ nguyên — khác hẳn cách cũ là đặt lịch mới
+  /// rồi hủy lịch cũ. Để [dentistId]/[serviceId] null nghĩa là giữ nguyên giá trị đang có.
+  Future<void> rescheduleAppointment(
+    String appointmentId,
+    DateTime appointmentDate, {
+    String? dentistId,
+    String? serviceId,
+    String? reason,
+  }) async {
+    final token = await _auth.getToken();
+    if (token == null) throw Exception('Chưa đăng nhập.');
+
+    await _client.put(
+      '${ApiConstants.appointments}/$appointmentId/reschedule',
+      {
+        'appointmentDate': appointmentDate.toUtc().toIso8601String(),
+        'dentistId': dentistId,
+        'serviceId': serviceId,
+        'reason': (reason != null && reason.trim().isNotEmpty) ? reason.trim() : null,
+      },
+      token: token,
+    );
+  }
+}
+
+/// Một lựa chọn lý do hủy do backend cung cấp.
+class CancellationReasonOption {
+  const CancellationReasonOption({
+    required this.code,
+    required this.labelVi,
+    required this.labelEn,
+    required this.requiresNote,
+  });
+
+  final String code;
+  final String labelVi;
+  final String labelEn;
+
+  /// App phải bắt người dùng nhập ghi chú trước khi cho gửi.
+  final bool requiresNote;
+
+  factory CancellationReasonOption.fromJson(Map<String, dynamic> json) =>
+      CancellationReasonOption(
+        code: json['code'] as String,
+        labelVi: json['labelVi'] as String,
+        labelEn: json['labelEn'] as String,
+        requiresNote: json['requiresNote'] as bool? ?? false,
+      );
+
+  String label(bool isVi) => isVi ? labelVi : labelEn;
 }

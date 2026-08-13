@@ -130,20 +130,11 @@ export default async function BangGiaPage({ searchParams }: Props) {
             preserveParams={preserve}
           />
 
-          {/* Ghi chú + CTA */}
-          <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 bg-primary/5 border border-primary/10 rounded-2xl px-6 py-5">
+          {/* Ghi chú */}
+          <div className="mt-8 bg-primary/5 border border-primary/10 rounded-2xl px-6 py-5">
             <p className="text-[13px] text-slate-600 leading-relaxed">
               * Giá trên mang tính tham khảo. Chi phí cụ thể sẽ được bác sĩ tư vấn sau khi thăm khám trực tiếp.
             </p>
-            <Link
-              href="/tai-ung-dung"
-              className="shrink-0 inline-flex items-center gap-2 bg-primary hover:bg-primary-hover text-white px-6 py-3 rounded-xl font-bold text-[14px] transition-all hover:translate-y-[-2px] hover:shadow-lg hover:shadow-primary/25"
-            >
-              Đặt lịch tư vấn miễn phí
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-              </svg>
-            </Link>
           </div>
         </div>
       </section>

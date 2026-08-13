@@ -31,4 +31,7 @@ public class ServiceRepository(AppDbContext db) : IServiceRepository
         db.Services.Remove(service);
         await db.SaveChangesAsync(ct);
     }
+
+    public async Task<IEnumerable<Service>> GetActiveAsync(CancellationToken ct = default)
+        => await db.Services.Where(s => s.IsActive).OrderBy(s => s.Name).ToListAsync(ct);
 }

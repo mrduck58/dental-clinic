@@ -1,6 +1,9 @@
-using DentalClinic.API.Application.UseCases.Appointments;
+using DentalClinic.API.Application.DTOs.ClinicalRecords;
+using DentalClinic.API.Application.UseCases.ClinicalRecords;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using NUnit.Framework;
@@ -20,7 +23,7 @@ public class GetExaminationHandlerTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         _db = new AppDbContext(options);
-        _handler = new GetExaminationHandler(_db);
+        _handler = new GetExaminationHandler(new AppointmentRepository(_db));
     }
 
     [TearDown]
@@ -30,7 +33,7 @@ public class GetExaminationHandlerTests
     [Test]
     public async Task HandleAsync_AppointmentNotFound_ReturnsNull()
     {
-        var result = await _handler.HandleAsync(Guid.NewGuid());
+        var result = await _handler.Handle(new GetExaminationQuery(Guid.NewGuid()), CancellationToken.None);
 
         result.Should().BeNull();
     }
@@ -39,15 +42,18 @@ public class GetExaminationHandlerTests
     [Test]
     public async Task HandleAsync_AppointmentWithDiagnosisAndPrescription_ReturnsFullDto()
     {
-        var dentistUser = User.Create("ex1", $"ex1-{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: "BS Khám");
+        var dentistUser = User.Create("ex1", $"ex1-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: "BS Khám");
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
-        dentist.User = dentistUser;
-        var patientUser = User.Create("pa_ex1", $"pa_ex1-{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: "Bệnh nhân Khám");
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
+        var patientUser = User.Create("pa_ex1", $"pa_ex1-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient, fullName: "Bệnh nhân Khám");
         _db.Users.Add(patientUser);
         var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
         patient.User = patientUser;
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         _db.Patients.Add(patient);
         var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
         appointment.StartTreatment();
@@ -60,7 +66,7 @@ public class GetExaminationHandlerTests
         _db.Prescriptions.Add(prescription);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(appointment.Id);
+        var result = await _handler.Handle(new GetExaminationQuery(appointment.Id), CancellationToken.None);
 
         result.Should().NotBeNull();
         result!.Patient.FullName.Should().Be("Bệnh nhân Khám");
@@ -74,15 +80,18 @@ public class GetExaminationHandlerTests
     [Test]
     public async Task HandleAsync_FollowUpAppointment_ReturnsFollowUpChain()
     {
-        var dentistUser = User.Create("ex2", $"ex2-{Guid.NewGuid()}@test.com", "hash", "Dentist", fullName: "BS ex2");
+        var dentistUser = User.Create("ex2", $"ex2-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: "BS ex2");
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
-        dentist.User = dentistUser;
-        var patientUser = User.Create("pa_ex2", $"pa_ex2-{Guid.NewGuid()}@test.com", "hash", "Patient", fullName: "Bệnh Nhân ex2");
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
+        var patientUser = User.Create("pa_ex2", $"pa_ex2-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient, fullName: "Bệnh Nhân ex2");
         _db.Users.Add(patientUser);
         var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
         patient.User = patientUser;
-        _db.Dentists.Add(dentist);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         _db.Patients.Add(patient);
         var original = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddDays(-10));
         original.Complete();
@@ -93,7 +102,7 @@ public class GetExaminationHandlerTests
         _db.Appointments.Add(followUp);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(followUp.Id);
+        var result = await _handler.Handle(new GetExaminationQuery(followUp.Id), CancellationToken.None);
 
         result.Should().NotBeNull();
         result!.IsFollowUpVisit.Should().BeTrue();

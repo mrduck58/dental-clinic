@@ -18,18 +18,51 @@ public class GetLeaveRequestByIdHandlerTests
     public void SetUp() => _repo = Substitute.For<ILeaveRequestRepository>();
 
     /// <summary>
-    /// Lấy đơn theo ID tồn tại phải trả về đúng DTO.
+    /// Chính chủ lấy đơn của mình phải trả về đúng DTO.
     /// </summary>
     [Test]
-    public async Task HandleAsync_ExistingRequest_ReturnsDto()
+    public async Task HandleAsync_OwnRequest_ReturnsDto()
     {
         var lr = MakeRequest();
         _repo.GetByIdAsync(lr.Id, Arg.Any<CancellationToken>()).Returns(lr);
         var handler = new GetLeaveRequestByIdHandler(_repo);
 
-        var result = await handler.HandleAsync(lr.Id);
+        var result = await handler.Handle(
+            new GetLeaveRequestByIdQuery(lr.Id, lr.UserId, CanViewAll: false), CancellationToken.None);
 
         result.Id.Should().Be(lr.Id);
+    }
+
+    /// <summary>
+    /// Người duyệt đơn (CanViewAll) đọc được đơn của người khác.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_CanViewAll_ReturnsOtherUsersRequest()
+    {
+        var lr = MakeRequest();
+        _repo.GetByIdAsync(lr.Id, Arg.Any<CancellationToken>()).Returns(lr);
+        var handler = new GetLeaveRequestByIdHandler(_repo);
+
+        var result = await handler.Handle(
+            new GetLeaveRequestByIdQuery(lr.Id, Guid.NewGuid(), CanViewAll: true), CancellationToken.None);
+
+        result.Id.Should().Be(lr.Id);
+    }
+
+    /// <summary>
+    /// Đơn của người khác phải trả 404 y như đơn không tồn tại — không được xác nhận id có thật.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_OtherUsersRequest_ThrowsNotFoundException()
+    {
+        var lr = MakeRequest();
+        _repo.GetByIdAsync(lr.Id, Arg.Any<CancellationToken>()).Returns(lr);
+        var handler = new GetLeaveRequestByIdHandler(_repo);
+
+        Func<Task> act = () => handler.Handle(
+            new GetLeaveRequestByIdQuery(lr.Id, Guid.NewGuid(), CanViewAll: false), CancellationToken.None);
+
+        await act.Should().ThrowAsync<NotFoundException>();
     }
 
     /// <summary>
@@ -41,7 +74,8 @@ public class GetLeaveRequestByIdHandlerTests
         _repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((LeaveRequest?)null);
         var handler = new GetLeaveRequestByIdHandler(_repo);
 
-        Func<Task> act = () => handler.HandleAsync(Guid.NewGuid());
+        Func<Task> act = () => handler.Handle(
+            new GetLeaveRequestByIdQuery(Guid.NewGuid(), Guid.NewGuid(), CanViewAll: true), CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -50,7 +84,7 @@ public class GetLeaveRequestByIdHandlerTests
     {
         var today = DateOnly.FromDateTime(DateTime.Today);
         var lr = LeaveRequest.Create(Guid.NewGuid(), LeaveType.Annual, today, today.AddDays(2), "Lý do test");
-        var user = User.Create("emp", "emp@test.com", "hash", "Staff", null, "Test");
+        var user = User.Create("emp", "emp@test.com", "hash", UserRole.Staff, null, "Test");
         typeof(LeaveRequest).GetProperty("User")!.SetValue(lr, user);
         return lr;
     }

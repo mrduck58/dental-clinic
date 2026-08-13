@@ -1,21 +1,24 @@
-﻿using DentalClinic.API.Application.DTOs.LeaveRequests;
+using DentalClinic.API.Application.DTOs.LeaveRequests;
 using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
+using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.LeaveRequests;
+
+public record ApproveLeaveRequestCommand(Guid Id) : IRequest<LeaveRequestDto>;
 
 public class ApproveLeaveRequestHandler(
     ILeaveRequestRepository leaveRequestRepository,
     IActivityLogService activityLogService,
     INotificationService notificationService,
-    ICurrentUserService currentUser)
+    ICurrentUserService currentUser) : IRequestHandler<ApproveLeaveRequestCommand, LeaveRequestDto>
 {
-    public async Task<LeaveRequestDto> HandleAsync(Guid id, CancellationToken ct = default)
+    public async Task<LeaveRequestDto> Handle(ApproveLeaveRequestCommand command, CancellationToken ct)
     {
-        var request = await leaveRequestRepository.GetByIdAsync(id, ct)
-            ?? throw new NotFoundException($"Không tìm thấy đơn nghỉ phép với ID: {id}");
+        var request = await leaveRequestRepository.GetByIdAsync(command.Id, ct)
+            ?? throw new NotFoundException($"Không tìm thấy đơn nghỉ phép với ID: {command.Id}");
 
         request.Approve();
         await leaveRequestRepository.UpdateAsync(request, ct);
@@ -26,10 +29,10 @@ public class ApproveLeaveRequestHandler(
             userRole: currentUser.UserRole,
             action: ActivityAction.Approve,
             module: ActivityModule.Leave,
-            description: $"Duyệt đơn xin nghỉ ID: {id}",
+            description: $"Duyệt đơn xin nghỉ ID: {command.Id}",
             status: ActivityStatus.Success,
             ipAddress: currentUser.IpAddress,
-            targetId: id.ToString(),
+            targetId: command.Id.ToString(),
             ct: ct);
 
         await notificationService.CreateAsync(new CreateNotificationRequest(

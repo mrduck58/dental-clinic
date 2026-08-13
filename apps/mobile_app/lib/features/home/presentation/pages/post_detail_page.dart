@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
+import 'package:mobile_app/core/constants/api_constants.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/home/data/home_service.dart';
 import 'package:mobile_app/features/home/data/models/post_model.dart';
@@ -98,7 +99,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
             // Thumbnail Image
             if (post.thumbnailUrl != null)
               Image.network(
-                post.thumbnailUrl!,
+                ApiConstants.resolveAssetUrl(post.thumbnailUrl)!,
                 width: double.infinity,
                 height: 230,
                 fit: BoxFit.cover,
@@ -296,7 +297,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
               borderRadius: BorderRadius.circular(12),
               child: post.thumbnailUrl != null
                   ? Image.network(
-                      post.thumbnailUrl!,
+                      ApiConstants.resolveAssetUrl(post.thumbnailUrl)!,
                       height: 110,
                       width: 180,
                       fit: BoxFit.cover,

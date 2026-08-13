@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
+import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/core/network/api_client.dart';
 import 'package:mobile_app/features/auth/data/auth_service.dart';
@@ -128,7 +129,21 @@ class _LoginPageState extends State<LoginPage> {
       if (result.fullName != null && result.fullName!.isNotEmpty) {
         await _auth.saveUserName(result.fullName!);
       }
-      if (mounted) context.go(AppRoutes.home);
+      if (!mounted) return;
+
+      // Tài khoản do phòng khám lập có mật khẩu tạm gửi qua email — mật khẩu đó nằm trong hộp thư
+      // của bệnh nhân vĩnh viễn, nên bắt đổi ngay trước khi vào app.
+      if (result.mustChangePassword) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Vui lòng đổi mật khẩu do phòng khám cấp trước khi tiếp tục.'),
+          ),
+        );
+        context.go(AppRoutes.changePassword);
+        return;
+      }
+
+      context.go(AppRoutes.home);
     } on DioException catch (e) {
       setState(() => _generalError = ApiClient.errorMessage(e));
     } finally {
@@ -141,6 +156,65 @@ class _LoginPageState extends State<LoginPage> {
     final googleUser = await _googleSignIn.signIn();
     if (googleUser == null) return; // Người dùng huỷ đăng nhập
     await _handleGoogleAccount(googleUser);
+  }
+
+  /// Cho phép đổi URL gốc của API TRƯỚC KHI đăng nhập (vd: dán URL Cloudflare Tunnel khi
+  /// test không qua cáp USB) — bắt buộc phải sửa được ở đây vì màn Cá nhân (nơi tính năng
+  /// này ban đầu được đặt) chỉ vào được SAU KHI đăng nhập thành công.
+  void _showServerUrlDialog() {
+    final controller = TextEditingController(text: SettingsManager.instance.apiBaseUrl.value);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Địa chỉ máy chủ (API)', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Dùng khi test qua Cloudflare Tunnel/ngrok — dán URL kèm "/api" ở cuối, vd: https://xxxx.trycloudflare.com/api',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              keyboardType: TextInputType.url,
+              decoration: InputDecoration(
+                hintText: kDefaultApiBaseUrl,
+                border: const OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              await SettingsManager.instance.resetApiBaseUrl();
+              ApiClient().refreshBaseUrl();
+              if (ctx.mounted) Navigator.of(ctx).pop();
+              setState(() {});
+            },
+            child: const Text('Đặt lại mặc định'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Huỷ'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              await SettingsManager.instance.setApiBaseUrl(controller.text);
+              ApiClient().refreshBaseUrl();
+              if (ctx.mounted) Navigator.of(ctx).pop();
+              setState(() {});
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+            child: const Text('Lưu', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   /// Xử lý chung sau khi có tài khoản Google (từ signIn() native hoặc nút render trên Web).
@@ -198,7 +272,22 @@ class _LoginPageState extends State<LoginPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  AuthBackButton(
+                    onTap: () {
+                      if (context.canPop()) context.pop();
+                    },
+                  ),
+                  IconButton(
+                    onPressed: _showServerUrlDialog,
+                    tooltip: 'Địa chỉ máy chủ (API)',
+                    icon: const Icon(Iconsax.setting_2, color: AppColors.textSecondary, size: 22),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 32),
               const SizedBox(
                 width: double.infinity,
                 child: Text(
@@ -319,15 +408,15 @@ class _LoginPageState extends State<LoginPage> {
                         fontSize: 14,
                       ),
                     ),
-                    GestureDetector(
-                      onTap: () => context.push(AppRoutes.register),
-                      child: const Text(
-                        'Tạo tài khoản',
-                        style: TextStyle(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                        ),
+                    // Bệnh nhân không tự đăng ký được nữa — tài khoản do phòng khám lập khi đến
+                    // khám lần đầu. Đây là chốt chặn duy nhất ngăn việc lập hàng loạt tài khoản
+                    // rồi giữ kín khung giờ của người khác.
+                    const Text(
+                      'Liên hệ phòng khám',
+                      style: TextStyle(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
                       ),
                     ),
                   ],

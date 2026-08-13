@@ -18,7 +18,13 @@ public interface INotificationService
         CreateNotificationRequest template,
         CancellationToken ct = default);
 
-    Task MarkAsReadAsync(Guid notificationId, CancellationToken ct = default);
+    /// <summary>Đánh dấu đã đọc. <paramref name="userId"/> là chủ sở hữu bắt buộc — thông báo của
+    /// người khác bị coi như không tồn tại (ném <c>NotFoundException</c>).</summary>
+    Task MarkAsReadAsync(Guid notificationId, Guid userId, CancellationToken ct = default);
+
     Task MarkAllAsReadAsync(Guid userId, CancellationToken ct = default);
-    Task DeleteAsync(Guid notificationId, CancellationToken ct = default);
+
+    /// <summary>Xóa thông báo. <paramref name="userId"/> là chủ sở hữu bắt buộc — thông báo của
+    /// người khác bị coi như không tồn tại (ném <c>NotFoundException</c>).</summary>
+    Task DeleteAsync(Guid notificationId, Guid userId, CancellationToken ct = default);
 }

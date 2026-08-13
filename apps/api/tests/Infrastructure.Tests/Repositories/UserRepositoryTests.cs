@@ -1,4 +1,5 @@
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Infrastructure.Persistence;
 using DentalClinic.API.Infrastructure.Persistence.Repositories;
@@ -35,7 +36,7 @@ public class UserRepositoryTests
     [Test]
     public async Task GetByEmailAsync_ExistingEmail_ReturnsUser()
     {
-        var user = User.Create("emp1", "emp1@clinic.com", "hash", "Staff");
+        var user = User.Create("emp1", "emp1@clinic.com", "hash", UserRole.Staff);
         await _db.Users.AddAsync(user);
         await _db.SaveChangesAsync();
 
@@ -63,7 +64,7 @@ public class UserRepositoryTests
     [Test]
     public async Task ExistsByEmailAsync_ExistingEmail_ReturnsTrue()
     {
-        await _db.Users.AddAsync(User.Create("emp1", "emp1@clinic.com", "hash", "Staff"));
+        await _db.Users.AddAsync(User.Create("emp1", "emp1@clinic.com", "hash", UserRole.Staff));
         await _db.SaveChangesAsync();
 
         var result = await _sut.ExistsByEmailAsync("emp1@clinic.com");
@@ -89,35 +90,12 @@ public class UserRepositoryTests
     [Test]
     public async Task ExistsByUsernameAsync_ExistingUsername_ReturnsTrue()
     {
-        await _db.Users.AddAsync(User.Create("bsnguyen", "nguyen@clinic.com", "hash", "Dentist"));
+        await _db.Users.AddAsync(User.Create("bsnguyen", "nguyen@clinic.com", "hash", UserRole.Dentist));
         await _db.SaveChangesAsync();
 
         var result = await _sut.ExistsByUsernameAsync("bsnguyen");
 
         result.Should().BeTrue();
-    }
-
-    // ── GetEmployeesWithoutAccountAsync ───────────────────────────────────────
-
-    /// <summary>
-    /// Chỉ trả về nhân viên (không phải Patient) chưa có mật khẩu.
-    /// Loại ra: Patient, và nhân viên đã có PasswordHash.
-    /// </summary>
-    [Test]
-    public async Task GetEmployeesWithoutAccountAsync_ReturnsOnlyNonPatientWithoutPassword()
-    {
-        var staffWithAccount  = User.Create("emp1", "emp1@clinic.com", "hash", "Staff");
-        var staffWithoutAccount = User.CreateEmployee("emp2@clinic.com", "Staff");
-        var patient = User.Create("pat1", "pat@clinic.com", "hash", "Patient");
-        var patientNoPass = User.CreateEmployee("pat2@clinic.com", "Patient");
-
-        await _db.Users.AddRangeAsync(staffWithAccount, staffWithoutAccount, patient, patientNoPass);
-        await _db.SaveChangesAsync();
-
-        var result = (await _sut.GetEmployeesWithoutAccountAsync()).ToList();
-
-        result.Should().HaveCount(1);
-        result[0].Id.Should().Be(staffWithoutAccount.Id);
     }
 
     // ── GetStaffPagedAsync ────────────────────────────────────────────────────
@@ -129,9 +107,9 @@ public class UserRepositoryTests
     public async Task GetStaffPagedAsync_SearchByFullName_ReturnsMatchingUsers()
     {
         await _db.Users.AddRangeAsync(
-            User.Create("emp1", "a@clinic.com", "hash", "Staff", null, "Nguyễn Văn An"),
-            User.Create("emp2", "b@clinic.com", "hash", "Staff", null, "Trần Thị Bình"),
-            User.Create("emp3", "c@clinic.com", "hash", "Dentist", null, "Nguyễn Thị Cúc"));
+            User.Create("emp1", "a@clinic.com", "hash", UserRole.Staff, null, "Nguyễn Văn An"),
+            User.Create("emp2", "b@clinic.com", "hash", UserRole.Staff, null, "Trần Thị Bình"),
+            User.Create("emp3", "c@clinic.com", "hash", UserRole.Dentist, null, "Nguyễn Thị Cúc"));
         await _db.SaveChangesAsync();
 
         var (items, total) = await _sut.GetStaffPagedAsync("nguyễn", null, null, 1, 10);
@@ -147,15 +125,15 @@ public class UserRepositoryTests
     public async Task GetStaffPagedAsync_FilterByRole_ReturnsOnlyThatRole()
     {
         await _db.Users.AddRangeAsync(
-            User.Create("d1", "d1@clinic.com", "hash", "Dentist"),
-            User.Create("s1", "s1@clinic.com", "hash", "Staff"),
-            User.Create("s2", "s2@clinic.com", "hash", "Staff"));
+            User.Create("d1", "d1@clinic.com", "hash", UserRole.Dentist),
+            User.Create("s1", "s1@clinic.com", "hash", UserRole.Staff),
+            User.Create("s2", "s2@clinic.com", "hash", UserRole.Staff));
         await _db.SaveChangesAsync();
 
         var (items, total) = await _sut.GetStaffPagedAsync(null, "Staff", null, 1, 10);
 
         total.Should().Be(2);
-        items.Should().OnlyContain(u => u.Role == "Staff");
+        items.Should().OnlyContain(u => u.Role == UserRole.Staff);
     }
 
     /// <summary>
@@ -165,7 +143,7 @@ public class UserRepositoryTests
     public async Task GetStaffPagedAsync_Pagination_ReturnsCorrectCounts()
     {
         for (var i = 1; i <= 5; i++)
-            await _db.Users.AddAsync(User.Create($"emp{i}", $"emp{i}@clinic.com", "hash", "Staff"));
+            await _db.Users.AddAsync(User.Create($"emp{i}", $"emp{i}@clinic.com", "hash", UserRole.Staff));
         await _db.SaveChangesAsync();
 
         var (page1, total) = await _sut.GetStaffPagedAsync(null, null, null, 1, 3);
@@ -179,23 +157,24 @@ public class UserRepositoryTests
     // ── GetStaffStatsAsync ────────────────────────────────────────────────────
 
     /// <summary>
-    /// Stats phải đếm đúng số lượng Dentist, Doctor và tổng nhân viên (Dentist+Doctor+Staff).
+    /// Stats phải đếm đúng số lượng Dentist và tổng nhân viên (Dentist+Staff).
+    /// Vai trò "Doctor" không còn tồn tại trong hệ thống, nên TotalDoctors luôn bằng 0.
     /// </summary>
     [Test]
     public async Task GetStaffStatsAsync_CountsCorrectlyByRole()
     {
         await _db.Users.AddRangeAsync(
-            User.Create("d1", "d1@clinic.com", "hash", "Dentist"),
-            User.Create("d2", "d2@clinic.com", "hash", "Dentist"),
-            User.Create("doc1", "doc1@clinic.com", "hash", "Doctor"),
-            User.Create("s1", "s1@clinic.com", "hash", "Staff"),
-            User.Create("p1", "p1@clinic.com", "hash", "Patient"));
+            User.Create("d1", "d1@clinic.com", "hash", UserRole.Dentist),
+            User.Create("d2", "d2@clinic.com", "hash", UserRole.Dentist),
+            User.Create("d3", "d3@clinic.com", "hash", UserRole.Dentist),
+            User.Create("s1", "s1@clinic.com", "hash", UserRole.Staff),
+            User.Create("p1", "p1@clinic.com", "hash", UserRole.Patient));
         await _db.SaveChangesAsync();
 
         var stats = await _sut.GetStaffStatsAsync();
 
-        stats.TotalDentists.Should().Be(2);
-        stats.TotalDoctors.Should().Be(1);
+        stats.TotalDentists.Should().Be(3);
+        stats.TotalDoctors.Should().Be(0);
         stats.TotalEmployees.Should().Be(4);
     }
 }

@@ -1,6 +1,8 @@
-using DentalClinic.API.Application.UseCases.Appointments;
+using DentalClinic.API.Application.UseCases.DentistDashboard;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Infrastructure.Persistence;
+using DentalClinic.API.Infrastructure.Services;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using NUnit.Framework;
@@ -22,7 +24,7 @@ public class DentistDashboardHandlerTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         _db = new AppDbContext(options);
-        _handler = new DentistDashboardHandler(_db);
+        _handler = new DentistDashboardHandler(new DentistDashboardQueryService(_db));
     }
 
     [TearDown]
@@ -38,7 +40,7 @@ public class DentistDashboardHandlerTests
     [Test]
     public async Task HandleAsync_UserIsNotADentist_ReturnsEmptyDashboard()
     {
-        var result = await _handler.HandleAsync(Guid.NewGuid());
+        var result = await _handler.Handle(new GetDentistDashboardQuery(Guid.NewGuid()), CancellationToken.None);
 
         result.TotalPatientsToday.Should().Be(0);
         result.UpcomingPatients.Should().BeEmpty();
@@ -50,10 +52,14 @@ public class DentistDashboardHandlerTests
     [Test]
     public async Task HandleAsync_TodayAppointmentsWithVariousStatuses_CountsCorrectly()
     {
-        var dentistUser = User.Create("dd1", "dd1@test.com", "hash", "Dentist");
+        var dentistUser = User.Create("dd1", "dd1@test.com", "hash", UserRole.Dentist);
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
-        _db.Dentists.Add(dentist);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
         _db.Patients.Add(patient);
         await _db.SaveChangesAsync();
@@ -67,11 +73,11 @@ public class DentistDashboardHandlerTests
         completed.Complete();
         var pending = Appointment.Create(patient.Id, dentist.Id, now.AddHours(2));
         var cancelled = Appointment.Create(patient.Id, dentist.Id, now.AddHours(3));
-        cancelled.Cancel();
+        cancelled.Cancel(CancellationReason.ChangeOfPlans, null, cancelledByUserId: null, DateTimeOffset.UtcNow);
         _db.Appointments.AddRange(confirmed, inProgress, completed, pending, cancelled);
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(dentistUser.Id);
+        var result = await _handler.Handle(new GetDentistDashboardQuery(dentistUser.Id), CancellationToken.None);
 
         result.TotalPatientsToday.Should().Be(3); // confirmed + inProgress + completed
         result.TotalWaiting.Should().Be(1);       // confirmed
@@ -83,10 +89,14 @@ public class DentistDashboardHandlerTests
     [Test]
     public async Task HandleAsync_UpcomingPatients_OnlyIncludesActiveStatusesUpToFive()
     {
-        var dentistUser = User.Create("dd2", "dd2@test.com", "hash", "Dentist");
+        var dentistUser = User.Create("dd2", "dd2@test.com", "hash", UserRole.Dentist);
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
-        _db.Dentists.Add(dentist);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         var patient = Patient.Create(Guid.Empty, new DateOnly(1992, 2, 2), "Nữ");
         _db.Patients.Add(patient);
         await _db.SaveChangesAsync();
@@ -100,7 +110,7 @@ public class DentistDashboardHandlerTests
         }
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(dentistUser.Id);
+        var result = await _handler.Handle(new GetDentistDashboardQuery(dentistUser.Id), CancellationToken.None);
 
         result.UpcomingPatients.Should().HaveCount(5);
         result.UpcomingPatients.Should().OnlyContain(p => p.Status == "waiting");
@@ -110,10 +120,14 @@ public class DentistDashboardHandlerTests
     [Test]
     public async Task HandleAsync_WeekSchedules_CountsShiftsByPeriodCorrectly()
     {
-        var dentistUser = User.Create("dd3", "dd3@test.com", "hash", "Dentist");
+        var dentistUser = User.Create("dd3", "dd3@test.com", "hash", UserRole.Dentist);
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
-        _db.Dentists.Add(dentist);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         await _db.SaveChangesAsync();
 
         var today = VietnamToday();
@@ -126,7 +140,7 @@ public class DentistDashboardHandlerTests
         _db.WorkSchedules.Add(WorkSchedule.Create(weekStart.AddDays(2), "17:30-19:30", "dentist", "dentist", dentist.FullName, "P101", "border-primary", false));
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(dentistUser.Id);
+        var result = await _handler.Handle(new GetDentistDashboardQuery(dentistUser.Id), CancellationToken.None);
 
         result.WeekShifts.Total.Should().Be(3);
         result.WeekShifts.Morning.Should().Be(1);
@@ -138,17 +152,21 @@ public class DentistDashboardHandlerTests
     [Test]
     public async Task HandleAsync_HolidaySchedule_ExcludedFromWeekShifts()
     {
-        var dentistUser = User.Create("dd4", "dd4@test.com", "hash", "Dentist");
+        var dentistUser = User.Create("dd4", "dd4@test.com", "hash", UserRole.Dentist);
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
-        _db.Dentists.Add(dentist);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         await _db.SaveChangesAsync();
 
         var today = VietnamToday();
         _db.WorkSchedules.Add(WorkSchedule.Create(today, "08:00-10:00", "dentist", "dentist", dentist.FullName, "P101", "border-primary", isHoliday: true));
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(dentistUser.Id);
+        var result = await _handler.Handle(new GetDentistDashboardQuery(dentistUser.Id), CancellationToken.None);
 
         result.WeekShifts.Total.Should().Be(0);
         result.TodayShifts.Should().BeEmpty();
@@ -158,10 +176,14 @@ public class DentistDashboardHandlerTests
     [Test]
     public async Task HandleAsync_TodaySchedules_ReturnsOrderedShiftsWithRoom()
     {
-        var dentistUser = User.Create("dd5", "dd5@test.com", "hash", "Dentist");
+        var dentistUser = User.Create("dd5", "dd5@test.com", "hash", UserRole.Dentist);
         _db.Users.Add(dentistUser);
-        var dentist = Dentist.Create(dentistUser.Id, "Nha khoa tổng quát", 5);
-        _db.Dentists.Add(dentist);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
         await _db.SaveChangesAsync();
 
         var today = VietnamToday();
@@ -169,7 +191,7 @@ public class DentistDashboardHandlerTests
         _db.WorkSchedules.Add(WorkSchedule.Create(today, "08:00-10:00", "dentist", "dentist", dentist.FullName, "P101", "border-primary", false));
         await _db.SaveChangesAsync();
 
-        var result = await _handler.HandleAsync(dentistUser.Id);
+        var result = await _handler.Handle(new GetDentistDashboardQuery(dentistUser.Id), CancellationToken.None);
 
         result.TodayShifts.Should().HaveCount(2);
         result.TodayShifts[0].Room.Should().Be("P101"); // ca sáng phải đứng trước ca chiều

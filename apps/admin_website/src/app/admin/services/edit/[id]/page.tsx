@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AdminSidebar from "../../../../../components/shared/AdminSidebar";
-import NotificationBell from "../../../../../components/shared/NotificationBell";
+import AdminPageHeader from "../../../../../components/shared/AdminPageHeader";
 import { useRequireAdmin } from "../../../../../hooks/useRequireAdmin";
 import {
   getServiceByIdApi,
@@ -12,6 +12,7 @@ import {
   getServiceProceduresApi,
   updateServiceProceduresApi,
   uploadFileApi,
+  resolveAssetUrl,
 } from "../../../../../lib/apiClient";
 
 interface ProcedureStepForm {
@@ -177,8 +178,10 @@ export default function EditServicePage({ params }: EditServicePageProps) {
 
       <main className="flex-1 flex flex-col min-w-0">
         {/* HEADER */}
-        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 font-sans shadow-sm shadow-slate-100/50">
-          <div className="flex items-center gap-4">
+        <AdminPageHeader
+          title="Chỉnh sửa dịch vụ"
+          subtitle="Cập nhật thông tin dịch vụ."
+          left={
             <Link
               href="/admin/services"
               className="flex items-center justify-center w-10 h-10 rounded-xl bg-slate-100 text-slate-600 hover:bg-primary hover:text-white transition-all cursor-pointer"
@@ -187,16 +190,8 @@ export default function EditServicePage({ params }: EditServicePageProps) {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
               </svg>
             </Link>
-            <div>
-              <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Chỉnh sửa dịch vụ</h1>
-              <p className="text-[13px] text-slate-400 font-semibold mt-0.5">
-                Cập nhật thông tin dịch vụ.
-              </p>
-            </div>
-          </div>
-
-          <NotificationBell />
-        </header>
+          }
+        />
 
         {/* BODY */}
         <div className="p-8 flex-1 overflow-y-auto">
@@ -293,7 +288,7 @@ export default function EditServicePage({ params }: EditServicePageProps) {
                       /* Preview Image */
                       <div className="relative rounded-xl overflow-hidden border border-slate-200 group h-[50px]">
                         <img
-                          src={uploadedImage}
+                          src={resolveAssetUrl(uploadedImage)}
                           alt="Preview"
                           className="w-full h-full object-cover"
                         />
@@ -365,7 +360,7 @@ export default function EditServicePage({ params }: EditServicePageProps) {
                     <div className="w-[50px] h-[50px] rounded-xl border border-slate-200 bg-slate-50/50 flex items-center justify-center overflow-hidden shrink-0">
                       {iconUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={iconUrl} alt="Icon dịch vụ" className="w-8 h-8 object-contain" />
+                        <img src={resolveAssetUrl(iconUrl)} alt="Icon dịch vụ" className="w-8 h-8 object-contain" />
                       ) : (
                         <svg className="w-5 h-5 text-slate-300" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />

@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using DentalClinic.API.Application.DTOs.LeaveRequests;
 using DentalClinic.API.Application.UseCases.LeaveRequests;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -9,15 +10,10 @@ namespace DentalClinic.API.Presentation.Controllers;
 
 [ApiController]
 [Route("api/leave-requests")]
-[Authorize]
-public class LeaveRequestsController(
-    GetLeaveRequestsHandler getAll,
-    GetMyLeaveRequestsHandler getMy,
-    GetLeaveRequestByIdHandler getById,
-    CreateLeaveRequestHandler create,
-    ApproveLeaveRequestHandler approve,
-    RejectLeaveRequestHandler reject,
-    CancelLeaveRequestHandler cancel) : ControllerBase
+// Nghỉ phép là việc nội bộ của nhân sự. Trước đây class chỉ có [Authorize] nên bệnh nhân đăng nhập
+// cũng nộp và đọc được đơn nghỉ — liệt kê role ở đây loại Patient ra khỏi toàn bộ controller.
+[Authorize(Roles = "Owner,Admin,Dentist,Staff")]
+public class LeaveRequestsController(ISender sender) : ControllerBase
 {
     /// <summary>GET api/leave-requests — Tất cả đơn nghỉ (Admin)</summary>
     [HttpGet]
@@ -27,7 +23,7 @@ public class LeaveRequestsController(
         [FromQuery] string? search,
         CancellationToken ct)
     {
-        var result = await getAll.HandleAsync(status, search, ct);
+        var result = await sender.Send(new GetLeaveRequestsQuery(status, search), ct);
         return Ok(result);
     }
 
@@ -36,15 +32,17 @@ public class LeaveRequestsController(
     public async Task<IActionResult> GetMy(CancellationToken ct)
     {
         var userId = GetCurrentUserId();
-        var result = await getMy.HandleAsync(userId, ct);
+        var result = await sender.Send(new GetMyLeaveRequestsQuery(userId), ct);
         return Ok(result);
     }
 
-    /// <summary>GET api/leave-requests/{id} — Chi tiết đơn nghỉ</summary>
+    /// <summary>GET api/leave-requests/{id} — Chi tiết đơn nghỉ (chính chủ, hoặc Owner duyệt đơn)</summary>
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
-        var result = await getById.HandleAsync(id, ct);
+        var result = await sender.Send(
+            new GetLeaveRequestByIdQuery(id, GetCurrentUserId(), CanViewAll: User.IsInRole("Owner")),
+            ct);
         return Ok(result);
     }
 
@@ -53,7 +51,7 @@ public class LeaveRequestsController(
     public async Task<IActionResult> Create([FromBody] CreateLeaveRequestRequest request, CancellationToken ct)
     {
         var userId = GetCurrentUserId();
-        var result = await create.HandleAsync(userId, request, ct);
+        var result = await sender.Send(new CreateLeaveRequestCommand(userId, request), ct);
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
 
@@ -62,7 +60,7 @@ public class LeaveRequestsController(
     [Authorize(Roles = "Owner")]
     public async Task<IActionResult> Approve(Guid id, CancellationToken ct)
     {
-        var result = await approve.HandleAsync(id, ct);
+        var result = await sender.Send(new ApproveLeaveRequestCommand(id), ct);
         return Ok(result);
     }
 
@@ -71,7 +69,7 @@ public class LeaveRequestsController(
     [Authorize(Roles = "Owner")]
     public async Task<IActionResult> Reject(Guid id, [FromBody] RejectLeaveRequestRequest request, CancellationToken ct)
     {
-        var result = await reject.HandleAsync(id, request, ct);
+        var result = await sender.Send(new RejectLeaveRequestCommand(id, request), ct);
         return Ok(result);
     }
 
@@ -80,7 +78,7 @@ public class LeaveRequestsController(
     public async Task<IActionResult> Cancel(Guid id, CancellationToken ct)
     {
         var userId = GetCurrentUserId();
-        var result = await cancel.HandleAsync(id, userId, ct);
+        var result = await sender.Send(new CancelLeaveRequestCommand(id, userId), ct);
         return Ok(result);
     }
 

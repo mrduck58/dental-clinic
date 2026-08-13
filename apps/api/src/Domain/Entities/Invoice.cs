@@ -31,6 +31,10 @@ public class Invoice
     // Liệu trình điều trị — nếu hóa đơn này là một đợt thu của liệu trình
     public Guid? TreatmentPlanId { get; private set; }
 
+    // Promotion áp dụng cho hóa đơn
+    public Guid? PromotionId { get; private set; }
+    public Promotion? Promotion { get; private set; }
+
     // Navigation properties
     public Appointment Appointment { get; private set; } = null!;
     public ICollection<InvoiceItem> Items { get; private set; } = new List<InvoiceItem>();
