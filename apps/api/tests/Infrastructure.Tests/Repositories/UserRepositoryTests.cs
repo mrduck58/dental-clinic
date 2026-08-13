@@ -112,7 +112,7 @@ public class UserRepositoryTests
             User.Create("emp3", "c@clinic.com", "hash", UserRole.Dentist, null, "Nguyễn Thị Cúc"));
         await _db.SaveChangesAsync();
 
-        var (items, total) = await _sut.GetStaffPagedAsync("nguyễn", null, null, 1, 10);
+        var (items, total) = await _sut.GetStaffPagedAsync("nguyễn", null, null, null, 1, 10);
 
         total.Should().Be(2);
         items.Should().OnlyContain(u => u.FullName!.Contains("Nguyễn", StringComparison.OrdinalIgnoreCase));
@@ -130,10 +130,78 @@ public class UserRepositoryTests
             User.Create("s2", "s2@clinic.com", "hash", UserRole.Staff));
         await _db.SaveChangesAsync();
 
-        var (items, total) = await _sut.GetStaffPagedAsync(null, "Staff", null, 1, 10);
+        var (items, total) = await _sut.GetStaffPagedAsync(null, "Staff", null, null, 1, 10);
 
         total.Should().Be(2);
         items.Should().OnlyContain(u => u.Role == UserRole.Staff);
+    }
+
+    /// <summary>
+    /// Lọc theo chuyên khoa phải chỉ trả về nha sĩ có Specialization khớp — trước đây filter này bị
+    /// nhét vào tham số search (chỉ dò tên/email/SĐT) nên luôn trả về rỗng.
+    /// </summary>
+    [Test]
+    public async Task GetStaffPagedAsync_FilterBySpecialty_ReturnsOnlyMatchingDentists()
+    {
+        var perio = await SeedDentistAsync("d1", "Nha chu");
+        await SeedDentistAsync("d2", "Chỉnh nha / Niềng răng");
+
+        var (items, total) = await _sut.GetStaffPagedAsync(null, null, null, "Nha chu", 1, 10);
+
+        total.Should().Be(1);
+        items[0].Id.Should().Be(perio.Id);
+    }
+
+    /// <summary>
+    /// Cùng tham số specialty nhưng ở tab Nhân viên phải khớp theo chức vụ (Position).
+    /// </summary>
+    [Test]
+    public async Task GetStaffPagedAsync_FilterByPosition_ReturnsOnlyMatchingStaff()
+    {
+        var receptionist = await SeedStaffAsync("s1", position: "Lễ tân");
+        await SeedStaffAsync("s2", position: "Trợ lý nha khoa");
+
+        var (items, total) = await _sut.GetStaffPagedAsync(null, null, null, "Lễ tân", 1, 10);
+
+        total.Should().Be(1);
+        items[0].Id.Should().Be(receptionist.Id);
+    }
+
+    /// <summary>
+    /// Search và specialty là hai filter độc lập, phải giao nhau (AND) chứ không ghép thành một chuỗi.
+    /// </summary>
+    [Test]
+    public async Task GetStaffPagedAsync_SearchAndSpecialty_AppliedTogether()
+    {
+        await SeedDentistAsync("d1", "Nha chu", fullName: "Nguyễn Văn An");
+        await SeedDentistAsync("d2", "Nha chu", fullName: "Trần Thị Bình");
+
+        var (items, total) = await _sut.GetStaffPagedAsync("nguyễn", null, null, "Nha chu", 1, 10);
+
+        total.Should().Be(1);
+        items[0].FullName.Should().Be("Nguyễn Văn An");
+    }
+
+    private async Task<User> SeedDentistAsync(string username, string specialization, string? fullName = null)
+    {
+        var user     = User.Create(username, $"{username}@clinic.com", "hash", UserRole.Dentist, null, fullName);
+        var employee = Employee.Create(user.Id, username.ToUpper());
+        var profile  = DentistProfile.Create(employee.Id, specialization, $"LIC-{username}");
+        await _db.Users.AddAsync(user);
+        await _db.Employees.AddAsync(employee);
+        await _db.DentistProfiles.AddAsync(profile);
+        await _db.SaveChangesAsync();
+        return user;
+    }
+
+    private async Task<User> SeedStaffAsync(string username, string position)
+    {
+        var user     = User.Create(username, $"{username}@clinic.com", "hash", UserRole.Staff);
+        var employee = Employee.Create(user.Id, username.ToUpper(), position: position);
+        await _db.Users.AddAsync(user);
+        await _db.Employees.AddAsync(employee);
+        await _db.SaveChangesAsync();
+        return user;
     }
 
     /// <summary>
@@ -146,8 +214,8 @@ public class UserRepositoryTests
             await _db.Users.AddAsync(User.Create($"emp{i}", $"emp{i}@clinic.com", "hash", UserRole.Staff));
         await _db.SaveChangesAsync();
 
-        var (page1, total) = await _sut.GetStaffPagedAsync(null, null, null, 1, 3);
-        var (page2, _)     = await _sut.GetStaffPagedAsync(null, null, null, 2, 3);
+        var (page1, total) = await _sut.GetStaffPagedAsync(null, null, null, null, 1, 3);
+        var (page2, _)     = await _sut.GetStaffPagedAsync(null, null, null, null, 2, 3);
 
         total.Should().Be(5);
         page1.Should().HaveCount(3);

@@ -63,6 +63,8 @@ interface Invoice {
   id: string; planId?: string;
   patientName: string; patientPhone: string; gender: "Nam" | "Nữ";
   dentist: string; date: string;
+  // Ngày thực thu — tab "Lịch sử" lọc và hiển thị theo ngày này, không phải ngày hẹn.
+  paidDate: string | null;
   items: Procedure[];
   subtotal: number; discount: number; finalTotal: number;
   paymentType: PayType; depositAmount: number; remaining: number;
@@ -117,6 +119,7 @@ function mapInvoice(inv: InvoiceDto): Invoice {
     gender: toGender(inv.gender),
     dentist: inv.dentistName,
     date: fmtDate(inv.appointmentDate),
+    paidDate: inv.paymentDate ? fmtDate(inv.paymentDate) : null,
     items: inv.items.map(i => ({ name: i.name, qty: i.quantity, price: i.unitPrice, treatmentPlanId: i.treatmentPlanId })),
     subtotal: inv.subtotal,
     discount: inv.discount,
@@ -237,6 +240,7 @@ function PlansTab({ plans, onIssued }: {
           gender: selected.gender,
           dentist: selected.dentist,
           date: selected.date,
+          paidDate: null,   // hóa đơn vừa lập, chưa thu
           items: [{ name: `Đợt thu - ${selected.planName}`, qty: 1, price: installAmount }],
           subtotal: installAmount, discount: 0, finalTotal: installAmount,
           paymentType: "full",
@@ -255,6 +259,7 @@ function PlansTab({ plans, onIssued }: {
           gender: selected.gender,
           dentist: selected.dentist,
           date: selected.date,
+          paidDate: null,   // hóa đơn vừa lập, chưa thu
           items: [...items],
           subtotal, discount, finalTotal,
           paymentType: collectedTotal < finalTotal ? "deposit" : "full",
@@ -1046,7 +1051,7 @@ function HistoryTab({ paid }: { paid: Invoice[] }) {
         <table className="w-full text-[13px]">
           <thead>
             <tr className="bg-slate-50/70 border-b border-slate-200">
-              {["Mã HĐ","Ngày","Bệnh nhân","Bác sĩ","Nội dung","Thanh toán","Tổng tiền"].map(h => (
+              {["Mã HĐ","Ngày thu","Bệnh nhân","Bác sĩ","Nội dung","Thanh toán","Tổng tiền"].map(h => (
                 <th key={h} className="px-5 py-3 text-left text-[11px] font-extrabold text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -1057,7 +1062,7 @@ function HistoryTab({ paid }: { paid: Invoice[] }) {
               return (
                 <tr key={inv.id} className="hover:bg-slate-50/50 transition-colors">
                   <td className="px-5 py-3.5 font-black text-slate-500 font-mono text-[12px]">{inv.id}</td>
-                  <td className="px-5 py-3.5 font-semibold text-slate-500 whitespace-nowrap">{inv.date}</td>
+                  <td className="px-5 py-3.5 font-semibold text-slate-500 whitespace-nowrap">{inv.paidDate ?? inv.date}</td>
                   <td className="px-5 py-3.5">
                     <div className="font-black text-slate-900">{inv.patientName}</div>
                     <div className="font-mono text-slate-400 text-[11.5px]">{inv.patientPhone}</div>
@@ -1261,9 +1266,14 @@ export default function InvoicesPage() {
   const byDate = <T extends { date: string }>(list: T[]) =>
     viDate ? list.filter(i => i.date === viDate) : list;
 
+  // Lịch sử phải lọc theo NGÀY THU TIỀN: hóa đơn hôm nay thường thuộc lịch hẹn của ngày khác,
+  // lọc theo ngày hẹn sẽ làm tab này gần như luôn trống.
+  const byPaidDate = (list: Invoice[]) =>
+    viDate ? list.filter(i => (i.paidDate ?? i.date) === viDate) : list;
+
   const fPlans   = byDate(plans);
   const fPending = byDate(pending);
-  const fPaid    = byDate(paid);
+  const fPaid    = byPaidDate(paid);
 
   const reload = useCallback(async () => {
     const [billable, pendingInv, history, outstandingInv, outstandingPls] = await Promise.all([

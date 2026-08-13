@@ -1,7 +1,9 @@
 using DentalClinic.API.Application.DTOs.Feedbacks;
+using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Domain.Interfaces.Services;
 using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Feedbacks;
@@ -10,7 +12,9 @@ public record CreateFeedbackCommand(Guid UserId, int Rating, string Comment) : I
 
 public class CreateFeedbackHandler(
     IFeedbackRepository feedbackRepository,
-    IPatientRepository patientRepository)
+    IPatientRepository patientRepository,
+    INotificationService notificationService,
+    IUserRepository userRepository)
     : IRequestHandler<CreateFeedbackCommand, FeedbackDto>
 {
     public async Task<FeedbackDto> Handle(CreateFeedbackCommand request, CancellationToken cancellationToken)
@@ -28,6 +32,19 @@ public class CreateFeedbackHandler(
             patient.Id);
 
         await feedbackRepository.AddAsync(feedback, cancellationToken);
+
+        // Owner theo dõi đánh giá phòng khám ở /owner/feedback — báo cho họ mỗi khi có phản hồi mới.
+        var ownerIds = await userRepository.GetUserIdsByRoleAsync("Owner", cancellationToken);
+        var ownerTemplate = new CreateNotificationRequest(
+            UserId: Guid.Empty,
+            Type: NotificationType.Service,
+            Priority: NotificationPriority.Medium,
+            Title: "Phản hồi mới từ bệnh nhân",
+            Body: $"{patient.FullName} vừa gửi đánh giá {request.Rating}/5 sao cho phòng khám.",
+            RelatedEntityType: "Feedback",
+            RelatedEntityId: feedback.Id.ToString());
+        await notificationService.CreateForMultipleUsersAsync(ownerIds, ownerTemplate, cancellationToken);
+
         return GetFeedbacksHandler.ToDto(feedback);
     }
 }

@@ -12,8 +12,9 @@ public interface IUserRepository
     Task AddAsync(User user, CancellationToken ct = default);
     Task UpdateAsync(User user, CancellationToken ct = default);
     Task<IEnumerable<User>> GetAllAsync(CancellationToken ct = default);
+    /// <param name="specialty">Chuyên khoa (nha sĩ) hoặc chức vụ / bộ phận (nhân viên).</param>
     Task<(IReadOnlyList<User> Items, int TotalCount)> GetStaffPagedAsync(
-        string? search, string? role, string? status,
+        string? search, string? role, string? status, string? specialty,
         int page, int pageSize, CancellationToken ct = default);
     Task<StaffStatsResult> GetStaffStatsAsync(CancellationToken ct = default);
     Task<IReadOnlyList<Guid>> GetUserIdsByRoleAsync(string role, CancellationToken ct = default);

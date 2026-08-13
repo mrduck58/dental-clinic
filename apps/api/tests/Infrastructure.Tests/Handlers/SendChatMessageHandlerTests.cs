@@ -60,7 +60,7 @@ public class SendChatMessageHandlerTests
         _clinicInfoRepo.GetAsync(Arg.Any<CancellationToken>()).Returns((DentalClinic.API.Domain.Entities.ClinicInfo?)null);
 
         _userRepo = Substitute.For<IUserRepository>();
-        _userRepo.GetStaffPagedAsync(null, null, null, 1, 500, Arg.Any<CancellationToken>())
+        _userRepo.GetStaffPagedAsync(null, null, null, null, 1, 500, Arg.Any<CancellationToken>())
             .Returns((new List<User>(), 0));
 
         _aiChatService = Substitute.For<IAiChatService>();

@@ -15,16 +15,19 @@ import {
 
 function getNotifHref(type: string, relatedEntityType: string | null, relatedEntityId: string | null): string | null {
   if (!relatedEntityType || !relatedEntityId) return null;
-  if (relatedEntityType === "LeaveRequest") return `/owner/leaves/${relatedEntityId}`;
+  if (relatedEntityType === "LeaveRequest")  return `/owner/leaves/${relatedEntityId}`;
+  if (relatedEntityType === "Feedback")      return "/owner/feedback";
+  if (relatedEntityType === "DentistReview") return "/owner/feedback";
   return null;
 }
 
+// key phải trùng NotificationType ở API (chữ thường) — API so sánh chính xác, không bỏ qua hoa/thường.
+// Owner chỉ nhận 2 loại: service (phản hồi phòng khám + đánh giá nha sĩ) và schedule (đơn xin nghỉ).
 const FILTERS = [
-  { key: "all",      label: "Tất cả"        },
-  { key: "unread",   label: "Chưa đọc"      },
-  { key: "schedule", label: "Lịch làm việc" },
-  { key: "reminder", label: "Nhắc nhở"      },
-  { key: "system",   label: "Hệ thống"      },
+  { key: "all",      label: "Tất cả"              },
+  { key: "unread",   label: "Chưa đọc"            },
+  { key: "service",  label: "Phản hồi & đánh giá" },
+  { key: "schedule", label: "Đơn xin nghỉ"        },
 ];
 
 const TYPE_CFG: Record<string, { bg: string; color: string; badge: string; path: string }> = {
@@ -40,6 +43,10 @@ const TYPE_CFG: Record<string, { bg: string; color: string; badge: string; path:
     bg: "bg-slate-100", color: "text-slate-600", badge: "bg-slate-100 text-slate-600 border-slate-200",
     path: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
   },
+  service: {
+    bg: "bg-emerald-50", color: "text-emerald-600", badge: "bg-emerald-50 text-emerald-700 border-emerald-100",
+    path: "M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.562.562 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.562.562 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z",
+  },
   account: {
     bg: "bg-red-50", color: "text-red-600", badge: "bg-red-50 text-red-700 border-red-100",
     path: "M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z",
@@ -52,14 +59,14 @@ const TYPE_CFG: Record<string, { bg: string; color: string; badge: string; path:
 
 const FALLBACK_CFG = TYPE_CFG.system;
 
+// Owner chỉ nhận schedule từ đúng một nguồn — đơn xin nghỉ (CreateLeaveRequestHandler).
 const TYPE_LABEL: Record<string, string> = {
-  schedule: "Lịch làm việc",
+  service:  "Phản hồi & đánh giá",
+  schedule: "Đơn xin nghỉ",
   reminder: "Nhắc nhở",
   system:   "Hệ thống",
   account:  "Tài khoản",
-  service:  "Dịch vụ",
   security: "Bảo mật",
-  appointment: "Lịch hẹn",
 };
 
 function timeAgo(ts: string): string {
@@ -89,7 +96,7 @@ export default function NotificationsPage() {
     setLoading(true);
     try {
       const res = await getNotificationsApi({
-        type:   filter !== "all" && filter !== "unread" ? filter.charAt(0).toUpperCase() + filter.slice(1) : undefined,
+        type:   filter !== "all" && filter !== "unread" ? filter : undefined,
         isRead: filter === "unread" ? false : undefined,
         pageSize: 50,
         page: 1,

@@ -33,7 +33,7 @@ public class GetDentistsHandler(IUserRepository userRepository, IDentistReposito
         }
 
         var (items, _) = await userRepository.GetStaffPagedAsync(
-            search: null, role: null, status: null, page: 1, pageSize: 500, ct);
+            search: null, role: null, status: null, specialty: null, page: 1, pageSize: 500, ct);
 
         return items
             .Where(u => u.Role == UserRole.Dentist || u.Employee?.DentistProfile != null)

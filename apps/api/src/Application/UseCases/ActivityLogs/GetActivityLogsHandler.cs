@@ -32,11 +32,16 @@ public class GetActivityLogsHandler(IActivityLogRepository repository, ICurrentU
         var pageSize = Math.Clamp(query.PageSize, 1, 100);
         var page     = Math.Max(query.Page, 1);
 
-        // If endDate has no time component (midnight), extend to end-of-day so the full day is included
+        // Client gửi mốc ngày theo giờ VN (offset +07:00). Npgsql chỉ chấp nhận DateTimeOffset với
+        // Offset=0, nên phải quy về UTC trước khi xuống repository — nếu không query sẽ ném lỗi.
+        var startDate = query.StartDate?.ToUniversalTime();
+
+        // If endDate has no time component (midnight), extend to end-of-day so the full day is included.
+        // Phải mở rộng TRƯỚC khi quy về UTC vì TimeOfDay được tính theo offset client gửi.
         var endDate = query.EndDate.HasValue
-            ? query.EndDate.Value.TimeOfDay == TimeSpan.Zero
+            ? (query.EndDate.Value.TimeOfDay == TimeSpan.Zero
                 ? query.EndDate.Value.AddDays(1).AddTicks(-1)
-                : query.EndDate.Value
+                : query.EndDate.Value).ToUniversalTime()
             : (DateTimeOffset?)null;
 
         var (items, total) = await repository.GetPagedAsync(
@@ -45,7 +50,7 @@ public class GetActivityLogsHandler(IActivityLogRepository repository, ICurrentU
             query.Module,
             query.Status,
             query.Search,
-            query.StartDate,
+            startDate,
             endDate,
             page,
             pageSize,
