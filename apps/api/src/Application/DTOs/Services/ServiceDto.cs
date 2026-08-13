@@ -1,5 +1,12 @@
 namespace DentalClinic.API.Application.DTOs.Services;
 
+public record ServiceOptionDto(
+    Guid Id,
+    string Name,
+    decimal Price,
+    string Unit,
+    int SortOrder);
+
 public record ServiceDto(
     Guid Id,
     string Name,
@@ -7,24 +14,36 @@ public record ServiceDto(
     int DurationMinutes,
     bool IsActive,
     string Description,
+    string Content,
     int ViewCount,
     string? ImageUrl,
     string? IconUrl,
     DateTimeOffset CreatedAt,
-    DateTimeOffset? UpdatedAt);
+    DateTimeOffset? UpdatedAt,
+    IReadOnlyCollection<ServiceOptionDto> Options);
+
+public record ServiceOptionRequest(
+    string Name,
+    decimal Price,
+    string? Unit,
+    int SortOrder);
 
 public record CreateServiceRequest(
     string Name,
     decimal Price,
     int DurationMinutes,
     string Description,
+    string Content,
     string? ImageUrl,
-    string? IconUrl);
+    string? IconUrl,
+    IReadOnlyCollection<ServiceOptionRequest>? Options);
 
 public record UpdateServiceRequest(
     string Name,
     decimal Price,
     int DurationMinutes,
     string Description,
+    string Content,
     string? ImageUrl,
-    string? IconUrl);
+    string? IconUrl,
+    IReadOnlyCollection<ServiceOptionRequest>? Options);

@@ -26,9 +26,6 @@ public class GetServicesHandler(IServiceRepository serviceRepository) : IRequest
                 s.Description.ToLower().Contains(q));
         }
 
-        return services.Select(s => new ServiceDto(
-            s.Id, s.Name, s.Price,
-            s.DurationMinutes, s.IsActive, s.Description,
-            s.ViewCount, s.ImageUrl, s.IconUrl, s.CreatedAt, s.UpdatedAt));
+        return services.Select(s => ServiceMapper.ToDto(s));
     }
 }

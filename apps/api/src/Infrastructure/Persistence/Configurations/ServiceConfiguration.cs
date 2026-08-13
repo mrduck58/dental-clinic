@@ -26,5 +26,13 @@ public class ServiceConfiguration : IEntityTypeConfiguration<Service>
 
         builder.Property(s => s.IconUrl)
             .HasMaxLength(500);
+
+        builder.Property(s => s.Content)
+            .HasDefaultValue("");
+
+        builder.HasMany(s => s.Options)
+            .WithOne(o => o.Service)
+            .HasForeignKey(o => o.ServiceId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

@@ -12,4 +12,7 @@ public interface IServiceRepository
 
     /// <summary>Dịch vụ đang hoạt động (IsActive), sắp theo tên — dùng cho chatbot/booking liệt kê dịch vụ khả dụng.</summary>
     Task<IEnumerable<Service>> GetActiveAsync(CancellationToken ct = default);
+
+    /// <summary>Xóa toàn bộ ServiceOption hiện có của dịch vụ — gọi trước khi UpdateAsync để replace all options.</summary>
+    Task DeleteOptionsAsync(Guid serviceId, CancellationToken ct = default);
 }

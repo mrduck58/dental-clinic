@@ -13,8 +13,10 @@ public record UpdateServiceCommand(
     decimal Price,
     int DurationMinutes,
     string Description,
+    string Content,
     string? ImageUrl,
-    string? IconUrl) : IRequest<ServiceDto>;
+    string? IconUrl,
+    IReadOnlyCollection<ServiceOptionRequest>? Options) : IRequest<ServiceDto>;
 
 public class UpdateServiceHandler(
     IServiceRepository serviceRepository,
@@ -31,8 +33,20 @@ public class UpdateServiceHandler(
             request.Price,
             request.DurationMinutes,
             request.Description,
+            request.Content ?? string.Empty,
             request.ImageUrl,
             request.IconUrl);
+
+        // Replace options: delete existing via repository, then add new ones through domain entity
+        await serviceRepository.DeleteOptionsAsync(service.Id, cancellationToken);
+
+        if (request.Options is { Count: > 0 })
+        {
+            var newOptions = request.Options
+                .OrderBy(o => o.SortOrder)
+                .Select((o, i) => (o.Name, o.Price, Unit: o.Unit ?? "Răng", SortOrder: i));
+            service.ReplaceOptions(newOptions);
+        }
 
         await serviceRepository.UpdateAsync(service, cancellationToken);
 
@@ -48,9 +62,8 @@ public class UpdateServiceHandler(
             targetId: request.Id.ToString(),
             ct: cancellationToken);
 
-        return new ServiceDto(
-            service.Id, service.Name, service.Price,
-            service.DurationMinutes, service.IsActive, service.Description,
-            service.ViewCount, service.ImageUrl, service.IconUrl, service.CreatedAt, service.UpdatedAt);
+        // Reload to get fresh options list
+        var updated = await serviceRepository.GetByIdAsync(service.Id, cancellationToken) ?? service;
+        return ServiceMapper.ToDto(updated);
     }
 }
