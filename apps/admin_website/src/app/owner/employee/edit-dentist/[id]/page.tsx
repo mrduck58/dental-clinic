@@ -5,7 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import OwnerSidebar from "../../../../../components/shared/OwnerSidebar";
 import OwnerPageHeader from "../../../../../components/shared/OwnerPageHeader";
 import { useRequireOwner } from "../../../../../hooks/useRequireOwner";
-import { updateStaffApi, uploadFileApi, resolveAssetUrl, ApiValidationError, type StaffDto, type UpdateStaffCommand } from "../../../../../lib/apiClient";
+import { updateStaffApi, getStaffByIdApi, uploadFileApi, resolveAssetUrl, ApiValidationError, type StaffDto, type UpdateStaffCommand } from "../../../../../lib/apiClient";
 
 interface DentistEditForm {
   fullName: string;
@@ -28,6 +28,8 @@ interface DentistEditForm {
   employmentStatus: string;
   isActive: boolean;
 }
+
+const fmtDateInput = (d?: string | null) => (d ? d.split("T")[0] : "");
 
 export default function EditDentistPage() {
   useRequireOwner();
@@ -60,50 +62,82 @@ export default function EditDentistPage() {
     }
   }, [formEmploymentType]);
 
+  const populateData = (data: StaffDto) => {
+    setStaff(data);
+
+    const exp = data.yearsOfExperience ?? 5;
+    const isDentist = data.role === "Dentist";
+    const isPartTime = exp % 2 === 0 && isDentist;
+    const isShift = !isPartTime && (data.role === "Staff" && (data.position?.toLowerCase().includes("lễ tân") || data.position?.toLowerCase().includes("tiếp đón")));
+    const calculatedType = isPartTime ? "Part-time" : isShift ? "Shift-based" : "Full-time";
+    const calculatedSalary = isDentist ? (25000000 + exp * 1500000) : (10000000 + (data.fullName?.length || 5) * 200000);
+    const calculatedUnit = isPartTime ? "Theo ngày" : isShift ? "Theo ca" : "Theo tháng";
+    const calculatedLeave = isDentist ? 1.5 : 1;
+
+    setFormEmploymentType(data.employmentType || calculatedType);
+    setFormBaseSalary(data.baseSalary ?? calculatedSalary);
+    setFormSalaryUnit(data.salaryUnit || calculatedUnit);
+    setFormLeaveAccrued(data.leaveAccrued ?? calculatedLeave);
+    setFormAllowance(data.allowance ?? (isDentist ? 2500000 : 1200000));
+
+    setFormData({
+      fullName: data.fullName || "",
+      gender: data.gender || "",
+      dateOfBirth: fmtDateInput(data.dateOfBirth),
+      phoneNumber: data.phoneNumber || "",
+      email: data.email || "",
+      address: data.address || "",
+      profilePictureUrl: data.profilePictureUrl || "",
+      specialty: data.specialty || "",
+      licenseNumber: data.licenseNumber || "",
+      servicesHandled: data.servicesHandled || "Nhổ răng, Lấy cao răng",
+      startDate: fmtDateInput(data.startDate),
+      certificateIssuedDate: fmtDateInput(data.certificateIssuedDate),
+      certificateIssuedBy: data.certificateIssuedBy || "",
+      yearsOfExperience: data.yearsOfExperience != null ? String(data.yearsOfExperience) : "",
+      education: data.education || "",
+      bio: data.bio || "",
+      role: data.role,
+      employmentStatus: data.employmentStatus || "Active",
+      isActive: data.isActive,
+    });
+  };
+
   useEffect(() => {
     const raw = sessionStorage.getItem("staffEditData");
     if (raw) {
-      const data: StaffDto = JSON.parse(raw);
-      setStaff(data);
-
-      const exp = data.yearsOfExperience ?? 5;
-      const isDentist = data.role === "Dentist";
-      const isPartTime = exp % 2 === 0 && isDentist;
-      const isShift = !isPartTime && (data.role === "Staff" && (data.position?.toLowerCase().includes("lễ tân") || data.position?.toLowerCase().includes("tiếp đón")));
-      const calculatedType = isPartTime ? "Part-time" : isShift ? "Shift-based" : "Full-time";
-      const calculatedSalary = isDentist ? (25000000 + exp * 1500000) : (10000000 + (data.fullName?.length || 5) * 200000);
-      const calculatedUnit = isPartTime ? "Theo ngày" : isShift ? "Theo ca" : "Theo tháng";
-      const calculatedLeave = isDentist ? 1.5 : 1;
-
-      setFormEmploymentType(data.employmentType || calculatedType);
-      setFormBaseSalary(data.baseSalary ?? calculatedSalary);
-      setFormSalaryUnit(data.salaryUnit || calculatedUnit);
-      setFormLeaveAccrued(data.leaveAccrued ?? calculatedLeave);
-      setFormAllowance(data.allowance ?? (isDentist ? 2500000 : 1200000));
-
-      setFormData({
-        fullName: data.fullName || "",
-        gender: data.gender || "",
-        dateOfBirth: data.dateOfBirth || "",
-        phoneNumber: data.phoneNumber || "",
-        email: data.email,
-        address: data.address || "",
-        profilePictureUrl: data.profilePictureUrl || "",
-        specialty: data.specialty || "",
-        licenseNumber: data.licenseNumber || "",
-        servicesHandled: data.servicesHandled || "",
-        startDate: data.startDate || "",
-        certificateIssuedDate: data.certificateIssuedDate || "",
-        certificateIssuedBy: data.certificateIssuedBy || "",
-        yearsOfExperience: data.yearsOfExperience != null ? String(data.yearsOfExperience) : "",
-        education: data.education || "",
-        bio: data.bio || "",
-        role: data.role,
-        employmentStatus: data.employmentStatus || "Active",
-        isActive: data.isActive,
-      });
+      try {
+        const data: StaffDto = JSON.parse(raw);
+        populateData(data);
+        return;
+      } catch {
+        // Fallback to fetching via API
+      }
     }
-  }, []);
+    if (id) {
+      getStaffByIdApi(id)
+        .then((data) => populateData(data))
+        .catch((err) => {
+          setErrors({ api: err instanceof Error ? err.message : "Không thể tải thông tin nha sĩ" });
+        });
+    }
+  }, [id]);
+
+  const scrollToError = (errObj: Record<string, string>) => {
+    const keys = Object.keys(errObj).filter((k) => k !== "api");
+    if (keys.length === 0) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    const firstKey = keys[0];
+    const target = document.querySelector(`[name="${firstKey}"]`) || document.getElementById(`field-${firstKey}`);
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      (target as HTMLElement).focus?.();
+    } else {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
 
   const validate = () => {
     const e: Record<string, string> = {};
@@ -125,6 +159,9 @@ export default function EditDentistPage() {
     if (!formData.servicesHandled.trim()) e.servicesHandled = "Dịch vụ phụ trách không được để trống";
     if (!formData.startDate) e.startDate = "Ngày bắt đầu làm việc không được để trống";
     setErrors(e);
+    if (Object.keys(e).length > 0) {
+      scrollToError(e);
+    }
     return Object.keys(e).length === 0;
   };
 
@@ -188,21 +225,21 @@ export default function EditDentistPage() {
       sessionStorage.setItem("staffSuccessMsg", `Cập nhật thông tin nha sĩ ${formData.fullName.trim()} thành công!`);
       router.push("/owner/employee");
     } catch (err: unknown) {
+      const mappedErrors: Record<string, string> = {};
       if (err instanceof ApiValidationError) {
-        const valErr = err;
-        const mappedErrors: Record<string, string> = {};
-        Object.entries(valErr.errors).forEach(([field, msgs]) => {
+        Object.entries(err.errors).forEach(([field, msgs]) => {
           mappedErrors[field] = msgs[0];
         });
-        setErrors(mappedErrors);
       } else {
         const errMsg = err instanceof Error ? err.message : "Đã xảy ra lỗi không xác định";
         if (errMsg.toLowerCase().includes("email")) {
-          setErrors({ email: errMsg });
+          mappedErrors.email = errMsg;
         } else {
-          setErrors({ api: errMsg });
+          mappedErrors.api = errMsg;
         }
       }
+      setErrors(mappedErrors);
+      scrollToError(mappedErrors);
       setIsSubmitting(false);
     }
   };
@@ -257,12 +294,20 @@ export default function EditDentistPage() {
         <div className="flex-1 p-8 flex justify-center overflow-y-auto">
           <div className="w-full max-w-5xl">
 
-            {errors.api && (
-              <div className="mb-6 bg-red-50 border border-red-200 text-red-700 p-4 rounded-2xl text-[13.5px] font-bold flex items-start gap-2.5">
+            {Object.keys(errors).length > 0 && (
+              <div className="mb-6 bg-red-50 border border-red-200 text-red-700 p-4 rounded-2xl text-[13.5px] font-bold flex items-start gap-2.5 shadow-sm animate-fade-in">
                 <svg className="w-5 h-5 text-red-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
                 </svg>
-                {errors.api}
+                <div className="flex-1">
+                  <p className="font-extrabold text-red-800">Thông tin chưa hợp lệ hoặc còn thiếu ({Object.keys(errors).filter(k => k !== 'api').length} trường):</p>
+                  <ul className="list-disc list-inside mt-1 font-semibold text-[13px] text-red-700 space-y-0.5">
+                    {Object.entries(errors).map(([key, msg]) => (
+                      key !== "api" && <li key={key}>{msg}</li>
+                    ))}
+                    {errors.api && <li>{errors.api}</li>}
+                  </ul>
+                </div>
               </div>
             )}
 
@@ -501,7 +546,7 @@ export default function EditDentistPage() {
                     {errMsg("certificateIssuedBy")}
                   </div>
 
-                  <div className="sm:col-span-2">
+                  <div className="sm:col-span-2" id="field-servicesHandled">
                     <label className={lbl}>Dịch vụ phụ trách *</label>
                     <div className="flex flex-wrap gap-2.5">
                       {["Nhổ răng", "Lấy cao răng", "Cấy Implant", "Niềng răng mắc cài", "Niềng răng trong suốt Invisalign"].map((srv) => {

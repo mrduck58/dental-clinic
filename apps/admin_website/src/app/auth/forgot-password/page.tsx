@@ -199,9 +199,9 @@ export default function ForgotPasswordPage() {
           <div className="collage-card w-[260px] h-[130px]" style={{ bottom:"16%", left:"3%", transform:"rotate(-1deg)", opacity:0.8, zIndex:15 }}>
             <span className="text-[11px] text-slate-400 font-extrabold uppercase tracking-wider mb-2.5 pb-1 border-b border-slate-800">Lưu ý quan trọng</span>
             <div className="flex flex-col gap-2">
-              <div className="flex items-start gap-1.5"><span className="text-amber-400 text-[10px] mt-0.5 shrink-0">⚠️</span><span className="text-[11px] text-slate-300 font-medium">Liên kết chỉ dùng được 1 lần</span></div>
-              <div className="flex items-start gap-1.5"><span className="text-red-400 text-[10px] mt-0.5 shrink-0">🔒</span><span className="text-[11px] text-slate-300 font-medium">Không chia sẻ liên kết với ai</span></div>
-              <div className="flex items-start gap-1.5"><span className="text-sky-400 text-[10px] mt-0.5 shrink-0">⏱️</span><span className="text-[11px] text-slate-300 font-medium">Hiệu lực trong vòng 1 giờ</span></div>
+              <div className="flex items-start gap-1.5"><svg className="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg><span className="text-[11px] text-slate-300 font-medium">Liên kết chỉ dùng được 1 lần</span></div>
+              <div className="flex items-start gap-1.5"><svg className="w-3.5 h-3.5 text-red-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg><span className="text-[11px] text-slate-300 font-medium">Không chia sẻ liên kết với ai</span></div>
+              <div className="flex items-start gap-1.5"><svg className="w-3.5 h-3.5 text-sky-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><span className="text-[11px] text-slate-300 font-medium">Hiệu lực trong vòng 1 giờ</span></div>
             </div>
           </div>
 
