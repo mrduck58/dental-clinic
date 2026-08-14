@@ -69,8 +69,34 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
 builder.Services.AddInfrastructure(builder.Configuration);
 
 // JWT Authentication
-var jwtSecret = builder.Configuration["JwtSettings:Secret"]
-    ?? throw new InvalidOperationException("JwtSettings:Secret is not configured.");
+//
+// Kiểm IsNullOrWhiteSpace, KHÔNG chỉ null. appsettings.json giao sẵn "Secret": "" làm chỗ trống, nên
+// khi thiếu biến môi trường thì config trả về CHUỖI RỖNG và toán tử ?? không bao giờ kích hoạt.
+// Hệ quả cũ: SymmetricSecurityKey ném ArgumentNullException bên trong factory của AddJwtBearer, mà
+// factory đó chỉ chạy LAZY ở request đầu tiên — Render báo deploy thành công, health check vào file
+// tĩnh vẫn 200, nhưng MỌI /api/* trả 500 vì UseAuthentication chạy cho cả endpoint ẩn danh.
+// Chết ngay lúc khởi động kèm tên biến còn thiếu thì dễ sửa hơn nhiều.
+//
+// Chặn luôn secret quá ngắn: HS256 cần khoá đủ dài, thiếu thì lỗi lại nổ muộn ở lần ký token đầu tiên
+// thay vì ở đây.
+const int minSecretLength = 32;
+var jwtSection = builder.Configuration.GetSection("JwtSettings");
+
+var missingJwtKeys = new[] { "Secret", "Issuer", "Audience" }
+    .Where(key => string.IsNullOrWhiteSpace(jwtSection[key]))
+    .Select(key => $"JwtSettings__{key}")
+    .ToArray();
+
+if (missingJwtKeys.Length > 0)
+    throw new InvalidOperationException(
+        $"Thiếu cấu hình JWT: {string.Join(", ", missingJwtKeys)}. " +
+        "Set các biến môi trường này trước khi khởi động (trên Render: tab Environment).");
+
+var jwtSecret = jwtSection["Secret"]!;
+
+if (jwtSecret.Length < minSecretLength)
+    throw new InvalidOperationException(
+        $"JwtSettings__Secret chỉ dài {jwtSecret.Length} ký tự, cần tối thiểu {minSecretLength} cho HS256.");
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
