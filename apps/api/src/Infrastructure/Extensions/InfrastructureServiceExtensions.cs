@@ -40,6 +40,7 @@ public static class InfrastructureServiceExtensions
         services.Configure<GeminiSettings>(configuration.GetSection("GeminiSettings"));
         services.Configure<GoogleAuthSettings>(configuration.GetSection("GoogleAuthSettings"));
         services.Configure<SmsSettings>(configuration.GetSection("SmsSettings"));
+        services.Configure<SupabaseStorageSettings>(configuration.GetSection("SupabaseStorage"));
 
         // ── Repositories ────────────────────────────────────────────────────
         services.AddScoped<IAppointmentRepository, AppointmentRepository>();
@@ -90,8 +91,17 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IActivityLogService, ActivityLogService>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
-        services.AddScoped<IEmailService, EmailService>();
-        services.AddScoped<IFileStorageService, LocalFileStorageService>();
+        services.AddHttpClient<IEmailService, EmailService>();
+        // Kho lưu file: có cấu hình Supabase thì dùng, không thì lùi về đĩa cục bộ.
+        // Đĩa cục bộ KHÔNG dùng được khi deploy lên Render — filesystem ở đó là ephemeral, file bị
+        // xóa sau mỗi lần deploy/restart/spin-down. Chỉ giữ nhánh này cho máy dev.
+        var storageSettings = configuration.GetSection("SupabaseStorage").Get<SupabaseStorageSettings>()
+            ?? new SupabaseStorageSettings();
+
+        if (storageSettings.IsConfigured)
+            services.AddHttpClient<IFileStorageService, SupabaseFileStorageService>();
+        else
+            services.AddScoped<IFileStorageService, LocalFileStorageService>();
         services.AddScoped<IGoogleAuthService, GoogleAuthService>();
         services.AddHttpContextAccessor();
 

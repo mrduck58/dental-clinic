@@ -82,7 +82,7 @@ public class ServiceRepositoryTests
         _db.Services.Add(service);
         await _db.SaveChangesAsync();
 
-        service.Update("Trám răng thẩm mỹ", 700_000m, 45, "Mô tả mới", null, null);
+        service.Update("Trám răng thẩm mỹ", 700_000m, 45, "Mô tả mới", "", null, null);
         await _sut.UpdateAsync(service);
 
         var reloaded = await _db.Services.FindAsync(service.Id);
