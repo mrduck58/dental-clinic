@@ -63,6 +63,8 @@ interface Invoice {
   id: string; planId?: string;
   patientName: string; patientPhone: string; gender: "Nam" | "Nữ";
   dentist: string; date: string;
+  // Ngày thực thu — tab "Lịch sử" lọc và hiển thị theo ngày này, không phải ngày hẹn.
+  paidDate: string | null;
   items: Procedure[];
   subtotal: number; discount: number; finalTotal: number;
   paymentType: PayType; depositAmount: number; remaining: number;
@@ -117,6 +119,7 @@ function mapInvoice(inv: InvoiceDto): Invoice {
     gender: toGender(inv.gender),
     dentist: inv.dentistName,
     date: fmtDate(inv.appointmentDate),
+    paidDate: inv.paymentDate ? fmtDate(inv.paymentDate) : null,
     items: inv.items.map(i => ({ name: i.name, qty: i.quantity, price: i.unitPrice, treatmentPlanId: i.treatmentPlanId })),
     subtotal: inv.subtotal,
     discount: inv.discount,
@@ -237,6 +240,7 @@ function PlansTab({ plans, onIssued }: {
           gender: selected.gender,
           dentist: selected.dentist,
           date: selected.date,
+          paidDate: null,   // hóa đơn vừa lập, chưa thu
           items: [{ name: `Đợt thu - ${selected.planName}`, qty: 1, price: installAmount }],
           subtotal: installAmount, discount: 0, finalTotal: installAmount,
           paymentType: "full",
@@ -255,6 +259,7 @@ function PlansTab({ plans, onIssued }: {
           gender: selected.gender,
           dentist: selected.dentist,
           date: selected.date,
+          paidDate: null,   // hóa đơn vừa lập, chưa thu
           items: [...items],
           subtotal, discount, finalTotal,
           paymentType: collectedTotal < finalTotal ? "deposit" : "full",
@@ -275,9 +280,9 @@ function PlansTab({ plans, onIssued }: {
   };
 
   return (
-    <div className="flex gap-6 items-start">
+    <div className="flex flex-col lg:flex-row gap-6 items-start">
       {/* Plans sidebar */}
-      <div className="w-80 shrink-0 flex flex-col gap-3">
+      <div className="w-full lg:w-80 shrink-0 flex flex-col gap-3">
         <div className="flex items-center gap-2">
           <span className={labelCls}>Liệu trình chờ xuất hóa đơn</span>
           <span className="text-[12px] font-black text-slate-400">{plans.length}</span>
@@ -331,7 +336,7 @@ function PlansTab({ plans, onIssued }: {
       </div>
 
       {/* Invoice form */}
-      <div className="flex-1 min-w-0">
+      <div className={`flex-1 min-w-0 w-full ${!selected && !saved ? "hidden lg:block" : ""}`}>
         {saved ? (
           <div className="bg-white rounded-2xl border border-emerald-200 shadow-sm flex flex-col items-center gap-3 py-20">
             <div className="w-14 h-14 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center">
@@ -350,10 +355,20 @@ function PlansTab({ plans, onIssued }: {
         ) : (
           <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
             {/* Header */}
-            <div className="px-7 py-5 border-b border-slate-100 flex items-center justify-between">
-              <div>
-                <h3 className="text-[16px] font-black text-slate-900">Hóa đơn điều trị</h3>
-                <p className="text-[12.5px] font-semibold text-slate-400 mt-0.5">Từ liệu trình {selected.id} · {selected.date}</p>
+            <div className="px-5 sm:px-7 py-4 sm:py-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelected(null)}
+                  className="lg:hidden p-2 -ml-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all shrink-0"
+                  title="Quay lại danh sách"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" /></svg>
+                </button>
+                <div>
+                  <h3 className="text-[16px] font-black text-slate-900">Hóa đơn điều trị</h3>
+                  <p className="text-[12.5px] font-semibold text-slate-400 mt-0.5">Từ liệu trình {selected.id} · {selected.date}</p>
+                </div>
               </div>
               <div className="flex items-center gap-2.5">
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-[12px] border ${
@@ -1023,19 +1038,19 @@ function HistoryTab({ paid }: { paid: Invoice[] }) {
   return (
     <div className="flex flex-col gap-5">
       {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         {[
           { label: "Doanh thu",   value: fmt(todayRevenue), icon: "M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z", color: "text-emerald-600", bg: "bg-emerald-50" },
           { label: "Tổng hóa đơn",        value: `${paid.length} hóa đơn`,                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                icon: "M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z", color: "text-sky-600",     bg: "bg-sky-50"     },
           { label: "Trung bình / hóa đơn", value: paid.length > 0 ? fmt(Math.round(paid.reduce((s, i) => s + i.depositAmount, 0) / paid.length)) : "—",                                                                                                                                                                                                                                                                                                                                                                                                                                                      icon: "M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z", color: "text-violet-600", bg: "bg-violet-50"  },
         ].map(s => (
-          <div key={s.label} className="bg-white rounded-2xl border border-slate-200/70 shadow-sm px-5 py-4 flex items-center gap-4">
-            <div className={`w-11 h-11 rounded-xl ${s.bg} flex items-center justify-center shrink-0`}>
+          <div key={s.label} className="bg-white rounded-2xl border border-slate-200/70 shadow-sm p-4 flex items-center gap-3.5">
+            <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl ${s.bg} flex items-center justify-center shrink-0`}>
               <svg className={`w-5 h-5 ${s.color}`} fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d={s.icon} /></svg>
             </div>
-            <div>
-              <div className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">{s.label}</div>
-              <div className="text-[17px] font-black text-slate-900 mt-0.5">{s.value}</div>
+            <div className="min-w-0">
+              <div className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider truncate">{s.label}</div>
+              <div className="text-[15px] sm:text-[17px] font-black text-slate-900 mt-0.5 truncate">{s.value}</div>
             </div>
           </div>
         ))}
@@ -1043,10 +1058,11 @@ function HistoryTab({ paid }: { paid: Invoice[] }) {
 
       {/* Table */}
       <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm overflow-hidden">
-        <table className="w-full text-[13px]">
+        <div className="overflow-x-auto">
+        <table className="w-full text-[13px] min-w-[650px]">
           <thead>
             <tr className="bg-slate-50/70 border-b border-slate-200">
-              {["Mã HĐ","Ngày","Bệnh nhân","Bác sĩ","Nội dung","Thanh toán","Tổng tiền"].map(h => (
+              {["Mã HĐ","Ngày thu","Bệnh nhân","Bác sĩ","Nội dung","Thanh toán","Tổng tiền"].map(h => (
                 <th key={h} className="px-5 py-3 text-left text-[11px] font-extrabold text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -1057,7 +1073,7 @@ function HistoryTab({ paid }: { paid: Invoice[] }) {
               return (
                 <tr key={inv.id} className="hover:bg-slate-50/50 transition-colors">
                   <td className="px-5 py-3.5 font-black text-slate-500 font-mono text-[12px]">{inv.id}</td>
-                  <td className="px-5 py-3.5 font-semibold text-slate-500 whitespace-nowrap">{inv.date}</td>
+                  <td className="px-5 py-3.5 font-semibold text-slate-500 whitespace-nowrap">{inv.paidDate ?? inv.date}</td>
                   <td className="px-5 py-3.5">
                     <div className="font-black text-slate-900">{inv.patientName}</div>
                     <div className="font-mono text-slate-400 text-[11.5px]">{inv.patientPhone}</div>
@@ -1091,6 +1107,7 @@ function HistoryTab({ paid }: { paid: Invoice[] }) {
             })}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );
@@ -1261,9 +1278,14 @@ export default function InvoicesPage() {
   const byDate = <T extends { date: string }>(list: T[]) =>
     viDate ? list.filter(i => i.date === viDate) : list;
 
+  // Lịch sử phải lọc theo NGÀY THU TIỀN: hóa đơn hôm nay thường thuộc lịch hẹn của ngày khác,
+  // lọc theo ngày hẹn sẽ làm tab này gần như luôn trống.
+  const byPaidDate = (list: Invoice[]) =>
+    viDate ? list.filter(i => (i.paidDate ?? i.date) === viDate) : list;
+
   const fPlans   = byDate(plans);
   const fPending = byDate(pending);
-  const fPaid    = byDate(paid);
+  const fPaid    = byPaidDate(paid);
 
   const reload = useCallback(async () => {
     const [billable, pendingInv, history, outstandingInv, outstandingPls] = await Promise.all([
@@ -1347,9 +1369,9 @@ export default function InvoicesPage() {
           title="Hóa Đơn & Thanh Toán"
           subtitle="Xuất hóa đơn từ liệu trình điều trị và xác nhận thanh toán"
           right={
-            <div className="flex items-center gap-2 text-[12.5px] font-bold">
+            <div className="flex items-center gap-1.5 sm:gap-2 text-[12px] sm:text-[12.5px] font-bold">
               {fPlans.length > 0 && (
-                <span className="flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl">
+                <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl whitespace-nowrap">
                   <span className="relative flex h-2 w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
@@ -1358,7 +1380,7 @@ export default function InvoicesPage() {
                 </span>
               )}
               {fPending.length > 0 && (
-                <span className="flex items-center gap-1.5 px-2.5 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl">
+                <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl whitespace-nowrap">
                   {fPending.some(i => i.status === "awaiting_payment") && (
                     <span className="relative flex h-2 w-2">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75" />
@@ -1370,7 +1392,7 @@ export default function InvoicesPage() {
               )}
 
               {/* Bộ lọc ngày */}
-              <div className="flex items-center gap-1.5 pl-1">
+              <div className="flex items-center gap-1 sm:gap-1.5 pl-0.5 sm:pl-1">
                 <div className="relative flex items-center">
                   <svg className="w-4 h-4 text-slate-400 absolute left-2.5 pointer-events-none" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
@@ -1379,19 +1401,19 @@ export default function InvoicesPage() {
                     type="date"
                     value={filterDate}
                     onChange={e => setFilterDate(e.target.value)}
-                    className="pl-8 pr-3 py-1.5 text-[12.5px] font-bold bg-white border border-slate-200 rounded-xl text-slate-700 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none cursor-pointer"
+                    className="pl-8 pr-2.5 py-1.5 text-[12px] sm:text-[12.5px] font-bold bg-white border border-slate-200 rounded-xl text-slate-700 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none cursor-pointer max-w-[130px] sm:max-w-none"
                   />
                 </div>
                 {filterDate ? (
                   <button onClick={() => setFilterDate("")}
                     title="Xem tất cả các ngày"
-                    className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-primary hover:border-primary/40 transition-all cursor-pointer">
+                    className="px-2 sm:px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-primary hover:border-primary/40 transition-all cursor-pointer text-[12px] font-bold">
                     Tất cả
                   </button>
                 ) : (
                   <button onClick={() => setFilterDate(todayIso())}
                     title="Về hôm nay"
-                    className="px-2.5 py-1.5 rounded-xl border border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 transition-all cursor-pointer">
+                    className="px-2 sm:px-2.5 py-1.5 rounded-xl border border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 transition-all cursor-pointer text-[12px] font-bold">
                     Hôm nay
                   </button>
                 )}
@@ -1400,9 +1422,9 @@ export default function InvoicesPage() {
           }
         />
 
-        <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-5">
+        <div className="p-4 sm:p-8 flex-1 overflow-y-auto flex flex-col gap-5">
           {/* Tabs */}
-          <div className="flex gap-2">
+          <div className="flex gap-2 overflow-x-auto pb-1 max-w-full flex-nowrap shrink-0">
             {([
               { key: "plans",       label: "Liệu trình → Hóa đơn", count: fPlans.length,      dot: fPlans.length > 0 },
               { key: "pending",     label: "Chờ thanh toán",         count: fPending.length,    dot: fPending.some(i => i.status === "awaiting_payment") },

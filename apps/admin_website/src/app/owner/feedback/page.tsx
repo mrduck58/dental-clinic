@@ -226,12 +226,12 @@ export default function OwnerFeedbackPage() {
                 />
               </div>
 
-              <div className="flex items-center gap-3">
-                <div className="relative">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full md:w-auto">
+                <div className="relative w-full">
                   <select
                     value={ratingFilter}
                     onChange={(e) => setRatingFilter(e.target.value)}
-                    className="appearance-none bg-white text-slate-700 font-bold text-[14px] pl-4 pr-10 py-2.5 rounded-xl border border-slate-200 focus:outline-none transition-all cursor-pointer"
+                    className="w-full appearance-none bg-white text-slate-700 font-bold text-[14px] pl-4 pr-10 py-2.5 rounded-xl border border-slate-200 focus:outline-none transition-all cursor-pointer"
                   >
                     <option value="All">Lọc theo Đánh giá</option>
                     <option value="5">5 Sao</option>
@@ -247,11 +247,11 @@ export default function OwnerFeedbackPage() {
                   </div>
                 </div>
 
-                <div className="relative">
+                <div className="relative w-full">
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="appearance-none bg-white text-slate-700 font-bold text-[14px] pl-4 pr-10 py-2.5 rounded-xl border border-slate-200 focus:outline-none transition-all cursor-pointer"
+                    className="w-full appearance-none bg-white text-slate-700 font-bold text-[14px] pl-4 pr-10 py-2.5 rounded-xl border border-slate-200 focus:outline-none transition-all cursor-pointer"
                   >
                     <option value="All">Lọc theo Trạng thái</option>
                     <option value="Pending">Chờ phê duyệt</option>
@@ -416,15 +416,15 @@ export default function OwnerFeedbackPage() {
 
             {/* PAGINATION */}
             {filteredFeedbacks.length > 0 && (
-              <div className="p-4 border-t border-slate-100 flex items-center justify-between">
-                <span className="text-[12px] text-slate-400 font-semibold">
+              <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-2.5">
+                <span className="text-[12px] text-slate-400 font-semibold text-center sm:text-left">
                   Hiển thị{" "}
                   <span className="font-black text-slate-600">{startIndex + 1}–{Math.min(startIndex + itemsPerPage, filteredFeedbacks.length)}</span>{" "}
                   trong{" "}
                   <span className="font-black text-slate-600">{filteredFeedbacks.length}</span>{" "}
                   phản hồi
                 </span>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap justify-center">
                   <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1}
                     className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${currentPage === 1 ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed" : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"}`}>
                     |&lt;

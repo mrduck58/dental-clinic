@@ -19,7 +19,14 @@ class SettingsManager {
     isDarkMode.value = _prefs.getBool('is_dark_mode') ?? false;
     final langCode = _prefs.getString('language_code') ?? 'vi';
     locale.value = Locale(langCode);
-    apiBaseUrl.value = _prefs.getString('api_base_url') ?? kDefaultApiBaseUrl;
+    // Nếu URL đang lưu khác với URL mặc định hiện tại (ví dụ: đang giữ URL
+    // Cloudflare/localhost cũ từ lần test trước) thì tự động reset về mặc định
+    // mới — tránh lỗi "không kết nối được" sau khi cập nhật app.
+    final saved = _prefs.getString('api_base_url');
+    if (saved != null && saved != kDefaultApiBaseUrl) {
+      await _prefs.setString('api_base_url', kDefaultApiBaseUrl);
+    }
+    apiBaseUrl.value = kDefaultApiBaseUrl;
   }
 
   Future<void> setDarkMode(bool value) async {

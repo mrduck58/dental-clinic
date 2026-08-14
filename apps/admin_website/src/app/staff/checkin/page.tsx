@@ -12,6 +12,7 @@ import {
   getStaffScheduleApi,
   createWalkInAppointmentApi,
   sendPatientEmailVerificationApi,
+  createPatientAccountApi,
   getServicesApi,
   searchPatientsApi,
   getFollowUpDueApi,
@@ -79,6 +80,510 @@ const getDateBadgeColor = (dateStr: string) => {
   return "bg-slate-50 text-slate-600 border-slate-200";
 };
 
+/* ─── Create Patient Account Tab ─────────────────────────── */
+
+function CreatePatientAccountTab({
+  onAccountCreated,
+  onGoToWalkin,
+}: {
+  onAccountCreated: (patient: PatientSearchResultDto) => void;
+  onGoToWalkin?: () => void;
+}) {
+  const [form, setForm] = useState({
+    name: "",
+    phone: "",
+    email: "",
+    dob: "",
+    gender: "Nam",
+  });
+  const [verifyCode, setVerifyCode] = useState("");
+  const [verifySentTo, setVerifySentTo] = useState<string | null>(null);
+  const [sendingCode, setSendingCode] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [dobError, setDobError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const { toast, showToast } = useToast();
+  const dobPickerRef = useRef<HTMLInputElement>(null);
+
+  // Đếm ngược gửi lại mã OTP
+  useEffect(() => {
+    if (countdown <= 0) return;
+    const timer = setInterval(() => setCountdown(c => c - 1), 1000);
+    return () => clearInterval(timer);
+  }, [countdown]);
+
+  const handleDobChange = (raw: string) => {
+    const d = raw.replace(/\D/g, '').slice(0, 8);
+    const formatted =
+      d.length > 4 ? `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}` :
+      d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` :
+      d;
+    setForm(p => ({ ...p, dob: formatted }));
+    setDobError(null);
+  };
+
+  const dobIso = (() => {
+    const d = form.dob.replace(/\D/g, '');
+    return d.length === 8 ? `${d.slice(4, 8)}-${d.slice(2, 4)}-${d.slice(0, 2)}` : "";
+  })();
+
+  const todayIso = (() => {
+    const t = new Date();
+    return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+  })();
+
+  const openDobPicker = () => {
+    const el = dobPickerRef.current;
+    if (!el) return;
+    try {
+      if (typeof el.showPicker === "function") el.showPicker();
+      else el.click();
+    } catch {
+      el.click();
+    }
+  };
+
+  const handleDobPicked = (iso: string) => {
+    if (!iso) return;
+    const [y, m, d] = iso.split("-");
+    setForm(p => ({ ...p, dob: `${d}/${m}/${y}` }));
+    setDobError(null);
+  };
+
+  const handlePhoneChange = (val: string) => {
+    const digits = val.replace(/\D/g, '').slice(0, 11);
+    setForm(p => ({ ...p, phone: digits }));
+    setPhoneError(null);
+  };
+
+  const validatePhone = (val: string) => {
+    if (val.length === 0) return false;
+    if (val.length !== 10 && val.length !== 11) {
+      setPhoneError(`Số điện thoại phải có 10 hoặc 11 chữ số (đang nhập ${val.length} số)`);
+      return false;
+    }
+    setPhoneError(null);
+    return true;
+  };
+
+  const validateEmail = (val: string) => {
+    if (!val.trim()) {
+      setEmailError("Vui lòng nhập địa chỉ email của bệnh nhân");
+      return false;
+    }
+    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!regex.test(val.trim())) {
+      setEmailError("Email không đúng định dạng (ví dụ: benhnhan@gmail.com)");
+      return false;
+    }
+    setEmailError(null);
+    return true;
+  };
+
+  const validateDob = (val: string) => {
+    const d = val.replace(/\D/g, '');
+    if (d.length === 0) return true;
+    if (d.length !== 8) {
+      setDobError('Chưa đủ 8 chữ số, nhập theo định dạng dd/mm/yyyy');
+      return false;
+    }
+    const day = +d.slice(0, 2), mon = +d.slice(2, 4), yr = +d.slice(4, 8);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    if (mon < 1 || mon > 12 || day < 1 || day > new Date(yr, mon, 0).getDate() || yr < 1900 || yr > today.getFullYear()) {
+      setDobError('Ngày sinh không hợp lệ (năm phải từ 1900 đến nay)');
+      return false;
+    }
+    if (new Date(yr, mon - 1, day) >= today) {
+      setDobError('Ngày sinh không được là hôm nay hoặc tương lai');
+      return false;
+    }
+    setDobError(null);
+    return true;
+  };
+
+  const handleSendCode = async () => {
+    const email = form.email.trim();
+    if (!validateEmail(email)) return;
+
+    setSendingCode(true);
+    setErrorMessage(null);
+    try {
+      await sendPatientEmailVerificationApi(email);
+      setVerifySentTo(email);
+      setVerifyCode("");
+      setCountdown(60);
+      showToast(`Đã gửi mã xác thực 6 số tới email: ${email}`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Gửi mã xác thực thất bại";
+      setErrorMessage(msg);
+      showToast(msg, "error");
+    } finally {
+      setSendingCode(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage(null);
+
+    // Validate họ tên
+    if (!form.name.trim()) {
+      setErrorMessage("Vui lòng nhập họ và tên bệnh nhân");
+      return;
+    }
+
+    // Validate phone
+    const phoneDigits = form.phone.replace(/\D/g, '');
+    if (phoneDigits.length !== 10 && phoneDigits.length !== 11) {
+      setPhoneError('Số điện thoại phải có 10 hoặc 11 chữ số');
+      return;
+    }
+
+    // Validate email
+    if (!validateEmail(form.email)) return;
+
+    // Validate mã xác thực email
+    const code = verifyCode.trim();
+    if (!code || code.length !== 6) {
+      setErrorMessage("Vui lòng gửi mã xác thực và nhập đúng 6 chữ số từ email bệnh nhân");
+      return;
+    }
+
+    if (verifySentTo !== form.email.trim()) {
+      setErrorMessage("Địa chỉ email đã thay đổi sau khi gửi mã. Vui lòng bấm 'Gửi lại mã' cho email mới.");
+      return;
+    }
+
+    // Validate ngày sinh
+    let isoDate: string | undefined = undefined;
+    if (form.dob.trim()) {
+      if (!validateDob(form.dob)) return;
+      const dobDigits = form.dob.replace(/\D/g, '');
+      const dd = +dobDigits.slice(0, 2);
+      const mm = +dobDigits.slice(2, 4);
+      const yyyy = +dobDigits.slice(4, 8);
+      isoDate = `${yyyy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+    }
+
+    try {
+      setSaving(true);
+      const result = await createPatientAccountApi({
+        fullName: form.name.trim(),
+        email: form.email.trim(),
+        phoneNumber: phoneDigits,
+        dateOfBirth: isoDate,
+        gender: form.gender,
+        verificationCode: code,
+      });
+
+      const patientData: PatientSearchResultDto = {
+        id: result.patientId,
+        fullName: result.fullName || form.name.trim(),
+        phoneNumber: phoneDigits,
+        dateOfBirth: isoDate || "",
+        gender: form.gender,
+        hasAccount: true,
+      };
+
+      onAccountCreated(patientData);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Tạo tài khoản bệnh nhân thất bại";
+      setErrorMessage(msg);
+      showToast(msg, "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
+      <Toast toast={toast} />
+
+      {/* Main form card */}
+      <div className="flex-1 bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 sm:p-8 flex flex-col overflow-y-auto min-h-0">
+        <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-5 mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold shrink-0">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM4 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 0110.374 21c-2.331 0-4.512-.645-6.374-1.765z" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-[17px] font-black text-slate-900">Tạo tài khoản bệnh nhân</h3>
+              <p className="text-[12.5px] text-slate-500 font-semibold">
+                Cấp tài khoản đăng nhập để bệnh nhân xem hồ sơ & tự đặt lịch trên app
+              </p>
+            </div>
+          </div>
+          {onGoToWalkin && (
+            <button
+              type="button"
+              onClick={onGoToWalkin}
+              className="text-[12.5px] font-bold text-slate-400 hover:text-slate-700 cursor-pointer flex items-center gap-1 transition-colors"
+            >
+              Bỏ qua sang đặt lịch
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+              </svg>
+            </button>
+          )}
+        </div>
+
+        {errorMessage && (
+          <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-[13px] font-semibold flex items-start gap-2.5">
+            <svg className="w-5 h-5 shrink-0 text-red-500 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+            </svg>
+            <span>{errorMessage}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-6 flex-1">
+          {/* Section 1: Personal info */}
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-600 text-[11.5px] font-black flex items-center justify-center">1</span>
+              <h4 className="text-[13px] font-black text-slate-800 uppercase tracking-wider">Thông tin cá nhân</h4>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">Họ và tên *</label>
+                <input
+                  required
+                  value={form.name}
+                  onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+                  placeholder="Nguyễn Văn A"
+                  className={inputCls}
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">Số điện thoại *</label>
+                <input
+                  required
+                  value={form.phone}
+                  onChange={e => handlePhoneChange(e.target.value)}
+                  onBlur={() => validatePhone(form.phone)}
+                  placeholder="0912345678"
+                  inputMode="numeric"
+                  className={`${inputCls} ${phoneError ? "border-red-400 bg-red-50 focus:border-red-400 focus:ring-red-200" : ""}`}
+                />
+                {phoneError && <p className="text-[11.5px] font-semibold text-red-500">{phoneError}</p>}
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">Ngày sinh *</label>
+                <div className="relative">
+                  <input
+                    required
+                    value={form.dob}
+                    onChange={e => handleDobChange(e.target.value)}
+                    onBlur={() => validateDob(form.dob)}
+                    placeholder="dd/mm/yyyy"
+                    inputMode="numeric"
+                    className={`${inputCls} pr-10 ${dobError ? "border-red-400 bg-red-50 focus:border-red-400 focus:ring-red-200" : ""}`}
+                  />
+                  <button
+                    type="button"
+                    onClick={openDobPicker}
+                    title="Chọn từ lịch"
+                    className="absolute inset-y-0 right-0 w-9 flex items-center justify-center text-slate-400 hover:text-primary cursor-pointer"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+                    </svg>
+                  </button>
+                  <input
+                    ref={dobPickerRef}
+                    type="date"
+                    max={todayIso}
+                    value={dobIso}
+                    onChange={e => handleDobPicked(e.target.value)}
+                    tabIndex={-1}
+                    aria-hidden="true"
+                    className="absolute bottom-1 right-3 w-px h-px opacity-0 pointer-events-none"
+                  />
+                </div>
+                {dobError && <p className="text-[11.5px] font-semibold text-red-500">{dobError}</p>}
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">Giới tính *</label>
+                <div className="relative">
+                  <select
+                    required
+                    value={form.gender}
+                    onChange={e => setForm(p => ({ ...p, gender: e.target.value }))}
+                    className={selectCls}
+                  >
+                    <option>Nam</option>
+                    <option>Nữ</option>
+                    <option>Khác</option>
+                  </select>
+                  <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                    </svg>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 2: Email & Verification */}
+          <div className="flex flex-col gap-4 pt-2 border-t border-slate-100">
+            <div className="flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-600 text-[11.5px] font-black flex items-center justify-center">2</span>
+              <h4 className="text-[13px] font-black text-slate-800 uppercase tracking-wider">Xác thực Email & Cấp tài khoản</h4>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">
+                  Email bệnh nhân * <span className="text-slate-400 normal-case font-bold">(để nhận tài khoản & mật khẩu)</span>
+                </label>
+                <div className="relative">
+                  <input
+                    required
+                    type="email"
+                    value={form.email}
+                    onChange={e => {
+                      setForm(p => ({ ...p, email: e.target.value }));
+                      setEmailError(null);
+                    }}
+                    onBlur={() => form.email.trim() && validateEmail(form.email)}
+                    placeholder="benhnhan@gmail.com"
+                    className={`${inputCls} ${emailError ? "border-red-400 bg-red-50 focus:border-red-400 focus:ring-red-200" : ""}`}
+                  />
+                </div>
+                {emailError && <p className="text-[11.5px] font-semibold text-red-500">{emailError}</p>}
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">
+                  Mã xác thực OTP (6 số) *
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    required
+                    value={verifyCode}
+                    onChange={e => setVerifyCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    placeholder="Nhập mã 6 số"
+                    inputMode="numeric"
+                    className={`${inputCls} font-mono tracking-widest text-center font-bold flex-1`}
+                  />
+                  <button
+                    type="button"
+                    disabled={sendingCode || countdown > 0 || !form.email.trim()}
+                    onClick={handleSendCode}
+                    className="px-4 py-2.5 rounded-xl bg-slate-800 text-white text-[13px] font-bold whitespace-nowrap cursor-pointer hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shrink-0 flex items-center gap-1.5"
+                  >
+                    {sendingCode ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                        <span>Đang gửi...</span>
+                      </>
+                    ) : countdown > 0 ? (
+                      <span>Gửi lại ({countdown}s)</span>
+                    ) : (
+                      <span>Gửi mã OTP</span>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-sky-50/80 border border-sky-100 text-sky-800 text-[12px] font-semibold flex items-center gap-2.5">
+              <svg className="w-4 h-4 text-sky-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+              </svg>
+              <span>
+                {verifySentTo === form.email.trim()
+                  ? `Đã gửi mã xác thực tới ${verifySentTo}. Nhờ bệnh nhân mở hộp thư và đọc lại mã 6 số.`
+                  : "Bấm nút \"Gửi mã OTP\" để gửi mã 6 số tới email bệnh nhân, sau đó nhập mã xác nhận trước khi lưu."}
+              </span>
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex flex-col sm:flex-row items-center gap-3 pt-4 border-t border-slate-100 mt-auto">
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex-1 w-full sm:w-auto flex items-center justify-center gap-2.5 py-3.5 px-6 bg-primary text-white text-[14px] font-black rounded-xl hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-sm shadow-primary/25"
+            >
+              {saving ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                  <span>Đang tạo tài khoản...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM4 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 0110.374 21c-2.331 0-4.512-.645-6.374-1.765z" />
+                  </svg>
+                  <span>Lưu tài khoản & Sang đặt lịch</span>
+                  <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                  </svg>
+                </>
+              )}
+            </button>
+            {onGoToWalkin && (
+              <button
+                type="button"
+                onClick={onGoToWalkin}
+                className="w-full sm:w-auto px-5 py-3.5 bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200 rounded-xl text-[13.5px] font-bold cursor-pointer transition-all"
+              >
+                Hủy
+              </button>
+            )}
+          </div>
+        </form>
+      </div>
+
+      {/* Guide card (Desktop right side) */}
+      <div className="w-full lg:w-80 shrink-0 flex flex-col gap-4">
+        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 flex flex-col gap-4">
+          <h4 className="text-[14px] font-black text-slate-900 flex items-center gap-2">
+            <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Quy trình tạo tài khoản
+          </h4>
+
+          <ol className="flex flex-col gap-3 text-[12.5px] text-slate-600 font-semibold">
+            <li className="flex items-start gap-2.5">
+              <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-[11px] font-black flex items-center justify-center shrink-0 mt-0.5">1</span>
+              <span>Lễ tân nhập thông tin họ tên, số điện thoại, ngày sinh và email của bệnh nhân.</span>
+            </li>
+            <li className="flex items-start gap-2.5">
+              <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-[11px] font-black flex items-center justify-center shrink-0 mt-0.5">2</span>
+              <span>Bấm “Gửi mã OTP” để hệ thống gửi mã xác minh 6 số tới email của bệnh nhân.</span>
+            </li>
+            <li className="flex items-start gap-2.5">
+              <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-[11px] font-black flex items-center justify-center shrink-0 mt-0.5">3</span>
+              <span>Bệnh nhân mở hộp thư và đọc lại mã 6 số để lễ tân điền vào ô xác thực.</span>
+            </li>
+            <li className="flex items-start gap-2.5">
+              <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-[11px] font-black flex items-center justify-center shrink-0 mt-0.5">4</span>
+              <span>Bấm “Lưu tài khoản & Sang đặt lịch” — hệ thống tạo tài khoản, gửi mật khẩu tạm và tự động chuyển sang tab Đặt lịch để chọn giờ khám.</span>
+            </li>
+          </ol>
+
+          <div className="p-3.5 bg-emerald-50 border border-emerald-100 rounded-xl text-emerald-800 text-[11.5px] font-semibold mt-2">
+            💡 Sau khi tạo xong, tài khoản được kích hoạt ngay. Bệnh nhân có thể đăng nhập trên Website/App để theo dõi lộ trình điều trị.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Walk-in tab ─────────────────────────────────────────── */
 
 const SLOT_COLORS = [
@@ -89,7 +594,15 @@ const SLOT_COLORS = [
   "bg-emerald-50 text-emerald-700 border-emerald-200",
 ];
 
-function WalkinTab() {
+function WalkinTab({
+  selectedPatient,
+  onClearSelectedPatient,
+  onGoToCreateAccount,
+}: {
+  selectedPatient?: PatientSearchResultDto | null;
+  onClearSelectedPatient?: () => void;
+  onGoToCreateAccount?: () => void;
+}) {
   const [schedule,  setSchedule]  = useState<StaffScheduleResponse | null>(null);
   const [services,  setServices]  = useState<ServiceDto[]>([]);
   const [loading,   setLoading]   = useState(true);
@@ -117,12 +630,30 @@ function WalkinTab() {
   const [searching,   setSearching]   = useState(false);
   const [linked,      setLinked]      = useState<PatientSearchResultDto | null>(null);
 
+  // Tự động nhận bệnh nhân vừa tạo từ tab Tạo tài khoản
+  useEffect(() => {
+    if (selectedPatient) {
+      const [y, m, d] = (selectedPatient.dateOfBirth || "").split("-");
+      const gender = ["Nam", "Nữ", "Khác"].includes(selectedPatient.gender) ? selectedPatient.gender : "Nam";
+      setForm(prev => ({
+        ...prev,
+        name:   selectedPatient.fullName,
+        phone:  (selectedPatient.phoneNumber ?? "").replace(/\D/g, "").slice(0, 11),
+        dob:    d && m && y ? `${d}/${m}/${y}` : "",
+        gender,
+      }));
+      setLinked(selectedPatient);
+      setLookup("");
+      setResults([]);
+      setPhoneError(null);
+      setDobError(null);
+    }
+  }, [selectedPatient]);
+
   useEffect(() => {
     const term = lookup.trim();
     if (term.length < 2) { setResults([]); setSearching(false); return; }
 
-    // `cancelled` phải sống ở scope của effect, không phải trong callback setTimeout,
-    // để lần gõ sau bỏ qua kết quả của request trước.
     let cancelled = false;
     setSearching(true);
     const timer = setTimeout(() => {
@@ -136,7 +667,7 @@ function WalkinTab() {
   }, [lookup]);
 
   const pickPatient = (p: PatientSearchResultDto) => {
-    const [y, m, d] = p.dateOfBirth.split("-");
+    const [y, m, d] = (p.dateOfBirth || "").split("-");
     const gender = ["Nam", "Nữ", "Khác"].includes(p.gender) ? p.gender : "Khác";
     setForm(prev => ({
       ...prev,
@@ -154,6 +685,7 @@ function WalkinTab() {
 
   const unlinkPatient = () => {
     setLinked(null);
+    onClearSelectedPatient?.();
     setForm(prev => ({ ...prev, name: "", phone: "", email: "", dob: "", gender: "Nam" }));
   };
 
@@ -379,15 +911,15 @@ function WalkinTab() {
     });
 
   return (
-    <div className="flex gap-6 flex-1 min-h-0">
+    <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
       <Toast toast={toast} />
 
       {/* Availability grid */}
-      <div className="flex-1 flex flex-col gap-4 min-w-0 min-h-0">
-        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden flex flex-col flex-1 min-h-0">
-          <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between shrink-0">
+      <div className="flex-1 flex flex-col gap-4 min-w-0">
+        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden flex flex-col flex-1 min-h-[380px] lg:min-h-0">
+          <div className="px-4 sm:px-5 py-3.5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shrink-0">
             <h3 className="text-[14px] font-black text-slate-900">Lịch trống hôm nay</h3>
-            <div className="flex items-center gap-3 text-[12px] font-bold">
+            <div className="flex items-center gap-2.5 sm:gap-3 text-[11.5px] sm:text-[12px] font-bold flex-wrap">
               <span className="flex items-center gap-1.5 text-slate-400"><span className="w-3 h-3 rounded bg-slate-100 border border-slate-200 inline-block" />Đã đặt</span>
               <span className="flex items-center gap-1.5 text-emerald-600"><span className="w-3 h-3 rounded bg-emerald-50 border border-emerald-200 inline-block" />Trống</span>
               <span className="flex items-center gap-1.5 text-primary"><span className="w-3 h-3 rounded bg-red-50 border border-primary inline-block" />Đang chọn</span>
@@ -404,8 +936,8 @@ function WalkinTab() {
           ) : (
             // Bảng chiếm hết chỗ trống còn lại của thẻ và tự cuộn, nhờ đó thead ghim được ở
             // đỉnh và form bên phải luôn nằm trong màn hình khi xem ca tối.
-            <div className="flex-1 min-h-0 overflow-auto">
-              <table className="w-full text-[12px]">
+            <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto">
+              <table className="w-full text-[12px] min-w-[520px]">
                 <thead>
                   {/* border-collapse (mặc định của preflight) nuốt mất border của th sticky khi
                       cuộn, nên dùng inset shadow để vẽ đường kẻ dưới header. */}
@@ -466,7 +998,7 @@ function WalkinTab() {
       </div>
 
       {/* Walk-in form */}
-      <div className="w-80 shrink-0 min-h-0">
+      <div className="w-full lg:w-80 shrink-0 min-h-0">
         <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 flex flex-col gap-5 h-full overflow-y-auto">
           <h3 className="text-[15px] font-black text-slate-900">Đặt lịch tại quầy</h3>
 
@@ -503,21 +1035,37 @@ function WalkinTab() {
 
               {/* Tra cứu bệnh nhân cũ */}
               {linked ? (
-                <div className="flex items-center gap-2.5 p-3 bg-sky-50 border border-sky-200 rounded-xl">
-                  <div className="w-8 h-8 rounded-xl bg-sky-100 flex items-center justify-center shrink-0 text-sky-700">
+                <div className="flex items-center gap-2.5 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0 text-emerald-700">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
                   </div>
-                  <div className="min-w-0">
-                    <div className="text-[12.5px] font-black text-sky-900 truncate">{linked.fullName}</div>
-                    <div className="text-[11.5px] text-sky-600 font-semibold">Dùng lại hồ sơ đã có</div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[12.5px] font-black text-emerald-900 truncate">{linked.fullName}</div>
+                    <div className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1.5 mt-0.5">
+                      <span>{linked.phoneNumber ?? "—"}</span>
+                      {linked.hasAccount && (
+                        <span className="px-1.5 py-0.2 bg-emerald-200/70 text-emerald-800 text-[10px] font-extrabold rounded">Có tài khoản</span>
+                      )}
+                    </div>
                   </div>
-                  <button type="button" onClick={unlinkPatient} className="ml-auto text-sky-400 hover:text-sky-700 cursor-pointer shrink-0" title="Bỏ liên kết, nhập bệnh nhân mới">
+                  <button type="button" onClick={unlinkPatient} className="ml-auto text-slate-400 hover:text-red-500 cursor-pointer shrink-0" title="Bỏ chọn, nhập bệnh nhân khác">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                   </button>
                 </div>
               ) : (
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">Tìm bệnh nhân cũ</label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">Tìm bệnh nhân cũ</label>
+                    {onGoToCreateAccount && (
+                      <button
+                        type="button"
+                        onClick={onGoToCreateAccount}
+                        className="text-[11.5px] font-bold text-primary hover:underline cursor-pointer flex items-center gap-1"
+                      >
+                        + Tạo tài khoản mới
+                      </button>
+                    )}
+                  </div>
                   <div className="relative">
                     <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-slate-400">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
@@ -874,7 +1422,8 @@ function FollowUpDueTab({ dueList, onCheckedIn }: {
 export default function CheckinPage() {
   useRequireStaff();
 
-  const [tab,       setTab]       = useState<"checkin"|"walkin"|"followup">("checkin");
+  const [tab, setTab] = useState<"checkin" | "walkin" | "create-account" | "followup">("checkin");
+  const [walkinPatient, setWalkinPatient] = useState<PatientSearchResultDto | null>(null);
   const [followUpDue, setFollowUpDue] = useState<FollowUpDueDto[]>([]);
   const [search,    setSearch]    = useState("");
   const [selected,  setSelected]  = useState<string | null>(null);
@@ -999,18 +1548,140 @@ export default function CheckinPage() {
 
   const totalWaiting = groupedByDate.reduce((sum, g) => sum + g.patients.length, 0);
 
+  const renderPatientDetailCard = (p: StaffAppointmentDto) => (
+    <div className="bg-white rounded-2xl border border-slate-200/70 shadow-md p-5 sm:p-7 flex flex-col gap-5">
+      <div className="flex items-start gap-4">
+        <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl border-2 bg-sky-50 border-sky-100 text-sky-700 flex items-center justify-center font-black text-xl sm:text-2xl shrink-0">
+          {p.patientName.trim().split(/\s+/).slice(-2).map(w => w[0]).join("").toUpperCase()}
+        </div>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-[18px] sm:text-[20px] font-black text-slate-900 truncate">{p.patientName}</h2>
+          <div className="flex items-center gap-2 sm:gap-3 mt-1 text-[12.5px] sm:text-[13px] text-slate-500 font-semibold flex-wrap">
+            <span>{p.patientPhone ?? "—"}</span>
+            <span className={`px-2.5 py-0.5 sm:py-1 text-[11px] font-bold rounded-lg border ${getDateBadgeColor(p.appointmentDate.split("T")[0])}`}>
+              {formatDateLabel(p.appointmentDate.split("T")[0])}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {[
+          { label: "Ngày hẹn",  value: fmtDate(p.appointmentDate), icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
+          { label: "Giờ hẹn",  value: fmtTime(p.appointmentDate), icon: "M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" },
+          { label: "Dịch vụ",  value: p.serviceName ?? "Khám tổng quát", icon: "M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" },
+          { label: "Bác sĩ",   value: p.dentistName, icon: "M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" },
+          { label: "Mã lịch hẹn", value: p.appointmentCode, icon: "M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75m-.75 3h.75" },
+        ].map(item => (
+          <div key={item.label} className="flex items-center gap-3 p-3.5 sm:p-4 bg-slate-50 rounded-xl border border-slate-100 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0">
+              <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
+              </svg>
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider truncate">{item.label}</div>
+              <div className="text-[13px] sm:text-[13.5px] font-bold text-slate-800 mt-0.5 truncate">{item.value}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {p.symptoms && (
+        <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-100 rounded-xl">
+          <svg className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
+          <div>
+            <div className="text-[11.5px] font-extrabold text-amber-700 uppercase tracking-wider">Triệu chứng</div>
+            <div className="text-[13.5px] font-semibold text-amber-800 mt-0.5">{p.symptoms}</div>
+          </div>
+        </div>
+      )}
+
+      {p.status === "Confirmed" ? (
+        confirmingNoShow ? (
+          <div className="flex flex-col gap-3.5 p-4 sm:p-5 bg-amber-50 border border-amber-200 rounded-2xl">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+                <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
+              </div>
+              <div>
+                <div className="text-[14px] font-black text-amber-900">Ghi nhận bệnh nhân vắng mặt?</div>
+                <div className="text-[12.5px] font-semibold text-amber-700 mt-0.5">
+                  <span className="font-black">{p.patientName}</span> sẽ được đưa khỏi danh sách chờ.
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => doMarkNoShow(p)}
+                disabled={loadingId === p.appointmentId}
+                className="flex-1 flex items-center justify-center gap-2 py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white rounded-xl text-[14px] font-black shadow-sm shadow-amber-200 transition-all cursor-pointer">
+                {loadingId === p.appointmentId && busyKind === "noshow" ? (
+                  <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d={BAN_ICON} /></svg>
+                )}
+                Xác nhận vắng mặt
+              </button>
+              <button onClick={() => setConfirmingNoShow(false)}
+                disabled={loadingId === p.appointmentId}
+                className="px-5 py-3 bg-white text-slate-500 border border-slate-200 rounded-xl text-[14px] font-bold cursor-pointer hover:bg-slate-50 disabled:opacity-50 transition-all">
+                Huỷ
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button onClick={() => doCheckin(p)}
+              disabled={loadingId === p.appointmentId}
+              className="flex-1 flex items-center justify-center gap-2 py-3.5 sm:py-4 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white rounded-xl text-[14.5px] sm:text-[15px] font-black shadow-sm shadow-emerald-200 transition-all cursor-pointer">
+              {loadingId === p.appointmentId && busyKind === "checkin" ? (
+                <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+              ) : (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" /></svg>
+              )}
+              Xác nhận Check-in
+            </button>
+            <button onClick={() => setConfirmingNoShow(true)}
+              disabled={loadingId === p.appointmentId}
+              className="flex items-center justify-center gap-2 px-5 py-3.5 sm:py-4 bg-white hover:bg-amber-50 border border-amber-300 text-amber-700 disabled:opacity-50 rounded-xl text-[14.5px] sm:text-[15px] font-black transition-all cursor-pointer whitespace-nowrap">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d={BAN_ICON} /></svg>
+              Ghi nhận vắng
+            </button>
+          </div>
+        )
+      ) : (
+        (() => {
+          const cfg = PROCESSED_STATUS[p.status] ?? PROCESSED_STATUS.CheckedIn;
+          return (
+            <div className={`flex items-center gap-3 px-5 py-4 rounded-2xl border ${cfg.cls}`}>
+              <div className="w-9 h-9 rounded-xl bg-white/70 flex items-center justify-center shrink-0">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d={cfg.icon} /></svg>
+              </div>
+              <div>
+                <div className="text-[14px] font-black">{cfg.label}</div>
+                {p.status !== "NoShow" && p.checkedInAt && (
+                  <div className="text-[12.5px] font-semibold opacity-80">Check-in lúc {fmtTime(p.checkedInAt)}</div>
+                )}
+              </div>
+            </div>
+          );
+        })()
+      )}
+    </div>
+  );
+
   return (
     // h-screen + overflow-hidden: trang không bao giờ có thanh cuộn ngoài cùng.
     // Mọi vùng cần cuộn đều tự cuộn bên trong (bảng lịch, danh sách chờ, form).
     // Chuỗi `min-h-0` bên dưới là bắt buộc: flex item mặc định có min-height:auto
     // nên sẽ nở theo nội dung và phá vỡ giới hạn chiều cao của cha.
-    <div className="animate-fade-in flex h-screen overflow-hidden bg-slate-50 font-sans text-slate-800">
+    <div className="animate-fade-in flex min-h-screen lg:h-screen lg:overflow-hidden bg-slate-50 font-sans text-slate-800">
       <Toast toast={toast} />
       <StaffSidebar activeMenu="checkin" />
       <main className="flex-1 flex flex-col min-w-0 min-h-0">
         <StaffPageHeader
           title="Check-in Bệnh Nhân"
-          subtitle="Xác nhận bệnh nhân đến khám và tạo lịch hẹn tại quầy"
+          subtitle="Xác nhận bệnh nhân đến khám, tạo tài khoản và đặt lịch hẹn tại quầy"
           right={
             tab === "checkin" ? (
               <div className="flex items-center gap-2 text-[12.5px] font-bold">
@@ -1024,18 +1695,24 @@ export default function CheckinPage() {
           }
         />
 
-        <div className="p-8 flex-1 min-h-0 overflow-hidden flex flex-col gap-5">
+        <div className="p-4 sm:p-8 flex-1 min-h-0 overflow-y-auto lg:overflow-hidden flex flex-col gap-5">
           {/* Tabs */}
-          <div className="flex gap-2 shrink-0">
+          <div className="flex gap-2 shrink-0 overflow-x-auto pb-1 max-w-full flex-nowrap">
             {([
-              { key: "checkin",  label: "Check-in bệnh nhân" },
-              { key: "walkin",   label: "Đặt lịch tại quầy"  },
-              { key: "followup", label: "Tái khám"           },
+              { key: "checkin",        label: "Check-in bệnh nhân" },
+              { key: "walkin",         label: "Đặt lịch tại quầy"  },
+              { key: "create-account", label: "Tạo tài khoản bệnh nhân" },
+              { key: "followup",       label: "Tái khám"           },
             ] as const).map(t => (
               <button key={t.key} onClick={() => setTab(t.key)}
                 className={`flex items-center gap-2 px-5 py-2 rounded-xl text-[13.5px] font-bold transition-all cursor-pointer border ${
                   tab === t.key ? "bg-primary text-white border-primary shadow-sm shadow-primary/20" : "bg-white text-slate-500 border-slate-200 hover:border-primary/40 hover:text-primary"
                 }`}>
+                {t.key === "create-account" && (
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                )}
                 {t.label}
                 {t.key === "checkin" && totalWaiting > 0 && (
                   <span className={`px-1.5 py-0.5 rounded-full text-[10.5px] font-black leading-none ${tab === t.key ? "bg-white/25 text-white" : "bg-amber-100 text-amber-700"}`}>
@@ -1051,15 +1728,32 @@ export default function CheckinPage() {
             ))}
           </div>
 
-          {tab === "walkin" && <WalkinTab />}
+          {tab === "create-account" && (
+            <CreatePatientAccountTab
+              onAccountCreated={(patient) => {
+                setWalkinPatient(patient);
+                setTab("walkin");
+                showToast(`Đã tạo tài khoản cho ${patient.fullName}! Vui lòng chọn khung giờ để hoàn tất.`);
+              }}
+              onGoToWalkin={() => setTab("walkin")}
+            />
+          )}
+
+          {tab === "walkin" && (
+            <WalkinTab
+              selectedPatient={walkinPatient}
+              onClearSelectedPatient={() => setWalkinPatient(null)}
+              onGoToCreateAccount={() => setTab("create-account")}
+            />
+          )}
 
           {tab === "followup" && <FollowUpDueTab dueList={followUpDue} onCheckedIn={loadAppointments} />}
 
           {tab === "checkin" && (
-          <div className="flex gap-6 flex-1 min-h-0">
+          <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
 
             {/* Left: date filter + search + list */}
-            <div className="w-96 flex flex-col gap-4 shrink-0 min-h-0">
+            <div className="w-full lg:w-96 flex flex-col gap-4 shrink-0 min-h-0">
               {/* Date filter */}
               <div className="bg-white px-4 py-3 rounded-2xl border border-slate-200/70 shadow-sm shrink-0">
                 <label className="block text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mb-2">Lọc theo ngày</label>
@@ -1115,27 +1809,52 @@ export default function CheckinPage() {
                         const isActive = selected === p.appointmentId;
                         const apptTime = fmtTime(p.appointmentDate);
                         return (
-                          <button key={p.appointmentId} onClick={() => setSelected(p.appointmentId)}
-                            className={`flex rounded-2xl border overflow-hidden w-full text-left transition-all hover:shadow-md ${
-                              isActive ? "bg-white border-primary shadow-md shadow-primary/10" : "bg-white border-slate-200/70 hover:-translate-y-px"
-                            }`}>
-                            <div className={`w-1.5 shrink-0 ${isActive ? "bg-primary" : "bg-amber-400"}`} />
-                            <div className="flex items-center gap-4 px-4 py-3.5 flex-1 min-w-0">
-                              <div className="flex flex-col items-center w-12 shrink-0">
-                                <span className="text-[17px] font-black text-slate-900 font-mono leading-none">{apptTime}</span>
-                                <span className="text-[11px] font-bold text-slate-400 mt-1">#{idx + 1}</span>
+                          <div key={p.appointmentId} className="flex flex-col gap-2">
+                            <button onClick={() => setSelected(isActive ? null : p.appointmentId)}
+                              className={`flex rounded-2xl border overflow-hidden w-full text-left transition-all hover:shadow-md cursor-pointer ${
+                                isActive ? "bg-white border-primary shadow-md shadow-primary/10" : "bg-white border-slate-200/70 hover:-translate-y-px"
+                              }`}>
+                              <div className={`w-1.5 shrink-0 ${isActive ? "bg-primary" : "bg-amber-400"}`} />
+                              <div className="flex items-center gap-4 px-4 py-3.5 flex-1 min-w-0">
+                                <div className="flex flex-col items-center w-12 shrink-0">
+                                  <span className="text-[17px] font-black text-slate-900 font-mono leading-none">{apptTime}</span>
+                                  <span className="text-[11px] font-bold text-slate-400 mt-1">#{idx + 1}</span>
+                                </div>
+                                <div className="w-px h-10 bg-slate-100 shrink-0" />
+                                <div className="w-10 h-10 rounded-xl flex items-center justify-center font-black text-[12px] shrink-0 bg-sky-50 text-sky-700 border border-sky-100">
+                                  {initials}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-[14px] font-black text-slate-900 truncate">{p.patientName}</div>
+                                  <div className="text-[12px] text-slate-500 font-semibold truncate">{p.serviceName ?? "Khám tổng quát"}</div>
+                                  <div className="text-[11.5px] text-slate-400 font-medium font-mono">{p.patientPhone ?? "—"}</div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    doCheckin(p);
+                                  }}
+                                  disabled={loadingId === p.appointmentId}
+                                  className="flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white rounded-xl text-[12px] font-black shrink-0 shadow-xs shadow-emerald-200 transition-all cursor-pointer"
+                                >
+                                  {loadingId === p.appointmentId && busyKind === "checkin" ? (
+                                    <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                                  ) : (
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                                  )}
+                                  Check-in
+                                </button>
                               </div>
-                              <div className="w-px h-10 bg-slate-100 shrink-0" />
-                              <div className="w-10 h-10 rounded-xl flex items-center justify-center font-black text-[12px] shrink-0 bg-sky-50 text-sky-700 border border-sky-100">
-                                {initials}
+                            </button>
+
+                            {/* Mobile inline detail panel - ngay dưới thẻ bệnh nhân */}
+                            {isActive && (
+                              <div className="lg:hidden animate-fade-in">
+                                {renderPatientDetailCard(p)}
                               </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="text-[14px] font-black text-slate-900 truncate">{p.patientName}</div>
-                                <div className="text-[12px] text-slate-500 font-semibold truncate">{p.serviceName ?? "Khám tổng quát"}</div>
-                                <div className="text-[11.5px] text-slate-400 font-medium font-mono">{p.patientPhone ?? "—"}</div>
-                              </div>
-                            </div>
-                          </button>
+                            )}
+                          </div>
                         );
                       })}
                     </div>
@@ -1159,28 +1878,40 @@ export default function CheckinPage() {
                     <div className="flex-1 h-px bg-slate-200" />
                   </div>
                   <div className="flex flex-col gap-2">
-                    {arrived.map(p => (
-                      <button key={p.appointmentId} onClick={() => setSelected(p.appointmentId)}
-                        className={`flex rounded-2xl border overflow-hidden w-full text-left cursor-pointer transition-all hover:shadow-md ${
-                          selected === p.appointmentId ? "border-primary shadow-md shadow-primary/10 bg-white" : "border-emerald-100 bg-emerald-50/60 hover:-translate-y-px"
-                        }`}>
-                        <div className={`w-1.5 shrink-0 ${selected === p.appointmentId ? "bg-primary" : "bg-emerald-400"}`} />
-                        <div className="flex items-center gap-3 px-4 py-3 flex-1 min-w-0">
-                          <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-                            <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-[13px] font-bold text-emerald-900 truncate">{p.patientName}</div>
-                            <div className="text-[11.5px] text-emerald-600 font-semibold">
-                              {p.checkedInAt ? `Check-in lúc ${fmtTime(p.checkedInAt)}` : "Đã check-in"}
+                    {arrived.map(p => {
+                      const isActive = selected === p.appointmentId;
+                      return (
+                        <div key={p.appointmentId} className="flex flex-col gap-2">
+                          <button onClick={() => setSelected(isActive ? null : p.appointmentId)}
+                            className={`flex rounded-2xl border overflow-hidden w-full text-left cursor-pointer transition-all hover:shadow-md ${
+                              isActive ? "border-primary shadow-md shadow-primary/10 bg-white" : "border-emerald-100 bg-emerald-50/60 hover:-translate-y-px"
+                            }`}>
+                            <div className={`w-1.5 shrink-0 ${isActive ? "bg-primary" : "bg-emerald-400"}`} />
+                            <div className="flex items-center gap-3 px-4 py-3 flex-1 min-w-0">
+                              <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                                <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-[13px] font-bold text-emerald-900 truncate">{p.patientName}</div>
+                                <div className="text-[11.5px] text-emerald-600 font-semibold">
+                                  {p.checkedInAt ? `Check-in lúc ${fmtTime(p.checkedInAt)}` : "Đã check-in"}
+                                </div>
+                              </div>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${getDateBadgeColor(p.appointmentDate.split("T")[0])}`}>
+                                {formatDateLabel(p.appointmentDate.split("T")[0])}
+                              </span>
                             </div>
-                          </div>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${getDateBadgeColor(p.appointmentDate.split("T")[0])}`}>
-                            {formatDateLabel(p.appointmentDate.split("T")[0])}
-                          </span>
+                          </button>
+
+                          {/* Mobile inline detail panel */}
+                          {isActive && (
+                            <div className="lg:hidden animate-fade-in">
+                              {renderPatientDetailCard(p)}
+                            </div>
+                          )}
                         </div>
-                      </button>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1194,26 +1925,38 @@ export default function CheckinPage() {
                     <div className="flex-1 h-px bg-slate-200" />
                   </div>
                   <div className="flex flex-col gap-2">
-                    {absentee.map(p => (
-                      <button key={p.appointmentId} onClick={() => setSelected(p.appointmentId)}
-                        className={`flex rounded-2xl border overflow-hidden w-full text-left cursor-pointer transition-all hover:shadow-md ${
-                          selected === p.appointmentId ? "border-primary shadow-md shadow-primary/10 bg-white" : "border-amber-100 bg-amber-50/60 hover:-translate-y-px"
-                        }`}>
-                        <div className={`w-1.5 shrink-0 ${selected === p.appointmentId ? "bg-primary" : "bg-amber-400"}`} />
-                        <div className="flex items-center gap-3 px-4 py-3 flex-1 min-w-0">
-                          <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
-                            <svg className="w-3.5 h-3.5 text-amber-600" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-[13px] font-bold text-amber-900 truncate">{p.patientName}</div>
-                            <div className="text-[11.5px] text-amber-600 font-semibold">Vắng mặt · hẹn {fmtTime(p.appointmentDate)}</div>
-                          </div>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${getDateBadgeColor(p.appointmentDate.split("T")[0])}`}>
-                            {formatDateLabel(p.appointmentDate.split("T")[0])}
-                          </span>
+                    {absentee.map(p => {
+                      const isActive = selected === p.appointmentId;
+                      return (
+                        <div key={p.appointmentId} className="flex flex-col gap-2">
+                          <button onClick={() => setSelected(isActive ? null : p.appointmentId)}
+                            className={`flex rounded-2xl border overflow-hidden w-full text-left cursor-pointer transition-all hover:shadow-md ${
+                              isActive ? "border-primary shadow-md shadow-primary/10 bg-white" : "border-amber-100 bg-amber-50/60 hover:-translate-y-px"
+                            }`}>
+                            <div className={`w-1.5 shrink-0 ${isActive ? "bg-primary" : "bg-amber-400"}`} />
+                            <div className="flex items-center gap-3 px-4 py-3 flex-1 min-w-0">
+                              <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                                <svg className="w-3.5 h-3.5 text-amber-600" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-[13px] font-bold text-amber-900 truncate">{p.patientName}</div>
+                                <div className="text-[11.5px] text-amber-600 font-semibold">Vắng mặt · hẹn {fmtTime(p.appointmentDate)}</div>
+                              </div>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${getDateBadgeColor(p.appointmentDate.split("T")[0])}`}>
+                                {formatDateLabel(p.appointmentDate.split("T")[0])}
+                              </span>
+                            </div>
+                          </button>
+
+                          {/* Mobile inline detail panel */}
+                          {isActive && (
+                            <div className="lg:hidden animate-fade-in">
+                              {renderPatientDetailCard(p)}
+                            </div>
+                          )}
                         </div>
-                      </button>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1221,130 +1964,10 @@ export default function CheckinPage() {
               </div>
             </div>
 
-            {/* Right: detail panel */}
-            <div className="flex-1 min-h-0 overflow-y-auto">
+            {/* Right: detail panel (Desktop only) */}
+            <div className="hidden lg:block flex-1 min-h-0 overflow-y-auto">
               {patient ? (
-                <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-7 flex flex-col gap-5">
-                  <div className="flex items-start gap-4">
-                    <div className="w-16 h-16 rounded-2xl border-2 bg-sky-50 border-sky-100 text-sky-700 flex items-center justify-center font-black text-2xl shrink-0">
-                      {patient.patientName.trim().split(/\s+/).slice(-2).map(w => w[0]).join("").toUpperCase()}
-                    </div>
-                    <div>
-                      <h2 className="text-[20px] font-black text-slate-900">{patient.patientName}</h2>
-                      <div className="flex items-center gap-3 mt-1 text-[13px] text-slate-500 font-semibold flex-wrap">
-                        <span>{patient.patientPhone ?? "—"}</span>
-                        <span className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border ${getDateBadgeColor(patient.appointmentDate.split("T")[0])}`}>
-                          {formatDateLabel(patient.appointmentDate.split("T")[0])}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    {[
-                      { label: "Ngày hẹn",  value: fmtDate(patient.appointmentDate), icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
-                      { label: "Giờ hẹn",  value: fmtTime(patient.appointmentDate), icon: "M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"          },
-                      { label: "Dịch vụ",  value: patient.serviceName ?? "Khám tổng quát", icon: "M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" },
-                      { label: "Bác sĩ",   value: patient.dentistName, icon: "M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" },
-                      { label: "Mã lịch hẹn", value: patient.appointmentCode, icon: "M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75m-.75 3h.75" },
-                    ].map(item => (
-                      <div key={item.label} className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
-                        <div className="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0">
-                          <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
-                          </svg>
-                        </div>
-                        <div>
-                          <div className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">{item.label}</div>
-                          <div className="text-[13.5px] font-bold text-slate-800 mt-0.5">{item.value}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {patient.symptoms && (
-                    <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-100 rounded-xl">
-                      <svg className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
-                      <div>
-                        <div className="text-[11.5px] font-extrabold text-amber-700 uppercase tracking-wider">Triệu chứng</div>
-                        <div className="text-[13.5px] font-semibold text-amber-800 mt-0.5">{patient.symptoms}</div>
-                      </div>
-                    </div>
-                  )}
-
-                  {patient.status === "Confirmed" ? (
-                    confirmingNoShow ? (
-                      /* Xác nhận vắng mặt trong app — thay cho hộp thoại confirm mặc định */
-                      <div className="flex flex-col gap-3.5 p-5 bg-amber-50 border border-amber-200 rounded-2xl">
-                        <div className="flex items-start gap-3">
-                          <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
-                            <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
-                          </div>
-                          <div>
-                            <div className="text-[14px] font-black text-amber-900">Ghi nhận bệnh nhân vắng mặt?</div>
-                            <div className="text-[12.5px] font-semibold text-amber-700 mt-0.5">
-                              <span className="font-black">{patient.patientName}</span> sẽ được đưa khỏi danh sách chờ.
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex gap-3">
-                          <button onClick={() => doMarkNoShow(patient)}
-                            disabled={loadingId === patient.appointmentId}
-                            className="flex-1 flex items-center justify-center gap-2 py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white rounded-xl text-[14px] font-black shadow-sm shadow-amber-200 transition-all cursor-pointer">
-                            {loadingId === patient.appointmentId && busyKind === "noshow" ? (
-                              <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                            ) : (
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d={BAN_ICON} /></svg>
-                            )}
-                            Xác nhận vắng mặt
-                          </button>
-                          <button onClick={() => setConfirmingNoShow(false)}
-                            disabled={loadingId === patient.appointmentId}
-                            className="px-5 py-3 bg-white text-slate-500 border border-slate-200 rounded-xl text-[14px] font-bold cursor-pointer hover:bg-slate-50 disabled:opacity-50 transition-all">
-                            Huỷ
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex gap-3">
-                        <button onClick={() => doCheckin(patient)}
-                          disabled={loadingId === patient.appointmentId}
-                          className="flex-1 flex items-center justify-center gap-2 py-4 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white rounded-xl text-[15px] font-black shadow-sm shadow-emerald-200 transition-all cursor-pointer">
-                          {loadingId === patient.appointmentId && busyKind === "checkin" ? (
-                            <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                          ) : (
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" /></svg>
-                          )}
-                          Xác nhận Check-in
-                        </button>
-                        <button onClick={() => setConfirmingNoShow(true)}
-                          disabled={loadingId === patient.appointmentId}
-                          className="flex items-center justify-center gap-2 px-5 py-4 bg-white hover:bg-amber-50 border border-amber-300 text-amber-700 disabled:opacity-50 rounded-xl text-[15px] font-black transition-all cursor-pointer whitespace-nowrap">
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d={BAN_ICON} /></svg>
-                          Ghi nhận vắng
-                        </button>
-                      </div>
-                    )
-                  ) : (
-                    /* Lịch đã xử lý — hiện trạng thái, không còn nút thao tác */
-                    (() => {
-                      const cfg = PROCESSED_STATUS[patient.status] ?? PROCESSED_STATUS.CheckedIn;
-                      return (
-                        <div className={`flex items-center gap-3 px-5 py-4 rounded-2xl border ${cfg.cls}`}>
-                          <div className="w-9 h-9 rounded-xl bg-white/70 flex items-center justify-center shrink-0">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d={cfg.icon} /></svg>
-                          </div>
-                          <div>
-                            <div className="text-[14px] font-black">{cfg.label}</div>
-                            {patient.status !== "NoShow" && patient.checkedInAt && (
-                              <div className="text-[12.5px] font-semibold opacity-80">Check-in lúc {fmtTime(patient.checkedInAt)}</div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })()
-                  )}
-                </div>
+                renderPatientDetailCard(patient)
               ) : (
                 <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm h-full min-h-[400px] flex flex-col items-center justify-center gap-3">
                   <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center">

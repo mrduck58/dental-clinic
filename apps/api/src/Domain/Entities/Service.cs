@@ -8,11 +8,17 @@ public class Service
     public int DurationMinutes { get; private set; }
     public bool IsActive { get; private set; } = true;
     public string Description { get; private set; } = string.Empty;
+    /// <summary>Nội dung bài viết HTML mô tả chi tiết dịch vụ (hiển thị trên clinic_website).</summary>
+    public string Content { get; private set; } = string.Empty;
     public int ViewCount { get; private set; }
     public string? ImageUrl { get; private set; }
     public string? IconUrl { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset? UpdatedAt { get; private set; }
+
+    // Navigation
+    private readonly List<ServiceOption> _options = [];
+    public IReadOnlyCollection<ServiceOption> Options => _options.AsReadOnly();
 
     private Service() { }
 
@@ -21,6 +27,7 @@ public class Service
         decimal price,
         int durationMinutes,
         string description,
+        string content = "",
         string? imageUrl = null,
         string? iconUrl = null)
         => new()
@@ -31,6 +38,7 @@ public class Service
             DurationMinutes = durationMinutes,
             IsActive = true,
             Description = description,
+            Content = content,
             ViewCount = 0,
             ImageUrl = imageUrl,
             IconUrl = iconUrl,
@@ -42,6 +50,7 @@ public class Service
         decimal price,
         int durationMinutes,
         string description,
+        string content,
         string? imageUrl,
         string? iconUrl)
     {
@@ -49,6 +58,7 @@ public class Service
         Price = price;
         DurationMinutes = durationMinutes;
         Description = description;
+        Content = content;
         if (imageUrl is not null) ImageUrl = imageUrl;
         if (iconUrl is not null) IconUrl = iconUrl;
         UpdatedAt = DateTimeOffset.UtcNow;
@@ -58,5 +68,20 @@ public class Service
     {
         IsActive = isActive;
         UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    public void AddOption(string name, decimal price, string unit, int sortOrder)
+    {
+        _options.Add(ServiceOption.Create(Id, name, price, unit, sortOrder));
+    }
+
+    public void ReplaceOptions(IEnumerable<(string Name, decimal Price, string Unit, int SortOrder)> newOptions)
+    {
+        _options.Clear();
+        var sorted = newOptions.OrderBy(o => o.SortOrder).ToList();
+        for (int i = 0; i < sorted.Count; i++)
+        {
+            _options.Add(ServiceOption.Create(Id, sorted[i].Name, sorted[i].Price, sorted[i].Unit, i));
+        }
     }
 }

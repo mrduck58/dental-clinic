@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
@@ -265,8 +265,8 @@ export default function MedicinesPage() {
 
             {/* Pagination bar */}
             {filteredMedicines.length > 0 && (
-              <div className="p-4 border-t border-slate-100 flex items-center justify-between gap-2.5">
-                <span className="text-[13px] text-slate-400 font-semibold">
+              <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-2.5">
+                <span className="text-[13px] text-slate-400 font-semibold text-center sm:text-left">
                   Hiển thị{" "}
                   <span className="text-slate-600 font-bold">
                     {filteredMedicines.length === 0 ? 0 : (safeCurrentPage - 1) * itemsPerPage + 1}–
@@ -276,7 +276,7 @@ export default function MedicinesPage() {
                   <span className="text-slate-600 font-bold">{filteredMedicines.length}</span>
                   {" "}thuốc
                 </span>
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-1.5 sm:gap-2.5 flex-wrap justify-center">
                   <button
                     onClick={() => setCurrentPage(1)}
                     disabled={safeCurrentPage === 1}

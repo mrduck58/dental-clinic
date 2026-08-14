@@ -131,22 +131,22 @@ function StatTile({
   const isLg = size === "lg";
   return (
     <div
-      className={`bg-slate-50/60 rounded-xl border border-slate-200/60 shadow-sm flex items-center gap-3.5 hover-lift hover:border-primary/40 hover:bg-white transition-colors duration-200 ${
-        isLg ? "p-5" : "p-4"
+      className={`bg-slate-50/60 rounded-xl border border-slate-200/60 shadow-sm flex items-center gap-3 sm:gap-3.5 hover-lift hover:border-primary/40 hover:bg-white transition-colors duration-200 ${
+        isLg ? "p-4 sm:p-5" : "p-3.5 sm:p-4"
       }`}
     >
       <span
         className={`rounded-xl flex items-center justify-center shrink-0 bg-red-50 text-primary ${
-          isLg ? "w-14 h-14" : "w-12 h-12"
+          isLg ? "w-12 h-12 sm:w-14 sm:h-14" : "w-10 h-10 sm:w-12 sm:h-12"
         }`}
       >
-        <svg className={isLg ? "w-7 h-7" : "w-6 h-6"} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+        <svg className={isLg ? "w-6 h-6 sm:w-7 sm:h-7" : "w-5 h-5 sm:w-6 sm:h-6"} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d={iconPath} />
         </svg>
       </span>
-      <div className="min-w-0">
-        <div className={`font-black text-slate-900 leading-none truncate ${isLg ? "text-[32px]" : "text-[26px]"}`}>{value}</div>
-        <div className={`font-bold text-slate-400 mt-1.5 truncate ${isLg ? "text-[13px]" : "text-[12.5px]"}`}>{label}</div>
+      <div className="min-w-0 flex-1">
+        <div className={`font-black text-slate-900 leading-none truncate ${isLg ? "text-[26px] sm:text-[32px]" : "text-[22px] sm:text-[26px]"}`}>{value}</div>
+        <div className={`font-bold text-slate-400 mt-1 sm:mt-1.5 leading-snug line-clamp-2 ${isLg ? "text-[12.5px] sm:text-[13px]" : "text-[11.5px] sm:text-[12.5px]"}`}>{label}</div>
       </div>
     </div>
   );
@@ -256,14 +256,14 @@ function QuickAction({ href, label, iconPath }: { href: string; label: string; i
   return (
     <Link
       href={href}
-      className="flex items-center gap-3 p-3.5 rounded-xl border border-slate-200/60 bg-slate-50/60 hover:bg-white hover:border-primary/40 hover:shadow-sm transition-all duration-200 group"
+      className="flex items-center gap-3 p-3 sm:p-3.5 rounded-xl border border-slate-200/60 bg-slate-50/60 hover:bg-white hover:border-primary/40 hover:shadow-sm transition-all duration-200 group"
     >
-      <span className="w-10 h-10 rounded-lg bg-white border border-slate-200/60 text-primary flex items-center justify-center shrink-0 group-hover:bg-red-50 group-hover:border-primary/20 transition-colors">
+      <span className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-white border border-slate-200/60 text-primary flex items-center justify-center shrink-0 group-hover:bg-red-50 group-hover:border-primary/20 transition-colors">
         <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d={iconPath} />
         </svg>
       </span>
-      <span className="text-[13px] font-bold text-slate-700 group-hover:text-slate-900 truncate">{label}</span>
+      <span className="text-[12.5px] sm:text-[13px] font-bold text-slate-700 group-hover:text-slate-900 leading-snug">{label}</span>
     </Link>
   );
 }
@@ -418,7 +418,7 @@ export default function Dashboard() {
         />
 
         {/* BODY */}
-        <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-6">
+        <div className="p-4 sm:p-8 flex-1 overflow-y-auto flex flex-col gap-6">
 
           {/* Cảnh báo hệ thống — nổi bật ở đầu trang, chỉ hiện khi có việc cần chú ý */}
           {lockedAccountsCount > 0 && (
@@ -466,7 +466,7 @@ export default function Dashboard() {
               />
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
               <StatTile
                 label="Tổng số bác sĩ"
                 value={staffStats?.totalDentists ?? "—"}
@@ -496,7 +496,7 @@ export default function Dashboard() {
               <h3 className="text-[18px] font-extrabold text-slate-900">Thao Tác Nhanh</h3>
               <p className="text-[13.5px] text-slate-400 mt-0.5 font-semibold">Truy cập nhanh các tác vụ quản trị thường dùng.</p>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
               {QUICK_ACTIONS.map((action) => (
                 <QuickAction key={action.href} {...action} />
               ))}

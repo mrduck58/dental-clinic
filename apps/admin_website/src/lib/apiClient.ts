@@ -335,13 +335,16 @@ export async function getStaffApi(params?: {
   search?: string;
   role?: string;
   status?: string;
+  /** Chuyên khoa (nha sĩ) hoặc chức vụ / bộ phận (nhân viên) */
+  specialty?: string;
   page?: number;
   pageSize?: number;
 }): Promise<StaffListResponse> {
   const qs = new URLSearchParams();
-  if (params?.search)   qs.set("search",   params.search);
-  if (params?.role)     qs.set("role",     params.role);
-  if (params?.status)   qs.set("status",   params.status);
+  if (params?.search)    qs.set("search",    params.search);
+  if (params?.role)      qs.set("role",      params.role);
+  if (params?.status)    qs.set("status",    params.status);
+  if (params?.specialty) qs.set("specialty", params.specialty);
   if (params?.page)     qs.set("page",     String(params.page));
   if (params?.pageSize) qs.set("pageSize", String(params.pageSize));
   const query = qs.toString() ? `?${qs.toString()}` : "";
@@ -431,6 +434,14 @@ export async function createStaffAccountApi(id: string): Promise<StaffDto> {
 
 // ── Service types ──────────────────────────────────────────────────────────
 
+export interface ServiceOptionDto {
+  id: string;
+  name: string;
+  price: number;
+  unit: string;
+  sortOrder: number;
+}
+
 export interface ServiceDto {
   id: string;
   name: string;
@@ -438,11 +449,20 @@ export interface ServiceDto {
   durationMinutes: number;
   isActive: boolean;
   description: string;
+  content: string;
   viewCount: number;
   imageUrl: string | null;
   iconUrl: string | null;
   createdAt: string;
   updatedAt: string | null;
+  options: ServiceOptionDto[];
+}
+
+export interface ServiceOptionRequest {
+  name: string;
+  price: number;
+  unit?: string;
+  sortOrder: number;
 }
 
 export interface CreateServiceRequest {
@@ -450,8 +470,10 @@ export interface CreateServiceRequest {
   price: number;
   durationMinutes: number;
   description: string;
+  content?: string;
   imageUrl?: string | null;
   iconUrl?: string | null;
+  options?: ServiceOptionRequest[];
 }
 
 export interface UpdateServiceRequest {
@@ -459,8 +481,10 @@ export interface UpdateServiceRequest {
   price: number;
   durationMinutes: number;
   description: string;
+  content?: string;
   imageUrl?: string | null;
   iconUrl?: string | null;
+  options?: ServiceOptionRequest[];
 }
 
 // ── Service endpoints ──────────────────────────────────────────────────────
@@ -1927,6 +1951,42 @@ export async function sendPatientEmailVerificationApi(email: string): Promise<vo
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { title?: string }).title ?? "Gửi mã xác thực thất bại");
   }
+}
+
+export interface CreatePatientAccountRequest {
+  fullName: string;
+  email: string;
+  phoneNumber: string;
+  dateOfBirth?: string; // "YYYY-MM-DD"
+  gender?: string;      // "Nam" | "Nữ" | "Khác"
+  verificationCode: string;
+}
+
+export interface CreatePatientAccountResult {
+  userId: string;
+  patientId: string;
+  email: string;
+  fullName: string;
+  linkedExistingPatient: boolean;
+}
+
+export async function createPatientAccountApi(request: CreatePatientAccountRequest): Promise<CreatePatientAccountResult> {
+  const res = await fetch(`${API_URL}/api/patients/accounts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(request),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(
+      (err as { message?: string; title?: string; detail?: string }).message ??
+      (err as { detail?: string }).detail ??
+      (err as { title?: string }).title ??
+      "Tạo tài khoản bệnh nhân thất bại"
+    );
+  }
+  return res.json() as Promise<CreatePatientAccountResult>;
 }
 
 export interface PatientSearchResultDto {

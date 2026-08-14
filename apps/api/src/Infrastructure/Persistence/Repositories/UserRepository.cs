@@ -50,7 +50,7 @@ public class UserRepository(AppDbContext db) : IUserRepository
             .OrderBy(u => u.CreatedAt).ToListAsync(ct);
 
     public async Task<(IReadOnlyList<User> Items, int TotalCount)> GetStaffPagedAsync(
-        string? search, string? role, string? status,
+        string? search, string? role, string? status, string? specialty,
         int page, int pageSize, CancellationToken ct = default)
     {
         var query = db.Users
@@ -82,6 +82,21 @@ public class UserRepository(AppDbContext db) : IUserRepository
                 .ToArray();
             if (parsedRoles.Length > 0)
                 query = query.Where(u => parsedRoles.Contains(u.Role));
+        }
+
+        if (!string.IsNullOrWhiteSpace(specialty))
+        {
+            // Một tham số dùng chung cho cả 2 tab: nha sĩ lọc theo chuyên khoa, nhân viên lọc theo
+            // chức vụ / bộ phận. Dùng Contains để không vỡ khi giá trị lưu có hậu tố ("Lễ tân trưởng").
+            var spec = specialty.Trim().ToLower();
+            query = query.Where(u =>
+                (u.Employee != null && u.Employee.DentistProfile != null &&
+                 u.Employee.DentistProfile.Specialization != null &&
+                 u.Employee.DentistProfile.Specialization.ToLower().Contains(spec)) ||
+                (u.Employee != null && u.Employee.Position != null &&
+                 u.Employee.Position.ToLower().Contains(spec)) ||
+                (u.Employee != null && u.Employee.Department != null &&
+                 u.Employee.Department.ToLower().Contains(spec)));
         }
 
         if (!string.IsNullOrWhiteSpace(status))

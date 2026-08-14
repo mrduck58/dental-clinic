@@ -20,7 +20,7 @@ public class GetDentistsHandlerTests
     {
         _userRepo = Substitute.For<IUserRepository>();
         _userRepo.GetStaffPagedAsync(
-            Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
+            Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
             Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns((new List<User>().AsReadOnly(), 0));
         _dentistRepo = Substitute.For<IDentistRepository>();
@@ -40,7 +40,7 @@ public class GetDentistsHandlerTests
         await _handler.Handle(new GetDentistsQuery(), CancellationToken.None);
 
         await _userRepo.Received(1).GetStaffPagedAsync(
-            null, null, null, 1, 500, Arg.Any<CancellationToken>());
+            null, null, null, null, 1, 500, Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -142,7 +142,7 @@ public class GetDentistsHandlerTests
     private void SetRepoData(params User[] users)
     {
         _userRepo.GetStaffPagedAsync(
-            Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
+            Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
             Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns((users.ToList().AsReadOnly(), users.Length));
     }

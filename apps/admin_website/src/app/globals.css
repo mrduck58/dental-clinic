@@ -32,11 +32,9 @@
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(15px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 
@@ -66,6 +64,32 @@
   &:hover {
     transform: translateY(-5px);
   }
+}
+
+/* Rich Text Editor & ContentEditable List Styling */
+[contenteditable] ul,
+.prose ul,
+.rich-editor-content ul {
+  list-style-type: disc !important;
+  margin-top: 0.5rem !important;
+  margin-bottom: 0.5rem !important;
+  padding-left: 1.5rem !important;
+}
+
+[contenteditable] ol,
+.prose ol,
+.rich-editor-content ol {
+  list-style-type: decimal !important;
+  margin-top: 0.5rem !important;
+  margin-bottom: 0.5rem !important;
+  padding-left: 1.5rem !important;
+}
+
+[contenteditable] li,
+.prose li,
+.rich-editor-content li {
+  margin-top: 0.25rem !important;
+  margin-bottom: 0.25rem !important;
 }
 
 

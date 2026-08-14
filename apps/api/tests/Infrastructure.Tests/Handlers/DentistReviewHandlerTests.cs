@@ -1,11 +1,15 @@
 using DentalClinic.API.Application.UseCases.Dentists;
+using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
+using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Infrastructure.Persistence;
 using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using NSubstitute;
 using NUnit.Framework;
 
 namespace DentalClinic.API.Infrastructure.Tests.Handlers;
@@ -17,6 +21,8 @@ public class DentistReviewHandlerTests
     private DentistReviewRepository _reviewRepository = null!;
     private AppointmentRepository _appointmentRepository = null!;
     private PatientRepository _patientRepository = null!;
+    private INotificationService _notificationService = null!;
+    private IUserRepository _userRepository = null!;
     private GetDentistReviewsHandler _getHandler = null!;
     private UpsertDentistReviewHandler _upsertHandler = null!;
     private GetDentistReviewEligibilityHandler _eligibilityHandler = null!;
@@ -32,9 +38,12 @@ public class DentistReviewHandlerTests
         _reviewRepository = new DentistReviewRepository(_db);
         _appointmentRepository = new AppointmentRepository(_db);
         _patientRepository = new PatientRepository(_db);
+        _notificationService = Substitute.For<INotificationService>();
+        _userRepository = Substitute.For<IUserRepository>();
 
         _getHandler = new GetDentistReviewsHandler(_reviewRepository);
-        _upsertHandler = new UpsertDentistReviewHandler(_reviewRepository, _appointmentRepository, _patientRepository);
+        _upsertHandler = new UpsertDentistReviewHandler(
+            _reviewRepository, _appointmentRepository, _patientRepository, _notificationService, _userRepository);
         _eligibilityHandler = new GetDentistReviewEligibilityHandler(_reviewRepository, _appointmentRepository, _patientRepository);
     }
 
@@ -209,6 +218,42 @@ public class DentistReviewHandlerTests
         var stored = await _db.DentistReviews.SingleAsync(r => r.DentistId == dentist.Id && r.PatientId == patient.Id);
         stored.Rating.Should().Be(5);
         stored.Comment.Should().Be("Rất hài lòng");
+    }
+
+    /// <summary>Đánh giá nha sĩ mới phải báo cho toàn bộ Owner — tab "Phản hồi &amp; đánh giá" ở
+    /// /owner/notifications gom cả đánh giá phòng khám lẫn đánh giá nha sĩ, cùng type service.</summary>
+    [Test]
+    public async Task HandleAsync_NewReview_NotifiesOwners()
+    {
+        var ownerId = Guid.NewGuid();
+        _userRepository.GetUserIdsByRoleAsync("Owner", Arg.Any<CancellationToken>()).Returns(new[] { ownerId });
+        var dentist = await SeedDentistAsync("gr6b");
+        var patient = await SeedPatientAsync("gr6b-p", "Trần Thị B");
+        await SeedCompletedVisitAsync(dentist.Id, patient.Id);
+
+        var command = new UpsertDentistReviewCommand(
+            dentist.Id, patient.UserId, new CreateDentistReviewRequest(5, "Rất hài lòng", null));
+        await _upsertHandler.Handle(command, CancellationToken.None);
+
+        await _notificationService.Received(1).CreateForMultipleUsersAsync(
+            Arg.Is<IEnumerable<Guid>>(ids => ids.Contains(ownerId)),
+            Arg.Is<CreateNotificationRequest>(r =>
+                r.Type == NotificationType.Service && r.RelatedEntityType == "DentistReview"),
+            Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Đánh giá bị chặn bởi validation thì không được gửi thông báo rác cho Owner.</summary>
+    [Test]
+    public async Task HandleAsync_InvalidReview_DoesNotNotifyOwners()
+    {
+        var command = new UpsertDentistReviewCommand(
+            Guid.NewGuid(), Guid.NewGuid(), new CreateDentistReviewRequest(9, "Sai điểm", null));
+
+        Func<Task> act = () => _upsertHandler.Handle(command, CancellationToken.None);
+
+        await act.Should().ThrowAsync<ValidationException>();
+        await _notificationService.DidNotReceive().CreateForMultipleUsersAsync(
+            Arg.Any<IEnumerable<Guid>>(), Arg.Any<CreateNotificationRequest>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>Gửi đánh giá lần 2 cho cùng cặp nha sĩ/bệnh nhân phải cập nhật bản ghi cũ (upsert),

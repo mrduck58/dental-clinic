@@ -187,8 +187,9 @@ export default function ActivityLogsPage() {
         module:    moduleFilter !== "all" ? moduleFilter : undefined,
         status:    statusFilter !== "all" ? statusFilter : undefined,
         search:    searchQuery || undefined,
+        // Mốc nửa đêm giờ VN — API tự mở rộng endDate đến hết ngày đó
         startDate: dateFrom ? `${dateFrom}T00:00:00+07:00` : undefined,
-        endDate:   dateTo ? `${dateTo}T23:59:59+07:00` : undefined,
+        endDate:   dateTo ? `${dateTo}T00:00:00+07:00` : undefined,
         page:      currentPage,
         pageSize,
       });
@@ -206,7 +207,7 @@ export default function ActivityLogsPage() {
     const today = getTodayIso();
     try {
       const [todayData, warningData] = await Promise.all([
-        getActivityLogsApi({ startDate: `${today}T00:00:00+07:00`, endDate: `${today}T23:59:59+07:00`, pageSize: 1000 }),
+        getActivityLogsApi({ startDate: `${today}T00:00:00+07:00`, endDate: `${today}T00:00:00+07:00`, pageSize: 100 }),
         getActivityLogsApi({ status: "failed", pageSize: 1, page: 1 }),
       ]);
       const warningCount1 = warningData.totalCount;
@@ -282,8 +283,8 @@ export default function ActivityLogsPage() {
         status:    statusFilter !== "all" ? statusFilter : undefined,
         search:    searchQuery || undefined,
         startDate: dateFrom ? `${dateFrom}T00:00:00+07:00` : undefined,
-        endDate:   dateTo ? `${dateTo}T23:59:59+07:00` : undefined,
-        pageSize: 10000,
+        endDate:   dateTo ? `${dateTo}T00:00:00+07:00` : undefined,
+        pageSize: 100,
         page: 1,
       });
       const headers = "ID,Thoi gian,Nguoi dung,Vai tro,Hanh dong,Phan he,Mo ta,Dia chi IP,Trang thai\n";

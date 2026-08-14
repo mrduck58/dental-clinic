@@ -89,12 +89,12 @@ export default function OwnerStaffManagementPage() {
 
   const fetchStaff = useCallback(() => {
     setIsLoading(true);
-    const combinedSearch = [searchQuery, specialtyFilter].filter(Boolean).join(" ");
     getStaffApi({
-      search:   combinedSearch || undefined,
-      role:     tab.scopeRoles,
-      status:   statusFilter !== "All" ? statusFilter : undefined,
-      page:     currentPage,
+      search:    searchQuery || undefined,
+      role:      tab.scopeRoles,
+      status:    statusFilter !== "All" ? statusFilter : undefined,
+      specialty: specialtyFilter || undefined,
+      page:      currentPage,
       pageSize,
     })
       .then((res) => {
@@ -254,12 +254,12 @@ export default function OwnerStaffManagementPage() {
               </div>
 
               {/* TABS (Bác sĩ & Nhân viên) */}
-              <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1 shadow-sm shrink-0">
+              <div className="grid grid-cols-2 bg-slate-50 border border-slate-200 rounded-xl p-1 shadow-sm w-full sm:w-auto shrink-0">
                 {TABS.map((t) => (
                   <button
                     key={t.key}
                     onClick={() => switchTab(t.key)}
-                    className={`px-4 py-1.5 rounded-lg text-[13.5px] font-extrabold transition-all cursor-pointer ${
+                    className={`px-5 py-2 sm:py-1.5 rounded-lg text-[13.5px] font-extrabold text-center transition-all cursor-pointer ${
                       activeTab === t.key
                         ? "bg-primary text-white shadow-sm"
                         : "text-slate-500 hover:text-slate-800 hover:bg-slate-200/40"
@@ -570,12 +570,12 @@ export default function OwnerStaffManagementPage() {
             {/* Pagination */}
             {!isLoading && totalCount > 0 && (
               <div className="border-t border-slate-100 px-5 py-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50/25">
-                <span className="text-[12.5px] text-slate-400 font-semibold">
+                <span className="text-[12.5px] text-slate-400 font-semibold text-center sm:text-left">
                   Hiển thị <span className="font-black text-slate-600">{(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, totalCount)}</span> trong{" "}
                   <span className="font-black text-slate-600">{totalCount}</span> kết quả
                 </span>
                 {Math.ceil(totalCount / pageSize) > 1 && (
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap justify-center">
                     <button
                       onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                       disabled={currentPage === 1}

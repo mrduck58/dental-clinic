@@ -476,3 +476,10 @@ apps/api/appsettings.Development.json
 # committed and available to anyone who clones the repo.
 .claude/*
 !.claude/skills/
+
+# Ảnh người dùng tải lên khi chạy máy dev (kho lưu trữ thật là Supabase Storage).
+# 32 file đã lỡ commit trước đây thì GIỮ NGUYÊN: dữ liệu trong DB đang trỏ vào /uploads/<tên>,
+# gỡ khỏi repo là những ảnh đó 404 sau khi deploy. Chỉ gỡ sau khi đã chuyển chúng lên Supabase
+# và cập nhật lại đường dẫn trong DB.
+apps/api/wwwroot/uploads/*
+!apps/api/wwwroot/uploads/.gitkeep

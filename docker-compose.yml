@@ -45,6 +45,18 @@ services:
       - PayOSSettings__ChecksumKey=${PAYOS_CHECKSUM_KEY}
       - GoogleAuthSettings__ClientId=${GOOGLE_CLIENT_ID}
       - GeminiSettings__ApiKey=${GEMINI_API_KEY}
+      # Email qua HTTP API của Brevo. KHÔNG dùng SMTP: Render chặn cổng 25/465/587 nên SMTP không
+      # bao giờ gửi được ở môi trường thật; Brevo đi qua cổng 443.
+      # FromEmail phải là địa chỉ ĐÃ xác thực trong Brevo, nếu không Brevo trả 4xx.
+      - EmailSettings__ApiKey=${BREVO_API_KEY}
+      - EmailSettings__FromEmail=${BREVO_FROM_EMAIL}
+      - EmailSettings__FromName=${BREVO_FROM_NAME:-Sơn Giang Dental}
+      # Kho lưu ảnh. Bỏ trống thì ghi xuống đĩa container — CHỈ hợp cho máy dev; trên Render
+      # filesystem là ephemeral nên ảnh mất sau mỗi lần deploy/restart.
+      # ServiceKey là service_role key, KHÔNG phải anon key (anon bị RLS của Storage chặn).
+      - SupabaseStorage__Url=${SUPABASE_URL}
+      - SupabaseStorage__ServiceKey=${SUPABASE_SERVICE_KEY}
+      - SupabaseStorage__Bucket=${SUPABASE_STORAGE_BUCKET:-uploads}
       # SMS (SpeedSMS). Bỏ trống thì API không gửi SMS: ở Development chỉ ghi log, ở Production ném lỗi.
       - SmsSettings__ApiToken=${SPEEDSMS_API_TOKEN}
       # 4 = brandname dùng chung "Verify" (~750đ/tin, không cần đăng ký tên định danh)

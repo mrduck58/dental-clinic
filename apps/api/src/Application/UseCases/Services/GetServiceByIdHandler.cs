@@ -14,9 +14,6 @@ public class GetServiceByIdHandler(IServiceRepository serviceRepository) : IRequ
         var service = await serviceRepository.GetByIdAsync(request.Id, cancellationToken)
             ?? throw new NotFoundException($"Không tìm thấy dịch vụ với ID: {request.Id}");
 
-        return new ServiceDto(
-            service.Id, service.Name, service.Price,
-            service.DurationMinutes, service.IsActive, service.Description,
-            service.ViewCount, service.ImageUrl, service.IconUrl, service.CreatedAt, service.UpdatedAt);
+        return ServiceMapper.ToDto(service);
     }
 }

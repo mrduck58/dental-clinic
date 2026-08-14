@@ -67,7 +67,7 @@ class _SelectDoctorPageState extends State<SelectDoctorPage> {
 
     return Scaffold(
       backgroundColor: context.bg,
-      appBar: BookingAppBar(title: isVi ? 'Chọn khung giờ khám' : 'Select Time Slot', showHome: false),
+      appBar: BookingAppBar(title: isVi ? 'Chọn khung giờ khám' : 'Select Time Slot'),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null

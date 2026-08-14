@@ -1,6 +1,8 @@
+using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Domain.Interfaces.Services;
 using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Dentists;
@@ -64,7 +66,9 @@ public class GetDentistReviewsHandler(IDentistReviewRepository dentistReviewRepo
 public class UpsertDentistReviewHandler(
     IDentistReviewRepository dentistReviewRepository,
     IAppointmentRepository appointmentRepository,
-    IPatientRepository patientRepository)
+    IPatientRepository patientRepository,
+    INotificationService notificationService,
+    IUserRepository userRepository)
     : IRequestHandler<UpsertDentistReviewCommand, DentistReviewDto>
 {
     public async Task<DentistReviewDto> Handle(UpsertDentistReviewCommand command, CancellationToken ct)
@@ -100,6 +104,7 @@ public class UpsertDentistReviewHandler(
 
             var newApptReview = DentistReview.Create(dentistId, patient.Id, request.Rating, request.Comment, request.Tags, request.AppointmentId);
             await dentistReviewRepository.AddAsync(newApptReview, ct);
+            await NotifyOwnersAsync(newApptReview, patient.FullName, ct);
 
             return new DentistReviewDto(newApptReview.Id, NameMasker.MaskName(patient.FullName), newApptReview.Rating, newApptReview.Comment, newApptReview.Tags, newApptReview.CreatedAt, appt.Service?.Name);
         }
@@ -114,8 +119,24 @@ public class UpsertDentistReviewHandler(
 
         var newReview = DentistReview.Create(dentistId, patient.Id, request.Rating, request.Comment, request.Tags, request.AppointmentId);
         await dentistReviewRepository.AddAsync(newReview, ct);
+        await NotifyOwnersAsync(newReview, patient.FullName, ct);
 
         return new DentistReviewDto(newReview.Id, NameMasker.MaskName(patient.FullName), newReview.Rating, newReview.Comment, newReview.Tags, newReview.CreatedAt);
+    }
+
+    /// <summary>Owner theo dõi phản hồi &amp; đánh giá ở /owner/feedback — báo cho họ mỗi đánh giá nha sĩ mới.</summary>
+    private async Task NotifyOwnersAsync(DentistReview review, string patientName, CancellationToken ct)
+    {
+        var ownerIds = await userRepository.GetUserIdsByRoleAsync("Owner", ct);
+        var template = new CreateNotificationRequest(
+            UserId: Guid.Empty,
+            Type: NotificationType.Service,
+            Priority: NotificationPriority.Medium,
+            Title: "Đánh giá nha sĩ mới",
+            Body: $"{patientName} vừa đánh giá nha sĩ {review.Rating}/5 sao.",
+            RelatedEntityType: "DentistReview",
+            RelatedEntityId: review.Id.ToString());
+        await notificationService.CreateForMultipleUsersAsync(ownerIds, template, ct);
     }
 }
 

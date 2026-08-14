@@ -27,7 +27,7 @@ export default async function ProcessSection() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {steps.map(({ title, description }, i) => (
             <div key={`${title}-${i}`} className="relative flex flex-col items-start p-6 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all">
               <div className="flex items-center justify-between w-full mb-5">

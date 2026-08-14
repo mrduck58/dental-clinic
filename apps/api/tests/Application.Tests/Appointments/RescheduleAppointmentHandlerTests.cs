@@ -314,4 +314,19 @@ public class RescheduleAppointmentHandlerTests
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
+
+    /// <summary>Không cho dời lịch sang ngày mà bệnh nhân đã có một lịch hẹn khác đang hoạt động.</summary>
+    [Test]
+    public async Task Handle_TargetDateAlreadyHasActiveAppointment_ThrowsConflict()
+    {
+        ActAsStaff();
+        var appointment = SeedAppointment();
+        _repo.HasActiveAppointmentOnDateAsync(
+            appointment.PatientId, Arg.Any<DateOnly>(), appointment.Id, Arg.Any<CancellationToken>())
+            .Returns(true);
+
+        Func<Task> act = () => RescheduleTo(appointment, DateTimeOffset.UtcNow.AddDays(3));
+
+        await act.Should().ThrowAsync<ConflictException>();
+    }
 }
