@@ -247,6 +247,8 @@ export interface StaffDto {
   salaryUnit: string | null;
   leaveAccrued: number | null;
   allowance: number | null;
+  /** Id hồ sơ nha sĩ — null nếu nhân viên không phải bác sĩ. Đánh giá của bệnh nhân khóa theo id này. */
+  dentistProfileId: string | null;
 }
 
 
@@ -3866,10 +3868,16 @@ export async function getPublicDentistsApi(): Promise<PublicDentistDto[]> {
   return res.json() as Promise<PublicDentistDto[]>;
 }
 
+/**
+ * Đánh giá của bệnh nhân cho một nha sĩ. NÉM LỖI khi gọi thất bại thay vì trả về danh sách rỗng:
+ * "chưa có đánh giá nào" và "không tải được đánh giá" là hai chuyện khác nhau, gộp lại thì màn hình
+ * sẽ báo bác sĩ không có đánh giá trong khi thực ra API đang hỏng.
+ */
 export async function getDentistReviewsApi(dentistId: string): Promise<DentistReviewsResultDto> {
   const res = await fetch(`${API_URL}/api/dentists/${dentistId}/reviews`);
   if (!res.ok) {
-    return { averageRating: 0, reviewCount: 0, reviews: [] };
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải đánh giá của nha sĩ");
   }
   return res.json() as Promise<DentistReviewsResultDto>;
 }
