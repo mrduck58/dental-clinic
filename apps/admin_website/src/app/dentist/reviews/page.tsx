@@ -174,13 +174,14 @@ export default function DentistReviewsPage() {
                 Nhãn đánh giá phổ biến
               </span>
               {popularTags.length > 0 ? (
-                <div className="flex倚 flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2">
                   {popularTags.map(([tag, cnt]) => (
                     <span
                       key={tag}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-50 text-secondary border border-sky-100 text-[12px] font-bold"
                     >
-                      🏷️ {tag} <span className="px-1.5 py-0.5 rounded-md bg-white text-[10px] text-sky-700 font-black">{cnt}</span>
+                      <svg className="w-3.5 h-3.5 text-sky-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.386a48.772 48.772 0 004.887-3.41c.846-.684.992-1.922.386-2.607l-9.581-9.581A2.25 2.25 0 009.568 3z" /><path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" /></svg>
+                      {tag} <span className="px-1.5 py-0.5 rounded-md bg-white text-[10px] text-sky-700 font-black">{cnt}</span>
                     </span>
                   ))}
                 </div>
@@ -209,12 +210,12 @@ export default function DentistReviewsPage() {
               />
             </div>
 
-            <div className="flex items-center gap-3">
-              <div className="relative">
+            <div className="flex items-center gap-3 w-full md:w-auto">
+              <div className="relative w-full md:w-auto">
                 <select
                   value={ratingFilter}
                   onChange={(e) => setRatingFilter(e.target.value)}
-                  className="appearance-none bg-white text-slate-700 font-bold text-[14px] pl-4 pr-10 py-2.5 rounded-xl border border-slate-200 focus:outline-none transition-all cursor-pointer"
+                  className="w-full appearance-none bg-white text-slate-700 font-bold text-[14px] pl-4 pr-10 py-2.5 rounded-xl border border-slate-200 focus:outline-none transition-all cursor-pointer"
                 >
                   <option value="All">Tất cả số sao</option>
                   <option value="5">5 Sao</option>

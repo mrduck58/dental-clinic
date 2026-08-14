@@ -81,7 +81,9 @@ public class SendChatMessageHandlerTests
         _appointmentRepo.UpdateAsync(Arg.Any<Appointment>(), Arg.Any<CancellationToken>())
             .Returns(Task.CompletedTask);
         _appointmentRepo.GetDentistUserIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Returns((Guid?)null);
+            .Returns(ci => Guid.NewGuid());
+        _appointmentRepo.HasActiveAppointmentOnDateAsync(Arg.Any<Guid>(), Arg.Any<DateOnly>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
+            .Returns(false);
 
         var currentUserService = Substitute.For<ICurrentUserService>();
         currentUserService.IsAuthenticated.Returns(true);

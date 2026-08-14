@@ -44,15 +44,15 @@ export default async function WhyChooseUs() {
           </div>
 
           {/* Right — stat cards */}
-          <div className="grid grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
             {stats.map(({ value, label }, i) => {
               const isPrimary = i % 2 === 0;
               return (
-                <div key={`${label}-${i}`} className={`rounded-2xl p-7 flex flex-col items-start border ${isPrimary ? "bg-primary/5 border-primary/10" : "bg-secondary/5 border-secondary/10"}`}>
+                <div key={`${label}-${i}`} className={`rounded-2xl p-5 sm:p-7 flex flex-col items-start border ${isPrimary ? "bg-primary/5 border-primary/10" : "bg-secondary/5 border-secondary/10"}`}>
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${isPrimary ? "bg-primary/15 text-primary" : "bg-secondary/15 text-secondary"}`}>
                     {STAT_ICONS[i % STAT_ICONS.length]}
                   </div>
-                  <span className={`text-4xl font-black leading-none mb-2 ${isPrimary ? "text-primary" : "text-secondary"}`}>{value}</span>
+                  <span className={`text-3xl sm:text-4xl font-black leading-none mb-2 ${isPrimary ? "text-primary" : "text-secondary"}`}>{value}</span>
                   <span className="text-[13px] font-semibold text-slate-500">{label}</span>
                 </div>
               );

@@ -16,7 +16,7 @@ class ServiceDetailPage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: context.bg,
-      appBar: BookingAppBar(title: isVi ? 'Thông tin dịch vụ' : 'Service Info', showHome: false),
+      appBar: BookingAppBar(title: isVi ? 'Thông tin dịch vụ' : 'Service Info'),
       body: Column(
         children: [
           Expanded(

@@ -158,34 +158,38 @@ function OnlineTab() {
             const initials     = appt.patientName.trim().split(/\s+/).slice(-2).map(w => w[0]).join("").toUpperCase();
             return (
               <div key={appt.appointmentId} className="bg-white rounded-2xl border border-slate-200/70 shadow-sm overflow-hidden">
-                <div className="flex items-start gap-5 px-6 py-5">
-                  <div className="w-11 h-11 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center font-black text-[13px] text-sky-700 shrink-0">
-                    {initials}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2.5 flex-wrap">
-                      <span className="text-[15px] font-black text-slate-900">{appt.patientName}</span>
-                      {appt.patientPhone && <span className="text-[12px] font-medium text-slate-400 font-mono">{appt.patientPhone}</span>}
-                      <span className="px-2 py-0.5 bg-sky-50 text-sky-700 border border-sky-100 rounded-full text-[11.5px] font-black">{appt.serviceName ?? "Khám tổng quát"}</span>
-                      <span className="text-[11px] text-slate-400 font-mono">#{appt.appointmentCode}</span>
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 p-4 sm:px-6 sm:py-5">
+                  <div className="flex items-start gap-3 sm:gap-4 flex-1 min-w-0">
+                    <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center font-black text-[13px] text-sky-700 shrink-0">
+                      {initials}
                     </div>
-                    <div className="flex items-center gap-2 mt-1.5 text-[13px] text-slate-500 font-semibold">
-                      <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" /></svg>
-                      <span>Yêu cầu: <strong className="text-slate-700">{fmtDate(appt.appointmentDate)}</strong> lúc <strong className="text-slate-700">{fmtTime(appt.appointmentDate)}</strong></span>
-                      <span className="text-slate-300">·</span>
-                      <span className="text-slate-400 text-[12px]">Gửi ngày {fmtDate(appt.createdAt)}</span>
-                    </div>
-                    {appt.symptoms && (
-                      <div className="mt-2 flex items-start gap-1.5 text-[12.5px] text-amber-700 bg-amber-50 border border-amber-100 px-3 py-1.5 rounded-lg font-semibold w-fit">
-                        <svg className="w-3.5 h-3.5 mt-0.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg>
-                        {appt.symptoms}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[15px] font-black text-slate-900">{appt.patientName}</span>
+                        {appt.patientPhone && <span className="text-[12px] font-medium text-slate-400 font-mono">{appt.patientPhone}</span>}
+                        <span className="px-2 py-0.5 bg-sky-50 text-sky-700 border border-sky-100 rounded-full text-[11.5px] font-black">{appt.serviceName ?? "Khám tổng quát"}</span>
+                        <span className="text-[11px] text-slate-400 font-mono">#{appt.appointmentCode}</span>
                       </div>
-                    )}
+                      <div className="flex items-center gap-2 mt-1.5 text-[12.5px] sm:text-[13px] text-slate-500 font-semibold flex-wrap">
+                        <span className="flex items-center gap-1">
+                          <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" /></svg>
+                          Yêu cầu: <strong className="text-slate-700">{fmtDate(appt.appointmentDate)}</strong> lúc <strong className="text-slate-700">{fmtTime(appt.appointmentDate)}</strong>
+                        </span>
+                        <span className="text-slate-300 hidden sm:inline">·</span>
+                        <span className="text-slate-400 text-[11.5px] sm:text-[12px]">Gửi ngày {fmtDate(appt.createdAt)}</span>
+                      </div>
+                      {appt.symptoms && (
+                        <div className="mt-2 flex items-start gap-1.5 text-[12px] sm:text-[12.5px] text-amber-700 bg-amber-50 border border-amber-100 px-3 py-1.5 rounded-lg font-semibold w-fit">
+                          <svg className="w-3.5 h-3.5 mt-0.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg>
+                          {appt.symptoms}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0 border-t sm:border-t-0 pt-3 sm:pt-0 border-slate-100 w-full sm:w-auto justify-end">
                     <button disabled={isLoading}
                       onClick={() => isConfirming ? setExpanding(null) : (setExpanding(appt.appointmentId), setRejectTarget(null))}
-                      className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-bold cursor-pointer transition-all border disabled:opacity-50 ${
+                      className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2.5 sm:py-2 rounded-xl text-[13px] font-bold cursor-pointer transition-all border disabled:opacity-50 whitespace-nowrap ${
                         isConfirming ? "bg-primary text-white border-primary" : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
                       }`}>
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
@@ -193,7 +197,7 @@ function OnlineTab() {
                     </button>
                     <button disabled={isLoading}
                       onClick={() => isRejecting ? setRejectTarget(null) : (setRejectTarget(appt.appointmentId), setExpanding(null), setRejectReason(""))}
-                      className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-bold cursor-pointer transition-all border disabled:opacity-50 ${
+                      className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2.5 sm:py-2 rounded-xl text-[13px] font-bold cursor-pointer transition-all border disabled:opacity-50 whitespace-nowrap ${
                         isRejecting ? "bg-slate-700 text-white border-slate-700" : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-red-50 hover:text-primary hover:border-red-200"
                       }`}>
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -204,18 +208,18 @@ function OnlineTab() {
 
                 {/* Confirm expand */}
                 {isConfirming && (
-                  <div className="border-t border-slate-100 bg-slate-50/60 px-6 py-5">
+                  <div className="border-t border-slate-100 bg-slate-50/60 px-4 sm:px-6 py-5">
                     <p className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider mb-3">
                       Xác nhận lịch hẹn · {fmtDate(appt.appointmentDate)} lúc {fmtTime(appt.appointmentDate)} · {appt.dentistName}
                     </p>
-                    <div className="flex gap-3">
+                    <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3">
                       <button onClick={() => doConfirm(appt)} disabled={isLoading}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-[13px] font-black cursor-pointer transition-all shadow-sm shadow-emerald-200">
+                        className="flex items-center justify-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-[13px] font-black cursor-pointer transition-all shadow-sm shadow-emerald-200 w-full sm:w-auto">
                         {isLoading ? <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>}
                         Xác nhận lịch hẹn
                       </button>
                       <button onClick={() => setExpanding(null)}
-                        className="px-5 py-2.5 bg-white text-slate-500 border border-slate-200 rounded-xl text-[13px] font-bold cursor-pointer hover:bg-slate-50 transition-all">
+                        className="px-5 py-2.5 bg-white text-slate-500 border border-slate-200 rounded-xl text-[13px] font-bold cursor-pointer hover:bg-slate-50 transition-all text-center w-full sm:w-auto">
                         Huỷ
                       </button>
                     </div>
@@ -224,7 +228,7 @@ function OnlineTab() {
 
                 {/* Reject expand */}
                 {isRejecting && (
-                  <div className="border-t border-slate-100 bg-slate-50/60 px-6 py-5">
+                  <div className="border-t border-slate-100 bg-slate-50/60 px-4 sm:px-6 py-5">
                     <p className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider mb-3">Lý do từ chối</p>
                     <select value={reasonCode} onChange={e => setReasonCode(e.target.value)}
                       className="w-full px-4 py-3 text-[13.5px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-semibold text-slate-700 mb-3 cursor-pointer">
@@ -244,14 +248,14 @@ function OnlineTab() {
                         Chọn &ldquo;Lý do khác&rdquo; thì cần ghi rõ nội dung để bệnh nhân hiểu.
                       </p>
                     )}
-                    <div className="flex gap-3">
+                    <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3">
                       <button onClick={() => doCancel(appt)} disabled={!canSubmitCancel || isLoading}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-[13px] font-black cursor-pointer transition-all shadow-sm shadow-primary/25">
+                        className="flex items-center justify-center gap-2 px-5 py-2.5 bg-primary hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-[13px] font-black cursor-pointer transition-all shadow-sm shadow-primary/25 w-full sm:w-auto">
                         {isLoading ? <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>}
                         Xác nhận từ chối
                       </button>
                       <button onClick={() => setRejectTarget(null)}
-                        className="px-5 py-2.5 bg-white text-slate-500 border border-slate-200 rounded-xl text-[13px] font-bold cursor-pointer hover:bg-slate-50 transition-all">
+                        className="px-5 py-2.5 bg-white text-slate-500 border border-slate-200 rounded-xl text-[13px] font-bold cursor-pointer hover:bg-slate-50 transition-all text-center w-full sm:w-auto">
                         Huỷ
                       </button>
                     </div>
@@ -380,25 +384,26 @@ function ConfirmedTab() {
             const initials = appt.patientName.trim().split(/\s+/).slice(-2).map(w => w[0]).join("").toUpperCase();
             return (
               <div key={appt.appointmentId} className="bg-white rounded-2xl border border-emerald-100 shadow-sm overflow-hidden hover:shadow-md transition-all">
-                <div className="flex items-center gap-5 px-6 py-4">
-                  <div className="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center font-black text-[13px] text-emerald-700 shrink-0">
-                    {initials}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2.5 flex-wrap">
-                      <span className="text-[15px] font-black text-slate-900">{appt.patientName}</span>
-                      {appt.patientPhone && <span className="text-[12px] font-medium text-slate-400 font-mono">{appt.patientPhone}</span>}
-                      <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full text-[11.5px] font-black">{appt.serviceName ?? "Khám tổng quát"}</span>
-                      <span className="text-[11px] text-slate-400 font-mono">#{appt.appointmentCode}</span>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 sm:px-6 sm:py-4">
+                  <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+                    <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center font-black text-[13px] text-emerald-700 shrink-0">
+                      {initials}
                     </div>
-                    <div className="flex items-center gap-2 mt-1.5 text-[13px] text-slate-500 font-semibold">
-                      <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" /></svg>
-                      <span>{fmtDate(appt.appointmentDate)} lúc <strong className="text-slate-700">{fmtTime(appt.appointmentDate)}</strong></span>
-                      <span className="text-slate-300">·</span>
-                      <span className="text-[12px] text-slate-400">{appt.dentistName}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <span className="text-[15px] font-black text-slate-900">{appt.patientName}</span>
+                        {appt.patientPhone && <span className="text-[12px] font-medium text-slate-400 font-mono">{appt.patientPhone}</span>}
+                        <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full text-[11.5px] font-black">{appt.serviceName ?? "Khám tổng quát"}</span>
+                        <span className="text-[11px] text-slate-400 font-mono">#{appt.appointmentCode}</span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1.5 text-[12.5px] sm:text-[13px] text-slate-500 font-semibold flex-wrap">
+                        <span>{fmtDate(appt.appointmentDate)} lúc <strong className="text-slate-700">{fmtTime(appt.appointmentDate)}</strong></span>
+                        <span className="text-slate-300">·</span>
+                        <span className="text-[12px] text-slate-400">{appt.dentistName}</span>
+                      </div>
                     </div>
                   </div>
-                  <div className="shrink-0 flex items-center gap-2">
+                  <div className="shrink-0 flex items-center gap-2 self-end sm:self-center">
                     <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-black bg-emerald-50 text-emerald-700 border border-emerald-100">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                       Đã xác nhận
@@ -495,26 +500,26 @@ export default function AppointmentsPage() {
           title="Đặt Lịch & Nhận Đơn"
           subtitle="Xác nhận và theo dõi các đơn đặt lịch online"
           right={
-            <div className="flex items-center gap-2 text-[12.5px] font-bold">
+            <div className="flex items-center gap-1.5 sm:gap-2 text-[12px] sm:text-[12.5px] font-bold">
               {pendingCount > 0 && (
-                <span className="flex items-center gap-1 px-2.5 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl">
+                <span className="flex items-center gap-1 px-2 sm:px-2.5 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl whitespace-nowrap">
                   <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" /><span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" /></span>
-                  {pendingCount} đơn chờ
+                  {pendingCount} chờ
                 </span>
               )}
               {confirmedCount > 0 && (
-                <span className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl">
-                  {confirmedCount} đơn đã xác nhận
+                <span className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl whitespace-nowrap">
+                  {confirmedCount} đã xác nhận
                 </span>
               )}
-              <span className="px-2.5 py-1.5 bg-sky-50 text-sky-700 border border-sky-200 rounded-xl">{todayAppts.length} lịch hôm nay</span>
+              <span className="hidden md:inline-flex px-2.5 py-1.5 bg-sky-50 text-sky-700 border border-sky-200 rounded-xl whitespace-nowrap">{todayAppts.length} lịch hôm nay</span>
             </div>
           }
         />
 
-        <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-5">
+        <div className="p-4 sm:p-8 flex-1 overflow-y-auto flex flex-col gap-5">
           {/* Tabs */}
-          <div className="flex gap-2">
+          <div className="flex gap-2 overflow-x-auto pb-1 max-w-full flex-nowrap shrink-0">
             {([
               { key: "online",  label: "Đơn đặt online",       dot: pendingCount > 0 },
               { key: "confirmed", label: "Đã xác nhận",         dot: confirmedCount > 0 },

@@ -217,23 +217,23 @@ export default function StaffLeavePage() {
       <main className="flex-1 flex flex-col min-w-0">
         <StaffPageHeader title="Đơn Xin Nghỉ" subtitle="Tạo và theo dõi đơn xin nghỉ phép" />
 
-        <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-6">
+        <div className="p-4 sm:p-8 flex-1 overflow-y-auto flex flex-col gap-6">
 
           {/* STATS */}
-          <div className="grid grid-cols-3 gap-5 shrink-0">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-5 shrink-0">
             {[
               { label: "Phép năm còn lại", value: `${stats.remainingAnnualDays}`, sub: `/ ${stats.totalAnnualDays} ngày năm ${new Date().getFullYear()}`, color: "text-primary", bg: "bg-red-50" },
               { label: "Đã nghỉ năm nay",  value: `${stats.usedAnnualDays}`,      sub: "ngày đã được duyệt", color: "text-green-700", bg: "bg-green-50" },
               { label: "Đang chờ duyệt",   value: `${stats.pendingCount}`,         sub: "đơn cần xử lý",     color: "text-amber-700", bg: "bg-amber-50" },
             ].map((s) => (
-              <div key={s.label} className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm hover-lift flex items-center justify-between">
+              <div key={s.label} className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/60 shadow-sm hover-lift flex items-center justify-between">
                 <div>
                   <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">{s.label}</span>
-                  <span className={`text-3xl font-black ${s.color} block mt-1`}>{s.value}</span>
-                  <span className="text-[12px] text-slate-400 font-semibold block mt-0.5">{s.sub}</span>
+                  <span className={`text-2xl sm:text-3xl font-black ${s.color} block mt-1`}>{s.value}</span>
+                  <span className="text-[11.5px] sm:text-[12px] text-slate-400 font-semibold block mt-0.5">{s.sub}</span>
                 </div>
-                <div className={`w-12 h-12 rounded-xl ${s.bg} flex items-center justify-center shrink-0`}>
-                  <svg className={`w-6 h-6 ${s.color}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <div className={`w-11 h-11 sm:w-12 sm:h-12 rounded-xl ${s.bg} flex items-center justify-center shrink-0`}>
+                  <svg className={`w-5 h-5 sm:w-6 sm:h-6 ${s.color}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                   </svg>
                 </div>

@@ -63,6 +63,14 @@ public class RescheduleAppointmentHandler(
         var newDentistId = command.DentistId ?? appointment.DentistId;
         var newServiceId = command.ServiceId ?? appointment.ServiceId;
 
+        var localNewDate = DateOnly.FromDateTime(command.AppointmentDate.UtcDateTime.AddHours(7));
+        var hasActiveAppointment = await appointmentRepository.HasActiveAppointmentOnDateAsync(
+            appointment.PatientId, localNewDate, excludeAppointmentId: appointment.Id, ct);
+        if (hasActiveAppointment)
+        {
+            throw new ConflictException("Bạn đã có một lịch hẹn khác trong ngày này. Mỗi bệnh nhân chỉ được có tối đa 1 lịch hẹn mỗi ngày.");
+        }
+
         await slotGuard.EnsureSlotAvailableAsync(
             newDentistId, command.AppointmentDate, newServiceId,
             excludeAppointmentId: appointment.Id, ct);

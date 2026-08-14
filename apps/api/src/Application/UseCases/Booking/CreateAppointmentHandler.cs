@@ -62,6 +62,14 @@ public class CreateAppointmentHandler(
         if (!dentistUserId.HasValue)
             throw new ValidationException($"Không tìm thấy bác sĩ với ID: '{cmd.DentistId}'.");
 
+        var localDate = DateOnly.FromDateTime(cmd.AppointmentDate.UtcDateTime.AddHours(7));
+        var hasActiveAppointment = await appointmentRepository.HasActiveAppointmentOnDateAsync(
+            targetPatientId, localDate, excludeAppointmentId: null, ct);
+        if (hasActiveAppointment)
+        {
+            throw new ConflictException("Bạn đã có một lịch hẹn trong ngày này. Mỗi bệnh nhân chỉ được đặt tối đa 1 lịch hẹn mỗi ngày (nếu muốn đổi giờ, vui lòng dời hoặc hủy lịch cũ).");
+        }
+
         await slotGuard.EnsureSlotAvailableAsync(
             cmd.DentistId, utcAppointmentDate, cmd.ServiceId, excludeAppointmentId: null, ct);
 

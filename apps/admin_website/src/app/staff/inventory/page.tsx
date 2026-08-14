@@ -70,11 +70,11 @@ function Pagination({ page, total, pageSize, onChange }: {
   );
 
   return (
-    <div className="p-4 border-t border-slate-100 flex items-center justify-between gap-2.5">
-      <span className="text-[13px] text-slate-400 font-semibold">
+    <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-2.5">
+      <span className="text-[13px] text-slate-400 font-semibold text-center sm:text-left">
         Hiển thị <span className="text-slate-600 font-bold">{from}–{to}</span> trong <span className="text-slate-600 font-bold">{total}</span> mục
       </span>
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-1.5 sm:gap-2.5 flex-wrap justify-center">
         {navBtn("<|", 1, page === 1)}
         {navBtn("<",  page - 1, page === 1)}
         {pages.map((p, i) =>

@@ -6,9 +6,9 @@ namespace DentalClinic.API.Domain.Validators;
 public static partial class StaffValidator
 {
     private static readonly string[] ValidRoles = ["Staff", "Dentist", "Admin"];
-    private static readonly string[] ValidGenders = ["Nam", "Nữ"];
-    private static readonly string[] ValidEmploymentTypes = ["Full-time", "Part-time", "Intern"];
-    private static readonly string[] ValidSalaryUnits = ["Theo tháng", "Theo ngày", "Theo ca"];
+    private static readonly string[] ValidGenders = ["Nam", "Nữ", "Khác"];
+    private static readonly string[] ValidEmploymentTypes = ["Full-time", "Part-time", "Shift-based", "Intern"];
+    private static readonly string[] ValidSalaryUnits = ["Theo tháng", "Theo ngày", "Theo ca", "Theo giờ"];
     private static readonly string[] ValidEmploymentStatuses = ["Active", "Inactive", "On Leave", "Terminated"];
 
     public const int MaxFullNameLength = 200;

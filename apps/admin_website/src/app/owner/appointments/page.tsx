@@ -127,39 +127,33 @@ function OnlineTab() {
           />
           {pending.map(req => (
             <div key={req.id} className="bg-white rounded-2xl border border-slate-200/70 shadow-sm overflow-hidden">
-              {/* Main row */}
-              <div className="flex items-start gap-5 px-6 py-5">
-                {/* Avatar */}
-                <div className="w-11 h-11 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center font-black text-[13px] text-sky-700 shrink-0">
-                  {req.name.trim().split(/\s+/).slice(-2).map(w => w[0]).join("").toUpperCase()}
-                </div>
-
-                {/* Info */}
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 p-4 sm:px-6 sm:py-5">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2.5 flex-wrap">
                     <span className="text-[15px] font-black text-slate-900">{req.name}</span>
                     <span className="text-[12px] font-medium text-slate-400 font-mono">{req.phone}</span>
                     <span className="px-2 py-0.5 bg-sky-50 text-sky-700 border border-sky-100 rounded-full text-[11.5px] font-black">{req.service}</span>
                   </div>
-                  <div className="flex items-center gap-2 mt-1.5 text-[13px] text-slate-500 font-semibold">
-                    <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" /></svg>
-                    <span>Yêu cầu: <strong className="text-slate-700">{req.reqDate}</strong> lúc <strong className="text-slate-700">{req.reqTime}</strong></span>
-                    <span className="text-slate-300">·</span>
-                    <span className="text-slate-400 text-[12px]">Gửi ngày {req.createdAt}</span>
+                  <div className="flex items-center gap-2 mt-1.5 text-[12.5px] sm:text-[13px] text-slate-500 font-semibold flex-wrap">
+                    <span className="flex items-center gap-1">
+                      <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" /></svg>
+                      Yêu cầu: <strong className="text-slate-700">{req.reqDate}</strong> lúc <strong className="text-slate-700">{req.reqTime}</strong>
+                    </span>
+                    <span className="text-slate-300 hidden sm:inline">·</span>
+                    <span className="text-slate-400 text-[11.5px] sm:text-[12px]">Gửi ngày {req.createdAt}</span>
                   </div>
                   {req.note && (
-                    <div className="mt-2 flex items-start gap-1.5 text-[12.5px] text-amber-700 bg-amber-50 border border-amber-100 px-3 py-1.5 rounded-lg font-semibold w-fit">
+                    <div className="mt-2 flex items-start gap-1.5 text-[12px] sm:text-[12.5px] text-amber-700 bg-amber-50 border border-amber-100 px-3 py-1.5 rounded-lg font-semibold w-fit">
                       <svg className="w-3.5 h-3.5 mt-0.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg>
                       {req.note}
                     </div>
                   )}
                 </div>
 
-                {/* Action buttons */}
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-2 shrink-0 border-t sm:border-t-0 pt-3 sm:pt-0 border-slate-100 w-full sm:w-auto justify-end">
                   <button
                     onClick={() => expanding === req.id ? setExpanding(null) : openConfirm(req.id, req.reqTime)}
-                    className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-bold cursor-pointer transition-all border ${
+                    className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2.5 sm:py-2 rounded-xl text-[13px] font-bold cursor-pointer transition-all border whitespace-nowrap ${
                       expanding === req.id
                         ? "bg-primary text-white border-primary"
                         : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
@@ -169,7 +163,7 @@ function OnlineTab() {
                   </button>
                   <button
                     onClick={() => rejectTarget === req.id ? setRejectTarget(null) : openReject(req.id)}
-                    className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[13px] font-bold cursor-pointer transition-all border ${
+                    className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2.5 sm:py-2 rounded-xl text-[13px] font-bold cursor-pointer transition-all border whitespace-nowrap ${
                       rejectTarget === req.id
                         ? "bg-slate-700 text-white border-slate-700"
                         : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-red-50 hover:text-primary hover:border-red-200"
@@ -180,11 +174,10 @@ function OnlineTab() {
                 </div>
               </div>
 
-              {/* Confirm expand */}
               {expanding === req.id && (
-                <div className="border-t border-slate-100 bg-slate-50/60 px-6 py-5">
+                <div className="border-t border-slate-100 bg-slate-50/60 px-4 sm:px-6 py-5">
                   <p className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider mb-3">Phân công lịch hẹn</p>
-                  <div className="grid grid-cols-3 gap-3 mb-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
                     <div className="flex flex-col gap-1.5">
                       <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">Nha sĩ</label>
                       <div className="relative">
@@ -215,35 +208,34 @@ function OnlineTab() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex gap-3">
+                  <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3">
                     <button onClick={() => doConfirm(req.id)} disabled={!confirmForm.time}
-                      className="flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-[13px] font-black cursor-pointer transition-all shadow-sm shadow-emerald-200">
+                      className="flex items-center justify-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-[13px] font-black cursor-pointer transition-all shadow-sm shadow-emerald-200 w-full sm:w-auto">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
                       Xác nhận lịch hẹn
                     </button>
                     <button onClick={() => setExpanding(null)}
-                      className="px-5 py-2.5 bg-white text-slate-500 border border-slate-200 rounded-xl text-[13px] font-bold cursor-pointer hover:bg-slate-50 transition-all">
+                      className="px-5 py-2.5 bg-white text-slate-500 border border-slate-200 rounded-xl text-[13px] font-bold cursor-pointer hover:bg-slate-50 transition-all text-center w-full sm:w-auto">
                       Huỷ
                     </button>
                   </div>
                 </div>
               )}
 
-              {/* Reject expand */}
               {rejectTarget === req.id && (
-                <div className="border-t border-slate-100 bg-slate-50/60 px-6 py-5">
+                <div className="border-t border-slate-100 bg-slate-50/60 px-4 sm:px-6 py-5">
                   <p className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider mb-3">Lý do từ chối</p>
                   <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} rows={2}
                     placeholder="Nêu lý do để bệnh nhân được biết (lịch đầy, bác sĩ nghỉ...)"
                     className="w-full px-4 py-3 text-[13.5px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-semibold text-slate-700 placeholder:text-slate-400 resize-none mb-3" />
-                  <div className="flex gap-3">
+                  <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3">
                     <button onClick={() => doReject(req.id)} disabled={!rejectReason.trim()}
-                      className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-[13px] font-black cursor-pointer transition-all shadow-sm shadow-primary/25">
+                      className="flex items-center justify-center gap-2 px-5 py-2.5 bg-primary hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-[13px] font-black cursor-pointer transition-all shadow-sm shadow-primary/25 w-full sm:w-auto">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                       Xác nhận từ chối
                     </button>
                     <button onClick={() => setRejectTarget(null)}
-                      className="px-5 py-2.5 bg-white text-slate-500 border border-slate-200 rounded-xl text-[13px] font-bold cursor-pointer hover:bg-slate-50 transition-all">
+                      className="px-5 py-2.5 bg-white text-slate-500 border border-slate-200 rounded-xl text-[13px] font-bold cursor-pointer hover:bg-slate-50 transition-all text-center w-full sm:w-auto">
                       Huỷ
                     </button>
                   </div>
@@ -338,13 +330,13 @@ function WalkinTab() {
   };
 
   return (
-    <div className="flex gap-6">
+    <div className="flex flex-col lg:flex-row gap-6">
       {/* Availability grid */}
       <div className="flex-1 flex flex-col gap-4 min-w-0">
-        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
+        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden flex flex-col min-h-[380px] lg:min-h-0">
+          <div className="px-4 sm:px-5 py-3.5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shrink-0">
             <h3 className="text-[14px] font-black text-slate-900">Lịch trống hôm nay</h3>
-            <div className="flex items-center gap-3 text-[12px] font-bold">
+            <div className="flex items-center gap-2.5 sm:gap-3 text-[11.5px] sm:text-[12px] font-bold flex-wrap">
               <span className="flex items-center gap-1.5 text-slate-400"><span className="w-3 h-3 rounded bg-slate-100 border border-slate-200 inline-block" />Đã đặt</span>
               <span className="flex items-center gap-1.5 text-emerald-600"><span className="w-3 h-3 rounded bg-emerald-50 border border-emerald-200 inline-block" />Trống</span>
               <span className="flex items-center gap-1.5 text-primary"><span className="w-3 h-3 rounded bg-red-50 border border-primary inline-block" />Đang chọn</span>
@@ -352,7 +344,7 @@ function WalkinTab() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-[12px]">
+            <table className="w-full text-[12px] min-w-[520px]">
               <thead>
                 <tr className="bg-slate-50/70 border-b border-slate-100">
                   <th className="px-4 py-2.5 text-left font-extrabold text-slate-400 text-[11px] uppercase tracking-wider w-20 shrink-0">Giờ</th>
@@ -367,7 +359,6 @@ function WalkinTab() {
                 </tr>
               </thead>
               <tbody>
-                {/* Morning divider */}
                 <tr><td colSpan={5} className="px-4 py-1.5 bg-amber-50/40 border-y border-amber-100/60">
                   <span className="text-[11px] font-extrabold text-amber-600 uppercase tracking-wider flex items-center gap-1.5">
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" /></svg>
@@ -402,7 +393,6 @@ function WalkinTab() {
                     })}
                   </tr>
                 ))}
-                {/* Afternoon divider */}
                 <tr><td colSpan={5} className="px-4 py-1.5 bg-indigo-50/40 border-y border-indigo-100/60">
                   <span className="text-[11px] font-extrabold text-indigo-600 uppercase tracking-wider flex items-center gap-1.5">
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" /></svg>
@@ -444,8 +434,8 @@ function WalkinTab() {
       </div>
 
       {/* Walk-in form */}
-      <div className="w-80 shrink-0">
-        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 flex flex-col gap-5 sticky top-5">
+      <div className="w-full lg:w-80 shrink-0">
+        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-5 sm:p-6 flex flex-col gap-5 lg:sticky lg:top-5">
           <h3 className="text-[15px] font-black text-slate-900">Đặt lịch tại quầy</h3>
 
           {saved ? (

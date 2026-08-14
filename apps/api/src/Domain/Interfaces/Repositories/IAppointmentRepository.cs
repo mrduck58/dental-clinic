@@ -115,4 +115,7 @@ public interface IAppointmentRepository
 
     /// <summary>Lịch hẹn chưa hủy của một bệnh nhân (theo PatientId) HOẶC theo tài khoản (Patient.UserId) — dùng để tự sinh thông báo nhắc lịch hẹn.</summary>
     Task<IReadOnlyList<Appointment>> GetActiveByPatientOrUserAsync(Guid? patientId, Guid userId, CancellationToken cancellationToken = default);
+
+    /// <summary>Bệnh nhân đã có lịch hẹn đang hoạt động (chưa hủy) trong ngày cụ thể hay chưa — dùng để chặn đặt nhiều lịch/ngày.</summary>
+    Task<bool> HasActiveAppointmentOnDateAsync(Guid patientId, DateOnly date, Guid? excludeAppointmentId = null, CancellationToken cancellationToken = default);
 }

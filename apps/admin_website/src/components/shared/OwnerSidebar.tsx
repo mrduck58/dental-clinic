@@ -14,10 +14,30 @@ export default function OwnerSidebar({ activeMenu }: SidebarProps) {
   const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     setUser(getUser());
+    const handleToggle = () => setMobileOpen((v) => !v);
+    const handleClose = () => setMobileOpen(false);
+    window.addEventListener("toggle-sidebar", handleToggle);
+    window.addEventListener("close-sidebar", handleClose);
+    return () => {
+      window.removeEventListener("toggle-sidebar", handleToggle);
+      window.removeEventListener("close-sidebar", handleClose);
+    };
   }, []);
+
+  useEffect(() => {
+    if (mobileOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [mobileOpen]);
 
   const initials = user?.fullName
     ? user.fullName.trim().split(/\s+/).slice(-2).map((w) => w[0]).join("").toUpperCase()
@@ -29,24 +49,56 @@ export default function OwnerSidebar({ activeMenu }: SidebarProps) {
   };
 
   return (
-    <aside className="w-72 bg-white border-r border-slate-200 p-6 flex flex-col gap-6 shrink-0 sticky top-0 h-screen justify-between z-30 font-sans">
-      <div className="flex flex-col gap-6 flex-1 min-h-0">
-        {/* Logo */}
-        <Link href="/owner" className="flex items-center gap-3 px-2 py-2 cursor-pointer select-none">
-          <span className="text-3xl text-primary shrink-0 animate-pulse">🦷</span>
-          <div className="flex flex-col">
-            <span className="text-[12px] font-black tracking-widest text-primary uppercase leading-none mb-1">SơnGiang</span>
-            <span className="font-extrabold text-lg tracking-tight text-slate-900 leading-none">
-              Dental<span className="text-primary font-bold">Clinic</span>
-            </span>
-          </div>
-        </Link>
+    <>
+      {/* Mobile Backdrop */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-40 lg:hidden transition-opacity"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
 
-        {/* Role badge */}
-        <div className="flex items-center gap-2 px-3 py-2 bg-purple-50 rounded-xl border border-purple-100">
-          <div className="w-2 h-2 rounded-full bg-purple-500 shrink-0" />
-          <span className="text-[11.5px] font-bold text-purple-700">Cổng thông tin Chủ phòng khám</span>
-        </div>
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-200 p-6 flex flex-col gap-6 shrink-0 h-[100dvh] max-h-[100dvh] justify-between transition-transform duration-300 ease-in-out lg:sticky lg:top-0 lg:translate-x-0 font-sans ${
+          mobileOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"
+        }`}
+      >
+        <div className="flex flex-col gap-6 flex-1 min-h-0">
+          {/* Logo + Nút đóng trên Mobile */}
+          <div className="flex items-center justify-between">
+            <Link
+              href="/owner"
+              onClick={() => setMobileOpen(false)}
+              className="flex items-center gap-3 px-2 py-2 cursor-pointer select-none"
+            >
+              <span className="text-3xl text-primary shrink-0 animate-pulse">🦷</span>
+              <div className="flex flex-col">
+                <span className="text-[12px] font-black tracking-widest text-primary uppercase leading-none mb-1">
+                  SơnGiang
+                </span>
+                <span className="font-extrabold text-lg tracking-tight text-slate-900 leading-none">
+                  Dental<span className="text-primary font-bold">Clinic</span>
+                </span>
+              </div>
+            </Link>
+
+            <button
+              type="button"
+              onClick={() => setMobileOpen(false)}
+              className="lg:hidden p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
+              aria-label="Đóng menu"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Role badge */}
+          <div className="flex items-center gap-2 px-3 py-2 bg-purple-50 rounded-xl border border-purple-100">
+            <div className="w-2 h-2 rounded-full bg-purple-500 shrink-0" />
+            <span className="text-[11.5px] font-bold text-purple-700">Cổng thông tin Chủ phòng khám</span>
+          </div>
 
         {/* Nav list */}
         <nav className="flex flex-col gap-1 overflow-y-auto pr-1 flex-1">
@@ -290,5 +342,6 @@ export default function OwnerSidebar({ activeMenu }: SidebarProps) {
         </button>
       </div>
     </aside>
+    </>
   );
 }

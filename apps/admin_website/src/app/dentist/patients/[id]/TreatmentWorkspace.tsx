@@ -432,9 +432,9 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
         </div>
       )}
 
-      <div className={`grid gap-6 items-start ${onBack ? "p-8" : ""}`} style={{ gridTemplateColumns: "1fr 2fr" }}>
+      <div className={`grid grid-cols-1 lg:grid-cols-3 gap-6 items-start ${onBack ? "p-4 sm:p-8" : ""}`}>
         {/* ══════════ LEFT 1/3: PATIENT INFO ══════════ */}
-        <div className="flex flex-col gap-6">
+        <div className="lg:col-span-1 flex flex-col gap-6">
           {/* Thông tin bệnh nhân */}
           <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
             <CardHeader
@@ -564,7 +564,7 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
         </div>
 
         {/* ══════════ RIGHT 2/3: TREATMENT ══════════ */}
-        <div className="flex flex-col gap-6">
+        <div className="lg:col-span-2 flex flex-col gap-6">
           {/* Banner tái khám: buổi hẹn do staff check-in từ tab Tái khám */}
           {isFollowUpVisit && (
             <div className="bg-indigo-50 border border-indigo-200 rounded-2xl px-5 py-4 flex items-start gap-3">
@@ -591,11 +591,11 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
               title="Quá trình điều trị"
               icon="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"
             />
-            <div className="px-5 py-2">
+            <div className="px-5 py-2 overflow-x-auto">
               {progressRows.length === 0 ? (
                 <p className="text-[13px] font-semibold text-slate-400 text-center py-6">Chưa ghi nhận quá trình điều trị nào.</p>
               ) : (
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-slate-100 min-w-[600px]">
                   <div className="grid gap-3 py-2.5 text-[11px] font-extrabold text-slate-400 uppercase tracking-wider items-center" style={{ gridTemplateColumns: "24px 90px 1fr 160px 68px" }}>
                     <span />
                     <span>Ngày</span>
@@ -714,11 +714,11 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                 </button>
               }
             />
-            <div className="px-5 py-2">
+            <div className="px-5 py-2 overflow-x-auto">
               {visiblePlans.length === 0 ? (
                 <p className="text-[13px] font-semibold text-slate-400 text-center py-6">Chưa có dịch vụ nào trong liệu trình.</p>
               ) : (
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-slate-100 min-w-[620px]">
                   <div className="grid gap-3 py-2.5 text-[11px] font-extrabold text-slate-400 uppercase tracking-wider items-center" style={{ gridTemplateColumns: "28px 1fr 130px 110px 40px 110px 32px" }}>
                     <span>#</span>
                     <span>Thủ thuật</span>
