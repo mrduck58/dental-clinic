@@ -114,7 +114,7 @@ function NewTreatmentPageContent() {
           }
         />
 
-        <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-6">
+        <div className="p-4 sm:p-8 flex-1 overflow-y-auto flex flex-col gap-6">
 
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-[13px] text-red-700 font-semibold">
@@ -122,10 +122,10 @@ function NewTreatmentPageContent() {
             </div>
           )}
 
-          <div className="grid gap-6" style={{ gridTemplateColumns: "1fr 340px" }}>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
             {/* LEFT */}
-            <div className="flex flex-col gap-4">
+            <div className="lg:col-span-2 flex flex-col gap-4">
 
               {/* Tooth Selection Card */}
               <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
@@ -143,13 +143,13 @@ function NewTreatmentPageContent() {
                   )}
                 </div>
                 <div className="p-5">
-                  <div className="flex gap-2 mb-4">
+                  <div className="flex flex-wrap gap-2 mb-4">
                     <button type="button" onClick={() => setSel(new Set(UPPER_TEETH))} className="px-3 py-1.5 text-[12px] font-bold rounded-lg border border-sky-200 text-sky-600 hover:bg-sky-50 cursor-pointer">Hàm trên</button>
                     <button type="button" onClick={() => setSel(new Set(LOWER_TEETH))} className="px-3 py-1.5 text-[12px] font-bold rounded-lg border border-sky-200 text-sky-600 hover:bg-sky-50 cursor-pointer">Hàm dưới</button>
                     <button type="button" onClick={() => setSel(new Set(ALL_STR))} className="px-3 py-1.5 text-[12px] font-bold rounded-lg border border-violet-200 text-violet-600 hover:bg-violet-50 cursor-pointer">Tất cả</button>
                     <button type="button" onClick={() => setSel(new Set())} className="px-3 py-1.5 text-[12px] font-bold rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-50 cursor-pointer">Xóa</button>
                   </div>
-                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 overflow-x-auto">
                     <ToothArchDiagram selected={sel} onToothClick={toggle} showLegend={false} />
                   </div>
                   {sel.size > 0 && (
@@ -260,7 +260,7 @@ function NewTreatmentPageContent() {
             </div>
 
             {/* RIGHT - Services List */}
-            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden flex flex-col h-fit sticky top-8">
+            <div className="lg:col-span-1 bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden flex flex-col h-fit lg:sticky lg:top-8">
               <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
                 <span className="text-[14px] font-black text-slate-900">Danh sách dịch vụ</span>
                 <span className={`text-[12px] font-bold px-2.5 py-1 rounded-lg ${items.length > 0 ? "bg-primary/10 text-primary" : "bg-slate-100 text-slate-400"}`}>

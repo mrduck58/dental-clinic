@@ -170,4 +170,13 @@ app.UseMiddleware<AccountStatusMiddleware>();
 app.UseAuthorization();
 app.MapControllers();
 
+// Health check endpoint cho keep-alive (cron-job.org, uptime monitor) và warm-up
+app.MapGet("/health", () => Results.Ok(new
+{
+    status = "healthy",
+    service = "DentalClinic API",
+    timestamp = DateTime.UtcNow
+}));
+
 await app.RunAsync();
+

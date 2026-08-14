@@ -79,7 +79,7 @@ class _SelectServicePageState extends State<SelectServicePage> {
 
     return Scaffold(
       backgroundColor: context.bg,
-      appBar: BookingAppBar(title: isVi ? 'Chọn dịch vụ' : 'Select Service', showHome: false),
+      appBar: BookingAppBar(title: isVi ? 'Chọn dịch vụ' : 'Select Service'),
       body: Column(
         children: [
           // ── Search bar ────────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
@@ -508,16 +508,16 @@ export default function ServicesPage() {
 
             {/* Pagination bar */}
             {filteredServices.length > 0 && (
-              <div className="p-4 border-t border-slate-100 flex items-center justify-between gap-2.5">
+              <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-2.5">
                 {/* Page info */}
-                <span className="text-[13px] text-slate-400 font-semibold">
+                <span className="text-[13px] text-slate-400 font-semibold text-center sm:text-left">
                   Hiển thị{" "}
                   <span className="text-slate-600 font-bold">{(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, filteredServices.length)}</span>
                   {" "}trong{" "}
                   <span className="text-slate-600 font-bold">{filteredServices.length}</span>
                   {" "}dịch vụ
                 </span>
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-1.5 sm:gap-2.5 flex-wrap justify-center">
                   {/* Quick First Page */}
                   <button
                     onClick={() => setCurrentPage(1)}
@@ -741,16 +741,16 @@ export default function ServicesPage() {
 
             {/* Pagination bar */}
             {filteredPromotions.length > 0 && (
-              <div className="p-4 border-t border-slate-100 flex items-center justify-between gap-2.5">
+              <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-2.5">
                 {/* Page info */}
-                <span className="text-[13px] text-slate-400 font-semibold">
+                <span className="text-[13px] text-slate-400 font-semibold text-center sm:text-left">
                   Hiển thị{" "}
                   <span className="text-slate-600 font-bold">{(promoCurrentPage - 1) * promoItemsPerPage + 1}–{Math.min(promoCurrentPage * promoItemsPerPage, filteredPromotions.length)}</span>
                   {" "}trong{" "}
                   <span className="text-slate-600 font-bold">{filteredPromotions.length}</span>
                   {" "}khuyến mãi
                 </span>
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-1.5 sm:gap-2.5 flex-wrap justify-center">
                   {/* Quick First Page */}
                   <button
                     onClick={() => setPromoCurrentPage(1)}

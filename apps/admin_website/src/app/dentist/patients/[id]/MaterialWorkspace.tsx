@@ -143,9 +143,9 @@ export default function MaterialWorkspace({ appointmentId, editMode = false }: M
 
   return (
     <div>
-      <div className="grid gap-6 items-start" style={{ gridTemplateColumns: "2fr 1fr" }}>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* ══════════ LEFT 2/3: PATIENT + REQUEST HISTORY ══════════ */}
-        <div className="flex flex-col gap-6">
+        <div className="lg:col-span-2 flex flex-col gap-6">
           {/* Thông tin bệnh nhân */}
           <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
             <CardHeader
@@ -153,11 +153,11 @@ export default function MaterialWorkspace({ appointmentId, editMode = false }: M
               title="Thông tin bệnh nhân"
               icon="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"
             />
-            <div className="p-5 flex items-start gap-4">
-              <div className={`w-16 h-16 rounded-2xl flex items-center justify-center font-black text-xl border-2 shrink-0 ${pt.gender === "Nữ" ? "bg-rose-50 text-rose-500 border-rose-100" : "bg-sky-50 text-sky-600 border-sky-100"}`}>
+            <div className="p-5 flex flex-col sm:flex-row items-start gap-4">
+              <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center font-black text-lg sm:text-xl border-2 shrink-0 ${pt.gender === "Nữ" ? "bg-rose-50 text-rose-500 border-rose-100" : "bg-sky-50 text-sky-600 border-sky-100"}`}>
                 {initials}
               </div>
-              <div className="flex-1 grid grid-cols-3 gap-3">
+              <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 w-full">
                 {[
                   ["Họ tên", pt.fullName],
                   ["Giới tính", pt.gender ?? "—"],
@@ -180,12 +180,12 @@ export default function MaterialWorkspace({ appointmentId, editMode = false }: M
               title="Yêu cầu vật tư đã gửi"
               icon={BOX_ICON}
               action={
-                <span className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-500">{requests.length} yêu cầu</span>
+                <span className="text-[11px] font-bold px-2.5 py-1 bg-amber-50 text-amber-700 rounded-lg border border-amber-200">{requests.length} yêu cầu</span>
               }
             />
-            <div className="px-5 py-2">
+            <div className="p-5 max-h-[360px] overflow-y-auto">
               {requests.length === 0 ? (
-                <p className="text-[13px] font-semibold text-slate-400 text-center py-8">Chưa gửi yêu cầu vật tư nào cho bệnh nhân này.</p>
+                <p className="text-[13px] font-semibold text-slate-400 text-center py-6">Chưa có yêu cầu vật tư nào cho bệnh nhân này.</p>
               ) : (
                 <div className="divide-y divide-slate-100">
                   {requests.map(r => (
@@ -213,7 +213,7 @@ export default function MaterialWorkspace({ appointmentId, editMode = false }: M
         </div>
 
         {/* ══════════ RIGHT 1/3: NEW REQUEST FORM ══════════ */}
-        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
+        <div className="lg:col-span-1 bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
           <CardHeader color="text-emerald-600" title="Gửi yêu cầu vật tư" icon={BOX_ICON} />
           <div className="p-5 flex flex-col gap-4">
             <div className="flex flex-col gap-2.5">

@@ -153,9 +153,19 @@ export default function CreatePostPage() {
       <main className="flex-1 flex flex-col min-w-0">
         
         {/* HEADER */}
-        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 font-sans shadow-sm shadow-slate-100/50">
-          <div>
-            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 sm:px-8 h-16 sm:h-20 flex items-center justify-between shrink-0 font-sans shadow-sm shadow-slate-100/50">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent("toggle-sidebar"))}
+              className="lg:hidden p-2 -ml-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all shrink-0"
+              aria-label="Mở menu điều hướng"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+              </svg>
+            </button>
+            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight truncate">
               Tạo Bài viết Mới
             </h1>
           </div>
