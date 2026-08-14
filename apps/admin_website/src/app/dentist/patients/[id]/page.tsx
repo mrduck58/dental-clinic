@@ -409,12 +409,12 @@ return (
         )}
 
         {/* ─── TAB BAR ─── */}
-        <div className="px-8 pt-6 pb-0 flex items-center gap-2">
+        <div className="px-4 sm:px-8 pt-4 sm:pt-6 pb-0 flex items-center gap-2 overflow-x-auto max-w-full no-scrollbar">
           {TABS.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2.5 px-5 py-2 rounded-xl text-[13px] font-bold border transition-all cursor-pointer ${
+              className={`flex items-center gap-2 px-3.5 sm:px-5 py-2 rounded-xl text-[12.5px] sm:text-[13px] font-bold border transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === tab.id
                   ? `${tab.activeColor} shadow-sm`
                   : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:border-slate-300"
@@ -429,16 +429,16 @@ return (
         </div>
 
         {/* CONTENT */}
-        <div className="p-8 pt-4 flex-1 overflow-y-auto">
+        <div className="p-4 sm:p-8 pt-4 flex-1 overflow-y-auto">
 
-          <div className="grid gap-6" style={{ gridTemplateColumns: "1fr" }}>
+          <div className="grid gap-6">
 
             {/* ── clinical sections (based on active tab) ── */}
             <div className="flex flex-col gap-6 min-w-0">
 
               {/* ─── TAB: CHUẨN ĐOÁN ─── */}
               {activeTab === "diagnosis" && (
-                <div className="grid gap-6 items-start" style={{ gridTemplateColumns: "1fr 1fr" }}>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
                   {/* LEFT: Patient Info + History */}
                   <div className="flex flex-col gap-6">
 
@@ -451,11 +451,11 @@ return (
                         <span className="text-[14px] font-black text-slate-900">Thông tin bệnh nhân</span>
                       </div>
                       <div className="p-5">
-                        <div className="flex items-start gap-4 mb-5">
-                          <div className={`w-16 h-16 rounded-2xl flex items-center justify-center font-black text-xl border-2 shrink-0 ${patient.gender === "Nữ" ? "bg-rose-50 text-rose-500 border-rose-100" : "bg-sky-50 text-sky-600 border-sky-100"}`}>
+                        <div className="flex flex-col sm:flex-row items-start gap-4 mb-5">
+                          <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center font-black text-lg sm:text-xl border-2 shrink-0 ${patient.gender === "Nữ" ? "bg-rose-50 text-rose-500 border-rose-100" : "bg-sky-50 text-sky-600 border-sky-100"}`}>
                             {patient.fullName.trim().split(/\s+/).slice(-2).map((w: string) => w[0]).join("").toUpperCase()}
                           </div>
-                          <div className="flex-1 grid grid-cols-3 gap-3">
+                          <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 w-full">
                             <div>
                               <div className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Họ tên</div>
                               <div className="text-[13px] font-bold text-slate-800 mt-0.5">{patient.fullName}</div>
@@ -486,7 +486,7 @@ return (
                         </div>
 
                         {/* Service & Symptoms */}
-                        <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-slate-100">
                           <div className="bg-sky-50 rounded-xl p-4">
                             <div className="flex items-center gap-2 mb-2">
                               <svg className="w-4 h-4 text-sky-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -745,7 +745,7 @@ return (
                       <div className="p-5 flex flex-col gap-5">
 
                         <ExamSection title="Tình trạng lợi – niêm mạc">
-                          <div className="grid grid-cols-2 gap-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <ExamField label="Tình trạng lợi" placeholder="vd: Lợi hồng hào, không viêm"
                               value={form.gumCondition} onChange={v => setField("gumCondition", v)} disabled={!canEdit} />
                             <ExamField label="Tình trạng niêm mạc miệng" placeholder="vd: Bình thường, không tổn thương"
@@ -758,7 +758,7 @@ return (
                         </ExamSection>
 
                         <ExamSection title="Tình trạng răng">
-                          <div className="grid grid-cols-2 gap-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <ExamField label="Số răng hiện có" placeholder="vd: 28 răng"
                               value={form.teethCount} onChange={v => setField("teethCount", v)} disabled={!canEdit} />
                             <ExamField label="Răng sâu" placeholder="vd: Răng 16, 26 sâu mặt nhai"
@@ -771,7 +771,7 @@ return (
                         </ExamSection>
 
                         <ExamSection title="Vệ sinh răng miệng">
-                          <div className="grid grid-cols-2 gap-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <ExamField label="Cao răng" placeholder="vd: Ít / Trung bình / Nhiều"
                               value={form.tartar} onChange={v => setField("tartar", v)} disabled={!canEdit} />
                             <ExamField label="Mảng bám" placeholder="vd: Ít / Trung bình / Nhiều"
@@ -787,7 +787,7 @@ return (
                         </ExamSection>
 
                         <ExamSection title="Khớp cắn">
-                          <div className="grid grid-cols-2 gap-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <ExamField label="Khớp cắn" placeholder="vd: Khớp cắn chuẩn / Cắn chéo / Cắn hở / Cắn sâu"
                               value={form.occlusion} onChange={v => setField("occlusion", v)} disabled={!canEdit} />
                             <ExamField label="Sai lệch khớp cắn" placeholder="vd: Không / Có"
