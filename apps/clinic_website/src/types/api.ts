@@ -1,5 +1,13 @@
 // Các interface khớp với DTO trả về từ backend .NET (apps/api)
 
+export interface ServiceOptionDto {
+  id: string;
+  name: string;
+  price: number;
+  unit?: string;
+  sortOrder: number;
+}
+
 export interface ServiceDto {
   id: string;
   name: string;
@@ -7,10 +15,12 @@ export interface ServiceDto {
   durationMinutes: number;
   isActive: boolean;
   description: string;
+  content?: string;
   viewCount: number;
   imageUrl?: string | null;
   createdAt: string;
   updatedAt?: string | null;
+  options?: ServiceOptionDto[];
 }
 
 export interface PostDto {

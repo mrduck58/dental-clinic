@@ -12,8 +12,10 @@ public record CreateServiceCommand(
     decimal Price,
     int DurationMinutes,
     string Description,
+    string Content,
     string? ImageUrl,
-    string? IconUrl) : IRequest<ServiceDto>;
+    string? IconUrl,
+    IReadOnlyCollection<ServiceOptionRequest>? Options) : IRequest<ServiceDto>;
 
 public class CreateServiceHandler(IServiceRepository serviceRepository, IActivityLogService activityLogService, ICurrentUserService currentUser) : IRequestHandler<CreateServiceCommand, ServiceDto>
 {
@@ -24,8 +26,18 @@ public class CreateServiceHandler(IServiceRepository serviceRepository, IActivit
             request.Price,
             request.DurationMinutes,
             request.Description,
+            request.Content ?? string.Empty,
             request.ImageUrl,
             request.IconUrl);
+
+        // Add options if provided
+        if (request.Options is { Count: > 0 })
+        {
+            foreach (var opt in request.Options.OrderBy(o => o.SortOrder))
+            {
+                service.AddOption(opt.Name, opt.Price, opt.Unit ?? "Răng", opt.SortOrder);
+            }
+        }
 
         await serviceRepository.AddAsync(service, cancellationToken);
 
@@ -41,9 +53,6 @@ public class CreateServiceHandler(IServiceRepository serviceRepository, IActivit
             targetId: service.Id.ToString(),
             ct: cancellationToken);
 
-        return new ServiceDto(
-            service.Id, service.Name, service.Price,
-            service.DurationMinutes, service.IsActive, service.Description,
-            service.ViewCount, service.ImageUrl, service.IconUrl, service.CreatedAt, service.UpdatedAt);
+        return ServiceMapper.ToDto(service);
     }
 }

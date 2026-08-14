@@ -37,7 +37,10 @@ public class ServicesController(ISender sender) : ControllerBase
     public async Task<IActionResult> Create([FromBody] CreateServiceRequest request, CancellationToken ct)
     {
         var result = await sender.Send(
-            new CreateServiceCommand(request.Name, request.Price, request.DurationMinutes, request.Description, request.ImageUrl, request.IconUrl),
+            new CreateServiceCommand(
+                request.Name, request.Price, request.DurationMinutes,
+                request.Description, request.Content ?? string.Empty,
+                request.ImageUrl, request.IconUrl, request.Options),
             ct);
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
@@ -48,7 +51,10 @@ public class ServicesController(ISender sender) : ControllerBase
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateServiceRequest request, CancellationToken ct)
     {
         var result = await sender.Send(
-            new UpdateServiceCommand(id, request.Name, request.Price, request.DurationMinutes, request.Description, request.ImageUrl, request.IconUrl),
+            new UpdateServiceCommand(
+                id, request.Name, request.Price, request.DurationMinutes,
+                request.Description, request.Content ?? string.Empty,
+                request.ImageUrl, request.IconUrl, request.Options),
             ct);
         return Ok(result);
     }

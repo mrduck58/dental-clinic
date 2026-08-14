@@ -4,6 +4,7 @@ import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
+import 'package:mobile_app/core/constants/api_constants.dart';
 import 'package:mobile_app/features/auth/data/auth_service.dart';
 
 class ProfilePage extends StatefulWidget {

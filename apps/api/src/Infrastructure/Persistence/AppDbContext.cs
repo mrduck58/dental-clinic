@@ -22,6 +22,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<InvoiceItem> InvoiceItems => Set<InvoiceItem>();
     public DbSet<PaymentTransaction> PaymentTransactions => Set<PaymentTransaction>();
     public DbSet<Service> Services => Set<Service>();
+    public DbSet<ServiceOption> ServiceOptions => Set<ServiceOption>();
     public DbSet<Post> Posts => Set<Post>();
     public DbSet<Feedback> Feedbacks => Set<Feedback>();
     public DbSet<WorkSchedule> WorkSchedules => Set<WorkSchedule>();

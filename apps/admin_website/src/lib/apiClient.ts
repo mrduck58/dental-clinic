@@ -434,6 +434,14 @@ export async function createStaffAccountApi(id: string): Promise<StaffDto> {
 
 // ── Service types ──────────────────────────────────────────────────────────
 
+export interface ServiceOptionDto {
+  id: string;
+  name: string;
+  price: number;
+  unit: string;
+  sortOrder: number;
+}
+
 export interface ServiceDto {
   id: string;
   name: string;
@@ -441,11 +449,20 @@ export interface ServiceDto {
   durationMinutes: number;
   isActive: boolean;
   description: string;
+  content: string;
   viewCount: number;
   imageUrl: string | null;
   iconUrl: string | null;
   createdAt: string;
   updatedAt: string | null;
+  options: ServiceOptionDto[];
+}
+
+export interface ServiceOptionRequest {
+  name: string;
+  price: number;
+  unit?: string;
+  sortOrder: number;
 }
 
 export interface CreateServiceRequest {
@@ -453,8 +470,10 @@ export interface CreateServiceRequest {
   price: number;
   durationMinutes: number;
   description: string;
+  content?: string;
   imageUrl?: string | null;
   iconUrl?: string | null;
+  options?: ServiceOptionRequest[];
 }
 
 export interface UpdateServiceRequest {
@@ -462,8 +481,10 @@ export interface UpdateServiceRequest {
   price: number;
   durationMinutes: number;
   description: string;
+  content?: string;
   imageUrl?: string | null;
   iconUrl?: string | null;
+  options?: ServiceOptionRequest[];
 }
 
 // ── Service endpoints ──────────────────────────────────────────────────────

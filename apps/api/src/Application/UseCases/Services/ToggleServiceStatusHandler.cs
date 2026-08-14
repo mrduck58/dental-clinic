@@ -17,9 +17,6 @@ public class ToggleServiceStatusHandler(IServiceRepository serviceRepository) : 
         service.SetActive(!service.IsActive);
         await serviceRepository.UpdateAsync(service, cancellationToken);
 
-        return new ServiceDto(
-            service.Id, service.Name, service.Price,
-            service.DurationMinutes, service.IsActive, service.Description,
-            service.ViewCount, service.ImageUrl, service.IconUrl, service.CreatedAt, service.UpdatedAt);
+        return ServiceMapper.ToDto(service);
     }
 }
