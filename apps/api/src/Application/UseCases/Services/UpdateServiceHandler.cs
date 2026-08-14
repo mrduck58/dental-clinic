@@ -37,16 +37,20 @@ public class UpdateServiceHandler(
             request.ImageUrl,
             request.IconUrl);
 
-        // Replace options: delete existing via repository, then add new ones through domain entity
-        await serviceRepository.DeleteOptionsAsync(service.Id, cancellationToken);
-
-        if (request.Options is { Count: > 0 })
-        {
-            var newOptions = request.Options
-                .OrderBy(o => o.SortOrder)
-                .Select((o, i) => (o.Name, o.Price, Unit: o.Unit ?? "Răng", SortOrder: i));
-            service.ReplaceOptions(newOptions);
-        }
+        // Thay toàn bộ tuỳ chọn bằng ĐÚNG MỘT thao tác trên aggregate: ReplaceOptions xoá sạch
+        // collection rồi thêm bản mới, EF tự nhận ra cái nào là mồ côi (quan hệ Cascade) để xoá và
+        // cái nào là mới để thêm, tất cả trong cùng một SaveChanges.
+        //
+        // Trước đây có thêm một lượt DeleteOptionsAsync + SaveChanges riêng chạy TRƯỚC. Nó xoá hàng
+        // dưới DB nhưng instance cũ vẫn nằm trong service.Options; đến khi ReplaceOptions gọi Clear(),
+        // EF lại coi chúng là mồ côi và phát tiếp câu DELETE cho những hàng vừa biến mất → 0 dòng bị
+        // ảnh hưởng → DbUpdateConcurrencyException → người dùng nhận 500 mỗi lần cập nhật dịch vụ.
+        //
+        // Danh sách rỗng cũng phải chạy qua đây, nếu không thì xoá hết tuỳ chọn sẽ không lưu được gì.
+        var newOptions = (request.Options ?? [])
+            .OrderBy(o => o.SortOrder)
+            .Select((o, i) => (o.Name, o.Price, Unit: o.Unit ?? "Răng", SortOrder: i));
+        service.ReplaceOptions(newOptions);
 
         await serviceRepository.UpdateAsync(service, cancellationToken);
 

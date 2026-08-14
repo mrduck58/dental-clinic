@@ -13,14 +13,18 @@ public class FilesController(IFileStorageService fileStorage) : ControllerBase
     /// gửi lên, không kiểm gì — tải lên một file .html là có script chạy trên chính origin phục vụ
     /// ảnh, đọc được localStorage của trang quản trị. Danh sách trắng chặn đúng chuyện đó.
     ///
-    /// KHÔNG có .svg: SVG là XML, nhúng được thẻ script, nên nó là vector XSS y như .html.
+    /// CÓ .svg vì icon dịch vụ dùng định dạng này. Nó vẫn an toàn ở đây dù SVG nhúng được thẻ script:
+    /// script trong SVG KHÔNG chạy khi ảnh được nạp qua thẻ &lt;img&gt; (chỉ chạy khi mở trực tiếp như
+    /// một tài liệu), mà cả admin lẫn mobile đều hiển thị bằng &lt;img&gt;. Thêm nữa file nay nằm trên
+    /// domain Supabase, khác origin với trang quản trị, nên có mở trực tiếp cũng không đọc được
+    /// phiên đăng nhập của ai.
     /// </summary>
     private static readonly HashSet<string> AllowedExtensions =
-        new(StringComparer.OrdinalIgnoreCase) { ".jpg", ".jpeg", ".png", ".webp", ".gif" };
+        new(StringComparer.OrdinalIgnoreCase) { ".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg" };
 
     private static readonly HashSet<string> AllowedContentTypes =
         new(StringComparer.OrdinalIgnoreCase)
-        { "image/jpeg", "image/png", "image/webp", "image/gif" };
+        { "image/jpeg", "image/png", "image/webp", "image/gif", "image/svg+xml" };
 
     private const long MaxBytes = 5 * 1024 * 1024;
 

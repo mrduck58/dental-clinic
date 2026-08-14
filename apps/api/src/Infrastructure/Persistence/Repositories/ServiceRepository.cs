@@ -25,7 +25,18 @@ public class ServiceRepository(AppDbContext db) : IServiceRepository
 
     public async Task UpdateAsync(Service service, CancellationToken ct = default)
     {
-        db.Services.Update(service);
+        // KHÔNG gọi db.Services.Update() với entity đang được theo dõi.
+        //
+        // DbSet.Update duyệt cả đồ thị và đánh dấu Modified cho MỌI entity có khoá đã set. Các
+        // ServiceOption vừa được ReplaceOptions tạo ra đều tự sinh Guid nên rơi vào diện đó — EF phát
+        // câu UPDATE cho những hàng chưa hề tồn tại, 0 dòng bị ảnh hưởng, và ném
+        // DbUpdateConcurrencyException. Người dùng thấy "cập nhật dịch vụ" lỗi 500.
+        //
+        // Entity lấy từ GetByIdAsync vốn đã được change tracker theo dõi: nó tự biết cột nào đổi và
+        // tuỳ chọn nào là mới. Chỉ cần lưu. Nhánh Detached giữ lại cho ai đó truyền vào entity rời.
+        if (db.Entry(service).State == EntityState.Detached)
+            db.Services.Update(service);
+
         await db.SaveChangesAsync(ct);
     }
 
@@ -41,13 +52,4 @@ public class ServiceRepository(AppDbContext db) : IServiceRepository
             .Where(s => s.IsActive)
             .OrderBy(s => s.Name)
             .ToListAsync(ct);
-
-    public async Task DeleteOptionsAsync(Guid serviceId, CancellationToken ct = default)
-    {
-        var options = await db.ServiceOptions
-            .Where(o => o.ServiceId == serviceId)
-            .ToListAsync(ct);
-        db.ServiceOptions.RemoveRange(options);
-        await db.SaveChangesAsync(ct);
-    }
 }
