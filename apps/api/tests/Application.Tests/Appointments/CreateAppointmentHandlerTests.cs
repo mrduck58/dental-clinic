@@ -33,11 +33,13 @@ public class CreateAppointmentHandlerTests
         _slotGuard = new AppointmentSlotGuard(_appointmentRepo, _serviceRepo);
         _handler = new CreateAppointmentHandler(_appointmentRepo, _patientRepo, _userRepo, _slotGuard, _notification);
 
-        // Mặc định: không có lịch hẹn nào khác trong ngày, không có dentist user, không có staff
+        // Mặc định: không có lịch hẹn nào khác trong ngày, dentist user hợp lệ, không có staff, chưa có booking trong ngày
         _appointmentRepo.GetByDateAsync(Arg.Any<DateOnly>(), Arg.Any<CancellationToken>())
             .Returns(new List<Appointment>());
         _appointmentRepo.GetDentistUserIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Returns((Guid?)null);
+            .Returns(Guid.NewGuid());
+        _appointmentRepo.HasActiveAppointmentOnDateAsync(Arg.Any<Guid>(), Arg.Any<DateOnly>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
+            .Returns(false);
         _userRepo.GetUserIdsByRoleAsync("Staff", Arg.Any<CancellationToken>())
             .Returns(new List<Guid>());
     }
@@ -174,10 +176,10 @@ public class CreateAppointmentHandlerTests
 
     /// <summary>
     /// Khi bệnh nhân chưa có hồ sơ Patient và tài khoản User cũng không tồn tại, handler phải ném
-    /// InvalidOperationException — không thể tạo hồ sơ Patient từ một tài khoản không có thật.
+    /// ValidationException — không thể tạo hồ sơ Patient từ một tài khoản không có thật.
     /// </summary>
     [Test]
-    public async Task HandleAsync_PatientNotExistsAndUserNotFound_ThrowsInvalidOperationException()
+    public async Task HandleAsync_PatientNotExistsAndUserNotFound_ThrowsValidationException()
     {
         var cmd = MakeCmd();
         _patientRepo.GetByUserIdAsync(cmd.UserId, Arg.Any<CancellationToken>()).Returns((Patient?)null);
@@ -185,7 +187,7 @@ public class CreateAppointmentHandlerTests
 
         Func<Task> act = () => _handler.Handle(cmd, CancellationToken.None);
 
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        await act.Should().ThrowAsync<ValidationException>();
     }
 
     /// <summary>
@@ -209,10 +211,10 @@ public class CreateAppointmentHandlerTests
 
     /// <summary>
     /// Khi PatientId không thuộc gia đình của người dùng hiện tại (hoặc không tồn tại), handler phải
-    /// ném InvalidOperationException — chặn đặt lịch hộ hồ sơ của người khác.
+    /// ném ValidationException — chặn đặt lịch hộ hồ sơ của người khác.
     /// </summary>
     [Test]
-    public async Task HandleAsync_PatientIdNotBelongingToFamily_ThrowsInvalidOperationException()
+    public async Task HandleAsync_PatientIdNotBelongingToFamily_ThrowsValidationException()
     {
         var primaryPatient = Patient.Create(Guid.NewGuid(), DateOnly.FromDateTime(DateTime.Today.AddYears(-40)), "Nam");
         var otherPatient = Patient.Create(Guid.Empty, DateOnly.FromDateTime(DateTime.Today.AddYears(-30)), "Nữ");
@@ -222,29 +224,61 @@ public class CreateAppointmentHandlerTests
 
         Func<Task> act = () => _handler.Handle(cmd, CancellationToken.None);
 
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        await act.Should().ThrowAsync<ValidationException>();
     }
 
     /// <summary>
-    /// Khi không tìm được userId của nha sĩ (chưa có tài khoản liên kết), handler không được gọi
-    /// notificationService.CreateAsync — tránh gửi thông báo cho UserId rỗng.
+    /// Khi không tìm được userId của nha sĩ, handler phải ném ValidationException.
     /// </summary>
     [Test]
-    public async Task HandleAsync_DentistUserIdNotFound_DoesNotSendDentistNotification()
+    public async Task HandleAsync_DentistUserIdNotFound_ThrowsValidationException()
     {
         var cmd = MakeCmd();
         var existingPatient = Patient.Create(cmd.UserId, DateOnly.FromDateTime(DateTime.Today.AddYears(-20)), "Nam");
         _patientRepo.GetByUserIdAsync(cmd.UserId, Arg.Any<CancellationToken>()).Returns(existingPatient);
         _appointmentRepo.GetDentistUserIdAsync(cmd.DentistId, Arg.Any<CancellationToken>()).Returns((Guid?)null);
 
-        await _handler.Handle(cmd, CancellationToken.None);
+        Func<Task> act = () => _handler.Handle(cmd, CancellationToken.None);
 
-        // Không tìm được UserId của bác sĩ thì chỉ bỏ qua thông báo CHO BÁC SĨ ("Lịch hẹn mới") — bệnh
-        // nhân vẫn phải nhận thông báo xác nhận đặt lịch như thường, nên không thể assert chung
-        // "không gửi thông báo nào" (handler vẫn gọi CreateAsync 1 lần cho bệnh nhân).
-        await _notification.DidNotReceive().CreateAsync(
-            Arg.Is<CreateNotificationRequest>(r => r.Title == "Lịch hẹn mới"),
-            Arg.Any<CancellationToken>());
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    /// <summary>
+    /// Khi bệnh nhân đã có một lịch hẹn đang hoạt động (chưa hủy) trong ngày, handler phải ném ConflictException.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_PatientAlreadyHasActiveAppointmentToday_ThrowsConflictException()
+    {
+        var cmd = MakeCmd();
+        var existingPatient = Patient.Create(cmd.UserId, DateOnly.FromDateTime(DateTime.Today.AddYears(-20)), "Nam");
+        _patientRepo.GetByUserIdAsync(cmd.UserId, Arg.Any<CancellationToken>()).Returns(existingPatient);
+        _appointmentRepo.HasActiveAppointmentOnDateAsync(
+            existingPatient.Id, Arg.Any<DateOnly>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
+            .Returns(true);
+
+        Func<Task> act = () => _handler.Handle(cmd, CancellationToken.None);
+
+        await act.Should().ThrowAsync<ConflictException>();
+    }
+
+    /// <summary>
+    /// Khi lịch hẹn trước đó trong ngày của bệnh nhân đã bị Cancelled (HasActiveAppointmentOnDateAsync trả false),
+    /// bệnh nhân được phép đặt lịch hẹn mới thành công.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_PatientHadCancelledAppointmentToday_AllowsBooking()
+    {
+        var cmd = MakeCmd();
+        var existingPatient = Patient.Create(cmd.UserId, DateOnly.FromDateTime(DateTime.Today.AddYears(-20)), "Nam");
+        _patientRepo.GetByUserIdAsync(cmd.UserId, Arg.Any<CancellationToken>()).Returns(existingPatient);
+        _appointmentRepo.HasActiveAppointmentOnDateAsync(
+            existingPatient.Id, Arg.Any<DateOnly>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
+            .Returns(false);
+
+        var result = await _handler.Handle(cmd, CancellationToken.None);
+
+        result.Status.Should().Be("Pending");
+        await _appointmentRepo.Received(1).AddAsync(Arg.Any<Appointment>(), Arg.Any<CancellationToken>());
     }
 
     private static CreateAppointmentCommand MakeCmd() =>

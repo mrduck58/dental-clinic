@@ -427,4 +427,21 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
                      && a.Status != AppointmentStatus.Cancelled)
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<bool> HasActiveAppointmentOnDateAsync(
+        Guid patientId,
+        DateOnly date,
+        Guid? excludeAppointmentId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var vnOffset = TimeSpan.FromHours(7);
+        var startUtc = new DateTimeOffset(date.Year, date.Month, date.Day, 0, 0, 0, vnOffset).ToUniversalTime();
+        var endUtc = startUtc.AddDays(1);
+
+        return await dbContext.Appointments.AnyAsync(a =>
+            a.PatientId == patientId &&
+            (excludeAppointmentId == null || a.Id != excludeAppointmentId) &&
+            a.AppointmentDate >= startUtc && a.AppointmentDate < endUtc &&
+            a.Status != AppointmentStatus.Cancelled, cancellationToken);
+    }
 }
