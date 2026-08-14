@@ -182,7 +182,6 @@ function PlansTab({ plans, onIssued }: {
 }) {
   const [selected, setSelected] = useState<TreatmentPlan | null>(null);
   const [items,    setItems]    = useState<Procedure[]>([]);
-  const [discount, setDiscount] = useState(0);
   const [note,     setNote]     = useState("");
   const [installAmount, setInstallAmount] = useState(0);
   const [method,   setMethod]   = useState<PayMethod | null>(null);
@@ -191,7 +190,7 @@ function PlansTab({ plans, onIssued }: {
   const selectPlan = (p: TreatmentPlan) => {
     setSelected(p);
     setItems(p.procedures.map(pr => ({ ...pr, payType: "full" as const, depositPct: 50 })));
-    setDiscount(0); setNote("");
+    setNote("");
     setInstallAmount(p.planRemaining ?? 0); setMethod(null); setSaved(false);
   };
 
@@ -214,7 +213,8 @@ function PlansTab({ plans, onIssued }: {
   const planRemaining = selected?.planRemaining ?? 0;
 
   const subtotal   = sum(items);
-  const finalTotal = Math.max(0, subtotal - discount);
+  // Không còn ô giảm giá trên phiếu xuất hóa đơn → tổng hóa đơn đúng bằng tổng tiền dịch vụ.
+  const finalTotal = subtotal;
 
   // Thu ngay = tổng số thu của từng dòng (toàn bộ / đặt cọc theo dòng).
   const collectedTotal = items.reduce((s, it) => s + lineCollected(it), 0);
@@ -261,7 +261,7 @@ function PlansTab({ plans, onIssued }: {
           date: selected.date,
           paidDate: null,   // hóa đơn vừa lập, chưa thu
           items: [...items],
-          subtotal, discount, finalTotal,
+          subtotal, discount: 0, finalTotal,
           paymentType: collectedTotal < finalTotal ? "deposit" : "full",
           depositAmount: collectedTotal,
           remaining: Math.max(0, finalTotal - collectedTotal),
@@ -435,7 +435,7 @@ function PlansTab({ plans, onIssued }: {
                         <th className="px-3 py-2.5 text-center font-extrabold text-slate-400 text-[11px] uppercase tracking-wider w-24">Số lượng</th>
                         <th className="px-3 py-2.5 text-right font-extrabold text-slate-400 text-[11px] uppercase tracking-wider w-32">Đơn giá</th>
                         <th className="px-3 py-2.5 text-right font-extrabold text-slate-400 text-[11px] uppercase tracking-wider w-32">Thành tiền</th>
-                        <th className="px-3 py-2.5 text-center font-extrabold text-slate-400 text-[11px] uppercase tracking-wider w-52">Thanh toán</th>
+                        <th className="px-3 py-2.5 text-center font-extrabold text-slate-400 text-[11px] uppercase tracking-wider w-48">Thanh toán</th>
                         <th className="w-10" />
                       </tr>
                     </thead>
@@ -451,27 +451,37 @@ function PlansTab({ plans, onIssued }: {
                             </div>
                           </td>
                           <td className="px-3 py-3 text-right font-semibold text-slate-500 font-mono text-[12.5px]">{fmt(it.price)}</td>
-                          <td className="px-3 py-3 text-right font-black text-slate-800 font-mono">{fmt(it.qty * it.price)}</td>
+                          {/* Thành tiền = số thực thu của dòng; đặt cọc thì hiện tiền cọc, kèm tổng dòng cho dễ đối chiếu */}
+                          <td className="px-3 py-3 text-right font-mono">
+                            {it.payType === "deposit" ? (
+                              <>
+                                <div className="font-black text-amber-700">{fmt(lineCollected(it))}</div>
+                                <div className="text-[11px] font-semibold text-slate-400 mt-0.5">/ {fmt(it.qty * it.price)}</div>
+                              </>
+                            ) : (
+                              <div className="font-black text-slate-800">{fmt(it.qty * it.price)}</div>
+                            )}
+                          </td>
                           <td className="px-3 py-2.5">
-                            <div className="flex flex-col gap-1.5 items-center">
-                              <div className="flex gap-1 w-full">
-                                <button onClick={() => setItemPay(i, "full")}
-                                  className={`flex-1 px-2 py-1.5 rounded-lg text-[11.5px] font-bold border transition-all cursor-pointer ${it.payType !== "deposit" ? "bg-primary/10 border-primary text-primary" : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"}`}>
-                                  Toàn bộ
-                                </button>
-                                <button onClick={() => setItemPay(i, "deposit")}
-                                  className={`flex-1 px-2 py-1.5 rounded-lg text-[11.5px] font-bold border transition-all cursor-pointer ${it.payType === "deposit" ? "bg-amber-50 border-amber-400 text-amber-700" : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"}`}>
-                                  Đặt cọc
-                                </button>
-                              </div>
-                              {it.payType === "deposit" && (
-                                <div className="relative w-20">
-                                  <input type="text" inputMode="numeric" placeholder="%"
+                            {/* Chọn "Đặt cọc" → gõ % ngay tại chính ô đó, không mọc thêm ô bên dưới */}
+                            <div className="flex gap-1 w-full">
+                              <button onClick={() => setItemPay(i, "full")}
+                                className={`flex-1 px-2 py-1.5 rounded-lg text-[11.5px] font-bold border transition-all cursor-pointer ${it.payType !== "deposit" ? "bg-primary/10 border-primary text-primary" : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"}`}>
+                                Toàn bộ
+                              </button>
+                              {it.payType === "deposit" ? (
+                                <div className="relative flex-1">
+                                  <input type="text" inputMode="numeric" autoFocus title="% đặt cọc"
                                     value={it.depositPct ?? ""}
                                     onChange={e => setItemDepositPct(i, clampPct(Number(e.target.value.replace(/[^\d]/g, ""))))}
-                                    className="w-full pl-2.5 pr-5 py-1.5 text-[12px] text-right font-mono font-bold bg-amber-50/60 border border-amber-200 rounded-lg focus:outline-none focus:border-amber-400" />
+                                    className="w-full pl-2.5 pr-6 py-1.5 text-[11.5px] text-right font-mono font-bold bg-amber-50 border border-amber-400 text-amber-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-400" />
                                   <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-bold text-amber-500">%</span>
                                 </div>
+                              ) : (
+                                <button onClick={() => setItemPay(i, "deposit")}
+                                  className="flex-1 px-2 py-1.5 rounded-lg text-[11.5px] font-bold border transition-all cursor-pointer bg-white border-slate-200 text-slate-500 hover:border-slate-300">
+                                  Đặt cọc
+                                </button>
                               )}
                             </div>
                           </td>
@@ -487,38 +497,25 @@ function PlansTab({ plans, onIssued }: {
                 </div>
               </div>
 
-              {/* Discount + total */}
-              <div className="flex gap-6 items-end">
-                <div className="flex flex-col gap-1.5 w-56">
-                  <label className={labelCls}>Giảm giá (₫)</label>
-                  <input type="text" inputMode="numeric" value={fmtMoneyInput(discount)}
-                    onChange={e => setDiscount(parseMoneyInput(e.target.value))}
-                    placeholder="0"
-                    className={inputCls} />
-                </div>
-                <div className="flex-1" />
-                <div className="flex flex-col items-end gap-2 min-w-56">
-                  <div className="flex items-center justify-between w-full text-[13px] text-slate-500 font-semibold">
-                    <span>Tạm tính</span><span className="font-mono">{fmt(subtotal)}</span>
-                  </div>
-                  {discount > 0 && (
-                    <div className="flex items-center justify-between w-full text-[13px] text-emerald-600 font-semibold">
-                      <span>Giảm giá</span><span className="font-mono">−{fmt(discount)}</span>
-                    </div>
-                  )}
-                  <div className="w-full h-px bg-slate-200" />
+              {/* Tổng kết: tổng hóa đơn → thu hôm nay (số lễ tân cần nhìn nhất) → còn nợ */}
+              <div className="flex justify-end">
+                <div className="flex flex-col items-end gap-2.5 w-full max-w-sm">
                   <div className="flex items-center justify-between w-full">
-                    <span className="text-[13.5px] font-extrabold text-slate-700 uppercase tracking-wider">Tổng cộng</span>
-                    <span className="text-[22px] font-black text-primary font-mono leading-none">{fmt(finalTotal)}</span>
+                    <span className="text-[13px] font-extrabold text-slate-500 uppercase tracking-wider">Tổng cộng hóa đơn</span>
+                    <span className="text-[17px] font-black text-slate-800 font-mono leading-none">{fmt(finalTotal)}</span>
                   </div>
-                  <div className="flex items-center justify-between w-full text-[13px] font-semibold text-slate-500 mt-1">
-                    <span>Thu ngay</span><span className="font-mono text-emerald-700 font-black">{fmt(collectedTotal)}</span>
+
+                  <div className="flex items-center justify-between w-full bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+                    <span className="text-[13px] font-extrabold text-emerald-700 uppercase tracking-wider">Thu hôm nay</span>
+                    <span className="text-[24px] font-black text-emerald-700 font-mono leading-none">{fmt(collectedTotal)}</span>
                   </div>
-                  {collectedTotal < finalTotal && (
-                    <div className="flex items-center justify-between w-full text-[13px] font-semibold text-amber-600">
-                      <span>Còn nợ</span><span className="font-mono">{fmt(Math.max(0, finalTotal - collectedTotal))}</span>
-                    </div>
-                  )}
+
+                  <div className="flex items-center justify-between w-full">
+                    <span className="text-[13px] font-extrabold text-slate-500 uppercase tracking-wider">Còn nợ</span>
+                    <span className={`text-[15px] font-black font-mono leading-none ${collectedTotal < finalTotal ? "text-amber-600" : "text-slate-400"}`}>
+                      {fmt(Math.max(0, finalTotal - collectedTotal))}
+                    </span>
+                  </div>
                 </div>
               </div>
               </>)}
@@ -1116,9 +1113,32 @@ function HistoryTab({ paid }: { paid: Invoice[] }) {
 /* ─── Tab 4: Outstanding (công nợ) ───────────────────────── */
 
 function OutstandingTab({ invoices, plans, onCollect }: { invoices: Invoice[]; plans: OutstandingPlanDto[]; onCollect: (id: string) => void }) {
-  const totalRemaining = invoices.reduce((s, i) => s + i.remaining, 0) + plans.reduce((s, p) => s + p.remainingAmount, 0);
-  const totalCollected = invoices.reduce((s, i) => s + i.depositAmount, 0) + plans.reduce((s, p) => s + p.amountPaid, 0);
+  // Hai tab con = hai CÁCH NHÌN cùng dòng tiền, mỗi bên có tổng riêng và KHÔNG cộng vào nhau:
+  // - theo hóa đơn: hóa đơn đã xuất mà chưa thu đủ (thu bằng nút "Thu phần còn lại");
+  // - theo liệu trình: liệu trình đang điều trị đã thu một phần mà còn thiếu, trong đó
+  //   `unbilledAmount` là phần chưa nằm trên bất kỳ hóa đơn nào (sẽ xuất ở đợt thu sau).
+  const invoiceRemaining = invoices.reduce((s, i) => s + i.remaining, 0);
+  const invoiceCollected = invoices.reduce((s, i) => s + i.depositAmount, 0);
+
+  const planRemaining = plans.reduce((s, p) => s + p.remainingAmount, 0);
+  const planCollected = plans.reduce((s, p) => s + p.amountPaid, 0);
+  const planUnbilled = plans.reduce((s, p) => s + p.unbilledAmount, 0);
+
   const totalCount = invoices.length + plans.length;
+
+  const [sub, setSub] = useState<"invoices" | "plans">("invoices");
+
+  const cards = sub === "invoices"
+    ? [
+        { label: "Còn nợ trên hóa đơn", value: fmt(invoiceRemaining), color: "text-orange-600",  bg: "bg-orange-50" },
+        { label: "Đã thu (cọc)",        value: fmt(invoiceCollected), color: "text-emerald-600", bg: "bg-emerald-50" },
+        { label: "Số hóa đơn",          value: `${invoices.length} hóa đơn`, color: "text-sky-600", bg: "bg-sky-50" },
+      ]
+    : [
+        { label: "Còn nợ liệu trình", value: fmt(planRemaining),  color: "text-orange-600",  bg: "bg-orange-50" },
+        { label: "Đã thu",            value: fmt(planCollected),  color: "text-emerald-600", bg: "bg-emerald-50" },
+        { label: "Chưa xuất hóa đơn", value: fmt(planUnbilled),   color: "text-violet-600",  bg: "bg-violet-50" },
+      ];
 
   if (totalCount === 0) {
     return (
@@ -1133,13 +1153,32 @@ function OutstandingTab({ invoices, plans, onCollect }: { invoices: Invoice[]; p
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Summary cards */}
+      {/* Hai cách nhìn công nợ — tách tab để tổng của mỗi bên đứng riêng, không cộng chồng nhau:
+          theo HÓA ĐƠN đã xuất, và theo LIỆU TRÌNH đang điều trị. */}
+      <div className="flex gap-2 flex-wrap">
+        {([
+          { key: "invoices", label: "Hóa đơn đặt cọc còn nợ", count: invoices.length },
+          { key: "plans",    label: "Liệu trình còn nợ",      count: plans.length },
+        ] as const).map(t => (
+          <button key={t.key} onClick={() => setSub(t.key)}
+            className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-[12.5px] font-bold border transition-all cursor-pointer ${
+              sub === t.key
+                ? "bg-slate-900 text-white border-slate-900"
+                : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700"
+            }`}>
+            {t.label}
+            {t.count > 0 && (
+              <span className={`px-1.5 py-0.5 rounded-full text-[10.5px] font-black leading-none ${
+                sub === t.key ? "bg-white/25 text-white" : "bg-slate-100 text-slate-500"
+              }`}>{t.count}</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Summary cards — chỉ của tab đang xem */}
       <div className="grid grid-cols-3 gap-4">
-        {[
-          { label: "Tổng còn nợ",    value: fmt(totalRemaining),          color: "text-orange-600", bg: "bg-orange-50" },
-          { label: "Đã thu (cọc)",   value: fmt(totalCollected),          color: "text-emerald-600", bg: "bg-emerald-50" },
-          { label: "Số khoản nợ",    value: `${totalCount} khoản`,        color: "text-sky-600",     bg: "bg-sky-50" },
-        ].map(s => (
+        {cards.map(s => (
           <div key={s.label} className="bg-white rounded-2xl border border-slate-200/70 shadow-sm px-5 py-4 flex items-center gap-4">
             <div className={`w-11 h-11 rounded-xl ${s.bg} flex items-center justify-center shrink-0`}>
               <svg className={`w-5 h-5 ${s.color}`} fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" /></svg>
@@ -1152,9 +1191,12 @@ function OutstandingTab({ invoices, plans, onCollect }: { invoices: Invoice[]; p
         ))}
       </div>
 
-      {/* Deposit invoices table */}
-      {invoices.length > 0 && (<>
-      <span className={labelCls}>Hóa đơn đặt cọc còn nợ</span>
+      {/* Tab con 1: hóa đơn đã xuất mà chưa thu đủ */}
+      {sub === "invoices" && (invoices.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm py-16 text-center text-[13.5px] font-bold text-slate-400">
+          Không có hóa đơn nào còn nợ.
+        </div>
+      ) : (<>
       <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm overflow-hidden">
         <table className="w-full text-[13px]">
           <thead>
@@ -1208,16 +1250,19 @@ function OutstandingTab({ invoices, plans, onCollect }: { invoices: Invoice[]; p
           </tbody>
         </table>
       </div>
-      </>)}
+      </>))}
 
-      {/* Treatment plan debts */}
-      {plans.length > 0 && (<>
-      <span className={labelCls}>Liệu trình điều trị còn nợ</span>
+      {/* Tab con 2: công nợ nhìn theo liệu trình điều trị */}
+      {sub === "plans" && (plans.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm py-16 text-center text-[13.5px] font-bold text-slate-400">
+          Không có liệu trình nào còn nợ.
+        </div>
+      ) : (<>
       <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm overflow-hidden">
         <table className="w-full text-[13px]">
           <thead>
             <tr className="bg-slate-50/70 border-b border-slate-200">
-              {["Liệu trình","Bệnh nhân","Bác sĩ","Tổng chi phí","Đã thu","Còn lại","Trạng thái"].map((h, hi) => (
+              {["Liệu trình","Bệnh nhân","Bác sĩ","Tổng chi phí","Đã thu","Còn lại","Chưa xuất HĐ","Trạng thái"].map((h, hi) => (
                 <th key={hi} className="px-5 py-3 text-left text-[11px] font-extrabold text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -1236,6 +1281,9 @@ function OutstandingTab({ invoices, plans, onCollect }: { invoices: Invoice[]; p
                 <td className="px-5 py-3.5 font-mono font-semibold text-slate-600">{fmt(p.totalCost)}</td>
                 <td className="px-5 py-3.5 font-mono font-semibold text-emerald-600">{fmt(p.amountPaid)}</td>
                 <td className="px-5 py-3.5 font-mono font-black text-orange-600">{fmt(p.remainingAmount)}</td>
+                {/* Phần chưa nằm trên hóa đơn nào — số sẽ xuất hóa đơn ở đợt thu sau. Phần còn lại của
+                    khoản nợ (nếu có) đang nằm ở tab "Hóa đơn đặt cọc còn nợ". */}
+                <td className="px-5 py-3.5 font-mono font-semibold text-violet-600">{fmt(p.unbilledAmount)}</td>
                 <td className="px-5 py-3.5">
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11.5px] font-black border bg-indigo-50 border-indigo-200 text-indigo-700">Đang điều trị</span>
                 </td>
@@ -1245,9 +1293,11 @@ function OutstandingTab({ invoices, plans, onCollect }: { invoices: Invoice[]; p
         </table>
       </div>
       <p className="text-[12px] font-semibold text-slate-400 -mt-1">
+        Đây là công nợ nhìn theo liệu trình — phần <strong>đã xuất hóa đơn mà chưa thu</strong> nằm ở tab
+        {" "}<strong>Hóa đơn đặt cọc còn nợ</strong>, nên đừng cộng tổng của hai tab với nhau.
         Mỗi đợt thu của liệu trình được thực hiện ở tab <strong>Liệu trình → Hóa đơn</strong> sau khi bác sĩ kết thúc buổi điều trị/tái khám.
       </p>
-      </>)}
+      </>))}
     </div>
   );
 }

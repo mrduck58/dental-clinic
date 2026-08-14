@@ -1008,7 +1008,6 @@ export interface MedicineDto {
   manufacturer: string;
   unit: string;
   description: string;
-  isActive: boolean;
   createdAt: string;
   updatedAt: string | null;
 }
@@ -2162,6 +2161,12 @@ export interface TreatmentPlanDto {
   /** Đã xuất hóa đơn → không cho bác sĩ xóa/hủy dịch vụ này khỏi liệu trình. */
   isInvoiced: boolean;
   stepProgress: StepProgressEntryDto[];
+  /** Tổng số bước quy trình chuẩn của dịch vụ (0 = dịch vụ chưa khai báo quy trình). */
+  totalSteps: number;
+  /** Số bước đã ghi nhận đạt 100%. */
+  completedSteps: number;
+  /** % hoàn thành của dịch vụ = số bước xong / tổng số bước. */
+  progressPercent: number;
   createdAt: string;
   completedAt: string | null;
 }
@@ -2460,6 +2465,7 @@ export interface UpdateStepProgressRequest {
   percent: number;
   note?: string;
   stepName?: string; // đổi tên bước điều trị
+  date?: string;     // đổi ngày thực hiện (yyyy-MM-dd)
 }
 
 export async function updateTreatmentPlanProgressApi(
@@ -3058,6 +3064,8 @@ export interface OutstandingPlanDto {
   totalCost: number;
   amountPaid: number;
   remainingAmount: number;
+  /** Phần chi phí chưa gắn vào hóa đơn nào — số còn phải xuất hóa đơn ở các đợt thu sau. */
+  unbilledAmount: number;
   status: string;
   createdAt: string;
 }

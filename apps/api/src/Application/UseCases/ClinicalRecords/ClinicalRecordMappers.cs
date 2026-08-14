@@ -87,28 +87,71 @@ public static class ClinicalRecordMappers
     public static string SerializeStepProgress(List<StepProgressEntryDto> entries) =>
         JsonSerializer.Serialize(entries, JsonOptions);
 
-    public static TreatmentPlanDto ToDto(TreatmentPlan tp, decimal amountPaid = 0, bool isInvoiced = false) => new()
+    /// <summary>
+    /// Tiến độ chuyên môn của một liệu trình: số bước quy trình đã đạt 100% trên tổng số bước.
+    ///
+    /// - Một bước tính là XONG khi mục ghi nhận cao nhất của nó đạt 100% (bác sĩ có thể ghi 30% rồi 100%).
+    /// - Bước tự nhập (StepNumber = 0, ngoài quy trình chuẩn) gộp theo tên và cũng phải đạt 100% thì
+    ///   dịch vụ mới được coi là xong — nếu không, một bước phát sinh dở dang sẽ bị bỏ qua.
+    /// - Dịch vụ chưa khai báo quy trình (TotalSteps = 0): lấy chính các bước đã ghi nhận làm mẫu số.
+    /// </summary>
+    public static (int TotalSteps, int CompletedSteps, int Percent, bool AllDone) CalcStepProgress(
+        List<StepProgressEntryDto> entries, IEnumerable<int> procedureStepNumbers)
     {
-        Id = tp.Id,
-        PatientId = tp.PatientId,
-        DentistId = tp.DentistId,
-        DentistName = tp.Dentist?.FullName ?? string.Empty,
-        AppointmentId = tp.AppointmentId,
-        ServiceId = tp.ServiceId,
-        ServiceName = tp.Service?.Name ?? string.Empty,
-        UnitPrice = tp.UnitPrice,
-        Quantity = tp.Quantity,
-        Teeth = tp.Teeth,
-        Status = tp.Status.ToString(),
-        WarrantyUntil = tp.WarrantyUntil,
-        Notes = tp.Notes,
-        TotalCost = tp.TotalCost,
-        AmountPaid = amountPaid,
-        IsInvoiced = isInvoiced,
-        StepProgress = ParseStepProgress(tp.StepProgressJson),
-        CreatedAt = tp.CreatedAt,
-        CompletedAt = tp.CompletedAt
-    };
+        var maxPercentByStep = entries
+            .GroupBy(e => e.StepNumber > 0 ? $"#{e.StepNumber}" : $"~{e.StepName.Trim().ToLowerInvariant()}")
+            .ToDictionary(g => g.Key, g => g.Max(e => e.Percent));
+
+        var procedureKeys = procedureStepNumbers.Distinct().Select(n => $"#{n}").ToList();
+        // Mẫu số: quy trình chuẩn nếu có, cộng thêm các bước phát sinh đã ghi nhận ngoài quy trình.
+        var allKeys = procedureKeys.Union(maxPercentByStep.Keys).ToList();
+
+        var total = procedureKeys.Count > 0 ? allKeys.Count : maxPercentByStep.Count;
+        var completed = allKeys.Count(k => maxPercentByStep.GetValueOrDefault(k, 0) >= 100);
+        var percent = total == 0 ? 0 : (int)Math.Round(completed * 100.0 / total);
+
+        return (total, completed, percent, total > 0 && completed == total);
+    }
+
+    /// <param name="procedureStepNumbers">
+    /// Các bước quy trình chuẩn của dịch vụ — để tính % hoàn thành. Bỏ trống thì % tính theo
+    /// chính các bước đã ghi nhận (các endpoint không nạp quy trình).
+    /// </param>
+    public static TreatmentPlanDto ToDto(
+        TreatmentPlan tp,
+        decimal amountPaid = 0,
+        bool isInvoiced = false,
+        IEnumerable<int>? procedureStepNumbers = null)
+    {
+        var entries = ParseStepProgress(tp.StepProgressJson);
+        var progress = CalcStepProgress(entries, procedureStepNumbers ?? Enumerable.Empty<int>());
+
+        return new TreatmentPlanDto
+        {
+            Id = tp.Id,
+            PatientId = tp.PatientId,
+            DentistId = tp.DentistId,
+            DentistName = tp.Dentist?.FullName ?? string.Empty,
+            AppointmentId = tp.AppointmentId,
+            ServiceId = tp.ServiceId,
+            ServiceName = tp.Service?.Name ?? string.Empty,
+            UnitPrice = tp.UnitPrice,
+            Quantity = tp.Quantity,
+            Teeth = tp.Teeth,
+            Status = tp.Status.ToString(),
+            WarrantyUntil = tp.WarrantyUntil,
+            Notes = tp.Notes,
+            TotalCost = tp.TotalCost,
+            AmountPaid = amountPaid,
+            IsInvoiced = isInvoiced,
+            StepProgress = entries,
+            TotalSteps = progress.TotalSteps,
+            CompletedSteps = progress.CompletedSteps,
+            ProgressPercent = progress.Percent,
+            CreatedAt = tp.CreatedAt,
+            CompletedAt = tp.CompletedAt
+        };
+    }
 
     // ── Examination (phiếu khám tổng hợp) ────────────────────────────────────
 
