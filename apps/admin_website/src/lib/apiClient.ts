@@ -1953,6 +1953,42 @@ export async function sendPatientEmailVerificationApi(email: string): Promise<vo
   }
 }
 
+export interface CreatePatientAccountRequest {
+  fullName: string;
+  email: string;
+  phoneNumber: string;
+  dateOfBirth?: string; // "YYYY-MM-DD"
+  gender?: string;      // "Nam" | "Nữ" | "Khác"
+  verificationCode: string;
+}
+
+export interface CreatePatientAccountResult {
+  userId: string;
+  patientId: string;
+  email: string;
+  fullName: string;
+  linkedExistingPatient: boolean;
+}
+
+export async function createPatientAccountApi(request: CreatePatientAccountRequest): Promise<CreatePatientAccountResult> {
+  const res = await fetch(`${API_URL}/api/patients/accounts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(request),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(
+      (err as { message?: string; title?: string; detail?: string }).message ??
+      (err as { detail?: string }).detail ??
+      (err as { title?: string }).title ??
+      "Tạo tài khoản bệnh nhân thất bại"
+    );
+  }
+  return res.json() as Promise<CreatePatientAccountResult>;
+}
+
 export interface PatientSearchResultDto {
   id: string;
   fullName: string;

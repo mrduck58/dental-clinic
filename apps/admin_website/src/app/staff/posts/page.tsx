@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
@@ -110,24 +110,34 @@ export default function PostsListPage() {
       <main className="flex-1 flex flex-col min-w-0">
         
         {/* HEADER */}
-        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-8 h-20 flex items-center justify-between shrink-0 font-sans shadow-sm shadow-slate-100/50">
-          <div>
-            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 sm:px-8 h-16 sm:h-20 flex items-center justify-between shrink-0 font-sans shadow-sm shadow-slate-100/50">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent("toggle-sidebar"))}
+              className="lg:hidden p-2 -ml-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all shrink-0"
+              aria-label="Mở menu điều hướng"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+              </svg>
+            </button>
+            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight truncate">
               Quản lý Bài viết
             </h1>
           </div>
 
-          {/* Notifications (no search) */}
-          <div className="flex items-center gap-6">
-            <NotificationBell />
+          {/* Notifications */}
+          <div className="flex items-center gap-4">
+            <NotificationBell href="/staff/notifications" />
           </div>
         </header>
 
         {/* BODY */}
-        <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-8">
+        <div className="p-4 sm:p-8 flex-1 overflow-y-auto flex flex-col gap-6 sm:gap-8">
           
           {/* Stats Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Total */}
             <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-5 flex items-start justify-between">
               <div className="flex flex-col gap-1">
@@ -384,16 +394,16 @@ export default function PostsListPage() {
 
               {/* Pagination bar */}
               {filteredPosts.length > 0 && (
-                <div className="p-4 border-t border-slate-100 flex items-center justify-between gap-2.5">
+                <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-2.5">
                   {/* Page info */}
-                  <span className="text-[13px] text-slate-400 font-semibold">
+                  <span className="text-[13px] text-slate-400 font-semibold text-center sm:text-left">
                     Hiển thị{" "}
                     <span className="text-slate-600 font-bold">{startIndex + 1}–{Math.min(startIndex + postsPerPage, filteredPosts.length)}</span>
                     {" "}trong{" "}
                     <span className="text-slate-600 font-bold">{filteredPosts.length}</span>
                     {" "}bài viết
                   </span>
-                  <div className="flex items-center gap-2.5">
+                  <div className="flex items-center gap-1.5 sm:gap-2.5 flex-wrap justify-center">
                   {/* Quick First Page */}
                   <button
                     onClick={() => setCurrentPage(1)}

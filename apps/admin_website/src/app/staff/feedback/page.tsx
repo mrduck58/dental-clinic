@@ -131,7 +131,7 @@ export default function StaffFeedbackPage() {
       <main className="flex-1 flex flex-col min-w-0">
         <StaffPageHeader title="Phản Hồi & Đánh Giá" subtitle="Xem và phản hồi đánh giá của bệnh nhân" />
 
-        <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-6">
+        <div className="p-4 sm:p-8 flex-1 overflow-y-auto flex flex-col gap-6">
 
           {/* TOAST */}
           {toast?.show && (
@@ -229,12 +229,12 @@ export default function StaffFeedbackPage() {
                 />
               </div>
 
-              <div className="flex items-center gap-3">
-                <div className="relative">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full md:w-auto">
+                <div className="relative w-full">
                   <select
                     value={ratingFilter}
                     onChange={(e) => setRatingFilter(e.target.value)}
-                    className="appearance-none bg-white text-slate-700 font-bold text-[14px] pl-4 pr-10 py-2.5 rounded-xl border border-slate-200 focus:outline-none transition-all cursor-pointer"
+                    className="w-full appearance-none bg-white text-slate-700 font-bold text-[14px] pl-4 pr-10 py-2.5 rounded-xl border border-slate-200 focus:outline-none transition-all cursor-pointer"
                   >
                     <option value="All">Lọc theo Đánh giá</option>
                     <option value="5">5 Sao</option>
@@ -250,11 +250,11 @@ export default function StaffFeedbackPage() {
                   </div>
                 </div>
 
-                <div className="relative">
+                <div className="relative w-full">
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="appearance-none bg-white text-slate-700 font-bold text-[14px] pl-4 pr-10 py-2.5 rounded-xl border border-slate-200 focus:outline-none transition-all cursor-pointer"
+                    className="w-full appearance-none bg-white text-slate-700 font-bold text-[14px] pl-4 pr-10 py-2.5 rounded-xl border border-slate-200 focus:outline-none transition-all cursor-pointer"
                   >
                     <option value="All">Lọc theo Trạng thái</option>
                     <option value="Pending">Chờ phê duyệt</option>
@@ -298,7 +298,7 @@ export default function StaffFeedbackPage() {
           {/* TABLE */}
           <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden flex flex-col">
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-[14px]">
+              <table className="w-full text-left border-collapse text-[14px] min-w-[650px]">
                 <thead>
                   <tr className="bg-slate-50/50 font-extrabold text-slate-400 uppercase tracking-wider border-b border-slate-150">
                     <th className="px-6 py-4">Tên khách hàng</th>
@@ -432,8 +432,8 @@ export default function StaffFeedbackPage() {
 
             {/* PAGINATION */}
             {filteredFeedbacks.length > 0 && (
-              <div className="p-4 border-t border-slate-100 flex items-center justify-between">
-                <span className="text-[12px] text-slate-400 font-semibold">
+              <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-2.5">
+                <span className="text-[12px] text-slate-400 font-semibold text-center sm:text-left">
                   Hiển thị{" "}
                   <span className="font-black text-slate-600">{startIndex + 1}–{Math.min(startIndex + itemsPerPage, filteredFeedbacks.length)}</span>{" "}
                   trong{" "}
@@ -441,7 +441,7 @@ export default function StaffFeedbackPage() {
                   phản hồi
                 </span>
 
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap justify-center">
                   <button
                     onClick={() => setCurrentPage(1)}
                     disabled={currentPage === 1}
