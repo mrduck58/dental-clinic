@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import OwnerSidebar from "../../../components/shared/OwnerSidebar";
 import OwnerPageHeader from "../../../components/shared/OwnerPageHeader";
+import PatientDetailModal from "../../../components/shared/PatientDetailModal";
 import { useRequireOwner } from "../../../hooks/useRequireOwner";
 import { getStaffAppointmentsApi, type StaffAppointmentDto } from "../../../lib/apiClient";
 import { supabase } from "../../../lib/supabaseClient";
@@ -98,6 +99,8 @@ export default function OwnerAppointmentsPage() {
   const [dentistFilter, setDentistFilter] = useState("All");
   const [serviceFilter, setServiceFilter] = useState("All");
   const [search, setSearch] = useState("");
+
+  const [selectedPatient, setSelectedPatient] = useState<{ id: string; name: string; phone: string | null } | null>(null);
 
   const inFlight = useRef(false);
   // Tăng lên để buộc nạp lại cùng một ngày (bấm "Làm mới", hoặc realtime báo có thay đổi).
@@ -403,7 +406,11 @@ export default function OwnerAppointmentsPage() {
                       {filtered.map(a => {
                         const cfg = cfgOf(a.status);
                         return (
-                          <tr key={a.appointmentId} className="hover:bg-slate-50/60 transition-colors">
+                          <tr
+                          key={a.appointmentId}
+                          onClick={() => setSelectedPatient({ id: a.patientId, name: a.patientName, phone: a.patientPhone })}
+                          className="hover:bg-slate-50/60 transition-colors cursor-pointer"
+                        >
                             <td className="px-5 py-3.5">
                               <span className="text-[12px] font-mono font-bold text-slate-500">{a.appointmentCode}</span>
                             </td>
@@ -467,6 +474,15 @@ export default function OwnerAppointmentsPage() {
           </div>
         </div>
       </main>
+
+      {selectedPatient && (
+        <PatientDetailModal
+          patientId={selectedPatient.id}
+          patientName={selectedPatient.name}
+          patientPhone={selectedPatient.phone}
+          onClose={() => setSelectedPatient(null)}
+        />
+      )}
     </div>
   );
 }

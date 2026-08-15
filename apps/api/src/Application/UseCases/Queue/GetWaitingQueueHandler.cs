@@ -74,11 +74,27 @@ public class GetWaitingQueueHandler(
         // với giá trị Shift khác không được coi là bác sĩ có ca làm việc thật.
         var daySchedules = await workScheduleRepository.GetDentistSchedulesForDateAsync(date, ct: ct);
 
-        var schedulesByName = daySchedules
-            .GroupBy(ws => ws.StaffName)
-            .ToDictionary(
-                g => g.Key,
-                g => g.OrderBy(ws => WorkShifts.SortKey(ws.Shift)).ToList());
+        // Nối dòng lịch với bác sĩ qua EmployeeId — đây mới là khóa THẬT (xem WorkSchedule.Create).
+        // StaffName chỉ còn là lưới an toàn cho dòng cũ/nhập tay chưa gán được EmployeeId: so khớp
+        // exact string đã bỏ (khiến "Đỗ Văn Phong" không khớp "BS.Đỗ Văn Phong", cả phòng biến mất
+        // khỏi hàng đợi), thay bằng StaffNameMatcher.Key để bỏ qua chức danh/khoảng trắng thừa.
+        var schedulesByEmployeeId = daySchedules
+            .Where(ws => ws.EmployeeId != null)
+            .GroupBy(ws => ws.EmployeeId!.Value)
+            .ToDictionary(g => g.Key, g => g.OrderBy(ws => WorkShifts.SortKey(ws.Shift)).ToList());
+
+        var schedulesByNameKey = daySchedules
+            .Where(ws => ws.EmployeeId == null)
+            .GroupBy(ws => StaffNameMatcher.Key(ws.StaffName))
+            .Where(g => g.Key.Length > 0)
+            .ToDictionary(g => g.Key, g => g.OrderBy(ws => WorkShifts.SortKey(ws.Shift)).ToList());
+
+        List<WorkSchedule> SchedulesFor(DentistProfile dentist)
+        {
+            var byId = schedulesByEmployeeId.GetValueOrDefault(dentist.EmployeeId, []);
+            var byName = schedulesByNameKey.GetValueOrDefault(StaffNameMatcher.Key(dentist.FullName), []);
+            return byName.Count == 0 ? byId : byId.Concat(byName).ToList();
+        }
 
         // Hàng đợi hiện MỌI phòng có bác sĩ đang hoạt động — kể cả phòng chưa có ai check-in,
         // để lễ tân thấy được phòng nào đang trống. "Đang hoạt động" = có ca làm việc trong
@@ -86,7 +102,7 @@ public class GetWaitingQueueHandler(
         var activeDentists = await dentistRepository.GetAllWithUserAsync(ct);
 
         var dentistsToShow = activeDentists
-            .Where(d => schedulesByName.ContainsKey(d.FullName) && IsEmployed(d.Employee.EmploymentStatus))
+            .Where(d => SchedulesFor(d).Count > 0 && IsEmployed(d.Employee.EmploymentStatus))
             .ToList();
 
         // Dự phòng: bác sĩ có bệnh nhân đã check-in nhưng không có ca trong bảng lịch làm việc
@@ -102,7 +118,7 @@ public class GetWaitingQueueHandler(
         var dentistsByRoom = new Dictionary<string, List<QueueDentistDto>>();
         foreach (var dentist in dentistsToShow)
         {
-            var schedules = schedulesByName.GetValueOrDefault(dentist.FullName, []);
+            var schedules = SchedulesFor(dentist);
             var color = GetDentistColor(dentist.FullName);
             // Bác sĩ vào danh sách qua nhánh dự phòng bên trên KHÔNG qua bộ lọc trạng thái làm việc.
             // Phải kiểm lại ở đây, nếu không hàng đợi sẽ báo họ "đang trực" và cho lễ tân thả bệnh
@@ -133,7 +149,7 @@ public class GetWaitingQueueHandler(
         }
 
         var patientsByRoom = appointments
-            .GroupBy(a => RoomForAppointment(a, schedulesByName, isToday, nowVietnam))
+            .GroupBy(a => RoomForAppointment(a, SchedulesFor(a.Dentist), isToday, nowVietnam))
             .ToDictionary(g => g.Key, g => g.ToList());
 
         var rooms = dentistsByRoom.Keys
@@ -186,11 +202,10 @@ public class GetWaitingQueueHandler(
     /// </summary>
     private static string RoomForAppointment(
         Appointment appointment,
-        Dictionary<string, List<WorkSchedule>> schedulesByName,
+        List<WorkSchedule> schedules,
         bool isToday,
         DateTimeOffset nowVietnam)
     {
-        var schedules = schedulesByName.GetValueOrDefault(appointment.Dentist.FullName, []);
         if (schedules.Count == 0) return NoRoomKey;
 
         var current = isToday

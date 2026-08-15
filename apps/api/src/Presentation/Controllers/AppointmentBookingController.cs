@@ -120,6 +120,19 @@ public class AppointmentBookingController(ISender sender) : ControllerBase
         return Ok(new { message = "Đã check-in bệnh nhân." });
     }
 
+    /// <summary>
+    /// PUT api/appointments/{id}/undo-checkin — Gỡ một lần check-in bấm nhầm (Staff/Admin).
+    /// Lịch đặt từ xa quay về chờ xác nhận; lịch lập tại quầy bị hủy vì không có trạng thái nào
+    /// trước check-in để quay về.
+    /// </summary>
+    [HttpPut("api/appointments/{id}/undo-checkin")]
+    [Authorize(Roles = "Staff,Admin,Owner")]
+    public async Task<IActionResult> UndoCheckIn(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new UndoCheckInCommand(id), cancellationToken);
+        return Ok(result);
+    }
+
     /// <summary>PUT api/appointments/{id}/no-show — Ghi nhận bệnh nhân vắng mặt (Staff/Admin)</summary>
     [HttpPut("api/appointments/{id}/no-show")]
     [Authorize(Roles = "Staff,Admin,Owner")]
@@ -127,6 +140,18 @@ public class AppointmentBookingController(ISender sender) : ControllerBase
     {
         await sender.Send(new MarkNoShowCommand(id), cancellationToken);
         return Ok(new { message = "Đã ghi nhận bệnh nhân vắng mặt." });
+    }
+
+    /// <summary>
+    /// PUT api/appointments/{id}/undo-noshow — Gỡ một lần ghi nhận vắng mặt bấm nhầm (Staff/Admin).
+    /// Lịch quay về Confirmed, chờ bệnh nhân đến check-in.
+    /// </summary>
+    [HttpPut("api/appointments/{id}/undo-noshow")]
+    [Authorize(Roles = "Staff,Admin,Owner")]
+    public async Task<IActionResult> UndoNoShow(Guid id, CancellationToken cancellationToken)
+    {
+        await sender.Send(new UndoNoShowCommand(id), cancellationToken);
+        return Ok(new { message = "Đã hoàn tác ghi nhận vắng mặt." });
     }
 
     /// <summary>GET api/appointments/staff/schedule — Lịch trống hôm nay cho staff đặt tại quầy</summary>

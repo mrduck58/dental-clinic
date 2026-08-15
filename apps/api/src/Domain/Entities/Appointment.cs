@@ -11,6 +11,9 @@ public class Appointment
     public Guid? ServiceId { get; private set; }
     public DateTimeOffset AppointmentDate { get; private set; }
     public AppointmentStatus Status { get; private set; }
+
+    /// <summary>Lịch này do bệnh nhân tự đặt từ xa hay do lễ tân lập tại quầy — xem <see cref="UndoCheckIn"/>.</summary>
+    public AppointmentOrigin Origin { get; private set; }
     public string? Notes { get; private set; }
     public string? Symptoms { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
@@ -81,10 +84,29 @@ public class Appointment
             ServiceId = serviceId,
             AppointmentDate = appointmentDate,
             Status = AppointmentStatus.Pending,
+            Origin = AppointmentOrigin.Online,
             Symptoms = symptoms,
             Notes = notes,
             CreatedAt = DateTimeOffset.UtcNow
         };
+    }
+
+    /// <summary>
+    /// Lịch lập tại quầy khi bệnh nhân đã có mặt: bỏ qua cả Pending lẫn Confirmed, vào thẳng
+    /// CheckedIn để xuất hiện ngay ở hàng đợi. <see cref="Origin"/> = WalkIn là căn cứ duy nhất để
+    /// sau này biết lịch này KHÔNG có trạng thái nào trước check-in để quay về (xem <see cref="UndoCheckIn"/>).
+    /// </summary>
+    public static Appointment CreateWalkIn(
+        Guid patientId,
+        Guid dentistId,
+        DateTimeOffset appointmentDate,
+        string? symptoms = null,
+        Guid? serviceId = null)
+    {
+        var appointment = Create(patientId, dentistId, appointmentDate, symptoms, serviceId);
+        appointment.Origin = AppointmentOrigin.WalkIn;
+        appointment.CheckIn();
+        return appointment;
     }
 
     public void Confirm() => Status = AppointmentStatus.Confirmed;
@@ -95,6 +117,59 @@ public class Appointment
     }
     /// <summary>Ghi nhận bệnh nhân vắng mặt — đã xác nhận nhưng không đến khám.</summary>
     public void MarkNoShow() => Status = AppointmentStatus.NoShow;
+
+    /// <summary>
+    /// Gỡ một lần ghi nhận vắng mặt bấm nhầm. Trạng thái trước NoShow luôn là Confirmed — xem
+    /// <see cref="MarkNoShow"/> — nên chỉ cần trả thẳng về đó, không cần phân biệt theo Origin như
+    /// <see cref="UndoCheckIn"/>: NoShow chỉ xảy ra khi bệnh nhân CHƯA từng check-in.
+    /// </summary>
+    public void UndoNoShow()
+    {
+        if (Status != AppointmentStatus.NoShow)
+            throw new ConflictException(
+                $"Chỉ hoàn tác được lịch hẹn đang ở trạng thái vắng mặt. Trạng thái hiện tại: '{Status}'.");
+
+        Status = AppointmentStatus.Confirmed;
+    }
+
+    /// <summary>Ghi chú hủy gắn cho lịch tại quầy bị hoàn tác — để báo cáo phân biệt được với hủy thật.</summary>
+    public const string UndoCheckInCancellationNote = "Hủy do nhân viên bấm nhầm check-in.";
+
+    /// <summary>
+    /// Gỡ một lần check-in bấm nhầm. Chỉ làm được khi trạng thái VẪN LÀ CheckedIn: bác sĩ đã gọi
+    /// vào phòng (InProgress trở đi) thì buổi khám có thật, không còn là cú bấm nhầm nữa và đã có
+    /// bệnh án/hóa đơn treo vào lịch này.
+    ///
+    /// Lịch đặt từ xa quay về <see cref="AppointmentStatus.Pending"/> — trả nó về đúng chỗ nó đến,
+    /// tức danh sách đơn chờ lễ tân xử lý. Lịch lập tại quầy (<see cref="AppointmentOrigin.WalkIn"/>)
+    /// sinh ra ngay tại lúc check-in nên không có trạng thái nào trước đó để quay về: chỉ còn cách
+    /// hủy hẳn, đúng nghĩa "xóa việc vừa lỡ tạo ra".
+    ///
+    /// Xóa luôn vị trí hàng đợi để bệnh nhân biến khỏi màn hình hàng đợi phòng khám — giữ lại thì
+    /// bác sĩ vẫn thấy một người không còn ở đó.
+    /// </summary>
+    public void UndoCheckIn(Guid? undoneByUserId, DateTimeOffset now)
+    {
+        if (Status != AppointmentStatus.CheckedIn)
+            throw new ConflictException(
+                $"Chỉ hoàn tác được lịch hẹn đang ở trạng thái đã check-in. Trạng thái hiện tại: '{Status}'.");
+
+        CheckedInAt = null;
+        QueueOrder = null;
+        QueueEntryOrder = null;
+
+        if (Origin == AppointmentOrigin.WalkIn)
+        {
+            Status = AppointmentStatus.Cancelled;
+            CancellationReason = Enums.CancellationReason.Other;
+            CancellationNote = UndoCheckInCancellationNote;
+            CancelledAt = now;
+            CancelledByUserId = undoneByUserId;
+            return;
+        }
+
+        Status = AppointmentStatus.Pending;
+    }
     public void StartTreatment() => Status = AppointmentStatus.InProgress;
     public void EndTreatment() => Status = AppointmentStatus.PendingPayment;
     public void Complete() => Status = AppointmentStatus.Completed;
@@ -213,6 +288,9 @@ public class Appointment
             ServiceId = serviceId,
             AppointmentDate = now,
             Status = AppointmentStatus.CheckedIn,
+            // Cũng là lịch lập tại quầy: không đi qua Pending/Confirmed nên hoàn tác check-in
+            // chỉ có thể là hủy hẳn, y như lịch vãng lai.
+            Origin = AppointmentOrigin.WalkIn,
             CheckedInAt = now,
             Symptoms = symptoms,
             FollowUpFromAppointmentId = originalAppointmentId,

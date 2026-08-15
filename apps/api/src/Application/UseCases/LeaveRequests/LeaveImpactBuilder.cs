@@ -1,8 +1,8 @@
-using System.Text.RegularExpressions;
 using DentalClinic.API.Application.DTOs.LeaveRequests;
 using DentalClinic.API.Application.UseCases.Booking;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Domain.Schedules;
 
 namespace DentalClinic.API.Application.UseCases.LeaveRequests;
 
@@ -24,31 +24,13 @@ public static class LeaveImpactBuilder
             ? request.User.FullName
             : (request.User?.Email ?? string.Empty);
 
-    /// <summary>Tiền tố chức danh phải đứng riêng (theo sau là dấu chấm hoặc khoảng trắng) để
-    /// "BS.Đào Tuấn Anh", "BS. Đào Tuấn Anh" và "Đào Tuấn Anh" quy về cùng một người, nhưng một cái
-    /// tên bắt đầu bằng đúng các chữ đó (vd "Tsang") thì không bị cắt mất.</summary>
-    private static readonly Regex TitlePrefixPattern = new(
-        @"^(bs|bác\s*sĩ|pt|phụ\s*tá|ths|ts|đd|điều\s*dưỡng)\s*(\.|\s)\s*",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
-
-    private static readonly Regex WhitespacePattern = new(@"\s+", RegexOptions.Compiled);
-
     /// <summary>
-    /// Chuẩn hoá tên trước khi so khớp. Dữ liệu thật ghi tên nhân sự vào lịch rất tuỳ hứng: cùng một
-    /// bác sĩ có chỗ là "BS.Đào Tuấn Anh" (hồ sơ tài khoản), có chỗ là "Đào Tuấn Anh" hay
-    /// "BS. Nguyễn Thu Thảo" (ô lịch, hoặc nhập từ Excel). So khớp nguyên văn sẽ trượt hết và Owner
-    /// tưởng đơn nghỉ không đụng ca nào. Dấu tiếng Việt được GIỮ NGUYÊN — bỏ dấu sẽ gộp nhầm những
-    /// cái tên thực sự khác nhau.
+    /// Chuẩn hoá tên trước khi so khớp — nay dùng chung <see cref="StaffNameMatcher"/> với luồng
+    /// đặt lịch tại quầy. Hai nơi từng có hai bản chuẩn hoá riêng, tức là cùng một cặp tên có thể
+    /// khớp ở màn hình đơn nghỉ nhưng trượt ở lưới đặt lịch; giữ một bản là cách duy nhất để hai
+    /// màn hình luôn nói cùng một chuyện.
     /// </summary>
-    public static string NormalizeStaffName(string? raw)
-    {
-        var name = (raw ?? string.Empty).Trim();
-        if (name.Length == 0) return string.Empty;
-
-        name = TitlePrefixPattern.Replace(name, string.Empty);
-        name = WhitespacePattern.Replace(name, " ");
-        return name.Trim().ToLowerInvariant();
-    }
+    public static string NormalizeStaffName(string? raw) => StaffNameMatcher.Key(raw);
 
     /// <summary>Các ca sẽ bị gỡ nếu duyệt đơn: mọi ca của người này trong khoảng nghỉ, trừ dấu nghỉ lễ
     /// (IsHoliday là bản ghi đánh dấu cả phòng khám đóng cửa, không thuộc về ai).

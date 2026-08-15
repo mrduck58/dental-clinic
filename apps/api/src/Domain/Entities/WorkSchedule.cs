@@ -19,9 +19,17 @@ public class WorkSchedule
 
     private WorkSchedule() { }
 
+    /// <param name="employeeId">
+    /// Nhân sự được phân ca. Đây mới là mối nối THẬT giữa dòng lịch và con người —
+    /// <see cref="StaffName"/> chỉ là chuỗi hiển thị, viết mỗi nơi một kiểu ("Đỗ Văn Phong" ở đây,
+    /// "BS.Đỗ Văn Phong" trong hồ sơ) nên không dò theo nó được. Cho phép null vì dòng nhập từ
+    /// Excel có thể ghi một cái tên không khớp ai trong hệ thống; những dòng đó vẫn phải lưu được
+    /// để người xếp lịch nhìn thấy và sửa, chứ không âm thầm biến mất.
+    /// </param>
     public static WorkSchedule Create(
         DateOnly date, string shift, string type, string role,
-        string staffName, string room, string roomColor, bool isHoliday) => new()
+        string staffName, string room, string roomColor, bool isHoliday,
+        Guid? employeeId = null) => new()
     {
         Id = Guid.NewGuid(),
         Date = date,
@@ -31,6 +39,7 @@ public class WorkSchedule
         StaffName = staffName,
         Room = room,
         RoomColor = roomColor,
-        IsHoliday = isHoliday
+        IsHoliday = isHoliday,
+        EmployeeId = employeeId
     };
 }
