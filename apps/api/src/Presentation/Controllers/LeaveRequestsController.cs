@@ -46,6 +46,16 @@ public class LeaveRequestsController(ISender sender) : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>GET api/leave-requests/{id}/impact — Ảnh hưởng của đơn nghỉ tới lịch làm việc
+    /// và lịch hẹn (Owner xem trước khi duyệt: duyệt xong các ca này sẽ bị gỡ khỏi lịch).</summary>
+    [HttpGet("{id:guid}/impact")]
+    [Authorize(Roles = "Owner")]
+    public async Task<IActionResult> GetImpact(Guid id, CancellationToken ct)
+    {
+        var result = await sender.Send(new GetLeaveRequestImpactQuery(id), ct);
+        return Ok(result);
+    }
+
     /// <summary>POST api/leave-requests — Tạo đơn xin nghỉ (Dentist/Staff)</summary>
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateLeaveRequestRequest request, CancellationToken ct)
@@ -55,7 +65,8 @@ public class LeaveRequestsController(ISender sender) : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
 
-    /// <summary>PUT api/leave-requests/{id}/approve — Duyệt đơn nghỉ (Admin)</summary>
+    /// <summary>PUT api/leave-requests/{id}/approve — Duyệt đơn nghỉ (Owner).
+    /// Kèm theo: gỡ các ca đã xếp cho người này trong khoảng nghỉ và báo Owner bổ sung lịch.</summary>
     [HttpPut("{id:guid}/approve")]
     [Authorize(Roles = "Owner")]
     public async Task<IActionResult> Approve(Guid id, CancellationToken ct)

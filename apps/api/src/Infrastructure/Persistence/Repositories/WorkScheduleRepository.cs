@@ -49,4 +49,18 @@ public class WorkScheduleRepository(AppDbContext db) : IWorkScheduleRepository
             .Where(s => s.StaffName == staffName && s.Date >= start && s.Date < end)
             .OrderBy(s => s.Date)
             .ToListAsync(ct);
+
+    public async Task RemoveRangeAsync(IEnumerable<WorkSchedule> entries, CancellationToken ct = default)
+    {
+        var ids = entries.Select(e => e.Id).ToList();
+        if (ids.Count == 0) return;
+
+        // Nạp lại bản có tracking rồi mới xóa: entry truyền vào thường đến từ GetByDateRangeAsync
+        // (AsNoTracking), xóa thẳng thực thể rời sẽ phụ thuộc vào hành vi tự attach của EF.
+        var tracked = await db.WorkSchedules.Where(s => ids.Contains(s.Id)).ToListAsync(ct);
+        if (tracked.Count == 0) return;
+
+        db.WorkSchedules.RemoveRange(tracked);
+        await db.SaveChangesAsync(ct);
+    }
 }

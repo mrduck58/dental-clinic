@@ -19,4 +19,7 @@ public interface IWorkScheduleRepository
 
     /// <summary>Lịch làm việc của một nhân sự (theo StaffName) trong một khoảng ngày, sắp theo ngày.</summary>
     Task<IReadOnlyList<WorkSchedule>> GetByStaffNameAndDateRangeAsync(string staffName, DateOnly start, DateOnly end, CancellationToken ct = default);
+
+    /// <summary>Gỡ hẳn một loạt ca khỏi lịch làm việc (duyệt đơn nghỉ → bỏ trống các ca của người nghỉ).</summary>
+    Task RemoveRangeAsync(IEnumerable<WorkSchedule> entries, CancellationToken ct = default);
 }

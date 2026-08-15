@@ -1486,6 +1486,43 @@ export interface CreateLeaveRequestRequest {
   reason: string;
 }
 
+// Ảnh hưởng của đơn nghỉ: ca làm việc đã xếp bị trùng khoảng nghỉ (duyệt đơn = gỡ hết các ca này)
+// và lịch hẹn đã đặt trong những ngày đó (KHÔNG tự hủy — chỉ cảnh báo để Owner tự xử lý).
+export interface LeaveImpactShiftDto {
+  scheduleId: string;
+  shift: string; // mã ca, ví dụ "08:00-10:00" (xem lib/shifts.ts)
+  room: string;
+  role: "dentist" | "assistant" | "staff";
+  type: "dentist" | "staff";
+}
+
+export interface LeaveImpactDayDto {
+  date: string; // "YYYY-MM-DD"
+  shifts: LeaveImpactShiftDto[];
+  appointmentCount: number;
+  appointmentTimes: string[]; // "HH:mm" giờ Việt Nam
+}
+
+export interface LeaveImpactDto {
+  leaveRequestId: string;
+  staffName: string;
+  status: string;
+  startDate: string;
+  endDate: string;
+  affectedDayCount: number;
+  affectedShiftCount: number;
+  affectedAppointmentCount: number;
+  days: LeaveImpactDayDto[];
+}
+
+export interface ApproveLeaveRequestResult {
+  request: LeaveRequestDto;
+  removedShiftCount: number;
+  affectedDayCount: number;
+  affectedAppointmentCount: number;
+  affectedDates: string[]; // "YYYY-MM-DD"
+}
+
 export async function getMyLeaveRequestsApi(): Promise<MyLeaveRequestsResponse> {
   const res = await fetch(`${API_URL}/api/leave-requests/my`, {
     headers: { "Content-Type": "application/json", ...authHeaders() },
@@ -1542,7 +1579,21 @@ export async function getLeaveRequestsAdminApi(status?: string, search?: string)
   return res.json() as Promise<LeaveRequestDto[]>;
 }
 
-export async function approveLeaveRequestApi(id: string): Promise<LeaveRequestDto> {
+// Owner xem trước ảnh hưởng của đơn nghỉ trước khi bấm duyệt.
+export async function getLeaveRequestImpactApi(id: string): Promise<LeaveImpactDto> {
+  const res = await fetch(`${API_URL}/api/leave-requests/${id}/impact`, {
+    headers: authHeaders(),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải ảnh hưởng của đơn nghỉ");
+  }
+  return res.json() as Promise<LeaveImpactDto>;
+}
+
+// Duyệt đơn: server gỡ luôn các ca trùng khỏi lịch làm việc và trả về số ca đã gỡ.
+export async function approveLeaveRequestApi(id: string): Promise<ApproveLeaveRequestResult> {
   const res = await fetch(`${API_URL}/api/leave-requests/${id}/approve`, {
     method: "PUT",
     headers: authHeaders(),
@@ -1552,7 +1603,7 @@ export async function approveLeaveRequestApi(id: string): Promise<LeaveRequestDt
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { title?: string }).title ?? "Không thể duyệt đơn nghỉ");
   }
-  return res.json() as Promise<LeaveRequestDto>;
+  return res.json() as Promise<ApproveLeaveRequestResult>;
 }
 
 // ── Appointment types ──────────────────────────────────────────────────────────
