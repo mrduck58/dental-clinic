@@ -67,7 +67,9 @@ class FirebaseMessagingService {
       // 1. Khi người dùng click vào thông báo lúc app đã bị TẮT HẲN (Terminated)
       final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
       if (initialMessage != null) {
-        _handleRemoteMessage(initialMessage);
+        Future.delayed(const Duration(milliseconds: 600), () {
+          _handleRemoteMessage(initialMessage);
+        });
       }
 
       // 2. Khi người dùng click vào thông báo lúc app đang chạy nền (Background/Minimized)

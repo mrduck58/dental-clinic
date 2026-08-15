@@ -77,16 +77,12 @@ class NotificationSyncService with WidgetsBindingObserver {
 
       if (_isFirstRun) {
         _isFirstRun = false;
-        if (_shownNotificationIds.isEmpty) {
-          // Chỉ đánh dấu đã xem đối với thông báo cũ hơn 10 phút trước
-          final now = DateTime.now();
-          for (final n in items) {
-            if (now.difference(n.createdAt).inMinutes > 10) {
-              _shownNotificationIds.add(n.id);
-            }
-          }
-          await _saveShownIds();
+        for (final n in items) {
+          _shownNotificationIds.add(n.id);
         }
+        await _saveShownIds();
+        _isChecking = false;
+        return;
       }
 
       // Tìm các thông báo mới chưa đọc và chưa từng hiển thị qua push notification
