@@ -847,7 +847,7 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                           <span className="text-[14px] font-black text-slate-800">{plan.serviceName}</span>
                           {/* Trạng thái do hệ thống tính từ tiến độ các bước — bác sĩ không tự chỉnh. */}
                           <span
-                            title={`Hệ thống tự cập nhật theo tiến độ: hoàn thành khi đủ 100% các bước quy trình (hiện ${planProgress[plan.id]?.completed ?? 0}/${planProgress[plan.id]?.total ?? 0} bước).`}
+                            title={`Hệ thống tự cập nhật theo tiến độ: hoàn thành khi đủ 100% các bước đã chọn (hiện ${planProgress[plan.id]?.completed ?? 0}/${planProgress[plan.id]?.total ?? 0} bước).`}
                             className={`text-[11.5px] font-black px-2 py-1.5 rounded-lg border text-center ${st.cls}`}
                           >
                             {st.label}
