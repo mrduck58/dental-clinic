@@ -1,9 +1,13 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Interfaces.Services;
+using DentalClinic.API.Infrastructure.Persistence;
 using FirebaseAdmin;
 using FirebaseAdmin.Messaging;
 using Google.Apis.Auth.OAuth2;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -13,19 +17,21 @@ public class FirebasePushNotificationService : IFirebasePushNotificationService
 {
     private readonly ILogger<FirebasePushNotificationService> _logger;
     private readonly IHostEnvironment _env;
+    private readonly IServiceScopeFactory _scopeFactory;
     private static readonly ConcurrentDictionary<Guid, ConcurrentDictionary<string, DateTimeOffset>> UserTokens = new();
     private static bool _isFirebaseInitialized;
     private static readonly object InitLock = new();
-    private const string TokenStorageFile = "device_tokens.json";
 
     public FirebasePushNotificationService(
         ILogger<FirebasePushNotificationService> logger,
-        IHostEnvironment env)
+        IHostEnvironment env,
+        IServiceScopeFactory scopeFactory)
     {
         _logger = logger;
         _env = env;
+        _scopeFactory = scopeFactory;
         EnsureFirebaseInitialized();
-        LoadPersistedTokens();
+        _ = PreloadTokensFromDatabaseAsync();
     }
 
     private void EnsureFirebaseInitialized()
@@ -64,7 +70,6 @@ public class FirebasePushNotificationService : IFirebasePushNotificationService
                     Path.Combine(AppContext.BaseDirectory, "firebase-admin.json"),
                     Path.Combine(Directory.GetCurrentDirectory(), "firebase-admin.json"),
                     Path.Combine(_env.ContentRootPath, "firebase-admin.json"),
-                    Path.Combine(Directory.GetCurrentDirectory(), "src", "Presentation", "firebase-admin.json"),
                     Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "firebase-admin.json"),
                     "c:\\Máy tính\\SEP\\dental-clinic\\apps\\api\\firebase-admin.json"
                 };
@@ -93,16 +98,65 @@ public class FirebasePushNotificationService : IFirebasePushNotificationService
         }
     }
 
-    public Task RegisterTokenAsync(Guid userId, string token, string? deviceType, CancellationToken ct = default)
+    private async Task PreloadTokensFromDatabaseAsync()
     {
-        if (string.IsNullOrWhiteSpace(token)) return Task.CompletedTask;
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var allTokens = await db.UserDeviceTokens.AsNoTracking().ToListAsync();
+            foreach (var dt in allTokens)
+            {
+                var dict = UserTokens.GetOrAdd(dt.UserId, _ => new ConcurrentDictionary<string, DateTimeOffset>());
+                dict[dt.Token] = dt.UpdatedAt;
+            }
+            _logger.LogInformation("Preloaded {Count} FCM device tokens from PostgreSQL", allTokens.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to preload device tokens from PostgreSQL on startup");
+        }
+    }
+
+    public async Task RegisterTokenAsync(Guid userId, string token, string? deviceType, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(token)) return;
 
         var tokens = UserTokens.GetOrAdd(userId, _ => new ConcurrentDictionary<string, DateTimeOffset>());
         tokens[token] = DateTimeOffset.UtcNow;
         _logger.LogInformation("Registered device token for user {UserId} ({DeviceType})", userId, deviceType ?? "Unknown");
 
-        PersistTokens();
-        return Task.CompletedTask;
+        // Lưu vĩnh viễn vào PostgreSQL để không bị mất khi Render restart
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var existing = await db.UserDeviceTokens
+                .FirstOrDefaultAsync(t => t.UserId == userId && t.Token == token, ct);
+
+            if (existing != null)
+            {
+                existing.UpdatedAt = DateTimeOffset.UtcNow;
+                existing.DeviceType = deviceType;
+                db.UserDeviceTokens.Update(existing);
+            }
+            else
+            {
+                db.UserDeviceTokens.Add(new UserDeviceToken
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = userId,
+                    Token = token,
+                    DeviceType = deviceType,
+                    UpdatedAt = DateTimeOffset.UtcNow
+                });
+            }
+            await db.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to persist device token to PostgreSQL for user {UserId}", userId);
+        }
     }
 
     public async Task SendPushNotificationAsync(
@@ -113,15 +167,49 @@ public class FirebasePushNotificationService : IFirebasePushNotificationService
         string? relatedEntityId,
         CancellationToken ct = default)
     {
-        if (!_isFirebaseInitialized || FirebaseApp.DefaultInstance == null) return;
-
-        if (!UserTokens.TryGetValue(userId, out var tokens) || tokens.IsEmpty)
+        EnsureFirebaseInitialized();
+        if (!_isFirebaseInitialized || FirebaseApp.DefaultInstance == null)
         {
-            _logger.LogDebug("No registered FCM tokens found for user {UserId}", userId);
+            _logger.LogWarning("Firebase Admin SDK is not initialized. Skipping push notification.");
             return;
         }
 
-        var activeTokens = tokens.Keys.ToList();
+        // Lấy danh sách token của user từ bộ nhớ cache hoặc từ Database
+        List<string> activeTokens;
+        if (UserTokens.TryGetValue(userId, out var tokens) && !tokens.IsEmpty)
+        {
+            activeTokens = tokens.Keys.ToList();
+        }
+        else
+        {
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                activeTokens = await db.UserDeviceTokens
+                    .Where(t => t.UserId == userId)
+                    .Select(t => t.Token)
+                    .ToListAsync(ct);
+
+                if (activeTokens.Count > 0)
+                {
+                    var userDict = UserTokens.GetOrAdd(userId, _ => new ConcurrentDictionary<string, DateTimeOffset>());
+                    foreach (var t in activeTokens) userDict[t] = DateTimeOffset.UtcNow;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to load device tokens from DB for user {UserId}", userId);
+                activeTokens = new List<string>();
+            }
+        }
+
+        if (activeTokens.Count == 0)
+        {
+            _logger.LogWarning("No registered FCM tokens found in memory or database for user {UserId}", userId);
+            return;
+        }
+
         var expiredTokens = new List<string>();
 
         foreach (var token in activeTokens)
@@ -177,11 +265,28 @@ public class FirebasePushNotificationService : IFirebasePushNotificationService
 
         if (expiredTokens.Count > 0)
         {
-            foreach (var expired in expiredTokens)
+            if (UserTokens.TryGetValue(userId, out var userDict))
             {
-                tokens.TryRemove(expired, out _);
+                foreach (var expired in expiredTokens) userDict.TryRemove(expired, out _);
             }
-            PersistTokens();
+
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var toDelete = await db.UserDeviceTokens
+                    .Where(t => t.UserId == userId && expiredTokens.Contains(t.Token))
+                    .ToListAsync(ct);
+                if (toDelete.Count > 0)
+                {
+                    db.UserDeviceTokens.RemoveRange(toDelete);
+                    await db.SaveChangesAsync(ct);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to remove expired tokens from DB for user {UserId}", userId);
+            }
         }
     }
 
@@ -197,45 +302,5 @@ public class FirebasePushNotificationService : IFirebasePushNotificationService
         {
             await SendPushNotificationAsync(uid, title, body, type, relatedEntityId, ct);
         }
-    }
-
-    private void PersistTokens()
-    {
-        try
-        {
-            var data = UserTokens.ToDictionary(
-                kvp => kvp.Key.ToString(),
-                kvp => kvp.Value.Keys.ToList());
-            var json = JsonSerializer.Serialize(data);
-            var filePath = Path.Combine(Directory.GetCurrentDirectory(), TokenStorageFile);
-            File.WriteAllText(filePath, json);
-        }
-        catch (Exception) {}
-    }
-
-    private void LoadPersistedTokens()
-    {
-        try
-        {
-            var filePath = Path.Combine(Directory.GetCurrentDirectory(), TokenStorageFile);
-            if (!File.Exists(filePath)) return;
-
-            var json = File.ReadAllText(filePath);
-            var data = JsonSerializer.Deserialize<Dictionary<string, List<string>>>(json);
-            if (data == null) return;
-
-            foreach (var (userIdStr, tokenList) in data)
-            {
-                if (Guid.TryParse(userIdStr, out var userId))
-                {
-                    var dict = UserTokens.GetOrAdd(userId, _ => new ConcurrentDictionary<string, DateTimeOffset>());
-                    foreach (var t in tokenList)
-                    {
-                        dict[t] = DateTimeOffset.UtcNow;
-                    }
-                }
-            }
-        }
-        catch (Exception) {}
     }
 }
