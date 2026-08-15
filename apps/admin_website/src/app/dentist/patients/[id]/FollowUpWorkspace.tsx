@@ -9,6 +9,7 @@ import {
   type ExaminationDto,
   type TreatmentPlanDto,
 } from "../../../../lib/apiClient";
+import { Toast, useToast } from "../../../../components/shared/Toast";
 
 interface FollowUpWorkspaceProps {
   appointmentId: string;
@@ -68,11 +69,7 @@ export default function FollowUpWorkspace({ appointmentId, editMode = false }: F
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
-  const showToast = (message: string, type: "success" | "error" = "success") => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 4000);
-  };
+  const { toast, showToast } = useToast();
 
   // Form hẹn tái khám
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
@@ -278,7 +275,7 @@ export default function FollowUpWorkspace({ appointmentId, editMode = false }: F
                           {row.serviceName} <span className="text-slate-400">→</span> {row.stepName}
                         </div>
                         <div className="text-[12px] font-semibold text-sky-600 mt-0.5">
-                          {row.stepNumber > 0 ? `${row.stepNumber}. ` : ""}{row.stepName} ({row.percent}%)
+                          {row.stepName} ({row.percent}%)
                         </div>
                         {row.note && <div className="text-[12px] italic text-slate-500 mt-0.5">{row.note}</div>}
                       </div>
@@ -453,12 +450,7 @@ export default function FollowUpWorkspace({ appointmentId, editMode = false }: F
         </div>
       </div>
 
-      {/* Toast */}
-      {toast && (
-        <div className={`fixed bottom-6 right-6 z-[60] px-5 py-3.5 rounded-xl shadow-lg text-[13.5px] font-bold text-white ${toast.type === "success" ? "bg-emerald-600" : "bg-red-600"}`}>
-          {toast.message}
-        </div>
-      )}
+      <Toast toast={toast} />
     </div>
   );
 }

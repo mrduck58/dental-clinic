@@ -13,7 +13,13 @@ import 'package:mobile_app/core/constants/api_constants.dart';
 class AppointmentListScreen extends StatefulWidget {
   final String? filterPatientId;
   final String? filterPatientName;
-  const AppointmentListScreen({super.key, this.filterPatientId, this.filterPatientName});
+  final int? initialTab;
+  const AppointmentListScreen({
+    super.key,
+    this.filterPatientId,
+    this.filterPatientName,
+    this.initialTab,
+  });
 
   @override
   State<AppointmentListScreen> createState() => _AppointmentListScreenState();
@@ -384,7 +390,9 @@ class _AppointmentListScreenState extends State<AppointmentListScreen> {
   Widget build(BuildContext context) {
     final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     return DefaultTabController(
+      key: ValueKey(widget.initialTab ?? 0),
       length: 3,
+      initialIndex: (widget.initialTab ?? 0).clamp(0, 2),
       child: Scaffold(
         backgroundColor: context.bg,
         appBar: AppBar(

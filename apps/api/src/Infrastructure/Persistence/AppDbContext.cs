@@ -47,12 +47,24 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AiUsageLog> AiUsageLogs => Set<AiUsageLog>();
     public DbSet<DentistReview> DentistReviews => Set<DentistReview>();
     public DbSet<PayrollRecord> PayrollRecords => Set<PayrollRecord>();
+    public DbSet<Expense> Expenses => Set<Expense>();
+    public DbSet<CommissionRule> CommissionRules => Set<CommissionRule>();
+    public DbSet<UserDeviceToken> UserDeviceTokens => Set<UserDeviceToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // Tự động đọc và áp dụng tất cả các cấu hình trong Assembly này
         // (Các class implement IEntityTypeConfiguration<T> trong Configurations/)
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+
+        modelBuilder.Entity<UserDeviceToken>(b =>
+        {
+            b.ToTable("UserDeviceTokens");
+            b.HasKey(e => e.Id);
+            b.HasIndex(e => e.UserId);
+            b.HasIndex(e => e.Token);
+        });
+
         base.OnModelCreating(modelBuilder);
     }
 }

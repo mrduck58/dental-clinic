@@ -30,6 +30,7 @@ public class NotificationRepository(AppDbContext db) : INotificationRepository
         string? search = null,
         int page = 1,
         int pageSize = 10,
+        string? sortDir = null,
         CancellationToken ct = default)
     {
         var query = db.Notifications
@@ -54,8 +55,10 @@ public class NotificationRepository(AppDbContext db) : INotificationRepository
         }
 
         var total = await query.CountAsync(ct);
-        var items = await query
-            .OrderByDescending(n => n.CreatedAt)
+        var ordered = string.Equals(sortDir, "asc", StringComparison.OrdinalIgnoreCase)
+            ? query.OrderBy(n => n.CreatedAt)
+            : query.OrderByDescending(n => n.CreatedAt);
+        var items = await ordered
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(ct);

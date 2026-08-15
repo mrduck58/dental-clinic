@@ -4,6 +4,8 @@ import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import AdminSidebar from "../../../components/shared/AdminSidebar";
 import AdminPageHeader from "../../../components/shared/AdminPageHeader";
+import Pagination from "../../../components/shared/Pagination";
+import { SortableTh, Th, toggleSortState, type SortDir } from "../../../components/shared/TableHeader";
 import { useRequireAdmin } from "../../../hooks/useRequireAdmin";
 import { useRouter } from "next/navigation";
 import {
@@ -44,6 +46,12 @@ function toService(dto: ServiceDto): Service {
 
 const ITEMS_PER_PAGE_DEFAULT = 5;
 
+type ServiceSortKey = "name" | "price" | "duration" | "status";
+const SERVICE_SORT_DESC_BY_DEFAULT = (column: ServiceSortKey) => column === "price";
+
+type PromoSortKey = "code" | "name" | "discount" | "startDate" | "status";
+const PROMO_SORT_DESC_BY_DEFAULT = (column: PromoSortKey) => column === "discount" || column === "startDate";
+
 export default function ServicesPage() {
   useRequireAdmin();
   const router = useRouter();
@@ -54,9 +62,13 @@ export default function ServicesPage() {
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(ITEMS_PER_PAGE_DEFAULT);
+  const [sortKey, setSortKey] = useState<ServiceSortKey>("name");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
 
   const [promoCurrentPage, setPromoCurrentPage] = useState(1);
   const [promoItemsPerPage, setPromoItemsPerPage] = useState(ITEMS_PER_PAGE_DEFAULT);
+  const [promoSortKey, setPromoSortKey] = useState<PromoSortKey>("startDate");
+  const [promoSortDir, setPromoSortDir] = useState<SortDir>("desc");
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
@@ -126,21 +138,68 @@ export default function ServicesPage() {
     });
   }, [services, searchQuery, statusFilter]);
 
-  const totalPages = Math.ceil(filteredServices.length / itemsPerPage);
+  const sortedServices = useMemo(() => {
+    const dir = sortDir === "asc" ? 1 : -1;
+    const value = (s: Service): string | number => {
+      switch (sortKey) {
+        case "name": return s.name.toLowerCase();
+        case "price": return s.price;
+        case "duration": return s.duration;
+        case "status": return s.status.toLowerCase();
+      }
+    };
+    return [...filteredServices].sort((a, b) => {
+      const va = value(a), vb = value(b);
+      if (typeof va === "string" && typeof vb === "string") return va.localeCompare(vb, "vi") * dir;
+      return ((va as number) - (vb as number)) * dir;
+    });
+  }, [filteredServices, sortKey, sortDir]);
+
   const paginatedServices = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
-    return filteredServices.slice(start, start + itemsPerPage);
-  }, [filteredServices, currentPage, itemsPerPage]);
+    return sortedServices.slice(start, start + itemsPerPage);
+  }, [sortedServices, currentPage, itemsPerPage]);
+
+  const handleSort = (column: ServiceSortKey) => {
+    const next = toggleSortState({ key: sortKey, dir: sortDir }, column, SERVICE_SORT_DESC_BY_DEFAULT);
+    setSortKey(next.key);
+    setSortDir(next.dir);
+    setCurrentPage(1);
+  };
 
   const filteredPromotions = useMemo(() => {
     return promotions;
   }, [promotions]);
 
-  const promoTotalPages = Math.ceil(filteredPromotions.length / promoItemsPerPage);
+  const sortedPromotions = useMemo(() => {
+    const dir = promoSortDir === "asc" ? 1 : -1;
+    const value = (p: PromotionDto): string | number => {
+      switch (promoSortKey) {
+        case "code": return p.code.toLowerCase();
+        case "name": return p.name.toLowerCase();
+        case "discount": return Number(p.discountValue);
+        case "startDate": return new Date(p.startDate).getTime();
+        case "status": return p.isActive ? 1 : 0;
+      }
+    };
+    return [...filteredPromotions].sort((a, b) => {
+      const va = value(a), vb = value(b);
+      if (typeof va === "string" && typeof vb === "string") return va.localeCompare(vb, "vi") * dir;
+      return ((va as number) - (vb as number)) * dir;
+    });
+  }, [filteredPromotions, promoSortKey, promoSortDir]);
+
   const paginatedPromotions = useMemo(() => {
     const start = (promoCurrentPage - 1) * promoItemsPerPage;
-    return filteredPromotions.slice(start, start + promoItemsPerPage);
-  }, [filteredPromotions, promoCurrentPage, promoItemsPerPage]);
+    return sortedPromotions.slice(start, start + promoItemsPerPage);
+  }, [sortedPromotions, promoCurrentPage, promoItemsPerPage]);
+
+  const handlePromoSort = (column: PromoSortKey) => {
+    const next = toggleSortState({ key: promoSortKey, dir: promoSortDir }, column, PROMO_SORT_DESC_BY_DEFAULT);
+    setPromoSortKey(next.key);
+    setPromoSortDir(next.dir);
+    setPromoCurrentPage(1);
+  };
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("vi-VN", {
@@ -381,12 +440,12 @@ export default function ServicesPage() {
               <table className="w-full text-left border-collapse text-[14px]">
                 <thead>
                   <tr className="bg-slate-50/50 font-extrabold text-slate-400 uppercase tracking-wider border-b border-slate-150">
-                    <th className="px-6 py-4">Icon</th>
-                    <th className="px-6 py-4">Dịch vụ</th>
-                    <th className="px-6 py-4">Giá dịch vụ</th>
-                    <th className="px-6 py-4">Thời gian</th>
-                    <th className="px-6 py-4 text-center">Trạng thái</th>
-                    <th className="px-6 py-4 text-center">Hành động</th>
+                    <Th className="px-6">Icon</Th>
+                    <SortableTh column="name" label="Dịch vụ" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-6" />
+                    <SortableTh column="price" label="Giá dịch vụ" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-6" />
+                    <SortableTh column="duration" label="Thời gian" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-6" />
+                    <SortableTh column="status" label="Trạng thái" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="center" className="px-6" />
+                    <Th className="px-6" align="center">Hành động</Th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-semibold text-slate-600">
@@ -508,85 +567,14 @@ export default function ServicesPage() {
 
             {/* Pagination bar */}
             {filteredServices.length > 0 && (
-              <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-2.5">
-                {/* Page info */}
-                <span className="text-[13px] text-slate-400 font-semibold text-center sm:text-left">
-                  Hiển thị{" "}
-                  <span className="text-slate-600 font-bold">{(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, filteredServices.length)}</span>
-                  {" "}trong{" "}
-                  <span className="text-slate-600 font-bold">{filteredServices.length}</span>
-                  {" "}dịch vụ
-                </span>
-                <div className="flex items-center gap-1.5 sm:gap-2.5 flex-wrap justify-center">
-                  {/* Quick First Page */}
-                  <button
-                    onClick={() => setCurrentPage(1)}
-                    disabled={currentPage === 1}
-                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
-                      currentPage === 1
-                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
-                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
-                    }`}
-                  >
-                    &lt;|
-                  </button>
-                  {/* Previous Page */}
-                  <button
-                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                    disabled={currentPage === 1}
-                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
-                      currentPage === 1
-                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
-                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
-                    }`}
-                  >
-                    &lt;
-                  </button>
-
-                  {/* Pages indicator list */}
-                  {Array.from({ length: totalPages }).map((_, idx) => {
-                    const p = idx + 1;
-                    const isActive = currentPage === p;
-                    return (
-                      <button
-                        key={p}
-                        onClick={() => setCurrentPage(p)}
-                        className={`w-9 h-9 rounded-xl border flex items-center justify-center font-extrabold text-[14px] transition-all cursor-pointer ${
-                          isActive
-                            ? "bg-white border-primary text-primary shadow-sm font-black"
-                            : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                        }`}
-                      >
-                        {p}
-                      </button>
-                    );
-                  })}
-
-                  {/* Next Page */}
-                  <button
-                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                    disabled={currentPage === totalPages}
-                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
-                      currentPage === totalPages
-                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
-                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
-                    }`}
-                  >
-                    &gt;
-                  </button>
-                  {/* Quick Last Page */}
-                  <button
-                    onClick={() => setCurrentPage(totalPages)}
-                    disabled={currentPage === totalPages}
-                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
-                      currentPage === totalPages
-                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
-                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
-                    }`}
-                  >
-                    |&gt;
-                  </button>
-                </div>
+              <div className="p-4 border-t border-slate-100">
+                <Pagination
+                  currentPage={currentPage}
+                  totalCount={filteredServices.length}
+                  pageSize={itemsPerPage}
+                  onPageChange={setCurrentPage}
+                  itemLabel="dịch vụ"
+                />
               </div>
             )}
           </div>
@@ -644,12 +632,12 @@ export default function ServicesPage() {
               <table className="w-full text-left border-collapse text-[14px]">
                 <thead>
                   <tr className="bg-slate-50/50 font-extrabold text-slate-400 uppercase tracking-wider border-b border-slate-150">
-                    <th className="px-6 py-4">Mã khuyến mãi</th>
-                    <th className="px-6 py-4">Thiết lập khuyến mãi</th>
-                    <th className="px-6 py-4">Giảm giá</th>
-                    <th className="px-6 py-4">Thời gian áp dụng</th>
-                    <th className="px-6 py-4 text-center">Trạng thái</th>
-                    <th className="px-6 py-4 text-center">Hành động</th>
+                    <SortableTh column="code" label="Mã khuyến mãi" sortKey={promoSortKey} sortDir={promoSortDir} onSort={handlePromoSort} className="px-6" />
+                    <SortableTh column="name" label="Thiết lập khuyến mãi" sortKey={promoSortKey} sortDir={promoSortDir} onSort={handlePromoSort} className="px-6" />
+                    <SortableTh column="discount" label="Giảm giá" sortKey={promoSortKey} sortDir={promoSortDir} onSort={handlePromoSort} className="px-6" />
+                    <SortableTh column="startDate" label="Thời gian áp dụng" sortKey={promoSortKey} sortDir={promoSortDir} onSort={handlePromoSort} className="px-6" />
+                    <SortableTh column="status" label="Trạng thái" sortKey={promoSortKey} sortDir={promoSortDir} onSort={handlePromoSort} align="center" className="px-6" />
+                    <Th className="px-6" align="center">Hành động</Th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-semibold text-slate-600">
@@ -741,85 +729,14 @@ export default function ServicesPage() {
 
             {/* Pagination bar */}
             {filteredPromotions.length > 0 && (
-              <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-2.5">
-                {/* Page info */}
-                <span className="text-[13px] text-slate-400 font-semibold text-center sm:text-left">
-                  Hiển thị{" "}
-                  <span className="text-slate-600 font-bold">{(promoCurrentPage - 1) * promoItemsPerPage + 1}–{Math.min(promoCurrentPage * promoItemsPerPage, filteredPromotions.length)}</span>
-                  {" "}trong{" "}
-                  <span className="text-slate-600 font-bold">{filteredPromotions.length}</span>
-                  {" "}khuyến mãi
-                </span>
-                <div className="flex items-center gap-1.5 sm:gap-2.5 flex-wrap justify-center">
-                  {/* Quick First Page */}
-                  <button
-                    onClick={() => setPromoCurrentPage(1)}
-                    disabled={promoCurrentPage === 1}
-                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
-                      promoCurrentPage === 1
-                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
-                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
-                    }`}
-                  >
-                    &lt;|
-                  </button>
-                  {/* Previous Page */}
-                  <button
-                    onClick={() => setPromoCurrentPage(prev => Math.max(1, prev - 1))}
-                    disabled={promoCurrentPage === 1}
-                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
-                      promoCurrentPage === 1
-                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
-                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
-                    }`}
-                  >
-                    &lt;
-                  </button>
-
-                  {/* Pages indicator list */}
-                  {Array.from({ length: promoTotalPages }).map((_, idx) => {
-                    const p = idx + 1;
-                    const isActive = promoCurrentPage === p;
-                    return (
-                      <button
-                        key={p}
-                        onClick={() => setPromoCurrentPage(p)}
-                        className={`w-9 h-9 rounded-xl border flex items-center justify-center font-extrabold text-[14px] transition-all cursor-pointer ${
-                          isActive
-                            ? "bg-white border-primary text-primary shadow-sm font-black"
-                            : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                        }`}
-                      >
-                        {p}
-                      </button>
-                    );
-                  })}
-
-                  {/* Next Page */}
-                  <button
-                    onClick={() => setPromoCurrentPage(prev => Math.min(promoTotalPages, prev + 1))}
-                    disabled={promoCurrentPage === promoTotalPages}
-                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
-                      promoCurrentPage === promoTotalPages
-                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
-                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
-                    }`}
-                  >
-                    &gt;
-                  </button>
-                  {/* Quick Last Page */}
-                  <button
-                    onClick={() => setPromoCurrentPage(promoTotalPages)}
-                    disabled={promoCurrentPage === promoTotalPages}
-                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
-                      promoCurrentPage === promoTotalPages
-                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
-                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
-                    }`}
-                  >
-                    |&gt;
-                  </button>
-                </div>
+              <div className="p-4 border-t border-slate-100">
+                <Pagination
+                  currentPage={promoCurrentPage}
+                  totalCount={filteredPromotions.length}
+                  pageSize={promoItemsPerPage}
+                  onPageChange={setPromoCurrentPage}
+                  itemLabel="khuyến mãi"
+                />
               </div>
             )}
           </div>

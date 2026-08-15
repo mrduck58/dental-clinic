@@ -173,7 +173,10 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
 
         if (date.HasValue)
         {
-            var start = new DateTimeOffset(date.Value.Year, date.Value.Month, date.Value.Day, 0, 0, 0, TimeSpan.Zero);
+            // Cửa sổ ngày tính theo giờ VN rồi quy về UTC — giống GetByDateAsync. Dùng mốc nửa đêm UTC
+            // sẽ lệch 7 tiếng: lịch hẹn 00:00–07:00 sáng bị tính sang ngày hôm trước.
+            var vnOffset = TimeSpan.FromHours(7);
+            var start = new DateTimeOffset(date.Value.Year, date.Value.Month, date.Value.Day, 0, 0, 0, vnOffset).ToUniversalTime();
             var end = start.AddDays(1);
             query = query.Where(a => a.AppointmentDate >= start && a.AppointmentDate < end);
         }
@@ -184,6 +187,74 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
         }
 
         return await query.OrderByDescending(a => a.CreatedAt).ToListAsync(cancellationToken);
+    }
+
+    public async Task<(IReadOnlyList<Appointment> Items, int TotalCount)> GetAppointmentsPagedAsync(
+        DateOnly? startDate, DateOnly? endDate, string? statusCsv, string? search,
+        int page, int pageSize, string? sortDir = null, CancellationToken cancellationToken = default)
+    {
+        var query = dbContext.Appointments
+            .Include(a => a.Patient).ThenInclude(p => p.User)
+            .Include(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
+            .Include(a => a.Service)
+            .AsQueryable();
+
+        if (startDate.HasValue)
+        {
+            var start = new DateTimeOffset(startDate.Value.Year, startDate.Value.Month, startDate.Value.Day, 0, 0, 0, TimeSpan.Zero);
+            query = query.Where(a => a.AppointmentDate >= start);
+        }
+
+        if (endDate.HasValue)
+        {
+            var endExclusive = new DateTimeOffset(endDate.Value.Year, endDate.Value.Month, endDate.Value.Day, 0, 0, 0, TimeSpan.Zero).AddDays(1);
+            query = query.Where(a => a.AppointmentDate < endExclusive);
+        }
+
+        if (!string.IsNullOrWhiteSpace(statusCsv))
+        {
+            var statuses = statusCsv
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(s => Enum.TryParse<AppointmentStatus>(s, ignoreCase: true, out var parsed) ? (AppointmentStatus?)parsed : null)
+                .Where(s => s.HasValue)
+                .Select(s => s!.Value)
+                .ToArray();
+            if (statuses.Length > 0)
+                query = query.Where(a => statuses.Contains(a.Status));
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLower();
+            query = query.Where(a =>
+                a.Patient.FullName.ToLower().Contains(term) ||
+                (a.Patient.User != null && a.Patient.User.PhoneNumber != null && a.Patient.User.PhoneNumber.Contains(term)) ||
+                a.Dentist.FullName.ToLower().Contains(term));
+        }
+
+        var total = await query.CountAsync(cancellationToken);
+
+        var ordered = string.Equals(sortDir, "asc", StringComparison.OrdinalIgnoreCase)
+            ? query.OrderBy(a => a.AppointmentDate)
+            : query.OrderByDescending(a => a.AppointmentDate);
+
+        var items = await ordered
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return (items, total);
+    }
+
+    public async Task<IReadOnlyList<Appointment>> GetByPatientIdWithDetailsAsync(Guid patientId, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Appointments
+            .Include(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
+            .Include(a => a.Service)
+            .Include(a => a.Invoices)
+            .Where(a => a.PatientId == patientId)
+            .OrderByDescending(a => a.AppointmentDate)
+            .ToListAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<Appointment>> GetMyAppointmentsAsync(Guid patientId, CancellationToken cancellationToken = default)

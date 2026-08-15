@@ -18,7 +18,7 @@ public class GetPromotionByIdHandlerTests
     {
         _repo = Substitute.For<IPromotionRepository>();
         _serviceRepo = Substitute.For<IServiceRepository>();
-        _serviceRepo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<Service>());
+        _serviceRepo.GetIdNameMapAsync(Arg.Any<CancellationToken>()).Returns(new Dictionary<Guid, string>());
     }
 
     /// <summary>

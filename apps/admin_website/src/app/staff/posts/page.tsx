@@ -6,15 +6,22 @@ import { getPostsApi, deletePostApi, resolveAssetUrl, type PostDto } from "../..
 import StaffSidebar from "../../../components/shared/StaffSidebar";
 import { useRequireStaff } from "../../../hooks/useRequireStaff";
 import NotificationBell from "../../../components/shared/NotificationBell";
+import { POST_CATEGORIES } from "../../../lib/postConstants";
 
 interface Post {
   id: string;
   title: string;
+  excerpt: string;
   category: string;
-  author: string;
   date: string;
+  createdAt: string; // ISO gốc — dùng để so sánh thời gian chính xác, "date" chỉ để hiển thị
   status: "Đã xuất bản" | "Bản nháp";
   thumbnailUrl: string | null;
+}
+
+function makeExcerpt(content: string, maxLen = 90): string {
+  const clean = content.replace(/\r?\n+/g, " ").trim();
+  return clean.length > maxLen ? `${clean.slice(0, maxLen).trimEnd()}…` : clean;
 }
 
 function toPost(dto: PostDto): Post {
@@ -23,37 +30,82 @@ function toPost(dto: PostDto): Post {
   return {
     id: dto.id,
     title: dto.title,
+    excerpt: makeExcerpt(dto.content),
     category: dto.category,
-    author: dto.author,
     date,
+    createdAt: dto.createdAt,
     status: dto.isPublished ? "Đã xuất bản" : "Bản nháp",
     thumbnailUrl: dto.thumbnailUrl,
   };
 }
 
-const CATEGORIES = [
-  "Tất cả danh mục",
-  "Chăm sóc răng miệng",
-  "Niềng răng",
-  "Phục hình",
-  "Khuyến mãi",
-  "Lời khuyên nha khoa"
+const ALL_CATEGORIES_LABEL = "Tất cả danh mục";
+
+const STATUS_FILTERS: { value: "all" | "published" | "draft"; label: string }[] = [
+  { value: "all",       label: "Tất cả" },
+  { value: "published", label: "Đã xuất bản" },
+  { value: "draft",     label: "Bản nháp" },
 ];
+
+const PAGE_SIZE_OPTIONS = [5, 10, 20];
+
+// Màu badge cho danh mục — gán theo hash tên danh mục nên luôn nhất quán cho cùng 1 tên,
+// không cần biết trước danh sách danh mục thực tế (danh mục là free-text, lấy động từ dữ liệu).
+const CATEGORY_COLORS = [
+  { bg: "bg-blue-50",    text: "text-blue-600",    border: "border-blue-100" },
+  { bg: "bg-purple-50",  text: "text-purple-600",  border: "border-purple-100" },
+  { bg: "bg-amber-50",   text: "text-amber-600",   border: "border-amber-100" },
+  { bg: "bg-emerald-50", text: "text-emerald-600", border: "border-emerald-100" },
+  { bg: "bg-pink-50",    text: "text-pink-600",    border: "border-pink-100" },
+  { bg: "bg-cyan-50",    text: "text-cyan-600",    border: "border-cyan-100" },
+];
+function categoryColor(category: string) {
+  let hash = 0;
+  for (let i = 0; i < category.length; i++) hash = (hash * 31 + category.charCodeAt(i)) >>> 0;
+  return CATEGORY_COLORS[hash % CATEGORY_COLORS.length];
+}
+
+// Danh sách số trang có rút gọn bằng "..." khi quá nhiều trang, tránh tràn ngang thanh phân trang.
+function getPageList(current: number, total: number): (number | "…")[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages: (number | "…")[] = [1];
+  if (current > 3) pages.push("…");
+  const start = Math.max(2, current - 1);
+  const end = Math.min(total - 1, current + 1);
+  for (let p = start; p <= end; p++) pages.push(p);
+  if (current < total - 2) pages.push("…");
+  pages.push(total);
+  return pages;
+}
 
 export default function PostsListPage() {
   useRequireStaff();
   const [posts, setPosts] = useState<Post[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("Tất cả danh mục");
+  const [selectedCategory, setSelectedCategory] = useState(ALL_CATEGORIES_LABEL);
+  const [statusFilter, setStatusFilter] = useState<"all" | "published" | "draft">("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [postsPerPage, setPostsPerPage] = useState(5);
 
+  // Danh mục hiển thị trong bộ lọc khớp đúng danh sách danh mục chính thức ở trang "Tạo bài viết
+  // mới" (POST_CATEGORIES) — không tự thêm danh mục lạ nào khác ngoài danh sách này.
+  const categories = [ALL_CATEGORIES_LABEL, ...POST_CATEGORIES];
+
   // Delete modal state
   const [deleteTarget, setDeleteTarget] = useState<Post | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  useEffect(() => {
-    getPostsApi().then((data) => setPosts(data.map(toPost)));
-  }, []);
+  const loadPosts = () => {
+    setLoading(true);
+    setLoadError(null);
+    getPostsApi()
+      .then((data) => setPosts(data.map(toPost)))
+      .catch((e) => setLoadError(e instanceof Error ? e.message : "Không thể tải danh sách bài viết"))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { loadPosts(); }, []);
 
   const handleDeleteClick = (post: Post) => {
     setDeleteTarget(post);
@@ -76,39 +128,41 @@ export default function PostsListPage() {
 
   // Filter and search logic
   const filteredPosts = posts.filter(post => {
-    const matchesSearch = post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      post.author.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory === "Tất cả danh mục" || post.category === selectedCategory;
-    return matchesSearch && matchesCategory;
+    const matchesSearch = post.title.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = selectedCategory === ALL_CATEGORIES_LABEL || post.category === selectedCategory;
+    const matchesStatus = statusFilter === "all" ||
+      (statusFilter === "published" ? post.status === "Đã xuất bản" : post.status === "Bản nháp");
+    return matchesSearch && matchesCategory && matchesStatus;
   });
 
   // Pagination logic
   const totalPages = Math.max(1, Math.ceil(filteredPosts.length / postsPerPage));
   const startIndex = (currentPage - 1) * postsPerPage;
   const paginatedPosts = filteredPosts.slice(startIndex, startIndex + postsPerPage);
+  const pageList = getPageList(currentPage, totalPages);
 
   // Reset page when search, filter, or page size changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, selectedCategory, postsPerPage]);
+  }, [searchQuery, selectedCategory, statusFilter, postsPerPage]);
 
   // Stats
   const totalPosts = posts.length;
   const publishedCount = posts.filter(p => p.status === "Đã xuất bản").length;
   const draftCount = posts.filter(p => p.status === "Bản nháp").length;
   const latestPost = posts.length > 0
-    ? posts.reduce((a, b) => (a.date >= b.date ? a : b))
+    ? posts.reduce((a, b) => (a.createdAt >= b.createdAt ? a : b))
     : null;
 
   return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
-      
+
       {/* ── SIDEBAR ──────────────────────────────────────────────────────── */}
       <StaffSidebar activeMenu="articles" />
 
       {/* ── MAIN AREA ────────────────────────────────────────────────────── */}
       <main className="flex-1 flex flex-col min-w-0">
-        
+
         {/* HEADER */}
         <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 sm:px-8 h-16 sm:h-20 flex items-center justify-between shrink-0 font-sans shadow-sm shadow-slate-100/50">
           <div className="flex items-center gap-3 min-w-0">
@@ -122,9 +176,14 @@ export default function PostsListPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
               </svg>
             </button>
-            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight truncate">
-              Quản lý Bài viết
-            </h1>
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight truncate">
+                Quản lý Bài viết
+              </h1>
+              <p className="hidden sm:block text-[12.5px] text-slate-400 font-semibold truncate">
+                Soạn thảo, xuất bản và quản lý nội dung blog phòng khám.
+              </p>
+            </div>
           </div>
 
           {/* Notifications */}
@@ -135,11 +194,11 @@ export default function PostsListPage() {
 
         {/* BODY */}
         <div className="p-4 sm:p-8 flex-1 overflow-y-auto flex flex-col gap-6 sm:gap-8">
-          
+
           {/* Stats Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Total */}
-            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-5 flex items-start justify-between">
+            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm hover:shadow-md transition-shadow p-5 flex items-start justify-between">
               <div className="flex flex-col gap-1">
                 <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Tổng bài viết</span>
                 <span className="text-3xl font-black text-slate-900">{totalPosts}</span>
@@ -152,7 +211,7 @@ export default function PostsListPage() {
             </div>
 
             {/* Published */}
-            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-5 flex items-start justify-between">
+            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm hover:shadow-md transition-shadow p-5 flex items-start justify-between">
               <div className="flex flex-col gap-1">
                 <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Đã xuất bản</span>
                 <div className="flex items-center gap-2">
@@ -168,7 +227,7 @@ export default function PostsListPage() {
             </div>
 
             {/* Draft */}
-            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-5 flex items-start justify-between">
+            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm hover:shadow-md transition-shadow p-5 flex items-start justify-between">
               <div className="flex flex-col gap-1">
                 <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Bản nháp</span>
                 <span className="text-3xl font-black text-slate-900">{draftCount}</span>
@@ -181,7 +240,12 @@ export default function PostsListPage() {
             </div>
 
             {/* Latest post */}
-            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-5 flex items-start justify-between gap-3">
+            <Link
+              href={latestPost ? `/staff/posts/${latestPost.id}/edit` : "#"}
+              className={`bg-white rounded-2xl border border-slate-200/60 shadow-sm p-5 flex items-start justify-between gap-3 transition-all ${
+                latestPost ? "hover:shadow-md hover:border-slate-300 cursor-pointer" : "cursor-default"
+              }`}
+            >
               <div className="flex flex-col gap-1 min-w-0">
                 <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Bài mới nhất</span>
                 {latestPost ? (
@@ -205,18 +269,18 @@ export default function PostsListPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-            </div>
+            </Link>
           </div>
 
           <div className="flex flex-col gap-6">
 
             {/* Search & Actions Bar */}
-            <div className="bg-white px-5 py-4 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col gap-3">
+            <div className="bg-white px-5 py-4 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col gap-3.5">
 
-              {/* Row 1: search + filters + create */}
-              <div className="flex flex-col md:flex-row md:items-center gap-3">
+              {/* Row 1: search + status + category + create */}
+              <div className="flex flex-col lg:flex-row lg:items-center gap-3">
                 {/* Search Bar */}
-                <div className="relative flex-1">
+                <div className="relative flex-1 min-w-[200px]">
                   <span className="absolute inset-y-0 left-3.5 flex items-center text-slate-400">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -224,11 +288,41 @@ export default function PostsListPage() {
                   </span>
                   <input
                     type="text"
-                    placeholder="Tìm kiếm bài viết..."
+                    placeholder="Tìm theo tiêu đề bài viết..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 text-[14px] bg-slate-100/80 rounded-xl border border-transparent focus:bg-white focus:border-slate-200 focus:outline-none transition-all font-semibold text-slate-800"
+                    className="w-full pl-10 pr-9 py-2.5 text-[14px] bg-slate-100/80 rounded-xl border border-transparent focus:bg-white focus:border-slate-200 focus:outline-none transition-all font-semibold text-slate-800"
                   />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery("")}
+                      className="absolute inset-y-0 right-2.5 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                      aria-label="Xóa tìm kiếm"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+
+                {/* Status pill toggle */}
+                <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl p-1 shadow-sm shrink-0">
+                  {STATUS_FILTERS.map((s) => (
+                    <button
+                      key={s.value}
+                      type="button"
+                      onClick={() => setStatusFilter(s.value)}
+                      className={`px-3.5 py-1.5 rounded-lg text-[13px] font-extrabold transition-all cursor-pointer whitespace-nowrap ${
+                        statusFilter === s.value
+                          ? "bg-primary text-white shadow-sm"
+                          : "text-slate-500 hover:text-slate-800 hover:bg-slate-200/40"
+                      }`}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
                 </div>
 
                 {/* Category Filter */}
@@ -238,10 +332,8 @@ export default function PostsListPage() {
                     onChange={(e) => setSelectedCategory(e.target.value)}
                     className="appearance-none bg-white text-slate-700 font-bold text-[14px] pl-4 pr-9 py-2.5 rounded-xl border border-slate-200 focus:outline-none transition-all cursor-pointer"
                   >
-                    {CATEGORIES.map((cat, idx) => (
-                      <option key={idx} value={cat}>
-                        {cat === "Tất cả danh mục" ? "Tất cả danh mục" : cat}
-                      </option>
+                    {categories.map((cat, idx) => (
+                      <option key={idx} value={cat}>{cat}</option>
                     ))}
                   </select>
                   <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">
@@ -254,7 +346,7 @@ export default function PostsListPage() {
                 {/* Create Button */}
                 <Link
                   href="/staff/posts/create"
-                  className="inline-flex items-center gap-2 bg-primary hover:bg-primary-hover text-white font-bold text-[14px] px-5 py-2.5 rounded-xl transition-all shadow-md shadow-primary/25 shrink-0"
+                  className="inline-flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-white font-bold text-[14px] px-5 py-2.5 rounded-xl transition-all shadow-md shadow-primary/25 shrink-0"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -264,7 +356,7 @@ export default function PostsListPage() {
               </div>
 
               {/* Row 2: per-page + result count */}
-              <div className="flex items-center gap-2 text-[13px] text-slate-400 font-semibold border-t border-slate-100 pt-3">
+              <div className="flex flex-wrap items-center gap-2 text-[13px] text-slate-400 font-semibold border-t border-slate-100 pt-3">
                 <span>Hiển thị</span>
                 <div className="relative">
                   <select
@@ -272,7 +364,7 @@ export default function PostsListPage() {
                     onChange={(e) => setPostsPerPage(Number(e.target.value))}
                     className="appearance-none bg-white text-slate-700 font-bold text-[13px] pl-3 pr-7 py-1 rounded-lg border border-slate-200 focus:outline-none cursor-pointer"
                   >
-                    {[5, 10, 20].map(n => (
+                    {PAGE_SIZE_OPTIONS.map(n => (
                       <option key={n} value={n}>{n}</option>
                     ))}
                   </select>
@@ -299,60 +391,93 @@ export default function PostsListPage() {
                 <table className="w-full text-left border-collapse text-[14px]">
                   <thead>
                     <tr className="bg-slate-50/50 font-extrabold text-slate-400 uppercase tracking-wider border-b border-slate-150">
-                      <th className="px-4 py-4 w-16">Ảnh</th>
-                      <th className="px-6 py-4">Tiêu đề</th>
+                      <th className="px-6 py-4">Bài viết</th>
                       <th className="px-6 py-4">Danh mục</th>
-                      <th className="px-6 py-4">Tác giả</th>
                       <th className="px-6 py-4">Ngày đăng</th>
                       <th className="px-6 py-4">Trạng thái</th>
-                      <th className="px-6 py-4 text-center">Chức năng</th>
+                      <th className="px-6 py-4 text-center">Thao tác</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-semibold text-slate-600">
-                    {paginatedPosts.length > 0 ? (
+                    {loading ? (
+                      <tr>
+                        <td colSpan={5} className="px-6 py-16 text-center text-slate-400 font-semibold">
+                          <div className="flex flex-col items-center gap-3">
+                            <div className="w-7 h-7 border-[3px] border-primary/20 border-t-primary rounded-full animate-spin" />
+                            Đang tải danh sách bài viết...
+                          </div>
+                        </td>
+                      </tr>
+                    ) : loadError ? (
+                      <tr>
+                        <td colSpan={5} className="px-6 py-16 text-center">
+                          <div className="flex flex-col items-center gap-3">
+                            <span className="text-[14px] font-bold text-red-500">{loadError}</span>
+                            <button
+                              onClick={loadPosts}
+                              className="text-[13px] font-bold text-primary hover:underline cursor-pointer"
+                            >
+                              Thử lại
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : paginatedPosts.length > 0 ? (
                       paginatedPosts.map((post) => (
-                        <tr key={post.id} className="hover:bg-slate-50/40 transition-colors">
-                          <td className="px-4 py-3">
-                            {post.thumbnailUrl ? (
-                              <img
-                                src={resolveAssetUrl(post.thumbnailUrl)}
-                                alt={post.title}
-                                className="w-12 h-12 rounded-lg object-cover border border-slate-100 shrink-0"
-                              />
-                            ) : (
-                              <div className="w-12 h-12 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
-                                <svg className="w-5 h-5 text-slate-300" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 18h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v10.5a1.5 1.5 0 001.5 1.5z" />
-                                </svg>
+                        <tr key={post.id} className="hover:bg-slate-50/50 transition-colors group">
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3.5 min-w-[220px] max-w-md">
+                              {post.thumbnailUrl ? (
+                                <img
+                                  src={resolveAssetUrl(post.thumbnailUrl)}
+                                  alt={post.title}
+                                  className="w-14 h-14 rounded-xl object-cover border border-slate-100 shrink-0 transition-transform group-hover:scale-105"
+                                />
+                              ) : (
+                                <div className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
+                                  <svg className="w-5 h-5 text-slate-300" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 18h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v10.5a1.5 1.5 0 001.5 1.5z" />
+                                  </svg>
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <p className="font-bold text-slate-800 truncate">{post.title}</p>
+                                <p className="text-[12.5px] text-slate-400 font-medium truncate mt-0.5">{post.excerpt || "Chưa có nội dung."}</p>
                               </div>
-                            )}
+                            </div>
                           </td>
-                          <td className="px-6 py-4 font-bold text-slate-800 max-w-xs md:max-w-sm lg:max-w-md truncate">
-                            {post.title}
+                          <td className="px-6 py-4">
+                            {(() => {
+                              const c = categoryColor(post.category);
+                              return (
+                                <span className={`inline-flex px-2.5 py-1 rounded-full text-[12px] font-bold border whitespace-nowrap ${c.bg} ${c.text} ${c.border}`}>
+                                  {post.category}
+                                </span>
+                              );
+                            })()}
                           </td>
-                          <td className="px-6 py-4 text-slate-500 font-medium">{post.category}</td>
-                          <td className="px-6 py-4 text-slate-600 font-bold">{post.author}</td>
-                          <td className="px-6 py-4 text-slate-400 font-semibold">{post.date}</td>
+                          <td className="px-6 py-4 text-slate-400 font-semibold whitespace-nowrap">{post.date}</td>
                           <td className="px-6 py-4">
                             <span
-                              className={`inline-flex px-3 py-1 rounded-full text-[12px] font-bold ${
+                              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-bold whitespace-nowrap ${
                                 post.status === "Đã xuất bản"
                                   ? "bg-green-50 text-green-600 border border-green-100"
                                   : "bg-amber-50 text-amber-600 border border-amber-100"
                               }`}
                             >
+                              <span className={`w-1.5 h-1.5 rounded-full ${post.status === "Đã xuất bản" ? "bg-green-500" : "bg-amber-500"}`} />
                               {post.status}
                             </span>
                           </td>
                           <td className="px-6 py-4">
-                            <div className="flex items-center justify-center gap-4">
+                            <div className="flex items-center justify-center gap-1.5">
                               {/* Preview Button */}
                               <Link
                                 href={`/staff/posts/${post.id}/preview`}
-                                className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all"
+                                className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all"
                                 title="Xem trước bài viết"
                               >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                 </svg>
@@ -360,20 +485,20 @@ export default function PostsListPage() {
                               {/* Edit Button */}
                               <Link
                                 href={`/staff/posts/${post.id}/edit`}
-                                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
+                                className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
                                 title="Chỉnh sửa bài viết"
                               >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
                                 </svg>
                               </Link>
                               {/* Delete Button */}
                               <button
                                 onClick={() => handleDeleteClick(post)}
-                                className="p-1.5 rounded-lg text-red-400 hover:text-primary hover:bg-red-50 transition-all cursor-pointer"
+                                className="p-2 rounded-lg text-red-400 hover:text-primary hover:bg-red-50 transition-all cursor-pointer"
                                 title="Xóa bài viết"
                               >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                                 </svg>
                               </button>
@@ -383,8 +508,15 @@ export default function PostsListPage() {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={7} className="px-6 py-12 text-center text-slate-400 font-semibold">
-                          Không tìm thấy bài viết nào phù hợp.
+                        <td colSpan={5} className="px-6 py-16 text-center text-slate-400 font-semibold">
+                          <div className="flex flex-col items-center gap-3">
+                            <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center">
+                              <svg className="w-6 h-6 text-slate-300" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23-.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5" />
+                              </svg>
+                            </div>
+                            <span>Không tìm thấy bài viết nào phù hợp.</span>
+                          </div>
                         </td>
                       </tr>
                     )}
@@ -403,75 +535,57 @@ export default function PostsListPage() {
                     <span className="text-slate-600 font-bold">{filteredPosts.length}</span>
                     {" "}bài viết
                   </span>
-                  <div className="flex items-center gap-1.5 sm:gap-2.5 flex-wrap justify-center">
-                  {/* Quick First Page */}
-                  <button
-                    onClick={() => setCurrentPage(1)}
-                    disabled={currentPage === 1}
-                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
-                      currentPage === 1
-                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
-                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
-                    }`}
-                  >
-                    &lt;|
-                  </button>
-                  {/* Previous Page */}
-                  <button
-                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                    disabled={currentPage === 1}
-                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
-                      currentPage === 1
-                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
-                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
-                    }`}
-                  >
-                    &lt;
-                  </button>
-                  
-                  {/* Pages indicator list */}
-                  {Array.from({ length: totalPages }).map((_, idx) => {
-                    const p = idx + 1;
-                    const isActive = currentPage === p;
-                    return (
-                      <button
-                        key={p}
-                        onClick={() => setCurrentPage(p)}
-                        className={`w-9 h-9 rounded-xl border flex items-center justify-center font-extrabold text-[14px] transition-all cursor-pointer ${
-                          isActive
-                            ? "bg-white border-primary text-primary shadow-sm font-black"
-                            : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                        }`}
-                      >
-                        {p}
-                      </button>
-                    );
-                  })}
+                  <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-center">
+                    {/* Previous Page */}
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                      className={`w-9 h-9 rounded-xl border flex items-center justify-center transition-all ${
+                        currentPage === 1
+                          ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
+                          : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
+                      }`}
+                      aria-label="Trang trước"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                      </svg>
+                    </button>
 
-                  {/* Next Page */}
-                  <button
-                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                    disabled={currentPage === totalPages}
-                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
-                      currentPage === totalPages
-                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
-                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
-                    }`}
-                  >
-                    &gt;
-                  </button>
-                  {/* Quick Last Page */}
-                  <button
-                    onClick={() => setCurrentPage(totalPages)}
-                    disabled={currentPage === totalPages}
-                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
-                      currentPage === totalPages
-                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
-                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
-                    }`}
-                  >
-                    |&gt;
-                  </button>
+                    {/* Pages indicator list (rút gọn bằng "…" khi nhiều trang) */}
+                    {pageList.map((p, idx) =>
+                      p === "…" ? (
+                        <span key={`ellipsis-${idx}`} className="w-9 h-9 flex items-center justify-center text-slate-300 font-bold select-none">…</span>
+                      ) : (
+                        <button
+                          key={p}
+                          onClick={() => setCurrentPage(p)}
+                          className={`w-9 h-9 rounded-xl border flex items-center justify-center font-extrabold text-[14px] transition-all cursor-pointer ${
+                            currentPage === p
+                              ? "bg-primary border-primary text-white shadow-md shadow-primary/20"
+                              : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      )
+                    )}
+
+                    {/* Next Page */}
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                      className={`w-9 h-9 rounded-xl border flex items-center justify-center transition-all ${
+                        currentPage === totalPages
+                          ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
+                          : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
+                      }`}
+                      aria-label="Trang sau"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
               )}
@@ -482,7 +596,11 @@ export default function PostsListPage() {
               <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
                 <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xl max-w-md w-full animate-fade-in flex flex-col gap-4">
                   <div className="flex items-center gap-3 text-primary">
-                    <span className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center font-bold text-lg">⚠️</span>
+                    <span className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+                      <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                      </svg>
+                    </span>
                     <h4 className="text-[17px] font-black text-slate-900">Xác nhận xóa bài viết</h4>
                   </div>
                   <p className="text-[14px] text-slate-500 font-semibold leading-relaxed">

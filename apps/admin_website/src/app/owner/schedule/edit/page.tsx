@@ -18,7 +18,7 @@ interface ScheduleEntry {
   type: "dentist" | "staff";
   role: "dentist" | "assistant" | "staff"; // dentist = Bác sĩ, assistant = Phụ tá, staff = Nhân viên hành chính
   name: string;
-  room: string; // "PHÒNG 1" | "PHÒNG 2" for dentist, or "LỄ TÂN" | "CSKH" | "KẾ TOÁN" for staff
+  room: string; // tên phòng đúng như trong bảng Rooms — ghi thẳng vào WorkSchedules.Room khi lưu
   roomColor: string;
   isHoliday?: boolean;
   isDraft?: boolean; // temporary flag for modifying slots
@@ -101,6 +101,9 @@ function EditScheduleContent() {
   const [staffDatabase, setStaffDatabase] = useState<StaffMember[]>([]);
   const [isLoadingStaff, setIsLoadingStaff] = useState(true);
   const [allRooms, setAllRooms] = useState<RoomDto[]>([]);
+  // Phân biệt rõ ba tình huống: đang tải / gọi API lỗi / tải xong nhưng bảng Rooms trống.
+  // Trước đây cả ba đều cho ra cùng một lưới phòng nên không ai biết dữ liệu thật đang rỗng.
+  const [roomsStatus, setRoomsStatus] = useState<"loading" | "ready" | "error">("loading");
 
   const [staffType, setStaffType] = useState<"dentist" | "staff">("dentist");
   const [searchQuery, setSearchQuery] = useState("");
@@ -198,11 +201,17 @@ function EditScheduleContent() {
   }, []);
 
   // Load rooms from backend
-  useEffect(() => {
+  const loadRooms = useCallback(() => {
     getRoomsApi()
-      .then(rooms => setAllRooms(rooms))
-      .catch(() => setAllRooms([]));
+      .then(rooms => { setAllRooms(rooms); setRoomsStatus("ready"); })
+      .catch(() => { setAllRooms([]); setRoomsStatus("error"); });
   }, []);
+
+  useEffect(() => { loadRooms(); }, [loadRooms]);
+
+  // Nút thử lại: đưa về trạng thái đang tải rồi gọi lại (loadRooms không tự đặt "loading" để
+  // effect nạp lần đầu không setState đồng bộ trong thân effect).
+  const retryLoadRooms = () => { setRoomsStatus("loading"); loadRooms(); };
 
   // Load schedules for the active week from API
   useEffect(() => {
@@ -244,36 +253,22 @@ function EditScheduleContent() {
     };
   }, [weekDates]);
 
-  // Dynamic rooms fetched from backend, split by type and annotated with disabled status
+  // Phòng LUÔN lấy từ bảng Rooms, không có phòng thì trả về rỗng để lưới hiện trạng thái
+  // "chưa có phòng". Tuyệt đối không dựng phòng mặc định: tên phòng ở đây được ghi thẳng vào
+  // WorkSchedules.Room khi lưu, và chính chuỗi đó là thứ hàng đợi lễ tân dùng để gom bệnh nhân
+  // theo phòng — xếp lịch vào một phòng không tồn tại sẽ tạo ra hàng đợi ma.
   const computeRoomRows = useCallback((type: "dentist" | "staff"): RoomRow[] => {
     const colors = type === "dentist" ? ROOM_COLORS_DENTIST : ROOM_COLORS_STAFF;
 
-    if (allRooms.length > 0) {
-      const filtered = allRooms.filter(r =>
-        type === "dentist" ? !isStaffRoomType(r) : isStaffRoomType(r)
-      );
-      if (filtered.length > 0) {
-        return filtered.map((room, idx) => ({
-          label: room.name.toUpperCase(),
-          key: room.name,
-          color: colors[idx % colors.length],
-          isDisabled: DISABLED_ROOM_STATUSES.includes(room.status),
-          disabledReason: DISABLED_ROOM_STATUSES.includes(room.status) ? room.status : null,
-        }));
-      }
-    }
-
-    // Fallback to hardcoded while rooms are loading or none found
-    if (type === "dentist") {
-      return [
-        { label: "PHÒNG 1", key: "PHÒNG 1", color: "border-primary",    isDisabled: false, disabledReason: null },
-        { label: "PHÒNG 2", key: "PHÒNG 2", color: "border-secondary",  isDisabled: false, disabledReason: null },
-      ];
-    }
-    return [
-      { label: "LỄ TÂN", key: "LỄ TÂN", color: "border-green-600", isDisabled: false, disabledReason: null },
-      { label: "CSKH",   key: "CSKH",   color: "border-teal-600",   isDisabled: false, disabledReason: null },
-    ];
+    return allRooms
+      .filter(r => type === "dentist" ? !isStaffRoomType(r) : isStaffRoomType(r))
+      .map((room, idx) => ({
+        label: room.name.toUpperCase(),
+        key: room.name,
+        color: colors[idx % colors.length],
+        isDisabled: DISABLED_ROOM_STATUSES.includes(room.status),
+        disabledReason: DISABLED_ROOM_STATUSES.includes(room.status) ? room.status : null,
+      }));
   }, [allRooms]);
 
   const roomRows = useMemo(() => computeRoomRows(staffType), [computeRoomRows, staffType]);
@@ -656,6 +651,13 @@ function EditScheduleContent() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Không có phòng thì không có gì để gắn ca vào — dừng sớm thay vì nhập ra lịch trỏ vào hư không.
+    if (allRooms.length === 0) {
+      showToast("Chưa có phòng nào trong hệ thống nên không thể nhập lịch. Nhờ Admin thêm phòng trước.", "error");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (evt) => {
       try {
@@ -676,6 +678,8 @@ function EditScheduleContent() {
         const activeDates = weekDates.map(d => formatDateKey(d));
         const parsedStaffEntries: ScheduleEntry[] = [];
         const holidayDates = new Set<string>();
+        // Nhãn cột trong file không khớp phòng nào trong hệ thống — báo lại để biết vì sao thiếu ca.
+        const unmatchedLabels = new Set<string>();
 
         let currentShift: string | null = null;
 
@@ -696,59 +700,25 @@ function EditScheduleContent() {
           const positionLabel = String(rowData[1] || "").trim();
           if (!positionLabel) continue;
 
-          let type: "dentist" | "staff" = "dentist";
-          let role: "dentist" | "assistant" | "staff" = "dentist";
-          let room = "";
-          let roomColor = "border-primary";
-          let labelMatched = false;
-
           const label = positionLabel.toLowerCase();
 
-          if (label.includes("phòng 1") && (label.includes("bác sĩ") || label.includes("bác sỹ"))) {
-            type = "dentist";
-            role = "dentist";
-            room = "PHÒNG 1";
-            roomColor = "border-primary";
-            labelMatched = true;
-          } else if (label.includes("phòng 1") && label.includes("phụ tá")) {
-            type = "dentist";
-            role = "assistant";
-            room = "PHÒNG 1";
-            roomColor = "border-primary";
-            labelMatched = true;
-          } else if (label.includes("phòng 2") && (label.includes("bác sĩ") || label.includes("bác sỹ"))) {
-            type = "dentist";
-            role = "dentist";
-            room = "PHÒNG 2";
-            roomColor = "border-secondary";
-            labelMatched = true;
-          } else if (label.includes("phòng 2") && label.includes("phụ tá")) {
-            type = "dentist";
-            role = "assistant";
-            room = "PHÒNG 2";
-            roomColor = "border-secondary";
-            labelMatched = true;
-          } else if (label.includes("lễ tân")) {
-            type = "staff";
-            role = "staff";
-            room = "LỄ TÂN";
-            roomColor = "border-green-600";
-            labelMatched = true;
-          } else if (label.includes("chăm sóc khách hàng") || label.includes("cskh")) {
-            type = "staff";
-            role = "staff";
-            room = "CSKH";
-            roomColor = "border-teal-600";
-            labelMatched = true;
-          } else if (label.includes("kế toán")) {
-            type = "staff";
-            role = "staff";
-            room = "KẾ TOÁN";
-            roomColor = "border-indigo-600";
-            labelMatched = true;
+          // Phòng lấy từ bảng Rooms, không dò theo tên phòng viết cứng: nhãn cột nào không khớp
+          // phòng có thật thì bỏ qua, tránh import ra lịch trỏ vào phòng không tồn tại.
+          // Xét tên dài trước để "Phòng 10" không bị "Phòng 1" nuốt mất.
+          const matchedRoom = [...allRooms]
+            .sort((a, b) => b.name.length - a.name.length)
+            .find(r => label.includes(r.name.toLowerCase()));
+
+          if (!matchedRoom) {
+            unmatchedLabels.add(positionLabel);
+            continue;
           }
 
-          if (!labelMatched) continue;
+          const type: "dentist" | "staff" = isStaffRoomType(matchedRoom) ? "staff" : "dentist";
+          const role: "dentist" | "assistant" | "staff" =
+            type === "staff" ? "staff" : label.includes("phụ tá") ? "assistant" : "dentist";
+          const room = matchedRoom.name;
+          const roomColor = computeRoomRows(type).find(r => r.key === room)?.color ?? "border-primary";
 
           // Parse columns Monday (C/2) to Sunday (I/8)
           for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
@@ -806,12 +776,20 @@ function EditScheduleContent() {
         });
 
         if (importedEntries.length === 0) {
-          showToast("Không tìm thấy ca làm hợp lệ để nhập.", "info");
+          showToast(
+            unmatchedLabels.size > 0
+              ? `Không nhập được ca nào: các cột "${[...unmatchedLabels].join('", "')}" trong file không khớp phòng nào trong hệ thống.`
+              : "Không tìm thấy ca làm hợp lệ để nhập.",
+            "info");
           return;
         }
 
         setActiveWeekSchedules(importedEntries);
-        showToast(`Nhập thành công! Đã nạp ${importedEntries.length} ca làm từ Excel. Hãy nhấn "Lưu thay đổi" để xác nhận.`, "success");
+        showToast(
+          unmatchedLabels.size > 0
+            ? `Đã nạp ${importedEntries.length} ca làm. Bỏ qua các cột không khớp phòng nào: "${[...unmatchedLabels].join('", "')}". Hãy nhấn "Lưu thay đổi" để xác nhận.`
+            : `Nhập thành công! Đã nạp ${importedEntries.length} ca làm từ Excel. Hãy nhấn "Lưu thay đổi" để xác nhận.`,
+          unmatchedLabels.size > 0 ? "info" : "success");
 
       } catch (err) {
         showToast("Đọc file Excel thất bại. Vui lòng kiểm tra lại cấu trúc file.", "error");
@@ -994,9 +972,12 @@ function EditScheduleContent() {
       dbType = role === "dentist" ? "dentist" : "assistant";
     } else {
       dbType = "staff";
-      if (room === "LỄ TÂN") filterSpecialization = "Lễ tân";
-      if (room === "CSKH") filterSpecialization = "Chăm sóc khách hàng";
-      if (room === "KẾ TOÁN") filterSpecialization = "Kế toán";
+      // Khớp không phân biệt hoa/thường và theo chuỗi con: tên phòng nay lấy từ bảng Rooms
+      // (vd "Lễ tân", "Phòng CSKH") nên so sánh bằng với hằng viết hoa sẽ không bao giờ trúng.
+      const roomLower = room.toLowerCase();
+      if (roomLower.includes("lễ tân")) filterSpecialization = "Lễ tân";
+      else if (roomLower.includes("cskh") || roomLower.includes("chăm sóc")) filterSpecialization = "Chăm sóc khách hàng";
+      else if (roomLower.includes("kế toán")) filterSpecialization = "Kế toán";
     }
 
     // Filter BR-SCH-EDIT-008: Only show active staff matching type and specialization
@@ -1058,6 +1039,72 @@ function EditScheduleContent() {
     }
     return list;
   }, [staffDatabase, panelRole, panelSearch]);
+
+  // ── Lưới rỗng: không có phòng nào để xếp ──────────────────────────────────
+  // Thay cho danh sách phòng mặc định cũ. Nói rõ đang ở tình huống nào để chủ phòng khám biết
+  // phải làm gì, thay vì thấy một lưới trông như bình thường rồi xếp lịch vào phòng không có thật.
+  const renderNoRoomsRow = () => {
+    const isDentistTab = staffType === "dentist";
+    const hasOtherTypeRooms = allRooms.length > 0;
+
+    return (
+      <tr>
+        <td colSpan={weekDates.length + 1} className="px-6 py-16">
+          <div className="flex flex-col items-center justify-center gap-2.5 text-center">
+            {roomsStatus === "loading" ? (
+              <>
+                <div className="w-7 h-7 border-[3px] border-primary/20 border-t-primary rounded-full animate-spin" />
+                <p className="text-[13.5px] font-bold text-slate-500">Đang tải danh sách phòng...</p>
+              </>
+            ) : roomsStatus === "error" ? (
+              <>
+                <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center">
+                  <svg className="w-7 h-7 text-red-500" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                  </svg>
+                </div>
+                <p className="text-[14px] font-black text-slate-700">Không tải được danh sách phòng</p>
+                <p className="text-[12.5px] font-semibold text-slate-400 max-w-md">
+                  Máy chủ không phản hồi hoặc phiên đăng nhập đã hết hạn. Không thể xếp lịch khi chưa biết phòng nào đang có.
+                </p>
+                <button
+                  onClick={retryLoadRooms}
+                  className="mt-1 px-4 py-2 text-[12.5px] font-black text-white bg-primary rounded-xl hover:opacity-90 transition-all cursor-pointer"
+                >
+                  Thử lại
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center">
+                  <svg className="w-7 h-7 text-slate-400" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
+                  </svg>
+                </div>
+                <p className="text-[14px] font-black text-slate-700">
+                  {isDentistTab ? "Chưa có phòng khám nào" : "Chưa có phòng chức năng nào"}
+                </p>
+                <p className="text-[12.5px] font-semibold text-slate-400 max-w-md leading-relaxed">
+                  {hasOtherTypeRooms
+                    ? `Hệ thống có ${allRooms.length} phòng nhưng không phòng nào thuộc nhóm này — phòng được phân nhóm theo trường "Loại phòng" (lễ tân, CSKH, chăm sóc, kế toán, hành chính thuộc khối nhân viên, còn lại là phòng khám).`
+                    : isDentistTab
+                      ? "Hệ thống chưa có phòng nào để xếp bác sĩ và phụ tá."
+                      : "Hệ thống chưa có phòng nào cho khối nhân viên (lễ tân, CSKH, kế toán...)."}
+                  {" "}Nhờ Admin thêm phòng ở mục Quản lý phòng, sau đó tải lại danh sách.
+                </p>
+                <button
+                  onClick={retryLoadRooms}
+                  className="mt-1 px-4 py-2 text-[12.5px] font-black text-primary bg-primary/5 border border-primary/30 rounded-xl hover:bg-primary/10 transition-all cursor-pointer"
+                >
+                  Tải lại danh sách phòng
+                </button>
+              </>
+            )}
+          </div>
+        </td>
+      </tr>
+    );
+  };
 
   // ── Render một ô ngày (giao của 1 ca + 1 phòng + 1 ngày) ──────────────────
   const renderDayCell = (shift: string, room: RoomRow, date: Date, dayIdx: number) => {
@@ -1465,7 +1512,7 @@ function EditScheduleContent() {
 
                 <tbody className="divide-y divide-slate-250/70">
 
-                  {SHIFT_PERIODS.map((period) => (
+                  {roomRows.length === 0 ? renderNoRoomsRow() : SHIFT_PERIODS.map((period) => (
                     <React.Fragment key={period}>
                       {/* Nhóm buổi: Sáng / Chiều / Tối */}
                       <tr>
@@ -1736,6 +1783,11 @@ function EditScheduleContent() {
                 {/* Chọn phòng */}
                 <div>
                   <label className="block text-[12.5px] font-black text-slate-700 mb-2 uppercase tracking-wide">Chọn phòng</label>
+                  {bulkRoomRows.length === 0 && (
+                    <div className="px-3.5 py-3 rounded-lg bg-slate-50 border border-dashed border-slate-250 text-[12.5px] font-bold text-slate-400">
+                      Chưa có phòng nào để phân bổ — nhờ Admin thêm phòng ở mục Quản lý phòng.
+                    </div>
+                  )}
                   <div className="flex flex-wrap gap-2">
                     {bulkRoomRows.map((room) => (
                       <button

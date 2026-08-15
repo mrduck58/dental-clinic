@@ -13,6 +13,15 @@ public class TreatmentProcedureRepository(AppDbContext db) : ITreatmentProcedure
             .OrderBy(p => p.StepNumber)
             .ToListAsync(ct);
 
+    public async Task<IReadOnlyList<TreatmentProcedure>> GetByServiceIdsAsync(List<Guid> serviceIds, CancellationToken ct = default)
+        => serviceIds.Count == 0
+            ? Array.Empty<TreatmentProcedure>()
+            : await db.TreatmentProcedures
+                .AsNoTracking()
+                .Where(p => serviceIds.Contains(p.ServiceId))
+                .OrderBy(p => p.StepNumber)
+                .ToListAsync(ct);
+
     public async Task ReplaceAllForServiceAsync(Guid serviceId, IEnumerable<TreatmentProcedure> newProcedures, CancellationToken ct = default)
     {
         var existing = await db.TreatmentProcedures

@@ -13,14 +13,9 @@ import {
 import StaffSidebar from "../../../../components/shared/StaffSidebar";
 import { useRequireStaff } from "../../../../hooks/useRequireStaff";
 import NotificationBell from "../../../../components/shared/NotificationBell";
+import { POST_CATEGORIES } from "../../../../lib/postConstants";
 
-const CATEGORIES = [
-  "Chăm sóc răng miệng",
-  "Niềng răng",
-  "Phục hình",
-  "Khuyến mãi",
-  "Lời khuyên nha khoa"
-];
+const DEFAULT_AUTHOR = "Sơn Giang Dental";
 
 export default function CreatePostPage() {
   useRequireStaff();
@@ -131,7 +126,7 @@ export default function CreatePostPage() {
         title,
         category,
         content,
-        author: "ThS. BS. Nguyễn Minh Đức",
+        author: DEFAULT_AUTHOR,
         thumbnailUrl: thumbnail || null,
         isPublished,
       });
@@ -354,7 +349,7 @@ export default function CreatePostPage() {
                         className="w-full appearance-none bg-white text-slate-700 font-bold text-[14px] pl-4 pr-10 py-3 rounded-xl border border-slate-200 hover:border-slate-350 focus:border-primary/50 focus:outline-none transition-all cursor-pointer"
                       >
                         <option value="" disabled>Chọn danh mục</option>
-                        {CATEGORIES.map((cat, idx) => (
+                        {POST_CATEGORIES.map((cat, idx) => (
                           <option key={idx} value={cat}>
                             {cat}
                           </option>

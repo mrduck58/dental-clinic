@@ -160,8 +160,27 @@ app.UseStaticFiles();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await db.Database.MigrateAsync();
-    await DataSeeder.SeedAsync(db);
+    try
+    {
+        await db.Database.ExecuteSqlRawAsync(@"
+            CREATE TABLE IF NOT EXISTS ""UserDeviceTokens"" (
+                ""Id"" uuid PRIMARY KEY,
+                ""UserId"" uuid NOT NULL,
+                ""Token"" text NOT NULL,
+                ""DeviceType"" text NULL,
+                ""UpdatedAt"" timestamp with time zone NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS ""IX_UserDeviceTokens_UserId"" ON ""UserDeviceTokens"" (""UserId"");
+            CREATE INDEX IF NOT EXISTS ""IX_UserDeviceTokens_Token"" ON ""UserDeviceTokens"" (""Token"");
+        ");
+        await db.Database.MigrateAsync();
+        await DataSeeder.SeedAsync(db);
+    }
+    catch (Exception ex)
+    {
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        logger.LogWarning(ex, "Lưu ý: Tự động migrate/seed database bị bỏ qua (do dùng Supabase Pooler hoặc đã cập nhật trước đó). API tiếp tục khởi động.");
+    }
 }
 if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();

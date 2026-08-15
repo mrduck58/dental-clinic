@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useMemo } from "react";
 import StaffSidebar from "../../../components/shared/StaffSidebar";
 import StaffPageHeader from "../../../components/shared/StaffPageHeader";
+import Pagination from "../../../components/shared/Pagination";
+import { SortableTh, Th, toggleSortState, type SortDir } from "../../../components/shared/TableHeader";
 import { useRequireStaff } from "../../../hooks/useRequireStaff";
 import {
   getFeedbacksApi,
@@ -11,6 +13,8 @@ import {
   generateFeedbackReplyApi,
   type FeedbackDto,
 } from "../../../lib/apiClient";
+
+type SortKey = "name" | "rating" | "date";
 
 export default function StaffFeedbackPage() {
   useRequireStaff();
@@ -22,6 +26,8 @@ export default function StaffFeedbackPage() {
   const [statusFilter, setStatusFilter] = useState("All");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
+  const [sortKey, setSortKey] = useState<SortKey>("date");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   const [replyTarget, setReplyTarget] = useState<FeedbackDto | null>(null);
   const [replyContent, setReplyContent] = useState("");
@@ -116,9 +122,32 @@ export default function StaffFeedbackPage() {
     setCurrentPage(1);
   }, [searchQuery, ratingFilter, statusFilter, itemsPerPage]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredFeedbacks.length / itemsPerPage));
+  const sortedFeedbacks = useMemo(() => {
+    const dir = sortDir === "asc" ? 1 : -1;
+    const value = (fb: FeedbackDto): string | number => {
+      switch (sortKey) {
+        case "name":   return fb.customerName.toLowerCase();
+        case "rating": return fb.rating;
+        case "date":   return new Date(fb.createdAt).getTime();
+      }
+    };
+    return [...filteredFeedbacks].sort((a, b) => {
+      const va = value(a);
+      const vb = value(b);
+      if (typeof va === "string" && typeof vb === "string") return va.localeCompare(vb, "vi") * dir;
+      return ((va as number) - (vb as number)) * dir;
+    });
+  }, [filteredFeedbacks, sortKey, sortDir]);
+
+  const handleSort = (column: SortKey) => {
+    const next = toggleSortState({ key: sortKey, dir: sortDir }, column, (col) => col === "rating" || col === "date");
+    setSortKey(next.key);
+    setSortDir(next.dir);
+    setCurrentPage(1);
+  };
+
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedFeedbacks = filteredFeedbacks.slice(startIndex, startIndex + itemsPerPage);
+  const paginatedFeedbacks = sortedFeedbacks.slice(startIndex, startIndex + itemsPerPage);
 
   const getInitials = (name: string) =>
     name.trim().split(/\s+/).slice(-2).map((w) => w[0]).join("").toUpperCase();
@@ -301,11 +330,11 @@ export default function StaffFeedbackPage() {
               <table className="w-full text-left border-collapse text-[14px] min-w-[650px]">
                 <thead>
                   <tr className="bg-slate-50/50 font-extrabold text-slate-400 uppercase tracking-wider border-b border-slate-150">
-                    <th className="px-6 py-4">Tên khách hàng</th>
-                    <th className="px-6 py-4">Đánh giá</th>
-                    <th className="px-6 py-4">Bình luận</th>
-                    <th className="px-6 py-4">Ngày</th>
-                    <th className="px-6 py-4 text-center">Hành động</th>
+                    <SortableTh column="name" label="Tên khách hàng" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-6" />
+                    <SortableTh column="rating" label="Đánh giá" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-6" />
+                    <Th className="px-6">Bình luận</Th>
+                    <SortableTh column="date" label="Ngày" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-6" />
+                    <Th className="px-6" align="center">Hành động</Th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-semibold text-slate-600">
@@ -433,78 +462,13 @@ export default function StaffFeedbackPage() {
             {/* PAGINATION */}
             {filteredFeedbacks.length > 0 && (
               <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-2.5">
-                <span className="text-[12px] text-slate-400 font-semibold text-center sm:text-left">
-                  Hiển thị{" "}
-                  <span className="font-black text-slate-600">{startIndex + 1}–{Math.min(startIndex + itemsPerPage, filteredFeedbacks.length)}</span>{" "}
-                  trong{" "}
-                  <span className="font-black text-slate-600">{filteredFeedbacks.length}</span>{" "}
-                  phản hồi
-                </span>
-
-                <div className="flex items-center gap-1.5 flex-wrap justify-center">
-                  <button
-                    onClick={() => setCurrentPage(1)}
-                    disabled={currentPage === 1}
-                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
-                      currentPage === 1
-                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
-                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
-                    }`}
-                  >
-                    |&lt;
-                  </button>
-                  <button
-                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                    disabled={currentPage === 1}
-                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
-                      currentPage === 1
-                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
-                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
-                    }`}
-                  >
-                    &lt;
-                  </button>
-
-                  {Array.from({ length: totalPages }).map((_, idx) => {
-                    const p = idx + 1;
-                    return (
-                      <button
-                        key={p}
-                        onClick={() => setCurrentPage(p)}
-                        className={`w-9 h-9 rounded-xl border flex items-center justify-center font-extrabold text-[14px] transition-all cursor-pointer ${
-                          currentPage === p
-                            ? "bg-white border-primary text-primary shadow-sm font-black"
-                            : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                        }`}
-                      >
-                        {p}
-                      </button>
-                    );
-                  })}
-
-                  <button
-                    onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                    disabled={currentPage === totalPages}
-                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
-                      currentPage === totalPages
-                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
-                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
-                    }`}
-                  >
-                    &gt;
-                  </button>
-                  <button
-                    onClick={() => setCurrentPage(totalPages)}
-                    disabled={currentPage === totalPages}
-                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
-                      currentPage === totalPages
-                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
-                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
-                    }`}
-                  >
-                    &gt;|
-                  </button>
-                </div>
+                <Pagination
+                  currentPage={currentPage}
+                  totalCount={filteredFeedbacks.length}
+                  pageSize={itemsPerPage}
+                  onPageChange={setCurrentPage}
+                  itemLabel="phản hồi"
+                />
               </div>
             )}
           </div>

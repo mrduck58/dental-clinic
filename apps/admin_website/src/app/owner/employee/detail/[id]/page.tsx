@@ -5,21 +5,17 @@ import { useRouter, useParams } from "next/navigation";
 import OwnerSidebar from "../../../../../components/shared/OwnerSidebar";
 import OwnerPageHeader from "../../../../../components/shared/OwnerPageHeader";
 import { useRequireOwner } from "../../../../../hooks/useRequireOwner";
-import { getWeekScheduleApi, getStaffByIdApi, resolveAssetUrl, type StaffDto, type ScheduleEntryDto } from "../../../../../lib/apiClient";
+import {
+  getWeekScheduleApi,
+  getStaffByIdApi,
+  getDentistReviewsApi,
+  resolveAssetUrl,
+  type StaffDto,
+  type ScheduleEntryDto,
+  type DentistReviewsResultDto,
+} from "../../../../../lib/apiClient";
 import { periodOfShift } from "../../../../../lib/shifts";
 import { ROLE_LABELS, ROLE_BADGE_CLASSES, type UiRole } from "../../../../../lib/roles";
-
-// ── Mock review data — TODO: replace with real reviews API ────────────────
-const MOCK_RATING = 4.8;
-const MOCK_REVIEWS = [
-  { id: "1", patient: "Nguyễn V.A.", date: "10/06/2026", rating: 5, comment: "Nha sĩ rất tận tâm, giải thích rõ ràng từng bước điều trị. Rất hài lòng với kết quả!" },
-  { id: "2", patient: "Trần T.B.", date: "08/06/2026", rating: 4, comment: "Tay nghề tốt, ít đau. Thái độ phục vụ thân thiện và chuyên nghiệp, sẽ quay lại." },
-  { id: "3", patient: "Lê Văn C.", date: "05/06/2026", rating: 5, comment: "Phòng khám sạch sẽ, nha sĩ giỏi và nhiệt tình. Đã giới thiệu cho nhiều người thân!" },
-  { id: "4", patient: "Phạm T.D.", date: "01/06/2026", rating: 3, comment: "Chờ khá lâu nhưng nha sĩ điều trị tốt và cẩn thận." },
-  { id: "5", patient: "Hoàng V.E.", date: "28/05/2026", rating: 5, comment: "Rất chuyên nghiệp! Nha sĩ giải thích kỹ từng vấn đề, tôi rất an tâm điều trị." },
-  { id: "6", patient: "Vũ T.F.", date: "25/05/2026", rating: 4, comment: "Kỹ thuật tốt, giá cả hợp lý. Sẽ giới thiệu nha sĩ cho người thân." },
-  { id: "7", patient: "Đặng T.G.", date: "20/05/2026", rating: 2, comment: "Hơi vội, không giải thích nhiều. Mong nha sĩ dành thêm thời gian cho bệnh nhân." },
-];
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -44,6 +40,21 @@ function fmt(s: string | null | undefined): string {
   if (!s) return "—";
   const [y, m, d] = s.split("-");
   return `${d}/${m}/${y}`;
+}
+
+/** Ngày giờ ISO → "dd/mm/yyyy". Dùng cho createdAt của đánh giá (khác fmt vốn nhận date-only). */
+function fmtIsoDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
+
+/** Số tiền VND, hoặc "Chưa có dữ liệu" khi hồ sơ chưa khai — tuyệt đối không suy đoán mức lương. */
+function fmtMoneyOrEmpty(v: number | null | undefined): string {
+  if (v == null) return "Chưa có dữ liệu";
+  return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(v);
 }
 
 function calcSeniority(startDate: string | null | undefined): string {
@@ -142,6 +153,9 @@ export default function StaffDetailPage() {
   const [monthSchedule, setMonthSchedule] = useState<ScheduleEntryDto[]>([]);
   const [isLoadingSchedule, setIsLoadingSchedule] = useState(true);
   const [starFilter, setStarFilter] = useState<number | null>(null);
+  // Đánh giá lấy từ API. Tách riêng trạng thái lỗi để không nhầm "API hỏng" thành "chưa có đánh giá".
+  const [reviews, setReviews] = useState<DentistReviewsResultDto | null>(null);
+  const [errorReviews, setErrorReviews] = useState<string | null>(null);
 
   const today      = new Date();
   const todayStr   = today.toISOString().split("T")[0];
@@ -152,10 +166,14 @@ export default function StaffDetailPage() {
 
   useEffect(() => {
     const raw = sessionStorage.getItem("staffDetailData");
-    if (raw) {
-      setStaff(JSON.parse(raw) as StaffDto);
+    // Bản ghi được trang danh sách gửi kèm qua sessionStorage. Nếu là bản cũ chưa có
+    // dentistProfileId thì bỏ qua, tải lại từ API — thiếu id đó là không tra được đánh giá.
+    const seeded = raw ? (JSON.parse(raw) as StaffDto) : null;
+    if (raw) sessionStorage.removeItem("staffDetailData");
+
+    if (seeded && (seeded.role !== "Dentist" || seeded.dentistProfileId !== undefined)) {
+      setStaff(seeded);
       setIsLoadingStaff(false);
-      sessionStorage.removeItem("staffDetailData");
     } else if (id) {
       setIsLoadingStaff(true);
       getStaffByIdApi(id)
@@ -173,6 +191,22 @@ export default function StaffDetailPage() {
       setIsLoadingStaff(false);
     }
   }, [id]);
+
+  // Đánh giá của bệnh nhân — chỉ bác sĩ mới có, khóa theo DentistProfileId chứ không theo User.
+  const dentistProfileId = staff?.dentistProfileId ?? null;
+  useEffect(() => {
+    if (!dentistProfileId) return;
+    let cancelled = false;
+    getDentistReviewsApi(dentistProfileId)
+      .then(res => { if (!cancelled) { setReviews(res); setErrorReviews(null); } })
+      .catch(err => {
+        if (!cancelled) setErrorReviews(err instanceof Error ? err.message : "Không thể tải đánh giá");
+      });
+    return () => { cancelled = true; };
+  }, [dentistProfileId]);
+
+  // Suy ra thay vì giữ state riêng: có hồ sơ nha sĩ nhưng chưa có cả kết quả lẫn lỗi = đang tải.
+  const isLoadingReviews = !!dentistProfileId && reviews === null && errorReviews === null;
 
   useEffect(() => {
     setIsLoadingSchedule(true);
@@ -194,7 +228,7 @@ export default function StaffDetailPage() {
   if (isLoadingStaff) {
     return (
       <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
-        <OwnerSidebar activeMenu="staff" />
+        <OwnerSidebar activeMenu={isDentist ? "staff-dentists" : "staff-list"} />
         <main className="flex-1 flex flex-col items-center justify-center gap-4">
           <div className="w-12 h-12 rounded-full border-4 border-primary border-t-transparent animate-spin" />
           <p className="text-slate-500 font-bold text-[14px]">Đang tải hồ sơ nhân sự...</p>
@@ -207,13 +241,13 @@ export default function StaffDetailPage() {
   if (errorStaff || !staff) {
     return (
       <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
-        <OwnerSidebar activeMenu="staff" />
+        <OwnerSidebar activeMenu={isDentist ? "staff-dentists" : "staff-list"} />
         <main className="flex-1 flex flex-col items-center justify-center gap-4">
           <svg className="w-14 h-14 text-slate-300" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
           </svg>
           <p className="text-slate-500 font-bold text-[15px]">{errorStaff || "Không tìm thấy dữ liệu."}</p>
-          <button onClick={() => router.push("/owner/employee")} className="px-6 py-3 bg-primary text-white font-extrabold rounded-xl cursor-pointer">
+          <button onClick={() => router.push("/owner/employee/dentists")} className="px-6 py-3 bg-primary text-white font-extrabold rounded-xl cursor-pointer">
             Quay lại danh sách
           </button>
         </main>
@@ -238,34 +272,32 @@ export default function StaffDetailPage() {
     ? staff.fullName.trim().split(/\s+/).slice(-2).map(w => w[0]).join("").toUpperCase()
     : staff.email.slice(0, 2).toUpperCase();
 
-  const exp = staff.yearsOfExperience ?? 5;
-  const isPartTime = exp % 2 === 0 && isDentist;
-  const isShift = !isPartTime && (staff.role === "Staff" && (staff.position?.toLowerCase().includes("lễ tân") || staff.position?.toLowerCase().includes("tiếp đón")));
-  const employmentType = staff.employmentType || (isPartTime ? "Part-time" : isShift ? "Shift-based" : "Full-time");
-  const baseSalary = staff.baseSalary ?? (isDentist ? (25000000 + exp * 1500000) : (10000000 + (staff.fullName?.length || 5) * 200000));
-  const salaryUnit = staff.salaryUnit || (isPartTime ? "Theo ngày" : isShift ? "Theo ca" : "Theo tháng");
-  const leaveAccrued = staff.leaveAccrued ?? (isDentist ? 1.5 : 1);
-  const leaveMax = staff.leaveAccrued ? Math.ceil(staff.leaveAccrued * 2) : (isDentist ? 3 : 2);
+  // Đãi ngộ: hiển thị ĐÚNG những gì hồ sơ có. Trước đây chỗ này tự suy ra hình thức làm việc từ
+  // số năm kinh nghiệm chẵn/lẻ và bịa mức lương theo độ dài tên — số liệu trông thật nhưng sai hoàn toàn.
+  const employmentType = staff.employmentType;
+  const salaryUnit = staff.salaryUnit;
+  const leaveAccrued = staff.leaveAccrued;
 
   // ── Reviews ────────────────────────────────────────────────────────────
+  const reviewList = reviews?.reviews ?? [];
   const starCounts = [5, 4, 3, 2, 1].map(s => ({
     star: s,
-    count: MOCK_REVIEWS.filter(r => r.rating === s).length,
+    count: reviewList.filter(r => r.rating === s).length,
   }));
   const filteredReviews = starFilter === null
-    ? MOCK_REVIEWS
-    : MOCK_REVIEWS.filter(r => r.rating === starFilter);
+    ? reviewList
+    : reviewList.filter(r => r.rating === starFilter);
 
   return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
-      <OwnerSidebar activeMenu="staff" />
+      <OwnerSidebar activeMenu={isDentist ? "staff-dentists" : "staff-list"} />
 
       <main className="flex-1 flex flex-col min-w-0">
 
         {/* ── Top Header ── */}
         <OwnerPageHeader
           left={
-            <button onClick={() => router.push("/owner/employee")} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all cursor-pointer">
+            <button onClick={() => router.push(isDentist ? "/owner/employee/dentists" : "/owner/employee/staff")} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all cursor-pointer">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
               </svg>
@@ -362,14 +394,26 @@ export default function StaffDetailPage() {
               {isDentist ? (
                 <div className="bg-white rounded-2xl border border-amber-100 shadow-sm p-4 flex flex-col gap-1.5">
                   <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Đánh giá</span>
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-xl font-black text-amber-500">{MOCK_RATING}</span>
-                    <svg className="w-4 h-4 text-amber-400 mb-0.5" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                    </svg>
-                    <span className="text-[11px] text-slate-400 font-semibold">/ 5.0</span>
-                  </div>
-                  <span className="text-[11.5px] text-slate-400 font-semibold">{MOCK_REVIEWS.length} đánh giá</span>
+                  {isLoadingReviews ? (
+                    <span className="text-xl font-black text-slate-300">...</span>
+                  ) : errorReviews ? (
+                    <span className="text-[13px] font-bold text-red-500 py-1">Không tải được</span>
+                  ) : !dentistProfileId ? (
+                    <span className="text-[13px] font-bold text-slate-400 py-1">Chưa có hồ sơ nha sĩ</span>
+                  ) : reviewList.length === 0 ? (
+                    <span className="text-[13px] font-bold text-slate-400 py-1">Chưa có đánh giá</span>
+                  ) : (
+                    <>
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-xl font-black text-amber-500">{reviews!.averageRating.toFixed(1)}</span>
+                        <svg className="w-4 h-4 text-amber-400 mb-0.5" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                        </svg>
+                        <span className="text-[11px] text-slate-400 font-semibold">/ 5.0</span>
+                      </div>
+                      <span className="text-[11.5px] text-slate-400 font-semibold">{reviews!.reviewCount} đánh giá</span>
+                    </>
+                  )}
                 </div>
               ) : (
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex flex-col gap-1">
@@ -474,37 +518,47 @@ export default function StaffDetailPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-[13.5px]">
                     <div>
                       <span className="block text-slate-400 font-semibold">Hình thức làm việc:</span>
-                      <span className="font-extrabold text-slate-900 block mt-1">
+                      <span className={`font-extrabold block mt-1 ${employmentType ? "text-slate-900" : "text-slate-400"}`}>
                         {employmentType === "Full-time"
                           ? "Toàn thời gian"
                           : employmentType === "Part-time"
                           ? "Bán thời gian"
-                          : "Theo ca"}
+                          : employmentType === "Shift-based"
+                          ? "Theo ca"
+                          : employmentType || "Chưa có dữ liệu"}
                       </span>
                     </div>
 
                     <div>
                       <span className="block text-slate-400 font-semibold">Lương cơ bản:</span>
-                      <span className="font-extrabold text-red-600 block mt-1">
-                        {new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(baseSalary)}
-                        <span className="text-xs text-slate-400 font-semibold"> / {salaryUnit.replace("Theo ", "")}</span>
+                      <span className={`font-extrabold block mt-1 ${staff.baseSalary == null ? "text-slate-400" : "text-red-600"}`}>
+                        {fmtMoneyOrEmpty(staff.baseSalary)}
+                        {staff.baseSalary != null && salaryUnit && (
+                          <span className="text-xs text-slate-400 font-semibold"> / {salaryUnit.replace("Theo ", "")}</span>
+                        )}
                       </span>
                     </div>
 
                     <div>
                       <span className="block text-slate-400 font-semibold">Chu kỳ tính lương:</span>
-                      <span className="font-extrabold text-slate-900 block mt-1">{salaryUnit}</span>
+                      <span className={`font-extrabold block mt-1 ${salaryUnit ? "text-slate-900" : "text-slate-400"}`}>
+                        {salaryUnit || "Chưa có dữ liệu"}
+                      </span>
                     </div>
 
                     {employmentType === "Full-time" && (
                       <div className="sm:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-slate-100 pt-4">
                         <div className="flex justify-between items-center bg-teal-50/40 rounded-xl p-3 border border-teal-100/40">
                           <span className="text-slate-500 font-bold">Phép tích lũy thêm hàng tháng:</span>
-                          <span className="font-extrabold text-teal-800 text-[14.5px]">{leaveAccrued} ngày</span>
+                          <span className={`font-extrabold text-[14.5px] ${leaveAccrued == null ? "text-slate-400" : "text-teal-800"}`}>
+                            {leaveAccrued == null ? "Chưa có dữ liệu" : `${leaveAccrued} ngày`}
+                          </span>
                         </div>
                         <div className="flex justify-between items-center bg-teal-50/40 rounded-xl p-3 border border-teal-100/40">
-                          <span className="text-slate-550 font-bold">Phép tối đa được nghỉ / tháng:</span>
-                          <span className="font-extrabold text-teal-800 text-[14.5px]">{leaveMax} ngày</span>
+                          <span className="text-slate-550 font-bold">Phụ cấp:</span>
+                          <span className={`font-extrabold text-[14.5px] ${staff.allowance == null ? "text-slate-400" : "text-teal-800"}`}>
+                            {fmtMoneyOrEmpty(staff.allowance)}
+                          </span>
                         </div>
                       </div>
                     )}
@@ -654,12 +708,31 @@ export default function StaffDetailPage() {
                         <div className="w-1 h-3.5 bg-amber-400 rounded-full" />
                         <span className="text-[10.5px] font-black text-slate-400 uppercase tracking-widest">Đánh giá bệnh nhân</span>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <Stars rating={MOCK_RATING} size={13} />
-                        <span className="text-[13px] font-black text-amber-500">{MOCK_RATING}</span>
-                      </div>
+                      {reviews && reviewList.length > 0 && (
+                        <div className="flex items-center gap-1.5">
+                          <Stars rating={reviews.averageRating} size={13} />
+                          <span className="text-[13px] font-black text-amber-500">{reviews.averageRating.toFixed(1)}</span>
+                        </div>
+                      )}
                     </div>
 
+                    {isLoadingReviews ? (
+                      <p className="py-6 text-center text-[12px] text-slate-400 font-semibold">Đang tải đánh giá...</p>
+                    ) : errorReviews ? (
+                      <div className="py-6 flex flex-col items-center gap-2">
+                        <p className="text-[12px] text-red-500 font-bold text-center">{errorReviews}</p>
+                        <p className="text-[11px] text-slate-400 font-semibold text-center">Đây là lỗi tải dữ liệu, không phải bác sĩ chưa có đánh giá.</p>
+                      </div>
+                    ) : !dentistProfileId ? (
+                      <p className="py-6 text-center text-[12px] text-slate-400 font-semibold">
+                        Nhân viên này chưa có hồ sơ nha sĩ nên chưa tra được đánh giá.
+                      </p>
+                    ) : reviewList.length === 0 ? (
+                      <p className="py-6 text-center text-[12px] text-slate-400 font-semibold">
+                        Chưa có đánh giá nào từ bệnh nhân.
+                      </p>
+                    ) : (
+                      <>
                     {/* Star filter buttons */}
                     <div className="flex flex-wrap gap-1.5 mb-3">
                       <button
@@ -668,7 +741,7 @@ export default function StaffDetailPage() {
                       >
                         Tất cả
                         <span className={`px-1.5 py-0.5 rounded text-[10px] font-black ${starFilter === null ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"}`}>
-                          {MOCK_REVIEWS.length}
+                          {reviewList.length}
                         </span>
                       </button>
                       {starCounts.map(({ star, count }) => (
@@ -692,27 +765,32 @@ export default function StaffDetailPage() {
                     {/* Review list */}
                     <div className="flex flex-col divide-y divide-slate-50 max-h-80 overflow-y-auto pr-1">
                       {filteredReviews.length === 0 ? (
-                        <p className="py-6 text-center text-[12px] text-slate-400 font-semibold">Không có đánh giá nào.</p>
+                        <p className="py-6 text-center text-[12px] text-slate-400 font-semibold">Không có đánh giá nào ở mức sao này.</p>
                       ) : (
                         filteredReviews.map(review => (
                           <div key={review.id} className="py-3 flex flex-col gap-2">
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex items-center gap-2 min-w-0">
                                 <div className="w-7 h-7 rounded-full bg-gradient-to-br from-slate-200 to-slate-100 flex items-center justify-center shrink-0">
-                                  <span className="text-[10px] font-black text-slate-500">{review.patient.slice(0, 2).toUpperCase()}</span>
+                                  <span className="text-[10px] font-black text-slate-500">{review.patientName.slice(0, 2).toUpperCase()}</span>
                                 </div>
-                                <span className="text-[12px] font-extrabold text-slate-700 truncate">{review.patient}</span>
+                                <span className="text-[12px] font-extrabold text-slate-700 truncate">{review.patientName}</span>
                               </div>
                               <div className="flex items-center gap-1.5 shrink-0">
                                 <Stars rating={review.rating} size={11} />
-                                <span className="text-[10.5px] text-slate-400 font-semibold">{review.date}</span>
+                                <span className="text-[10.5px] text-slate-400 font-semibold">{fmtIsoDate(review.createdAt)}</span>
                               </div>
                             </div>
+                            {review.serviceName && (
+                              <span className="text-[11px] font-bold text-slate-400">Dịch vụ: {review.serviceName}</span>
+                            )}
                             <p className="text-[12.5px] text-slate-600 font-semibold leading-relaxed line-clamp-2">{review.comment}</p>
                           </div>
                         ))
                       )}
                     </div>
+                      </>
+                    )}
                   </div>
                 )}
 

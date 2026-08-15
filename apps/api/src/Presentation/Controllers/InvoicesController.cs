@@ -61,6 +61,14 @@ public class InvoicesController(ISender sender) : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>GET api/invoices/by-patient/{patientId} — Toàn bộ hóa đơn (chờ + đã thanh toán) của một bệnh nhân.</summary>
+    [HttpGet("by-patient/{patientId:guid}")]
+    public async Task<IActionResult> GetByPatient(Guid patientId, CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new GetInvoicesByPatientQuery(patientId), cancellationToken);
+        return Ok(result);
+    }
+
     /// <summary>PUT api/invoices/{id}/pay — Xác nhận đã thanh toán, hoàn tất lịch hẹn.</summary>
     [HttpPut("{id}/pay")]
     public async Task<IActionResult> ConfirmPayment(

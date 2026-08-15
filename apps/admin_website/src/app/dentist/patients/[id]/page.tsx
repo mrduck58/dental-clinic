@@ -27,6 +27,7 @@ import {
   type DiagnosisDto,
   type PatientMedicalHistoryDto,
 } from "../../../../lib/apiClient";
+import { Toast, useToast } from "../../../../components/shared/Toast";
 
 type TreatmentStatus = "pending" | "in_progress" | "done";
 
@@ -67,6 +68,16 @@ const EMPTY_EXAM_FORM = {
 };
 type ExamForm = typeof EMPTY_EXAM_FORM;
 
+// Danh sách lựa chọn cho các ô có giá trị cố định (thay vì bắt nha sĩ gõ tay)
+const OPT_YES_NO = ["Không", "Có"];
+const OPT_LEVEL = ["Không có", "Ít", "Trung bình", "Nhiều"];
+const OPT_GUM = ["Bình thường", "Viêm lợi nhẹ", "Viêm lợi trung bình", "Viêm lợi nặng", "Tụt lợi", "Sưng đỏ / phì đại lợi"];
+const OPT_MUCOSA = ["Bình thường", "Viêm niêm mạc", "Loét niêm mạc", "Nấm miệng", "Tổn thương trắng / đỏ"];
+const OPT_TMJ = ["Bình thường", "Đau khớp", "Có tiếng kêu khớp", "Há miệng hạn chế", "Lệch hàm khi há"];
+const OPT_OCCLUSION = ["Khớp cắn chuẩn", "Cắn chéo", "Cắn hở", "Cắn sâu", "Cắn chìa", "Cắn đối đầu"];
+
+const OTHER_VALUE = "__other__";
+
 function ExamSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
@@ -94,6 +105,89 @@ function ExamField({ label, placeholder, value, onChange, disabled }: {
         disabled={disabled}
         className="w-full px-3 py-2.5 text-[13px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-medium text-slate-700 placeholder:text-slate-300 disabled:opacity-60 disabled:cursor-not-allowed"
       />
+    </div>
+  );
+}
+
+// Ô chọn nhanh (Có/Không, Ít/Trung bình/Nhiều...) — vẫn cho gõ tay qua mục "Khác"
+function ExamSelect({ label, options, value, onChange, disabled, allowOther = true, otherPlaceholder = "Nhập mô tả khác..." }: {
+  label: string;
+  options: string[];
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  allowOther?: boolean;
+  otherPlaceholder?: string;
+}) {
+  // Giá trị cũ (đã lưu trước đây) không nằm trong danh sách thì hiện ô gõ tay
+  const [otherMode, setOtherMode] = useState(false);
+  const isCustom = value !== "" && !options.includes(value);
+  const showOther = allowOther && (isCustom || otherMode);
+
+  const fieldClass = "w-full appearance-none pl-3 pr-9 py-2.5 text-[13px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-medium disabled:opacity-60 disabled:cursor-not-allowed";
+
+  // Chọn "Khác..." thì gõ thẳng vào chính ô đó, bấm nút bên phải để quay lại danh sách
+  if (showOther) {
+    return (
+      <div>
+        <label className="text-[12px] font-bold text-slate-500 mb-1 block">{label}</label>
+        <div className="relative">
+          <input
+            type="text"
+            value={value}
+            onChange={e => onChange(e.target.value)}
+            placeholder={otherPlaceholder}
+            disabled={disabled}
+            autoFocus={otherMode}
+            className={`${fieldClass} text-slate-700 placeholder:text-slate-300`}
+          />
+          <button
+            type="button"
+            onClick={() => { setOtherMode(false); onChange(""); }}
+            disabled={disabled}
+            title="Chọn lại từ danh sách"
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <label className="text-[12px] font-bold text-slate-500 mb-1 block">{label}</label>
+      <div className="relative">
+        <select
+          value={value}
+          onChange={e => {
+            const v = e.target.value;
+            if (v === OTHER_VALUE) {
+              setOtherMode(true);
+              onChange("");
+            } else {
+              setOtherMode(false);
+              onChange(v);
+            }
+          }}
+          disabled={disabled}
+          className={`${fieldClass} cursor-pointer ${value === "" ? "text-slate-400" : "text-slate-700"}`}
+        >
+          <option value="">-- Chọn --</option>
+          {options.map(opt => (
+            <option key={opt} value={opt}>{opt}</option>
+          ))}
+          {/* giữ lại giá trị cũ đã lưu để không bị mất khi ô không cho gõ tay */}
+          {isCustom && !allowOther && <option value={value}>{value}</option>}
+          {allowOther && <option value={OTHER_VALUE}>Khác...</option>}
+        </select>
+        <svg className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+        </svg>
+      </div>
     </div>
   );
 }
@@ -155,13 +249,7 @@ export default function PatientDetailPage() {
     }
   }, [id]);
 
-  // Toast notification
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
-
-  const showToast = (message: string, type: "success" | "error" | "info" = "success") => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 4000);
-  };
+  const { toast, showToast } = useToast();
 
   // Load examination data
   const loadExamination = useCallback(async () => {
@@ -400,13 +488,7 @@ return (
           }
         />
 
-        {/* TOAST */}
-        {toast && (
-          <div className={`fixed top-24 right-8 z-50 px-5 py-3.5 rounded-xl shadow-xl flex items-center gap-3 border animate-fade-in font-bold text-[14px] ${toast.type === "success" ? "bg-emerald-900 text-white border-emerald-800" : toast.type === "error" ? "bg-red-900 text-white border-red-800" : "bg-slate-900 text-white border-slate-800"}`}>
-            <span>{toast.type === "success" ? "✓" : toast.type === "error" ? "⚠" : "ℹ"}</span>
-            <span>{toast.message}</span>
-          </div>
-        )}
+        <Toast toast={toast} />
 
         {/* ─── TAB BAR ─── */}
         <div className="px-4 sm:px-8 pt-4 sm:pt-6 pb-0 flex items-center gap-2 overflow-x-auto max-w-full no-scrollbar">
@@ -746,13 +828,13 @@ return (
 
                         <ExamSection title="Tình trạng lợi – niêm mạc">
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <ExamField label="Tình trạng lợi" placeholder="vd: Lợi hồng hào, không viêm"
+                            <ExamSelect label="Tình trạng lợi" options={OPT_GUM}
                               value={form.gumCondition} onChange={v => setField("gumCondition", v)} disabled={!canEdit} />
-                            <ExamField label="Tình trạng niêm mạc miệng" placeholder="vd: Bình thường, không tổn thương"
+                            <ExamSelect label="Tình trạng niêm mạc miệng" options={OPT_MUCOSA}
                               value={form.oralMucosaCondition} onChange={v => setField("oralMucosaCondition", v)} disabled={!canEdit} />
-                            <ExamField label="Chảy máu lợi" placeholder="vd: Có / Không"
+                            <ExamSelect label="Chảy máu lợi" options={OPT_YES_NO} allowOther={false}
                               value={form.gumBleeding} onChange={v => setField("gumBleeding", v)} disabled={!canEdit} />
-                            <ExamField label="Đau khi chạm / ăn nhai" placeholder="vd: Có / Không"
+                            <ExamSelect label="Đau khi chạm / ăn nhai" options={OPT_YES_NO} allowOther={false}
                               value={form.painOnChewing} onChange={v => setField("painOnChewing", v)} disabled={!canEdit} />
                           </div>
                         </ExamSection>
@@ -772,25 +854,25 @@ return (
 
                         <ExamSection title="Vệ sinh răng miệng">
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <ExamField label="Cao răng" placeholder="vd: Ít / Trung bình / Nhiều"
+                            <ExamSelect label="Cao răng" options={OPT_LEVEL} allowOther={false}
                               value={form.tartar} onChange={v => setField("tartar", v)} disabled={!canEdit} />
-                            <ExamField label="Mảng bám" placeholder="vd: Ít / Trung bình / Nhiều"
+                            <ExamSelect label="Mảng bám" options={OPT_LEVEL} allowOther={false}
                               value={form.plaque} onChange={v => setField("plaque", v)} disabled={!canEdit} />
-                            <ExamField label="Mùi hôi miệng" placeholder="vd: Có / Không"
+                            <ExamSelect label="Mùi hôi miệng" options={OPT_YES_NO} allowOther={false}
                               value={form.badBreath} onChange={v => setField("badBreath", v)} disabled={!canEdit} />
                           </div>
                         </ExamSection>
 
                         <ExamSection title="Khớp thái dương hàm">
-                          <ExamField label="Triệu chứng" placeholder="vd: Không đau, không tiếng kêu khớp"
+                          <ExamSelect label="Triệu chứng" options={OPT_TMJ}
                             value={form.tmjSymptoms} onChange={v => setField("tmjSymptoms", v)} disabled={!canEdit} />
                         </ExamSection>
 
                         <ExamSection title="Khớp cắn">
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <ExamField label="Khớp cắn" placeholder="vd: Khớp cắn chuẩn / Cắn chéo / Cắn hở / Cắn sâu"
+                            <ExamSelect label="Khớp cắn" options={OPT_OCCLUSION}
                               value={form.occlusion} onChange={v => setField("occlusion", v)} disabled={!canEdit} />
-                            <ExamField label="Sai lệch khớp cắn" placeholder="vd: Không / Có"
+                            <ExamSelect label="Sai lệch khớp cắn" options={OPT_YES_NO} allowOther={false}
                               value={form.occlusionDeviation} onChange={v => setField("occlusionDeviation", v)} disabled={!canEdit} />
                           </div>
                         </ExamSection>

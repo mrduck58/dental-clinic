@@ -52,7 +52,8 @@ public class Invoice
         IEnumerable<(string Name, int Quantity, decimal UnitPrice, Guid? TreatmentPlanId, decimal? AmountCollected)> items,
         decimal discount,
         PaymentMethod paymentMethod,
-        string? notes = null)
+        string? notes = null,
+        Guid? promotionId = null)
     {
         var invoice = new Invoice
         {
@@ -62,6 +63,7 @@ public class Invoice
             Status = PaymentStatus.Unpaid,
             PaymentMethod = paymentMethod,
             Notes = notes,
+            PromotionId = promotionId,
             CreatedAt = DateTimeOffset.UtcNow
         };
 

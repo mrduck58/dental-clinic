@@ -14,6 +14,7 @@ public class PayrollRecordConfiguration : IEntityTypeConfiguration<PayrollRecord
         builder.Property(p => p.BaseSalary).HasPrecision(18, 2);
         builder.Property(p => p.Allowance).HasPrecision(18, 2);
         builder.Property(p => p.Deduction).HasPrecision(18, 2);
+        builder.Property(p => p.Bonus).HasPrecision(18, 2);
         builder.Property(p => p.NetSalary).HasPrecision(18, 2);
         builder.Property(p => p.AllowedLeaveDays).HasPrecision(5, 2);
         builder.Property(p => p.ExceededDays).HasPrecision(5, 2);

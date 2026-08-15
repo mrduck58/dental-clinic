@@ -201,7 +201,8 @@ class _ProfilePageState extends State<ProfilePage> {
                   height: 30,
                   child: Switch(
                     value: _darkModeVal,
-                    activeColor: AppColors.primary,
+                    activeThumbColor: AppColors.primary,
+                    activeTrackColor: AppColors.primary.withValues(alpha: 0.35),
                     onChanged: (val) {
                       setState(() {
                         _darkModeVal = val;
@@ -215,7 +216,7 @@ class _ProfilePageState extends State<ProfilePage> {
               _SettingsTile(
                 icon: Iconsax.notification,
                 label: context.l10n('notifications'),
-                onTap: () => context.push(AppRoutes.notifications),
+                onTap: () => context.push(AppRoutes.notificationSettings),
               ),
               _SettingsTile(
                 icon: Iconsax.global,

@@ -14,7 +14,8 @@ public record GetActivityLogsQuery(
     DateTimeOffset? StartDate,
     DateTimeOffset? EndDate,
     int Page = 1,
-    int PageSize = 20) : IRequest<ActivityLogPagedDto>;
+    int PageSize = 20,
+    string? SortDir = null) : IRequest<ActivityLogPagedDto>;
 
 public class GetActivityLogsHandler(IActivityLogRepository repository, ICurrentUserService currentUser)
     : IRequestHandler<GetActivityLogsQuery, ActivityLogPagedDto>
@@ -54,6 +55,7 @@ public class GetActivityLogsHandler(IActivityLogRepository repository, ICurrentU
             endDate,
             page,
             pageSize,
+            query.SortDir,
             ct);
 
         var dtos = items.Select(a => new ActivityLogDto(

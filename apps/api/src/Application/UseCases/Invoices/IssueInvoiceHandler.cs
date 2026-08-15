@@ -19,15 +19,19 @@ public record IssueInvoiceCommand(
     decimal DepositAmount,
     string? Notes,
     Guid? ParentInvoiceId,
-    Guid? TreatmentPlanId) : IRequest<InvoiceDto>;
+    Guid? TreatmentPlanId,
+    Guid? PromotionId = null) : IRequest<InvoiceDto>;
 
 /// <summary>Xuất hóa đơn từ liệu trình điều trị của một lịch hẹn (hoặc thu phần còn lại, hoặc một đợt thu liệu trình).</summary>
 public class IssueInvoiceHandler(
     IInvoiceRepository invoiceRepository,
+    IPromotionRepository promotionRepository,
     IUnitOfWork unitOfWork,
     INotificationService notificationService,
     InvoiceQueryHelper invoiceQuery) : IRequestHandler<IssueInvoiceCommand, InvoiceDto>
 {
+    private static readonly TimeZoneInfo VietnamTz = TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
+
     public async Task<InvoiceDto> Handle(IssueInvoiceCommand command, CancellationToken ct)
     {
         // Trường hợp thu một đợt của liệu trình điều trị.
@@ -47,7 +51,26 @@ public class IssueInvoiceHandler(
         if (command.Items == null || command.Items.Count == 0)
             throw new ValidationException("Hóa đơn phải có ít nhất một dịch vụ.");
 
-        var totalAmount = command.Items.Sum(i => (i.Quantity < 1 ? 1 : i.Quantity) * i.UnitPrice) - command.Discount;
+        var subtotal = command.Items.Sum(i => (i.Quantity < 1 ? 1 : i.Quantity) * i.UnitPrice);
+
+        // Nếu staff chọn khuyến mãi, số tiền giảm luôn được TÍNH LẠI ở server từ Promotion thật —
+        // không tin số discount client gửi lên, tránh bị sửa giảm giá vượt mức khuyến mãi cho phép.
+        var effectiveDiscount = 0m;
+        if (command.PromotionId is Guid promotionId)
+        {
+            var promotion = await promotionRepository.GetByIdAsync(promotionId, ct)
+                ?? throw new ValidationException("Không tìm thấy khuyến mãi.");
+            var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, VietnamTz).DateTime);
+            if (!promotion.IsActive || promotion.StartDate > today || promotion.EndDate < today)
+                throw new ValidationException("Khuyến mãi không còn hiệu lực.");
+
+            effectiveDiscount = promotion.DiscountType == "Percentage"
+                ? Math.Round(subtotal * promotion.DiscountValue / 100, 0)
+                : promotion.DiscountValue;
+            effectiveDiscount = Math.Clamp(effectiveDiscount, 0, subtotal);
+        }
+
+        var totalAmount = subtotal - effectiveDiscount;
         var depositAmount = command.Items.Sum(i => i.AmountCollected ?? (i.Quantity < 1 ? 1 : i.Quantity) * i.UnitPrice);
         if (depositAmount > totalAmount)
             throw new ValidationException("Số tiền thu không được vượt quá tổng tiền hóa đơn.");
@@ -80,9 +103,10 @@ public class IssueInvoiceHandler(
             appointment.Id,
             invoiceNumber,
             command.Items.Select(i => (i.Name, i.Quantity, i.UnitPrice, i.TreatmentPlanId, i.AmountCollected)),
-            command.Discount,
+            effectiveDiscount,
             paymentMethod,
-            command.Notes);
+            command.Notes,
+            command.PromotionId);
 
         if (invoice.DepositAmount <= 0)
             throw new ValidationException("Số tiền thu phải lớn hơn 0.");

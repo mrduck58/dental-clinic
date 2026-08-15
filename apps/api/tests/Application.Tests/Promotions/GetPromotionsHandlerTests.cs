@@ -18,7 +18,7 @@ public class GetPromotionsHandlerTests
     {
         _repo = Substitute.For<IPromotionRepository>();
         _serviceRepo = Substitute.For<IServiceRepository>();
-        _serviceRepo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<Service>());
+        _serviceRepo.GetIdNameMapAsync(Arg.Any<CancellationToken>()).Returns(new Dictionary<Guid, string>());
     }
 
     /// <summary>
@@ -48,7 +48,7 @@ public class GetPromotionsHandlerTests
     public async Task HandleAsync_WithMatchingServiceIds_ReturnsServiceNames()
     {
         var service = Service.Create("Nhổ răng", 200000m, 30, "Mô tả", null);
-        _serviceRepo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<Service> { service });
+        _serviceRepo.GetIdNameMapAsync(Arg.Any<CancellationToken>()).Returns(new Dictionary<Guid, string> { [service.Id] = service.Name });
         _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<Promotion>
         {
             MakePromotion(serviceIds: new List<Guid> { service.Id }),
@@ -61,7 +61,7 @@ public class GetPromotionsHandlerTests
     }
 
     /// <summary>
-    /// GetPromotions phải gọi GetAllAsync của cả promotion repo và service repo.
+    /// GetPromotions phải gọi GetAllAsync của promotion repo và GetIdNameMapAsync của service repo.
     /// </summary>
     [Test]
     public async Task HandleAsync_CallsBothRepositories()
@@ -72,7 +72,7 @@ public class GetPromotionsHandlerTests
         await handler.Handle(new GetPromotionsQuery(), CancellationToken.None);
 
         await _repo.Received(1).GetAllAsync(Arg.Any<CancellationToken>());
-        await _serviceRepo.Received(1).GetAllAsync(Arg.Any<CancellationToken>());
+        await _serviceRepo.Received(1).GetIdNameMapAsync(Arg.Any<CancellationToken>());
     }
 
     /// <summary>

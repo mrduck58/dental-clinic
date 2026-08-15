@@ -18,6 +18,9 @@ function getNotifHref(type: string, relatedEntityType: string | null, relatedEnt
   if (relatedEntityType === "LeaveRequest")  return `/owner/leaves/${relatedEntityId}`;
   if (relatedEntityType === "Feedback")      return "/owner/feedback";
   if (relatedEntityType === "DentistReview") return "/owner/feedback";
+  // Nhắc bổ sung lịch sau khi duyệt đơn nghỉ: id là thứ Hai của tuần bị thủng ca ("YYYY-MM-DD"),
+  // mở thẳng màn hình xếp lịch đúng tuần đó thay vì bắt Owner tự dò lại.
+  if (relatedEntityType === "WorkSchedule")  return `/owner/schedule/edit?week=${relatedEntityId}`;
   return null;
 }
 

@@ -10,6 +10,7 @@ public class InvoiceRepository(AppDbContext db) : IInvoiceRepository
     private IQueryable<Invoice> QueryWithDetails() =>
         db.Invoices.AsNoTracking()
             .Include(i => i.Items)
+            .Include(i => i.Promotion)
             .Include(i => i.Appointment).ThenInclude(a => a.Patient).ThenInclude(p => p.User)
             .Include(i => i.Appointment).ThenInclude(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User);
 
@@ -75,12 +76,6 @@ public class InvoiceRepository(AppDbContext db) : IInvoiceRepository
 
     public void Add(Invoice invoice) => db.Invoices.Add(invoice);
 
-    public async Task<IReadOnlyList<InvoiceItemPlanCredit>> GetInvoiceItemsForCreditAsync(Guid invoiceId, CancellationToken ct = default) =>
-        await db.InvoiceItems
-            .Where(it => it.InvoiceId == invoiceId && it.TreatmentPlanId != null)
-            .Select(it => new InvoiceItemPlanCredit(it.TreatmentPlanId!.Value, it.AmountCollected, it.Quantity * it.UnitPrice))
-            .ToListAsync(ct);
-
     public Task<Guid?> GetPatientUserIdByAppointmentIdAsync(Guid appointmentId, CancellationToken ct = default) =>
         db.Appointments
             .Where(a => a.Id == appointmentId)
@@ -123,9 +118,6 @@ public class InvoiceRepository(AppDbContext db) : IInvoiceRepository
 
     public Task<TreatmentPlan?> GetTreatmentPlanWithServiceAsync(Guid treatmentPlanId, CancellationToken ct = default) =>
         db.TreatmentPlans.Include(tp => tp.Service).FirstOrDefaultAsync(tp => tp.Id == treatmentPlanId, ct);
-
-    public Task<TreatmentPlan?> GetTreatmentPlanTrackedAsync(Guid treatmentPlanId, CancellationToken ct = default) =>
-        db.TreatmentPlans.FirstOrDefaultAsync(tp => tp.Id == treatmentPlanId, ct);
 
     public async Task<IReadOnlyList<TreatmentPlan>> GetActiveTreatmentPlansByPatientIdsAsync(
         IReadOnlyList<Guid> patientIds, CancellationToken ct = default)

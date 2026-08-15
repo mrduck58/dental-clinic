@@ -8,7 +8,8 @@ import 'package:mobile_app/core/utils/money_formatter.dart';
 import 'package:mobile_app/features/payment/data/payment_service.dart';
 
 class PaymentHistoryPage extends StatefulWidget {
-  const PaymentHistoryPage({super.key});
+  final int initialTab;
+  const PaymentHistoryPage({super.key, this.initialTab = 0});
 
   @override
   State<PaymentHistoryPage> createState() => _PaymentHistoryPageState();
@@ -29,9 +30,17 @@ class _PaymentHistoryPageState extends State<PaymentHistoryPage> with SingleTick
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 2, vsync: this, initialIndex: widget.initialTab.clamp(0, 1));
     _load();
     _loadHistory();
+  }
+
+  @override
+  void didUpdateWidget(covariant PaymentHistoryPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialTab != oldWidget.initialTab) {
+      _tabController.animateTo(widget.initialTab.clamp(0, 1));
+    }
   }
 
   @override

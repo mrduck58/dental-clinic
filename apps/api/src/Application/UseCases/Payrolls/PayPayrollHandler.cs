@@ -1,6 +1,6 @@
 using DentalClinic.API.Application.DTOs.Payrolls;
 using DentalClinic.API.Domain.Constants;
-using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
@@ -27,14 +27,11 @@ public class PayPayrollHandler(
             ?? throw new NotFoundException($"Không tìm thấy nhân sự với ID: {command.UserId}");
 
         var leaves = await payrollRepository.GetApprovedLeavesOverlappingAsync(from, to, ct);
-        var existing = await payrollRepository.GetByUserAndPeriodAsync(command.UserId, command.Year, command.Month, ct);
+        var record = await payrollRepository.GetByUserAndPeriodAsync(command.UserId, command.Year, command.Month, ct);
 
-        var (record, isNew) = BuildPaidRecord(user, existing, leaves, command.Year, command.Month, command.Note);
+        MarkPaidOrThrow(user, record, command.Note);
 
-        if (isNew)
-            await payrollRepository.AddAsync(record, ct);
-        else
-            await payrollRepository.SaveChangesAsync(ct);
+        await payrollRepository.SaveChangesAsync(ct);
 
         await activityLogService.LogAsync(
             userId: currentUser.UserId,
@@ -42,7 +39,7 @@ public class PayPayrollHandler(
             userRole: currentUser.UserRole,
             action: ActivityAction.Payment,
             module: ActivityModule.Payroll,
-            description: $"Chi trả lương tháng {command.Month}/{command.Year} cho {user.FullName} ({record.NetSalary:N0} đ)",
+            description: $"Chi trả lương tháng {command.Month}/{command.Year} cho {user.FullName} ({record!.NetSalary:N0} đ)",
             status: ActivityStatus.Success,
             ipAddress: currentUser.IpAddress,
             targetId: record.Id.ToString(),
@@ -51,41 +48,21 @@ public class PayPayrollHandler(
         return GetPayrollPeriodHandler.BuildItem(user, record, leaves, command.Year, command.Month);
     }
 
-    /// <summary>
-    /// Chốt lại các con số của kỳ theo hồ sơ lương hiện tại rồi đánh dấu đã chi trả.
-    /// Chưa ghi xuống DB — người gọi tự quyết định thời điểm lưu (pay-all lưu một lần cho cả lô).
-    /// </summary>
-    internal static (PayrollRecord Record, bool IsNew) BuildPaidRecord(
-        User user,
-        PayrollRecord? existing,
-        IReadOnlyList<LeaveRequest> approvedLeaves,
-        int year,
-        int month,
-        string? note)
+    /// <summary>Chi trả chỉ được phép khi kỳ lương của nhân sự này đã ở trạng thái Đã duyệt (Approved).</summary>
+    internal static void MarkPaidOrThrow(Domain.Entities.User user, Domain.Entities.PayrollRecord? record, string? note)
     {
-        if (existing is { Status: Domain.Enums.PayrollStatus.Paid })
-            throw new ValidationException($"Lương tháng {month}/{year} của {user.FullName} đã được thanh toán.");
+        if (record is null)
+            throw new ValidationException(
+                $"Kỳ lương của {user.FullName} chưa được tạo — hãy tạo, tính và duyệt kỳ lương trước khi chi trả.");
 
-        var c = PayrollCalculator.Compute(user, approvedLeaves, year, month);
+        if (record.Status != PayrollStatus.Approved)
+            throw new ValidationException(
+                $"Kỳ lương của {user.FullName} chưa được duyệt — chỉ có thể chi trả sau khi Owner duyệt bảng lương.");
 
-        if (c.NetSalary <= 0)
+        if (record.NetSalary <= 0)
             throw new ValidationException(
                 $"Chưa thể chi trả cho {user.FullName}: nhân sự này chưa được thiết lập lương trong hồ sơ.");
 
-        if (existing is null)
-        {
-            var record = PayrollRecord.Create(
-                user.Id, year, month,
-                c.BaseSalary, c.Allowance, c.LeaveDays, c.AllowedLeaveDays,
-                c.ExceededDays, c.Deduction, c.NetSalary);
-            record.MarkPaid(note);
-            return (record, true);
-        }
-
-        existing.Recalculate(
-            c.BaseSalary, c.Allowance, c.LeaveDays, c.AllowedLeaveDays,
-            c.ExceededDays, c.Deduction, c.NetSalary);
-        existing.MarkPaid(note);
-        return (existing, false);
+        record.MarkPaid(note);
     }
 }

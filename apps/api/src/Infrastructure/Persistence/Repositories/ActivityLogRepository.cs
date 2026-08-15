@@ -22,6 +22,7 @@ public class ActivityLogRepository(AppDbContext db) : IActivityLogRepository
         DateTimeOffset? endDate,
         int page,
         int pageSize,
+        string? sortDir = null,
         CancellationToken ct = default)
     {
         var query = db.ActivityLogs.AsQueryable();
@@ -54,8 +55,10 @@ public class ActivityLogRepository(AppDbContext db) : IActivityLogRepository
             query = query.Where(a => a.CreatedAt <= endDate.Value);
 
         var total = await query.CountAsync(ct);
-        var items = await query
-            .OrderByDescending(a => a.CreatedAt)
+        var ordered = string.Equals(sortDir, "asc", StringComparison.OrdinalIgnoreCase)
+            ? query.OrderBy(a => a.CreatedAt)
+            : query.OrderByDescending(a => a.CreatedAt);
+        var items = await ordered
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(ct);

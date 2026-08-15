@@ -118,4 +118,16 @@ public interface IAppointmentRepository
 
     /// <summary>Bệnh nhân đã có lịch hẹn đang hoạt động (chưa hủy) trong ngày cụ thể hay chưa — dùng để chặn đặt nhiều lịch/ngày.</summary>
     Task<bool> HasActiveAppointmentOnDateAsync(Guid patientId, DateOnly date, Guid? excludeAppointmentId = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Danh sách lịch hẹn có phân trang cho màn hình "Ca khám &amp; điều trị" của Owner — lọc theo khoảng ngày,
+    /// một hoặc nhiều trạng thái (phân tách bởi dấu phẩy), và tìm theo tên/SĐT bệnh nhân hoặc tên nha sĩ.
+    /// </summary>
+    Task<(IReadOnlyList<Appointment> Items, int TotalCount)> GetAppointmentsPagedAsync(
+        DateOnly? startDate, DateOnly? endDate, string? statusCsv, string? search,
+        int page, int pageSize, string? sortDir = null, CancellationToken cancellationToken = default);
+
+    /// <summary>Toàn bộ lịch hẹn (mọi trạng thái) của một bệnh nhân, kèm Dentist/Service/Invoices —
+    /// dữ liệu nguồn cho trang chi tiết bệnh nhân (lịch sử khám + trạng thái thanh toán) của Owner.</summary>
+    Task<IReadOnlyList<Appointment>> GetByPatientIdWithDetailsAsync(Guid patientId, CancellationToken cancellationToken = default);
 }

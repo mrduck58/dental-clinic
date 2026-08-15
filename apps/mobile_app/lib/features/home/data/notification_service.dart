@@ -51,4 +51,21 @@ class NotificationService {
     if (token == null) throw Exception('Chưa đăng nhập.');
     await _client.delete(ApiConstants.notificationDelete(id), token: token);
   }
+
+  /// Gửi FCM device token lên backend để nhận thông báo đẩy native khi tắt app
+  Future<void> registerDeviceToken(String deviceToken, {String deviceType = 'Android'}) async {
+    try {
+      final token = await _auth.getToken();
+      if (token == null) return;
+      await _client.post(
+        '${ApiConstants.notifications}/device-token',
+        {
+          'token': deviceToken,
+          'deviceToken': deviceToken,
+          'deviceType': deviceType,
+        },
+        token: token,
+      );
+    } catch (_) {}
+  }
 }
