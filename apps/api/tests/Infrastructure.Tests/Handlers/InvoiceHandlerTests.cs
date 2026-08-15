@@ -49,7 +49,7 @@ public class InvoiceHandlerTests
             invoiceRepository, paymentTransactionRepository, _db, _notificationService, _userRepo, _invoiceQuery);
 
         _getBillablePlansHandler = new GetBillablePlansHandler(invoiceRepository, _invoiceQuery);
-        _issueHandler = new IssueInvoiceHandler(invoiceRepository, _db, _notificationService, _invoiceQuery);
+        _issueHandler = new IssueInvoiceHandler(invoiceRepository, Substitute.For<IPromotionRepository>(), _db, _notificationService, _invoiceQuery);
         _getPendingHandler = new GetPendingInvoicesHandler(invoiceRepository);
         _getOutstandingHandler = new GetOutstandingInvoicesHandler(invoiceRepository);
         _getOutstandingPlansHandler = new GetOutstandingPlansHandler(invoiceRepository, _invoiceQuery);

@@ -13,7 +13,6 @@ interface Post {
   title: string;
   excerpt: string;
   category: string;
-  author: string;
   date: string;
   createdAt: string; // ISO gốc — dùng để so sánh thời gian chính xác, "date" chỉ để hiển thị
   status: "Đã xuất bản" | "Bản nháp";
@@ -33,7 +32,6 @@ function toPost(dto: PostDto): Post {
     title: dto.title,
     excerpt: makeExcerpt(dto.content),
     category: dto.category,
-    author: dto.author,
     date,
     createdAt: dto.createdAt,
     status: dto.isPublished ? "Đã xuất bản" : "Bản nháp",
@@ -130,8 +128,7 @@ export default function PostsListPage() {
 
   // Filter and search logic
   const filteredPosts = posts.filter(post => {
-    const matchesSearch = post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      post.author.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = post.title.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory === ALL_CATEGORIES_LABEL || post.category === selectedCategory;
     const matchesStatus = statusFilter === "all" ||
       (statusFilter === "published" ? post.status === "Đã xuất bản" : post.status === "Bản nháp");
@@ -291,7 +288,7 @@ export default function PostsListPage() {
                   </span>
                   <input
                     type="text"
-                    placeholder="Tìm theo tiêu đề hoặc tác giả..."
+                    placeholder="Tìm theo tiêu đề bài viết..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full pl-10 pr-9 py-2.5 text-[14px] bg-slate-100/80 rounded-xl border border-transparent focus:bg-white focus:border-slate-200 focus:outline-none transition-all font-semibold text-slate-800"
@@ -396,7 +393,6 @@ export default function PostsListPage() {
                     <tr className="bg-slate-50/50 font-extrabold text-slate-400 uppercase tracking-wider border-b border-slate-150">
                       <th className="px-6 py-4">Bài viết</th>
                       <th className="px-6 py-4">Danh mục</th>
-                      <th className="px-6 py-4">Tác giả</th>
                       <th className="px-6 py-4">Ngày đăng</th>
                       <th className="px-6 py-4">Trạng thái</th>
                       <th className="px-6 py-4 text-center">Thao tác</th>
@@ -405,7 +401,7 @@ export default function PostsListPage() {
                   <tbody className="divide-y divide-slate-100 font-semibold text-slate-600">
                     {loading ? (
                       <tr>
-                        <td colSpan={6} className="px-6 py-16 text-center text-slate-400 font-semibold">
+                        <td colSpan={5} className="px-6 py-16 text-center text-slate-400 font-semibold">
                           <div className="flex flex-col items-center gap-3">
                             <div className="w-7 h-7 border-[3px] border-primary/20 border-t-primary rounded-full animate-spin" />
                             Đang tải danh sách bài viết...
@@ -414,7 +410,7 @@ export default function PostsListPage() {
                       </tr>
                     ) : loadError ? (
                       <tr>
-                        <td colSpan={6} className="px-6 py-16 text-center">
+                        <td colSpan={5} className="px-6 py-16 text-center">
                           <div className="flex flex-col items-center gap-3">
                             <span className="text-[14px] font-bold text-red-500">{loadError}</span>
                             <button
@@ -460,7 +456,6 @@ export default function PostsListPage() {
                               );
                             })()}
                           </td>
-                          <td className="px-6 py-4 text-slate-600 font-bold whitespace-nowrap">{post.author}</td>
                           <td className="px-6 py-4 text-slate-400 font-semibold whitespace-nowrap">{post.date}</td>
                           <td className="px-6 py-4">
                             <span
@@ -513,7 +508,7 @@ export default function PostsListPage() {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={6} className="px-6 py-16 text-center text-slate-400 font-semibold">
+                        <td colSpan={5} className="px-6 py-16 text-center text-slate-400 font-semibold">
                           <div className="flex flex-col items-center gap-3">
                             <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center">
                               <svg className="w-6 h-6 text-slate-300" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">

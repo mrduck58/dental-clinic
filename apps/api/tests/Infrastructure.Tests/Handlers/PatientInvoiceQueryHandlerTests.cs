@@ -43,7 +43,7 @@ public class PatientInvoiceQueryHandlerTests
         var confirmationService = new PaymentConfirmationService(
             invoiceRepository, paymentTransactionRepository, _db, _notificationService, _userRepo, _invoiceQuery);
 
-        _issueHandler = new IssueInvoiceHandler(invoiceRepository, _db, _notificationService, _invoiceQuery);
+        _issueHandler = new IssueInvoiceHandler(invoiceRepository, Substitute.For<IPromotionRepository>(), _db, _notificationService, _invoiceQuery);
         _confirmPaymentHandler = new ConfirmInvoicePaymentHandler(invoiceRepository, _db, confirmationService, _invoiceQuery);
         _getPaidHandler = new GetPaidInvoicesByPatientHandler(invoiceRepository);
         _getPendingHandler = new GetPendingInvoicesByPatientHandler(invoiceRepository);

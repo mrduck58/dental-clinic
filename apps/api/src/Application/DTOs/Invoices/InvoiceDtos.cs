@@ -73,6 +73,9 @@ public class InvoiceDto
     public List<InvoiceItemDto> Items { get; set; } = new();
     public decimal Subtotal { get; set; }
     public decimal Discount { get; set; }
+    public Guid? PromotionId { get; set; }
+    public string? PromotionCode { get; set; }
+    public string? PromotionName { get; set; }
     public decimal TotalAmount { get; set; }
     public string PaymentType { get; set; } = string.Empty;   // "Full" | "Deposit"
     public decimal DepositAmount { get; set; }                // Số tiền thu trên hóa đơn này

@@ -16,10 +16,12 @@ import {
   collectRemainingInvoiceApi,
   createPaymentRequestApi,
   getPaymentStatusApi,
+  getPromotionsApi,
   type BillablePlanDto,
   type InvoiceDto,
   type OutstandingPlanDto,
   type PaymentTransactionDto,
+  type PromotionDto,
 } from "../../../lib/apiClient";
 
 /* ─── types ─────────────────────────────────────────────── */
@@ -67,6 +69,7 @@ interface Invoice {
   paidDate: string | null;
   items: Procedure[];
   subtotal: number; discount: number; finalTotal: number;
+  promotionId?: string | null; promotionCode?: string | null; promotionName?: string | null;
   paymentType: PayType; depositAmount: number; remaining: number;
   paymentMethod: PayMethod | null;
   status: InvStatus; note: string;
@@ -124,6 +127,9 @@ function mapInvoice(inv: InvoiceDto): Invoice {
     subtotal: inv.subtotal,
     discount: inv.discount,
     finalTotal: inv.totalAmount,
+    promotionId: inv.promotionId,
+    promotionCode: inv.promotionCode,
+    promotionName: inv.promotionName,
     paymentType: inv.paymentType === "Deposit" ? "deposit" : "full",
     depositAmount: inv.depositAmount,
     remaining: inv.remainingAmount,
@@ -176,8 +182,9 @@ const labelCls = "text-[12.5px] font-extrabold text-slate-500 uppercase tracking
 
 /* ─── Tab 1: Treatment plan → Invoice ───────────────────── */
 
-function PlansTab({ plans, onIssued }: {
+function PlansTab({ plans, promotions, onIssued }: {
   plans: TreatmentPlan[];
+  promotions: PromotionDto[];
   onIssued: (inv: Invoice) => Promise<boolean>;
 }) {
   const [selected, setSelected] = useState<TreatmentPlan | null>(null);
@@ -187,11 +194,20 @@ function PlansTab({ plans, onIssued }: {
   const [method,   setMethod]   = useState<PayMethod | null>(null);
   const [saved,    setSaved]    = useState(false);
 
+  // Khuyến mãi — nhận từ trang cha (đã tải song song cùng các danh sách khác), chỉ lọc còn hiệu lực
+  // (đang bật + trong khoảng ngày) ở đây.
+  const [selectedPromotionId, setSelectedPromotionId] = useState<string | null>(null);
+
+  const todayIsoForPromo = todayIso();
+  const activePromotions = promotions.filter(p =>
+    p.isActive && p.startDate <= todayIsoForPromo && p.endDate >= todayIsoForPromo);
+
   const selectPlan = (p: TreatmentPlan) => {
     setSelected(p);
     setItems(p.procedures.map(pr => ({ ...pr, payType: "full" as const, depositPct: 50 })));
     setNote("");
     setInstallAmount(p.planRemaining ?? 0); setMethod(null); setSaved(false);
+    setSelectedPromotionId(null);
   };
 
   const updateQty = (i: number, qty: number) =>
@@ -213,11 +229,22 @@ function PlansTab({ plans, onIssued }: {
   const planRemaining = selected?.planRemaining ?? 0;
 
   const subtotal   = sum(items);
-  // Không còn ô giảm giá trên phiếu xuất hóa đơn → tổng hóa đơn đúng bằng tổng tiền dịch vụ.
-  const finalTotal = subtotal;
 
-  // Thu ngay = tổng số thu của từng dòng (toàn bộ / đặt cọc theo dòng).
-  const collectedTotal = items.reduce((s, it) => s + lineCollected(it), 0);
+  // Khuyến mãi chỉ áp dụng cho hóa đơn xuất mới (không áp dụng cho "thu phần còn lại" / "đợt thu liệu trình").
+  const selectedPromotion = !isRemaining && !isInstallment
+    ? activePromotions.find(p => p.id === selectedPromotionId) ?? null
+    : null;
+  const discountAmount = selectedPromotion
+    ? Math.min(subtotal, selectedPromotion.discountType === "Percentage"
+        ? Math.round(subtotal * selectedPromotion.discountValue / 100)
+        : selectedPromotion.discountValue)
+    : 0;
+  const finalTotal = Math.max(0, subtotal - discountAmount);
+
+  // Thu ngay = tổng số thu của từng dòng (toàn bộ / đặt cọc theo dòng), quy đổi theo tỉ lệ giảm giá
+  // (nếu có áp dụng khuyến mãi) để tổng thu không bao giờ vượt quá tổng hóa đơn đã giảm giá.
+  const collectRatio = subtotal > 0 && discountAmount > 0 ? finalTotal / subtotal : 1;
+  const collectedTotal = items.reduce((s, it) => s + Math.floor(lineCollected(it) * collectRatio), 0);
   const perLineOk = items.every(it => it.payType !== "deposit" || ((it.depositPct ?? 0) > 0 && (it.depositPct ?? 0) <= 100));
 
   const installOk  = !isInstallment || (installAmount > 0 && installAmount <= planRemaining);
@@ -261,7 +288,10 @@ function PlansTab({ plans, onIssued }: {
           date: selected.date,
           paidDate: null,   // hóa đơn vừa lập, chưa thu
           items: [...items],
-          subtotal, discount: 0, finalTotal,
+          subtotal, discount: discountAmount, finalTotal,
+          promotionId: selectedPromotion?.id ?? null,
+          promotionCode: selectedPromotion?.code ?? null,
+          promotionName: selectedPromotion?.name ?? null,
           paymentType: collectedTotal < finalTotal ? "deposit" : "full",
           depositAmount: collectedTotal,
           remaining: Math.max(0, finalTotal - collectedTotal),
@@ -497,9 +527,52 @@ function PlansTab({ plans, onIssued }: {
                 </div>
               </div>
 
+              {/* Khuyến mãi — bấm chọn 1 chương trình khuyến mãi đang áp dụng để tự trừ vào hóa đơn.
+                  Không áp dụng cho "thu phần còn lại" (isRemaining) — hóa đơn đó chỉ thu đúng số nợ gốc. */}
+              {!isRemaining && (
+              <div className="flex flex-col gap-2">
+                <span className={labelCls}>Khuyến mãi</span>
+                {activePromotions.length === 0 ? (
+                  <p className="text-[12.5px] text-slate-400 font-semibold">Hiện không có khuyến mãi nào đang áp dụng.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={() => setSelectedPromotionId(null)}
+                      className={`px-3.5 py-2 rounded-xl border text-[12.5px] font-bold transition-all cursor-pointer ${
+                        !selectedPromotionId ? "bg-primary/10 border-primary text-primary" : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
+                      }`}>
+                      Không áp dụng
+                    </button>
+                    {activePromotions.map(p => (
+                      <button type="button" key={p.id} onClick={() => setSelectedPromotionId(p.id)}
+                        className={`px-3.5 py-2 rounded-xl border text-left transition-all cursor-pointer ${
+                          selectedPromotionId === p.id ? "bg-emerald-50 border-emerald-400 text-emerald-700" : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                        }`}>
+                        <div className="text-[12.5px] font-bold">{p.name}</div>
+                        <div className="text-[11px] font-semibold opacity-70 mt-0.5">
+                          {p.discountType === "Percentage" ? `Giảm ${p.discountValue}%` : `Giảm ${fmt(p.discountValue)}`} · {p.code}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              )}
+
               {/* Tổng kết: tổng hóa đơn → thu hôm nay (số lễ tân cần nhìn nhất) → còn nợ */}
               <div className="flex justify-end">
                 <div className="flex flex-col items-end gap-2.5 w-full max-w-sm">
+                  {discountAmount > 0 && (
+                    <>
+                      <div className="flex items-center justify-between w-full">
+                        <span className="text-[12.5px] font-semibold text-slate-400">Tạm tính</span>
+                        <span className="text-[13px] font-bold text-slate-400 font-mono line-through">{fmt(subtotal)}</span>
+                      </div>
+                      <div className="flex items-center justify-between w-full">
+                        <span className="text-[12.5px] font-bold text-emerald-600">Giảm giá ({selectedPromotion?.code})</span>
+                        <span className="text-[13px] font-black text-emerald-600 font-mono">−{fmt(discountAmount)}</span>
+                      </div>
+                    </>
+                  )}
                   <div className="flex items-center justify-between w-full">
                     <span className="text-[13px] font-extrabold text-slate-500 uppercase tracking-wider">Tổng cộng hóa đơn</span>
                     <span className="text-[17px] font-black text-slate-800 font-mono leading-none">{fmt(finalTotal)}</span>
@@ -909,7 +982,9 @@ function PendingInvoiceRow({ inv, method, onMethodChange, onPaid, onAutoConfirme
               )}
               <div className="text-[24px] font-black text-slate-900 font-mono leading-none">{fmt(inv.finalTotal)}</div>
               {inv.discount > 0 && (
-                <div className="text-[12px] font-semibold text-emerald-600 mt-0.5">Đã giảm {fmt(inv.discount)}</div>
+                <div className="text-[12px] font-semibold text-emerald-600 mt-0.5">
+                  Đã giảm {fmt(inv.discount)}{inv.promotionCode ? ` (${inv.promotionCode})` : ""}
+                </div>
               )}
             </>
           )}
@@ -1324,6 +1399,7 @@ export default function InvoicesPage() {
   const [paid,    setPaid]    = useState<Invoice[]>([]);
   const [outstanding, setOutstanding] = useState<Invoice[]>([]);
   const [outstandingPlans, setOutstandingPlans] = useState<OutstandingPlanDto[]>([]);
+  const [promotions, setPromotions] = useState<PromotionDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState<string | null>(null);
   const [toast,   setToast]   = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
@@ -1349,18 +1425,22 @@ export default function InvoicesPage() {
   const fPaid    = byPaidDate(paid);
 
   const reload = useCallback(async () => {
-    const [billable, pendingInv, history, outstandingInv, outstandingPls] = await Promise.all([
+    // Khuyến mãi tải song song với các danh sách khác thay vì để PlansTab tự fetch riêng sau khi
+    // trang đã hiện xong — tránh phần "Khuyến mãi" bị hiện trễ một nhịp so với phần còn lại.
+    const [billable, pendingInv, history, outstandingInv, outstandingPls, promos] = await Promise.all([
       getBillablePlansApi(),
       getPendingInvoicesApi(),
       getInvoiceHistoryApi(),
       getOutstandingInvoicesApi(),
       getOutstandingPlansApi(),
+      getPromotionsApi().catch(() => []),
     ]);
     setPlans(billable.map(mapPlan));
     setPending(pendingInv.map(mapInvoice));
     setPaid(history.map(mapInvoice));
     setOutstanding(outstandingInv.map(mapInvoice));
     setOutstandingPlans(outstandingPls);
+    setPromotions(promos);
   }, []);
 
   useEffect(() => {
@@ -1379,9 +1459,13 @@ export default function InvoicesPage() {
   // Xuất hóa đơn từ liệu trình (planId chính là appointmentId)
   const handleIssued = async (inv: Invoice): Promise<boolean> => {
     try {
+      // Khi có áp dụng khuyến mãi, quy đổi số thu từng dòng theo cùng tỉ lệ giảm giá đã hiển thị ở
+      // PlansTab — tránh tổng thu (chưa giảm giá) vượt quá tổng hóa đơn (đã giảm giá) và bị backend
+      // từ chối. Dùng Math.floor để tổng luôn ≤ finalTotal, không bị lệch làm tròn.
+      const collectRatio = inv.subtotal > 0 && inv.discount > 0 ? inv.finalTotal / inv.subtotal : 1;
       await issueInvoiceApi({
         appointmentId: inv.planId!,
-        items: inv.items.map(i => ({ name: i.name, quantity: i.qty, unitPrice: i.price, treatmentPlanId: i.treatmentPlanId ?? undefined, amountCollected: lineCollected(i) })),
+        items: inv.items.map(i => ({ name: i.name, quantity: i.qty, unitPrice: i.price, treatmentPlanId: i.treatmentPlanId ?? undefined, amountCollected: Math.floor(lineCollected(i) * collectRatio) })),
         discount: inv.discount,
         paymentMethod: inv.paymentMethod ?? "cash",
         paymentType: inv.paymentType,
@@ -1389,6 +1473,7 @@ export default function InvoicesPage() {
         notes: inv.note || undefined,
         parentInvoiceId: inv.parentInvoiceId ?? undefined,
         treatmentPlanId: inv.treatmentPlanId ?? undefined,
+        promotionId: inv.promotionId ?? undefined,
       });
       await reload();
       setTimeout(() => setTab("pending"), 2200);
@@ -1523,7 +1608,7 @@ export default function InvoicesPage() {
             </div>
           ) : (
             <>
-              {tab === "plans"       && <PlansTab       plans={fPlans}        onIssued={handleIssued} />}
+              {tab === "plans"       && <PlansTab       plans={fPlans}        promotions={promotions} onIssued={handleIssued} />}
               {tab === "pending"     && <PendingTab     invoices={fPending}    onPaid={handlePaid}    onAutoConfirmed={handleAutoConfirmed} />}
               {tab === "outstanding" && <OutstandingTab invoices={outstanding} plans={outstandingPlans} onCollect={handleCollectRemaining} />}
               {tab === "history"     && <HistoryTab     paid={fPaid}                                  />}
