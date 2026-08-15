@@ -7,14 +7,7 @@ import { getPostByIdApi, updatePostApi, resolveAssetUrl } from "../../../../../l
 import StaffSidebar from "../../../../../components/shared/StaffSidebar";
 import { useRequireStaff } from "../../../../../hooks/useRequireStaff";
 import NotificationBell from "../../../../../components/shared/NotificationBell";
-
-const CATEGORIES = [
-  "Chăm sóc răng miệng",
-  "Niềng răng",
-  "Phục hình",
-  "Khuyến mãi",
-  "Lời khuyên nha khoa"
-];
+import { POST_CATEGORIES } from "../../../../../lib/postConstants";
 
 interface EditPostPageProps {
   params: Promise<{ id: string }>;
@@ -264,7 +257,7 @@ export default function EditPostPage({ params }: EditPostPageProps) {
                         onChange={(e) => setCategory(e.target.value)}
                         className="w-full appearance-none bg-white text-slate-700 font-bold text-[14px] pl-4 pr-10 py-3 rounded-xl border border-slate-200 hover:border-slate-350 focus:border-primary/50 focus:outline-none transition-all cursor-pointer"
                       >
-                        {CATEGORIES.map((cat, idx) => (
+                        {POST_CATEGORIES.map((cat, idx) => (
                           <option key={idx} value={cat}>
                             {cat}
                           </option>

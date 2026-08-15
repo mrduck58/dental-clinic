@@ -16,7 +16,9 @@ public record StaffAppointmentDto(
     DateTimeOffset CreatedAt,
     string Status,
     string? Symptoms,
-    DateTimeOffset? CheckedInAt);
+    DateTimeOffset? CheckedInAt,
+    /// <summary>"Online" (bệnh nhân tự đặt) hoặc "WalkIn" (lễ tân lập tại quầy).</summary>
+    string Origin);
 
 public record GetAllAppointmentsQuery(DateOnly? Date, string? Status)
     : IRequest<IEnumerable<StaffAppointmentDto>>;
@@ -41,7 +43,7 @@ public class GetAllAppointmentsHandler(IAppointmentRepository appointmentReposit
         return appointments.Select(a => new StaffAppointmentDto(
             a.Id,
             $"DK{a.AppointmentDate:yyyyMMdd}{a.Id.ToString()[..6].ToUpper()}",
-            a.PatientId,
+            a.Patient.Id,
             a.Patient.FullName,
             a.Patient.User?.PhoneNumber,
             a.Dentist.FullName,
@@ -50,6 +52,7 @@ public class GetAllAppointmentsHandler(IAppointmentRepository appointmentReposit
             a.CreatedAt,
             a.Status.ToString(),
             a.Symptoms,
-            a.CheckedInAt));
+            a.CheckedInAt,
+            a.Origin.ToString()));
     }
 }

@@ -9,6 +9,8 @@ import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/core/network/api_client.dart';
+import 'package:mobile_app/core/services/firebase_messaging_service.dart';
+import 'package:mobile_app/core/services/notification_sync_service.dart';
 import 'package:mobile_app/features/auth/data/auth_service.dart';
 import 'package:mobile_app/features/auth/presentation/widgets/auth_widgets.dart';
 import 'package:mobile_app/features/auth/presentation/widgets/google_signin_web_button.dart';
@@ -146,6 +148,8 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
+      NotificationSyncService.instance.start();
+      unawaited(FirebaseMessagingService.instance.syncTokenWithBackend());
       context.go(AppRoutes.home);
     } on DioException catch (e) {
       setState(() => _generalError = ApiClient.errorMessage(e));
@@ -189,6 +193,8 @@ class _LoginPageState extends State<LoginPage> {
           const SnackBar(content: Text('Chào mừng quay trở lại.')),
         );
       }
+      NotificationSyncService.instance.start();
+      unawaited(FirebaseMessagingService.instance.syncTokenWithBackend());
       context.go(AppRoutes.home);
     } on DioException catch (e) {
       if (mounted) {

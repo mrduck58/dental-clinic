@@ -45,7 +45,8 @@ public class TreatmentPlanHandlerTests
         var appointmentRepository = new AppointmentRepository(_db);
         var serviceRepository = new ServiceRepository(_db);
         var treatmentPlanRepository = new TreatmentPlanRepository(_db);
-        var queryHelper = new TreatmentPlanQueryHelper(treatmentPlanRepository, appointmentRepository);
+        var procedureRepository = new TreatmentProcedureRepository(_db);
+        var queryHelper = new TreatmentPlanQueryHelper(treatmentPlanRepository, appointmentRepository, procedureRepository);
 
         _create = new CreateTreatmentPlanHandler(
             appointmentRepository, serviceRepository, treatmentPlanRepository, queryHelper, _patientRepo, _notificationService);
@@ -292,9 +293,9 @@ public class TreatmentPlanHandlerTests
         await act.Should().ThrowAsync<ValidationException>();
     }
 
-    /// <summary>Truyền Status hợp lệ phải cập nhật đúng trạng thái liệu trình.</summary>
+    /// <summary>Hủy liệu trình (quyết định hành chính) vẫn được đặt qua API cập nhật.</summary>
     [Test]
-    public async Task UpdateAsync_ValidStatusString_UpdatesStatus()
+    public async Task UpdateAsync_CancelledStatus_UpdatesStatus()
     {
         var (patient, dentist) = await SeedPatientAndDentistAsync("p12", "d12");
         var (appointment, service) = await SeedInProgressAppointmentAsync(patient, dentist);
@@ -303,9 +304,28 @@ public class TreatmentPlanHandlerTests
         await _db.SaveChangesAsync();
 
         var dto = await _update.Handle(
+            new UpdateTreatmentPlanRequest(plan.Id, 500_000m, 1, null, null, null, "Cancelled"), CancellationToken.None);
+
+        dto.Status.Should().Be("Cancelled");
+    }
+
+    /// <summary>
+    /// Đặt tay "Hoàn thành" phải bị từ chối: trạng thái điều trị là kết quả tính từ tiến độ các bước
+    /// quy trình, không phải thứ bác sĩ/lễ tân tự bấm.
+    /// </summary>
+    [Test]
+    public async Task UpdateAsync_ManualCompletedStatus_ThrowsValidationException()
+    {
+        var (patient, dentist) = await SeedPatientAndDentistAsync("p12b", "d12b");
+        var (appointment, service) = await SeedInProgressAppointmentAsync(patient, dentist);
+        var plan = TreatmentPlan.Create(patient.Id, dentist.Id, appointment.Id, service.Id, 500_000m, 1);
+        _db.TreatmentPlans.Add(plan);
+        await _db.SaveChangesAsync();
+
+        Func<Task> act = () => _update.Handle(
             new UpdateTreatmentPlanRequest(plan.Id, 500_000m, 1, null, null, null, "Completed"), CancellationToken.None);
 
-        dto.Status.Should().Be("Completed");
+        await act.Should().ThrowAsync<ValidationException>();
     }
 
     // ── DeleteAsync ────────────────────────────────────────────────────────────
@@ -440,7 +460,7 @@ public class TreatmentPlanHandlerTests
     }
 
     /// <summary>
-    /// Ghi nhận bước điều trị đầu tiên phải chuyển liệu trình từ Planned sang InProgress, và bước
+    /// Ghi nhận bước điều trị đầu tiên (chưa xong) phải chuyển liệu trình từ Planned sang InProgress, và bước
     /// phải xuất hiện trong StepProgress của DTO trả về.
     /// </summary>
     [Test]
@@ -453,10 +473,68 @@ public class TreatmentPlanHandlerTests
         await _db.SaveChangesAsync();
 
         var dto = await _addStep.Handle(new AddStepProgressCommand(
-            plan.Id, new AddStepProgressRequest(1, "Lấy tủy", 150, null, "Bước 1")), CancellationToken.None);
+            plan.Id, new AddStepProgressRequest(1, "Lấy tủy", 40, null, "Bước 1")), CancellationToken.None);
 
         dto.Status.Should().Be("InProgress");
-        dto.StepProgress.Should().ContainSingle(s => s.StepName == "Lấy tủy" && s.Percent == 100);
+        dto.StepProgress.Should().ContainSingle(s => s.StepName == "Lấy tủy" && s.Percent == 40);
+    }
+
+    /// <summary>
+    /// Dịch vụ có quy trình 2 bước: xong bước 1 vẫn là InProgress (50%), xong nốt bước 2 thì hệ thống
+    /// tự chuyển sang Completed (100%) — trạng thái bám theo tiến độ chuyên môn, không theo thanh toán.
+    /// </summary>
+    [Test]
+    public async Task AddStepProgressAsync_AllProcedureStepsAt100_CompletesPlanAndReports100Percent()
+    {
+        var (patient, dentist) = await SeedPatientAndDentistAsync("p18b", "d18b");
+        var (appointment, service) = await SeedInProgressAppointmentAsync(patient, dentist);
+        _db.TreatmentProcedures.AddRange(
+            TreatmentProcedure.Create(service.Id, 1, "Lấy tủy"),
+            TreatmentProcedure.Create(service.Id, 2, "Trám bít"));
+        var plan = TreatmentPlan.Create(patient.Id, dentist.Id, appointment.Id, service.Id, 500_000m, 1);
+        _db.TreatmentPlans.Add(plan);
+        await _db.SaveChangesAsync();
+
+        var afterStep1 = await _addStep.Handle(new AddStepProgressCommand(
+            plan.Id, new AddStepProgressRequest(1, "Lấy tủy", 100, null, null)), CancellationToken.None);
+
+        afterStep1.Status.Should().Be("InProgress");
+        afterStep1.TotalSteps.Should().Be(2);
+        afterStep1.CompletedSteps.Should().Be(1);
+        afterStep1.ProgressPercent.Should().Be(50);
+
+        var afterStep2 = await _addStep.Handle(new AddStepProgressCommand(
+            plan.Id, new AddStepProgressRequest(2, "Trám bít", 100, null, null)), CancellationToken.None);
+
+        afterStep2.Status.Should().Be("Completed");
+        afterStep2.CompletedSteps.Should().Be(2);
+        afterStep2.ProgressPercent.Should().Be(100);
+    }
+
+    /// <summary>
+    /// Bước quy trình bị ghi nhận dở dang (dù các bước khác đã 100%) thì dịch vụ KHÔNG được coi là hoàn thành —
+    /// và sửa bước đó lên 100% phải kéo trạng thái sang Completed.
+    /// </summary>
+    [Test]
+    public async Task UpdateStepProgressAsync_LastUnfinishedStepReaches100_CompletesPlan()
+    {
+        var (patient, dentist) = await SeedPatientAndDentistAsync("p18c", "d18c");
+        var (appointment, service) = await SeedInProgressAppointmentAsync(patient, dentist);
+        _db.TreatmentProcedures.Add(TreatmentProcedure.Create(service.Id, 1, "Lấy tủy"));
+        var plan = TreatmentPlan.Create(patient.Id, dentist.Id, appointment.Id, service.Id, 500_000m, 1);
+        _db.TreatmentPlans.Add(plan);
+        await _db.SaveChangesAsync();
+
+        var partial = await _addStep.Handle(new AddStepProgressCommand(
+            plan.Id, new AddStepProgressRequest(1, "Lấy tủy", 60, null, null)), CancellationToken.None);
+        partial.Status.Should().Be("InProgress");
+        partial.ProgressPercent.Should().Be(0); // 0/1 bước xong
+
+        var done = await _updateStep.Handle(new UpdateStepProgressCommand(
+            plan.Id, new UpdateStepProgressRequest(0, 100, null)), CancellationToken.None);
+
+        done.Status.Should().Be("Completed");
+        done.ProgressPercent.Should().Be(100);
     }
 
     /// <summary>Ghi nhận bước tiếp theo khi liệu trình đã InProgress không được tạo lại chuyển trạng

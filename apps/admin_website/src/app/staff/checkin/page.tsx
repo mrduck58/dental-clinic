@@ -17,6 +17,8 @@ import {
   searchPatientsApi,
   getFollowUpDueApi,
   checkInFollowUpApi,
+  undoCheckInAppointmentApi,
+  undoNoShowAppointmentApi,
   type StaffAppointmentDto,
   type StaffScheduleResponse,
   type ServiceDto,
@@ -605,18 +607,19 @@ function WalkinTab({
 }) {
   const [schedule,  setSchedule]  = useState<StaffScheduleResponse | null>(null);
   const [services,  setServices]  = useState<ServiceDto[]>([]);
+  // Ngày của lưới lịch trống. Trước đây khóa cứng ở hôm nay, nên bệnh nhân đang đứng tại quầy muốn
+  // hẹn hôm sau thì lễ tân không đặt được — phải bảo họ tự đặt trên app.
+  const [gridDate,  setGridDate]  = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  });
   const [loading,   setLoading]   = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selected,  setSelected]  = useState<{
     dentistId: string; dentistName: string; room: string; time: string;
   } | null>(null);
-  const [form,      setForm]      = useState({ name: "", phone: "", email: "", dob: "", gender: "Nam", serviceId: "", note: "" });
-  // Xác thực email trước khi cấp tài khoản: bệnh nhân mở hộp thư, đọc mã cho lễ tân nhập lại.
-  // Không có bước này thì gõ nhầm một ký tự là mật khẩu bay tới hộp thư người lạ.
-  const [verifyCode, setVerifyCode] = useState("");
-  const [verifySentTo, setVerifySentTo] = useState<string | null>(null);
-  const [sendingCode, setSendingCode] = useState(false);
-  const { toast, showToast } = useToast();
+  const [form,      setForm]      = useState({ name: "", phone: "", dob: "", gender: "Nam", serviceId: "", note: "" });
+  const { toast } = useToast();
   const [saving,    setSaving]    = useState(false);
   const [saved,     setSaved]     = useState(false);
   const [bookError, setBookError] = useState<string | null>(null);
@@ -686,7 +689,7 @@ function WalkinTab({
   const unlinkPatient = () => {
     setLinked(null);
     onClearSelectedPatient?.();
-    setForm(prev => ({ ...prev, name: "", phone: "", email: "", dob: "", gender: "Nam" }));
+    setForm(prev => ({ ...prev, name: "", phone: "", dob: "", gender: "Nam" }));
   };
 
   const dobPickerRef = useRef<HTMLInputElement>(null);
@@ -760,9 +763,12 @@ function WalkinTab({
 
   const load = useCallback(async () => {
     try {
+      setLoading(true);
       setLoadError(null);
+      // Đổi ngày thì ô đang chọn không còn ý nghĩa — giữ lại sẽ đặt nhầm sang ngày mới.
+      setSelected(null);
       const [sched, svcs] = await Promise.all([
-        getStaffScheduleApi(),
+        getStaffScheduleApi(gridDate),
         getServicesApi({ status: "active" }),
       ]);
       setSchedule(sched);
@@ -773,7 +779,7 @@ function WalkinTab({
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [gridDate]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -814,10 +820,12 @@ function WalkinTab({
     const isoDate = `${yyyy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
 
     // Chuyển giờ Việt Nam (UTC+7) sang UTC
-    // Dùng Date.UTC để treat components là giờ VN, rồi trừ offset +7h
-    const now = new Date();
+    // Dùng Date.UTC để treat components là giờ VN, rồi trừ offset +7h.
+    // Ngày lấy từ lưới đang xem (gridDate), không phải hôm nay — nếu không thì mọi lịch đặt cho
+    // ngày khác đều bị ghi nhầm về hôm nay mà không báo lỗi gì.
+    const [gy, gm, gd] = gridDate.split("-").map(Number);
     const [h, m] = selected.time.split(":").map(Number);
-    const vnMs  = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0);
+    const vnMs  = Date.UTC(gy, gm - 1, gd, h, m, 0);
     const utcDate = new Date(vnMs - 7 * 60 * 60 * 1000);
 
     try {
@@ -832,12 +840,6 @@ function WalkinTab({
         serviceId:       form.serviceId || undefined,
         symptoms:        form.note || undefined,
         patientId:       linked?.id,
-        // Chỉ gửi khi đây là bệnh nhân MỚI: hồ sơ đã tồn tại thì backend bỏ qua, không lập tài khoản lần hai.
-        patientEmail:    linked ? undefined : (form.email.trim() || undefined),
-        // Chỉ gửi mã khi nó thuộc về đúng email đang nhập — sửa email sau khi gửi mã thì mã cũ
-        // không còn đúng địa chỉ nào, gửi lên sẽ tạo tài khoản cho email chưa xác thực.
-        emailVerificationCode:
-          !linked && verifySentTo === form.email.trim() ? verifyCode.trim() || undefined : undefined,
       });
 
       // Cập nhật lưới ngay lập tức, không chờ API refresh
@@ -861,9 +863,7 @@ function WalkinTab({
       setSelected(null);
       setTimeout(() => {
         setSaved(false);
-        setForm(p => ({ name: "", phone: "", email: "", dob: "", gender: "Nam", serviceId: p.serviceId, note: "" }));
-        setVerifyCode("");
-        setVerifySentTo(null);
+        setForm(p => ({ name: "", phone: "", dob: "", gender: "Nam", serviceId: p.serviceId, note: "" }));
         setPhoneError(null);
         setDobError(null);
         setLinked(null);
@@ -918,7 +918,19 @@ function WalkinTab({
       <div className="flex-1 flex flex-col gap-4 min-w-0">
         <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden flex flex-col flex-1 min-h-[380px] lg:min-h-0">
           <div className="px-4 sm:px-5 py-3.5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shrink-0">
-            <h3 className="text-[14px] font-black text-slate-900">Lịch trống hôm nay</h3>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h3 className="text-[14px] font-black text-slate-900">Lịch trống</h3>
+              <input
+                type="date"
+                value={gridDate}
+                min={todayIso}
+                onChange={e => setGridDate(e.target.value)}
+                className="px-3 py-1.5 text-[12.5px] bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-bold text-slate-700"
+              />
+              <span className={`px-2 py-1 rounded-lg border text-[11px] font-black ${getDateBadgeColor(gridDate)}`}>
+                {formatDateLabel(gridDate)}
+              </span>
+            </div>
             <div className="flex items-center gap-2.5 sm:gap-3 text-[11.5px] sm:text-[12px] font-bold flex-wrap">
               <span className="flex items-center gap-1.5 text-slate-400"><span className="w-3 h-3 rounded bg-slate-100 border border-slate-200 inline-block" />Đã đặt</span>
               <span className="flex items-center gap-1.5 text-emerald-600"><span className="w-3 h-3 rounded bg-emerald-50 border border-emerald-200 inline-block" />Trống</span>
@@ -933,6 +945,16 @@ function WalkinTab({
             </div>
           ) : loadError ? (
             <div className="p-6 text-center text-[13px] text-red-500 font-semibold">{loadError}</div>
+          ) : (schedule?.dentists.length ?? 0) === 0 ? (
+            // Chọn được ngày khác thì gặp được ngày không ai trực — bảng trống trơn không nói lên
+            // điều đó, lễ tân sẽ tưởng trang bị lỗi.
+            <div className="p-10 flex flex-col items-center gap-2 text-center">
+              <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center">
+                <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" /></svg>
+              </div>
+              <p className="text-[13.5px] font-bold text-slate-500">Không có bác sĩ nào làm việc {formatDateLabel(gridDate).toLowerCase()}.</p>
+              <p className="text-[12.5px] font-semibold text-slate-400">Chọn ngày khác, hoặc phân ca cho bác sĩ ở trang Lịch làm việc.</p>
+            </div>
           ) : (
             // Bảng chiếm hết chỗ trống còn lại của thẻ và tự cuộn, nhờ đó thead ghim được ở
             // đỉnh và form bên phải luôn nằm trong màn hình khi xem ca tối.
@@ -1014,9 +1036,13 @@ function WalkinTab({
                   <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
                     <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <div className="text-[13px] font-black text-slate-900">{selected.time} · {selected.dentistName}</div>
-                    <div className="text-[12px] text-slate-500 font-semibold">{selected.room}</div>
+                    {/* Ngày phải hiện ở đây: lưới đổi được sang ngày khác nên chỉ nhìn giờ là không
+                        đủ để biết mình đang đặt cho hôm nào. */}
+                    <div className="text-[12px] text-slate-500 font-semibold truncate">
+                      {formatDateLabel(gridDate)} · {selected.room}
+                    </div>
                   </div>
                   <button onClick={() => setSelected(null)} className="ml-auto text-slate-300 hover:text-slate-500 cursor-pointer">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -1127,68 +1153,6 @@ function WalkinTab({
                   />
                   {phoneError && <p className="text-[11.5px] font-semibold text-red-500">{phoneError}</p>}
                 </div>
-                {/* Chỉ hỏi email khi đây là bệnh nhân MỚI — hồ sơ đã tra cứu ra thì họ đã có sẵn
-                    tài khoản (hoặc đã từ chối cung cấp email), hỏi lại chỉ làm rối lễ tân. */}
-                {!linked && (
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">
-                      Email <span className="text-slate-400 normal-case font-bold">(để lập tài khoản cho bệnh nhân)</span>
-                    </label>
-                    <input
-                      type="email"
-                      value={form.email}
-                      onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
-                      placeholder="benhnhan@gmail.com"
-                      className={inputCls}
-                    />
-                    <p className="text-[11.5px] font-semibold text-slate-400">
-                      Có email thì hệ thống gửi mật khẩu đăng nhập để bệnh nhân tự đặt lịch lần sau.
-                      Bỏ trống vẫn khám được bình thường.
-                    </p>
-
-                    {form.email.trim() !== "" && (
-                      <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3 flex flex-col gap-2">
-                        <div className="flex items-center gap-2">
-                          <input
-                            value={verifyCode}
-                            onChange={e => setVerifyCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                            placeholder="Mã 6 số"
-                            inputMode="numeric"
-                            className={`${inputCls} flex-1`}
-                          />
-                          <button
-                            type="button"
-                            disabled={sendingCode}
-                            onClick={async () => {
-                              const email = form.email.trim();
-                              setSendingCode(true);
-                              try {
-                                await sendPatientEmailVerificationApi(email);
-                                setVerifySentTo(email);
-                                setVerifyCode("");
-                                showToast(`Đã gửi mã xác thực tới ${email}. Nhờ bệnh nhân mở hộp thư và đọc mã.`);
-                              } catch (err) {
-                                showToast(
-                                  err instanceof Error ? err.message : "Gửi mã xác thực thất bại.",
-                                  "error");
-                              } finally {
-                                setSendingCode(false);
-                              }
-                            }}
-                            className="px-4 py-3 rounded-xl bg-slate-800 text-white text-[13px] font-bold whitespace-nowrap cursor-pointer hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-                          >
-                            {sendingCode ? "Đang gửi…" : "Gửi mã"}
-                          </button>
-                        </div>
-                        <p className="text-[11.5px] font-semibold text-slate-500">
-                          {verifySentTo === form.email.trim()
-                            ? "Đã gửi mã — nhờ bệnh nhân đọc lại mã trong hộp thư."
-                            : "Bấm “Gửi mã” rồi nhờ bệnh nhân đọc mã trong hộp thư. Chưa xác thực thì vẫn khám được, chỉ chưa có tài khoản."}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
                 <div className="flex gap-3">
                   <div className="flex flex-col gap-1.5 flex-1 min-w-0">
                     <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">Ngày sinh *</label>
@@ -1429,10 +1393,12 @@ export default function CheckinPage() {
   const [selected,  setSelected]  = useState<string | null>(null);
   const [appointments, setAppointments] = useState<StaffAppointmentDto[]>([]);
   const [loadingId, setLoadingId] = useState<string | null>(null);
-  // Phân biệt thao tác đang chạy để hiện spinner đúng nút (check-in hay ghi nhận vắng).
-  const [busyKind,  setBusyKind]  = useState<"checkin" | "noshow" | null>(null);
+  // Phân biệt thao tác đang chạy để hiện spinner đúng nút (check-in, ghi nhận vắng hay hoàn tác).
+  const [busyKind,  setBusyKind]  = useState<"checkin" | "noshow" | "undo" | null>(null);
   // Bước xác nhận trong app trước khi ghi nhận vắng (thay cho hộp thoại confirm mặc định).
   const [confirmingNoShow, setConfirmingNoShow] = useState(false);
+  // Tương tự cho việc gỡ check-in: hậu quả khác nhau tùy nguồn lịch nên phải cho đọc trước khi bấm.
+  const [confirmingUndo, setConfirmingUndo] = useState(false);
   const { toast, showToast } = useToast();
 
   // Date filter - default to today (local timezone)
@@ -1464,8 +1430,8 @@ export default function CheckinPage() {
     return () => { void supabase.removeChannel(channel); };
   }, [loadAppointments]);
 
-  // Đổi bệnh nhân thì đóng bước xác nhận vắng đang mở dở.
-  useEffect(() => { setConfirmingNoShow(false); }, [selected]);
+  // Đổi bệnh nhân thì đóng các bước xác nhận đang mở dở.
+  useEffect(() => { setConfirmingNoShow(false); setConfirmingUndo(false); }, [selected]);
 
   const waiting = appointments.filter(p => p.status === "Confirmed");
 
@@ -1540,6 +1506,42 @@ export default function CheckinPage() {
       setSelected(null);
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Ghi nhận vắng thất bại. Vui lòng thử lại.", "error");
+    } finally {
+      setLoadingId(null);
+      setBusyKind(null);
+    }
+  };
+
+  const doUndoCheckin = async (appt: StaffAppointmentDto) => {
+    setLoadingId(appt.appointmentId);
+    setBusyKind("undo");
+    try {
+      const result = await undoCheckInAppointmentApi(appt.appointmentId);
+      await loadAppointments();
+      setConfirmingUndo(false);
+      setSelected(null);
+      showToast(result.origin === "WalkIn"
+        ? `Đã hủy lịch tại quầy của ${appt.patientName}.`
+        : `Đã gỡ check-in. Lịch của ${appt.patientName} quay về danh sách chờ xác nhận.`);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Hoàn tác check-in thất bại. Vui lòng thử lại.", "error");
+    } finally {
+      setLoadingId(null);
+      setBusyKind(null);
+    }
+  };
+
+  const doUndoNoShow = async (appt: StaffAppointmentDto) => {
+    setLoadingId(appt.appointmentId);
+    setBusyKind("undo");
+    try {
+      await undoNoShowAppointmentApi(appt.appointmentId);
+      await loadAppointments();
+      setConfirmingUndo(false);
+      setSelected(null);
+      showToast(`Đã hoàn tác vắng mặt. Lịch của ${appt.patientName} quay về danh sách chờ check-in.`);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Hoàn tác vắng mặt thất bại. Vui lòng thử lại.", "error");
     } finally {
       setLoadingId(null);
       setBusyKind(null);
@@ -1652,17 +1654,81 @@ export default function CheckinPage() {
       ) : (
         (() => {
           const cfg = PROCESSED_STATUS[p.status] ?? PROCESSED_STATUS.CheckedIn;
-          return (
-            <div className={`flex items-center gap-3 px-5 py-4 rounded-2xl border ${cfg.cls}`}>
-              <div className="w-9 h-9 rounded-xl bg-white/70 flex items-center justify-center shrink-0">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d={cfg.icon} /></svg>
+          // Chỉ gỡ được khi buổi khám CHƯA có thật: hoặc bác sĩ chưa gọi vào phòng (CheckedIn),
+          // hoặc bệnh nhân chưa hề đến (NoShow). Từ InProgress trở đi đã có bệnh án/hóa đơn treo
+          // vào lịch — server cũng chặn, đây chỉ là không mời gọi vô ích.
+          const isNoShow = p.status === "NoShow";
+          const canUndo = p.status === "CheckedIn" || isNoShow;
+          const isWalkIn = p.origin === "WalkIn";
+
+          if (canUndo && confirmingUndo) return (
+            <div className="flex flex-col gap-3.5 p-4 sm:p-5 bg-slate-50 border border-slate-300 rounded-2xl">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-slate-200 flex items-center justify-center shrink-0">
+                  <svg className="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" /></svg>
+                </div>
+                <div>
+                  <div className="text-[14px] font-black text-slate-900">
+                    {isNoShow ? "Hoàn tác ghi nhận vắng mặt?" : isWalkIn ? "Hủy lịch tại quầy này?" : "Gỡ check-in của bệnh nhân này?"}
+                  </div>
+                  <div className="text-[12.5px] font-semibold text-slate-600 mt-1 leading-relaxed">
+                    <span className="font-black">{p.patientName}</span>{" "}
+                    {isNoShow
+                      ? "sẽ quay lại danh sách chờ check-in, như thể chưa từng bị ghi nhận vắng mặt."
+                      : isWalkIn
+                      ? "được lễ tân lập lịch ngay lúc check-in nên không có trạng thái nào trước đó để quay về — hoàn tác đồng nghĩa với hủy hẳn lịch hẹn này."
+                      : "sẽ rời hàng đợi và lịch hẹn quay về mục Đơn đặt online ở trang Đặt Lịch & Nhận Đơn, chờ xác nhận lại."}
+                  </div>
+                </div>
               </div>
-              <div>
-                <div className="text-[14px] font-black">{cfg.label}</div>
-                {p.status !== "NoShow" && p.checkedInAt && (
-                  <div className="text-[12.5px] font-semibold opacity-80">Check-in lúc {fmtTime(p.checkedInAt)}</div>
+              <div className="flex gap-3">
+                <button onClick={() => (isNoShow ? doUndoNoShow(p) : doUndoCheckin(p))}
+                  disabled={loadingId === p.appointmentId}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 disabled:opacity-50 text-white rounded-xl text-[14px] font-black shadow-sm transition-all cursor-pointer ${
+                    isWalkIn && !isNoShow ? "bg-primary hover:bg-red-600 shadow-primary/25" : "bg-slate-700 hover:bg-slate-800 shadow-slate-200"
+                  }`}>
+                  {loadingId === p.appointmentId && busyKind === "undo" ? (
+                    <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d={isWalkIn && !isNoShow ? BAN_ICON : "M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"} /></svg>
+                  )}
+                  {isNoShow ? "Xác nhận hoàn tác" : isWalkIn ? "Xác nhận hủy lịch" : "Xác nhận gỡ check-in"}
+                </button>
+                <button onClick={() => setConfirmingUndo(false)}
+                  disabled={loadingId === p.appointmentId}
+                  className="px-5 py-3 bg-white text-slate-500 border border-slate-200 rounded-xl text-[14px] font-bold cursor-pointer hover:bg-slate-50 disabled:opacity-50 transition-all">
+                  Giữ nguyên
+                </button>
+              </div>
+            </div>
+          );
+
+          return (
+            <div className="flex flex-col gap-3">
+              <div className={`flex items-center gap-3 px-5 py-4 rounded-2xl border ${cfg.cls}`}>
+                <div className="w-9 h-9 rounded-xl bg-white/70 flex items-center justify-center shrink-0">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d={cfg.icon} /></svg>
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[14px] font-black">{cfg.label}</div>
+                  {p.status !== "NoShow" && p.checkedInAt && (
+                    <div className="text-[12.5px] font-semibold opacity-80">Check-in lúc {fmtTime(p.checkedInAt)}</div>
+                  )}
+                </div>
+                {isWalkIn && (
+                  <span className="ml-auto shrink-0 px-2.5 py-1 rounded-lg bg-white/70 text-[11px] font-black uppercase tracking-wider">
+                    Tại quầy
+                  </span>
                 )}
               </div>
+              {canUndo && (
+                <button onClick={() => setConfirmingUndo(true)}
+                  disabled={loadingId === p.appointmentId}
+                  className="flex items-center justify-center gap-2 px-5 py-3 bg-white hover:bg-slate-50 border border-slate-300 text-slate-600 disabled:opacity-50 rounded-xl text-[13.5px] font-bold transition-all cursor-pointer">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" /></svg>
+                  {isNoShow ? "Hoàn tác vắng mặt" : "Hoàn tác check-in"}
+                </button>
+              )}
             </div>
           );
         })()
@@ -1810,7 +1876,18 @@ export default function CheckinPage() {
                         const apptTime = fmtTime(p.appointmentDate);
                         return (
                           <div key={p.appointmentId} className="flex flex-col gap-2">
-                            <button onClick={() => setSelected(isActive ? null : p.appointmentId)}
+                            {/* div chứ không phải button: bên trong còn nút "Check-in" riêng — button
+                                lồng button là HTML không hợp lệ và gây lỗi hydration. */}
+                            <div
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => setSelected(isActive ? null : p.appointmentId)}
+                              onKeyDown={e => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault();
+                                  setSelected(isActive ? null : p.appointmentId);
+                                }
+                              }}
                               className={`flex rounded-2xl border overflow-hidden w-full text-left transition-all hover:shadow-md cursor-pointer ${
                                 isActive ? "bg-white border-primary shadow-md shadow-primary/10" : "bg-white border-slate-200/70 hover:-translate-y-px"
                               }`}>
@@ -1846,7 +1923,7 @@ export default function CheckinPage() {
                                   Check-in
                                 </button>
                               </div>
-                            </button>
+                            </div>
 
                             {/* Mobile inline detail panel - ngay dưới thẻ bệnh nhân */}
                             {isActive && (

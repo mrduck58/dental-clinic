@@ -30,8 +30,7 @@ class ServiceCard extends StatelessWidget {
     final gradientColors = style.$1;
     final icon = style.$2;
     final hasCustomIcon = service.iconUrl != null && service.iconUrl!.isNotEmpty;
-    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
-    final quickInfo = '${service.durationText} â€¢ ${context.l10n('at_clinic')}';
+    final quickInfo = '${service.durationText} - ${context.l10n('at_clinic')}';
 
     return Material(
       color: context.card,
@@ -47,7 +46,7 @@ class ServiceCard extends StatelessWidget {
               name: service.name,
               description: service.description,
               price: service.formattedPrice,
-              note: '${service.durationText} â€¢ ${context.l10n('free_checkup')}',
+              note: '${service.durationText} - ${context.l10n('free_checkup')}',
             ),
           );
         },

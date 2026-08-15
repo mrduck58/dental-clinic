@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "503047981320",
+    "project_id": "songiangdental",
+    "storage_bucket": "songiangdental.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:503047981320:android:a3b44f084f50b9fccd84bd",
+        "android_client_info": {
+          "package_name": "com.songiangdental.mobileapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC7Scl7sVf9mBvs_HEIT-4YLQYrPd9saN8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

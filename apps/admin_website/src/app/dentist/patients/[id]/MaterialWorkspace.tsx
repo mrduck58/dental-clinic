@@ -10,6 +10,7 @@ import {
   type MaterialRequestDto,
   type SupplyItemDto,
 } from "../../../../lib/apiClient";
+import { Toast, useToast } from "../../../../components/shared/Toast";
 import { SUPPLY_UNITS } from "../../../../lib/inventoryConstants";
 
 interface MaterialWorkspaceProps {
@@ -73,11 +74,7 @@ export default function MaterialWorkspace({ appointmentId, editMode = false }: M
   const effectiveUnit = (row: { itemName: string; unit: string }) => findExactMatch(row.itemName)?.unit ?? row.unit;
   const validRows = rows.filter(r => r.itemName.trim() && Number(r.quantity) > 0);
 
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
-  const showToast = (message: string, type: "success" | "error" = "success") => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 4000);
-  };
+  const { toast, showToast } = useToast();
 
   const canEdit = examination?.status === "InProgress" || editMode;
 
@@ -318,12 +315,7 @@ export default function MaterialWorkspace({ appointmentId, editMode = false }: M
         </div>
       </div>
 
-      {/* Toast */}
-      {toast && (
-        <div className={`fixed bottom-6 right-6 z-[60] px-5 py-3.5 rounded-xl shadow-lg text-[13.5px] font-bold text-white ${toast.type === "success" ? "bg-emerald-600" : "bg-red-600"}`}>
-          {toast.message}
-        </div>
-      )}
+      <Toast toast={toast} />
     </div>
   );
 }

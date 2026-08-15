@@ -133,6 +133,16 @@ public class TreatmentPlanDto
     /// <summary>Đã được xuất hóa đơn (hóa đơn chưa hoàn tiền) — bác sĩ không được xóa/hủy liệu trình này nữa.</summary>
     public bool IsInvoiced { get; set; }
     public List<StepProgressEntryDto> StepProgress { get; set; } = new();
+
+    /// <summary>Tổng số bước trong quy trình chuẩn của dịch vụ (0 nếu dịch vụ chưa khai báo quy trình).</summary>
+    public int TotalSteps { get; set; }
+
+    /// <summary>Số bước đã ghi nhận đạt 100%.</summary>
+    public int CompletedSteps { get; set; }
+
+    /// <summary>% hoàn thành của dịch vụ = số bước xong / tổng số bước quy trình.</summary>
+    public int ProgressPercent { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }
 }

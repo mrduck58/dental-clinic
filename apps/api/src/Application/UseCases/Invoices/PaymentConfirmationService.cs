@@ -59,38 +59,10 @@ public class PaymentConfirmationService(
             parent?.Settle();
         }
 
-        // Credit công nợ cho từng liệu trình theo SỐ THU CỦA TỪNG DÒNG.
-        // - Hóa đơn thường: mỗi dòng credit đúng AmountCollected của nó (toàn bộ hoặc cọc của dòng).
-        // - Hóa đơn thu phần còn lại: lấy dòng của hóa đơn cọc gốc, credit nốt phần còn nợ của từng dòng.
-        var creditSource = parent ?? invoice;
-        var creditRemaining = parent != null; // true → thu nốt phần còn lại của các dòng gốc
-
-        var lines = await invoiceRepository.GetInvoiceItemsForCreditAsync(creditSource.Id, ct);
-
-        var creditByPlan = new Dictionary<Guid, decimal>();
-        foreach (var l in lines)
-        {
-            var credit = creditRemaining ? Math.Max(0, l.Line - l.Collected) : l.Collected;
-            creditByPlan[l.PlanId] = creditByPlan.GetValueOrDefault(l.PlanId, 0m) + credit;
-        }
-        // Tương thích ngược: hóa đơn "đợt thu" cũ gắn liệu trình ở cấp hóa đơn.
-        if ((parent?.TreatmentPlanId ?? invoice.TreatmentPlanId) is Guid headerPlanId)
-        {
-            var headerCredit = creditRemaining ? (parent?.RemainingAmount ?? 0m) : invoice.DepositAmount;
-            creditByPlan[headerPlanId] = creditByPlan.GetValueOrDefault(headerPlanId, 0m) + headerCredit;
-        }
-
-        foreach (var (pid, thisCredit) in creditByPlan)
-        {
-            var plan = await invoiceRepository.GetTreatmentPlanTrackedAsync(pid, ct);
-            if (plan != null && plan.Status == TreatmentPlanStatus.InProgress)
-            {
-                // GetPlanPaidAsync đọc từ DB (chưa gồm thay đổi lần này) → cộng thêm số vừa thu.
-                var paidBefore = await invoiceQuery.GetPlanPaidAsync(pid, ct);
-                if (paidBefore + thisCredit >= plan.TotalCost - 1m) // dung sai làm tròn
-                    plan.SetStatus(TreatmentPlanStatus.Completed);
-            }
-        }
+        // KHÔNG đổi trạng thái liệu trình theo thanh toán nữa: "hoàn thành" là kết luận CHUYÊN MÔN —
+        // chỉ khi mọi bước quy trình của dịch vụ đạt 100% (xem TreatmentPlanQueryHelper.SyncStatusWithProgressAsync,
+        // chạy mỗi lần bác sĩ ghi nhận/sửa/xóa quá trình điều trị). Thu đủ tiền một liệu trình đang làm dở
+        // (ví dụ niềng răng trả trước) không có nghĩa là đã điều trị xong. Công nợ vẫn tính từ hóa đơn như cũ.
 
         // Hoàn tất lịch hẹn CHỈ khi mọi dịch vụ trong chuỗi đã xuất hóa đơn hết
         // (cho phép còn dịch vụ khác của buổi chưa xuất → giữ buổi ở "chờ thanh toán").

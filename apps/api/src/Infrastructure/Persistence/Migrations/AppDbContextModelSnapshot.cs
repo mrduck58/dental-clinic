@@ -173,6 +173,13 @@ namespace DentalClinic.API.Infrastructure.Persistence.Migrations
                     b.Property<string>("Notes")
                         .HasColumnType("text");
 
+                    b.Property<string>("Origin")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("Online");
+
                     b.Property<Guid>("PatientId")
                         .HasColumnType("uuid");
 

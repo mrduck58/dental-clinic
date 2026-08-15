@@ -14,11 +14,30 @@ class SettingsManager {
   final ValueNotifier<Locale> locale = ValueNotifier<Locale>(const Locale('vi'));
   final ValueNotifier<String> apiBaseUrl = ValueNotifier<String>(kDefaultApiBaseUrl);
 
+  // Notification Preferences (Mặc định bật hết)
+  final ValueNotifier<bool> pushNotificationsEnabled = ValueNotifier<bool>(true);
+  final ValueNotifier<bool> reminderLockScreen = ValueNotifier<bool>(true);
+  final ValueNotifier<bool> reminderPopup = ValueNotifier<bool>(true);
+  final ValueNotifier<bool> notifyBooking = ValueNotifier<bool>(true);
+  final ValueNotifier<bool> notifyPayment = ValueNotifier<bool>(true);
+  final ValueNotifier<bool> notifyReminder = ValueNotifier<bool>(true);
+  final ValueNotifier<bool> notifyFollowup = ValueNotifier<bool>(true);
+
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
     isDarkMode.value = _prefs.getBool('is_dark_mode') ?? false;
     final langCode = _prefs.getString('language_code') ?? 'vi';
     locale.value = Locale(langCode);
+
+    // Load notification preferences (default = true)
+    pushNotificationsEnabled.value = _prefs.getBool('push_notifications_enabled') ?? true;
+    reminderLockScreen.value = _prefs.getBool('reminder_lock_screen') ?? true;
+    reminderPopup.value = _prefs.getBool('reminder_popup') ?? true;
+    notifyBooking.value = _prefs.getBool('notify_booking') ?? true;
+    notifyPayment.value = _prefs.getBool('notify_payment') ?? true;
+    notifyReminder.value = _prefs.getBool('notify_reminder') ?? true;
+    notifyFollowup.value = _prefs.getBool('notify_followup') ?? true;
+
     // Nếu URL đang lưu khác với URL mặc định hiện tại (ví dụ: đang giữ URL
     // Cloudflare/localhost cũ từ lần test trước) thì tự động reset về mặc định
     // mới — tránh lỗi "không kết nối được" sau khi cập nhật app.
@@ -37,6 +56,41 @@ class SettingsManager {
   Future<void> setLocale(String languageCode) async {
     locale.value = Locale(languageCode);
     await _prefs.setString('language_code', languageCode);
+  }
+
+  Future<void> setPushNotificationsEnabled(bool value) async {
+    pushNotificationsEnabled.value = value;
+    await _prefs.setBool('push_notifications_enabled', value);
+  }
+
+  Future<void> setReminderLockScreen(bool value) async {
+    reminderLockScreen.value = value;
+    await _prefs.setBool('reminder_lock_screen', value);
+  }
+
+  Future<void> setReminderPopup(bool value) async {
+    reminderPopup.value = value;
+    await _prefs.setBool('reminder_popup', value);
+  }
+
+  Future<void> setNotifyBooking(bool value) async {
+    notifyBooking.value = value;
+    await _prefs.setBool('notify_booking', value);
+  }
+
+  Future<void> setNotifyPayment(bool value) async {
+    notifyPayment.value = value;
+    await _prefs.setBool('notify_payment', value);
+  }
+
+  Future<void> setNotifyReminder(bool value) async {
+    notifyReminder.value = value;
+    await _prefs.setBool('notify_reminder', value);
+  }
+
+  Future<void> setNotifyFollowup(bool value) async {
+    notifyFollowup.value = value;
+    await _prefs.setBool('notify_followup', value);
   }
 
   /// Đổi URL gốc của API lúc đang chạy (vd: URL Cloudflare Tunnel mới) — không cần
@@ -195,6 +249,29 @@ class AppLocalizations {
       'legend_available': 'Ngày có thể đặt khám',
       'legend_today': 'Hôm nay',
       'legend_past': 'Ngày đã qua',
+      'notification_settings_title': 'Cài đặt thông báo',
+      'push_notifications': 'Thông báo đẩy',
+      'push_notifications_desc': 'Cho phép nhận thông báo từ phòng khám trên thiết bị này',
+      'reminder_mode_section': 'CHẾ ĐỘ LỜI NHẮC',
+      'lock_screen_reminder': 'Màn hình khóa',
+      'lock_screen_reminder_desc': 'Hiển thị thông báo khi màn hình thiết bị đang khóa',
+      'popup_reminder': 'Cửa sổ bật lên',
+      'popup_reminder_desc': 'Hiển thị biểu ngữ nổi trên màn hình khi có thông báo mới',
+      'notification_types_section': 'LOẠI THÔNG BÁO',
+      'notify_booking_title': 'Thông báo đặt lịch',
+      'notify_booking_desc': 'Xác nhận đặt khám, thay đổi lịch hẹn và hủy lịch',
+      'notify_payment_title': 'Thông báo thanh toán hóa đơn',
+      'notify_payment_desc': 'Thông báo phát hành hóa đơn mới và xác nhận đã thanh toán',
+      'notify_reminder_title': 'Thông báo nhắc nhở',
+      'notify_reminder_desc': 'Nhắc lịch hẹn trước giờ khám, nhắc nhở uống thuốc và hướng dẫn',
+      'notify_followup_title': 'Thông báo tái khám',
+      'notify_followup_desc': 'Nhắc hẹn tái khám định kỳ và theo dõi kết quả sau điều trị',
+      'system_permission_title': 'Quyền thông báo hệ thống',
+      'system_permission_disabled_msg': 'Thông báo ứng dụng đang bị tắt ở cài đặt hệ thống. Hãy cấp quyền để nhận được các cập nhật quan trọng.',
+      'grant_permission_btn': 'Cấp quyền truy cập',
+      'open_settings_btn': 'Mở Cài đặt hệ thống',
+      'permission_granted_tag': 'Đã cấp quyền',
+      'permission_denied_tag': 'Chưa cấp quyền',
     },
     'en': {
       'settings': 'Settings',
@@ -331,6 +408,29 @@ class AppLocalizations {
       'legend_available': 'Available date',
       'legend_today': 'Today',
       'legend_past': 'Past date',
+      'notification_settings_title': 'Notification Settings',
+      'push_notifications': 'Push Notifications',
+      'push_notifications_desc': 'Allow notifications from clinic on this device',
+      'reminder_mode_section': 'REMINDER MODES',
+      'lock_screen_reminder': 'Lock Screen',
+      'lock_screen_reminder_desc': 'Show notifications when device screen is locked',
+      'popup_reminder': 'Pop-up Banners',
+      'popup_reminder_desc': 'Display floating banners when new notifications arrive',
+      'notification_types_section': 'NOTIFICATION CATEGORIES',
+      'notify_booking_title': 'Appointment Notifications',
+      'notify_booking_desc': 'Booking confirmations, reschedule updates and cancellations',
+      'notify_payment_title': 'Invoice & Payment Notifications',
+      'notify_payment_desc': 'New invoices and payment success confirmations',
+      'notify_reminder_title': 'Reminder Notifications',
+      'notify_reminder_desc': 'Pre-appointment reminders, medicine alerts and instructions',
+      'notify_followup_title': 'Follow-up Notifications',
+      'notify_followup_desc': 'Periodic check-up alerts and post-treatment follow-ups',
+      'system_permission_title': 'System Notification Permission',
+      'system_permission_disabled_msg': 'System notifications are currently disabled for this app. Please enable them to stay updated.',
+      'grant_permission_btn': 'Grant Permission',
+      'open_settings_btn': 'Open System Settings',
+      'permission_granted_tag': 'Active',
+      'permission_denied_tag': 'Disabled',
     }
   };
 

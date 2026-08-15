@@ -173,7 +173,10 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
 
         if (date.HasValue)
         {
-            var start = new DateTimeOffset(date.Value.Year, date.Value.Month, date.Value.Day, 0, 0, 0, TimeSpan.Zero);
+            // Cửa sổ ngày tính theo giờ VN rồi quy về UTC — giống GetByDateAsync. Dùng mốc nửa đêm UTC
+            // sẽ lệch 7 tiếng: lịch hẹn 00:00–07:00 sáng bị tính sang ngày hôm trước.
+            var vnOffset = TimeSpan.FromHours(7);
+            var start = new DateTimeOffset(date.Value.Year, date.Value.Month, date.Value.Day, 0, 0, 0, vnOffset).ToUniversalTime();
             var end = start.AddDays(1);
             query = query.Where(a => a.AppointmentDate >= start && a.AppointmentDate < end);
         }

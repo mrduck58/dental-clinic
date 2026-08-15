@@ -247,6 +247,8 @@ export interface StaffDto {
   salaryUnit: string | null;
   leaveAccrued: number | null;
   allowance: number | null;
+  /** Id hồ sơ nha sĩ — null nếu nhân viên không phải bác sĩ. Đánh giá của bệnh nhân khóa theo id này. */
+  dentistProfileId: string | null;
 }
 
 
@@ -1013,7 +1015,6 @@ export interface MedicineDto {
   manufacturer: string;
   unit: string;
   description: string;
-  isActive: boolean;
   createdAt: string;
   updatedAt: string | null;
 }
@@ -1490,6 +1491,43 @@ export interface CreateLeaveRequestRequest {
   reason: string;
 }
 
+// Ảnh hưởng của đơn nghỉ: ca làm việc đã xếp bị trùng khoảng nghỉ (duyệt đơn = gỡ hết các ca này)
+// và lịch hẹn đã đặt trong những ngày đó (KHÔNG tự hủy — chỉ cảnh báo để Owner tự xử lý).
+export interface LeaveImpactShiftDto {
+  scheduleId: string;
+  shift: string; // mã ca, ví dụ "08:00-10:00" (xem lib/shifts.ts)
+  room: string;
+  role: "dentist" | "assistant" | "staff";
+  type: "dentist" | "staff";
+}
+
+export interface LeaveImpactDayDto {
+  date: string; // "YYYY-MM-DD"
+  shifts: LeaveImpactShiftDto[];
+  appointmentCount: number;
+  appointmentTimes: string[]; // "HH:mm" giờ Việt Nam
+}
+
+export interface LeaveImpactDto {
+  leaveRequestId: string;
+  staffName: string;
+  status: string;
+  startDate: string;
+  endDate: string;
+  affectedDayCount: number;
+  affectedShiftCount: number;
+  affectedAppointmentCount: number;
+  days: LeaveImpactDayDto[];
+}
+
+export interface ApproveLeaveRequestResult {
+  request: LeaveRequestDto;
+  removedShiftCount: number;
+  affectedDayCount: number;
+  affectedAppointmentCount: number;
+  affectedDates: string[]; // "YYYY-MM-DD"
+}
+
 export async function getMyLeaveRequestsApi(): Promise<MyLeaveRequestsResponse> {
   const res = await fetch(`${API_URL}/api/leave-requests/my`, {
     headers: { "Content-Type": "application/json", ...authHeaders() },
@@ -1546,7 +1584,21 @@ export async function getLeaveRequestsAdminApi(status?: string, search?: string)
   return res.json() as Promise<LeaveRequestDto[]>;
 }
 
-export async function approveLeaveRequestApi(id: string): Promise<LeaveRequestDto> {
+// Owner xem trước ảnh hưởng của đơn nghỉ trước khi bấm duyệt.
+export async function getLeaveRequestImpactApi(id: string): Promise<LeaveImpactDto> {
+  const res = await fetch(`${API_URL}/api/leave-requests/${id}/impact`, {
+    headers: authHeaders(),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải ảnh hưởng của đơn nghỉ");
+  }
+  return res.json() as Promise<LeaveImpactDto>;
+}
+
+// Duyệt đơn: server gỡ luôn các ca trùng khỏi lịch làm việc và trả về số ca đã gỡ.
+export async function approveLeaveRequestApi(id: string): Promise<ApproveLeaveRequestResult> {
   const res = await fetch(`${API_URL}/api/leave-requests/${id}/approve`, {
     method: "PUT",
     headers: authHeaders(),
@@ -1556,7 +1608,7 @@ export async function approveLeaveRequestApi(id: string): Promise<LeaveRequestDt
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { title?: string }).title ?? "Không thể duyệt đơn nghỉ");
   }
-  return res.json() as Promise<LeaveRequestDto>;
+  return res.json() as Promise<ApproveLeaveRequestResult>;
 }
 
 // ── Appointment types ──────────────────────────────────────────────────────────
@@ -1574,7 +1626,16 @@ export interface StaffAppointmentDto {
   status: string;          // "Pending" | "Confirmed" | "CheckedIn" | "InProgress" | "PendingPayment" | "Completed" | "Cancelled" | "NoShow"
   symptoms: string | null;
   checkedInAt: string | null; // ISO8601 — thời điểm check-in (null nếu chưa check-in)
+  /** "Online" = bệnh nhân tự đặt trên app/web · "WalkIn" = lễ tân lập tại quầy. */
+  origin: AppointmentOrigin;
 }
+
+/**
+ * Nguồn của lịch hẹn. Quyết định chuyện gì xảy ra khi hoàn tác check-in: lịch đặt từ xa quay về
+ * chờ xác nhận, còn lịch lập tại quầy bị hủy vì nó sinh ra ngay tại lúc check-in, không có
+ * trạng thái nào trước đó để quay về.
+ */
+export type AppointmentOrigin = "Online" | "WalkIn";
 
 // ── Appointment endpoints ──────────────────────────────────────────────────────
 
@@ -1733,6 +1794,31 @@ export async function checkInAppointmentApi(id: string): Promise<void> {
   }
 }
 
+export interface UndoCheckInResult {
+  appointmentId: string;
+  /** Nguồn lịch hẹn TRƯỚC khi hoàn tác — dùng để nói đúng chuyện gì vừa xảy ra. */
+  origin: AppointmentOrigin;
+  /** "Pending" (lịch đặt từ xa) hoặc "Cancelled" (lịch tại quầy). */
+  status: string;
+}
+
+/**
+ * Gỡ một lần check-in bấm nhầm. Chỉ dùng được khi lịch còn ở trạng thái CheckedIn — bác sĩ đã bắt
+ * đầu khám thì server từ chối, vì lúc đó buổi khám đã có thật.
+ */
+export async function undoCheckInAppointmentApi(id: string): Promise<UndoCheckInResult> {
+  const res = await fetch(`${API_URL}/api/appointments/${id}/undo-checkin`, {
+    method: "PUT",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Hoàn tác check-in thất bại");
+  }
+  return res.json() as Promise<UndoCheckInResult>;
+}
+
 export async function markNoShowAppointmentApi(id: string): Promise<void> {
   const res = await fetch(`${API_URL}/api/appointments/${id}/no-show`, {
     method: "PUT",
@@ -1742,6 +1828,22 @@ export async function markNoShowAppointmentApi(id: string): Promise<void> {
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { title?: string }).title ?? "Ghi nhận vắng thất bại");
+  }
+}
+
+/**
+ * Gỡ một lần ghi nhận vắng mặt bấm nhầm. Chỉ dùng được khi lịch còn ở trạng thái NoShow — luôn
+ * quay về Confirmed, chờ bệnh nhân đến check-in.
+ */
+export async function undoNoShowAppointmentApi(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/appointments/${id}/undo-noshow`, {
+    method: "PUT",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Hoàn tác vắng mặt thất bại");
   }
 }
 
@@ -2241,6 +2343,12 @@ export interface TreatmentPlanDto {
   /** Đã xuất hóa đơn → không cho bác sĩ xóa/hủy dịch vụ này khỏi liệu trình. */
   isInvoiced: boolean;
   stepProgress: StepProgressEntryDto[];
+  /** Tổng số bước quy trình chuẩn của dịch vụ (0 = dịch vụ chưa khai báo quy trình). */
+  totalSteps: number;
+  /** Số bước đã ghi nhận đạt 100%. */
+  completedSteps: number;
+  /** % hoàn thành của dịch vụ = số bước xong / tổng số bước. */
+  progressPercent: number;
   createdAt: string;
   completedAt: string | null;
 }
@@ -2539,6 +2647,7 @@ export interface UpdateStepProgressRequest {
   percent: number;
   note?: string;
   stepName?: string; // đổi tên bước điều trị
+  date?: string;     // đổi ngày thực hiện (yyyy-MM-dd)
 }
 
 export async function updateTreatmentPlanProgressApi(
@@ -3091,6 +3200,9 @@ export interface InvoiceDto {
   items: InvoiceItemDto[];
   subtotal: number;
   discount: number;
+  promotionId: string | null;
+  promotionCode: string | null;
+  promotionName: string | null;
   totalAmount: number;
   paymentType: string;    // "Full" | "Deposit"
   depositAmount: number;  // Số tiền thu trên hóa đơn này
@@ -3123,6 +3235,7 @@ export interface IssueInvoiceRequest {
   notes?: string | null;
   parentInvoiceId?: string | null;  // khi thu phần còn lại của hóa đơn đặt cọc
   treatmentPlanId?: string | null;  // khi thu một đợt của liệu trình điều trị
+  promotionId?: string | null;      // khuyến mãi áp dụng — server tự tính lại discount từ khuyến mãi này
 }
 
 // ── Công nợ liệu trình điều trị ──────────────────────────────────────────────
@@ -3137,6 +3250,8 @@ export interface OutstandingPlanDto {
   totalCost: number;
   amountPaid: number;
   remainingAmount: number;
+  /** Phần chi phí chưa gắn vào hóa đơn nào — số còn phải xuất hóa đơn ở các đợt thu sau. */
+  unbilledAmount: number;
   status: string;
   createdAt: string;
 }
@@ -3211,6 +3326,18 @@ export async function getOutstandingInvoicesApi(): Promise<InvoiceDto[]> {
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách công nợ");
+  }
+  return res.json() as Promise<InvoiceDto[]>;
+}
+
+export async function getInvoicesByPatientApi(patientId: string): Promise<InvoiceDto[]> {
+  const res = await fetch(`${API_URL}/api/invoices/by-patient/${patientId}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải hóa đơn của bệnh nhân");
   }
   return res.json() as Promise<InvoiceDto[]>;
 }
@@ -4081,10 +4208,16 @@ export async function getPublicDentistsApi(): Promise<PublicDentistDto[]> {
   return res.json() as Promise<PublicDentistDto[]>;
 }
 
+/**
+ * Đánh giá của bệnh nhân cho một nha sĩ. NÉM LỖI khi gọi thất bại thay vì trả về danh sách rỗng:
+ * "chưa có đánh giá nào" và "không tải được đánh giá" là hai chuyện khác nhau, gộp lại thì màn hình
+ * sẽ báo bác sĩ không có đánh giá trong khi thực ra API đang hỏng.
+ */
 export async function getDentistReviewsApi(dentistId: string): Promise<DentistReviewsResultDto> {
   const res = await fetch(`${API_URL}/api/dentists/${dentistId}/reviews`);
   if (!res.ok) {
-    return { averageRating: 0, reviewCount: 0, reviews: [] };
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải đánh giá của nha sĩ");
   }
   return res.json() as Promise<DentistReviewsResultDto>;
 }

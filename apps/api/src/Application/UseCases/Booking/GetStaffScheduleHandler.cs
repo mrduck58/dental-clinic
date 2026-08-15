@@ -4,6 +4,7 @@ using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Schedules;
 using MediatR;
 
+
 namespace DentalClinic.API.Application.UseCases.Booking;
 
 public record StaffScheduleSlot(string Time, bool IsBooked, string? PatientName, bool IsPast);
@@ -55,13 +56,32 @@ public class GetStaffScheduleHandler(
         //    dữ liệu rác với giá trị Shift khác không được coi là bác sĩ có ca làm việc thật.
         var todaySchedules = await workScheduleRepository.GetDentistSchedulesForDateAsync(date, ct: ct);
 
-        // Tên bác sĩ làm việc hôm nay → set ca làm việc (mã ca 2 tiếng hoặc "morning"/"afternoon" cũ)
-        var workingToday = todaySchedules
-            .GroupBy(s => s.StaffName)
-            .ToDictionary(g => g.Key, g => g.Select(s => s.Shift).ToHashSet(StringComparer.OrdinalIgnoreCase));
-
-        if (workingToday.Count == 0)
+        if (todaySchedules.Count == 0)
             return new StaffScheduleResponse(date, []);
+
+        // Dò dòng lịch về đúng bác sĩ theo KHÓA NGOẠI. Đối chiếu theo tên chỉ còn là lưới an toàn
+        // cho các dòng lưu trước khi có khóa: tên ở hai bảng viết khác nhau ("Đỗ Văn Phong" ở lịch
+        // làm việc, "BS.Đỗ Văn Phong" ở hồ sơ), nên so chuỗi chính xác như trước làm bác sĩ biến
+        // mất khỏi lưới đặt lịch mà không báo lỗi gì.
+        var byEmployeeId = todaySchedules
+            .Where(s => s.EmployeeId.HasValue)
+            .ToLookup(s => s.EmployeeId!.Value);
+
+        var byNameKey = todaySchedules
+            .Where(s => !s.EmployeeId.HasValue)
+            .ToLookup(s => StaffNameMatcher.Key(s.StaffName));
+
+        List<WorkSchedule> RowsFor(Domain.Entities.User user)
+        {
+            if (user.Employee is { } employee)
+            {
+                var byId = byEmployeeId[employee.Id].ToList();
+                if (byId.Count > 0) return byId;
+            }
+
+            var key = StaffNameMatcher.Key(!string.IsNullOrWhiteSpace(user.FullName) ? user.FullName : user.Email);
+            return key.Length == 0 ? [] : byNameKey[key].ToList();
+        }
 
         // 2. Lấy bác sĩ Active từ bảng Users, kèm Employee/DentistProfile
         var allUsers = await userRepository.GetAllAsync(ct);
@@ -73,9 +93,12 @@ public class GetStaffScheduleHandler(
                 // phải null — "?? "Active"" sẽ không bao giờ kích hoạt, nên phải coi rỗng là Active.
                 (string.IsNullOrWhiteSpace(u.Employee?.EmploymentStatus) ||
                  string.Equals(u.Employee!.EmploymentStatus, "Active", StringComparison.OrdinalIgnoreCase)) &&
-                workingToday.ContainsKey(!string.IsNullOrWhiteSpace(u.FullName) ? u.FullName : u.Email))
+                RowsFor(u).Count > 0)
             .OrderBy(u => u.FullName)
             .ToList();
+
+        if (dentistUsers.Count == 0)
+            return new StaffScheduleResponse(date, []);
 
         // 3. Tự động tạo Employee + DentistProfile cho bác sĩ chưa có (để FK appointment hợp lệ)
         var createdDentists = new Dictionary<Guid, DentistProfile>();
@@ -105,9 +128,12 @@ public class GetStaffScheduleHandler(
         {
             var dentist = user.Employee?.DentistProfile ?? createdDentists[user.Id];
             var name = !string.IsNullOrWhiteSpace(user.FullName) ? user.FullName : user.Email;
-            var shifts = workingToday.GetValueOrDefault(name, []);
+            // Cùng một nguồn dòng lịch cho cả ca lẫn phòng — trước đây phòng được dò lại bằng phép
+            // so tên chính xác lần nữa, nên bác sĩ vào được lưới vẫn có thể hiện phòng là "—".
+            var rows = RowsFor(user);
+            var shifts = rows.Select(s => s.Shift).ToHashSet(StringComparer.OrdinalIgnoreCase);
             var dentistAppts = appointments.Where(a => a.DentistId == dentist.Id).ToList();
-            var room = todaySchedules.FirstOrDefault(s => s.StaffName == name)?.Room ?? "—";
+            var room = rows.Select(s => s.Room).FirstOrDefault(r => !string.IsNullOrWhiteSpace(r)) ?? "—";
 
             // Chỉ hiện khung giờ nằm trong các ca bác sĩ được phân hôm nay.
             var slots = AllTimes

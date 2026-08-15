@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, Fragment } from "react";
 import { createPortal } from "react-dom";
 import {
   getExaminationApi,
@@ -9,7 +9,6 @@ import {
   getServicesApi,
   getServiceProceduresApi,
   createTreatmentPlanApi,
-  updateTreatmentPlanApi,
   deleteTreatmentPlanApi,
   addTreatmentPlanProgressApi,
   updateTreatmentPlanProgressApi,
@@ -19,8 +18,11 @@ import {
   type PatientMedicalHistoryDto,
   type TreatmentPlanDto,
   type ServiceDto,
+  type ServiceOptionDto,
   type TreatmentProcedureDto,
 } from "../../../../lib/apiClient";
+import { Toast, useToast } from "../../../../components/shared/Toast";
+import { ConfirmDialog, useConfirm } from "../../../../components/shared/ConfirmDialog";
 
 interface TreatmentWorkspaceProps {
   appointmentId: string;
@@ -72,11 +74,8 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
-  const showToast = (message: string, type: "success" | "error" = "success") => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 4000);
-  };
+  const { toast, showToast } = useToast();
+  const { confirm, confirmState, closeConfirm } = useConfirm();
 
   const canEdit = examination?.status === "InProgress" || editMode;
 
@@ -84,6 +83,8 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
   const [showAddService, setShowAddService] = useState(false);
   const [serviceSearch, setServiceSearch] = useState("");
   const [selService, setSelService] = useState<ServiceDto | null>(null);
+  // Tùy chọn phân loại của dịch vụ (bảng ServiceOption) — quyết định đơn giá thực tính
+  const [selOption, setSelOption] = useState<ServiceOptionDto | null>(null);
   const [addQuantity, setAddQuantity] = useState(1);
   const [addTeeth, setAddTeeth] = useState("");
   const [addNotes, setAddNotes] = useState("");
@@ -94,7 +95,9 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
   const [progressPlanId, setProgressPlanId] = useState("");
   const [progressSteps, setProgressSteps] = useState<TreatmentProcedureDto[]>([]);
   const [loadingSteps, setLoadingSteps] = useState(false);
-  const [progressStepNumber, setProgressStepNumber] = useState<number | "">("");
+  // Chọn nhiều bước quy trình cùng lúc (ghi nhận lần lượt khi lưu)
+  const [selectedStepIds, setSelectedStepIds] = useState<string[]>([]);
+  // Bước tự nhập (ngoài quy trình chuẩn / dịch vụ chưa có quy trình)
   const [progressStepName, setProgressStepName] = useState("");
   const [progressPercent, setProgressPercent] = useState<number>(0);
   const [progressDate, setProgressDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -107,6 +110,7 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
   const [editEntry, setEditEntry] = useState<{ planId: string; entryIndex: number; stepName: string } | null>(null);
   const [editStepName, setEditStepName] = useState("");
   const [editPercent, setEditPercent] = useState<number>(0);
+  const [editDate, setEditDate] = useState("");
   const [editNote, setEditNote] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
 
@@ -172,11 +176,53 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
     [plans, chainIds]
   );
 
+  // Nạp quy trình chuẩn của mọi dịch vụ đang hiển thị để biết MẪU SỐ khi tính % hoàn thành
+  // (loadProcedures tự bỏ qua service đã có trong cache nên effect này không lặp vô hạn).
+  useEffect(() => {
+    const missing = [...new Set(visiblePlans.map(p => p.serviceId))].filter(id => !proceduresCache[id]);
+    if (missing.length === 0) return;
+
+    let cancelled = false;
+    (async () => {
+      const loaded = await Promise.all(
+        missing.map(async id => [id, await getServiceProceduresApi(id).catch(() => [])] as const)
+      );
+      if (!cancelled) setProceduresCache(prev => ({ ...prev, ...Object.fromEntries(loaded) }));
+    })();
+    return () => { cancelled = true; };
+  }, [visiblePlans, proceduresCache]);
+
+  // % hoàn thành của từng dịch vụ = số bước đã đạt 100% / tổng số bước.
+  // Mẫu số = các bước quy trình chuẩn + các bước phát sinh ngoài quy trình đã ghi nhận.
+  // Một bước tính là xong khi lần ghi nhận CAO NHẤT của nó đạt 100% (bác sĩ ghi 30% rồi 100%).
+  const planProgress = useMemo(() => {
+    const result: Record<string, { completed: number; total: number; percent: number }> = {};
+    for (const plan of visiblePlans) {
+      const maxByStep = new Map<string, number>();
+      for (const sp of plan.stepProgress) {
+        const key = sp.stepNumber > 0 ? `#${sp.stepNumber}` : `~${sp.stepName.trim().toLowerCase()}`;
+        maxByStep.set(key, Math.max(maxByStep.get(key) ?? 0, sp.percent));
+      }
+      const procedureKeys = (proceduresCache[plan.serviceId] ?? []).map(s => `#${s.stepNumber}`);
+      const allKeys = [...new Set([...procedureKeys, ...maxByStep.keys()])];
+      const completed = allKeys.filter(k => (maxByStep.get(k) ?? 0) >= 100).length;
+      const total = allKeys.length;
+      result[plan.id] = { completed, total, percent: total === 0 ? 0 : Math.round((completed * 100) / total) };
+    }
+    return result;
+  }, [visiblePlans, proceduresCache]);
+
   // Nhật ký điều trị: gộp stepProgress của các liệu trình đang hiển thị theo ĐÚNG thứ tự đã lưu
   // (không sort theo ngày để bác sĩ tự kéo-thả sắp xếp). entryIndex = vị trí gốc trong mảng của liệu trình.
   const progressRows = useMemo(() =>
     visiblePlans
-      .flatMap(p => p.stepProgress.map((sp, entryIndex) => ({ ...sp, planId: p.id, entryIndex, serviceName: p.serviceName }))),
+      .flatMap(p => p.stepProgress.map((sp, entryIndex) => ({
+        ...sp,
+        planId: p.id,
+        entryIndex,
+        serviceName: p.serviceName,
+        teeth: p.teeth,
+      }))),
     [visiblePlans]
   );
 
@@ -194,21 +240,59 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
     return services.filter(s => s.name.toLowerCase().includes(q));
   }, [services, serviceSearch]);
 
+  // Tùy chọn của dịch vụ đang chọn, theo đúng thứ tự phòng khám đã sắp trong quản lý dịch vụ
+  const selOptions = useMemo(
+    () => [...(selService?.options ?? [])].sort((a, b) => a.sortOrder - b.sortOrder),
+    [selService]
+  );
+  const addUnitPrice = selOption?.price ?? selService?.price ?? 0;
+
+  // Các bước sẽ được ghi nhận khi bấm "Ghi nhận": các bước quy trình đã chọn, hoặc một bước tự nhập
+  const stepsToSave = useMemo(() => {
+    if (progressCustom || progressSteps.length === 0) {
+      const name = progressStepName.trim();
+      return name ? [{ stepNumber: 0, stepName: name }] : [];
+    }
+    return progressSteps
+      .filter(s => selectedStepIds.includes(s.id))
+      .map(s => ({ stepNumber: s.stepNumber, stepName: s.name }));
+  }, [progressCustom, progressSteps, progressStepName, selectedStepIds]);
+
+  const allStepsSelected = progressSteps.length > 0 && selectedStepIds.length === progressSteps.length;
+
+  const toggleStep = (stepId: string) => {
+    setProgressCustom(false);
+    setProgressStepName("");
+    setSelectedStepIds(prev => prev.includes(stepId) ? prev.filter(id => id !== stepId) : [...prev, stepId]);
+  };
+
+  const toggleAllSteps = () => {
+    setProgressCustom(false);
+    setProgressStepName("");
+    setSelectedStepIds(allStepsSelected ? [] : progressSteps.map(s => s.id));
+  };
+
   // ── Handlers ───────────────────────────────────────────────────────────────
 
   const handleAddService = async () => {
     if (!selService || !examination) return;
     try {
       setSavingService(true);
+      // Chọn tùy chọn phân loại → dùng giá của tùy chọn và ghi tên nó vào ghi chú liệu trình
+      const notes = [selOption ? `Loại: ${selOption.name}` : "", addNotes.trim()]
+        .filter(Boolean)
+        .join(" · ");
       await createTreatmentPlanApi(appointmentId, {
         serviceId: selService.id,
+        unitPrice: selOption?.price,
         quantity: Math.max(1, addQuantity),
         teeth: addTeeth.trim() || undefined,
-        notes: addNotes.trim() || undefined,
+        notes: notes || undefined,
       });
       showToast("Đã thêm dịch vụ vào liệu trình");
       setShowAddService(false);
       setSelService(null);
+      setSelOption(null);
       setServiceSearch("");
       setAddQuantity(1);
       setAddTeeth("");
@@ -221,35 +305,17 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
     }
   };
 
-  const handleChangeStatus = async (plan: TreatmentPlanDto, status: string) => {
-    // Hủy = loại dịch vụ khỏi liệu trình và khỏi tổng chi phí → chặn khi đã xuất hóa đơn.
-    if (status === "Cancelled" && plan.isInvoiced) {
-      showToast("Dịch vụ đã xuất hóa đơn — không thể hủy.", "error");
-      return;
-    }
-    try {
-      await updateTreatmentPlanApi({
-        treatmentPlanId: plan.id,
-        unitPrice: plan.unitPrice,
-        quantity: plan.quantity,
-        teeth: plan.teeth ?? undefined,
-        notes: plan.notes ?? undefined,
-        warrantyUntil: plan.warrantyUntil ?? undefined,
-        status,
-      });
-      showToast("Đã cập nhật trạng thái");
-      if (examination) await loadPlans(examination.patient.id);
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : "Không thể cập nhật trạng thái", "error");
-    }
-  };
-
   const handleDeletePlan = async (plan: TreatmentPlanDto) => {
     if (plan.isInvoiced) {
       showToast("Dịch vụ đã xuất hóa đơn — không thể xóa khỏi liệu trình.", "error");
       return;
     }
-    if (!confirm(`Xóa dịch vụ "${plan.serviceName}" khỏi liệu trình?`)) return;
+    const ok = await confirm({
+      title: "Xóa dịch vụ khỏi liệu trình?",
+      message: `"${plan.serviceName}" sẽ bị gỡ khỏi liệu trình và không còn tính vào tổng chi phí.`,
+      confirmLabel: "Xóa dịch vụ",
+    });
+    if (!ok) return;
     try {
       await deleteTreatmentPlanApi(plan.id);
       showToast("Đã xóa dịch vụ");
@@ -262,7 +328,7 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
   const handleOpenProgress = async (planId?: string) => {
     const target = planId ?? activePlans[0]?.id ?? "";
     setProgressPlanId(target);
-    setProgressStepNumber("");
+    setSelectedStepIds([]);
     setProgressStepName("");
     setProgressPercent(0);
     setProgressDate(new Date().toISOString().slice(0, 10));
@@ -281,7 +347,7 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
 
   const handleProgressPlanChange = async (planId: string) => {
     setProgressPlanId(planId);
-    setProgressStepNumber("");
+    setSelectedStepIds([]);
     setProgressStepName("");
     setProgressPercent(0);
     setProgressCustom(false);
@@ -296,17 +362,22 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
   };
 
   const handleAddProgress = async () => {
-    if (!progressPlanId || !progressStepName.trim()) return;
+    if (!progressPlanId || stepsToSave.length === 0) return;
     try {
       setSavingProgress(true);
-      await addTreatmentPlanProgressApi(progressPlanId, {
-        stepNumber: progressStepNumber === "" ? 0 : progressStepNumber,
-        stepName: progressStepName.trim(),
-        percent: progressPercent,
-        date: progressDate || undefined,
-        note: progressNote.trim() || undefined,
-      });
-      showToast("Đã ghi nhận quá trình điều trị");
+      // Ghi lần lượt để nhật ký giữ đúng thứ tự các bước đã chọn
+      for (const step of stepsToSave) {
+        await addTreatmentPlanProgressApi(progressPlanId, {
+          stepNumber: step.stepNumber,
+          stepName: step.stepName,
+          percent: progressPercent,
+          date: progressDate || undefined,
+          note: progressNote.trim() || undefined,
+        });
+      }
+      showToast(stepsToSave.length > 1
+        ? `Đã ghi nhận ${stepsToSave.length} bước điều trị`
+        : "Đã ghi nhận quá trình điều trị");
       setShowAddProgress(false);
       if (examination) await loadPlans(examination.patient.id);
     } catch (err) {
@@ -316,11 +387,12 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
     }
   };
 
-  const handleOpenEdit = (row: { planId: string; entryIndex: number; stepName: string; percent: number; note: string | null }) => {
+  const handleOpenEdit = (row: { planId: string; entryIndex: number; stepName: string; percent: number; note: string | null; date: string }) => {
     setEditEntry({ planId: row.planId, entryIndex: row.entryIndex, stepName: row.stepName });
     setEditStepName(row.stepName);
     setEditPercent(row.percent);
     setEditNote(row.note ?? "");
+    setEditDate(row.date.slice(0, 10));
   };
 
   const handleSaveEdit = async () => {
@@ -336,6 +408,7 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
         percent: editPercent,
         note: editNote.trim() || undefined,
         stepName: editStepName.trim(),
+        date: editDate || undefined,
       });
       showToast("Đã cập nhật quá trình điều trị");
       setEditEntry(null);
@@ -371,7 +444,12 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
   };
 
   const handleDeleteProgress = async (row: { planId: string; entryIndex: number; stepName: string }) => {
-    if (!confirm(`Xóa mục "${row.stepName}" khỏi quá trình điều trị?`)) return;
+    const ok = await confirm({
+      title: "Xóa mục khỏi quá trình điều trị?",
+      message: `Bước "${row.stepName}" sẽ bị xóa khỏi nhật ký điều trị của bệnh nhân.`,
+      confirmLabel: "Xóa mục",
+    });
+    if (!ok) return;
     try {
       await deleteTreatmentPlanProgressApi(row.planId, row.entryIndex);
       showToast("Đã xóa mục quá trình điều trị");
@@ -603,11 +681,43 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                     <span>Bác sĩ</span>
                     <span />
                   </div>
-                  {progressRows.map((row) => {
+                  {progressRows.map((row, idx) => {
                     const rowKey = `${row.planId}:${row.entryIndex}`;
+                    // Mỗi dịch vụ một nhóm — tách bằng dải tiêu đề để không lẫn các bước của hai dịch vụ
+                    const startsGroup = idx === 0 || progressRows[idx - 1].planId !== row.planId;
                     return (
+                    <Fragment key={rowKey}>
+                    {startsGroup && (
+                      <>
+                        {/* Thanh ngăn cách đậm giữa hai dịch vụ (inline style để không bị divide-y ghi đè) */}
+                        {idx > 0 && <div className="mt-3" style={{ borderTop: "3px solid #94a3b8" }} />}
+                        <div
+                          className="flex items-center gap-2 px-3 py-2 mb-1 bg-slate-100 rounded-b-lg"
+                          style={{ borderTopWidth: 0 }}
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-sky-500 shrink-0" />
+                          <span className="text-[12.5px] font-black text-slate-800">{row.serviceName}</span>
+                          {row.teeth && (
+                            <span className="text-[11px] font-bold text-sky-600 px-2 py-0.5 bg-white border border-sky-100 rounded-lg">
+                              Răng {row.teeth}
+                            </span>
+                          )}
+                          {/* % hoàn thành của dịch vụ = số bước xong / tổng số bước quy trình */}
+                          {(() => {
+                            const pg = planProgress[row.planId] ?? { completed: 0, total: 0, percent: 0 };
+                            return (
+                              <span
+                                title={`${pg.completed}/${pg.total} bước đã hoàn thành 100%`}
+                                className={`ml-auto shrink-0 text-[12.5px] font-black tabular-nums ${pg.percent >= 100 ? "text-emerald-600" : "text-sky-700"}`}
+                              >
+                                {pg.percent}%
+                              </span>
+                            );
+                          })()}
+                        </div>
+                      </>
+                    )}
                     <div
-                      key={rowKey}
                       draggable={canEdit}
                       onDragStart={e => {
                         if (!canEdit) { e.preventDefault(); return; }
@@ -642,11 +752,8 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                       </span>
                       <span className="text-[13px] font-bold text-slate-600 font-mono">{fmtDate(row.date)}</span>
                       <div>
-                        <div className="text-[13.5px] font-bold text-slate-800">
-                          {row.serviceName} <span className="text-slate-400">→</span>{" "}
-                          <span className="text-sky-600">
-                            {row.stepNumber > 0 ? `${row.stepNumber}. ` : ""}{row.stepName} ({row.percent}%)
-                          </span>
+                        <div className="text-[13.5px] font-bold text-sky-700">
+                          {row.stepName} <span className="text-slate-400 font-semibold">({row.percent}%)</span>
                         </div>
                         {row.note && <div className="text-[12px] italic text-slate-500 mt-0.5">{row.note}</div>}
                       </div>
@@ -674,6 +781,7 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                         </button>
                       </div>
                     </div>
+                    </Fragment>
                     );
                   })}
                 </div>
@@ -735,18 +843,13 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                         <div className="grid gap-3 items-center" style={{ gridTemplateColumns: "28px 1fr 130px 110px 40px 110px 32px" }}>
                           <span className="text-[13px] font-bold text-slate-400">{idx + 1}</span>
                           <span className="text-[14px] font-black text-slate-800">{plan.serviceName}</span>
-                          <select
-                            value={plan.status}
-                            onChange={e => void handleChangeStatus(plan, e.target.value)}
-                            className={`text-[11.5px] font-black px-2 py-1.5 rounded-lg border cursor-pointer focus:outline-none ${st.cls}`}
+                          {/* Trạng thái do hệ thống tính từ tiến độ các bước — bác sĩ không tự chỉnh. */}
+                          <span
+                            title={`Hệ thống tự cập nhật theo tiến độ: hoàn thành khi đủ 100% các bước quy trình (hiện ${planProgress[plan.id]?.completed ?? 0}/${planProgress[plan.id]?.total ?? 0} bước).`}
+                            className={`text-[11.5px] font-black px-2 py-1.5 rounded-lg border text-center ${st.cls}`}
                           >
-                            {Object.entries(PLAN_STATUS)
-                              // Dịch vụ đã xuất hóa đơn không được hủy (trừ khi đang ở trạng thái đã hủy sẵn)
-                              .filter(([value]) => value !== "Cancelled" || !plan.isInvoiced || plan.status === "Cancelled")
-                              .map(([value, cfg]) => (
-                                <option key={value} value={value}>{cfg.label}</option>
-                              ))}
-                          </select>
+                            {st.label}
+                          </span>
                           <span className="text-[13.5px] font-bold text-slate-700 text-right tabular-nums">{fmtMoney(plan.unitPrice)}</span>
                           <span className="text-[13.5px] font-bold text-slate-700 text-right tabular-nums">{plan.quantity}</span>
                           <span className="text-[14px] font-black text-slate-900 text-right tabular-nums">{fmtMoney(plan.totalCost)}</span>
@@ -821,30 +924,67 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
               <div className="max-h-56 overflow-y-auto border border-slate-100 rounded-xl divide-y divide-slate-50">
                 {filteredServices.length === 0 ? (
                   <p className="text-[13px] font-semibold text-slate-400 text-center py-6">Không tìm thấy dịch vụ.</p>
-                ) : filteredServices.map(s => (
-                  <button
-                    key={s.id}
-                    onClick={() => setSelService(s)}
-                    className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors cursor-pointer ${selService?.id === s.id ? "bg-primary/5" : "hover:bg-slate-50"}`}
-                  >
-                    <div>
-                      <div className="text-[13.5px] font-bold text-slate-800">{s.name}</div>
-                      <div className="text-[11.5px] font-semibold text-slate-400">{s.durationMinutes} phút</div>
-                    </div>
-                    <span className="text-[13.5px] font-black text-slate-900 tabular-nums">{fmtMoney(s.price)}</span>
-                  </button>
-                ))}
+                ) : filteredServices.map(s => {
+                  const opts = s.options ?? [];
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => { setSelService(s); setSelOption(null); }}
+                      className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors cursor-pointer ${selService?.id === s.id ? "bg-primary/5" : "hover:bg-slate-50"}`}
+                    >
+                      <div>
+                        <div className="text-[13.5px] font-bold text-slate-800">{s.name}</div>
+                        <div className="text-[11.5px] font-semibold text-slate-400">
+                          {s.durationMinutes} phút
+                          {opts.length > 0 && ` · ${opts.length} tùy chọn`}
+                        </div>
+                      </div>
+                      <span className="text-[13.5px] font-black text-slate-900 tabular-nums">
+                        {opts.length > 0
+                          ? `từ ${fmtMoney(Math.min(s.price, ...opts.map(o => o.price)))}`
+                          : fmtMoney(s.price)}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
 
               {selService && (
                 <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex flex-col gap-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-[13.5px] font-black text-emerald-800">{selService.name}</span>
-                    <span className="text-[13.5px] font-black text-emerald-700 tabular-nums">{fmtMoney(selService.price)}</span>
+                    <span className="text-[13.5px] font-black text-emerald-800">
+                      {selService.name}
+                      {selOption && <span className="font-bold text-emerald-600"> — {selOption.name}</span>}
+                    </span>
+                    <span className="text-[13.5px] font-black text-emerald-700 tabular-nums">
+                      {fmtMoney(addUnitPrice)}{selOption ? ` / ${selOption.unit}` : ""}
+                    </span>
                   </div>
+
+                  {/* Tùy chọn phân loại & bảng giá của dịch vụ (nếu phòng khám có khai báo) */}
+                  {selOptions.length > 0 && (
+                    <div>
+                      <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Tùy chọn / phân loại</label>
+                      <select
+                        value={selOption?.id ?? ""}
+                        onChange={e => setSelOption(selOptions.find(o => o.id === e.target.value) ?? null)}
+                        className="w-full mt-1 px-3 py-2 text-[13px] bg-white border border-slate-200 rounded-lg focus:border-primary focus:outline-none font-bold cursor-pointer"
+                      >
+                        <option value="">Giá gốc dịch vụ — {fmtMoney(selService.price)}</option>
+                        {selOptions.map(o => (
+                          <option key={o.id} value={o.id}>
+                            {o.name} — {fmtMoney(o.price)} / {o.unit}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Số lượng</label>
+                      <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
+                        Số lượng{selOption ? ` (${selOption.unit})` : ""}
+                      </label>
                       <input
                         type="number" inputMode="numeric" min={1} value={addQuantity || ""}
                         onChange={e => setAddQuantity(e.target.value === "" ? 0 : Math.max(0, Math.floor(Number(e.target.value) || 0)))}
@@ -860,6 +1000,12 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                         className="w-full mt-1 px-3 py-2 text-[13px] bg-white border border-slate-200 rounded-lg focus:border-primary focus:outline-none font-bold"
                       />
                     </div>
+                  </div>
+                  <div className="flex items-center justify-between border-t border-emerald-200 pt-2.5">
+                    <span className="text-[11px] font-extrabold text-emerald-700 uppercase tracking-wider">Thành tiền</span>
+                    <span className="text-[15px] font-black text-emerald-800 tabular-nums">
+                      {fmtMoney(addUnitPrice * Math.max(1, addQuantity))}
+                    </span>
                   </div>
                   <textarea
                     placeholder="Ghi chú (tùy chọn)..."
@@ -913,34 +1059,58 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
               </div>
 
               <div>
-                <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Bước quy trình</label>
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
+                    Bước quy trình
+                    {selectedStepIds.length > 0 && (
+                      <span className="ml-1.5 text-sky-600">· đã chọn {selectedStepIds.length}</span>
+                    )}
+                  </label>
+                  {!loadingSteps && progressSteps.length > 0 && (
+                    <button
+                      onClick={toggleAllSteps}
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-sky-200 bg-sky-50 text-sky-700 text-[11.5px] font-bold hover:bg-sky-100 transition-colors cursor-pointer"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d={allStepsSelected ? "M6 18L18 6M6 6l12 12" : "M4.5 12.75l6 6 9-13.5"} />
+                      </svg>
+                      {allStepsSelected ? "Bỏ chọn tất cả" : "Chọn tất cả"}
+                    </button>
+                  )}
+                </div>
                 {loadingSteps ? (
                   <p className="text-[12.5px] font-semibold text-slate-400 mt-2">Đang tải quy trình...</p>
                 ) : progressSteps.length > 0 ? (
                   <div className="mt-1.5 flex flex-col gap-1.5">
-                    {progressSteps.map(step => (
-                      <button
-                        key={step.id}
-                        onClick={() => {
-                          setProgressCustom(false);
-                          setProgressStepNumber(step.stepNumber);
-                          setProgressStepName(step.name);
-                        }}
-                        className={`flex items-center px-3.5 py-2.5 rounded-lg border text-left transition-colors cursor-pointer ${
-                          !progressCustom && progressStepNumber === step.stepNumber
-                            ? "bg-sky-50 border-sky-300 text-sky-800"
-                            : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-                        }`}
-                      >
-                        <span className="text-[13px] font-bold">{step.stepNumber}. {step.name}</span>
-                      </button>
-                    ))}
+                    {progressSteps.map(step => {
+                      const checked = !progressCustom && selectedStepIds.includes(step.id);
+                      return (
+                        <button
+                          key={step.id}
+                          onClick={() => toggleStep(step.id)}
+                          className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg border text-left transition-colors cursor-pointer ${
+                            checked
+                              ? "bg-sky-50 border-sky-300 text-sky-800"
+                              : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                          }`}
+                        >
+                          <span className={`w-4 h-4 rounded shrink-0 border flex items-center justify-center ${checked ? "bg-sky-600 border-sky-600 text-white" : "bg-white border-slate-300"}`}>
+                            {checked && (
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="3.5" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                              </svg>
+                            )}
+                          </span>
+                          <span className="text-[13px] font-bold">{step.stepNumber}. {step.name}</span>
+                        </button>
+                      );
+                    })}
 
                     {/* Bước ngoài quy trình chuẩn — không phải ca nào cũng theo đúng quy trình */}
                     <button
                       onClick={() => {
                         setProgressCustom(true);
-                        setProgressStepNumber("");
+                        setSelectedStepIds([]);
                         setProgressStepName("");
                       }}
                       className={`flex items-center gap-2 px-3.5 py-2.5 rounded-lg border border-dashed text-left transition-colors cursor-pointer ${
@@ -976,7 +1146,9 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
               </div>
 
               <div>
-                <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Tiến độ bước này (%)</label>
+                <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
+                  {stepsToSave.length > 1 ? `Tiến độ (%) — áp dụng cho ${stepsToSave.length} bước đã chọn` : "Tiến độ bước này (%)"}
+                </label>
                 <div className="relative mt-1.5">
                   <input
                     type="number" min={0} max={100} placeholder="VD: 30"
@@ -1009,10 +1181,12 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
 
               <button
                 onClick={() => void handleAddProgress()}
-                disabled={!progressPlanId || !progressStepName.trim() || savingProgress}
+                disabled={!progressPlanId || stepsToSave.length === 0 || savingProgress}
                 className="w-full py-3 bg-primary text-white text-[14px] font-black rounded-xl hover:bg-red-600 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed cursor-pointer"
               >
-                {savingProgress ? "Đang lưu..." : "Ghi nhận"}
+                {savingProgress
+                  ? "Đang lưu..."
+                  : stepsToSave.length > 1 ? `Ghi nhận ${stepsToSave.length} bước` : "Ghi nhận"}
               </button>
             </div>
           </div>
@@ -1042,16 +1216,26 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                 />
               </div>
 
-              <div>
-                <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Tiến độ hoàn thành (%)</label>
-                <div className="relative mt-1.5">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Tiến độ hoàn thành (%)</label>
+                  <div className="relative mt-1.5">
+                    <input
+                      type="number" min={0} max={100} autoFocus
+                      value={editPercent || ""}
+                      onChange={e => setEditPercent(Math.min(100, Math.max(0, Number(e.target.value))))}
+                      className="w-full px-3 py-2.5 pr-8 text-[13px] bg-slate-50 border border-slate-200 rounded-lg focus:border-primary focus:outline-none font-bold"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[13px] font-bold text-slate-400">%</span>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Ngày thực hiện</label>
                   <input
-                    type="number" min={0} max={100} autoFocus
-                    value={editPercent || ""}
-                    onChange={e => setEditPercent(Math.min(100, Math.max(0, Number(e.target.value))))}
-                    className="w-full px-3 py-2.5 pr-8 text-[13px] bg-slate-50 border border-slate-200 rounded-lg focus:border-primary focus:outline-none font-bold"
+                    type="date" value={editDate}
+                    onChange={e => setEditDate(e.target.value)}
+                    className="w-full mt-1.5 px-3 py-2.5 text-[13px] bg-slate-50 border border-slate-200 rounded-lg focus:border-primary focus:outline-none font-bold"
                   />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[13px] font-bold text-slate-400">%</span>
                 </div>
               </div>
 
@@ -1077,12 +1261,8 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
         document.body
       )}
 
-      {/* Toast */}
-      {toast && (
-        <div className={`fixed bottom-6 right-6 z-[60] px-5 py-3.5 rounded-xl shadow-lg text-[13.5px] font-bold text-white ${toast.type === "success" ? "bg-emerald-600" : "bg-red-600"}`}>
-          {toast.message}
-        </div>
-      )}
+      <Toast toast={toast} />
+      <ConfirmDialog state={confirmState} onClose={closeConfirm} />
     </div>
   );
 }
