@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/core/constants/api_constants.dart';
+import 'package:mobile_app/core/services/notification_sync_service.dart';
 import 'package:mobile_app/features/auth/data/auth_service.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -24,25 +26,21 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   void initState() {
     super.initState();
-    _loadUserInfo();
     _darkModeVal = SettingsManager.instance.isDarkMode.value;
+    _loadProfile();
   }
 
   String? _avatarUrl;
 
-  ImageProvider? _getAvatarProvider() {
-    final resolved = ApiConstants.resolveAssetUrl(_avatarUrl);
-    if (resolved != null) return NetworkImage(resolved);
-    return null;
-  }
-
-  Future<void> _loadUserInfo() async {
+  Future<void> _loadProfile() async {
     final name = await _auth.getUserName();
     final email = await _auth.getUserEmail();
+    final cachedAvatar = await _auth.getUserAvatar();
     if (mounted) {
       setState(() {
         _userName = name ?? '';
         _userEmail = email ?? '';
+        _avatarUrl = cachedAvatar;
       });
     }
 
@@ -52,10 +50,18 @@ class _ProfilePageState extends State<ProfilePage> {
         setState(() {
           _userName = p.fullName;
           _userEmail = p.email;
-          _avatarUrl = p.profilePictureUrl;
+          if (p.profilePictureUrl != null && p.profilePictureUrl!.isNotEmpty) {
+            _avatarUrl = p.profilePictureUrl;
+          }
         });
       }
     } catch (_) {}
+  }
+
+  ImageProvider? _getAvatarProvider() {
+    final resolved = ApiConstants.resolveAssetUrl(_avatarUrl);
+    if (resolved != null) return NetworkImage(resolved);
+    return null;
   }
 
   String _initials() {
@@ -77,6 +83,10 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _doLogout() async {
     setState(() => _isLoggingOut = true);
     try {
+      NotificationSyncService.instance.stop();
+      try {
+        await GoogleSignIn().signOut();
+      } catch (_) {}
       final token = await _auth.getToken();
       if (token != null) {
         try {
@@ -335,7 +345,7 @@ class _ProfilePageState extends State<ProfilePage> {
         onTap: () async {
           final updated = await context.push(AppRoutes.editProfile);
           if (updated == true && mounted) {
-            _loadUserInfo();
+            _loadProfile();
           }
         },
         borderRadius: BorderRadius.circular(20),

@@ -333,11 +333,26 @@ class _ServicesListPageState extends State<ServicesListPage> {
                         Container(
                           width: 64,
                           height: 64,
-                          padding: EdgeInsets.all(13),
+                          padding: EdgeInsets.all(12),
                           decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                          child: SvgPicture.network(
-                            ApiConstants.resolveAssetUrl(service.iconUrl)!,
-                            placeholderBuilder: (_) => const SizedBox(),
+                          child: ClipOval(
+                            child: Builder(
+                              builder: (_) {
+                                final resolved = ApiConstants.resolveAssetUrl(service.iconUrl)!;
+                                if (resolved.toLowerCase().contains('.svg')) {
+                                  return SvgPicture.network(
+                                    resolved,
+                                    fit: BoxFit.contain,
+                                    placeholderBuilder: (_) => const SizedBox(),
+                                  );
+                                }
+                                return Image.network(
+                                  resolved,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (_, __, ___) => const Icon(Iconsax.shield_tick, color: AppColors.primary, size: 28),
+                                );
+                              },
+                            ),
                           ),
                         )
                       else

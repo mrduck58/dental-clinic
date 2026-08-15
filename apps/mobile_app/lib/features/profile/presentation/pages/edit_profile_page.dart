@@ -55,11 +55,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
       setState(() => _isSaving = true);
       
       final bytes = await file.readAsBytes();
+      final ext = file.name.split('.').last.toLowerCase();
+      final subType = (ext == 'jpg' || ext == 'jpeg') ? 'jpeg' : (ext == 'png' ? 'png' : (ext == 'webp' ? 'webp' : 'jpeg'));
       final formData = FormData.fromMap({
         'file': MultipartFile.fromBytes(
           bytes,
           filename: file.name,
-          contentType: MediaType('image', file.name.split('.').last),
+          contentType: MediaType('image', subType),
         ),
       });
 

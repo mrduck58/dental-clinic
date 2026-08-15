@@ -73,11 +73,8 @@ class ServiceCard extends StatelessWidget {
                       ),
                 child: hasCustomIcon
                     ? Padding(
-                        padding: const EdgeInsets.all(10),
-                        child: SvgPicture.network(
-                          ApiConstants.resolveAssetUrl(service.iconUrl)!,
-                          placeholderBuilder: (_) => const SizedBox(),
-                        ),
+                        padding: const EdgeInsets.all(8),
+                        child: _buildIcon(service.iconUrl!, icon),
                       )
                     : Icon(icon, color: Colors.white, size: 22),
               ),
@@ -131,6 +128,26 @@ class ServiceCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildIcon(String iconUrl, IconData fallbackIcon) {
+    final resolvedUrl = ApiConstants.resolveAssetUrl(iconUrl);
+    if (resolvedUrl == null || resolvedUrl.isEmpty) {
+      return Icon(fallbackIcon, color: AppColors.primary, size: 22);
+    }
+    final isSvg = resolvedUrl.toLowerCase().contains('.svg');
+    if (isSvg) {
+      return SvgPicture.network(
+        resolvedUrl,
+        fit: BoxFit.contain,
+        placeholderBuilder: (_) => const SizedBox(),
+      );
+    }
+    return Image.network(
+      resolvedUrl,
+      fit: BoxFit.contain,
+      errorBuilder: (_, __, ___) => Icon(fallbackIcon, color: AppColors.primary, size: 22),
     );
   }
 }
