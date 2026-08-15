@@ -14,6 +14,9 @@
     <Content Remove="tests/**;*Tests/**;src/Domain/**;src/Application/**;src/Infrastructure/**" />
     <None Remove="tests/**;*Tests/**;src/Domain/**;src/Application/**;src/Infrastructure/**" />
     <EmbeddedResource Remove="tests/**;*Tests/**;src/Domain/**;src/Infrastructure/**" />
+    <None Update="firebase-admin.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
   <ItemGroup>
