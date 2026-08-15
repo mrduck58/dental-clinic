@@ -498,10 +498,10 @@ public class TreatmentPlanHandlerTests
         var afterStep1 = await _addStep.Handle(new AddStepProgressCommand(
             plan.Id, new AddStepProgressRequest(1, "Lấy tủy", 100, null, null)), CancellationToken.None);
 
-        afterStep1.Status.Should().Be("Completed");
-        afterStep1.TotalSteps.Should().Be(1);
+        afterStep1.Status.Should().Be("InProgress");
+        afterStep1.TotalSteps.Should().Be(2);
         afterStep1.CompletedSteps.Should().Be(1);
-        afterStep1.ProgressPercent.Should().Be(100);
+        afterStep1.ProgressPercent.Should().Be(50);
 
         var afterStep2 = await _addStep.Handle(new AddStepProgressCommand(
             plan.Id, new AddStepProgressRequest(2, "Trám bít", 100, null, null)), CancellationToken.None);

@@ -215,7 +215,7 @@ class _ExamineHistoryPageState extends State<ExamineHistoryPage> {
         elevation: 0,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_new_rounded, color: context.textPrimary, size: 20),
-          onPressed: () => context.pop(),
+          onPressed: () => context.go(AppRoutes.home),
         ),
         title: Text(
           isVi ? 'Lịch sử khám bệnh' : 'Examine history',
