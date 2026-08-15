@@ -12,27 +12,117 @@ import 'package:mobile_app/features/home/data/models/doctor_model.dart';
 import 'package:dio/dio.dart';
 
 class AppointmentDetailsPage extends StatefulWidget {
-  final MyAppointmentItem item;
-  const AppointmentDetailsPage({super.key, required this.item});
+  final MyAppointmentItem? item;
+  final String? appointmentId;
+  const AppointmentDetailsPage({super.key, this.item, this.appointmentId});
 
   @override
   State<AppointmentDetailsPage> createState() => _AppointmentDetailsPageState();
 }
 
 class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
-  late String _status;
+  MyAppointmentItem? _item;
+  String _status = '';
+  bool _isLoading = false;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _status = widget.item.status;
+    if (widget.item != null) {
+      _item = widget.item;
+      _status = widget.item!.status;
+    } else if (widget.appointmentId != null) {
+      _loadItem(widget.appointmentId!);
+    }
+  }
+
+  Future<void> _loadItem(String id) async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    try {
+      final list = await BookingService().getMyAppointments();
+      final match = list.firstWhere(
+        (a) => a.appointmentId == id,
+        orElse: () => list.isNotEmpty ? list.first : throw Exception('Không tìm thấy thông tin lịch hẹn.'),
+      );
+      if (mounted) {
+        setState(() {
+          _item = match;
+          _status = match.status;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString();
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final item = widget.item;
     final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
 
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: context.bg,
+        appBar: AppBar(
+          backgroundColor: context.card,
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back_ios_new_rounded, color: context.textPrimary, size: 20),
+            onPressed: () => context.pop(),
+          ),
+          title: Text(
+            isVi ? 'Chi tiết lịch hẹn' : 'Appointment Details',
+            style: TextStyle(color: context.textPrimary, fontWeight: FontWeight.bold, fontSize: 18),
+          ),
+        ),
+        body: const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+      );
+    }
+
+    if (_errorMessage != null || _item == null) {
+      return Scaffold(
+        backgroundColor: context.bg,
+        appBar: AppBar(
+          backgroundColor: context.card,
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back_ios_new_rounded, color: context.textPrimary, size: 20),
+            onPressed: () => context.pop(),
+          ),
+          title: Text(
+            isVi ? 'Chi tiết lịch hẹn' : 'Appointment Details',
+            style: TextStyle(color: context.textPrimary, fontWeight: FontWeight.bold, fontSize: 18),
+          ),
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                _errorMessage ?? (isVi ? 'Không tìm thấy lịch hẹn' : 'Appointment not found'),
+                style: TextStyle(color: context.textSecondary, fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => context.go(AppRoutes.appointments),
+                child: Text(isVi ? 'Về danh sách lịch hẹn' : 'Back to appointments'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final item = _item!;
     final date = item.parsedDate;
     final isCancelled = _status.toLowerCase() == 'cancelled';
     final isCompleted = _status.toLowerCase() == 'completed';

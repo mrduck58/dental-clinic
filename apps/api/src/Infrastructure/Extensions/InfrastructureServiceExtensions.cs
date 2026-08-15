@@ -87,6 +87,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IOwnerDashboardQueryService, OwnerDashboardQueryService>();
 
         // ── Services ────────────────────────────────────────────────────────
+        services.AddSingleton<IFirebasePushNotificationService, FirebasePushNotificationService>();
         services.AddScoped<IJwtService, JwtService>();
         services.AddScoped<IActivityLogService, ActivityLogService>();
         services.AddScoped<INotificationService, NotificationService>();

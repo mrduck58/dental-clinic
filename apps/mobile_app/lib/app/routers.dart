@@ -44,6 +44,7 @@ import 'package:mobile_app/features/profile/presentation/pages/add_member_page.d
 import 'package:mobile_app/features/profile/presentation/pages/edit_member_page.dart';
 import 'package:mobile_app/features/profile/presentation/pages/security_page.dart';
 import 'package:mobile_app/features/profile/presentation/pages/change_password_page.dart';
+import 'package:mobile_app/features/profile/presentation/pages/notification_settings_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/notifications_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/search_page.dart';
 import 'package:mobile_app/features/appointment/presentation/screens/appointment_details_page.dart';
@@ -114,9 +115,12 @@ final GoRouter appRouter = GoRouter(
           path: AppRoutes.appointments,
           builder: (context, state) {
             final args = state.extra as Map<String, dynamic>?;
+            final tabFromQuery = state.uri.queryParameters['tab'];
+            final tab = args?['initialTab'] as int? ?? (tabFromQuery != null ? int.tryParse(tabFromQuery) : 0);
             return AppointmentListScreen(
               filterPatientId: args?['patientId'] as String?,
               filterPatientName: args?['patientName'] as String?,
+              initialTab: tab,
             );
           },
         ),
@@ -262,8 +266,17 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) => const NotificationsPage(),
     ),
     GoRoute(
+      path: AppRoutes.notificationSettings,
+      builder: (context, state) => const NotificationSettingsPage(),
+    ),
+    GoRoute(
       path: AppRoutes.paymentHistory,
-      builder: (context, state) => const PaymentHistoryPage(),
+      builder: (context, state) {
+        final args = state.extra as Map<String, dynamic>?;
+        final tabFromQuery = state.uri.queryParameters['tab'];
+        final tab = args?['initialTab'] as int? ?? (tabFromQuery != null ? int.tryParse(tabFromQuery) ?? 0 : 0);
+        return PaymentHistoryPage(initialTab: tab);
+      },
     ),
     GoRoute(
       path: AppRoutes.familyMembers,
@@ -279,7 +292,23 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: AppRoutes.appointmentDetails,
-      builder: (context, state) => AppointmentDetailsPage(item: state.extra as MyAppointmentItem),
+      builder: (context, state) {
+        if (state.extra is MyAppointmentItem) {
+          return AppointmentDetailsPage(item: state.extra as MyAppointmentItem);
+        }
+        if (state.extra is String) {
+          return AppointmentDetailsPage(appointmentId: state.extra as String);
+        }
+        if (state.extra is Map<String, dynamic>) {
+          final map = state.extra as Map<String, dynamic>;
+          return AppointmentDetailsPage(
+            item: map['item'] as MyAppointmentItem?,
+            appointmentId: map['appointmentId'] as String?,
+          );
+        }
+        final idFromQuery = state.uri.queryParameters['id'];
+        return AppointmentDetailsPage(appointmentId: idFromQuery);
+      },
     ),
     GoRoute(
       path: AppRoutes.examinationDetail,
@@ -380,6 +409,7 @@ abstract class AppRoutes {
   static const chat = '/chat';
   static const paymentHistory = '/profile/payment-history';
   static const notifications = '/notifications';
+  static const notificationSettings = '/profile/notification-settings';
   static const search = '/search';
   static const familyMembers = '/profile/family';
   static const reminders = '/reminders';

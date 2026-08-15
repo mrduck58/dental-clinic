@@ -8,7 +8,8 @@ namespace DentalClinic.API.Infrastructure.Services;
 
 public class NotificationService(
     INotificationRepository repository,
-    ILogger<NotificationService> logger) : INotificationService
+    ILogger<NotificationService> logger,
+    IFirebasePushNotificationService? pushService = null) : INotificationService
 {
     public async Task CreateAsync(CreateNotificationRequest request, CancellationToken ct = default)
     {
@@ -24,6 +25,18 @@ public class NotificationService(
                 request.RelatedEntityId);
 
             await repository.AddAsync(notification, ct);
+
+            // Tự động đẩy thông báo Firebase Cloud Messaging (FCM) trực tiếp đến thiết bị người dùng
+            if (pushService != null)
+            {
+                _ = pushService.SendPushNotificationAsync(
+                    request.UserId,
+                    request.Title,
+                    request.Body,
+                    request.Type,
+                    request.RelatedEntityId,
+                    ct);
+            }
         }
         catch (Exception ex)
         {
@@ -38,7 +51,8 @@ public class NotificationService(
     {
         try
         {
-            var notifications = userIds.Select(uid => Notification.Create(
+            var idList = userIds.ToList();
+            var notifications = idList.Select(uid => Notification.Create(
                 uid,
                 template.Type,
                 template.Priority,
@@ -48,6 +62,17 @@ public class NotificationService(
                 template.RelatedEntityId)).ToList();
 
             await repository.AddRangeAsync(notifications, ct);
+
+            if (pushService != null)
+            {
+                _ = pushService.SendPushNotificationToMultipleAsync(
+                    idList,
+                    template.Title,
+                    template.Body,
+                    template.Type,
+                    template.RelatedEntityId,
+                    ct);
+            }
         }
         catch (Exception ex)
         {

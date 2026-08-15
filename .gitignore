@@ -10,6 +10,8 @@
 *.userosscache
 *.sln.docstates
 *.env
+*firebase-admin.json
+firebase-admin.json
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs

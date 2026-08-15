@@ -6,16 +6,30 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace DentalClinic.API.Presentation.Controllers;
 
+public record RegisterDeviceTokenDto(string Token, string? DeviceType);
+
 [ApiController]
 [Route("api/notifications")]
 [Authorize]
 public class NotificationsController(
     ISender sender,
     INotificationService notificationService,
-    ICurrentUserService currentUser) : ControllerBase
+    ICurrentUserService currentUser,
+    IFirebasePushNotificationService? pushNotificationService = null) : ControllerBase
 {
     private Guid CurrentUserId =>
         currentUser.UserId ?? throw new UnauthorizedAccessException("Không xác định được người dùng từ token.");
+
+    /// <summary>POST api/notifications/device-token — Đăng ký token FCM của thiết bị</summary>
+    [HttpPost("device-token")]
+    public async Task<IActionResult> RegisterDeviceToken([FromBody] RegisterDeviceTokenDto dto, CancellationToken cancellationToken)
+    {
+        if (pushNotificationService != null && !string.IsNullOrWhiteSpace(dto.Token))
+        {
+            await pushNotificationService.RegisterTokenAsync(CurrentUserId, dto.Token, dto.DeviceType, cancellationToken);
+        }
+        return Ok(new { message = "Đã lưu device token thành công." });
+    }
 
     /// <summary>GET api/notifications — Lấy danh sách thông báo của user hiện tại</summary>
     [HttpGet]
