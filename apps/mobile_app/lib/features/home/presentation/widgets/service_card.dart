@@ -29,7 +29,10 @@ class ServiceCard extends StatelessWidget {
     final style = _styles[index % _styles.length];
     final gradientColors = style.$1;
     final icon = style.$2;
-    final hasCustomIcon = service.iconUrl != null && service.iconUrl!.isNotEmpty;
+    final String? customAsset = (service.iconUrl != null && service.iconUrl!.isNotEmpty)
+        ? service.iconUrl
+        : (service.imageUrl != null && service.imageUrl!.isNotEmpty ? service.imageUrl : null);
+    final hasCustomIcon = customAsset != null && customAsset.isNotEmpty;
     final quickInfo = '${service.durationText} - ${context.l10n('at_clinic')}';
 
     return Material(
@@ -54,7 +57,7 @@ class ServiceCard extends StatelessWidget {
         },
         borderRadius: BorderRadius.circular(18),
         child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           child: Row(
             children: [
               Container(
@@ -74,13 +77,13 @@ class ServiceCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(14),
                       ),
                 child: hasCustomIcon
-                    ? Padding(
-                        padding: const EdgeInsets.all(8),
-                        child: _buildIcon(service.iconUrl!, icon),
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: _buildIcon(customAsset, icon),
                       )
                     : Icon(icon, color: Colors.white, size: 22),
               ),
-              SizedBox(width: 14),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -106,19 +109,19 @@ class ServiceCard extends StatelessWidget {
                   ],
                 ),
               ),
-              SizedBox(width: 12),
+              const SizedBox(width: 12),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
                     service.formattedPrice,
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: AppColors.primary,
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
-                  SizedBox(height: 4),
+                  const SizedBox(height: 4),
                   Icon(
                     Iconsax.arrow_right_3,
                     color: context.textMuted,
@@ -140,16 +143,23 @@ class ServiceCard extends StatelessWidget {
     }
     final isSvg = resolvedUrl.toLowerCase().contains('.svg');
     if (isSvg) {
-      return SvgPicture.network(
-        resolvedUrl,
-        fit: BoxFit.contain,
-        placeholderBuilder: (_) => const SizedBox(),
+      return Padding(
+        padding: const EdgeInsets.all(9),
+        child: SvgPicture.network(
+          resolvedUrl,
+          fit: BoxFit.contain,
+          placeholderBuilder: (_) => const SizedBox(),
+        ),
       );
     }
     return Image.network(
       resolvedUrl,
-      fit: BoxFit.contain,
-      errorBuilder: (_, __, ___) => Icon(fallbackIcon, color: AppColors.primary, size: 22),
+      width: 48,
+      height: 48,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => Center(
+        child: Icon(fallbackIcon, color: AppColors.primary, size: 22),
+      ),
     );
   }
 }
