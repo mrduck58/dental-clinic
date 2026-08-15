@@ -4344,6 +4344,9 @@ export interface RevenueTransactionDto {
   paymentMethod: string;
   amount: number;
   status: "Unpaid" | "Paid" | "Refunded";
+  // > 0 chỉ khi đây là hóa đơn đặt cọc đã thu "amount" nhưng còn nợ phần này, và chưa có hóa đơn
+  // "thu phần còn lại" nào được tạo cho nó.
+  remainingAmount: number;
 }
 
 export interface RevenueTransactionsPagedDto {
