@@ -13,7 +13,7 @@ public class GetPromotionByIdHandler(IPromotionRepository repo, IServiceReposito
     {
         var p = await repo.GetByIdAsync(request.Id, cancellationToken);
         if (p is null) return null;
-        var services = (await serviceRepo.GetAllAsync(cancellationToken)).ToDictionary(s => s.Id, s => s.Name);
+        var services = await serviceRepo.GetIdNameMapAsync(cancellationToken);
         var ids = p.GetServiceIds();
         var names = ids.Count == 0
             ? (List<string>)["Tat ca dich vu"]

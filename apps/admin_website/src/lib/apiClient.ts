@@ -3020,6 +3020,9 @@ export interface InvoiceDto {
   items: InvoiceItemDto[];
   subtotal: number;
   discount: number;
+  promotionId: string | null;
+  promotionCode: string | null;
+  promotionName: string | null;
   totalAmount: number;
   paymentType: string;    // "Full" | "Deposit"
   depositAmount: number;  // Số tiền thu trên hóa đơn này
@@ -3052,6 +3055,7 @@ export interface IssueInvoiceRequest {
   notes?: string | null;
   parentInvoiceId?: string | null;  // khi thu phần còn lại của hóa đơn đặt cọc
   treatmentPlanId?: string | null;  // khi thu một đợt của liệu trình điều trị
+  promotionId?: string | null;      // khuyến mãi áp dụng — server tự tính lại discount từ khuyến mãi này
 }
 
 // ── Công nợ liệu trình điều trị ──────────────────────────────────────────────

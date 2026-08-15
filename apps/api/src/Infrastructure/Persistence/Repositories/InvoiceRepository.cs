@@ -10,6 +10,7 @@ public class InvoiceRepository(AppDbContext db) : IInvoiceRepository
     private IQueryable<Invoice> QueryWithDetails() =>
         db.Invoices.AsNoTracking()
             .Include(i => i.Items)
+            .Include(i => i.Promotion)
             .Include(i => i.Appointment).ThenInclude(a => a.Patient).ThenInclude(p => p.User)
             .Include(i => i.Appointment).ThenInclude(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User);
 

@@ -52,4 +52,9 @@ public class ServiceRepository(AppDbContext db) : IServiceRepository
             .Where(s => s.IsActive)
             .OrderBy(s => s.Name)
             .ToListAsync(ct);
+
+    public async Task<Dictionary<Guid, string>> GetIdNameMapAsync(CancellationToken ct = default)
+        => await db.Services
+            .Select(s => new { s.Id, s.Name })
+            .ToDictionaryAsync(s => s.Id, s => s.Name, ct);
 }

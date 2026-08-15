@@ -12,7 +12,7 @@ public class GetPromotionsHandler(IPromotionRepository repo, IServiceRepository 
     public async Task<IEnumerable<PromotionDto>> Handle(GetPromotionsQuery request, CancellationToken cancellationToken)
     {
         var promotions = await repo.GetAllAsync(cancellationToken);
-        var services = (await serviceRepo.GetAllAsync(cancellationToken)).ToDictionary(s => s.Id, s => s.Name);
+        var services = await serviceRepo.GetIdNameMapAsync(cancellationToken);
         return promotions.Select(p =>
         {
             var ids = p.GetServiceIds();

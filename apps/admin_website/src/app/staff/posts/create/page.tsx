@@ -6,16 +6,16 @@ import Link from "next/link";
 import {
   createPostApi,
   getServicesApi,
-  getPublicDentistsApi,
   generateMarketingContentApi,
   resolveAssetUrl,
   type ServiceDto,
-  type PublicDentistDto,
 } from "../../../../lib/apiClient";
 import StaffSidebar from "../../../../components/shared/StaffSidebar";
 import { useRequireStaff } from "../../../../hooks/useRequireStaff";
 import NotificationBell from "../../../../components/shared/NotificationBell";
 import { POST_CATEGORIES } from "../../../../lib/postConstants";
+
+const DEFAULT_AUTHOR = "Sơn Giang Dental";
 
 export default function CreatePostPage() {
   useRequireStaff();
@@ -25,13 +25,10 @@ export default function CreatePostPage() {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [category, setCategory] = useState("");
-  const [author, setAuthor] = useState("");
   const [thumbnail, setThumbnail] = useState("");
   const [dragActive, setDragActive] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-
-  const [dentists, setDentists] = useState<PublicDentistDto[]>([]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -47,9 +44,6 @@ export default function CreatePostPage() {
   useEffect(() => {
     getServicesApi({ status: "Active" }).then(setServices).catch(() => {
       // Không tải được danh sách dịch vụ — vẫn cho soạn theo chủ đề tự do.
-    });
-    getPublicDentistsApi().then(setDentists).catch(() => {
-      // Không tải được danh sách bác sĩ — người dùng vẫn thấy được thông báo lỗi khi lưu.
     });
   }, []);
 
@@ -125,7 +119,6 @@ export default function CreatePostPage() {
   const handleSave = async (isPublished: boolean) => {
     if (!title.trim()) { setErrorMessage("Vui lòng nhập tiêu đề bài viết."); return; }
     if (!category) { setErrorMessage("Vui lòng chọn danh mục bài viết."); return; }
-    if (!author) { setErrorMessage("Vui lòng chọn tác giả bài viết."); return; }
     if (!content.trim()) { setErrorMessage("Vui lòng nhập nội dung bài viết."); return; }
     setIsSaving(true);
     try {
@@ -133,7 +126,7 @@ export default function CreatePostPage() {
         title,
         category,
         content,
-        author,
+        author: DEFAULT_AUTHOR,
         thumbnailUrl: thumbnail || null,
         isPublished,
       });
@@ -359,32 +352,6 @@ export default function CreatePostPage() {
                         {POST_CATEGORIES.map((cat, idx) => (
                           <option key={idx} value={cat}>
                             {cat}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center text-slate-400">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                        </svg>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Author Dropdown */}
-                  <div className="flex flex-col gap-2">
-                    <label className="text-[14px] font-extrabold text-slate-800">Tác giả</label>
-                    <div className="relative">
-                      <select
-                        value={author}
-                        onChange={(e) => setAuthor(e.target.value)}
-                        className="w-full appearance-none bg-white text-slate-700 font-bold text-[14px] pl-4 pr-10 py-3 rounded-xl border border-slate-200 hover:border-slate-350 focus:border-primary/50 focus:outline-none transition-all cursor-pointer"
-                      >
-                        <option value="" disabled>
-                          {dentists.length === 0 ? "Đang tải danh sách bác sĩ..." : "Chọn tác giả"}
-                        </option>
-                        {dentists.map((d) => (
-                          <option key={d.id} value={d.fullName}>
-                            {d.fullName}
                           </option>
                         ))}
                       </select>
