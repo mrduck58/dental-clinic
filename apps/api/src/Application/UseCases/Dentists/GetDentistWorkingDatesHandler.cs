@@ -72,8 +72,8 @@ public class GetDentistWorkingDatesHandler(
 
         for (var date = startDate; date <= endDate; date = date.AddDays(1))
         {
-            // 1. Ngày Chủ Nhật hoặc Ngày Lễ -> Không làm việc
-            if (date.DayOfWeek == DayOfWeek.Sunday || holidayDates.Contains(date))
+            // 1. Ngày Lễ -> Không làm việc
+            if (holidayDates.Contains(date))
                 continue;
 
             // 2. Xác định ca trực thực tế trong ngày

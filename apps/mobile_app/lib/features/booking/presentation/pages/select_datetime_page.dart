@@ -80,8 +80,7 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
   }
 
   bool _isAvailable(DateTime d) {
-    if (_isPast(d)) return false;
-    return d.weekday != DateTime.sunday;
+    return !_isPast(d);
   }
   bool _isSelected(DateTime d) =>
       _selected != null &&
