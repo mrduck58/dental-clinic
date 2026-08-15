@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/settings_manager.dart';
+import 'package:mobile_app/core/constants/api_constants.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/core/network/api_client.dart';
 import 'package:mobile_app/app/routers.dart';
@@ -28,6 +29,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
   
   String _newPassword = '';
   String _userName = '';
+  String? _avatarUrl;
 
   @override
   void initState() {
@@ -50,11 +52,25 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
 
   Future<void> _loadUserInfo() async {
     final name = await _auth.getUserName();
-    if (mounted && name != null) {
+    final cachedAvatar = await _auth.getUserAvatar();
+    if (mounted) {
       setState(() {
-        _userName = name;
+        _userName = name ?? '';
+        _avatarUrl = cachedAvatar;
       });
     }
+
+    try {
+      final p = await _auth.getMyProfile();
+      if (mounted) {
+        setState(() {
+          _userName = p.fullName;
+          if (p.profilePictureUrl != null && p.profilePictureUrl!.isNotEmpty) {
+            _avatarUrl = p.profilePictureUrl;
+          }
+        });
+      }
+    } catch (_) {}
   }
 
   String _initials() {
@@ -236,17 +252,46 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         centerTitle: false,
         actions: [
           Padding(
-            padding: EdgeInsets.only(right: 16.0),
-            child: CircleAvatar(
-              radius: 18,
-              backgroundColor: AppColors.primary,
-              child: Text(
-                _initials(),
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
+            padding: const EdgeInsets.only(right: 16.0),
+            child: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.primary,
+                border: Border.all(
+                  color: AppColors.primary.withValues(alpha: 0.2),
+                  width: 1.5,
                 ),
+              ),
+              child: ClipOval(
+                child: (_avatarUrl != null && _avatarUrl!.isNotEmpty)
+                    ? Image.network(
+                        ApiConstants.resolveAssetUrl(_avatarUrl)!,
+                        width: 36,
+                        height: 36,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Center(
+                          child: Text(
+                            _initials(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      )
+                    : Center(
+                        child: Text(
+                          _initials(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
               ),
             ),
           ),

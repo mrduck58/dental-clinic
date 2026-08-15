@@ -33,6 +33,8 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
   String _fmtDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
+  String? _submitError;
+
   @override
   void initState() {
     super.initState();
@@ -47,7 +49,10 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
   }
 
   Future<void> _confirm(bool isVi) async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _submitError = null;
+    });
     try {
       final d = widget.draft;
       if (d.patient != null && d.patient!.id.startsWith('member_')) {
@@ -58,13 +63,12 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
       // Dời lịch sửa TẠI CHỖ lịch hẹn cũ nên mã lịch hẹn giữ nguyên — giữ lại draft cũ thay vì
       // chờ mã mới từ server như luồng đặt lịch.
       if (d.isRescheduling) {
+        final serviceId = (d.service != null && d.service!.id.isNotEmpty) ? d.service!.id : null;
         await _bookingService.rescheduleAppointment(
           d.reschedulingAppointmentId!,
           BookingService.combineDateAndSlot(d.date!, d.timeSlot!.range),
-          dentistId: d.doctor!.id,
-          // null = giữ nguyên dịch vụ của lịch hẹn cũ. Không lấy d.service?.id vì draft dời lịch chỉ
-          // mang tên dịch vụ để hiển thị, id là chuỗi rỗng — gửi lên sẽ thành Guid không hợp lệ.
-          serviceId: null,
+          dentistId: d.doctor?.id,
+          serviceId: serviceId,
           reason: _symptomCtrl.text.trim().isEmpty ? null : _symptomCtrl.text.trim(),
         );
         if (!mounted) return;
@@ -92,9 +96,11 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
       context.pushReplacement(AppRoutes.bookingSuccess, extra: updatedDraft);
     } on DioException catch (e) {
       if (!mounted) return;
+      final msg = ApiClient.errorMessage(e);
+      setState(() => _submitError = msg);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(ApiClient.errorMessage(e)),
+          content: Text(msg),
           behavior: SnackBarBehavior.floating,
           margin: const EdgeInsets.fromLTRB(16, 0, 16, 110),
           backgroundColor: const Color(0xFFEF4444),
@@ -102,9 +108,11 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
       );
     } catch (e) {
       if (!mounted) return;
+      final msg = isVi ? 'Đặt lịch thất bại. Vui lòng thử lại.' : 'Booking failed. Please try again.';
+      setState(() => _submitError = msg);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(isVi ? 'Đặt lịch thất bại. Vui lòng thử lại.' : 'Booking failed. Please try again.'),
+          content: Text(msg),
           behavior: SnackBarBehavior.floating,
           margin: const EdgeInsets.fromLTRB(16, 0, 16, 110),
           backgroundColor: const Color(0xFFEF4444),
@@ -159,14 +167,14 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
                             icon: Iconsax.user,
                             label: isVi ? 'Bệnh nhân' : 'Patient',
                             value: '${d.patient!.name} (${d.patient!.relationship})',
-                            onEdit: d.isRescheduling ? null : () => context.push(AppRoutes.bookingSelectPatient, extra: d),
+                            onEdit: () => context.push(AppRoutes.bookingSelectPatient, extra: d),
                           ),
                         if (d.service != null)
                           _InfoRow(
                             icon: Iconsax.health,
                             label: isVi ? 'Chuyên khoa' : 'Service',
                             value: d.service?.name ?? (isVi ? 'Khám tổng quát' : 'General check-up'),
-                            onEdit: d.isRescheduling ? null : () => context.push(AppRoutes.bookingSelectService, extra: d),
+                            onEdit: () => context.push(AppRoutes.bookingSelectService, extra: d),
                           ),
                         if (d.date != null)
                           _InfoRow(
@@ -264,6 +272,38 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
                       ],
                     ),
                   ),
+                  if (_submitError != null) ...[
+                    Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 16),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: context.isDark ? const Color(0xFF451A1A) : const Color(0xFFFEF2F2),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: context.isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFCA5A5),
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.error_outline_rounded, color: Color(0xFFDC2626), size: 20),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              _submitError!,
+                              style: TextStyle(
+                                color: context.isDark ? const Color(0xFFFCA5A5) : const Color(0xFF991B1B),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                   const SizedBox(height: 24),
                 ],
               ),

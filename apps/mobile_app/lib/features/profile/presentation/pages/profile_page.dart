@@ -256,11 +256,6 @@ class _ProfilePageState extends State<ProfilePage> {
                 label: context.l10n('change_password'),
                 onTap: () => context.push(AppRoutes.changePassword),
               ),
-              _SettingsTile(
-                icon: Iconsax.shield_tick,
-                label: context.l10n('active_sessions'),
-                onTap: () => context.push(AppRoutes.security),
-              ),
 
               // ── Section 4: SUPPORT & LEGAL ────────────────────────────────
               _buildSectionHeader(context.l10n('support_legal')),

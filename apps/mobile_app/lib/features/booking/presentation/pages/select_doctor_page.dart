@@ -41,11 +41,15 @@ class _SelectDoctorPageState extends State<SelectDoctorPage> {
       final list = await _service.getDoctorsWithSlots(widget.draft.date!);
       if (mounted) {
         final selectedDocId = widget.draft.doctor?.id ?? widget.draft.preferredDentistId;
-        List<ApiDoctorWithSlots> filtered = list;
+        List<ApiDoctorWithSlots> sortedList = List.from(list);
         if (selectedDocId != null) {
-          filtered = list.where((d) => d.dentistId == selectedDocId).toList();
+          sortedList.sort((a, b) {
+            if (a.dentistId == selectedDocId) return -1;
+            if (b.dentistId == selectedDocId) return 1;
+            return 0;
+          });
         }
-        setState(() { _doctors = filtered; _loading = false; });
+        setState(() { _doctors = sortedList; _loading = false; });
       }
     } catch (e) {
       if (mounted) setState(() { _error = 'Không thể tải thông tin bác sĩ.'; _loading = false; });
