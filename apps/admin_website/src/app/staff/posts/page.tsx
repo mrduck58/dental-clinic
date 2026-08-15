@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { getPostsApi, deletePostApi, resolveAssetUrl, type PostDto } from "../../../lib/apiClient";
 import StaffSidebar from "../../../components/shared/StaffSidebar";
@@ -87,8 +87,6 @@ export default function PostsListPage() {
   const [statusFilter, setStatusFilter] = useState<"all" | "published" | "draft">("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [postsPerPage, setPostsPerPage] = useState(5);
-  const [sortKey, setSortKey] = useState<SortKey>("date");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   // Danh mục hiển thị trong bộ lọc khớp đúng danh sách danh mục chính thức ở trang "Tạo bài viết
   // mới" (POST_CATEGORIES) — không tự thêm danh mục lạ nào khác ngoài danh sách này.
@@ -137,37 +135,8 @@ export default function PostsListPage() {
     return matchesSearch && matchesCategory && matchesStatus;
   });
 
-  // Sort logic
-  const sortedPosts = useMemo(() => {
-    const dir = sortDir === "asc" ? 1 : -1;
-    const parseDate = (d: string) => {
-      const [day, month, year] = d.split("/").map(Number);
-      return new Date(year, month - 1, day).getTime();
-    };
-    const value = (p: Post): string | number => {
-      switch (sortKey) {
-        case "title": return p.title.toLowerCase();
-        case "category": return p.category.toLowerCase();
-        case "author": return p.author.toLowerCase();
-        case "date": return parseDate(p.date);
-        case "status": return p.status.toLowerCase();
-      }
-    };
-    return [...filteredPosts].sort((a, b) => {
-      const va = value(a), vb = value(b);
-      if (typeof va === "string" && typeof vb === "string") return va.localeCompare(vb, "vi") * dir;
-      return ((va as number) - (vb as number)) * dir;
-    });
-  }, [filteredPosts, sortKey, sortDir]);
-
-  const handleSort = (column: SortKey) => {
-    const next = toggleSortState({ key: sortKey, dir: sortDir }, column, SORT_DESC_BY_DEFAULT);
-    setSortKey(next.key);
-    setSortDir(next.dir);
-    setCurrentPage(1);
-  };
-
   // Pagination logic
+  const totalPages = Math.max(1, Math.ceil(filteredPosts.length / postsPerPage));
   const startIndex = (currentPage - 1) * postsPerPage;
   const paginatedPosts = filteredPosts.slice(startIndex, startIndex + postsPerPage);
   const pageList = getPageList(currentPage, totalPages);

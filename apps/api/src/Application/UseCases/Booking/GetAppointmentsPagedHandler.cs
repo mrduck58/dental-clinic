@@ -42,7 +42,8 @@ public class GetAppointmentsPagedHandler(IAppointmentRepository appointmentRepos
             a.CreatedAt,
             a.Status.ToString(),
             a.Symptoms,
-            a.CheckedInAt)).ToList();
+            a.CheckedInAt,
+            a.Origin.ToString())).ToList();
 
         return new AppointmentsPagedDto(
             dtos,
