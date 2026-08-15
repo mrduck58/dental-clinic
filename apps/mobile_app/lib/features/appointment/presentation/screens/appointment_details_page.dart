@@ -982,6 +982,7 @@ class _CancelReasonBottomSheetState extends State<_CancelReasonBottomSheet> {
           SnackBar(
             content: Text(widget.isVi ? 'Đã hủy lịch khám thành công.' : 'Appointment cancelled successfully.'),
             behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 100),
             backgroundColor: const Color(0xFF16A34A),
           ),
         );
@@ -996,6 +997,7 @@ class _CancelReasonBottomSheetState extends State<_CancelReasonBottomSheet> {
           SnackBar(
             content: Text(msg),
             behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 100),
             backgroundColor: const Color(0xFFEF4444),
           ),
         );
@@ -1004,8 +1006,6 @@ class _CancelReasonBottomSheetState extends State<_CancelReasonBottomSheet> {
       if (mounted) setState(() => _submitting = false);
     }
   }
-
-  // _translateToVi đã bỏ: nhãn song ngữ nay do server trả về kèm mỗi lý do, app không tự dịch nữa.
 
   @override
   Widget build(BuildContext context) {
@@ -1027,10 +1027,15 @@ class _CancelReasonBottomSheetState extends State<_CancelReasonBottomSheet> {
         top: 14,
         bottom: 24 + MediaQuery.of(context).viewInsets.bottom,
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.85,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
           Center(
             child: Container(
               width: 48,
@@ -1165,7 +1170,9 @@ class _CancelReasonBottomSheetState extends State<_CancelReasonBottomSheet> {
           ),
         ],
       ),
-    );
+    ),
+  ),
+);
   }
 
   Widget _buildRadioOption(String value, String label) {

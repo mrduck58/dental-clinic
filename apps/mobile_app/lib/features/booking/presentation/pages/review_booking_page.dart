@@ -93,12 +93,22 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
     } on DioException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ApiClient.errorMessage(e))),
+        SnackBar(
+          content: Text(ApiClient.errorMessage(e)),
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 110),
+          backgroundColor: const Color(0xFFEF4444),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(isVi ? 'Đặt lịch thất bại. Vui lòng thử lại.' : 'Booking failed. Please try again.')),
+        SnackBar(
+          content: Text(isVi ? 'Đặt lịch thất bại. Vui lòng thử lại.' : 'Booking failed. Please try again.'),
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 110),
+          backgroundColor: const Color(0xFFEF4444),
+        ),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
