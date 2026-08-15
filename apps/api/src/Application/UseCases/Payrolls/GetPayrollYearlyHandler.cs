@@ -44,9 +44,10 @@ public class GetPayrollYearlyHandler(IPayrollRepository payrollRepository)
                 var isPaid = record is { Status: PayrollStatus.Paid };
 
                 decimal net, deduction;
-                if (isPaid)
+                if (record is not null)
                 {
-                    net = record!.NetSalary;
+                    // Kỳ đã tạo (Draft trở lên) — dùng số đã lưu, có thể đã cộng Thưởng tay
+                    net = record.NetSalary;
                     deduction = record.Deduction;
                 }
                 else

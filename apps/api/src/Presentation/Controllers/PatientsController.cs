@@ -63,6 +63,18 @@ public class PatientsController(ISender sender, ICurrentUserService currentUser)
         return Ok(result);
     }
 
+    /// <summary>
+    /// GET api/patients/{patientId} — Thông tin bệnh nhân kèm toàn bộ lịch sử khám (mọi trạng thái)
+    /// và trạng thái thanh toán từng buổi — màn hình chi tiết bệnh nhân của Owner/Staff/Admin.
+    /// </summary>
+    [HttpGet("{patientId:guid}")]
+    [Authorize(Roles = "Staff,Admin,Owner")]
+    public async Task<IActionResult> GetPatientDetail(Guid patientId, CancellationToken ct)
+    {
+        var result = await sender.Send(new GetPatientDetailQuery(patientId), ct);
+        return Ok(result);
+    }
+
     [HttpGet("my-medical-history")]
     [Authorize(Roles = "Patient")]
     public async Task<IActionResult> GetMyMedicalHistory(CancellationToken ct)

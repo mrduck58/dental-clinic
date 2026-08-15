@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import OwnerSidebar from "../../../components/shared/OwnerSidebar";
 import OwnerPageHeader from "../../../components/shared/OwnerPageHeader";
 import Pagination from "../../../components/shared/Pagination";
@@ -70,6 +71,7 @@ type SortKey = "code" | "employee" | "leaveType" | "startDate" | "endDate" | "da
 
 export default function LeavesPage() {
   useRequireOwner();
+  const router = useRouter();
 
   const [leaves, setLeaves] = useState<LeaveWithCode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -376,7 +378,11 @@ export default function LeavesPage() {
                       const typeLabel = LEAVE_LABEL[leave.leaveType] ?? leave.leaveType;
 
                       return (
-                        <tr key={leave.id} className="hover:bg-slate-50/30 transition-colors">
+                        <tr
+                          key={leave.id}
+                          onClick={() => router.push(`/owner/leaves/${leave.id}`)}
+                          className="hover:bg-slate-50/30 transition-colors cursor-pointer group"
+                        >
                           <td className="px-5 py-4">
                             <span className="font-black text-primary text-[13px]">{leave.code}</span>
                           </td>
@@ -386,7 +392,7 @@ export default function LeavesPage() {
                                 {getInitials(leave.userFullName)}
                               </div>
                               <div className="min-w-0">
-                                <div className="font-extrabold text-slate-900 truncate">{leave.userFullName}</div>
+                                <div className="font-extrabold text-slate-900 truncate group-hover:text-primary transition-colors">{leave.userFullName}</div>
                                 <div className="text-[11px] text-slate-400 font-semibold truncate">{leave.department ?? "—"}</div>
                               </div>
                             </div>
@@ -411,7 +417,7 @@ export default function LeavesPage() {
                               {status.label}
                             </span>
                           </td>
-                          <td className="px-5 py-4 text-center">
+                          <td className="px-5 py-4 text-center" onClick={(e) => e.stopPropagation()}>
                             <Link
                               href={`/owner/leaves/${leave.id}`}
                               title={leave.status === "Pending" ? "Xem & duyệt đơn" : "Xem chi tiết"}

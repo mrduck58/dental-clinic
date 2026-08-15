@@ -15,6 +15,7 @@ public record PayrollItemDto(
     decimal AllowedLeaveDays,
     decimal ExceededDays,
     decimal Deduction,
+    decimal Bonus,
     decimal NetSalary,
     string Status,
     DateTimeOffset? PaidAt,
@@ -22,7 +23,9 @@ public record PayrollItemDto(
     // false = nhân sự chưa được thiết lập lương cơ bản trong hồ sơ
     bool HasSalaryConfigured,
     // Thực nhận của chính nhân sự này ở kỳ liền trước, để so sánh biến động
-    decimal PreviousNetSalary);
+    decimal PreviousNetSalary,
+    // true = kỳ đã có bản ghi (Draft trở lên). false = kỳ chưa được tạo, số liệu chỉ là ước tính.
+    bool IsCreated);
 
 public record PayrollSummaryDto(
     int TotalStaff,
@@ -32,7 +35,11 @@ public record PayrollSummaryDto(
     decimal TotalPaid,
     decimal TotalDeduction,
     int MissingSalaryCount,
-    decimal PreviousTotalNet);
+    decimal PreviousTotalNet,
+    int NotCreatedCount,
+    int DraftCount,
+    int CalculatedCount,
+    int ApprovedCount);
 
 public record PayrollPeriodDto(
     int Year,
@@ -90,3 +97,13 @@ public record UnpayPayrollRequest(int Year, int Month, Guid UserId);
 
 /// <summary>Một nhân sự không chi trả được trong đợt chi hàng loạt, kèm lý do cụ thể.</summary>
 public record PayrollFailureDto(Guid UserId, string FullName, string Reason);
+
+public record PayrollPeriodRequest(int Year, int Month);
+
+public record SetPayrollBonusRequest(int Year, int Month, Guid UserId, decimal Bonus);
+
+/// <summary>Kết quả một thao tác áp dụng cho cả kỳ (tạo/tính/duyệt) — số nhân sự bị bỏ qua kèm lý do.</summary>
+public record PayrollPeriodActionResult(
+    int AffectedCount,
+    int SkippedCount,
+    IReadOnlyList<PayrollFailureDto> Failures);

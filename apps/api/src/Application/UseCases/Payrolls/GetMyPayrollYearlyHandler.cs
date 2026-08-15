@@ -30,14 +30,14 @@ public class GetMyPayrollYearlyHandler(IPayrollRepository payrollRepository)
         for (var month = 1; month <= 12; month++)
         {
             var record = recordByMonth.GetValueOrDefault(month);
-            if (record is { Status: PayrollStatus.Paid })
+            if (record is not null)
             {
                 months.Add(new MyPayrollMonthDto(month, record.NetSalary, record.Status.ToString(), record.PaidAt));
             }
             else
             {
                 var c = PayrollCalculator.Compute(user, leaves, query.Year, month);
-                months.Add(new MyPayrollMonthDto(month, c.NetSalary, nameof(PayrollStatus.Pending), null));
+                months.Add(new MyPayrollMonthDto(month, c.NetSalary, "NotCreated", null));
             }
         }
 

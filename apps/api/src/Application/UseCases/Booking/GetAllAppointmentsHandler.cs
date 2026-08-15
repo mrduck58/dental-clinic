@@ -7,6 +7,7 @@ namespace DentalClinic.API.Application.UseCases.Booking;
 public record StaffAppointmentDto(
     Guid AppointmentId,
     string AppointmentCode,
+    Guid PatientId,
     string PatientName,
     string? PatientPhone,
     string DentistName,
@@ -40,6 +41,7 @@ public class GetAllAppointmentsHandler(IAppointmentRepository appointmentReposit
         return appointments.Select(a => new StaffAppointmentDto(
             a.Id,
             $"DK{a.AppointmentDate:yyyyMMdd}{a.Id.ToString()[..6].ToUpper()}",
+            a.PatientId,
             a.Patient.FullName,
             a.Patient.User?.PhoneNumber,
             a.Dentist.FullName,

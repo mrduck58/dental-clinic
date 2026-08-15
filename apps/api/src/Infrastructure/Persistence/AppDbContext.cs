@@ -47,6 +47,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AiUsageLog> AiUsageLogs => Set<AiUsageLog>();
     public DbSet<DentistReview> DentistReviews => Set<DentistReview>();
     public DbSet<PayrollRecord> PayrollRecords => Set<PayrollRecord>();
+    public DbSet<Expense> Expenses => Set<Expense>();
+    public DbSet<CommissionRule> CommissionRules => Set<CommissionRule>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

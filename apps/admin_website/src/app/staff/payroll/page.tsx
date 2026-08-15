@@ -15,7 +15,29 @@ const CHART_BAR = "#0ea5e9";
 const CHART_GRID = "#e2e8f0";
 const CHART_AXIS_TEXT = "#94a3b8";
 
-const STATUS_LABELS: Record<string, string> = { Paid: "Đã chi trả", Pending: "Chờ chi trả" };
+const STATUS_LABELS: Record<string, string> = {
+  NotCreated: "Chưa tạo kỳ lương",
+  Draft: "Đang tạm tính",
+  Calculated: "Đã tính, chờ duyệt",
+  Approved: "Đã duyệt, chờ chi trả",
+  Paid: "Đã chi trả",
+};
+
+const STATUS_BADGE: Record<string, string> = {
+  NotCreated: "bg-slate-50 text-slate-500 border border-slate-200",
+  Draft: "bg-slate-100 text-slate-600 border border-slate-250",
+  Calculated: "bg-blue-50 text-blue-700 border border-blue-200",
+  Approved: "bg-indigo-50 text-indigo-700 border border-indigo-200",
+  Paid: "bg-green-50 text-green-700 border border-green-200",
+};
+
+const STATUS_DOT: Record<string, string> = {
+  NotCreated: "bg-slate-400",
+  Draft: "bg-slate-500",
+  Calculated: "bg-blue-500",
+  Approved: "bg-indigo-500",
+  Paid: "bg-green-500",
+};
 
 function formatCurrency(val: number): string {
   return new Intl.NumberFormat("vi-VN").format(val) + " đ";
@@ -140,7 +162,7 @@ export default function StaffPayrollPage() {
               )}
 
               {/* KPI cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm">
                   <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Lương cơ bản</span>
                   <span className="text-2xl font-black text-slate-900 mt-1 block">{formatCurrency(item.baseSalary)}</span>
@@ -162,6 +184,10 @@ export default function StaffPayrollPage() {
                     ) : "Chưa nghỉ phép"}
                   </span>
                 </div>
+                <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm">
+                  <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Thưởng</span>
+                  <span className="text-2xl font-black text-emerald-600 mt-1 block">+{formatCurrency(item.bonus)}</span>
+                </div>
                 <div className="bg-primary p-5 rounded-2xl shadow-md shadow-primary/20">
                   <span className="text-[11px] font-extrabold text-red-100 uppercase tracking-wider block">Thực nhận</span>
                   <span className="text-2xl font-black text-white mt-1 block">{formatCurrency(item.netSalary)}</span>
@@ -177,13 +203,9 @@ export default function StaffPayrollPage() {
               <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex items-center justify-between flex-wrap gap-3">
                 <div className="flex items-center gap-3">
                   <span
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-black ${
-                      item.status === "Paid"
-                        ? "bg-green-50 text-green-700 border border-green-200"
-                        : "bg-amber-50 text-amber-700 border border-amber-200"
-                    }`}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-black ${STATUS_BADGE[item.status] ?? STATUS_BADGE.NotCreated}`}
                   >
-                    <span className={`w-1.5 h-1.5 rounded-full ${item.status === "Paid" ? "bg-green-500" : "bg-amber-500"}`} />
+                    <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[item.status] ?? STATUS_DOT.NotCreated}`} />
                     {STATUS_LABELS[item.status] ?? item.status}
                   </span>
                   {item.status === "Paid" && (
@@ -192,6 +214,13 @@ export default function StaffPayrollPage() {
                 </div>
                 <span className="text-[12px] text-slate-400 font-semibold">Kỳ lương tháng {selectedMonth}/{selectedYear}</span>
               </div>
+
+              {(item.status === "NotCreated" || item.status === "Draft" || item.status === "Calculated") && (
+                <div className="bg-blue-50 border border-blue-100 text-blue-700 px-5 py-3 rounded-2xl text-[13px] font-semibold flex items-center gap-2">
+                  <svg className="w-4 h-4 text-blue-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg>
+                  <span>Số liệu bên trên chỉ là tạm tính, có thể thay đổi cho đến khi phòng khám duyệt kỳ lương.</span>
+                </div>
+              )}
             </>
           ) : (
             <div className="py-16 text-center text-slate-400 font-semibold">Không có dữ liệu lương cho kỳ này.</div>

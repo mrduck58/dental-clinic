@@ -58,6 +58,43 @@ public class PayrollsController(ISender sender) : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>POST api/payrolls/periods — Tạo kỳ lương (Draft) cho nhân sự chưa có bản ghi trong kỳ (Owner)</summary>
+    [HttpPost("periods")]
+    [Authorize(Roles = "Owner")]
+    public async Task<IActionResult> CreatePeriod([FromBody] PayrollPeriodRequest request, CancellationToken ct)
+    {
+        var result = await sender.Send(new CreatePayrollPeriodCommand(request.Year, request.Month), ct);
+        return Ok(result);
+    }
+
+    /// <summary>PUT api/payrolls/periods/calculate — Tính lương: chốt số liệu các bản ghi Nháp của kỳ (Owner)</summary>
+    [HttpPut("periods/calculate")]
+    [Authorize(Roles = "Owner")]
+    public async Task<IActionResult> CalculatePeriod([FromBody] PayrollPeriodRequest request, CancellationToken ct)
+    {
+        var result = await sender.Send(new CalculatePayrollPeriodCommand(request.Year, request.Month), ct);
+        return Ok(result);
+    }
+
+    /// <summary>PUT api/payrolls/periods/approve — Owner duyệt các bản ghi Đã tính của kỳ</summary>
+    [HttpPut("periods/approve")]
+    [Authorize(Roles = "Owner")]
+    public async Task<IActionResult> ApprovePeriod([FromBody] PayrollPeriodRequest request, CancellationToken ct)
+    {
+        var result = await sender.Send(new ApprovePayrollPeriodCommand(request.Year, request.Month), ct);
+        return Ok(result);
+    }
+
+    /// <summary>PUT api/payrolls/bonus — Sửa Thưởng của một nhân sự trong kỳ đang Nháp (Owner)</summary>
+    [HttpPut("bonus")]
+    [Authorize(Roles = "Owner")]
+    public async Task<IActionResult> SetBonus([FromBody] SetPayrollBonusRequest request, CancellationToken ct)
+    {
+        var result = await sender.Send(
+            new SetPayrollBonusCommand(request.Year, request.Month, request.UserId, request.Bonus), ct);
+        return Ok(result);
+    }
+
     /// <summary>PUT api/payrolls/pay — Chi trả lương một nhân sự trong kỳ (Owner)</summary>
     [HttpPut("pay")]
     [Authorize(Roles = "Owner")]

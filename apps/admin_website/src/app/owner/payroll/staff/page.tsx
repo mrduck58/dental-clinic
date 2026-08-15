@@ -13,6 +13,10 @@ import {
   payPayrollApi,
   unpayPayrollApi,
   payAllPayrollApi,
+  createPayrollPeriodApi,
+  calculatePayrollPeriodApi,
+  approvePayrollPeriodApi,
+  setPayrollBonusApi,
   type PayrollPeriodDto,
   type PayrollItemDto,
   type PayrollFailureDto,
@@ -35,8 +39,23 @@ const CHART_AXIS_TEXT = "#94a3b8";
 
 type SortKey =
   | "name" | "department" | "base" | "allowance"
-  | "deduction" | "net" | "status" | "paidAt";
+  | "deduction" | "bonus" | "net" | "status" | "paidAt";
 type SortDir = "asc" | "desc";
+
+// Thứ tự vòng đời kỳ lương, dùng để sắp xếp cột Trạng thái theo tiến độ thay vì bảng chữ cái
+const STATUS_ORDER: Record<string, number> = { NotCreated: 0, Draft: 1, Calculated: 2, Approved: 3, Paid: 4 };
+
+const STATUS_BADGE: Record<string, { label: string; dot: string; cls: string }> = {
+  NotCreated: { label: "Chưa tạo", dot: "bg-slate-400", cls: "bg-slate-50 text-slate-500 border border-slate-200" },
+  Draft: { label: "Nháp", dot: "bg-slate-500", cls: "bg-slate-100 text-slate-600 border border-slate-250" },
+  Calculated: { label: "Đã tính", dot: "bg-blue-500", cls: "bg-blue-50 text-blue-700 border border-blue-200" },
+  Approved: { label: "Đã duyệt", dot: "bg-indigo-500", cls: "bg-indigo-50 text-indigo-700 border border-indigo-200" },
+  Paid: { label: "Đã trả", dot: "bg-green-500", cls: "bg-green-50 text-green-700 border border-green-200" },
+};
+
+// Ô nhập tiền: hiển thị có dấu phân cách (5.000.000), parse về số.
+const fmtMoneyInput = (n: number) => (n ? n.toLocaleString("vi-VN") : "");
+const parseMoneyInput = (s: string) => Number(s.replace(/[^\d]/g, "")) || 0;
 
 /**
  * Đưa nội dung ra thẳng <body>.
@@ -64,6 +83,11 @@ export default function OwnerPayrollStaffPage() {
   const [failures, setFailures] = useState<PayrollFailureDto[]>([]);
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
   const [isPayingAll, setIsPayingAll] = useState(false);
+  const [isCreatingPeriod, setIsCreatingPeriod] = useState(false);
+  const [isCalculating, setIsCalculating] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
+  const [bonusDraft, setBonusDraft] = useState<Record<string, number>>({});
+  const [savingBonusUserId, setSavingBonusUserId] = useState<string | null>(null);
 
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -176,8 +200,9 @@ export default function OwnerPayrollStaffPage() {
         case "base":       return it.baseSalary;
         case "allowance":  return it.allowance;
         case "deduction":  return it.deduction;
+        case "bonus":      return it.bonus;
         case "net":        return it.netSalary;
-        case "status":     return it.status === "Paid" ? 1 : 0;
+        case "status":     return STATUS_ORDER[it.status] ?? 0;
         case "paidAt":     return it.paidAt ? new Date(it.paidAt).getTime() : 0;
       }
     };
@@ -231,7 +256,7 @@ export default function OwnerPayrollStaffPage() {
     setConfirmOpen(true);
     setConfirmTotals(null);
     if (!isFiltered) {
-      setConfirmTotals({ count: pendingCount, amount: totalRemaining });
+      setConfirmTotals({ count: approvedCount, amount: approvedAmount });
       return;
     }
     // Đang lọc: số trên bảng không phải số sẽ chi, nên hỏi lại server toàn kỳ
@@ -239,13 +264,85 @@ export default function OwnerPayrollStaffPage() {
     try {
       const full = await getPayrollPeriodApi({ year: selectedYear, month: selectedMonth });
       setConfirmTotals({
-        count: full.summary.pendingCount,
-        amount: full.summary.totalNet - full.summary.totalPaid,
+        count: full.summary.approvedCount,
+        amount: full.items.filter((i) => i.status === "Approved").reduce((sum, i) => sum + i.netSalary, 0),
       });
     } catch {
       setConfirmTotals(null);
     } finally {
       setConfirmLoading(false);
+    }
+  };
+
+  // ── Vòng đời kỳ lương: Tạo → Tính → Duyệt ───────────────────────────────────
+
+  const handleCreatePeriod = async () => {
+    setIsCreatingPeriod(true);
+    try {
+      const result = await createPayrollPeriodApi({ year: selectedYear, month: selectedMonth });
+      showMessage(
+        result.affectedCount > 0
+          ? `Đã tạo kỳ lương nháp cho ${result.affectedCount} nhân sự.`
+          : "Không có nhân sự nào cần tạo kỳ lương mới."
+      );
+      await reload();
+    } catch (err) {
+      showError(err, "Không thể tạo kỳ lương");
+    } finally {
+      setIsCreatingPeriod(false);
+    }
+  };
+
+  const handleCalculatePeriod = async () => {
+    setIsCalculating(true);
+    try {
+      const result = await calculatePayrollPeriodApi({ year: selectedYear, month: selectedMonth });
+      showMessage(
+        result.affectedCount > 0
+          ? `Đã tính lương cho ${result.affectedCount} nhân sự.`
+          : "Không có kỳ nháp nào cần tính lương."
+      );
+      await reload();
+    } catch (err) {
+      showError(err, "Không thể tính lương kỳ này");
+    } finally {
+      setIsCalculating(false);
+    }
+  };
+
+  const handleApprovePeriod = async () => {
+    setIsApproving(true);
+    try {
+      const result = await approvePayrollPeriodApi({ year: selectedYear, month: selectedMonth });
+      showMessage(
+        result.affectedCount > 0
+          ? `Đã duyệt kỳ lương cho ${result.affectedCount} nhân sự.`
+          : "Không có kỳ nào chờ duyệt."
+      );
+      await reload();
+    } catch (err) {
+      showError(err, "Không thể duyệt kỳ lương");
+    } finally {
+      setIsApproving(false);
+    }
+  };
+
+  const handleBonusCommit = async (item: PayrollItemDto) => {
+    const val = bonusDraft[item.userId];
+    if (val === undefined || val === item.bonus) return;
+    setSavingBonusUserId(item.userId);
+    try {
+      await setPayrollBonusApi({ year: selectedYear, month: selectedMonth, userId: item.userId, bonus: val });
+      setBonusDraft((prev) => {
+        const next = { ...prev };
+        delete next[item.userId];
+        return next;
+      });
+      await reload();
+    } catch (err) {
+      showError(err, "Không thể cập nhật thưởng");
+    } finally {
+      setSavingBonusUserId(null);
     }
   };
 
@@ -284,10 +381,11 @@ export default function OwnerPayrollStaffPage() {
       "Định mức phép (ngày)": item.allowedLeaveDays,
       "Vượt phép (ngày)": item.exceededDays,
       "Khấu trừ": item.deduction,
+      "Thưởng": item.bonus,
       "Thực nhận (Net)": item.netSalary,
       "Thực nhận tháng trước": item.previousNetSalary,
       "Chênh lệch": changeOf(item),
-      "Trạng thái": item.status === "Paid" ? "Đã thanh toán" : "Chưa thanh toán",
+      "Trạng thái": STATUS_BADGE[item.status]?.label ?? item.status,
       "Ngày chi trả": formatDate(item.paidAt),
     }));
 
@@ -334,6 +432,14 @@ export default function OwnerPayrollStaffPage() {
   const paidCount = summary?.paidCount ?? 0;
   const pendingCount = summary?.pendingCount ?? 0;
   const totalStaff = summary?.totalStaff ?? 0;
+  const notCreatedCount = summary?.notCreatedCount ?? 0;
+  const draftCount = summary?.draftCount ?? 0;
+  const calculatedCount = summary?.calculatedCount ?? 0;
+  const approvedCount = summary?.approvedCount ?? 0;
+  const approvedAmount = useMemo(
+    () => items.filter((i) => i.status === "Approved").reduce((sum, i) => sum + i.netSalary, 0),
+    [items]
+  );
   const paidPercent = totalStaff > 0 ? Math.round((paidCount / totalStaff) * 100) : 0;
   const isFiltered = searchTerm !== "" || deptFilter !== "All";
   const previousTotalNet = summary?.previousTotalNet ?? 0;
@@ -526,6 +632,59 @@ export default function OwnerPayrollStaffPage() {
             </div>
           </div>
 
+          {/* Quy trình duyệt lương: Tạo → Tính → Duyệt → Chi trả */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[11.5px] font-extrabold text-slate-400 uppercase tracking-wider mr-1">
+                Quy trình kỳ {selectedMonth}/{selectedYear}
+              </span>
+              {(
+                [
+                  ["NotCreated", notCreatedCount],
+                  ["Draft", draftCount],
+                  ["Calculated", calculatedCount],
+                  ["Approved", approvedCount],
+                  ["Paid", paidCount],
+                ] as const
+              ).map(([key, count]) => (
+                <span
+                  key={key}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-black ${STATUS_BADGE[key].cls}`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${STATUS_BADGE[key].dot}`} />
+                  {STATUS_BADGE[key].label}: {count}
+                </span>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={handleCreatePeriod}
+                disabled={isCreatingPeriod || isLoading}
+                title="Tạo kỳ lương nháp cho toàn bộ nhân sự chưa có bản ghi trong kỳ (áp dụng cho cả nha sĩ và nhân viên)"
+                className="px-3.5 py-2 bg-white border border-slate-250 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-slate-600 text-xs font-black rounded-xl cursor-pointer shadow-sm transition-all whitespace-nowrap"
+              >
+                {isCreatingPeriod ? "Đang tạo..." : `Tạo kỳ lương${notCreatedCount > 0 ? ` (${notCreatedCount})` : ""}`}
+              </button>
+              <button
+                onClick={handleCalculatePeriod}
+                disabled={isCalculating || isLoading || draftCount === 0}
+                title="Tính lại số liệu và chốt các kỳ đang Nháp sang Đã tính (áp dụng cho toàn bộ nhân sự, không riêng danh sách đang lọc)"
+                className="px-3.5 py-2 bg-blue-50 border border-blue-200 hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed text-blue-700 text-xs font-black rounded-xl cursor-pointer shadow-sm transition-all whitespace-nowrap"
+              >
+                {isCalculating ? "Đang tính..." : `Tính lương${draftCount > 0 ? ` (${draftCount})` : ""}`}
+              </button>
+              <button
+                onClick={handleApprovePeriod}
+                disabled={isApproving || isLoading || calculatedCount === 0}
+                title="Duyệt các kỳ Đã tính sang Đã duyệt, đủ điều kiện chi trả (áp dụng cho toàn bộ nhân sự, không riêng danh sách đang lọc)"
+                className="px-3.5 py-2 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed text-indigo-700 text-xs font-black rounded-xl cursor-pointer shadow-sm transition-all whitespace-nowrap"
+              >
+                {isApproving ? "Đang duyệt..." : `Duyệt kỳ lương${calculatedCount > 0 ? ` (${calculatedCount})` : ""}`}
+              </button>
+            </div>
+          </div>
+
           {/* Filters & Actions Bar */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3 w-full sm:w-auto flex-1">
@@ -610,19 +769,21 @@ export default function OwnerPayrollStaffPage() {
 
               <button
                 onClick={openConfirmPayAll}
-                disabled={isPayingAll || isLoading || totalStaff === 0 || paidCount === totalStaff}
+                disabled={isPayingAll || isLoading || approvedCount === 0}
                 title={
-                  isFiltered
-                    ? "Chi trả cho toàn bộ nhân sự chưa thanh toán của kỳ, không chỉ những người đang lọc"
-                    : `Chi trả cho ${pendingCount} nhân sự còn lại của tháng ${selectedMonth}/${selectedYear}`
+                  approvedCount === 0
+                    ? "Chưa có kỳ lương nào ở trạng thái Đã duyệt để chi trả"
+                    : isFiltered
+                      ? "Chi trả cho toàn bộ nhân sự đã duyệt của kỳ, không chỉ những người đang lọc"
+                      : `Chi trả cho ${approvedCount} nhân sự đã duyệt của tháng ${selectedMonth}/${selectedYear}`
                 }
                 className="px-4 py-2 bg-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-black rounded-xl cursor-pointer shadow-md shadow-primary/20 transition-all whitespace-nowrap"
               >
                 {isPayingAll
                   ? "Đang xử lý..."
-                  : paidCount === totalStaff && totalStaff > 0
-                    ? "Đã chi trả xong"
-                    : `Thanh Toán Tất Cả${pendingCount > 0 ? ` (${pendingCount})` : ""}`}
+                  : approvedCount === 0
+                    ? "Không có kỳ chờ chi trả"
+                    : `Thanh Toán Tất Cả (${approvedCount})`}
               </button>
             </div>
           </div>
@@ -639,6 +800,7 @@ export default function OwnerPayrollStaffPage() {
                     <SortableTh column="base" label="Lương cơ bản" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" className="px-4" />
                     <SortableTh column="allowance" label="Phụ cấp" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" className="px-4" />
                     <SortableTh column="deduction" label="Khấu trừ" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" className="px-4" />
+                    <SortableTh column="bonus" label="Thưởng" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" className="px-4" />
                     <SortableTh column="net" label="Thực nhận" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" className="px-4" />
                     <SortableTh column="status" label="Trạng thái" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="center" className="px-4" />
                     <SortableTh column="paidAt" label="Ngày trả" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="center" className="px-4" />
@@ -648,13 +810,13 @@ export default function OwnerPayrollStaffPage() {
                 <tbody className="divide-y divide-slate-100">
                   {isLoading ? (
                     <tr>
-                      <td colSpan={10} className="px-5 py-12 text-center text-slate-400 font-semibold animate-pulse">
+                      <td colSpan={11} className="px-5 py-12 text-center text-slate-400 font-semibold animate-pulse">
                         Đang tải danh sách lương nhân sự...
                       </td>
                     </tr>
                   ) : pagedItems.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="px-5 py-12 text-center text-slate-400 font-semibold">
+                      <td colSpan={11} className="px-5 py-12 text-center text-slate-400 font-semibold">
                         Không tìm thấy thông tin lương phù hợp.
                       </td>
                     </tr>
@@ -705,39 +867,63 @@ export default function OwnerPayrollStaffPage() {
                               )}
                             </div>
                           </td>
+                          <td className="px-4 py-4 text-right">
+                            {item.status === "Draft" ? (
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={fmtMoneyInput(bonusDraft[item.userId] ?? item.bonus)}
+                                onChange={(e) =>
+                                  setBonusDraft((prev) => ({ ...prev, [item.userId]: parseMoneyInput(e.target.value) }))
+                                }
+                                onBlur={() => handleBonusCommit(item)}
+                                disabled={savingBonusUserId === item.userId}
+                                placeholder="0"
+                                className="w-28 text-right px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-primary focus:outline-none font-bold text-slate-700 text-[13px] disabled:opacity-50"
+                              />
+                            ) : (
+                              <span className="font-bold text-slate-700 tabular-nums">{formatCurrency(item.bonus)}</span>
+                            )}
+                          </td>
                           <td className="px-4 py-4 text-right font-black text-slate-900 tabular-nums">{formatCurrency(item.netSalary)}</td>
                           <td className="px-4 py-4 text-center">
                             <span
-                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black ${
-                                item.status === "Paid"
-                                  ? "bg-green-50 text-green-700 border border-green-200"
-                                  : "bg-amber-50 text-amber-700 border border-amber-200"
-                              }`}
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black whitespace-nowrap ${STATUS_BADGE[item.status]?.cls ?? STATUS_BADGE.NotCreated.cls}`}
                             >
-                              <span className={`w-1.5 h-1.5 rounded-full ${item.status === "Paid" ? "bg-green-500" : "bg-amber-500"}`} />
-                              {item.status === "Paid" ? "Đã trả" : "Chờ duyệt"}
+                              <span className={`w-1.5 h-1.5 rounded-full ${STATUS_BADGE[item.status]?.dot ?? STATUS_BADGE.NotCreated.dot}`} />
+                              {STATUS_BADGE[item.status]?.label ?? item.status}
                             </span>
                           </td>
                           <td className="px-4 py-4 text-center text-slate-500 font-semibold font-mono text-xs">
                             {formatDate(item.paidAt)}
                           </td>
                           <td className="px-4 py-4 text-center">
-                            <button
-                              onClick={() => handleTogglePay(item.userId, item.fullName || item.email, item.status === "Paid")}
-                              disabled={busyUserId === item.userId || (item.status !== "Paid" && item.netSalary <= 0)}
-                              title={
-                                item.status !== "Paid" && item.netSalary <= 0
-                                  ? "Nhân sự chưa được thiết lập lương trong hồ sơ"
-                                  : undefined
-                              }
-                              className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-                                item.status === "Paid"
-                                  ? "bg-red-50 hover:bg-red-100 text-primary border border-red-200"
-                                  : "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200"
-                              }`}
-                            >
-                              {busyUserId === item.userId ? "..." : item.status === "Paid" ? "Hoàn tác" : "Chi Trả"}
-                            </button>
+                            {item.status === "Approved" || item.status === "Paid" ? (
+                              <button
+                                onClick={() => handleTogglePay(item.userId, item.fullName || item.email, item.status === "Paid")}
+                                disabled={busyUserId === item.userId || (item.status !== "Paid" && item.netSalary <= 0)}
+                                title={
+                                  item.status !== "Paid" && item.netSalary <= 0
+                                    ? "Nhân sự chưa được thiết lập lương trong hồ sơ"
+                                    : undefined
+                                }
+                                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                                  item.status === "Paid"
+                                    ? "bg-red-50 hover:bg-red-100 text-primary border border-red-200"
+                                    : "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200"
+                                }`}
+                              >
+                                {busyUserId === item.userId ? "..." : item.status === "Paid" ? "Hoàn tác" : "Chi Trả"}
+                              </button>
+                            ) : (
+                              <span className="text-[11px] text-slate-400 font-bold">
+                                {item.status === "NotCreated"
+                                  ? "Chưa tạo kỳ"
+                                  : item.status === "Draft"
+                                    ? "Chưa tính lương"
+                                    : "Chờ duyệt"}
+                              </span>
+                            )}
                           </td>
                         </tr>
                       );
@@ -950,7 +1136,7 @@ export default function OwnerPayrollStaffPage() {
             <h2 className="text-lg font-extrabold text-slate-900">Xác nhận chi trả toàn bộ</h2>
             <p className="text-[13.5px] text-slate-500 font-semibold mt-1.5 leading-relaxed">
               Thao tác này chi trả lương <span className="font-black text-slate-700">tháng {selectedMonth}/{selectedYear}</span> cho
-              tất cả nhân sự chưa thanh toán của kỳ và <span className="font-black text-slate-700">không thể hoàn tác hàng loạt</span> —
+              tất cả nhân sự đã duyệt của kỳ và <span className="font-black text-slate-700">không thể hoàn tác hàng loạt</span> —
               muốn hủy phải hoàn tác từng người.
             </p>
 
@@ -970,7 +1156,7 @@ export default function OwnerPayrollStaffPage() {
                 </div>
               ) : (
                 <span className="text-[13px] text-slate-500 font-bold">
-                  Không lấy được số liệu tổng hợp — thao tác vẫn áp dụng cho toàn bộ nhân sự chưa thanh toán của kỳ.
+                  Không lấy được số liệu tổng hợp — thao tác vẫn áp dụng cho toàn bộ nhân sự đã duyệt của kỳ.
                 </span>
               )}
             </div>
