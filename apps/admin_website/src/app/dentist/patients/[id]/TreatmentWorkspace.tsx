@@ -192,9 +192,9 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
     return () => { cancelled = true; };
   }, [visiblePlans, proceduresCache]);
 
-  // % hoàn thành của từng dịch vụ = số bước đã đạt 100% / tổng số bước.
+  // % hoàn thành của từng dịch vụ = tổng % của các bước / tổng số bước.
   // Mẫu số = các bước quy trình chuẩn + các bước phát sinh ngoài quy trình đã ghi nhận.
-  // Một bước tính là xong khi lần ghi nhận CAO NHẤT của nó đạt 100% (bác sĩ ghi 30% rồi 100%).
+  // Mỗi bước lấy % ghi nhận cao nhất (ví dụ: bước 1 đạt 100%, bước 4 đạt 50%).
   const planProgress = useMemo(() => {
     const result: Record<string, { completed: number; total: number; percent: number }> = {};
     for (const plan of visiblePlans) {
@@ -207,7 +207,9 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
       const allKeys = [...new Set([...procedureKeys, ...maxByStep.keys()])];
       const completed = allKeys.filter(k => (maxByStep.get(k) ?? 0) >= 100).length;
       const total = allKeys.length;
-      result[plan.id] = { completed, total, percent: total === 0 ? 0 : Math.round((completed * 100) / total) };
+      const sumPercent = allKeys.reduce((sum, k) => sum + (maxByStep.get(k) ?? 0), 0);
+      const percent = total === 0 ? 0 : Math.round(sumPercent / total);
+      result[plan.id] = { completed, total, percent };
     }
     return result;
   }, [visiblePlans, proceduresCache]);
@@ -263,12 +265,14 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
   const toggleStep = (stepId: string) => {
     setProgressCustom(false);
     setProgressStepName("");
+    if (progressPercent === 0) setProgressPercent(100);
     setSelectedStepIds(prev => prev.includes(stepId) ? prev.filter(id => id !== stepId) : [...prev, stepId]);
   };
 
   const toggleAllSteps = () => {
     setProgressCustom(false);
     setProgressStepName("");
+    if (progressPercent === 0) setProgressPercent(100);
     setSelectedStepIds(allStepsSelected ? [] : progressSteps.map(s => s.id));
   };
 
@@ -330,7 +334,7 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
     setProgressPlanId(target);
     setSelectedStepIds([]);
     setProgressStepName("");
-    setProgressPercent(0);
+    setProgressPercent(100);
     setProgressDate(new Date().toISOString().slice(0, 10));
     setProgressNote("");
     setProgressCustom(false);
@@ -349,7 +353,7 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
     setProgressPlanId(planId);
     setSelectedStepIds([]);
     setProgressStepName("");
-    setProgressPercent(0);
+    setProgressPercent(100);
     setProgressCustom(false);
     const plan = plans.find(p => p.id === planId);
     if (plan) {
@@ -1112,6 +1116,7 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                         setProgressCustom(true);
                         setSelectedStepIds([]);
                         setProgressStepName("");
+                        if (progressPercent === 0) setProgressPercent(100);
                       }}
                       className={`flex items-center gap-2 px-3.5 py-2.5 rounded-lg border border-dashed text-left transition-colors cursor-pointer ${
                         progressCustom
@@ -1151,7 +1156,7 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                 </label>
                 <div className="relative mt-1.5">
                   <input
-                    type="number" min={0} max={100} placeholder="VD: 30"
+                    type="number" min={0} max={100} placeholder="VD: 100"
                     value={progressPercent || ""}
                     onChange={e => setProgressPercent(Math.min(100, Math.max(0, Number(e.target.value))))}
                     className="w-full px-3 py-2.5 pr-8 text-[13px] bg-slate-50 border border-slate-200 rounded-lg focus:border-primary focus:outline-none font-bold"

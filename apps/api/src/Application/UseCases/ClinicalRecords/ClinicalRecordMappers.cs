@@ -108,7 +108,8 @@ public static class ClinicalRecordMappers
 
         var total = procedureKeys.Count > 0 ? allKeys.Count : maxPercentByStep.Count;
         var completed = allKeys.Count(k => maxPercentByStep.GetValueOrDefault(k, 0) >= 100);
-        var percent = total == 0 ? 0 : (int)Math.Round(completed * 100.0 / total);
+        var sumPercent = allKeys.Sum(k => maxPercentByStep.GetValueOrDefault(k, 0));
+        var percent = total == 0 ? 0 : (int)Math.Round(sumPercent * 1.0 / total);
 
         return (total, completed, percent, total > 0 && completed == total);
     }
