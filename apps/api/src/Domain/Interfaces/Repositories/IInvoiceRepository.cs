@@ -49,9 +49,6 @@ public interface IInvoiceRepository
     /// <summary>Thêm hóa đơn mới — chỉ stage, KHÔNG tự SaveChanges (caller dùng <see cref="IUnitOfWork"/>).</summary>
     void Add(Invoice invoice);
 
-    /// <summary>(PlanId, đã thu, thành tiền) của từng dòng có gắn liệu trình trong 1 hóa đơn — credit công nợ liệu trình.</summary>
-    Task<IReadOnlyList<InvoiceItemPlanCredit>> GetInvoiceItemsForCreditAsync(Guid invoiceId, CancellationToken ct = default);
-
     /// <summary>UserId của bệnh nhân gắn với 1 buổi hẹn (qua Invoice.AppointmentId) — dùng gửi thông báo.</summary>
     Task<Guid?> GetPatientUserIdByAppointmentIdAsync(Guid appointmentId, CancellationToken ct = default);
 
@@ -72,9 +69,6 @@ public interface IInvoiceRepository
     /// <summary>Đọc để ghi (tracking) kèm Service — dùng khi thu 1 đợt của liệu trình.</summary>
     Task<TreatmentPlan?> GetTreatmentPlanWithServiceAsync(Guid treatmentPlanId, CancellationToken ct = default);
 
-    /// <summary>Đọc để ghi (tracking), không kèm navigation — dùng credit công nợ / đổi trạng thái liệu trình.</summary>
-    Task<TreatmentPlan?> GetTreatmentPlanTrackedAsync(Guid treatmentPlanId, CancellationToken ct = default);
-
     /// <summary>Liệu trình chưa hủy của các bệnh nhân này, kèm Service — tab "Liệu trình → Hóa đơn".</summary>
     Task<IReadOnlyList<TreatmentPlan>> GetActiveTreatmentPlansByPatientIdsAsync(IReadOnlyList<Guid> patientIds, CancellationToken ct = default);
 
@@ -87,7 +81,5 @@ public interface IInvoiceRepository
     /// <summary>Giá dòng của các liệu trình (chưa hủy) thuộc các buổi hẹn này — kiểm tra "còn dịch vụ nào chưa xuất hóa đơn".</summary>
     Task<IReadOnlyList<TreatmentPlanBillingInfo>> GetTreatmentPlanBillingInfoByAppointmentIdsAsync(IReadOnlyList<Guid> appointmentIds, CancellationToken ct = default);
 }
-
-public record InvoiceItemPlanCredit(Guid PlanId, decimal Collected, decimal Line);
 
 public record TreatmentPlanBillingInfo(Guid Id, decimal UnitPrice, int Quantity);

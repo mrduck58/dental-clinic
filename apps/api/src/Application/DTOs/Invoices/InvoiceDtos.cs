@@ -47,6 +47,14 @@ public class OutstandingPlanDto
     public decimal TotalCost { get; set; }
     public decimal AmountPaid { get; set; }
     public decimal RemainingAmount { get; set; }
+
+    /// <summary>
+    /// Phần chi phí CHƯA gắn vào hóa đơn nào — số tiền còn phải xuất hóa đơn ở các đợt thu sau.
+    /// Phần đã xuất hóa đơn mà chưa thu không nằm ở đây: nó là công nợ của hóa đơn đó
+    /// (tab "Hóa đơn đặt cọc còn nợ"), tính vào cả hai chỗ là cộng trùng một khoản nợ.
+    /// </summary>
+    public decimal UnbilledAmount { get; set; }
+
     public string Status { get; set; } = string.Empty;
     public DateTimeOffset CreatedAt { get; set; }
 }

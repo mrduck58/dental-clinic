@@ -16,6 +16,7 @@ import {
   type PrescriptionDto,
   type PrescriptionSuggestionDto,
 } from "../../../../lib/apiClient";
+import { Toast, useToast } from "../../../../components/shared/Toast";
 
 interface PrescriptionWorkspaceProps {
   appointmentId: string;
@@ -23,18 +24,13 @@ interface PrescriptionWorkspaceProps {
   editMode?: boolean;
 }
 
-const COMMON_MEDS = [
-  "Amoxicillin 500mg", "Amoxicillin + Clavulanate 875mg", "Metronidazole 250mg",
-  "Ibuprofen 400mg", "Paracetamol 500mg", "Diclofenac 50mg",
-  "Chlorhexidine 0.12%", "Povidone-Iodine 10%", "Nước muối sinh lý 0.9%",
-  "Prednisolone 5mg", "Dexamethasone 0.5mg", "Tramadol 50mg",
-];
 const DOSAGES     = ["1/2 viên", "1 viên", "2 viên", "3 viên", "5ml", "10ml", "15ml", "1 gói", "1 ống", "2 lần súc miệng"];
 const FREQUENCIES = ["1 lần/ngày", "2 lần/ngày", "3 lần/ngày", "4 lần/ngày", "Khi đau", "Trước ăn", "Sau ăn", "Sáng & tối"];
 const DURATIONS   = ["3 ngày", "5 ngày", "7 ngày", "10 ngày", "14 ngày", "1 tháng"];
 const QUICK_NOTES = ["Uống sau ăn", "Uống trước ăn 30 phút", "Uống với nhiều nước", "Súc miệng 30 giây rồi nhổ", "Bôi vào vùng điều trị"];
 
-const KHAC = "Khác";
+// Giá trị nội bộ của mục "tự nhập" — không phải tên thuốc thật nên không đụng tên nào trong kho.
+const KHAC = "__tu_nhap__";
 
 const fmtDate = (iso: string) => {
   const d = new Date(iso);
@@ -72,11 +68,7 @@ export default function PrescriptionWorkspace({ appointmentId, editMode = false 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
-  const showToast = (message: string, type: "success" | "error" = "success") => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 4000);
-  };
+  const { toast, showToast } = useToast();
 
   // Form kê đơn
   const [medName, setMedName] = useState("");
@@ -136,12 +128,13 @@ export default function PrescriptionWorkspace({ appointmentId, editMode = false 
 
         const [planList, medsList] = await Promise.all([
           getPatientTreatmentPlansApi(exam.patient.id).catch(() => []),
-          getMedicinesApi({ status: "active" }).catch(() => []),
+          getMedicinesApi().catch(() => []),
         ]);
         if (cancelled) return;
         setPlans(planList);
         setMedicines(medsList);
-        setMedName(medsList[0]?.name ?? COMMON_MEDS[0]);
+        // Kho chưa có thuốc nào → mở sẵn ô tự nhập thay vì để danh sách rỗng.
+        setMedName(medsList[0]?.name ?? KHAC);
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : "Không thể tải thông tin bệnh nhân");
       } finally {
@@ -151,7 +144,9 @@ export default function PrescriptionWorkspace({ appointmentId, editMode = false 
     return () => { cancelled = true; };
   }, [appointmentId]);
 
-  const medicineOptions = medicines.length > 0 ? medicines.map(m => m.name) : COMMON_MEDS;
+  // Danh sách thuốc LẤY TỪ DB (bảng Medicines) — không còn danh sách cứng trong code, vì kê thuốc
+  // không tồn tại trong kho khiến lễ tân không cấp phát được.
+  const medicineOptions = medicines;
 
   // Chỉ tính liệu trình thuộc buổi khám hiện tại (+ chuỗi tái khám của nó), không lấy các đơn khác cùng ngày.
   const chainIds = useMemo(() => {
@@ -332,7 +327,7 @@ export default function PrescriptionWorkspace({ appointmentId, editMode = false 
                           {row.serviceName} <span className="text-slate-400">→</span> {row.stepName}
                         </div>
                         <div className="text-[12px] font-semibold text-sky-600 mt-0.5">
-                          {row.stepNumber > 0 ? `${row.stepNumber}. ` : ""}{row.stepName} ({row.percent}%)
+                          {row.stepName} ({row.percent}%)
                         </div>
                         {row.note && <div className="text-[12px] italic text-slate-500 mt-0.5">{row.note}</div>}
                       </div>
@@ -465,22 +460,48 @@ export default function PrescriptionWorkspace({ appointmentId, editMode = false 
             <div className="p-5 flex flex-col gap-3.5">
               <div className="flex flex-col gap-1.5">
                 <label className={labelCls}>Tên thuốc</label>
-                <select
-                  value={medName}
-                  onChange={e => setMedName(e.target.value)}
-                  disabled={!canEdit}
-                  className={inputCls + " cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"}
-                >
-                  {medicineOptions.map(m => <option key={m} value={m}>{m}</option>)}
-                  <option value={KHAC}>{KHAC}</option>
-                </select>
-                {medName === KHAC && (
-                  <input
-                    value={customName}
-                    onChange={e => setCustomName(e.target.value)}
-                    placeholder="Nhập tên thuốc..."
-                    className={inputCls}
-                  />
+                {/* Chọn "Khác" thì gõ thẳng vào chính ô này, bấm nút bên phải để quay lại danh sách kho. */}
+                {medName === KHAC ? (
+                  <div className="relative">
+                    <input
+                      value={customName}
+                      onChange={e => setCustomName(e.target.value)}
+                      placeholder="Nhập tên thuốc..."
+                      disabled={!canEdit}
+                      autoFocus={medicineOptions.length > 0}
+                      className={inputCls + " pr-9 disabled:opacity-60"}
+                    />
+                    {medicineOptions.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => { setMedName(medicineOptions[0].name); setCustomName(""); }}
+                        disabled={!canEdit}
+                        title="Chọn lại thuốc trong kho"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <select
+                    value={medName}
+                    onChange={e => setMedName(e.target.value)}
+                    disabled={!canEdit}
+                    className={inputCls + " cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"}
+                  >
+                    {medicineOptions.map(m => (
+                      <option key={m.id} value={m.name}>{m.name} ({m.unit})</option>
+                    ))}
+                    <option value={KHAC}>Khác</option>
+                  </select>
+                )}
+                {medicineOptions.length === 0 && (
+                  <span className="text-[11.5px] font-semibold text-amber-600">
+                    Kho thuốc chưa có dữ liệu — nhập tên thuốc thủ công.
+                  </span>
                 )}
               </div>
 
@@ -579,12 +600,7 @@ export default function PrescriptionWorkspace({ appointmentId, editMode = false 
         </div>
       </div>
 
-      {/* Toast */}
-      {toast && (
-        <div className={`fixed bottom-6 right-6 z-[60] px-5 py-3.5 rounded-xl shadow-lg text-[13.5px] font-bold text-white ${toast.type === "success" ? "bg-emerald-600" : "bg-red-600"}`}>
-          {toast.message}
-        </div>
-      )}
+      <Toast toast={toast} />
     </div>
   );
 }

@@ -440,9 +440,13 @@ public class InvoiceHandlerTests
         await act.Should().ThrowAsync<ConflictException>();
     }
 
-    /// <summary>Tab "Công nợ" — liệu trình chỉ trả về liệu trình đang điều trị còn nợ (đã trừ số đã thu).</summary>
+    /// <summary>
+    /// Tab "Công nợ" → tab con "Liệu trình còn nợ": liệu trình đã thu một phần mà còn thiếu vẫn được
+    /// liệt kê (nhìn công nợ theo liệu trình). Ở đây cả liệu trình đã nằm trọn trên một hóa đơn còn nợ
+    /// nên UnbilledAmount = 0 — giao diện dùng số này để không cộng trùng với tab hóa đơn.
+    /// </summary>
     [Test]
-    public async Task GetOutstandingPlansAsync_ReturnsInProgressPlansWithRemainingBalanceOnly()
+    public async Task GetOutstandingPlansAsync_PlanFullyBilled_ListedWithZeroUnbilled()
     {
         var (appointmentA, patient, _) = await SeedPendingPaymentAppointmentAsync();
         var dentist = await _db.DentistProfiles.FirstAsync();
@@ -474,6 +478,43 @@ public class InvoiceHandlerTests
         result.Should().ContainSingle(p => p.TreatmentPlanId == inProgressPlan.Id);
         result[0].AmountPaid.Should().Be(deposit);
         result[0].RemainingAmount.Should().Be(service.Price - deposit);
+        // Toàn bộ 15tr đã nằm trên hóa đơn (dòng hóa đơn = trọn giá liệu trình) → không còn gì để
+        // xuất hóa đơn nữa; phần thiếu 10tr là công nợ CỦA HÓA ĐƠN, không phải phần chờ xuất HĐ.
+        result[0].UnbilledAmount.Should().Be(0);
+    }
+
+    /// <summary>
+    /// Liệu trình trả góp: mới xuất hóa đơn đợt 1 (đã thu đủ đợt đó) thì phần chưa xuất hóa đơn mới là
+    /// công nợ liệu trình — hiện ở tab "Công nợ" kèm số tiền còn phải xuất hóa đơn.
+    /// </summary>
+    [Test]
+    public async Task GetOutstandingPlansAsync_PartiallyBilledPlan_ListedWithUnbilledAmount()
+    {
+        var (appointment, patient, _) = await SeedPendingPaymentAppointmentAsync();
+        var dentist = await _db.DentistProfiles.FirstAsync();
+        var service = Service.Create("Niềng răng", 15_000_000m, 90, "Chỉnh nha");
+        _db.Services.Add(service);
+        var plan = TreatmentPlan.Create(patient.Id, dentist.Id, null, service.Id, service.Price, 1);
+        plan.SetStatus(TreatmentPlanStatus.InProgress);
+        _db.TreatmentPlans.Add(plan);
+        await _db.SaveChangesAsync();
+
+        // Đợt 1: xuất hóa đơn 5tr trong tổng 15tr và đã thu đủ đợt này → hóa đơn không còn nợ,
+        // nhưng liệu trình còn 10tr chưa xuất hóa đơn.
+        var firstInstallment = Invoice.Issue(
+            appointment.Id, "INV-INSTALLMENT-1",
+            [("Đợt 1 - Niềng răng", 1, 5_000_000m, plan.Id, null)],
+            discount: 0, PaymentMethod.Cash);
+        firstInstallment.MarkAsPaid(PaymentMethod.Cash);
+        _db.Invoices.Add(firstInstallment);
+        await _db.SaveChangesAsync();
+
+        var result = await _getOutstandingPlansHandler.Handle(new GetOutstandingPlansQuery(), CancellationToken.None);
+
+        result.Should().ContainSingle(p => p.TreatmentPlanId == plan.Id);
+        result[0].AmountPaid.Should().Be(5_000_000m);
+        result[0].RemainingAmount.Should().Be(10_000_000m);
+        result[0].UnbilledAmount.Should().Be(10_000_000m);
     }
 
     /// <summary>Xác nhận thanh toán cho hóa đơn thu phần còn lại phải tất toán (Settle) hóa đơn gốc.</summary>
@@ -491,9 +532,13 @@ public class InvoiceHandlerTests
         (await _db.Invoices.SingleAsync(i => i.Id == parent.Id)).IsSettled.Should().BeTrue();
     }
 
-    /// <summary>Xác nhận thanh toán đủ số tiền của liệu trình (installment cuối) phải chuyển liệu trình sang Completed.</summary>
+    /// <summary>
+    /// Thu đủ tiền KHÔNG còn làm liệu trình chuyển sang Completed: "hoàn thành" là kết luận chuyên môn,
+    /// chỉ đạt khi mọi bước quy trình đã ghi nhận 100% (bệnh nhân trả trước cả liệu trình niềng răng
+    /// vẫn đang điều trị dở).
+    /// </summary>
     [Test]
-    public async Task ConfirmPaymentAsync_PlanInstallmentFullyPaid_CompletesTreatmentPlan()
+    public async Task ConfirmPaymentAsync_PlanInstallmentFullyPaid_KeepsTreatmentPlanInProgress()
     {
         var (appointment, patient, _) = await SeedPendingPaymentAppointmentAsync();
         var dentist = await _db.DentistProfiles.FirstAsync();
@@ -508,6 +553,6 @@ public class InvoiceHandlerTests
 
         await _confirmPaymentHandler.Handle(new ConfirmInvoicePaymentCommand(invoice.Id, null), CancellationToken.None);
 
-        (await _db.TreatmentPlans.SingleAsync(p => p.Id == plan.Id)).Status.Should().Be(TreatmentPlanStatus.Completed);
+        (await _db.TreatmentPlans.SingleAsync(p => p.Id == plan.Id)).Status.Should().Be(TreatmentPlanStatus.InProgress);
     }
 }

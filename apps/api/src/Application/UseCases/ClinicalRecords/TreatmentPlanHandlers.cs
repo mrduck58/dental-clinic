@@ -40,7 +40,8 @@ public record UpdateStepProgressRequest(
     int EntryIndex,
     int Percent,
     string? Note,
-    string? StepName = null);
+    string? StepName = null,
+    DateOnly? Date = null);
 
 /// <summary>Sắp xếp lại nhật ký điều trị — Order là danh sách index gốc theo thứ tự mới.</summary>
 public record ReorderStepProgressRequest(List<int> Order);
@@ -138,6 +139,13 @@ public class UpdateTreatmentPlanHandler(
             if (!Enum.TryParse<TreatmentPlanStatus>(request.Status, ignoreCase: true, out var status))
                 throw new ValidationException("Trạng thái liệu trình không hợp lệ.");
 
+            // Chờ thực hiện / đang thực hiện / hoàn thành là KẾT QUẢ tính từ tiến độ các bước quy trình
+            // (SyncStatusWithProgressAsync) — không ai được đặt tay, tránh đánh dấu "hoàn thành" khi
+            // bệnh nhân còn đang điều trị dở. Chỉ HỦY là quyết định hành chính nên vẫn nhận.
+            if (status != TreatmentPlanStatus.Cancelled && status != treatmentPlan.Status)
+                throw new ValidationException(
+                    "Trạng thái điều trị do hệ thống tự cập nhật theo tiến độ các bước quy trình — không đặt thủ công.");
+
             // Hủy liệu trình = loại nó khỏi liệu trình/tổng chi phí → cũng bị chặn khi đã xuất hóa đơn.
             if (status == TreatmentPlanStatus.Cancelled
                 && treatmentPlan.Status != TreatmentPlanStatus.Cancelled
@@ -181,9 +189,14 @@ public class GetPatientTreatmentPlansHandler(
         var planIds = plans.Select(p => p.Id).ToList();
         var paidMap = await queryHelper.GetAmountPaidMapAsync(planIds, ct);
         var invoicedIds = await queryHelper.GetInvoicedPlanIdsAsync(planIds, ct);
+        var stepMap = await queryHelper.GetProcedureStepNumbersMapAsync(plans.Select(p => p.ServiceId).ToList(), ct);
 
         return plans
-            .Select(p => ToDto(p, paidMap.GetValueOrDefault(p.Id), invoicedIds.Contains(p.Id)))
+            .Select(p => ToDto(
+                p,
+                paidMap.GetValueOrDefault(p.Id),
+                invoicedIds.Contains(p.Id),
+                stepMap.GetValueOrDefault(p.ServiceId)))
             .ToList();
     }
 }
@@ -221,9 +234,8 @@ public class AddStepProgressHandler(
 
         treatmentPlan.UpdateStepProgress(SerializeStepProgress(entries));
 
-        // Bắt đầu điều trị khi ghi nhận bước đầu tiên
-        if (treatmentPlan.Status == TreatmentPlanStatus.Planned)
-            treatmentPlan.SetStatus(TreatmentPlanStatus.InProgress);
+        // Trạng thái bám theo tiến độ: có bước dở dang → đang thực hiện, đủ 100% mọi bước → hoàn thành.
+        await queryHelper.SyncStatusWithProgressAsync(treatmentPlan, entries, ct);
 
         await treatmentPlanRepository.UpdateAsync(treatmentPlan, ct);
 
@@ -255,8 +267,11 @@ public class UpdateStepProgressHandler(
         entries[request.EntryIndex].Note = NormalizeText(request.Note);
         if (!string.IsNullOrWhiteSpace(request.StepName))
             entries[request.EntryIndex].StepName = request.StepName.Trim();
+        if (request.Date.HasValue)
+            entries[request.EntryIndex].Date = request.Date.Value;
 
         treatmentPlan.UpdateStepProgress(SerializeStepProgress(entries));
+        await queryHelper.SyncStatusWithProgressAsync(treatmentPlan, entries, ct);
         await treatmentPlanRepository.UpdateAsync(treatmentPlan, ct);
 
         return await queryHelper.LoadDtoAsync(treatmentPlan.Id, ct);
@@ -317,6 +332,8 @@ public class DeleteStepProgressHandler(
 
         entries.RemoveAt(entryIndex);
         treatmentPlan.UpdateStepProgress(entries.Count == 0 ? null : SerializeStepProgress(entries));
+        // Xóa bớt bước có thể kéo dịch vụ khỏi trạng thái hoàn thành → tính lại.
+        await queryHelper.SyncStatusWithProgressAsync(treatmentPlan, entries, ct);
         await treatmentPlanRepository.UpdateAsync(treatmentPlan, ct);
 
         return await queryHelper.LoadDtoAsync(treatmentPlan.Id, ct);
