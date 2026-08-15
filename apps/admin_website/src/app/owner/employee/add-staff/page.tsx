@@ -158,7 +158,7 @@ export default function AddStaffPage() {
       };
       await createStaffApi(payload);
       sessionStorage.setItem("staffSuccessMsg", `Thêm nhân viên ${formData.fullName.trim()} (${staffCode}) thành công!`);
-      router.push("/owner/employee");
+      router.push("/owner/employee/staff");
     } catch (err: unknown) {
       if (err instanceof ApiValidationError) {
         const valErr = err;
@@ -189,7 +189,7 @@ export default function AddStaffPage() {
 
   return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
-      <OwnerSidebar activeMenu="staff" />
+      <OwnerSidebar activeMenu="staff-list" />
 
       <main className="flex-1 flex flex-col min-w-0">
         <OwnerPageHeader

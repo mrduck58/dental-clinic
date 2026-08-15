@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import StaffSidebar from "../../../components/shared/StaffSidebar";
 import { Toast, useToast } from "../../../components/shared/Toast";
 import StaffPageHeader from "../../../components/shared/StaffPageHeader";
+import RescheduleAppointmentModal from "../../../components/shared/RescheduleAppointmentModal";
 import { useRequireStaff } from "../../../hooks/useRequireStaff";
 import {
   getStaffAppointmentsApi,
@@ -33,6 +34,53 @@ function SectionHeader({ icon, label, count }: { icon: string; label: string; co
   );
 }
 
+/**
+ * Lọc theo NGÀY HẸN của đơn (không phải ngày gửi đơn). Mặc định để trống = xem tất cả: đơn đặt
+ * online rải ra nhiều ngày tới, khóa sẵn vào một ngày sẽ giấu mất phần lớn việc đang chờ xử lý.
+ */
+function DateFilterBar({
+  value,
+  onChange,
+  countLabel,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  countLabel: string;
+}) {
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm px-4 py-3 flex flex-wrap items-center gap-2.5">
+      <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Lọc theo ngày hẹn</span>
+      <input
+        type="date"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="px-3 py-1.5 text-[12.5px] bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-bold text-slate-700"
+      />
+      <button
+        onClick={() => onChange(todayStr)}
+        className={`px-3 py-1.5 rounded-lg text-[12px] font-bold border cursor-pointer transition-all ${
+          value === todayStr
+            ? "bg-primary text-white border-primary"
+            : "bg-white text-slate-500 border-slate-200 hover:border-primary/40 hover:text-primary"
+        }`}>
+        Hôm nay
+      </button>
+      {value && (
+        <button
+          onClick={() => onChange("")}
+          className="px-3 py-1.5 rounded-lg text-[12px] font-bold border bg-white text-slate-500 border-slate-200 hover:bg-slate-50 cursor-pointer transition-all flex items-center gap-1.5">
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+          Bỏ lọc
+        </button>
+      )}
+      <span className="ml-auto text-[12px] font-bold text-slate-400">{countLabel}</span>
+    </div>
+  );
+}
+
 /* ─── Online requests tab ────────────────────────────────── */
 
 type ProcessedEntry = { appt: StaffAppointmentDto; action: "confirmed" | "cancelled" };
@@ -45,6 +93,11 @@ function OnlineTab() {
   const [expanding,  setExpanding]  = useState<string | null>(null);
   const [rejectTarget, setRejectTarget] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+  // Lịch đang mở hộp thoại đổi giờ. Giữ cả bản ghi (không chỉ id) để modal hiện được giờ hẹn cũ
+  // ngay cả khi danh sách vừa được tải lại và bản ghi đã rời khỏi `pending`.
+  const [reschedulingAppt, setReschedulingAppt] = useState<StaffAppointmentDto | null>(null);
+  // "" = tất cả ngày (mặc định).
+  const [dateFilter, setDateFilter] = useState("");
   // Nhóm lý do lấy từ server (không hardcode) — nhờ đó thống kê "vì sao lịch bị hủy" mới gom được.
   const [reasonOptions, setReasonOptions] = useState<CancellationReasonOption[]>([]);
   const [reasonCode, setReasonCode] = useState("");
@@ -66,12 +119,12 @@ function OnlineTab() {
 
   const load = useCallback(async () => {
     try {
-      const data = await getStaffAppointmentsApi({ status: "Pending" });
+      const data = await getStaffAppointmentsApi({ status: "Pending", date: dateFilter || undefined });
       setPending(data);
     } catch {
       setError("Không thể tải danh sách đặt lịch.");
     }
-  }, []);
+  }, [dateFilter]);
 
   useEffect(() => {
     void load();
@@ -143,6 +196,26 @@ function OnlineTab() {
     <div className="flex flex-col gap-6">
       <Toast toast={toast} />
 
+      {reschedulingAppt && (
+        <RescheduleAppointmentModal
+          appointment={reschedulingAppt}
+          onClose={() => setReschedulingAppt(null)}
+          onDone={info => {
+            setReschedulingAppt(null);
+            void load();
+            showToast(
+              `Đã đổi lịch của ${reschedulingAppt.patientName} sang ${info.date.split("-").reverse().join("/")} lúc ${info.time} · ${info.dentistName}.`,
+            );
+          }}
+        />
+      )}
+
+      <DateFilterBar
+        value={dateFilter}
+        onChange={setDateFilter}
+        countLabel={`${pending.length} đơn chờ xác nhận`}
+      />
+
       {/* Pending */}
       {pending.length > 0 && (
         <div className="flex flex-col gap-3">
@@ -194,6 +267,15 @@ function OnlineTab() {
                       }`}>
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
                       Xác nhận
+                    </button>
+                    {/* Bệnh nhân gửi giờ mong muốn, không phải giờ chốt: lễ tân thường phải kê lại
+                        cho khớp ca bác sĩ. Không có nút này thì cách duy nhất là từ chối rồi bảo
+                        bệnh nhân đặt lại — mất đơn vì một việc lẽ ra sửa tại chỗ. */}
+                    <button disabled={isLoading}
+                      onClick={() => { setReschedulingAppt(appt); setExpanding(null); setRejectTarget(null); }}
+                      className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2.5 sm:py-2 rounded-xl text-[13px] font-bold cursor-pointer transition-all border disabled:opacity-50 whitespace-nowrap bg-sky-50 text-sky-700 border-sky-200 hover:bg-sky-100">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5M12 12.75h.008v.008H12v-.008z" /></svg>
+                      Đổi lịch
                     </button>
                     <button disabled={isLoading}
                       onClick={() => isRejecting ? setRejectTarget(null) : (setRejectTarget(appt.appointmentId), setExpanding(null), setRejectReason(""))}
@@ -312,7 +394,17 @@ function OnlineTab() {
           <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center">
             <svg className="w-7 h-7 text-slate-400" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" /></svg>
           </div>
-          <p className="text-[14px] font-bold text-slate-500">Không có đơn đặt lịch nào đang chờ.</p>
+          <p className="text-[14px] font-bold text-slate-500">
+            {dateFilter
+              ? `Không có đơn nào hẹn ngày ${dateFilter.split("-").reverse().join("/")}.`
+              : "Không có đơn đặt lịch nào đang chờ."}
+          </p>
+          {dateFilter && (
+            <button onClick={() => setDateFilter("")}
+              className="px-4 py-2 text-[13px] font-bold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 cursor-pointer transition-all">
+              Xem tất cả các ngày
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -325,18 +417,24 @@ function ConfirmedTab() {
   const [confirmed, setConfirmed] = useState<StaffAppointmentDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Lịch đã xác nhận vẫn đổi được cho tới khi bệnh nhân check-in: bác sĩ báo nghỉ hay bệnh nhân
+  // gọi điện xin đổi giờ đều xảy ra sau bước xác nhận.
+  const [reschedulingAppt, setReschedulingAppt] = useState<StaffAppointmentDto | null>(null);
+  // "" = tất cả ngày (mặc định).
+  const [dateFilter, setDateFilter] = useState("");
+  const { toast, showToast } = useToast();
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await getStaffAppointmentsApi({ status: "Confirmed" });
+      const data = await getStaffAppointmentsApi({ status: "Confirmed", date: dateFilter || undefined });
       setConfirmed(data);
     } catch {
       setError("Không thể tải danh sách lịch hẹn đã xác nhận.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [dateFilter]);
 
   useEffect(() => {
     void load();
@@ -358,12 +456,6 @@ function ConfirmedTab() {
     return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
   };
 
-  if (loading) return (
-    <div className="flex items-center justify-center py-20">
-      <div className="w-8 h-8 border-3 border-primary/20 border-t-primary rounded-full animate-spin" />
-    </div>
-  );
-
   if (error) return (
     <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm flex flex-col items-center gap-3 py-16">
       <p className="text-[14px] font-semibold text-red-500">{error}</p>
@@ -373,7 +465,33 @@ function ConfirmedTab() {
 
   return (
     <div className="flex flex-col gap-6">
-      {confirmed.length > 0 ? (
+      <Toast toast={toast} />
+
+      {reschedulingAppt && (
+        <RescheduleAppointmentModal
+          appointment={reschedulingAppt}
+          onClose={() => setReschedulingAppt(null)}
+          onDone={info => {
+            setReschedulingAppt(null);
+            void load();
+            showToast(
+              `Đã đổi lịch của ${reschedulingAppt.patientName} sang ${info.date.split("-").reverse().join("/")} lúc ${info.time} · ${info.dentistName}.`,
+            );
+          }}
+        />
+      )}
+
+      <DateFilterBar
+        value={dateFilter}
+        onChange={setDateFilter}
+        countLabel={`${confirmed.length} lịch đã xác nhận`}
+      />
+
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <div className="w-8 h-8 border-3 border-primary/20 border-t-primary rounded-full animate-spin" />
+        </div>
+      ) : confirmed.length > 0 ? (
         <div className="flex flex-col gap-3">
           <SectionHeader
             icon="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
@@ -404,6 +522,12 @@ function ConfirmedTab() {
                     </div>
                   </div>
                   <div className="shrink-0 flex items-center gap-2 self-end sm:self-center">
+                    <button
+                      onClick={() => setReschedulingAppt(appt)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-bold bg-white text-sky-700 border border-sky-200 hover:bg-sky-50 cursor-pointer transition-all whitespace-nowrap">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5M12 12.75h.008v.008H12v-.008z" /></svg>
+                      Đổi lịch
+                    </button>
                     <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-black bg-emerald-50 text-emerald-700 border border-emerald-100">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                       Đã xác nhận
@@ -419,7 +543,17 @@ function ConfirmedTab() {
           <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center">
             <svg className="w-7 h-7 text-emerald-500" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           </div>
-          <p className="text-[14px] font-bold text-slate-500">Không có lịch hẹn nào đã xác nhận.</p>
+          <p className="text-[14px] font-bold text-slate-500">
+            {dateFilter
+              ? `Không có lịch đã xác nhận nào hẹn ngày ${dateFilter.split("-").reverse().join("/")}.`
+              : "Không có lịch hẹn nào đã xác nhận."}
+          </p>
+          {dateFilter && (
+            <button onClick={() => setDateFilter("")}
+              className="px-4 py-2 text-[13px] font-bold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 cursor-pointer transition-all">
+              Xem tất cả các ngày
+            </button>
+          )}
         </div>
       )}
     </div>

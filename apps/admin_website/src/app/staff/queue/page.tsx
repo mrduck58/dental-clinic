@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import StaffSidebar from "../../../components/shared/StaffSidebar";
 import StaffPageHeader from "../../../components/shared/StaffPageHeader";
+import { Toast, useToast } from "../../../components/shared/Toast";
 import { useRequireStaff } from "../../../hooks/useRequireStaff";
 import {
   getWaitingQueueApi,
@@ -333,6 +334,7 @@ export default function QueuePage() {
     roomName: string;
     candidates: QueueDentistDto[];
   } | null>(null);
+  const { toast, showToast } = useToast();
 
   // Chuyển phòng = giao bệnh nhân cho bác sĩ đang trong ca trực ở đó, nên chỉ làm được
   // với hàng đợi của hôm nay; ngày quá khứ không có khái niệm "đang trong ca".
@@ -385,6 +387,9 @@ export default function QueuePage() {
   const doTransfer = async (appointmentId: string, roomName: string, dentistId?: string) => {
     setTransferringId(appointmentId);
     const snapshot = queueData;
+    const patientName = queueData?.rooms
+      .flatMap(r => r.patients)
+      .find(p => p.appointmentId === appointmentId)?.patientName;
     const dentistName = queueData?.rooms
       .find(r => r.roomName === roomName)?.dentists
       .find(d => d.dentistId === dentistId)?.dentistName;
@@ -393,8 +398,11 @@ export default function QueuePage() {
       await transferQueuePatientApi(appointmentId, roomName, dentistId);
       // Số thứ tự ở phòng mới do backend đánh — tải lại ngầm để chỉnh, bảng không nháy.
       await loadQueue(true);
+      showToast(
+        `Đã chuyển ${patientName ?? "bệnh nhân"} sang ${roomName}` +
+        (dentistName ? ` · BS. ${dentistName}` : ""));
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Không thể chuyển bệnh nhân sang phòng khác");
+      showToast(e instanceof Error ? e.message : "Không thể chuyển bệnh nhân sang phòng khác", "error");
       // Backend là nơi chốt bác sĩ nào nhận được bệnh nhân. Bị từ chối thì trả về nguyên trạng
       // rồi tải lại, để UI thôi cho phép thả vào phòng đó và lễ tân không thử lại vô ích.
       setQueueData(snapshot);
@@ -452,6 +460,7 @@ export default function QueuePage() {
 
   return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
+      <Toast toast={toast} />
       <StaffSidebar activeMenu="queue" />
       <main className="flex-1 flex flex-col min-w-0">
         <StaffPageHeader

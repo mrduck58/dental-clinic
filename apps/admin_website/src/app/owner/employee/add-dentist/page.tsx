@@ -159,7 +159,7 @@ export default function AddDentistPage() {
       };
       await createStaffApi(payload);
       sessionStorage.setItem("staffSuccessMsg", `Thêm nha sĩ ${formData.fullName.trim()} (${dentistCode}) thành công!`);
-      router.push("/owner/employee");
+      router.push("/owner/employee/dentists");
     } catch (err: unknown) {
       if (err instanceof ApiValidationError) {
         const valErr = err;
@@ -190,7 +190,7 @@ export default function AddDentistPage() {
 
   return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
-      <OwnerSidebar activeMenu="staff" />
+      <OwnerSidebar activeMenu="staff-dentists" />
 
       <main className="flex-1 flex flex-col min-w-0">
         <OwnerPageHeader

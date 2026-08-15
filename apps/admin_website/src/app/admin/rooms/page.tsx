@@ -4,6 +4,8 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import AdminSidebar from "../../../components/shared/AdminSidebar";
 import AdminPageHeader from "../../../components/shared/AdminPageHeader";
+import Pagination from "../../../components/shared/Pagination";
+import { SortableTh, Th } from "../../../components/shared/TableHeader";
 import { useRequireAdmin } from "../../../hooks/useRequireAdmin";
 import {
   getRoomsApi,
@@ -48,7 +50,7 @@ export default function RoomsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [roomsPerPage, setRoomsPerPage] = useState(5);
 
-  const [sortField, setSortField] = useState<string | null>(null);
+  const [sortField, setSortField] = useState<string | null>("name");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
   const [showStatusFilterDropdown, setShowStatusFilterDropdown] = useState(false);
@@ -153,7 +155,6 @@ export default function RoomsPage() {
   }, [rooms, selectedFloor, selectedStatus, searchQuery, sortField, sortDirection]);
 
   // ── Pagination ────────────────────────────────────────────────────────────
-  const totalPages = Math.max(1, Math.ceil(sortedAndFilteredRooms.length / roomsPerPage));
   const startIndex = (currentPage - 1) * roomsPerPage;
   const paginatedRooms = sortedAndFilteredRooms.slice(startIndex, startIndex + roomsPerPage);
 
@@ -276,21 +277,6 @@ export default function RoomsPage() {
       default:
         return <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">{status}</span>;
     }
-  };
-
-  const renderSortHeader = (label: string, field: string) => {
-    const isSorted = sortField === field;
-    return (
-      <button
-        onClick={() => handleSort(field)}
-        className="flex items-center gap-1.5 hover:text-slate-800 transition-colors uppercase font-bold text-[12px] tracking-wider cursor-pointer focus:outline-none"
-      >
-        <span>{label}</span>
-        <span className="inline-block text-slate-400 select-none text-[10px] ml-0.5">
-          {!isSorted ? "⇅" : sortDirection === "asc" ? "▲" : "▼"}
-        </span>
-      </button>
-    );
   };
 
   const formatDate = (iso: string) => {
@@ -508,13 +494,13 @@ export default function RoomsPage() {
               <div className="overflow-x-auto flex-1">
                 <table className="w-full text-left border-collapse text-[14px]">
                   <thead>
-                    <tr className="bg-slate-50/75 border-b border-slate-200/80 text-slate-500 font-bold text-[12px] uppercase tracking-wider">
-                      <th className="py-4 px-6">{renderSortHeader("Phòng", "name")}</th>
-                      <th className="py-4 px-6">{renderSortHeader("Loại phòng", "type")}</th>
-                      <th className="py-4 px-6">{renderSortHeader("Tầng", "floor")}</th>
-                      <th className="py-4 px-6 text-center">{renderSortHeader("Trạng thái", "status")}</th>
-                      <th className="py-4 px-6">{renderSortHeader("Ngày tạo", "createdAt")}</th>
-                      <th className="py-4 px-6 text-right">Hành động</th>
+                    <tr className="bg-slate-50/75 border-b border-slate-200/80">
+                      <SortableTh column="name" label="Phòng" sortKey={sortField ?? ""} sortDir={sortDirection} onSort={handleSort} className="px-6" />
+                      <SortableTh column="type" label="Loại phòng" sortKey={sortField ?? ""} sortDir={sortDirection} onSort={handleSort} className="px-6" />
+                      <SortableTh column="floor" label="Tầng" sortKey={sortField ?? ""} sortDir={sortDirection} onSort={handleSort} className="px-6" />
+                      <SortableTh column="status" label="Trạng thái" sortKey={sortField ?? ""} sortDir={sortDirection} onSort={handleSort} align="center" className="px-6" />
+                      <SortableTh column="createdAt" label="Ngày tạo" sortKey={sortField ?? ""} sortDir={sortDirection} onSort={handleSort} className="px-6" />
+                      <Th align="right" className="px-6">Hành động</Th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -573,30 +559,14 @@ export default function RoomsPage() {
 
             {/* Pagination */}
             {!isLoading && !errorMsg && sortedAndFilteredRooms.length > 0 && (
-              <div className="px-6 py-4 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50/30 shrink-0">
-                <span className="text-[13px] text-slate-500 font-semibold">
-                  Hiển thị <span className="text-slate-700 font-bold">{startIndex + 1}–{Math.min(startIndex + roomsPerPage, sortedAndFilteredRooms.length)}</span> trong <span className="text-slate-700 font-bold">{sortedAndFilteredRooms.length}</span> phòng
-                </span>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
-                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 font-bold text-[13px] hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-                    </svg>
-                  </button>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                    <button key={page} onClick={() => setCurrentPage(page)}
-                      className={`w-8 h-8 rounded-lg font-bold text-[13px] transition-all cursor-pointer ${page === currentPage ? "bg-primary text-white shadow-md" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
-                      {page}
-                    </button>
-                  ))}
-                  <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
-                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 font-bold text-[13px] hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                    </svg>
-                  </button>
-                </div>
+              <div className="px-6 py-4 border-t border-slate-200/80 bg-slate-50/30 shrink-0">
+                <Pagination
+                  currentPage={currentPage}
+                  totalCount={sortedAndFilteredRooms.length}
+                  pageSize={roomsPerPage}
+                  onPageChange={setCurrentPage}
+                  itemLabel="phòng"
+                />
               </div>
             )}
           </section>

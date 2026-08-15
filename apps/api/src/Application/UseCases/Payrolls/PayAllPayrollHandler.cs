@@ -9,10 +9,8 @@ using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Payrolls;
 
-/// <summary>
-/// Chi trả toàn bộ nhân sự chưa thanh toán của kỳ. Nhân sự chưa thiết lập lương
-/// (thực nhận = 0) được bỏ qua thay vì làm hỏng cả lô.
-/// </summary>
+/// <summary>Chi trả toàn bộ nhân sự ĐÃ DUYỆT (Approved) và chưa thanh toán của kỳ. Nhân sự chưa được
+/// duyệt/chưa tạo kỳ lương bị bỏ qua thay vì làm hỏng cả lô.</summary>
 public record PayAllPayrollCommand(int Year, int Month, string? Note) : IRequest<PayAllPayrollResult>;
 
 /// <param name="AlreadyPaidCount">Đã chi trả từ trước — bỏ qua, không phải lỗi.</param>
@@ -34,50 +32,42 @@ public class PayAllPayrollHandler(
         if (command.Month is < 1 or > 12)
             throw new ValidationException("Tháng phải nằm trong khoảng 1–12.");
 
-        var (from, to) = GetPayrollPeriodHandler.PeriodRange(command.Year, command.Month);
-
         var users = await payrollRepository.GetPayableUsersAsync(ct);
-        var leaves = await payrollRepository.GetApprovedLeavesOverlappingAsync(from, to, ct);
+        var usersById = users.ToDictionary(u => u.Id);
         var records = await payrollRepository.GetByPeriodAsync(command.Year, command.Month, ct);
-        var recordByUser = records.ToDictionary(r => r.UserId);
 
-        var newRecords = new List<PayrollRecord>();
         var failures = new List<PayrollFailureDto>();
         var paidCount = 0;
         var alreadyPaidCount = 0;
         var totalPaid = 0m;
 
-        foreach (var user in users)
+        foreach (var record in records)
         {
-            var existing = recordByUser.GetValueOrDefault(user.Id);
-            if (existing is { Status: PayrollStatus.Paid })
+            if (record.Status == PayrollStatus.Paid)
             {
                 alreadyPaidCount++;
                 continue;
             }
 
-            PayrollRecord record;
-            bool isNew;
+            if (!usersById.TryGetValue(record.UserId, out var user))
+                continue;
+
             try
             {
-                (record, isNew) = PayPayrollHandler.BuildPaidRecord(
-                    user, existing, leaves, command.Year, command.Month, command.Note);
+                PayPayrollHandler.MarkPaidOrThrow(user, record, command.Note);
             }
             catch (ValidationException ex)
             {
-                // Ví dụ chưa thiết lập lương trong hồ sơ → ghi lại lý do, không chặn cả đợt chi
+                // Ví dụ chưa được duyệt / chưa thiết lập lương → ghi lại lý do, không chặn cả đợt chi
                 failures.Add(new PayrollFailureDto(user.Id, user.FullName, ex.Message));
                 continue;
             }
 
-            if (isNew) newRecords.Add(record);
             paidCount++;
             totalPaid += record.NetSalary;
         }
 
-        if (newRecords.Count > 0)
-            await payrollRepository.AddRangeAsync(newRecords, ct);
-        else if (paidCount > 0)
+        if (paidCount > 0)
             await payrollRepository.SaveChangesAsync(ct);
 
         await activityLogService.LogAsync(

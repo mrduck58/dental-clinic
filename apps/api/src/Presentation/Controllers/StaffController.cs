@@ -21,10 +21,12 @@ public class StaffController(
         [FromQuery] string? specialty,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10,
+        [FromQuery] string? sortBy = null,
+        [FromQuery] string? sortDir = null,
         CancellationToken cancellationToken = default)
     {
         var result = await getStaffHandler.HandleAsync(
-            new GetStaffQuery(search, role, status, specialty, page, pageSize),
+            new GetStaffQuery(search, role, status, specialty, page, pageSize, sortBy, sortDir),
             cancellationToken);
 
         return Ok(result);

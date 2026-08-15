@@ -51,7 +51,7 @@ public class UserRepository(AppDbContext db) : IUserRepository
 
     public async Task<(IReadOnlyList<User> Items, int TotalCount)> GetStaffPagedAsync(
         string? search, string? role, string? status, string? specialty,
-        int page, int pageSize, CancellationToken ct = default)
+        int page, int pageSize, string? sortBy = null, string? sortDir = null, CancellationToken ct = default)
     {
         var query = db.Users
             .Include(u => u.Employee).ThenInclude(e => e!.DentistProfile)
@@ -111,8 +111,32 @@ public class UserRepository(AppDbContext db) : IUserRepository
         }
 
         var total = await query.CountAsync(ct);
-        var items = await query
-            .OrderBy(u => u.CreatedAt)
+
+        var desc = string.Equals(sortDir, "desc", StringComparison.OrdinalIgnoreCase);
+        var ordered = sortBy?.ToLowerInvariant() switch
+        {
+            "department" => desc
+                ? query.OrderByDescending(u => u.Employee != null ? u.Employee.Department : null)
+                : query.OrderBy(u => u.Employee != null ? u.Employee.Department : null),
+            // Chuyên khoa nha sĩ nằm ở DentistProfile.Specialization, không phải Employee.Department
+            "specialty" => desc
+                ? query.OrderByDescending(u => u.Employee != null && u.Employee.DentistProfile != null ? u.Employee.DentistProfile.Specialization : null)
+                : query.OrderBy(u => u.Employee != null && u.Employee.DentistProfile != null ? u.Employee.DentistProfile.Specialization : null),
+            "status" => desc
+                ? query.OrderByDescending(u => u.Employee != null ? u.Employee.EmploymentStatus : null)
+                : query.OrderBy(u => u.Employee != null ? u.Employee.EmploymentStatus : null),
+            "salary" => desc
+                ? query.OrderByDescending(u => u.Employee != null ? u.Employee.BaseSalary : null)
+                : query.OrderBy(u => u.Employee != null ? u.Employee.BaseSalary : null),
+            "leaveaccrued" => desc
+                ? query.OrderByDescending(u => u.Employee != null ? u.Employee.LeaveAccrued : null)
+                : query.OrderBy(u => u.Employee != null ? u.Employee.LeaveAccrued : null),
+            _ => desc
+                ? query.OrderByDescending(u => u.FullName)
+                : query.OrderBy(u => u.FullName),
+        };
+
+        var items = await ordered
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(ct);

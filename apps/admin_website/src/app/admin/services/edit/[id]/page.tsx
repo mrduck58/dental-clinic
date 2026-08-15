@@ -675,7 +675,7 @@ export default function EditServicePage({ params }: EditServicePageProps) {
                       <div>
                         <h3 className="text-[15px] font-extrabold text-slate-700 flex items-center gap-2">
                           <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-                          Bài viết chi tiết về dịch vụ (Nha Khoa Kim Style)
+                          Bài viết chi tiết về dịch vụ
                         </h3>
                         <p className="text-[12px] text-slate-400 mt-0.5">
                           Soạn bài viết giới thiệu quy trình, ưu điểm, hình ảnh minh họa & bảng biểu cho bệnh nhân.

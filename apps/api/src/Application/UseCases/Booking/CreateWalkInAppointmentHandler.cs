@@ -118,10 +118,9 @@ public class CreateWalkInAppointmentHandler(
 
         // 4. Bệnh nhân đã có mặt tại quầy nên bỏ qua cả Pending lẫn Confirmed:
         //    lịch hẹn vào thẳng CheckedIn để xuất hiện ngay ở hàng đợi, không phải check-in lại.
-        var appointment = Appointment.Create(
+        var appointment = Appointment.CreateWalkIn(
             patient.Id, cmd.DentistId, utcAppointmentDate,
             symptoms: cmd.Symptoms, serviceId: cmd.ServiceId);
-        appointment.CheckIn();
 
         await appointmentRepository.AddAsync(appointment, ct);
 

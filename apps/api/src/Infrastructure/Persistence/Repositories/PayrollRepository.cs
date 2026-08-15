@@ -34,6 +34,17 @@ public class PayrollRepository(AppDbContext db) : IPayrollRepository
             .OrderBy(u => u.CreatedAt)
             .ToListAsync(ct);
 
+    public async Task<User?> GetPayableUserByIdAsync(Guid userId, CancellationToken ct = default)
+        => await db.Users
+            .Include(u => u.Employee).ThenInclude(e => e!.DentistProfile)
+            .Where(u => PayrollRoles.Contains(u.Role) && u.Id == userId)
+            .FirstOrDefaultAsync(ct);
+
+    public async Task<IReadOnlyList<PayrollRecord>> GetByUserAndYearAsync(Guid userId, int year, CancellationToken ct = default)
+        => await db.PayrollRecords
+            .Where(p => p.UserId == userId && p.Year == year)
+            .ToListAsync(ct);
+
     public async Task<IReadOnlyList<LeaveRequest>> GetApprovedLeavesOverlappingAsync(
         DateOnly from, DateOnly to, CancellationToken ct = default)
         => await db.LeaveRequests

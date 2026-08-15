@@ -341,6 +341,9 @@ export async function getStaffApi(params?: {
   specialty?: string;
   page?: number;
   pageSize?: number;
+  /** "name" | "department" | "status" — mặc định "name" */
+  sortBy?: string;
+  sortDir?: "asc" | "desc";
 }): Promise<StaffListResponse> {
   const qs = new URLSearchParams();
   if (params?.search)    qs.set("search",    params.search);
@@ -349,6 +352,8 @@ export async function getStaffApi(params?: {
   if (params?.specialty) qs.set("specialty", params.specialty);
   if (params?.page)     qs.set("page",     String(params.page));
   if (params?.pageSize) qs.set("pageSize", String(params.pageSize));
+  if (params?.sortBy)   qs.set("sortBy",   params.sortBy);
+  if (params?.sortDir)  qs.set("sortDir",  params.sortDir);
   const query = qs.toString() ? `?${qs.toString()}` : "";
   const res = await fetch(`${API_URL}/api/staff${query}`, {
     headers: { ...authHeaders() },
@@ -1611,6 +1616,7 @@ export async function approveLeaveRequestApi(id: string): Promise<ApproveLeaveRe
 export interface StaffAppointmentDto {
   appointmentId: string;
   appointmentCode: string;
+  patientId: string;
   patientName: string;
   patientPhone: string | null;
   dentistName: string;
@@ -1620,7 +1626,16 @@ export interface StaffAppointmentDto {
   status: string;          // "Pending" | "Confirmed" | "CheckedIn" | "InProgress" | "PendingPayment" | "Completed" | "Cancelled" | "NoShow"
   symptoms: string | null;
   checkedInAt: string | null; // ISO8601 — thời điểm check-in (null nếu chưa check-in)
+  /** "Online" = bệnh nhân tự đặt trên app/web · "WalkIn" = lễ tân lập tại quầy. */
+  origin: AppointmentOrigin;
 }
+
+/**
+ * Nguồn của lịch hẹn. Quyết định chuyện gì xảy ra khi hoàn tác check-in: lịch đặt từ xa quay về
+ * chờ xác nhận, còn lịch lập tại quầy bị hủy vì nó sinh ra ngay tại lúc check-in, không có
+ * trạng thái nào trước đó để quay về.
+ */
+export type AppointmentOrigin = "Online" | "WalkIn";
 
 // ── Appointment endpoints ──────────────────────────────────────────────────────
 
@@ -1641,6 +1656,43 @@ export async function getStaffAppointmentsApi(params?: {
     throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách lịch hẹn");
   }
   return res.json() as Promise<StaffAppointmentDto[]>;
+}
+
+export interface AppointmentsPagedDto {
+  items: StaffAppointmentDto[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export async function getAppointmentsPagedApi(params?: {
+  startDate?: string; // "YYYY-MM-DD"
+  endDate?: string;   // "YYYY-MM-DD"
+  status?: string;    // 1 hoặc nhiều trạng thái, phân tách bởi dấu phẩy
+  search?: string;
+  page?: number;
+  pageSize?: number;
+  sortDir?: "asc" | "desc";
+}): Promise<AppointmentsPagedDto> {
+  const qs = new URLSearchParams();
+  if (params?.startDate) qs.set("startDate", params.startDate);
+  if (params?.endDate)   qs.set("endDate",   params.endDate);
+  if (params?.status)    qs.set("status",    params.status);
+  if (params?.search)    qs.set("search",    params.search);
+  if (params?.page)      qs.set("page",      String(params.page));
+  if (params?.pageSize)  qs.set("pageSize",  String(params.pageSize));
+  if (params?.sortDir)   qs.set("sortDir",   params.sortDir);
+  const query = qs.toString() ? `?${qs.toString()}` : "";
+  const res = await fetch(`${API_URL}/api/appointments/paged${query}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách ca khám");
+  }
+  return res.json() as Promise<AppointmentsPagedDto>;
 }
 
 export async function confirmAppointmentApi(id: string): Promise<void> {
@@ -1742,6 +1794,31 @@ export async function checkInAppointmentApi(id: string): Promise<void> {
   }
 }
 
+export interface UndoCheckInResult {
+  appointmentId: string;
+  /** Nguồn lịch hẹn TRƯỚC khi hoàn tác — dùng để nói đúng chuyện gì vừa xảy ra. */
+  origin: AppointmentOrigin;
+  /** "Pending" (lịch đặt từ xa) hoặc "Cancelled" (lịch tại quầy). */
+  status: string;
+}
+
+/**
+ * Gỡ một lần check-in bấm nhầm. Chỉ dùng được khi lịch còn ở trạng thái CheckedIn — bác sĩ đã bắt
+ * đầu khám thì server từ chối, vì lúc đó buổi khám đã có thật.
+ */
+export async function undoCheckInAppointmentApi(id: string): Promise<UndoCheckInResult> {
+  const res = await fetch(`${API_URL}/api/appointments/${id}/undo-checkin`, {
+    method: "PUT",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Hoàn tác check-in thất bại");
+  }
+  return res.json() as Promise<UndoCheckInResult>;
+}
+
 export async function markNoShowAppointmentApi(id: string): Promise<void> {
   const res = await fetch(`${API_URL}/api/appointments/${id}/no-show`, {
     method: "PUT",
@@ -1751,6 +1828,22 @@ export async function markNoShowAppointmentApi(id: string): Promise<void> {
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { title?: string }).title ?? "Ghi nhận vắng thất bại");
+  }
+}
+
+/**
+ * Gỡ một lần ghi nhận vắng mặt bấm nhầm. Chỉ dùng được khi lịch còn ở trạng thái NoShow — luôn
+ * quay về Confirmed, chờ bệnh nhân đến check-in.
+ */
+export async function undoNoShowAppointmentApi(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/appointments/${id}/undo-noshow`, {
+    method: "PUT",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Hoàn tác vắng mặt thất bại");
   }
 }
 
@@ -2062,6 +2155,42 @@ export async function searchPatientsApi(query: string, limit = 8): Promise<Patie
     throw new Error((err as { title?: string }).title ?? "Không thể tìm bệnh nhân");
   }
   return res.json() as Promise<PatientSearchResultDto[]>;
+}
+
+export interface PatientAppointmentHistoryItemDto {
+  appointmentId: string;
+  appointmentCode: string;
+  appointmentDate: string; // ISO8601
+  dentistName: string;
+  serviceName: string | null;
+  status: string; // "Pending" | "Confirmed" | "CheckedIn" | "InProgress" | "PendingPayment" | "Completed" | "Cancelled" | "NoShow"
+  paymentStatus: string | null; // "Unpaid" | "Paid" | "Refunded" — null nếu chưa xuất hóa đơn
+  isSettled: boolean | null;
+  totalAmount: number | null;
+}
+
+export interface PatientDetailDto {
+  id: string;
+  fullName: string;
+  phone: string | null;
+  email: string | null;
+  dateOfBirth: string | null; // "YYYY-MM-DD"
+  gender: string | null;
+  address: string | null;
+  appointments: PatientAppointmentHistoryItemDto[];
+}
+
+/** Thông tin bệnh nhân kèm toàn bộ lịch sử khám (mọi trạng thái) + trạng thái thanh toán từng buổi. */
+export async function getPatientDetailApi(patientId: string): Promise<PatientDetailDto> {
+  const res = await fetch(`${API_URL}/api/patients/${patientId}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải thông tin bệnh nhân");
+  }
+  return res.json() as Promise<PatientDetailDto>;
 }
 
 export interface CreateWalkInResult {
@@ -3201,6 +3330,18 @@ export async function getOutstandingInvoicesApi(): Promise<InvoiceDto[]> {
   return res.json() as Promise<InvoiceDto[]>;
 }
 
+export async function getInvoicesByPatientApi(patientId: string): Promise<InvoiceDto[]> {
+  const res = await fetch(`${API_URL}/api/invoices/by-patient/${patientId}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải hóa đơn của bệnh nhân");
+  }
+  return res.json() as Promise<InvoiceDto[]>;
+}
+
 export async function collectRemainingInvoiceApi(invoiceId: string): Promise<InvoiceDto> {
   const res = await fetch(`${API_URL}/api/invoices/${invoiceId}/collect-remaining`, {
     method: "PUT",
@@ -3330,6 +3471,8 @@ export async function getNotificationsApi(params?: {
   search?: string;
   page?: number;
   pageSize?: number;
+  /** "asc" | "desc" theo thời gian — mặc định "desc" (mới nhất trước) */
+  sortDir?: "asc" | "desc";
 }): Promise<NotificationPagedDto> {
   const qs = new URLSearchParams();
   if (params?.type)               qs.set("type",     params.type);
@@ -3338,6 +3481,7 @@ export async function getNotificationsApi(params?: {
   if (params?.search)             qs.set("search",   params.search);
   if (params?.page)               qs.set("page",     String(params.page));
   if (params?.pageSize)           qs.set("pageSize", String(params.pageSize));
+  if (params?.sortDir)            qs.set("sortDir",  params.sortDir);
   const query = qs.toString() ? `?${qs.toString()}` : "";
   const res = await fetch(`${API_URL}/api/notifications${query}`, {
     headers: { "Content-Type": "application/json", ...authHeaders() },
@@ -3396,6 +3540,8 @@ export async function getActivityLogsApi(params?: {
   endDate?: string;
   page?: number;
   pageSize?: number;
+  /** "asc" | "desc" theo thời gian ghi nhận — mặc định "desc" (mới nhất trước) */
+  sortDir?: "asc" | "desc";
 }): Promise<ActivityLogPagedDto> {
   const qs = new URLSearchParams();
   if (params?.userId)    qs.set("userId",    params.userId);
@@ -3407,6 +3553,7 @@ export async function getActivityLogsApi(params?: {
   if (params?.endDate)   qs.set("endDate",   params.endDate);
   if (params?.page)      qs.set("page",      String(params.page));
   if (params?.pageSize)  qs.set("pageSize",  String(params.pageSize));
+  if (params?.sortDir)   qs.set("sortDir",   params.sortDir);
   const query = qs.toString() ? `?${qs.toString()}` : "";
 
   const res = await fetch(`${API_URL}/api/activity-logs${query}`, {
@@ -3745,12 +3892,14 @@ export interface PayrollItemDto {
   allowedLeaveDays: number;
   exceededDays: number;
   deduction: number;
+  bonus: number;
   netSalary: number;
-  status: "Pending" | "Paid";
+  status: "NotCreated" | "Draft" | "Calculated" | "Approved" | "Paid";
   paidAt: string | null;
   note: string | null;
   hasSalaryConfigured: boolean;
   previousNetSalary: number;
+  isCreated: boolean;
 }
 
 export interface PayrollSummaryDto {
@@ -3762,6 +3911,10 @@ export interface PayrollSummaryDto {
   totalDeduction: number;
   missingSalaryCount: number;
   previousTotalNet: number;
+  notCreatedCount: number;
+  draftCount: number;
+  calculatedCount: number;
+  approvedCount: number;
 }
 
 export interface PayrollPeriodDto {
@@ -3895,6 +4048,130 @@ export async function payAllPayrollApi(data: {
     throw new Error((err as { title?: string }).title ?? "Không thể chi trả lương toàn bộ nhân sự");
   }
   return res.json() as Promise<PayAllPayrollResult>;
+}
+
+export interface PayrollPeriodActionResult {
+  affectedCount: number;
+  skippedCount: number;
+  failures: PayrollFailureDto[];
+}
+
+export async function createPayrollPeriodApi(data: {
+  year: number;
+  month: number;
+}): Promise<PayrollPeriodActionResult> {
+  const res = await fetch(`${API_URL}/api/payrolls/periods`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tạo kỳ lương");
+  }
+  return res.json() as Promise<PayrollPeriodActionResult>;
+}
+
+export async function calculatePayrollPeriodApi(data: {
+  year: number;
+  month: number;
+}): Promise<PayrollPeriodActionResult> {
+  const res = await fetch(`${API_URL}/api/payrolls/periods/calculate`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tính lương kỳ này");
+  }
+  return res.json() as Promise<PayrollPeriodActionResult>;
+}
+
+export async function approvePayrollPeriodApi(data: {
+  year: number;
+  month: number;
+}): Promise<PayrollPeriodActionResult> {
+  const res = await fetch(`${API_URL}/api/payrolls/periods/approve`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể duyệt kỳ lương");
+  }
+  return res.json() as Promise<PayrollPeriodActionResult>;
+}
+
+export async function setPayrollBonusApi(data: {
+  year: number;
+  month: number;
+  userId: string;
+  bonus: number;
+}): Promise<PayrollItemDto> {
+  const res = await fetch(`${API_URL}/api/payrolls/bonus`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể cập nhật thưởng");
+  }
+  return res.json() as Promise<PayrollItemDto>;
+}
+
+// ── Bảng lương của tôi (Dentist/Staff tự xem) ────────────────────────────────
+
+export interface MyPayrollPeriodDto {
+  year: number;
+  month: number;
+  workingDaysPerMonth: number;
+  item: PayrollItemDto | null;
+}
+
+export interface MyPayrollMonthDto {
+  month: number;
+  netSalary: number;
+  status: "NotCreated" | "Draft" | "Calculated" | "Approved" | "Paid";
+  paidAt: string | null;
+}
+
+export interface MyPayrollYearlyDto {
+  year: number;
+  totalNet: number;
+  paidCount: number;
+  months: MyPayrollMonthDto[];
+}
+
+export async function getMyPayrollPeriodApi(params: { year: number; month: number }): Promise<MyPayrollPeriodDto> {
+  const qs = new URLSearchParams({ year: String(params.year), month: String(params.month) });
+  const res = await fetch(`${API_URL}/api/payrolls/me?${qs.toString()}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải bảng lương");
+  }
+  return res.json() as Promise<MyPayrollPeriodDto>;
+}
+
+export async function getMyPayrollYearlyApi(year: number): Promise<MyPayrollYearlyDto> {
+  const res = await fetch(`${API_URL}/api/payrolls/me/yearly?year=${year}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải diễn biến lương theo năm");
+  }
+  return res.json() as Promise<MyPayrollYearlyDto>;
 }
 
 // ── Dentist Reviews APIs ───────────────────────────────────────────────────
@@ -4044,4 +4321,395 @@ export async function getOwnerRevenueReportApi(from?: string, to?: string): Prom
     throw new Error((err as { title?: string }).title ?? "Không thể tải báo cáo doanh thu");
   }
   return res.json() as Promise<OwnerRevenueReportDto>;
+}
+
+// ── Tài chính: Doanh thu (module mới — KPI/giao dịch/biểu đồ) ────────────────
+
+export interface RevenueSummaryDto {
+  totalBilled: number;
+  totalCollected: number;
+  totalUncollected: number;
+  totalRefunded: number;
+}
+
+export interface RevenueTransactionDto {
+  invoiceId: string;
+  invoiceNumber: string;
+  patientId: string;
+  patientName: string;
+  serviceSummary: string;
+  dentistId: string;
+  dentistName: string;
+  date: string;
+  paymentMethod: string;
+  amount: number;
+  status: "Unpaid" | "Paid" | "Refunded";
+}
+
+export interface RevenueTransactionsPagedDto {
+  items: RevenueTransactionDto[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export interface RevenueByServiceDto {
+  serviceName: string;
+  amount: number;
+}
+
+export interface RevenueByDentistDto {
+  dentistId: string;
+  dentistName: string;
+  amount: number;
+}
+
+export interface RevenueChartsDto {
+  byService: RevenueByServiceDto[];
+  byDentist: RevenueByDentistDto[];
+}
+
+export async function getRevenueSummaryApi(from: string, to: string): Promise<RevenueSummaryDto> {
+  const res = await fetch(`${API_URL}/api/revenue/summary?from=${from}&to=${to}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải tổng quan doanh thu");
+  }
+  return res.json() as Promise<RevenueSummaryDto>;
+}
+
+export async function getRevenueTransactionsApi(params: {
+  from: string;
+  to: string;
+  dentistId?: string;
+  serviceName?: string;
+  status?: string;
+  paymentMethod?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+  sortBy?: string;
+  sortDir?: string;
+}): Promise<RevenueTransactionsPagedDto> {
+  const qs = new URLSearchParams({ from: params.from, to: params.to });
+  if (params.dentistId)   qs.set("dentistId",   params.dentistId);
+  if (params.serviceName) qs.set("serviceName", params.serviceName);
+  if (params.status)      qs.set("status",      params.status);
+  if (params.paymentMethod) qs.set("paymentMethod", params.paymentMethod);
+  if (params.search)      qs.set("search",      params.search);
+  qs.set("page",     String(params.page ?? 1));
+  qs.set("pageSize", String(params.pageSize ?? 20));
+  if (params.sortBy)  qs.set("sortBy",  params.sortBy);
+  if (params.sortDir) qs.set("sortDir", params.sortDir);
+
+  const res = await fetch(`${API_URL}/api/revenue/transactions?${qs.toString()}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách giao dịch");
+  }
+  return res.json() as Promise<RevenueTransactionsPagedDto>;
+}
+
+export async function getRevenueChartsApi(from: string, to: string): Promise<RevenueChartsDto> {
+  const res = await fetch(`${API_URL}/api/revenue/charts?from=${from}&to=${to}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải biểu đồ doanh thu");
+  }
+  return res.json() as Promise<RevenueChartsDto>;
+}
+
+// ── Tài chính: Chi phí (module mới — CRUD + KPI/biểu đồ + định kỳ) ──────────
+
+export type ExpenseCategory =
+  | "Medicine" | "Equipment" | "Rent" | "Utilities"
+  | "Marketing" | "Maintenance" | "Software" | "Other";
+
+export type RecurrenceFrequency = "Monthly" | "Quarterly" | "Yearly";
+
+export interface ExpenseDto {
+  id: string;
+  category: ExpenseCategory;
+  description: string;
+  amount: number;
+  date: string;
+  note: string | null;
+  isRecurring: boolean;
+  frequency: RecurrenceFrequency | null;
+  recurringSourceId: string | null;
+  createdAt: string;
+}
+
+export interface ExpensesPagedDto {
+  items: ExpenseDto[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export interface ExpenseSummaryDto {
+  totalExpense: number;
+  totalOther: number;
+  totalSupply: number;
+  totalPayroll: number;
+}
+
+export interface ExpenseByCategoryDto {
+  categoryLabel: string;
+  amount: number;
+}
+
+export interface ExpenseChartsDto {
+  byCategory: ExpenseByCategoryDto[];
+}
+
+export interface ExpenseRequest {
+  category: ExpenseCategory;
+  description: string;
+  amount: number;
+  date: string;
+  note?: string | null;
+  isRecurring: boolean;
+  frequency?: RecurrenceFrequency | null;
+}
+
+export interface GenerateRecurringExpensesResult {
+  generatedCount: number;
+}
+
+export async function getExpensesApi(params: {
+  from: string;
+  to: string;
+  category?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+  sortBy?: string;
+  sortDir?: string;
+}): Promise<ExpensesPagedDto> {
+  const qs = new URLSearchParams({ from: params.from, to: params.to });
+  if (params.category) qs.set("category", params.category);
+  if (params.search)   qs.set("search",   params.search);
+  qs.set("page",     String(params.page ?? 1));
+  qs.set("pageSize", String(params.pageSize ?? 20));
+  if (params.sortBy)  qs.set("sortBy",  params.sortBy);
+  if (params.sortDir) qs.set("sortDir", params.sortDir);
+
+  const res = await fetch(`${API_URL}/api/expenses?${qs.toString()}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách chi phí");
+  }
+  return res.json() as Promise<ExpensesPagedDto>;
+}
+
+export async function getExpenseSummaryApi(from: string, to: string): Promise<ExpenseSummaryDto> {
+  const res = await fetch(`${API_URL}/api/expenses/summary?from=${from}&to=${to}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải tổng quan chi phí");
+  }
+  return res.json() as Promise<ExpenseSummaryDto>;
+}
+
+export async function getExpenseChartsApi(from: string, to: string): Promise<ExpenseChartsDto> {
+  const res = await fetch(`${API_URL}/api/expenses/charts?from=${from}&to=${to}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải biểu đồ chi phí");
+  }
+  return res.json() as Promise<ExpenseChartsDto>;
+}
+
+export async function createExpenseApi(data: ExpenseRequest): Promise<ExpenseDto> {
+  const res = await fetch(`${API_URL}/api/expenses`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể thêm chi phí");
+  }
+  return res.json() as Promise<ExpenseDto>;
+}
+
+export async function updateExpenseApi(id: string, data: ExpenseRequest): Promise<ExpenseDto> {
+  const res = await fetch(`${API_URL}/api/expenses/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể cập nhật chi phí");
+  }
+  return res.json() as Promise<ExpenseDto>;
+}
+
+export async function deleteExpenseApi(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/expenses/${id}`, {
+    method: "DELETE",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể xoá chi phí");
+  }
+}
+
+export async function generateRecurringExpensesApi(): Promise<GenerateRecurringExpensesResult> {
+  const res = await fetch(`${API_URL}/api/expenses/generate-recurring`, {
+    method: "POST",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể sinh chi phí định kỳ");
+  }
+  return res.json() as Promise<GenerateRecurringExpensesResult>;
+}
+
+// ── Tài chính: Hoa hồng (module mới — quy tắc hoa hồng theo % doanh thu) ─────
+
+export interface CommissionRuleDto {
+  id: string;
+  dentistId: string | null;
+  dentistName: string | null;
+  serviceName: string | null;
+  ratePercent: number;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  isActive: boolean;
+  note: string | null;
+  revenueBasis: number;
+  commissionAmount: number;
+}
+
+export interface CommissionRulesResultDto {
+  items: CommissionRuleDto[];
+  totalCommission: number;
+}
+
+export interface CommissionRuleRequest {
+  dentistId?: string | null;
+  serviceName?: string | null;
+  ratePercent: number;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+  note?: string | null;
+}
+
+export async function getCommissionRulesApi(from: string, to: string): Promise<CommissionRulesResultDto> {
+  const res = await fetch(`${API_URL}/api/commissions?from=${from}&to=${to}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách quy tắc hoa hồng");
+  }
+  return res.json() as Promise<CommissionRulesResultDto>;
+}
+
+export async function createCommissionRuleApi(data: CommissionRuleRequest): Promise<{ id: string }> {
+  const res = await fetch(`${API_URL}/api/commissions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tạo quy tắc hoa hồng");
+  }
+  return res.json() as Promise<{ id: string }>;
+}
+
+export async function updateCommissionRuleApi(id: string, data: CommissionRuleRequest): Promise<void> {
+  const res = await fetch(`${API_URL}/api/commissions/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể cập nhật quy tắc hoa hồng");
+  }
+}
+
+export async function toggleCommissionRuleActiveApi(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/commissions/${id}/toggle-active`, {
+    method: "PUT",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể đổi trạng thái quy tắc hoa hồng");
+  }
+}
+
+export async function deleteCommissionRuleApi(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/commissions/${id}`, {
+    method: "DELETE",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể xoá quy tắc hoa hồng");
+  }
+}
+
+// ── Tài chính: Tổng quan (module mới — tổng hợp Doanh thu + Chi phí + Lương) ─
+
+export interface FinanceOverviewDto {
+  totalRevenue: number;
+  totalExpense: number;
+  totalPayroll: number;
+  profit: number;
+  revenueGrowthPercent: number;
+  expenseGrowthPercent: number;
+  profitGrowthPercent: number;
+  topServices: RevenueByServiceDto[];
+  topDentists: RevenueByDentistDto[];
+  recentTransactions: RevenueTransactionDto[];
+}
+
+export async function getFinanceOverviewApi(from: string, to: string): Promise<FinanceOverviewDto> {
+  const res = await fetch(`${API_URL}/api/finance/overview?from=${from}&to=${to}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải tổng quan tài chính");
+  }
+  return res.json() as Promise<FinanceOverviewDto>;
 }

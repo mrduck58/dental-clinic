@@ -5,8 +5,9 @@ namespace DentalClinic.API.Domain.Entities;
 
 /// <summary>
 /// Bảng lương của một nhân sự trong một kỳ (tháng/năm).
-/// Các con số lương được chốt (snapshot) tại thời điểm ghi nhận, không đọc lại từ hồ sơ nhân sự,
-/// để bảng lương các tháng cũ không bị thay đổi khi lương nhân sự được điều chỉnh về sau.
+/// Vòng đời: Draft (mới tạo, còn sửa được kể cả Thưởng) → Calculated (đã tính, chốt số liệu —
+/// muốn sửa phải tính lại, quay về Draft) → Approved (Owner đã duyệt) → Paid (đã thanh toán).
+/// Chi trả chỉ được phép từ Approved; hoàn tác chi trả quay về Approved (không lùi về Draft).
 /// </summary>
 public class PayrollRecord
 {
@@ -22,6 +23,7 @@ public class PayrollRecord
     public decimal AllowedLeaveDays { get; private set; }
     public decimal ExceededDays { get; private set; }
     public decimal Deduction { get; private set; }
+    public decimal Bonus { get; private set; }
     public decimal NetSalary { get; private set; }
 
     public PayrollStatus Status { get; private set; }
@@ -32,7 +34,8 @@ public class PayrollRecord
 
     private PayrollRecord() { }
 
-    public static PayrollRecord Create(
+    /// <summary>Tạo kỳ lương ở trạng thái Nháp (Draft) — số liệu tính sẵn theo hồ sơ hiện tại nhưng còn sửa được.</summary>
+    public static PayrollRecord CreateDraft(
         Guid userId,
         int year,
         int month,
@@ -41,8 +44,7 @@ public class PayrollRecord
         int leaveDays,
         decimal allowedLeaveDays,
         decimal exceededDays,
-        decimal deduction,
-        decimal netSalary)
+        decimal deduction)
     {
         if (month is < 1 or > 12)
             throw new ValidationException("Tháng của kỳ lương phải nằm trong khoảng 1–12.");
@@ -62,25 +64,36 @@ public class PayrollRecord
             AllowedLeaveDays = allowedLeaveDays,
             ExceededDays = exceededDays,
             Deduction = deduction,
-            NetSalary = netSalary,
-            Status = PayrollStatus.Pending,
+            Bonus = 0m,
+            NetSalary = baseSalary + allowance - deduction,
+            Status = PayrollStatus.Draft,
             CreatedAt = now,
             UpdatedAt = now,
         };
     }
 
-    /// <summary>Cập nhật lại các con số theo hồ sơ nhân sự / đơn nghỉ hiện tại. Chỉ cho phép khi chưa chi trả.</summary>
-    public void Recalculate(
+    /// <summary>Sửa Thưởng của kỳ đang Nháp — chỉ khi chưa tính lương.</summary>
+    public void SetBonus(decimal bonus)
+    {
+        if (Status != PayrollStatus.Draft)
+            throw new ValidationException("Chỉ có thể sửa Thưởng khi kỳ lương đang ở trạng thái Nháp.");
+
+        Bonus = bonus;
+        NetSalary = BaseSalary + Allowance + Bonus - Deduction;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>Tính lại số liệu lương/nghỉ phép theo hồ sơ hiện tại — chỉ khi còn ở trạng thái Nháp.</summary>
+    public void RefreshDraftFigures(
         decimal baseSalary,
         decimal allowance,
         int leaveDays,
         decimal allowedLeaveDays,
         decimal exceededDays,
-        decimal deduction,
-        decimal netSalary)
+        decimal deduction)
     {
-        if (Status == PayrollStatus.Paid)
-            throw new ValidationException("Không thể tính lại bảng lương đã thanh toán.");
+        if (Status != PayrollStatus.Draft)
+            throw new ValidationException("Chỉ có thể cập nhật số liệu khi kỳ lương đang ở trạng thái Nháp.");
 
         BaseSalary = baseSalary;
         Allowance = allowance;
@@ -88,14 +101,44 @@ public class PayrollRecord
         AllowedLeaveDays = allowedLeaveDays;
         ExceededDays = exceededDays;
         Deduction = deduction;
-        NetSalary = netSalary;
+        NetSalary = baseSalary + allowance + Bonus - deduction;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>Chốt số liệu — chuyển từ Nháp sang Đã tính.</summary>
+    public void MarkCalculated()
+    {
+        if (Status != PayrollStatus.Draft)
+            throw new ValidationException("Chỉ có thể tính lương từ trạng thái Nháp.");
+
+        Status = PayrollStatus.Calculated;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>Tính lại — đưa kỳ đã tính (chưa duyệt) quay về Nháp để sửa.</summary>
+    public void ResetToDraft()
+    {
+        if (Status != PayrollStatus.Calculated)
+            throw new ValidationException("Chỉ có thể tính lại kỳ lương đang ở trạng thái Đã tính.");
+
+        Status = PayrollStatus.Draft;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>Owner duyệt kỳ lương đã tính — đủ điều kiện chi trả.</summary>
+    public void MarkApproved()
+    {
+        if (Status != PayrollStatus.Calculated)
+            throw new ValidationException("Chỉ có thể duyệt kỳ lương đang ở trạng thái Đã tính.");
+
+        Status = PayrollStatus.Approved;
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 
     public void MarkPaid(string? note = null)
     {
-        if (Status == PayrollStatus.Paid)
-            throw new ValidationException("Bảng lương này đã được thanh toán.");
+        if (Status != PayrollStatus.Approved)
+            throw new ValidationException("Chỉ có thể chi trả kỳ lương đã được duyệt.");
 
         Status = PayrollStatus.Paid;
         PaidAt = DateTimeOffset.UtcNow;
@@ -103,12 +146,13 @@ public class PayrollRecord
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 
+    /// <summary>Hoàn tác chi trả — quay về Approved (không lùi về Draft), giữ nguyên số liệu đã chốt.</summary>
     public void MarkUnpaid()
     {
         if (Status != PayrollStatus.Paid)
             throw new ValidationException("Bảng lương này chưa được thanh toán.");
 
-        Status = PayrollStatus.Pending;
+        Status = PayrollStatus.Approved;
         PaidAt = null;
         UpdatedAt = DateTimeOffset.UtcNow;
     }
