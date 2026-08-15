@@ -149,7 +149,7 @@ public class FirebasePushNotificationService : IFirebasePushNotificationService
                         Priority = Priority.High,
                         Notification = new AndroidNotification
                         {
-                            ChannelId = $"dental_clinic_{type.ToLower()}_channel",
+                            ChannelId = "dental_clinic_high_importance_channel",
                             Sound = "default",
                             Visibility = NotificationVisibility.PUBLIC,
                             Priority = NotificationPriority.HIGH,

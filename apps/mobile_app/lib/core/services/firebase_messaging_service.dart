@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:mobile_app/core/services/local_notification_helper.dart';
 import 'package:mobile_app/features/home/data/notification_service.dart';
 
@@ -26,6 +27,21 @@ class FirebaseMessagingService {
     try {
       await Firebase.initializeApp();
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
+      // Tạo kênh thông báo Android Notification Channel độ ưu tiên cao nhất
+      final localNotifications = FlutterLocalNotificationsPlugin();
+      await localNotifications
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          ?.createNotificationChannel(
+            const AndroidNotificationChannel(
+              'dental_clinic_high_importance_channel',
+              'Thông báo Nha Khoa Sơn Giang',
+              description: 'Kênh nhận thông báo lịch hẹn, tái khám và thanh toán',
+              importance: Importance.max,
+              playSound: true,
+              enableVibration: true,
+            ),
+          );
 
       // Yêu cầu quyền thông báo từ người dùng
       final settings = await FirebaseMessaging.instance.requestPermission(

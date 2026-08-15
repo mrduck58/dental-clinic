@@ -61,6 +61,7 @@ class NotificationService {
         '${ApiConstants.notifications}/device-token',
         {
           'token': deviceToken,
+          'deviceToken': deviceToken,
           'deviceType': deviceType,
         },
         token: token,

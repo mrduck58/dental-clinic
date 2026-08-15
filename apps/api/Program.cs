@@ -160,8 +160,16 @@ app.UseStaticFiles();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await db.Database.MigrateAsync();
-    await DataSeeder.SeedAsync(db);
+    try
+    {
+        await db.Database.MigrateAsync();
+        await DataSeeder.SeedAsync(db);
+    }
+    catch (Exception ex)
+    {
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        logger.LogWarning(ex, "Lưu ý: Tự động migrate/seed database bị bỏ qua (do dùng Supabase Pooler hoặc đã cập nhật trước đó). API tiếp tục khởi động.");
+    }
 }
 if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();

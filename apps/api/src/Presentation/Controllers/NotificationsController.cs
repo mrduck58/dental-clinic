@@ -6,7 +6,10 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace DentalClinic.API.Presentation.Controllers;
 
-public record RegisterDeviceTokenDto(string Token, string? DeviceType);
+public record RegisterDeviceTokenDto(string? Token, string? DeviceToken, string? DeviceType)
+{
+    public string EffectiveToken => !string.IsNullOrWhiteSpace(Token) ? Token : (DeviceToken ?? string.Empty);
+}
 
 [ApiController]
 [Route("api/notifications")]
@@ -24,9 +27,10 @@ public class NotificationsController(
     [HttpPost("device-token")]
     public async Task<IActionResult> RegisterDeviceToken([FromBody] RegisterDeviceTokenDto dto, CancellationToken cancellationToken)
     {
-        if (pushNotificationService != null && !string.IsNullOrWhiteSpace(dto.Token))
+        var token = dto.EffectiveToken;
+        if (pushNotificationService != null && !string.IsNullOrWhiteSpace(token))
         {
-            await pushNotificationService.RegisterTokenAsync(CurrentUserId, dto.Token, dto.DeviceType, cancellationToken);
+            await pushNotificationService.RegisterTokenAsync(CurrentUserId, token, dto.DeviceType, cancellationToken);
         }
         return Ok(new { message = "Đã lưu device token thành công." });
     }
