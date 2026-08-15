@@ -29,13 +29,13 @@ public class NotificationService(
             // Tự động đẩy thông báo Firebase Cloud Messaging (FCM) trực tiếp đến thiết bị người dùng
             if (pushService != null)
             {
-                _ = pushService.SendPushNotificationAsync(
+                await pushService.SendPushNotificationAsync(
                     request.UserId,
                     request.Title,
                     request.Body,
                     request.Type,
                     request.RelatedEntityId,
-                    ct);
+                    CancellationToken.None);
             }
         }
         catch (Exception ex)
@@ -65,13 +65,13 @@ public class NotificationService(
 
             if (pushService != null)
             {
-                _ = pushService.SendPushNotificationToMultipleAsync(
+                await pushService.SendPushNotificationToMultipleAsync(
                     idList,
                     template.Title,
                     template.Body,
                     template.Type,
                     template.RelatedEntityId,
-                    ct);
+                    CancellationToken.None);
             }
         }
         catch (Exception ex)

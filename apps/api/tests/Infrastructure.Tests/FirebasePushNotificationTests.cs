@@ -1,6 +1,7 @@
 using FirebaseAdmin;
 using FirebaseAdmin.Messaging;
 using Google.Apis.Auth.OAuth2;
+using Microsoft.EntityFrameworkCore;
 using NUnit.Framework;
 
 namespace Infrastructure.Tests;
@@ -54,5 +55,29 @@ public class FirebasePushNotificationTests
         var response = await FirebaseMessaging.DefaultInstance.SendAsync(message);
         TestContext.Progress.WriteLine($"Firebase Send Response: {response}");
         Assert.That(response, Is.Not.Null);
+    }
+
+    [Test]
+    public async Task CheckDatabaseUserDeviceTokens()
+    {
+        var optionsBuilder = new DbContextOptionsBuilder<DentalClinic.API.Infrastructure.Persistence.AppDbContext>();
+        optionsBuilder.UseNpgsql("Host=aws-1-ap-southeast-1.pooler.supabase.com;Port=5432;Database=postgres;Username=postgres.iyuwmzlolzsdqcucgufr;Password=Huan0508@2004;SslMode=Require;TrustServerCertificate=true;Maximum Pool Size=3;Minimum Pool Size=0;Connection Idle Lifetime=15;");
+        using var db = new DentalClinic.API.Infrastructure.Persistence.AppDbContext(optionsBuilder.Options);
+
+        var tokens = await db.UserDeviceTokens.ToListAsync();
+        TestContext.Progress.WriteLine($"Total UserDeviceTokens in DB: {tokens.Count}");
+        foreach (var t in tokens)
+        {
+            TestContext.Progress.WriteLine($"UserId: {t.UserId}, Device: {t.DeviceType}, Token: {t.Token.Substring(0, Math.Min(25, t.Token.Length))}..., UpdatedAt: {t.UpdatedAt}");
+        }
+
+        var latestAppt = await db.Appointments
+            .Include(a => a.Patient)
+            .OrderByDescending(a => a.CreatedAt)
+            .FirstOrDefaultAsync();
+        if (latestAppt != null)
+        {
+            TestContext.Progress.WriteLine($"Latest Appointment: Id={latestAppt.Id}, Status={latestAppt.Status}, PatientId={latestAppt.PatientId}, PatientUserId={latestAppt.Patient?.UserId}");
+        }
     }
 }
