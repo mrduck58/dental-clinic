@@ -80,15 +80,7 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
   }
 
   bool _isAvailable(DateTime d) {
-    if (_isPast(d)) return false;
-    final docId = widget.draft.doctor?.id ?? widget.draft.preferredDentistId;
-    if (docId == null) return d.weekday != DateTime.sunday;
-    if (_loadingWorkingDates) return false;
-    if (_workingDates.isNotEmpty) {
-      final dateStr = '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-      return _workingDates.contains(dateStr);
-    }
-    return d.weekday != DateTime.sunday;
+    return !_isPast(d);
   }
   bool _isSelected(DateTime d) =>
       _selected != null &&

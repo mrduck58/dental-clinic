@@ -8,6 +8,7 @@ import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/api_constants.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/core/network/api_client.dart';
+import 'package:mobile_app/features/auth/data/auth_service.dart';
 import 'package:mobile_app/features/profile/data/family_member.dart';
 
 class AddMemberPage extends StatefulWidget {
@@ -18,6 +19,7 @@ class AddMemberPage extends StatefulWidget {
 }
 
 class _AddMemberPageState extends State<AddMemberPage> {
+  final _auth = AuthService();
   final _familyService = FamilyService();
   final _nameCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
@@ -34,7 +36,8 @@ class _AddMemberPageState extends State<AddMemberPage> {
     'Vợ/Chồng',
     'Con',
     'Anh/Chị/Em',
-    'Khác'
+    'Ông/Bà',
+    'Khác',
   ];
 
   @override
@@ -64,15 +67,18 @@ class _AddMemberPageState extends State<AddMemberPage> {
       setState(() => _isUploadingAvatar = true);
 
       final bytes = await file.readAsBytes();
+      final ext = file.name.split('.').last.toLowerCase();
+      final subType = (ext == 'jpg' || ext == 'jpeg') ? 'jpeg' : (ext == 'png' ? 'png' : (ext == 'webp' ? 'webp' : 'jpeg'));
       final formData = FormData.fromMap({
         'file': MultipartFile.fromBytes(
           bytes,
           filename: file.name,
-          contentType: MediaType('image', file.name.split('.').last),
+          contentType: MediaType('image', subType),
         ),
       });
 
-      final response = await ApiClient().post('/files/upload', formData);
+      final token = await _auth.getToken();
+      final response = await ApiClient().post('/files/upload', formData, token: token);
       final url = response.data['url'] as String;
 
       setState(() {

@@ -24,7 +24,7 @@ public class FilesController(IFileStorageService fileStorage) : ControllerBase
 
     private static readonly HashSet<string> AllowedContentTypes =
         new(StringComparer.OrdinalIgnoreCase)
-        { "image/jpeg", "image/png", "image/webp", "image/gif", "image/svg+xml" };
+        { "image/jpeg", "image/jpg", "image/pjpeg", "image/png", "image/webp", "image/gif", "image/svg+xml" };
 
     private const long MaxBytes = 5 * 1024 * 1024;
 

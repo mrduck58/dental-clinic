@@ -86,19 +86,12 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
   void _select(int index) {
     setState(() => _selectedId = _patients[index].id);
 
-    var draft = BookingDraft(patient: _patients[index]);
     final initial = widget.initialDraft;
-    if (initial != null) {
-      draft = draft.copyWith(
-        service: initial.service,
-        doctor: initial.doctor,
-        date: initial.date,
-        symptoms: initial.symptoms,
-        preferredDentistId: initial.preferredDentistId ?? initial.doctor?.id,
-      );
-    }
+    var draft = initial != null
+        ? initial.copyWith(patient: _patients[index])
+        : BookingDraft(patient: _patients[index]);
 
-    // Đã biết đủ bác sĩ + ngày + khung giờ còn trống (từ chatbot) → vào thẳng màn tổng hợp/xác nhận.
+    // Đã biết đủ bác sĩ + ngày + khung giờ còn trống (từ chatbot hoặc khi sửa đổi lịch) → vào thẳng màn tổng hợp/xác nhận.
     if (draft.doctor != null && draft.date != null && draft.timeSlot != null) {
       context.push(AppRoutes.bookingReview, extra: draft);
     } else if (draft.service != null && draft.date != null) {

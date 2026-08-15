@@ -30,6 +30,8 @@ class ServiceInfo {
   final String description;
   final String? note;
   final String price;
+  final String? imageUrl;
+  final String? iconUrl;
 
   const ServiceInfo({
     required this.id,
@@ -37,6 +39,8 @@ class ServiceInfo {
     required this.description,
     this.note,
     required this.price,
+    this.imageUrl,
+    this.iconUrl,
   });
 }
 

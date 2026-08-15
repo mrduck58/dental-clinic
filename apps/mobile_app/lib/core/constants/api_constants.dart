@@ -7,21 +7,36 @@ abstract class ApiConstants {
   // đổi giá trị trong Cài đặt thành 'http://10.0.2.2:5239/api'.
   static String get baseUrl => SettingsManager.instance.apiBaseUrl.value;
 
+  /// Supabase Storage Public Base URL phục vụ lưu trữ file
+  static const String supabaseStorageBase =
+      'https://iyuwmzlolzsdqcucgufr.supabase.co/storage/v1/object/public';
+
   /// Backend trả về path tương đối cho ảnh upload (ví dụ "/uploads/xxx.jpg") — hàm này ghép
-  /// đúng host của APP (không phải host lưu trong DB) để ảnh load được trên mọi thiết bị.
-  ///
-  /// Xử lý thêm 1 trường hợp lỗi dữ liệu cũ: một số ảnh (dịch vụ, bài viết, avatar nhân viên)
-  /// từng bị web admin lưu nhầm thành URL tuyệt đối trỏ về "localhost" của máy dev — không app
-  /// nào tải được URL đó. Nhận diện host localhost/127.0.0.1 và tự ghép lại bằng host thật của
-  /// app thay vì tin theo host đã lưu trong DB.
+  /// đúng host của Supabase Storage hoặc API để ảnh load được trên mọi thiết bị.
   static String? resolveAssetUrl(String? url) {
     if (url == null || url.isEmpty) return null;
-    final host = baseUrl.replaceAll('/api', '');
-    if (url.startsWith('/')) return '$host$url';
 
-    final uri = Uri.tryParse(url);
-    final isLocalhost = uri != null && (uri.host == 'localhost' || uri.host == '127.0.0.1');
-    if (isLocalhost && uri.path.isNotEmpty) return '$host${uri.path}';
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      final uri = Uri.tryParse(url);
+      final isLocalhost = uri != null && (uri.host == 'localhost' || uri.host == '127.0.0.1');
+      if (isLocalhost && uri.path.isNotEmpty) {
+        if (uri.path.startsWith('/uploads/')) {
+          return '$supabaseStorageBase${uri.path}';
+        }
+        final host = baseUrl.replaceAll('/api', '');
+        return '$host${uri.path}';
+      }
+      return url;
+    }
+
+    if (url.startsWith('/uploads/')) {
+      return '$supabaseStorageBase$url';
+    }
+
+    if (url.startsWith('/')) {
+      final host = baseUrl.replaceAll('/api', '');
+      return '$host$url';
+    }
 
     return url;
   }

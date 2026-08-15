@@ -96,19 +96,16 @@ public static class ClinicalRecordMappers
     /// - Dịch vụ chưa khai báo quy trình (TotalSteps = 0): lấy chính các bước đã ghi nhận làm mẫu số.
     /// </summary>
     public static (int TotalSteps, int CompletedSteps, int Percent, bool AllDone) CalcStepProgress(
-        List<StepProgressEntryDto> entries, IEnumerable<int> procedureStepNumbers)
+        List<StepProgressEntryDto> entries, IEnumerable<int>? procedureStepNumbers = null)
     {
         var maxPercentByStep = entries
             .GroupBy(e => e.StepNumber > 0 ? $"#{e.StepNumber}" : $"~{e.StepName.Trim().ToLowerInvariant()}")
             .ToDictionary(g => g.Key, g => g.Max(e => e.Percent));
 
-        var procedureKeys = procedureStepNumbers.Distinct().Select(n => $"#{n}").ToList();
-        // Mẫu số: quy trình chuẩn nếu có, cộng thêm các bước phát sinh đã ghi nhận ngoài quy trình.
-        var allKeys = procedureKeys.Union(maxPercentByStep.Keys).ToList();
-
-        var total = procedureKeys.Count > 0 ? allKeys.Count : maxPercentByStep.Count;
-        var completed = allKeys.Count(k => maxPercentByStep.GetValueOrDefault(k, 0) >= 100);
-        var percent = total == 0 ? 0 : (int)Math.Round(completed * 100.0 / total);
+        var total = maxPercentByStep.Count;
+        var completed = maxPercentByStep.Values.Count(p => p >= 100);
+        var sumPercent = maxPercentByStep.Values.Sum();
+        var percent = total == 0 ? 0 : (int)Math.Round(sumPercent * 1.0 / total);
 
         return (total, completed, percent, total > 0 && completed == total);
     }
