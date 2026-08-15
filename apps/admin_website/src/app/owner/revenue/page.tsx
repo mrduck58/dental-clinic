@@ -10,6 +10,8 @@ import {
   type OwnerRevenueIncomeItemDto,
   type OwnerRevenueExpenseItemDto,
 } from "../../../lib/apiClient";
+import Pagination from "../../../components/shared/Pagination";
+import { SortableTh, toggleSortState, type SortDir } from "../../../components/shared/TableHeader";
 
 const fmt = (n: number) => new Intl.NumberFormat("vi-VN").format(Math.round(n)) + " đ";
 
@@ -20,6 +22,9 @@ const toISODate = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
+
+type IncomeSortKey = "patient" | "invoice" | "date" | "status" | "amount";
+type ExpenseSortKey = "description" | "person" | "type" | "date" | "amount";
 
 export default function OwnerRevenuePage() {
   useRequireOwner();
@@ -35,6 +40,11 @@ export default function OwnerRevenuePage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+
+  const [incomeSortKey, setIncomeSortKey] = useState<IncomeSortKey>("date");
+  const [incomeSortDir, setIncomeSortDir] = useState<SortDir>("desc");
+  const [expenseSortKey, setExpenseSortKey] = useState<ExpenseSortKey>("date");
+  const [expenseSortDir, setExpenseSortDir] = useState<SortDir>("desc");
 
   const reload = useCallback(async (from: string, to: string) => {
     setLoading(true);
@@ -68,9 +78,57 @@ export default function OwnerRevenuePage() {
     : [];
 
   const totalCount = listTab === "income" ? filteredIncome.length : filteredExpense.length;
-  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
-  const pagedIncome = filteredIncome.slice((page - 1) * pageSize, page * pageSize);
-  const pagedExpense = filteredExpense.slice((page - 1) * pageSize, page * pageSize);
+
+  const sortedIncome = [...filteredIncome].sort((a, b) => {
+    const dir = incomeSortDir === "asc" ? 1 : -1;
+    const value = (it: OwnerRevenueIncomeItemDto): string | number => {
+      switch (incomeSortKey) {
+        case "patient": return (it.patientName ?? "").toLowerCase();
+        case "invoice": return (it.invoiceNumber ?? "").toLowerCase();
+        case "date":    return new Date(it.date).getTime();
+        case "status":  return 0; // mọi khoản thu hiển thị đều đã thanh toán, không phân biệt được
+        case "amount":  return it.amount;
+      }
+    };
+    const va = value(a);
+    const vb = value(b);
+    if (typeof va === "string" && typeof vb === "string") return va.localeCompare(vb, "vi") * dir;
+    return ((va as number) - (vb as number)) * dir;
+  });
+
+  const sortedExpense = [...filteredExpense].sort((a, b) => {
+    const dir = expenseSortDir === "asc" ? 1 : -1;
+    const value = (it: OwnerRevenueExpenseItemDto): string | number => {
+      switch (expenseSortKey) {
+        case "description": return (it.description ?? "").toLowerCase();
+        case "person":      return (it.subDescription ?? "").toLowerCase();
+        case "type":        return it.category === "supply" ? "vật tư" : "lương";
+        case "date":        return new Date(it.date).getTime();
+        case "amount":      return it.amount;
+      }
+    };
+    const va = value(a);
+    const vb = value(b);
+    if (typeof va === "string" && typeof vb === "string") return va.localeCompare(vb, "vi") * dir;
+    return ((va as number) - (vb as number)) * dir;
+  });
+
+  const toggleIncomeSort = (column: IncomeSortKey) => {
+    const next = toggleSortState({ key: incomeSortKey, dir: incomeSortDir }, column, (col) => col === "date" || col === "amount");
+    setIncomeSortKey(next.key);
+    setIncomeSortDir(next.dir);
+    setPage(1);
+  };
+
+  const toggleExpenseSort = (column: ExpenseSortKey) => {
+    const next = toggleSortState({ key: expenseSortKey, dir: expenseSortDir }, column, (col) => col === "date" || col === "amount");
+    setExpenseSortKey(next.key);
+    setExpenseSortDir(next.dir);
+    setPage(1);
+  };
+
+  const pagedIncome = sortedIncome.slice((page - 1) * pageSize, page * pageSize);
+  const pagedExpense = sortedExpense.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
@@ -211,11 +269,11 @@ export default function OwnerRevenuePage() {
                     <table className="w-full text-[13.5px] text-left border-collapse">
                       <thead>
                         <tr className="border-b border-slate-150 bg-slate-50/70 select-none">
-                          <th className="px-6 py-3 font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Bệnh nhân</th>
-                          <th className="px-6 py-3 font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Mã hóa đơn</th>
-                          <th className="px-6 py-3 font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Ngày thanh toán</th>
-                          <th className="px-6 py-3 font-extrabold text-slate-400 text-[11px] uppercase tracking-wider text-center">Trạng thái</th>
-                          <th className="px-6 py-3 font-extrabold text-slate-400 text-[11px] uppercase tracking-wider text-right">Số tiền</th>
+                          <SortableTh column="patient" label="Bệnh nhân" sortKey={incomeSortKey} sortDir={incomeSortDir} onSort={toggleIncomeSort} className="px-6" />
+                          <SortableTh column="invoice" label="Mã hóa đơn" sortKey={incomeSortKey} sortDir={incomeSortDir} onSort={toggleIncomeSort} className="px-6" />
+                          <SortableTh column="date" label="Ngày thanh toán" sortKey={incomeSortKey} sortDir={incomeSortDir} onSort={toggleIncomeSort} className="px-6" />
+                          <SortableTh column="status" label="Trạng thái" sortKey={incomeSortKey} sortDir={incomeSortDir} onSort={toggleIncomeSort} align="center" className="px-6" />
+                          <SortableTh column="amount" label="Số tiền" sortKey={incomeSortKey} sortDir={incomeSortDir} onSort={toggleIncomeSort} align="right" className="px-6" />
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -244,11 +302,11 @@ export default function OwnerRevenuePage() {
                     <table className="w-full text-[13.5px] text-left border-collapse">
                       <thead>
                         <tr className="border-b border-slate-150 bg-slate-50/70 select-none">
-                          <th className="px-6 py-3 font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Nội dung</th>
-                          <th className="px-6 py-3 font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Người đã nhập hàng</th>
-                          <th className="px-6 py-3 font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Loại</th>
-                          <th className="px-6 py-3 font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Ngày</th>
-                          <th className="px-6 py-3 font-extrabold text-slate-400 text-[11px] uppercase tracking-wider text-right">Số tiền</th>
+                          <SortableTh column="description" label="Nội dung" sortKey={expenseSortKey} sortDir={expenseSortDir} onSort={toggleExpenseSort} className="px-6" />
+                          <SortableTh column="person" label="Người đã nhập hàng" sortKey={expenseSortKey} sortDir={expenseSortDir} onSort={toggleExpenseSort} className="px-6" />
+                          <SortableTh column="type" label="Loại" sortKey={expenseSortKey} sortDir={expenseSortDir} onSort={toggleExpenseSort} className="px-6" />
+                          <SortableTh column="date" label="Ngày" sortKey={expenseSortKey} sortDir={expenseSortDir} onSort={toggleExpenseSort} className="px-6" />
+                          <SortableTh column="amount" label="Số tiền" sortKey={expenseSortKey} sortDir={expenseSortDir} onSort={toggleExpenseSort} align="right" className="px-6" />
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -280,29 +338,14 @@ export default function OwnerRevenuePage() {
 
                 {/* Pagination */}
                 {totalCount > 0 && (
-                  <div className="border-t border-slate-100 px-5 py-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50/25">
-                    <span className="text-[12.5px] text-slate-400 font-semibold">
-                      Hiển thị <span className="font-black text-slate-600">{(page - 1) * pageSize + 1}–{Math.min(page * pageSize, totalCount)}</span> trong{" "}
-                      <span className="font-black text-slate-600">{totalCount}</span> kết quả
-                    </span>
-                    {totalPages > 1 && (
-                      <div className="flex items-center gap-1.5">
-                        <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-                          className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
-                        </button>
-                        {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
-                          <button key={p} onClick={() => setPage(p)}
-                            className={`w-9 h-9 text-[13px] font-bold rounded-xl transition-all cursor-pointer ${p === page ? "bg-primary text-white shadow-md shadow-primary/20" : "text-slate-500 hover:bg-slate-100"}`}>
-                            {p}
-                          </button>
-                        ))}
-                        <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-                          className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
-                        </button>
-                      </div>
-                    )}
+                  <div className="border-t border-slate-100 px-5 py-3.5 bg-slate-50/25">
+                    <Pagination
+                      currentPage={page}
+                      totalCount={totalCount}
+                      pageSize={pageSize}
+                      onPageChange={setPage}
+                      itemLabel="kết quả"
+                    />
                   </div>
                 )}
               </div>

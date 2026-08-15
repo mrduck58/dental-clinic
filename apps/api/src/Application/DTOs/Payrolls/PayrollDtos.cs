@@ -60,6 +60,26 @@ public record PayrollYearlyDto(
     int PeakMonth,
     IReadOnlyList<PayrollMonthStatDto> Months);
 
+// ── Bảng lương của tôi (Dentist/Staff tự xem) ────────────────────────────────
+
+public record MyPayrollPeriodDto(
+    int Year,
+    int Month,
+    int WorkingDaysPerMonth,
+    PayrollItemDto? Item);
+
+public record MyPayrollMonthDto(
+    int Month,
+    decimal NetSalary,
+    string Status,
+    DateTimeOffset? PaidAt);
+
+public record MyPayrollYearlyDto(
+    int Year,
+    decimal TotalNet,
+    int PaidCount,
+    IReadOnlyList<MyPayrollMonthDto> Months);
+
 // ── Requests / results ───────────────────────────────────────────────────────
 
 public record PayPayrollRequest(int Year, int Month, Guid UserId, string? Note);

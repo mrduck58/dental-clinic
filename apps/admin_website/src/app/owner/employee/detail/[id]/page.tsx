@@ -194,7 +194,7 @@ export default function StaffDetailPage() {
   if (isLoadingStaff) {
     return (
       <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
-        <OwnerSidebar activeMenu="staff" />
+        <OwnerSidebar activeMenu={isDentist ? "staff-dentists" : "staff-list"} />
         <main className="flex-1 flex flex-col items-center justify-center gap-4">
           <div className="w-12 h-12 rounded-full border-4 border-primary border-t-transparent animate-spin" />
           <p className="text-slate-500 font-bold text-[14px]">Đang tải hồ sơ nhân sự...</p>
@@ -207,13 +207,13 @@ export default function StaffDetailPage() {
   if (errorStaff || !staff) {
     return (
       <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
-        <OwnerSidebar activeMenu="staff" />
+        <OwnerSidebar activeMenu={isDentist ? "staff-dentists" : "staff-list"} />
         <main className="flex-1 flex flex-col items-center justify-center gap-4">
           <svg className="w-14 h-14 text-slate-300" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
           </svg>
           <p className="text-slate-500 font-bold text-[15px]">{errorStaff || "Không tìm thấy dữ liệu."}</p>
-          <button onClick={() => router.push("/owner/employee")} className="px-6 py-3 bg-primary text-white font-extrabold rounded-xl cursor-pointer">
+          <button onClick={() => router.push("/owner/employee/dentists")} className="px-6 py-3 bg-primary text-white font-extrabold rounded-xl cursor-pointer">
             Quay lại danh sách
           </button>
         </main>
@@ -258,14 +258,14 @@ export default function StaffDetailPage() {
 
   return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
-      <OwnerSidebar activeMenu="staff" />
+      <OwnerSidebar activeMenu={isDentist ? "staff-dentists" : "staff-list"} />
 
       <main className="flex-1 flex flex-col min-w-0">
 
         {/* ── Top Header ── */}
         <OwnerPageHeader
           left={
-            <button onClick={() => router.push("/owner/employee")} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all cursor-pointer">
+            <button onClick={() => router.push(isDentist ? "/owner/employee/dentists" : "/owner/employee/staff")} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all cursor-pointer">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
               </svg>

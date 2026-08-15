@@ -11,7 +11,9 @@ public record GetStaffQuery(
     string? Status,
     string? Specialty,
     int Page,
-    int PageSize);
+    int PageSize,
+    string? SortBy = null,
+    string? SortDir = null);
 
 public record StaffItemDto(
     Guid Id,
@@ -64,7 +66,8 @@ public class GetStaffHandler(IUserRepository userRepository)
         var pageSize = Math.Clamp(query.PageSize, 1, 100);
 
         var (items, total) = await userRepository.GetStaffPagedAsync(
-            query.Search, query.Role, query.Status, query.Specialty, page, pageSize, ct);
+            query.Search, query.Role, query.Status, query.Specialty, page, pageSize,
+            query.SortBy, query.SortDir, ct);
 
         var stats = await userRepository.GetStaffStatsAsync(ct);
 

@@ -339,6 +339,9 @@ export async function getStaffApi(params?: {
   specialty?: string;
   page?: number;
   pageSize?: number;
+  /** "name" | "department" | "status" — mặc định "name" */
+  sortBy?: string;
+  sortDir?: "asc" | "desc";
 }): Promise<StaffListResponse> {
   const qs = new URLSearchParams();
   if (params?.search)    qs.set("search",    params.search);
@@ -347,6 +350,8 @@ export async function getStaffApi(params?: {
   if (params?.specialty) qs.set("specialty", params.specialty);
   if (params?.page)     qs.set("page",     String(params.page));
   if (params?.pageSize) qs.set("pageSize", String(params.pageSize));
+  if (params?.sortBy)   qs.set("sortBy",   params.sortBy);
+  if (params?.sortDir)  qs.set("sortDir",  params.sortDir);
   const query = qs.toString() ? `?${qs.toString()}` : "";
   const res = await fetch(`${API_URL}/api/staff${query}`, {
     headers: { ...authHeaders() },
@@ -3265,6 +3270,8 @@ export async function getNotificationsApi(params?: {
   search?: string;
   page?: number;
   pageSize?: number;
+  /** "asc" | "desc" theo thời gian — mặc định "desc" (mới nhất trước) */
+  sortDir?: "asc" | "desc";
 }): Promise<NotificationPagedDto> {
   const qs = new URLSearchParams();
   if (params?.type)               qs.set("type",     params.type);
@@ -3273,6 +3280,7 @@ export async function getNotificationsApi(params?: {
   if (params?.search)             qs.set("search",   params.search);
   if (params?.page)               qs.set("page",     String(params.page));
   if (params?.pageSize)           qs.set("pageSize", String(params.pageSize));
+  if (params?.sortDir)            qs.set("sortDir",  params.sortDir);
   const query = qs.toString() ? `?${qs.toString()}` : "";
   const res = await fetch(`${API_URL}/api/notifications${query}`, {
     headers: { "Content-Type": "application/json", ...authHeaders() },
@@ -3331,6 +3339,8 @@ export async function getActivityLogsApi(params?: {
   endDate?: string;
   page?: number;
   pageSize?: number;
+  /** "asc" | "desc" theo thời gian ghi nhận — mặc định "desc" (mới nhất trước) */
+  sortDir?: "asc" | "desc";
 }): Promise<ActivityLogPagedDto> {
   const qs = new URLSearchParams();
   if (params?.userId)    qs.set("userId",    params.userId);
@@ -3342,6 +3352,7 @@ export async function getActivityLogsApi(params?: {
   if (params?.endDate)   qs.set("endDate",   params.endDate);
   if (params?.page)      qs.set("page",      String(params.page));
   if (params?.pageSize)  qs.set("pageSize",  String(params.pageSize));
+  if (params?.sortDir)   qs.set("sortDir",   params.sortDir);
   const query = qs.toString() ? `?${qs.toString()}` : "";
 
   const res = await fetch(`${API_URL}/api/activity-logs${query}`, {
@@ -3830,6 +3841,54 @@ export async function payAllPayrollApi(data: {
     throw new Error((err as { title?: string }).title ?? "Không thể chi trả lương toàn bộ nhân sự");
   }
   return res.json() as Promise<PayAllPayrollResult>;
+}
+
+// ── Bảng lương của tôi (Dentist/Staff tự xem) ────────────────────────────────
+
+export interface MyPayrollPeriodDto {
+  year: number;
+  month: number;
+  workingDaysPerMonth: number;
+  item: PayrollItemDto | null;
+}
+
+export interface MyPayrollMonthDto {
+  month: number;
+  netSalary: number;
+  status: "Pending" | "Paid";
+  paidAt: string | null;
+}
+
+export interface MyPayrollYearlyDto {
+  year: number;
+  totalNet: number;
+  paidCount: number;
+  months: MyPayrollMonthDto[];
+}
+
+export async function getMyPayrollPeriodApi(params: { year: number; month: number }): Promise<MyPayrollPeriodDto> {
+  const qs = new URLSearchParams({ year: String(params.year), month: String(params.month) });
+  const res = await fetch(`${API_URL}/api/payrolls/me?${qs.toString()}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải bảng lương");
+  }
+  return res.json() as Promise<MyPayrollPeriodDto>;
+}
+
+export async function getMyPayrollYearlyApi(year: number): Promise<MyPayrollYearlyDto> {
+  const res = await fetch(`${API_URL}/api/payrolls/me/yearly?year=${year}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải diễn biến lương theo năm");
+  }
+  return res.json() as Promise<MyPayrollYearlyDto>;
 }
 
 // ── Dentist Reviews APIs ───────────────────────────────────────────────────

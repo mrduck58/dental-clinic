@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import AdminSidebar from "../../../components/shared/AdminSidebar";
 import AdminPageHeader from "../../../components/shared/AdminPageHeader";
+import Pagination from "../../../components/shared/Pagination";
+import { type SortDir } from "../../../components/shared/TableHeader";
 import { useRequireAdmin } from "../../../hooks/useRequireAdmin";
 import {
   getNotificationsApi,
@@ -78,13 +80,6 @@ const FALLBACK_PRIORITY: typeof PRIORITY_CONFIG[PriorityType] = PRIORITY_CONFIG.
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
 
-function getPageNumbers(current: number, total: number): (number | "...")[] {
-  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
-  if (current <= 4) return [1, 2, 3, 4, 5, "...", total];
-  if (current >= total - 3) return [1, "...", total - 4, total - 3, total - 2, total - 1, total];
-  return [1, "...", current - 1, current, current + 1, "...", total];
-}
-
 function timeAgo(ts: string): string {
   const diff = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
   if (diff < 60) return "Vừa xong";
@@ -116,6 +111,7 @@ export default function NotificationsPage() {
   const [readFilter, setReadFilter] = useState("all");
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   const resetPage = () => setCurrentPage(1);
 
@@ -132,11 +128,12 @@ export default function NotificationsPage() {
         search:   searchQuery || undefined,
         page:     currentPage,
         pageSize,
+        sortDir,
       });
       setData(res);
     } catch { /* silently ignore fetch errors */ }
     finally { setLoading(false); }
-  }, [typeFilter, priorityFilter, readFilter, searchQuery, currentPage, pageSize]);
+  }, [typeFilter, priorityFilter, readFilter, searchQuery, currentPage, pageSize, sortDir]);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -180,10 +177,6 @@ export default function NotificationsPage() {
   };
 
   const unreadCount = stats.unread;
-  const totalPages = data?.totalPages ?? 1;
-  const safePage = Math.min(currentPage, Math.max(1, totalPages));
-  const startIndex = (safePage - 1) * pageSize;
-  const pageNumbers = getPageNumbers(safePage, totalPages);
   const pagedNotifs = data?.items ?? [];
   const totalCount = data?.totalCount ?? 0;
 
@@ -360,7 +353,20 @@ export default function NotificationsPage() {
                   <span className="font-bold text-slate-600">{totalCount}</span> kết quả
                 </span>
               </div>
-              {unreadCount > 0 && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { setSortDir((d) => (d === "asc" ? "desc" : "asc")); resetPage(); }}
+                  title="Sắp xếp theo thời gian"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-[12.5px] font-bold text-slate-500 hover:text-primary hover:bg-red-50 border border-slate-200 hover:border-primary/20 rounded-lg transition-all cursor-pointer"
+                >
+                  {sortDir === "asc" ? (
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" /></svg>
+                  ) : (
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
+                  )}
+                  {sortDir === "desc" ? "Mới nhất trước" : "Cũ nhất trước"}
+                </button>
+                {unreadCount > 0 && (
                 <button
                   onClick={markAllRead}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-[12.5px] font-bold text-slate-500 hover:text-primary hover:bg-red-50 border border-slate-200 hover:border-primary/20 rounded-lg transition-all cursor-pointer"
@@ -371,6 +377,7 @@ export default function NotificationsPage() {
                   Đánh dấu đã đọc tất cả
                 </button>
               )}
+              </div>
             </div>
           </div>
 
@@ -473,53 +480,14 @@ export default function NotificationsPage() {
 
             {/* FOOTER — pagination */}
             {totalCount > 0 && !loading && (
-              <div className="px-5 py-3.5 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50/30">
-                <span className="text-[12.5px] text-slate-400 font-semibold whitespace-nowrap">
-                  {startIndex + 1}–{Math.min(startIndex + pageSize, totalCount)} trong{" "}
-                  <span className="font-bold text-slate-600">{totalCount}</span> thông báo
-                </span>
-
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    disabled={safePage === 1}
-                    className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-                    </svg>
-                  </button>
-
-                  {pageNumbers.map((p, i) =>
-                    p === "..." ? (
-                      <span key={`e-${i}`} className="w-8 h-8 flex items-center justify-center text-[13px] text-slate-400 font-bold select-none">
-                        ···
-                      </span>
-                    ) : (
-                      <button
-                        key={p}
-                        onClick={() => setCurrentPage(p as number)}
-                        className={`w-8 h-8 flex items-center justify-center rounded-lg text-[13px] font-bold transition-all border ${
-                          safePage === p
-                            ? "bg-primary text-white border-primary shadow-sm"
-                            : "border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                        }`}
-                      >
-                        {p}
-                      </button>
-                    )
-                  )}
-
-                  <button
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={safePage === totalPages}
-                    className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                    </svg>
-                  </button>
-                </div>
+              <div className="px-5 py-3.5 border-t border-slate-100 bg-slate-50/30">
+                <Pagination
+                  currentPage={currentPage}
+                  totalCount={totalCount}
+                  pageSize={pageSize}
+                  onPageChange={setCurrentPage}
+                  itemLabel="thông báo"
+                />
               </div>
             )}
           </div>

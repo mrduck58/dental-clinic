@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { getPostsApi, deletePostApi, resolveAssetUrl, type PostDto } from "../../../lib/apiClient";
 import StaffSidebar from "../../../components/shared/StaffSidebar";
 import { useRequireStaff } from "../../../hooks/useRequireStaff";
 import NotificationBell from "../../../components/shared/NotificationBell";
+import Pagination from "../../../components/shared/Pagination";
+import { SortableTh, Th, toggleSortState, type SortDir } from "../../../components/shared/TableHeader";
 
 interface Post {
   id: string;
@@ -31,6 +33,10 @@ function toPost(dto: PostDto): Post {
   };
 }
 
+type SortKey = "title" | "category" | "author" | "date" | "status";
+
+const SORT_DESC_BY_DEFAULT = (column: SortKey) => column === "date";
+
 const CATEGORIES = [
   "Tất cả danh mục",
   "Chăm sóc răng miệng",
@@ -47,6 +53,8 @@ export default function PostsListPage() {
   const [selectedCategory, setSelectedCategory] = useState("Tất cả danh mục");
   const [currentPage, setCurrentPage] = useState(1);
   const [postsPerPage, setPostsPerPage] = useState(5);
+  const [sortKey, setSortKey] = useState<SortKey>("date");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   // Delete modal state
   const [deleteTarget, setDeleteTarget] = useState<Post | null>(null);
@@ -82,10 +90,39 @@ export default function PostsListPage() {
     return matchesSearch && matchesCategory;
   });
 
+  // Sort logic
+  const sortedPosts = useMemo(() => {
+    const dir = sortDir === "asc" ? 1 : -1;
+    const parseDate = (d: string) => {
+      const [day, month, year] = d.split("/").map(Number);
+      return new Date(year, month - 1, day).getTime();
+    };
+    const value = (p: Post): string | number => {
+      switch (sortKey) {
+        case "title": return p.title.toLowerCase();
+        case "category": return p.category.toLowerCase();
+        case "author": return p.author.toLowerCase();
+        case "date": return parseDate(p.date);
+        case "status": return p.status.toLowerCase();
+      }
+    };
+    return [...filteredPosts].sort((a, b) => {
+      const va = value(a), vb = value(b);
+      if (typeof va === "string" && typeof vb === "string") return va.localeCompare(vb, "vi") * dir;
+      return ((va as number) - (vb as number)) * dir;
+    });
+  }, [filteredPosts, sortKey, sortDir]);
+
+  const handleSort = (column: SortKey) => {
+    const next = toggleSortState({ key: sortKey, dir: sortDir }, column, SORT_DESC_BY_DEFAULT);
+    setSortKey(next.key);
+    setSortDir(next.dir);
+    setCurrentPage(1);
+  };
+
   // Pagination logic
-  const totalPages = Math.max(1, Math.ceil(filteredPosts.length / postsPerPage));
   const startIndex = (currentPage - 1) * postsPerPage;
-  const paginatedPosts = filteredPosts.slice(startIndex, startIndex + postsPerPage);
+  const paginatedPosts = sortedPosts.slice(startIndex, startIndex + postsPerPage);
 
   // Reset page when search, filter, or page size changes
   useEffect(() => {
@@ -299,13 +336,13 @@ export default function PostsListPage() {
                 <table className="w-full text-left border-collapse text-[14px]">
                   <thead>
                     <tr className="bg-slate-50/50 font-extrabold text-slate-400 uppercase tracking-wider border-b border-slate-150">
-                      <th className="px-4 py-4 w-16">Ảnh</th>
-                      <th className="px-6 py-4">Tiêu đề</th>
-                      <th className="px-6 py-4">Danh mục</th>
-                      <th className="px-6 py-4">Tác giả</th>
-                      <th className="px-6 py-4">Ngày đăng</th>
-                      <th className="px-6 py-4">Trạng thái</th>
-                      <th className="px-6 py-4 text-center">Chức năng</th>
+                      <Th className="px-4 w-16">Ảnh</Th>
+                      <SortableTh column="title" label="Tiêu đề" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-6" />
+                      <SortableTh column="category" label="Danh mục" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-6" />
+                      <SortableTh column="author" label="Tác giả" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-6" />
+                      <SortableTh column="date" label="Ngày đăng" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-6" />
+                      <SortableTh column="status" label="Trạng thái" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-6" />
+                      <Th className="px-6" align="center">Chức năng</Th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-semibold text-slate-600">
@@ -395,84 +432,13 @@ export default function PostsListPage() {
               {/* Pagination bar */}
               {filteredPosts.length > 0 && (
                 <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-2.5">
-                  {/* Page info */}
-                  <span className="text-[13px] text-slate-400 font-semibold text-center sm:text-left">
-                    Hiển thị{" "}
-                    <span className="text-slate-600 font-bold">{startIndex + 1}–{Math.min(startIndex + postsPerPage, filteredPosts.length)}</span>
-                    {" "}trong{" "}
-                    <span className="text-slate-600 font-bold">{filteredPosts.length}</span>
-                    {" "}bài viết
-                  </span>
-                  <div className="flex items-center gap-1.5 sm:gap-2.5 flex-wrap justify-center">
-                  {/* Quick First Page */}
-                  <button
-                    onClick={() => setCurrentPage(1)}
-                    disabled={currentPage === 1}
-                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
-                      currentPage === 1
-                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
-                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
-                    }`}
-                  >
-                    &lt;|
-                  </button>
-                  {/* Previous Page */}
-                  <button
-                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                    disabled={currentPage === 1}
-                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
-                      currentPage === 1
-                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
-                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
-                    }`}
-                  >
-                    &lt;
-                  </button>
-                  
-                  {/* Pages indicator list */}
-                  {Array.from({ length: totalPages }).map((_, idx) => {
-                    const p = idx + 1;
-                    const isActive = currentPage === p;
-                    return (
-                      <button
-                        key={p}
-                        onClick={() => setCurrentPage(p)}
-                        className={`w-9 h-9 rounded-xl border flex items-center justify-center font-extrabold text-[14px] transition-all cursor-pointer ${
-                          isActive
-                            ? "bg-white border-primary text-primary shadow-sm font-black"
-                            : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                        }`}
-                      >
-                        {p}
-                      </button>
-                    );
-                  })}
-
-                  {/* Next Page */}
-                  <button
-                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                    disabled={currentPage === totalPages}
-                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
-                      currentPage === totalPages
-                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
-                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
-                    }`}
-                  >
-                    &gt;
-                  </button>
-                  {/* Quick Last Page */}
-                  <button
-                    onClick={() => setCurrentPage(totalPages)}
-                    disabled={currentPage === totalPages}
-                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
-                      currentPage === totalPages
-                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
-                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
-                    }`}
-                  >
-                    |&gt;
-                  </button>
-                  </div>
+                  <Pagination
+                    currentPage={currentPage}
+                    totalCount={filteredPosts.length}
+                    pageSize={postsPerPage}
+                    onPageChange={setCurrentPage}
+                    itemLabel="bài viết"
+                  />
                 </div>
               )}
             </div>

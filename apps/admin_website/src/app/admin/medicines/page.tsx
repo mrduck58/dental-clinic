@@ -4,10 +4,15 @@ import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import AdminSidebar from "../../../components/shared/AdminSidebar";
 import AdminPageHeader from "../../../components/shared/AdminPageHeader";
+import Pagination from "../../../components/shared/Pagination";
+import { SortableTh, Th, toggleSortState, type SortDir } from "../../../components/shared/TableHeader";
 import { useRequireAdmin } from "../../../hooks/useRequireAdmin";
 import { getMedicinesApi, deleteMedicineApi, type MedicineDto } from "../../../lib/apiClient";
 
 const ITEMS_PER_PAGE_DEFAULT = 5;
+
+type SortKey = "name" | "genericName" | "unit" | "manufacturer";
+const SORT_DESC_BY_DEFAULT = (_column: SortKey) => false;
 
 export default function MedicinesPage() {
   useRequireAdmin();
@@ -17,6 +22,8 @@ export default function MedicinesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(ITEMS_PER_PAGE_DEFAULT);
+  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedMedicine, setSelectedMedicine] = useState<MedicineDto | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -54,15 +61,35 @@ export default function MedicinesPage() {
     });
   }, [medicines, searchQuery]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredMedicines.length / itemsPerPage));
+  const sortedMedicines = useMemo(() => {
+    const dir = sortDir === "asc" ? 1 : -1;
+    const value = (m: MedicineDto) => {
+      switch (sortKey) {
+        case "name": return m.name.toLowerCase();
+        case "genericName": return m.genericName.toLowerCase();
+        case "unit": return m.unit.toLowerCase();
+        case "manufacturer": return m.manufacturer.toLowerCase();
+      }
+    };
+    return [...filteredMedicines].sort((a, b) => value(a).localeCompare(value(b), "vi") * dir);
+  }, [filteredMedicines, sortKey, sortDir]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedMedicines.length / itemsPerPage));
   const safeCurrentPage = Math.min(currentPage, totalPages);
   const paginatedMedicines = useMemo(() => {
     const start = (safeCurrentPage - 1) * itemsPerPage;
-    return filteredMedicines.slice(start, start + itemsPerPage);
-  }, [filteredMedicines, safeCurrentPage, itemsPerPage]);
+    return sortedMedicines.slice(start, start + itemsPerPage);
+  }, [sortedMedicines, safeCurrentPage, itemsPerPage]);
 
   const handleItemsPerPageChange = (value: number) => {
     setItemsPerPage(value);
+    setCurrentPage(1);
+  };
+
+  const handleSort = (column: SortKey) => {
+    const next = toggleSortState({ key: sortKey, dir: sortDir }, column, SORT_DESC_BY_DEFAULT);
+    setSortKey(next.key);
+    setSortDir(next.dir);
     setCurrentPage(1);
   };
 
@@ -182,13 +209,13 @@ export default function MedicinesPage() {
               <table className="w-full text-left border-collapse text-[14px]">
                 <thead>
                   <tr className="bg-slate-50/50 font-extrabold text-slate-400 uppercase tracking-wider border-b border-slate-150">
-                    <th className="px-6 py-4 w-20">Ảnh</th>
-                    <th className="px-6 py-4">Tên thuốc</th>
-                    <th className="px-6 py-4">Hoạt chất</th>
-                    <th className="px-6 py-4">Đơn vị</th>
-                    <th className="px-6 py-4">Nhà sản xuất</th>
-                    <th className="px-6 py-4">Mô tả</th>
-                    <th className="px-6 py-4 text-center">Hành động</th>
+                    <Th className="px-6 w-20">Ảnh</Th>
+                    <SortableTh column="name" label="Tên thuốc" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-6" />
+                    <SortableTh column="genericName" label="Hoạt chất" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-6" />
+                    <SortableTh column="unit" label="Đơn vị" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-6" />
+                    <SortableTh column="manufacturer" label="Nhà sản xuất" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-6" />
+                    <Th className="px-6">Mô tả</Th>
+                    <Th className="px-6" align="center">Hành động</Th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-semibold text-slate-600">
@@ -265,82 +292,14 @@ export default function MedicinesPage() {
 
             {/* Pagination bar */}
             {filteredMedicines.length > 0 && (
-              <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-2.5">
-                <span className="text-[13px] text-slate-400 font-semibold text-center sm:text-left">
-                  Hiển thị{" "}
-                  <span className="text-slate-600 font-bold">
-                    {filteredMedicines.length === 0 ? 0 : (safeCurrentPage - 1) * itemsPerPage + 1}–
-                    {Math.min(safeCurrentPage * itemsPerPage, filteredMedicines.length)}
-                  </span>
-                  {" "}trong{" "}
-                  <span className="text-slate-600 font-bold">{filteredMedicines.length}</span>
-                  {" "}thuốc
-                </span>
-                <div className="flex items-center gap-1.5 sm:gap-2.5 flex-wrap justify-center">
-                  <button
-                    onClick={() => setCurrentPage(1)}
-                    disabled={safeCurrentPage === 1}
-                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
-                      safeCurrentPage === 1
-                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
-                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
-                    }`}
-                  >
-                    &lt;|
-                  </button>
-                  <button
-                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                    disabled={safeCurrentPage === 1}
-                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
-                      safeCurrentPage === 1
-                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
-                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
-                    }`}
-                  >
-                    &lt;
-                  </button>
-
-                  {Array.from({ length: totalPages }).map((_, idx) => {
-                    const p = idx + 1;
-                    const isActive = safeCurrentPage === p;
-                    return (
-                      <button
-                        key={p}
-                        onClick={() => setCurrentPage(p)}
-                        className={`w-9 h-9 rounded-xl border flex items-center justify-center font-extrabold text-[14px] transition-all cursor-pointer ${
-                          isActive
-                            ? "bg-white border-primary text-primary shadow-sm font-black"
-                            : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                        }`}
-                      >
-                        {p}
-                      </button>
-                    );
-                  })}
-
-                  <button
-                    onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                    disabled={safeCurrentPage === totalPages}
-                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
-                      safeCurrentPage === totalPages
-                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
-                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
-                    }`}
-                  >
-                    &gt;
-                  </button>
-                  <button
-                    onClick={() => setCurrentPage(totalPages)}
-                    disabled={safeCurrentPage === totalPages}
-                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
-                      safeCurrentPage === totalPages
-                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
-                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
-                    }`}
-                  >
-                    |&gt;
-                  </button>
-                </div>
+              <div className="p-4 border-t border-slate-100">
+                <Pagination
+                  currentPage={currentPage}
+                  totalCount={filteredMedicines.length}
+                  pageSize={itemsPerPage}
+                  onPageChange={setCurrentPage}
+                  itemLabel="thuốc"
+                />
               </div>
             )}
           </div>

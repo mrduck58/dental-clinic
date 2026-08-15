@@ -18,7 +18,7 @@ public class GetStaffHandlerTests
     {
         _userRepo = Substitute.For<IUserRepository>();
         _userRepo.GetStaffPagedAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
-            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns((new List<User>().AsReadOnly(), 0));
         _userRepo.GetStaffStatsAsync(Arg.Any<CancellationToken>())
             .Returns(new StaffStatsResult(0, 0, 0));
@@ -49,7 +49,7 @@ public class GetStaffHandlerTests
 
         await _userRepo.Received(1).GetStaffPagedAsync(
             Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
-            1, 100, Arg.Any<CancellationToken>());
+            1, 100, Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -64,7 +64,7 @@ public class GetStaffHandlerTests
             User.Create("u2", "b@test.com", "h", UserRole.Dentist),
         };
         _userRepo.GetStaffPagedAsync(Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
-            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns((users.AsReadOnly(), 20));
         _userRepo.GetStaffStatsAsync(Arg.Any<CancellationToken>())
             .Returns(new StaffStatsResult(20, 5, 3));
@@ -132,6 +132,6 @@ public class GetStaffHandlerTests
             Search: "nguyen", Role: "Dentist", Status: "Active", Specialty: "Nha chu", Page: 2, PageSize: 5));
 
         await _userRepo.Received(1).GetStaffPagedAsync(
-            "nguyen", "Dentist", "Active", "Nha chu", 2, 5, Arg.Any<CancellationToken>());
+            "nguyen", "Dentist", "Active", "Nha chu", 2, 5, null, null, Arg.Any<CancellationToken>());
     }
 }

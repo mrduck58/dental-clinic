@@ -225,7 +225,7 @@ export default function EditStaffPage() {
       };
       await updateStaffApi(id, payload);
       sessionStorage.setItem("staffSuccessMsg", `Cập nhật thông tin nhân viên ${formData.fullName.trim()} thành công!`);
-      router.push("/owner/employee");
+      router.push("/owner/employee/staff");
     } catch (err: unknown) {
       const mappedErrors: Record<string, string> = {};
       if (err instanceof ApiValidationError) {
@@ -257,13 +257,13 @@ export default function EditStaffPage() {
   if (!staff) {
     return (
       <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
-        <OwnerSidebar activeMenu="staff" />
+        <OwnerSidebar activeMenu="staff-list" />
         <main className="flex-1 flex flex-col items-center justify-center gap-4">
           <svg className="w-14 h-14 text-slate-300 animate-pulse" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
           </svg>
           <p className="text-slate-500 font-bold text-[15px]">Không tìm thấy dữ liệu nhân viên.</p>
-          <button onClick={() => router.push("/owner/employee")} className="px-6 py-2.5 bg-primary hover:bg-primary-hover text-white font-extrabold rounded-xl transition-all cursor-pointer shadow-md">
+          <button onClick={() => router.push("/owner/employee/staff")} className="px-6 py-2.5 bg-primary hover:bg-primary-hover text-white font-extrabold rounded-xl transition-all cursor-pointer shadow-md">
             Quay lại danh sách
           </button>
         </main>
@@ -273,12 +273,12 @@ export default function EditStaffPage() {
 
   return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
-      <OwnerSidebar activeMenu="staff" />
+      <OwnerSidebar activeMenu="staff-list" />
 
       <main className="flex-1 flex flex-col min-w-0">
         <OwnerPageHeader
           left={
-            <button onClick={() => router.push("/owner/employee")} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all cursor-pointer">
+            <button onClick={() => router.push("/owner/employee/staff")} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-all cursor-pointer">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
               </svg>
@@ -325,7 +325,7 @@ export default function EditStaffPage() {
                 <div className="flex items-center gap-3">
                   <button
                     type="button"
-                    onClick={() => router.push("/owner/employee")}
+                    onClick={() => router.push("/owner/employee/staff")}
                     disabled={isSubmitting}
                     className="px-4 py-2 bg-white border border-slate-250 text-slate-600 rounded-xl text-[13px] font-bold transition-all hover:bg-slate-50 cursor-pointer shadow-sm disabled:opacity-50"
                   >
@@ -712,7 +712,7 @@ export default function EditStaffPage() {
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200 shrink-0">
                 <button
                   type="button"
-                  onClick={() => router.push("/owner/employee")}
+                  onClick={() => router.push("/owner/employee/staff")}
                   disabled={isSubmitting}
                   className="px-6 py-2.5 bg-white border border-slate-250 text-slate-600 rounded-xl text-[14px] font-bold transition-all hover:bg-slate-50 cursor-pointer shadow-sm disabled:opacity-50"
                 >

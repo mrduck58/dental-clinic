@@ -6,6 +6,8 @@ import { Suspense } from "react";
 import Link from "next/link";
 import AdminSidebar from "../../../components/shared/AdminSidebar";
 import AdminPageHeader from "../../../components/shared/AdminPageHeader";
+import Pagination from "../../../components/shared/Pagination";
+import { SortableTh, Th, toggleSortState, type SortDir } from "../../../components/shared/TableHeader";
 import { getAccountsApi, getStaffApi, toggleAccountStatusApi, resolveAssetUrl, type AccountDto, type StaffDto } from "../../../lib/apiClient";
 import { useRequireAdmin } from "../../../hooks/useRequireAdmin";
 import {
@@ -21,6 +23,9 @@ function initials(name: string): string {
 }
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20];
+
+type SortKey = "name" | "contact" | "createdAt" | "role" | "status";
+const SORT_DESC_BY_DEFAULT = (column: SortKey) => column === "createdAt";
 
 interface Row {
   id: string;
@@ -44,6 +49,8 @@ function UsersPageContent() {
   const [roleFilter, setRoleFilter] = useState<string>(searchParams.get("role") ?? "All");
   const [pageSize, setPageSize] = useState(5);
   const [currentPage, setCurrentPage] = useState(1);
+  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
 
   const [employeesWithoutAccount, setEmployeesWithoutAccount] = useState<StaffDto[]>([]);
   const [noAccountBannerOpen, setNoAccountBannerOpen] = useState(true);
@@ -129,11 +136,36 @@ function UsersPageContent() {
     setCurrentPage(1);
   }
 
+  const sortedAccounts = useMemo(() => {
+    const dir = sortDir === "asc" ? 1 : -1;
+    const value = (a: Row): string | number => {
+      switch (sortKey) {
+        case "name": return a.name.toLowerCase();
+        case "contact": return (a.email || a.phone).toLowerCase();
+        case "createdAt": return new Date(a.createdAt).getTime();
+        case "role": return a.role.toLowerCase();
+        case "status": return a.isActive ? 1 : 0;
+      }
+    };
+    return [...filteredAccounts].sort((a, b) => {
+      const va = value(a), vb = value(b);
+      if (typeof va === "string" && typeof vb === "string") return va.localeCompare(vb, "vi") * dir;
+      return ((va as number) - (vb as number)) * dir;
+    });
+  }, [filteredAccounts, sortKey, sortDir]);
+
   const totalCount = filteredAccounts.length;
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const safePage = Math.min(currentPage, totalPages);
   const startIndex = (safePage - 1) * pageSize;
-  const pagedAccounts = filteredAccounts.slice(startIndex, startIndex + pageSize);
+  const pagedAccounts = sortedAccounts.slice(startIndex, startIndex + pageSize);
+
+  const handleSort = (column: SortKey) => {
+    const next = toggleSortState({ key: sortKey, dir: sortDir }, column, SORT_DESC_BY_DEFAULT);
+    setSortKey(next.key);
+    setSortDir(next.dir);
+    setCurrentPage(1);
+  };
 
   const handleToggleStatus = async (id: string) => {
     try {
@@ -410,11 +442,11 @@ function UsersPageContent() {
               <table className="w-full text-left border-collapse text-[14px]">
                 <thead>
                   <tr className="bg-slate-50/50 font-extrabold text-slate-400 uppercase tracking-wider border-b border-slate-150">
-                    <th className="px-6 py-4">Nhân viên</th>
-                    <th className="px-6 py-4">Liên hệ</th>
-                    <th className="px-6 py-4">Ngày tạo tài khoản</th>
-                    <th className="px-6 py-4">Vai trò</th>
-                    <th className="px-6 py-4 text-center">Trạng thái</th>
+                    <SortableTh column="name" label="Nhân viên" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-6" />
+                    <SortableTh column="contact" label="Liên hệ" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-6" />
+                    <SortableTh column="createdAt" label="Ngày tạo tài khoản" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-6" />
+                    <SortableTh column="role" label="Vai trò" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-6" />
+                    <SortableTh column="status" label="Trạng thái" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="center" className="px-6" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-semibold text-slate-600">
@@ -492,79 +524,14 @@ function UsersPageContent() {
 
             {/* Pagination bar */}
             {totalCount > 0 && (
-              <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-2.5">
-                <span className="text-[13px] text-slate-400 font-semibold text-center sm:text-left">
-                  Hiển thị{" "}
-                  <span className="text-slate-600 font-bold">{startIndex + 1}–{Math.min(startIndex + pageSize, totalCount)}</span>
-                  {" "}trong{" "}
-                  <span className="text-slate-600 font-bold">{totalCount}</span>
-                  {" "}tài khoản
-                </span>
-                <div className="flex items-center gap-1.5 sm:gap-2.5 flex-wrap justify-center">
-                  <button
-                    onClick={() => setCurrentPage(1)}
-                    disabled={safePage === 1}
-                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
-                      safePage === 1
-                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
-                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
-                    }`}
-                  >
-                    &lt;|
-                  </button>
-                  <button
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    disabled={safePage === 1}
-                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
-                      safePage === 1
-                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
-                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
-                    }`}
-                  >
-                    &lt;
-                  </button>
-
-                  {Array.from({ length: totalPages }).map((_, idx) => {
-                    const p = idx + 1;
-                    const isActive = safePage === p;
-                    return (
-                      <button
-                        key={p}
-                        onClick={() => setCurrentPage(p)}
-                        className={`w-9 h-9 rounded-xl border flex items-center justify-center font-extrabold text-[14px] transition-all cursor-pointer ${
-                          isActive
-                            ? "bg-white border-primary text-primary shadow-sm font-black"
-                            : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                        }`}
-                      >
-                        {p}
-                      </button>
-                    );
-                  })}
-
-                  <button
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={safePage === totalPages}
-                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
-                      safePage === totalPages
-                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
-                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
-                    }`}
-                  >
-                    &gt;
-                  </button>
-                  <button
-                    onClick={() => setCurrentPage(totalPages)}
-                    disabled={safePage === totalPages}
-                    className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold transition-all text-[13px] ${
-                      safePage === totalPages
-                        ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed"
-                        : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
-                    }`}
-                  >
-                    |&gt;
-                  </button>
-                </div>
+              <div className="p-4 border-t border-slate-100">
+                <Pagination
+                  currentPage={currentPage}
+                  totalCount={totalCount}
+                  pageSize={pageSize}
+                  onPageChange={setCurrentPage}
+                  itemLabel="tài khoản"
+                />
               </div>
             )}
           </div>

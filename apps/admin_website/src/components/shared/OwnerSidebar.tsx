@@ -10,10 +10,17 @@ interface SidebarProps {
   activeMenu: string;
 }
 
+const STAFF_SUBMENU_KEYS = ["staff-dentists", "staff-list"];
+const PAYROLL_SUBMENU_KEYS = ["payroll-dentists", "payroll-staff"];
+
 export default function OwnerSidebar({ activeMenu }: SidebarProps) {
   const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const isStaffGroupActive = STAFF_SUBMENU_KEYS.includes(activeMenu);
+  const [staffMenuOpen, setStaffMenuOpen] = useState(isStaffGroupActive);
+  const isPayrollGroupActive = PAYROLL_SUBMENU_KEYS.includes(activeMenu);
+  const [payrollMenuOpen, setPayrollMenuOpen] = useState(isPayrollGroupActive);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
@@ -94,12 +101,6 @@ export default function OwnerSidebar({ activeMenu }: SidebarProps) {
             </button>
           </div>
 
-          {/* Role badge */}
-          <div className="flex items-center gap-2 px-3 py-2 bg-purple-50 rounded-xl border border-purple-100">
-            <div className="w-2 h-2 rounded-full bg-purple-500 shrink-0" />
-            <span className="text-[11.5px] font-bold text-purple-700">Cổng thông tin Chủ phòng khám</span>
-          </div>
-
         {/* Nav list */}
         <nav className="flex flex-col gap-1 overflow-y-auto pr-1 flex-1">
           {/* Tổng quan */}
@@ -118,34 +119,159 @@ export default function OwnerSidebar({ activeMenu }: SidebarProps) {
             Tổng quan
           </Link>
 
-          {/* Doanh thu */}
+          {/* Nhóm: Nhân sự */}
+          <div className="px-4 pt-3 pb-1 text-[10.5px] font-extrabold text-slate-400 uppercase tracking-wider">
+            Nhân sự
+          </div>
+
+          {/* Nhân sự (mở rộng: Nha sĩ / Nhân viên) */}
+          <button
+            onClick={() => setStaffMenuOpen((v) => !v)}
+            className={`flex items-center justify-between gap-3.5 px-4 py-3 rounded-xl font-semibold text-[13px] transition-all cursor-pointer ${
+              isStaffGroupActive
+                ? "bg-primary text-white shadow-md shadow-primary/25"
+                : "text-slate-500 hover:bg-red-50/50 hover:text-primary"
+            }`}
+          >
+            <span className="flex items-center gap-3.5">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+              </svg>
+              Nhân sự
+            </span>
+            <svg
+              className={`w-4 h-4 shrink-0 transition-transform duration-200 ${staffMenuOpen ? "rotate-180" : ""}`}
+              fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+            </svg>
+          </button>
+
+          {staffMenuOpen && (
+            <div className="flex flex-col gap-1 pl-4">
+              <Link
+                href="/owner/employee/dentists"
+                className={`flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-[12.5px] font-semibold transition-all ${
+                  activeMenu === "staff-dentists"
+                    ? "bg-red-50 text-primary"
+                    : "text-slate-500 hover:bg-red-50/50 hover:text-primary"
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" />
+                Nha sĩ
+              </Link>
+              <Link
+                href="/owner/employee/staff"
+                className={`flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-[12.5px] font-semibold transition-all ${
+                  activeMenu === "staff-list"
+                    ? "bg-red-50 text-primary"
+                    : "text-slate-500 hover:bg-red-50/50 hover:text-primary"
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" />
+                Nhân viên
+              </Link>
+            </div>
+          )}
+
+          {/* Lịch làm việc */}
           <Link
-            href="/owner/revenue"
+            href="/owner/schedule"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold text-[13px] transition-all ${
-              activeMenu === "revenue"
+              activeMenu === "schedule"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50/50 hover:text-primary"
             }`}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18L9 11.25l4.306 4.306a11.95 11.95 0 015.814-5.518l2.74-1.22m0 0l-5.94-2.281m5.94 2.28l-2.28 5.941" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008zM9.75 15h.008v.008H9.75V15zm0 2.25h.008v.008H9.75v-.008zM7.5 15h.008v.008H7.5V15zm0 2.25h.008v.008H7.5v-.008zm6.75-4.5h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008V15zm0 2.25h.008v.008h-.008v-.008zm2.25-4.5h.008v.008H16.5v-.008zm0 2.25h.008v.008H16.5V15z" />
             </svg>
-            Doanh thu
+            Lịch làm việc
           </Link>
 
-          {/* Quản lý nhân viên */}
+          {/* Đơn xin nghỉ */}
           <Link
-            href="/owner/employee"
+            href="/owner/leaves"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold text-[13px] transition-all ${
-              activeMenu === "staff"
+              activeMenu === "leaves"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50/50 hover:text-primary"
             }`}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
             </svg>
-            Quản lý nhân viên
+            Đơn xin nghỉ
+          </Link>
+
+          {/* Bảng lương (mở rộng: Nha sĩ / Nhân viên) */}
+          <button
+            onClick={() => setPayrollMenuOpen((v) => !v)}
+            className={`flex items-center justify-between gap-3.5 px-4 py-3 rounded-xl font-semibold text-[13px] transition-all cursor-pointer ${
+              isPayrollGroupActive
+                ? "bg-primary text-white shadow-md shadow-primary/25"
+                : "text-slate-500 hover:bg-red-50/50 hover:text-primary"
+            }`}
+          >
+            <span className="flex items-center gap-3.5">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-1.971-.659-1.171-.879-1.171-2.303 0-3.182 1.172-.879 3.07-.879 4.242 0L15 9M3 5.25h18A2.25 2.25 0 0 1 21 7.5v9a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 16.5v-9a2.25 2.25 0 0 1 2.25-2.25Z" />
+              </svg>
+              Bảng lương
+            </span>
+            <svg
+              className={`w-4 h-4 shrink-0 transition-transform duration-200 ${payrollMenuOpen ? "rotate-180" : ""}`}
+              fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+            </svg>
+          </button>
+
+          {payrollMenuOpen && (
+            <div className="flex flex-col gap-1 pl-4">
+              <Link
+                href="/owner/payroll/dentists"
+                className={`flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-[12.5px] font-semibold transition-all ${
+                  activeMenu === "payroll-dentists"
+                    ? "bg-red-50 text-primary"
+                    : "text-slate-500 hover:bg-red-50/50 hover:text-primary"
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" />
+                Nha sĩ
+              </Link>
+              <Link
+                href="/owner/payroll/staff"
+                className={`flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-[12.5px] font-semibold transition-all ${
+                  activeMenu === "payroll-staff"
+                    ? "bg-red-50 text-primary"
+                    : "text-slate-500 hover:bg-red-50/50 hover:text-primary"
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" />
+                Nhân viên
+              </Link>
+            </div>
+          )}
+
+          {/* Nhóm: Vận hành */}
+          <div className="px-4 pt-3 pb-1 text-[10.5px] font-extrabold text-slate-400 uppercase tracking-wider">
+            Vận hành
+          </div>
+
+          {/* Ca khám & điều trị */}
+          <Link
+            href="/owner/appointments"
+            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold text-[13px] transition-all ${
+              activeMenu === "appointments"
+                ? "bg-primary text-white shadow-md shadow-primary/25"
+                : "text-slate-500 hover:bg-red-50/50 hover:text-primary"
+            }`}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.375c.621 0 1.125-.504 1.125-1.125V11.25M9 9h7.5M12 3v18M3 5.25h18A2.25 2.25 0 0121 7.5v9a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 16.5v-9A2.25 2.25 0 015.25 5.25z" />
+            </svg>
+            Ca khám & điều trị
           </Link>
 
           {/* Thông tin phòng khám */}
@@ -163,64 +289,24 @@ export default function OwnerSidebar({ activeMenu }: SidebarProps) {
             Thông tin phòng khám
           </Link>
 
-          {/* Lịch làm việc */}
-          <Link
-            href="/owner/schedule"
-            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold text-[13px] transition-all ${
-              activeMenu === "schedule"
-                ? "bg-primary text-white shadow-md shadow-primary/25"
-                : "text-slate-500 hover:bg-red-50/50 hover:text-primary"
-            }`}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008zM9.75 15h.008v.008H9.75V15zm0 2.25h.008v.008H9.75v-.008zM7.5 15h.008v.008H7.5V15zm0 2.25h.008v.008H7.5v-.008zm6.75-4.5h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008V15zm0 2.25h.008v.008h-.008v-.008zm2.25-4.5h.008v.008H16.5v-.008zm0 2.25h.008v.008H16.5V15z" />
-            </svg>
-            Lịch làm việc
-          </Link>
+          {/* Nhóm: Kinh doanh */}
+          <div className="px-4 pt-3 pb-1 text-[10.5px] font-extrabold text-slate-400 uppercase tracking-wider">
+            Kinh doanh
+          </div>
 
-          {/* Ca khám & điều trị */}
+          {/* Doanh thu */}
           <Link
-            href="/owner/appointments"
+            href="/owner/revenue"
             className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold text-[13px] transition-all ${
-              activeMenu === "appointments"
+              activeMenu === "revenue"
                 ? "bg-primary text-white shadow-md shadow-primary/25"
                 : "text-slate-500 hover:bg-red-50/50 hover:text-primary"
             }`}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.375c.621 0 1.125-.504 1.125-1.125V11.25M9 9h7.5M12 3v18M3 5.25h18A2.25 2.25 0 0121 7.5v9a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 16.5v-9A2.25 2.25 0 015.25 5.25z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18L9 11.25l4.306 4.306a11.95 11.95 0 015.814-5.518l2.74-1.22m0 0l-5.94-2.281m5.94 2.28l-2.28 5.941" />
             </svg>
-            Ca khám & điều trị
-          </Link>
-
-          {/* Bảng lương nhân viên */}
-          <Link
-            href="/owner/payroll"
-            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold text-[13px] transition-all ${
-              activeMenu === "payroll"
-                ? "bg-primary text-white shadow-md shadow-primary/25"
-                : "text-slate-500 hover:bg-red-50/50 hover:text-primary"
-            }`}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-1.971-.659-1.171-.879-1.171-2.303 0-3.182 1.172-.879 3.07-.879 4.242 0L15 9M3 5.25h18A2.25 2.25 0 0 1 21 7.5v9a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 16.5v-9a2.25 2.25 0 0 1 2.25-2.25Z" />
-            </svg>
-            Bảng lương nhân viên
-          </Link>
-
-          {/* Đơn xin nghỉ */}
-          <Link
-            href="/owner/leaves"
-            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold text-[13px] transition-all ${
-              activeMenu === "leaves"
-                ? "bg-primary text-white shadow-md shadow-primary/25"
-                : "text-slate-500 hover:bg-red-50/50 hover:text-primary"
-            }`}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-            </svg>
-            Đơn xin nghỉ
+            Doanh thu
           </Link>
 
           {/* Phản hồi & Đánh giá */}

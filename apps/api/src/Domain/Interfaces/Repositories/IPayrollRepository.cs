@@ -15,6 +15,12 @@ public interface IPayrollRepository
     /// <summary>Toàn bộ nhân sự (không tính bệnh nhân) kèm hồ sơ Staff/Dentist để lấy lương.</summary>
     Task<IReadOnlyList<User>> GetPayableUsersAsync(CancellationToken ct = default);
 
+    /// <summary>Một nhân sự hưởng lương theo id, dùng cho màn hình "Bảng lương của tôi".</summary>
+    Task<User?> GetPayableUserByIdAsync(Guid userId, CancellationToken ct = default);
+
+    /// <summary>Toàn bộ bản ghi lương đã lưu của một nhân sự trong một năm (12 kỳ), cho báo cáo cá nhân.</summary>
+    Task<IReadOnlyList<PayrollRecord>> GetByUserAndYearAsync(Guid userId, int year, CancellationToken ct = default);
+
     /// <summary>Đơn nghỉ đã duyệt có khoảng ngày giao với [from, to].</summary>
     Task<IReadOnlyList<LeaveRequest>> GetApprovedLeavesOverlappingAsync(DateOnly from, DateOnly to, CancellationToken ct = default);
 
