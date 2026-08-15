@@ -192,9 +192,8 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
     return () => { cancelled = true; };
   }, [visiblePlans, proceduresCache]);
 
-  // % hoàn thành của từng dịch vụ = tổng % của các bước / tổng số bước.
-  // Mẫu số = các bước quy trình chuẩn + các bước phát sinh ngoài quy trình đã ghi nhận.
-  // Mỗi bước lấy % ghi nhận cao nhất (ví dụ: bước 1 đạt 100%, bước 4 đạt 50%).
+  // % hoàn thành của từng dịch vụ = tổng % các bước đã chọn/thêm / tổng số bước đã chọn/thêm.
+  // Không chia theo tổng số bước default ban đầu của quy trình.
   const planProgress = useMemo(() => {
     const result: Record<string, { completed: number; total: number; percent: number }> = {};
     for (const plan of visiblePlans) {
@@ -203,16 +202,15 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
         const key = sp.stepNumber > 0 ? `#${sp.stepNumber}` : `~${sp.stepName.trim().toLowerCase()}`;
         maxByStep.set(key, Math.max(maxByStep.get(key) ?? 0, sp.percent));
       }
-      const procedureKeys = (proceduresCache[plan.serviceId] ?? []).map(s => `#${s.stepNumber}`);
-      const allKeys = [...new Set([...procedureKeys, ...maxByStep.keys()])];
-      const completed = allKeys.filter(k => (maxByStep.get(k) ?? 0) >= 100).length;
-      const total = allKeys.length;
-      const sumPercent = allKeys.reduce((sum, k) => sum + (maxByStep.get(k) ?? 0), 0);
+      const recordedKeys = [...maxByStep.keys()];
+      const total = recordedKeys.length;
+      const completed = recordedKeys.filter(k => (maxByStep.get(k) ?? 0) >= 100).length;
+      const sumPercent = recordedKeys.reduce((sum, k) => sum + (maxByStep.get(k) ?? 0), 0);
       const percent = total === 0 ? 0 : Math.round(sumPercent / total);
       result[plan.id] = { completed, total, percent };
     }
     return result;
-  }, [visiblePlans, proceduresCache]);
+  }, [visiblePlans]);
 
   // Nhật ký điều trị: gộp stepProgress của các liệu trình đang hiển thị theo ĐÚNG thứ tự đã lưu
   // (không sort theo ngày để bác sĩ tự kéo-thả sắp xếp). entryIndex = vị trí gốc trong mảng của liệu trình.
