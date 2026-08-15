@@ -192,8 +192,9 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
     return () => { cancelled = true; };
   }, [visiblePlans, proceduresCache]);
 
-  // % hoàn thành của từng dịch vụ = tổng % các bước đã chọn/thêm / tổng số bước đã chọn/thêm.
-  // Không chia theo tổng số bước default ban đầu của quy trình.
+  // % hoàn thành của từng dịch vụ = tổng % của các bước / tổng số bước quy trình (kèm các bước phát sinh ngoài quy trình).
+  // Mẫu số = các bước quy trình chuẩn (5 bước) + các bước phát sinh ngoài quy trình đã ghi nhận.
+  // Mỗi bước lấy % ghi nhận cao nhất (ví dụ: 4 bước đạt 100%, 1 bước chưa làm = 0% -> 400/5 = 80%).
   const planProgress = useMemo(() => {
     const result: Record<string, { completed: number; total: number; percent: number }> = {};
     for (const plan of visiblePlans) {
@@ -202,15 +203,16 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
         const key = sp.stepNumber > 0 ? `#${sp.stepNumber}` : `~${sp.stepName.trim().toLowerCase()}`;
         maxByStep.set(key, Math.max(maxByStep.get(key) ?? 0, sp.percent));
       }
-      const recordedKeys = [...maxByStep.keys()];
-      const total = recordedKeys.length;
-      const completed = recordedKeys.filter(k => (maxByStep.get(k) ?? 0) >= 100).length;
-      const sumPercent = recordedKeys.reduce((sum, k) => sum + (maxByStep.get(k) ?? 0), 0);
+      const procedureKeys = (proceduresCache[plan.serviceId] ?? []).map(s => `#${s.stepNumber}`);
+      const allKeys = [...new Set([...procedureKeys, ...maxByStep.keys()])];
+      const completed = allKeys.filter(k => (maxByStep.get(k) ?? 0) >= 100).length;
+      const total = allKeys.length > 0 ? allKeys.length : maxByStep.size;
+      const sumPercent = allKeys.reduce((sum, k) => sum + (maxByStep.get(k) ?? 0), 0);
       const percent = total === 0 ? 0 : Math.round(sumPercent / total);
       result[plan.id] = { completed, total, percent };
     }
     return result;
-  }, [visiblePlans]);
+  }, [visiblePlans, proceduresCache]);
 
   // Nhật ký điều trị: gộp stepProgress của các liệu trình đang hiển thị theo ĐÚNG thứ tự đã lưu
   // (không sort theo ngày để bác sĩ tự kéo-thả sắp xếp). entryIndex = vị trí gốc trong mảng của liệu trình.

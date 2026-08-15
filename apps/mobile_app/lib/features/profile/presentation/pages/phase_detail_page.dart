@@ -185,6 +185,7 @@ class PhaseDetailPage extends StatelessWidget {
                 child: Column(
                   children: List.generate(phase.stepProgress.length, (i) {
                     final step = phase.stepProgress[i];
+                    final displayNumber = step.stepNumber > 0 ? step.stepNumber : (i + 1);
                     return Column(
                       children: [
                         Padding(
@@ -200,12 +201,10 @@ class PhaseDetailPage extends StatelessWidget {
                                   shape: BoxShape.circle,
                                 ),
                                 child: Center(
-                                  child: step.stepNumber > 0
-                                      ? Text(
-                                          '${step.stepNumber}',
-                                          style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.success, fontSize: 13),
-                                        )
-                                      : const Icon(Icons.add_rounded, size: 16, color: AppColors.success),
+                                  child: Text(
+                                    '$displayNumber',
+                                    style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.success, fontSize: 13),
+                                  ),
                                 ),
                               ),
                               const SizedBox(width: 12),

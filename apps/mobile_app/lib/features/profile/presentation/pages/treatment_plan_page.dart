@@ -48,16 +48,41 @@ class _TreatmentPlanPageState extends State<TreatmentPlanPage> {
     }
   }
 
+  double _getPhaseProgress(RealTreatmentPlan phase) {
+    if (phase.progressPercent > 0) {
+      return (phase.progressPercent / 100.0).clamp(0.0, 1.0);
+    }
+    if (phase.stepProgress.isEmpty) {
+      if (phase.status == 'Completed') return 1.0;
+      return 0.0;
+    }
+    final maxByStep = <String, int>{};
+    for (final sp in phase.stepProgress) {
+      final key = sp.stepNumber > 0 ? '#${sp.stepNumber}' : '~${sp.stepName.trim().toLowerCase()}';
+      final prev = maxByStep[key] ?? 0;
+      if (sp.percent > prev) {
+        maxByStep[key] = sp.percent;
+      }
+    }
+    if (maxByStep.isEmpty) {
+      return phase.status == 'Completed' ? 1.0 : 0.0;
+    }
+    final totalSteps = phase.totalSteps > 0 ? phase.totalSteps : maxByStep.length;
+    final sumPercent = maxByStep.values.reduce((a, b) => a + b);
+    final avgPercent = sumPercent / totalSteps;
+    return (avgPercent / 100.0).clamp(0.0, 1.0);
+  }
+
   @override
   Widget build(BuildContext context) {
     final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
-    // Tính theo trạng thái THẬT của từng dịch vụ (không phải % của bước điều trị gần nhất — mỗi
-    // bước chỉ ghi % hoàn thành CỦA RIÊNG bước đó, không phải % của cả liệu trình, nên không thể
-    // suy ra tiến độ tổng thể từ đó). "Hoàn thành" = số dịch vụ đã Completed / tổng số dịch vụ còn
-    // hiệu lực (bỏ qua dịch vụ đã hủy) — khớp đúng cách admin_website hiển thị trạng thái.
+    // Tính tiến trình điều trị = trung bình cộng % hoàn thành của từng dịch vụ
     final activePhases = _phases.where((p) => p.status != 'Cancelled').toList();
     final completedCount = activePhases.where((p) => p.status == 'Completed').length;
-    final overallProgress = activePhases.isEmpty ? 0.0 : completedCount / activePhases.length;
+    final totalProgressSum = activePhases.isEmpty
+        ? 0.0
+        : activePhases.map(_getPhaseProgress).reduce((a, b) => a + b);
+    final overallProgress = activePhases.isEmpty ? 0.0 : totalProgressSum / activePhases.length;
 
     return Scaffold(
       backgroundColor: context.bg,
@@ -166,8 +191,7 @@ class _TreatmentPlanPageState extends State<TreatmentPlanPage> {
                     ),
                   ),
                   const SizedBox(width: 16),
-                  // Circular Progress Indicator — xanh (success) vì thể hiện phần ĐÃ hoàn thành,
-                  // thu nhỏ lại so với trước để đỡ lấn át nội dung chính bên trái.
+                  // Circular Progress Indicator
                   Stack(
                     alignment: Alignment.center,
                     children: [
@@ -181,26 +205,13 @@ class _TreatmentPlanPageState extends State<TreatmentPlanPage> {
                           color: AppColors.success,
                         ),
                       ),
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            '${(overallProgress * 100).round()}%',
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w900,
-                              color: AppColors.success,
-                            ),
-                          ),
-                          Text(
-                            '$completedCount/${activePhases.length}',
-                            style: TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w700,
-                              color: context.textMuted,
-                            ),
-                          ),
-                        ],
+                      Text(
+                        '${(overallProgress * 100).round()}%',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.success,
+                        ),
                       ),
                     ],
                   ),
@@ -325,7 +336,7 @@ class _TreatmentPlanPageState extends State<TreatmentPlanPage> {
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
-                          statusLabel,
+                          phase.stepProgress.isNotEmpty ? '$statusLabel · ${( _getPhaseProgress(phase) * 100).round()}%' : statusLabel,
                           style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: statusColor),
                         ),
                       ),
@@ -340,7 +351,10 @@ class _TreatmentPlanPageState extends State<TreatmentPlanPage> {
                       style: TextStyle(fontSize: 12.5, color: context.textMuted, fontWeight: FontWeight.w500),
                     )
                   else
-                    ...phase.stepProgress.map((step) {
+                    ...phase.stepProgress.asMap().entries.map((entry) {
+                      final i = entry.key;
+                      final step = entry.value;
+                      final displayNumber = step.stepNumber > 0 ? step.stepNumber : (i + 1);
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 8.0),
                         child: Row(
@@ -354,12 +368,10 @@ class _TreatmentPlanPageState extends State<TreatmentPlanPage> {
                                 color: AppColors.success.withValues(alpha: context.isDark ? 0.22 : 0.12),
                                 shape: BoxShape.circle,
                               ),
-                              child: step.stepNumber > 0
-                                  ? Text(
-                                      '${step.stepNumber}',
-                                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.success),
-                                    )
-                                  : const Icon(Icons.add_rounded, size: 12, color: AppColors.success),
+                              child: Text(
+                                '$displayNumber',
+                                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.success),
+                              ),
                             ),
                             const SizedBox(width: 8),
                             Expanded(
