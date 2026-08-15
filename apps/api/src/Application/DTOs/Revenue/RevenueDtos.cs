@@ -17,7 +17,10 @@ public record RevenueTransactionDto(
     DateTimeOffset Date,
     string PaymentMethod,
     decimal Amount,
-    string Status);
+    string Status,
+    // > 0 chỉ khi đây là hóa đơn đặt cọc (Paid) đã thu Amount nhưng còn nợ phần này —
+    // và CHƯA có hóa đơn "thu phần còn lại" nào được tạo cho nó.
+    decimal RemainingAmount);
 
 public record RevenueTransactionsPagedDto(
     IReadOnlyList<RevenueTransactionDto> Items,
