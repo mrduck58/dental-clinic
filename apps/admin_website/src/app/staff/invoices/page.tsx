@@ -194,10 +194,9 @@ function PlansTab({ plans, promotions, onIssued }: {
   const [method,   setMethod]   = useState<PayMethod | null>(null);
   const [saved,    setSaved]    = useState(false);
 
-  // Khuyến mãi — nhận từ trang cha (đã tải song song cùng các danh sách khác), chỉ lọc còn hiệu lực
-  // (đang bật + trong khoảng ngày) ở đây.
-  const [selectedPromotionId, setSelectedPromotionId] = useState<string | null>(null);
-
+  // Khuyến mãi — nhận từ trang cha (đã tải song song cùng các danh sách khác), lọc còn hiệu lực
+  // (đang bật + trong khoảng ngày), rồi TỰ ĐỘNG áp dụng nếu khớp dịch vụ trong hóa đơn — không cần
+  // staff bấm chọn.
   const todayIsoForPromo = todayIso();
   const activePromotions = promotions.filter(p =>
     p.isActive && p.startDate <= todayIsoForPromo && p.endDate >= todayIsoForPromo);
@@ -207,7 +206,6 @@ function PlansTab({ plans, promotions, onIssued }: {
     setItems(p.procedures.map(pr => ({ ...pr, payType: "full" as const, depositPct: 50 })));
     setNote("");
     setInstallAmount(p.planRemaining ?? 0); setMethod(null); setSaved(false);
-    setSelectedPromotionId(null);
   };
 
   const updateQty = (i: number, qty: number) =>
@@ -230,15 +228,28 @@ function PlansTab({ plans, promotions, onIssued }: {
 
   const subtotal   = sum(items);
 
-  // Khuyến mãi chỉ áp dụng cho hóa đơn xuất mới (không áp dụng cho "thu phần còn lại" / "đợt thu liệu trình").
-  const selectedPromotion = !isRemaining && !isInstallment
-    ? activePromotions.find(p => p.id === selectedPromotionId) ?? null
+  // Khuyến mãi chỉ áp dụng cho hóa đơn xuất mới (không áp dụng cho "thu phần còn lại" / "đợt thu liệu
+  // trình"), và TỰ ĐỘNG khớp theo dịch vụ: "Tất cả dịch vụ" (serviceIds rỗng) luôn khớp; còn lại thì
+  // so tên dịch vụ trong hóa đơn với danh sách dịch vụ áp dụng của khuyến mãi (serviceNames đã resolve
+  // sẵn từ server) — tên dòng hóa đơn luôn bắt đầu bằng đúng tên dịch vụ (có thể kèm hậu tố "- Răng
+  // X"/"(còn lại)") nên so khớp theo startsWith là đủ, không cần ServiceId trên từng dòng hóa đơn.
+  const matchingPromotions = !isRemaining && !isInstallment
+    ? activePromotions.filter(promo => {
+        if (promo.serviceIds.length === 0) return true;
+        const svcNames = promo.serviceNames.map(n => n.trim().toLowerCase());
+        return items.some(it => {
+          const name = it.name.trim().toLowerCase();
+          return svcNames.some(sn => name === sn || name.startsWith(sn));
+        });
+      })
+    : [];
+  const promoDiscount = (p: PromotionDto) => Math.min(subtotal,
+    p.discountType === "Percentage" ? Math.round(subtotal * p.discountValue / 100) : p.discountValue);
+  // Nếu có nhiều khuyến mãi cùng khớp, tự chọn khuyến mãi giảm nhiều nhất cho khách.
+  const selectedPromotion = matchingPromotions.length > 0
+    ? matchingPromotions.reduce((best, p) => promoDiscount(p) > promoDiscount(best) ? p : best)
     : null;
-  const discountAmount = selectedPromotion
-    ? Math.min(subtotal, selectedPromotion.discountType === "Percentage"
-        ? Math.round(subtotal * selectedPromotion.discountValue / 100)
-        : selectedPromotion.discountValue)
-    : 0;
+  const discountAmount = selectedPromotion ? promoDiscount(selectedPromotion) : 0;
   const finalTotal = Math.max(0, subtotal - discountAmount);
 
   // Thu ngay = tổng số thu của từng dòng (toàn bộ / đặt cọc theo dòng), quy đổi theo tỉ lệ giảm giá
@@ -527,33 +538,34 @@ function PlansTab({ plans, promotions, onIssued }: {
                 </div>
               </div>
 
-              {/* Khuyến mãi — bấm chọn 1 chương trình khuyến mãi đang áp dụng để tự trừ vào hóa đơn.
-                  Không áp dụng cho "thu phần còn lại" (isRemaining) — hóa đơn đó chỉ thu đúng số nợ gốc. */}
+              {/* Khuyến mãi — TỰ ĐỘNG áp dụng nếu có khuyến mãi đang hiệu lực khớp dịch vụ trong hóa đơn,
+                  không cần staff bấm chọn. Không áp dụng cho "thu phần còn lại" (isRemaining) — hóa đơn
+                  đó chỉ thu đúng số nợ gốc. */}
               {!isRemaining && (
               <div className="flex flex-col gap-2">
                 <span className={labelCls}>Khuyến mãi</span>
-                {activePromotions.length === 0 ? (
-                  <p className="text-[12.5px] text-slate-400 font-semibold">Hiện không có khuyến mãi nào đang áp dụng.</p>
-                ) : (
-                  <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => setSelectedPromotionId(null)}
-                      className={`px-3.5 py-2 rounded-xl border text-[12.5px] font-bold transition-all cursor-pointer ${
-                        !selectedPromotionId ? "bg-primary/10 border-primary text-primary" : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
-                      }`}>
-                      Không áp dụng
-                    </button>
-                    {activePromotions.map(p => (
-                      <button type="button" key={p.id} onClick={() => setSelectedPromotionId(p.id)}
-                        className={`px-3.5 py-2 rounded-xl border text-left transition-all cursor-pointer ${
-                          selectedPromotionId === p.id ? "bg-emerald-50 border-emerald-400 text-emerald-700" : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
-                        }`}>
-                        <div className="text-[12.5px] font-bold">{p.name}</div>
-                        <div className="text-[11px] font-semibold opacity-70 mt-0.5">
-                          {p.discountType === "Percentage" ? `Giảm ${p.discountValue}%` : `Giảm ${fmt(p.discountValue)}`} · {p.code}
+                {selectedPromotion ? (
+                  <div className="flex items-center justify-between gap-3 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                    <div className="flex items-center gap-2.5">
+                      <svg className="w-5 h-5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.83.699 2.528 0l7.372-7.372a1.79 1.79 0 000-2.528L13.16 3.659A2.25 2.25 0 0011.568 3zM6 6h.008v.008H6V6z" />
+                      </svg>
+                      <div>
+                        <div className="text-[13px] font-black text-emerald-700">{selectedPromotion.name}</div>
+                        <div className="text-[11px] font-semibold text-emerald-600/80 mt-0.5">
+                          {selectedPromotion.discountType === "Percentage" ? `Giảm ${selectedPromotion.discountValue}%` : `Giảm ${fmt(selectedPromotion.discountValue)}`}
+                          {" "}· {selectedPromotion.code} · tự động áp dụng
                         </div>
-                      </button>
-                    ))}
+                      </div>
+                    </div>
+                    <span className="text-[14px] font-black text-emerald-700 shrink-0">−{fmt(discountAmount)}</span>
                   </div>
+                ) : (
+                  <p className="text-[12.5px] text-slate-400 font-semibold">
+                    {activePromotions.length === 0
+                      ? "Hiện không có khuyến mãi nào đang áp dụng."
+                      : "Không có khuyến mãi nào áp dụng cho dịch vụ trong hóa đơn này."}
+                  </p>
                 )}
               </div>
               )}
