@@ -26,7 +26,7 @@ public class GetNotificationsHandlerTests
     {
         var userId = Guid.NewGuid();
         var notification = Notification.Create(userId, "system", "high", "Tiêu đề", "Nội dung");
-        _repo.GetPagedAsync(userId, null, null, null, null, 1, 10, Arg.Any<CancellationToken>())
+        _repo.GetPagedAsync(userId, null, null, null, null, 1, 10, null, Arg.Any<CancellationToken>())
             .Returns((new List<Notification> { notification }, 1));
         _repo.GetUnreadCountAsync(userId, Arg.Any<CancellationToken>()).Returns(3);
 
@@ -43,12 +43,12 @@ public class GetNotificationsHandlerTests
     public async Task HandleAsync_PageSizeAboveMax_ClampsTo100()
     {
         var userId = Guid.NewGuid();
-        _repo.GetPagedAsync(userId, null, null, null, null, 1, 100, Arg.Any<CancellationToken>())
+        _repo.GetPagedAsync(userId, null, null, null, null, 1, 100, null, Arg.Any<CancellationToken>())
             .Returns((new List<Notification>(), 0));
 
         await _handler.Handle(new GetNotificationsQuery(userId, PageSize: 500), CancellationToken.None);
 
-        await _repo.Received(1).GetPagedAsync(userId, null, null, null, null, 1, 100, Arg.Any<CancellationToken>());
+        await _repo.Received(1).GetPagedAsync(userId, null, null, null, null, 1, 100, null, Arg.Any<CancellationToken>());
     }
 
     /// <summary>PageSize dưới 1 và Page dưới 1 phải được đưa về giá trị tối thiểu hợp lệ (1).</summary>
@@ -56,12 +56,12 @@ public class GetNotificationsHandlerTests
     public async Task HandleAsync_PageAndPageSizeBelowMinimum_ClampsToOne()
     {
         var userId = Guid.NewGuid();
-        _repo.GetPagedAsync(userId, null, null, null, null, 1, 1, Arg.Any<CancellationToken>())
+        _repo.GetPagedAsync(userId, null, null, null, null, 1, 1, null, Arg.Any<CancellationToken>())
             .Returns((new List<Notification>(), 0));
 
         await _handler.Handle(new GetNotificationsQuery(userId, Page: -5, PageSize: 0), CancellationToken.None);
 
-        await _repo.Received(1).GetPagedAsync(userId, null, null, null, null, 1, 1, Arg.Any<CancellationToken>());
+        await _repo.Received(1).GetPagedAsync(userId, null, null, null, null, 1, 1, null, Arg.Any<CancellationToken>());
     }
 
     /// <summary>Tổng số trang phải được tính đúng theo tổng số bản ghi và kích thước trang.</summary>
@@ -69,7 +69,7 @@ public class GetNotificationsHandlerTests
     public async Task HandleAsync_ComputesTotalPagesCorrectly()
     {
         var userId = Guid.NewGuid();
-        _repo.GetPagedAsync(userId, null, null, null, null, 1, 10, Arg.Any<CancellationToken>())
+        _repo.GetPagedAsync(userId, null, null, null, null, 1, 10, null, Arg.Any<CancellationToken>())
             .Returns((new List<Notification>(), 25));
 
         var result = await _handler.Handle(new GetNotificationsQuery(userId), CancellationToken.None);
@@ -82,12 +82,12 @@ public class GetNotificationsHandlerTests
     public async Task HandleAsync_PageSizeExactlyAtUpperBoundary_IsNotClamped()
     {
         var userId = Guid.NewGuid();
-        _repo.GetPagedAsync(userId, null, null, null, null, 1, 100, Arg.Any<CancellationToken>())
+        _repo.GetPagedAsync(userId, null, null, null, null, 1, 100, null, Arg.Any<CancellationToken>())
             .Returns((new List<Notification>(), 0));
 
         await _handler.Handle(new GetNotificationsQuery(userId, PageSize: 100), CancellationToken.None);
 
-        await _repo.Received(1).GetPagedAsync(userId, null, null, null, null, 1, 100, Arg.Any<CancellationToken>());
+        await _repo.Received(1).GetPagedAsync(userId, null, null, null, null, 1, 100, null, Arg.Any<CancellationToken>());
     }
 
     /// <summary>PageSize đúng bằng giới hạn dưới (1) phải được giữ nguyên, không bị điều chỉnh.</summary>
@@ -95,12 +95,12 @@ public class GetNotificationsHandlerTests
     public async Task HandleAsync_PageSizeExactlyAtLowerBoundary_IsNotClamped()
     {
         var userId = Guid.NewGuid();
-        _repo.GetPagedAsync(userId, null, null, null, null, 1, 1, Arg.Any<CancellationToken>())
+        _repo.GetPagedAsync(userId, null, null, null, null, 1, 1, null, Arg.Any<CancellationToken>())
             .Returns((new List<Notification>(), 0));
 
         await _handler.Handle(new GetNotificationsQuery(userId, PageSize: 1), CancellationToken.None);
 
-        await _repo.Received(1).GetPagedAsync(userId, null, null, null, null, 1, 1, Arg.Any<CancellationToken>());
+        await _repo.Received(1).GetPagedAsync(userId, null, null, null, null, 1, 1, null, Arg.Any<CancellationToken>());
     }
 
     /// <summary>Các filter Type, Priority, IsRead, Search phải được truyền nguyên vẹn xuống repository.</summary>
@@ -108,12 +108,12 @@ public class GetNotificationsHandlerTests
     public async Task HandleAsync_AllFiltersProvided_PassesThemThroughToRepository()
     {
         var userId = Guid.NewGuid();
-        _repo.GetPagedAsync(userId, "appointment", "high", true, "khám", 1, 10, Arg.Any<CancellationToken>())
+        _repo.GetPagedAsync(userId, "appointment", "high", true, "khám", 1, 10, null, Arg.Any<CancellationToken>())
             .Returns((new List<Notification>(), 0));
 
         await _handler.Handle(new GetNotificationsQuery(userId, "appointment", "high", true, "khám"), CancellationToken.None);
 
-        await _repo.Received(1).GetPagedAsync(userId, "appointment", "high", true, "khám", 1, 10, Arg.Any<CancellationToken>());
+        await _repo.Received(1).GetPagedAsync(userId, "appointment", "high", true, "khám", 1, 10, null, Arg.Any<CancellationToken>());
     }
 
     /// <summary>IsRead = false phải được truyền đúng (không bị nhầm với null/mặc định).</summary>
@@ -121,12 +121,12 @@ public class GetNotificationsHandlerTests
     public async Task HandleAsync_IsReadFalse_PassesFalseThroughToRepository()
     {
         var userId = Guid.NewGuid();
-        _repo.GetPagedAsync(userId, null, null, false, null, 1, 10, Arg.Any<CancellationToken>())
+        _repo.GetPagedAsync(userId, null, null, false, null, 1, 10, null, Arg.Any<CancellationToken>())
             .Returns((new List<Notification>(), 0));
 
         await _handler.Handle(new GetNotificationsQuery(userId, IsRead: false), CancellationToken.None);
 
-        await _repo.Received(1).GetPagedAsync(userId, null, null, false, null, 1, 10, Arg.Any<CancellationToken>());
+        await _repo.Received(1).GetPagedAsync(userId, null, null, false, null, 1, 10, null, Arg.Any<CancellationToken>());
     }
 
     /// <summary>Không có bản ghi nào (TotalCount = 0) phải cho ra TotalPages = 0, không lỗi chia.</summary>
@@ -134,7 +134,7 @@ public class GetNotificationsHandlerTests
     public async Task HandleAsync_TotalCountIsZero_ReturnsZeroTotalPages()
     {
         var userId = Guid.NewGuid();
-        _repo.GetPagedAsync(userId, null, null, null, null, 1, 10, Arg.Any<CancellationToken>())
+        _repo.GetPagedAsync(userId, null, null, null, null, 1, 10, null, Arg.Any<CancellationToken>())
             .Returns((new List<Notification>(), 0));
 
         var result = await _handler.Handle(new GetNotificationsQuery(userId), CancellationToken.None);
@@ -147,7 +147,7 @@ public class GetNotificationsHandlerTests
     public async Task HandleAsync_TotalCountExactMultipleOfPageSize_DoesNotRoundUpExtraPage()
     {
         var userId = Guid.NewGuid();
-        _repo.GetPagedAsync(userId, null, null, null, null, 1, 10, Arg.Any<CancellationToken>())
+        _repo.GetPagedAsync(userId, null, null, null, null, 1, 10, null, Arg.Any<CancellationToken>())
             .Returns((new List<Notification>(), 20));
 
         var result = await _handler.Handle(new GetNotificationsQuery(userId), CancellationToken.None);

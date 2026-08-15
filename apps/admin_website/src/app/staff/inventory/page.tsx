@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import StaffSidebar from "../../../components/shared/StaffSidebar";
 import StaffPageHeader from "../../../components/shared/StaffPageHeader";
+import Pagination from "../../../components/shared/Pagination";
+import { SortableTh, Th, toggleSortState, type SortDir } from "../../../components/shared/TableHeader";
 import { useRequireStaff } from "../../../hooks/useRequireStaff";
 import {
   getSupplyItemsApi,
@@ -33,65 +35,18 @@ const ORDER_TYPES: { value: "standard" | "custom"; label: string }[] = [
 
 const fmt = (n: number) => n.toLocaleString("vi-VN") + "₫";
 
+type StockSortKey = "code" | "name" | "category" | "unit" | "quantity";
+const STOCK_SORT_DESC_BY_DEFAULT = (column: StockSortKey) => column === "quantity";
+
+type LogSortKey = "type" | "itemName" | "quantity" | "total" | "date";
+const LOG_SORT_DESC_BY_DEFAULT = (column: LogSortKey) => column === "quantity" || column === "total" || column === "date";
+
 // Modal phải render qua Portal thẳng vào document.body — trang bọc ngoài dùng class "animate-fade-in"
 // (transform), mà theo spec CSS, "position: fixed" bên trong 1 ancestor có transform sẽ neo theo ancestor
 // đó thay vì theo viewport. Nếu không portal, modal bị đẩy xuống theo chiều cao trang, phải cuộn mới thấy.
 function Portal({ children }: { children: React.ReactNode }) {
   if (typeof document === "undefined") return null;
   return createPortal(children, document.body);
-}
-
-// ── Pagination ─────────────────────────────────────────────────────────────
-
-function Pagination({ page, total, pageSize, onChange }: {
-  page: number; total: number; pageSize: number; onChange: (p: number) => void;
-}) {
-  if (total === 0) return null;
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const from = (page - 1) * pageSize + 1;
-  const to   = Math.min(page * pageSize, total);
-
-  const pages: (number | "…")[] = [];
-  if (totalPages <= 7) {
-    for (let i = 1; i <= totalPages; i++) pages.push(i);
-  } else {
-    pages.push(1);
-    if (page > 3) pages.push("…");
-    for (let i = Math.max(2, page - 1); i <= Math.min(totalPages - 1, page + 1); i++) pages.push(i);
-    if (page < totalPages - 2) pages.push("…");
-    pages.push(totalPages);
-  }
-
-  const navBtn = (label: string, target: number, disabled: boolean) => (
-    <button key={label} onClick={() => onChange(target)} disabled={disabled}
-      className={`w-9 h-9 rounded-xl border flex items-center justify-center font-bold text-[13px] transition-all ${
-        disabled ? "border-slate-100 text-slate-300 bg-slate-50 cursor-not-allowed" : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 cursor-pointer"
-      }`}>{label}</button>
-  );
-
-  return (
-    <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-2.5">
-      <span className="text-[13px] text-slate-400 font-semibold text-center sm:text-left">
-        Hiển thị <span className="text-slate-600 font-bold">{from}–{to}</span> trong <span className="text-slate-600 font-bold">{total}</span> mục
-      </span>
-      <div className="flex items-center gap-1.5 sm:gap-2.5 flex-wrap justify-center">
-        {navBtn("<|", 1, page === 1)}
-        {navBtn("<",  page - 1, page === 1)}
-        {pages.map((p, i) =>
-          p === "…"
-            ? <span key={`el-${i}`} className="px-1 text-slate-400 text-[13px] select-none">…</span>
-            : (
-              <button key={p} onClick={() => onChange(p as number)}
-                className={`w-9 h-9 rounded-xl border flex items-center justify-center font-extrabold text-[14px] transition-all cursor-pointer ${
-                  p === page ? "bg-white border-primary text-primary shadow-sm" : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                }`}>{p}</button>
-            )
-        )}
-        {navBtn(">",  page + 1, page === totalPages)}
-        {navBtn("|>", totalPages, page === totalPages)}
-      </div>
-    </div>
-  );
 }
 
 // ── Styles ─────────────────────────────────────────────────────────────────
@@ -149,6 +104,12 @@ export default function InventoryPage() {
   const [logPage,       setLogPage]       = useState(1);
   const [stockPageSize, setStockPageSize] = useState(5);
   const [logPageSize,   setLogPageSize]   = useState(5);
+
+  // sorting
+  const [stockSortKey, setStockSortKey] = useState<StockSortKey>("name");
+  const [stockSortDir, setStockSortDir] = useState<SortDir>("asc");
+  const [logSortKey,   setLogSortKey]   = useState<LogSortKey>("date");
+  const [logSortDir,   setLogSortDir]   = useState<SortDir>("desc");
 
   const fetchItems = useCallback(async () => {
     setLoadingItems(true);
@@ -245,8 +206,58 @@ export default function InventoryPage() {
 
   useEffect(() => { setStockPage(1); }, [search, cat, orderTypeTab, stockPageSize]);
 
-  const pagedStock = filteredStock.slice((stockPage - 1) * stockPageSize, stockPage * stockPageSize);
-  const pagedLog   = log.slice((logPage - 1) * logPageSize, logPage * logPageSize);
+  const sortedStock = useMemo(() => {
+    const dir = stockSortDir === "asc" ? 1 : -1;
+    const value = (s: SupplyItemDto): string | number => {
+      switch (stockSortKey) {
+        case "code": return s.code.toLowerCase();
+        case "name": return s.name.toLowerCase();
+        case "category": return s.category.toLowerCase();
+        case "unit": return s.unit.toLowerCase();
+        case "quantity": return s.quantity;
+      }
+    };
+    return [...filteredStock].sort((a, b) => {
+      const va = value(a), vb = value(b);
+      if (typeof va === "string" && typeof vb === "string") return va.localeCompare(vb, "vi") * dir;
+      return ((va as number) - (vb as number)) * dir;
+    });
+  }, [filteredStock, stockSortKey, stockSortDir]);
+
+  const handleStockSort = (column: StockSortKey) => {
+    const next = toggleSortState({ key: stockSortKey, dir: stockSortDir }, column, STOCK_SORT_DESC_BY_DEFAULT);
+    setStockSortKey(next.key);
+    setStockSortDir(next.dir);
+    setStockPage(1);
+  };
+
+  const sortedLog = useMemo(() => {
+    const dir = logSortDir === "asc" ? 1 : -1;
+    const value = (tx: SupplyTransactionDto): string | number => {
+      switch (logSortKey) {
+        case "type": return tx.type.toLowerCase();
+        case "itemName": return tx.itemName.toLowerCase();
+        case "quantity": return tx.quantity;
+        case "total": return tx.unitPrice != null ? tx.unitPrice * tx.quantity : 0;
+        case "date": return new Date(tx.createdAt).getTime();
+      }
+    };
+    return [...log].sort((a, b) => {
+      const va = value(a), vb = value(b);
+      if (typeof va === "string" && typeof vb === "string") return va.localeCompare(vb, "vi") * dir;
+      return ((va as number) - (vb as number)) * dir;
+    });
+  }, [log, logSortKey, logSortDir]);
+
+  const handleLogSort = (column: LogSortKey) => {
+    const next = toggleSortState({ key: logSortKey, dir: logSortDir }, column, LOG_SORT_DESC_BY_DEFAULT);
+    setLogSortKey(next.key);
+    setLogSortDir(next.dir);
+    setLogPage(1);
+  };
+
+  const pagedStock = sortedStock.slice((stockPage - 1) * stockPageSize, stockPage * stockPageSize);
+  const pagedLog   = sortedLog.slice((logPage - 1) * logPageSize, logPage * logPageSize);
 
   const handleTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -465,11 +476,11 @@ export default function InventoryPage() {
                 <table className="w-full text-[13px]">
                   <thead>
                     <tr className="border-b border-slate-100 bg-slate-50/70">
-                      <th className="px-5 py-3 text-left font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Mã</th>
-                      <th className="px-5 py-3 text-left font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Tên vật tư</th>
-                      <th className="px-5 py-3 text-left font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Danh mục</th>
-                      <th className="px-5 py-3 text-left font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Đơn vị</th>
-                      <th className="px-5 py-3 text-right font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Tồn kho</th>
+                      <SortableTh column="code" label="Mã" sortKey={stockSortKey} sortDir={stockSortDir} onSort={handleStockSort} className="px-5" />
+                      <SortableTh column="name" label="Tên vật tư" sortKey={stockSortKey} sortDir={stockSortDir} onSort={handleStockSort} className="px-5" />
+                      <SortableTh column="category" label="Danh mục" sortKey={stockSortKey} sortDir={stockSortDir} onSort={handleStockSort} className="px-5" />
+                      <SortableTh column="unit" label="Đơn vị" sortKey={stockSortKey} sortDir={stockSortDir} onSort={handleStockSort} className="px-5" />
+                      <SortableTh column="quantity" label="Tồn kho" sortKey={stockSortKey} sortDir={stockSortDir} onSort={handleStockSort} align="right" className="px-5" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -490,7 +501,15 @@ export default function InventoryPage() {
                     ))}
                   </tbody>
                 </table>
-                <Pagination page={stockPage} total={filteredStock.length} pageSize={stockPageSize} onChange={setStockPage} />
+                <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-2.5">
+                  <Pagination
+                    currentPage={stockPage}
+                    totalCount={filteredStock.length}
+                    pageSize={stockPageSize}
+                    onPageChange={setStockPage}
+                    itemLabel="mục"
+                  />
+                </div>
               </div>
             </>
           )}
@@ -741,12 +760,12 @@ export default function InventoryPage() {
                 <table className="w-full text-[13px]">
                   <thead>
                     <tr className="border-b border-slate-100 bg-slate-50/70">
-                      <th className="px-5 py-3 text-left font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Loại</th>
-                      <th className="px-5 py-3 text-left font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Vật tư</th>
-                      <th className="px-5 py-3 text-right font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">SL</th>
-                      <th className="px-5 py-3 text-right font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Thành tiền</th>
-                      <th className="px-5 py-3 text-left font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Ghi chú</th>
-                      <th className="px-5 py-3 text-left font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Ngày · NV</th>
+                      <SortableTh column="type" label="Loại" sortKey={logSortKey} sortDir={logSortDir} onSort={handleLogSort} className="px-5" />
+                      <SortableTh column="itemName" label="Vật tư" sortKey={logSortKey} sortDir={logSortDir} onSort={handleLogSort} className="px-5" />
+                      <SortableTh column="quantity" label="SL" sortKey={logSortKey} sortDir={logSortDir} onSort={handleLogSort} align="right" className="px-5" />
+                      <SortableTh column="total" label="Thành tiền" sortKey={logSortKey} sortDir={logSortDir} onSort={handleLogSort} align="right" className="px-5" />
+                      <Th className="px-5">Ghi chú</Th>
+                      <SortableTh column="date" label="Ngày · NV" sortKey={logSortKey} sortDir={logSortDir} onSort={handleLogSort} className="px-5" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -782,7 +801,15 @@ export default function InventoryPage() {
                     ))}
                   </tbody>
                 </table>
-                <Pagination page={logPage} total={log.length} pageSize={logPageSize} onChange={setLogPage} />
+                <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-2.5">
+                  <Pagination
+                    currentPage={logPage}
+                    totalCount={log.length}
+                    pageSize={logPageSize}
+                    onPageChange={setLogPage}
+                    itemLabel="mục"
+                  />
+                </div>
               </div>
             </>
           )}

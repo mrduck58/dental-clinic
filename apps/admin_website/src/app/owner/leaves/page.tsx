@@ -2,8 +2,11 @@
 
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import OwnerSidebar from "../../../components/shared/OwnerSidebar";
 import OwnerPageHeader from "../../../components/shared/OwnerPageHeader";
+import Pagination from "../../../components/shared/Pagination";
+import { SortableTh, Th, toggleSortState, type SortDir } from "../../../components/shared/TableHeader";
 import { useRequireOwner } from "../../../hooks/useRequireOwner";
 import {
   getLeaveRequestsAdminApi,
@@ -64,8 +67,11 @@ const fmtDateTime = (s: string) => {
 
 // ── Page Component ────────────────────────────────────────────────────────────
 
+type SortKey = "code" | "employee" | "leaveType" | "startDate" | "endDate" | "days" | "status";
+
 export default function LeavesPage() {
   useRequireOwner();
+  const router = useRouter();
 
   const [leaves, setLeaves] = useState<LeaveWithCode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -75,6 +81,10 @@ export default function LeavesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+
+  // Sorting
+  const [sortKey, setSortKey] = useState<SortKey>("startDate");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -126,11 +136,31 @@ export default function LeavesPage() {
     });
   }, [leaves, statusFilter, searchQuery, dateFrom, dateTo]);
 
-  const totalPages = Math.ceil(filteredLeaves.length / itemsPerPage);
+  const sortedLeaves = useMemo(() => {
+    const dir = sortDir === "asc" ? 1 : -1;
+    const value = (l: LeaveWithCode): string | number => {
+      switch (sortKey) {
+        case "code":      return l.code.toLowerCase();
+        case "employee":  return l.userFullName.toLowerCase();
+        case "leaveType": return (LEAVE_LABEL[l.leaveType] ?? l.leaveType).toLowerCase();
+        case "startDate": return new Date(l.startDate).getTime();
+        case "endDate":   return new Date(l.endDate).getTime();
+        case "days":      return l.daysCount;
+        case "status":    return (STATUS_STYLES[l.status]?.label ?? l.status).toLowerCase();
+      }
+    };
+    return [...filteredLeaves].sort((a, b) => {
+      const va = value(a);
+      const vb = value(b);
+      if (typeof va === "string" && typeof vb === "string") return va.localeCompare(vb, "vi") * dir;
+      return ((va as number) - (vb as number)) * dir;
+    });
+  }, [filteredLeaves, sortKey, sortDir]);
+
   const paginatedLeaves = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
-    return filteredLeaves.slice(start, start + itemsPerPage);
-  }, [filteredLeaves, currentPage, itemsPerPage]);
+    return sortedLeaves.slice(start, start + itemsPerPage);
+  }, [sortedLeaves, currentPage, itemsPerPage]);
 
   useEffect(() => { setCurrentPage(1); }, [statusFilter, searchQuery, dateFrom, dateTo, itemsPerPage]);
 
@@ -139,6 +169,14 @@ export default function LeavesPage() {
   const showToast = (message: string, ok = true) => {
     setToast({ message, ok });
     setTimeout(() => setToast(null), 4000);
+  };
+
+  const handleSort = (column: SortKey) => {
+    const descendingByDefault = (col: SortKey) => col === "startDate" || col === "endDate" || col === "days";
+    const next = toggleSortState({ key: sortKey, dir: sortDir }, column, descendingByDefault);
+    setSortKey(next.key);
+    setSortDir(next.dir);
+    setCurrentPage(1);
   };
 
   const clearFilters = () => {
@@ -303,15 +341,15 @@ export default function LeavesPage() {
               <table className="w-full text-left border-collapse text-[13px] sm:text-[14px]">
                 <thead>
                   <tr className="bg-slate-50/70 font-extrabold text-slate-400 uppercase tracking-wider border-b border-slate-200/80 select-none">
-                    <th className="px-5 py-4">Mã đơn</th>
-                    <th className="px-5 py-4">Nhân viên</th>
-                    <th className="px-5 py-4">Loại nghỉ</th>
-                    <th className="px-5 py-4">Ngày bắt đầu</th>
-                    <th className="px-5 py-4">Ngày kết thúc</th>
-                    <th className="px-5 py-4 text-center">Số ngày</th>
-                    <th className="px-5 py-4">Lý do</th>
-                    <th className="px-5 py-4 text-center">Trạng thái</th>
-                    <th className="px-5 py-4 text-center">Hành động</th>
+                    <SortableTh column="code" label="Mã đơn" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-5" />
+                    <SortableTh column="employee" label="Nhân viên" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-5" />
+                    <SortableTh column="leaveType" label="Loại nghỉ" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-5" />
+                    <SortableTh column="startDate" label="Ngày bắt đầu" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-5" />
+                    <SortableTh column="endDate" label="Ngày kết thúc" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-5" />
+                    <SortableTh column="days" label="Số ngày" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="center" className="px-5" />
+                    <Th className="px-5">Lý do</Th>
+                    <SortableTh column="status" label="Trạng thái" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="center" className="px-5" />
+                    <Th className="px-5" align="center">Hành động</Th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-semibold text-slate-600">
@@ -340,7 +378,11 @@ export default function LeavesPage() {
                       const typeLabel = LEAVE_LABEL[leave.leaveType] ?? leave.leaveType;
 
                       return (
-                        <tr key={leave.id} className="hover:bg-slate-50/30 transition-colors">
+                        <tr
+                          key={leave.id}
+                          onClick={() => router.push(`/owner/leaves/${leave.id}`)}
+                          className="hover:bg-slate-50/30 transition-colors cursor-pointer group"
+                        >
                           <td className="px-5 py-4">
                             <span className="font-black text-primary text-[13px]">{leave.code}</span>
                           </td>
@@ -350,7 +392,7 @@ export default function LeavesPage() {
                                 {getInitials(leave.userFullName)}
                               </div>
                               <div className="min-w-0">
-                                <div className="font-extrabold text-slate-900 truncate">{leave.userFullName}</div>
+                                <div className="font-extrabold text-slate-900 truncate group-hover:text-primary transition-colors">{leave.userFullName}</div>
                                 <div className="text-[11px] text-slate-400 font-semibold truncate">{leave.department ?? "—"}</div>
                               </div>
                             </div>
@@ -375,7 +417,7 @@ export default function LeavesPage() {
                               {status.label}
                             </span>
                           </td>
-                          <td className="px-5 py-4 text-center">
+                          <td className="px-5 py-4 text-center" onClick={(e) => e.stopPropagation()}>
                             <Link
                               href={`/owner/leaves/${leave.id}`}
                               title={leave.status === "Pending" ? "Xem & duyệt đơn" : "Xem chi tiết"}
@@ -400,38 +442,14 @@ export default function LeavesPage() {
 
             {/* Pagination */}
             {!isLoading && filteredLeaves.length > 0 && (
-              <div className="border-t border-slate-100 px-5 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
-                <span className="text-[12px] text-slate-400 font-semibold">
-                  Hiển thị{" "}
-                  <span className="font-black text-slate-600">
-                    {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, filteredLeaves.length)}
-                  </span>{" "}
-                  trong <span className="font-black text-slate-600">{filteredLeaves.length}</span> đơn nghỉ
-                </span>
-                {totalPages > 1 && (
-                  <div className="flex items-center gap-1.5">
-                    <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1}
-                      className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-                      </svg>
-                    </button>
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                      <button key={page} onClick={() => setCurrentPage(page)}
-                        className={`w-9 h-9 text-[13px] font-bold rounded-xl cursor-pointer transition-all ${
-                          page === currentPage ? "bg-primary text-white shadow-md shadow-primary/20" : "text-slate-500 hover:bg-slate-100"
-                        }`}>
-                        {page}
-                      </button>
-                    ))}
-                    <button onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
-                      className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                      </svg>
-                    </button>
-                  </div>
-                )}
+              <div className="border-t border-slate-100 px-5 py-3">
+                <Pagination
+                  currentPage={currentPage}
+                  totalCount={filteredLeaves.length}
+                  pageSize={itemsPerPage}
+                  onPageChange={setCurrentPage}
+                  itemLabel="đơn nghỉ"
+                />
               </div>
             )}
           </div>

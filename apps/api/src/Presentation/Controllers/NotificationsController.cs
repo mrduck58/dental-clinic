@@ -44,10 +44,11 @@ public class NotificationsController(
         [FromQuery] string? search,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10,
+        [FromQuery] string? sortDir = null,
         CancellationToken cancellationToken = default)
     {
         var result = await sender.Send(
-            new GetNotificationsQuery(CurrentUserId, type, priority, isRead, search, page, pageSize),
+            new GetNotificationsQuery(CurrentUserId, type, priority, isRead, search, page, pageSize, sortDir),
             cancellationToken);
 
         return Ok(result);

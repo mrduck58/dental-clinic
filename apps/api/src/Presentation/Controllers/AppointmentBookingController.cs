@@ -60,6 +60,25 @@ public class AppointmentBookingController(ISender sender) : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>GET api/appointments/paged — Danh sách lịch hẹn có phân trang, lọc khoảng ngày/nhiều trạng thái/tìm kiếm (màn "Ca khám &amp; điều trị" của Owner)</summary>
+    [HttpGet("api/appointments/paged")]
+    [Authorize(Roles = "Staff,Admin,Owner")]
+    public async Task<IActionResult> GetAppointmentsPaged(
+        [FromQuery] DateOnly? startDate,
+        [FromQuery] DateOnly? endDate,
+        [FromQuery] string? status,
+        [FromQuery] string? search,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? sortDir = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await sender.Send(
+            new GetAppointmentsPagedQuery(startDate, endDate, status, search, page, pageSize, sortDir),
+            cancellationToken);
+        return Ok(result);
+    }
+
     /// <summary>PUT api/appointments/{id}/confirm — Xác nhận lịch hẹn (Staff/Admin)</summary>
     [HttpPut("api/appointments/{id}/confirm")]
     [Authorize(Roles = "Staff,Admin,Owner")]

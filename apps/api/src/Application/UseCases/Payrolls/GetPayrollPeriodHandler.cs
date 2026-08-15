@@ -54,7 +54,11 @@ public class GetPayrollPeriodHandler(IPayrollRepository payrollRepository)
             TotalPaid: items.Where(i => i.Status == nameof(PayrollStatus.Paid)).Sum(i => i.NetSalary),
             TotalDeduction: items.Sum(i => i.Deduction),
             MissingSalaryCount: items.Count(i => !i.HasSalaryConfigured),
-            PreviousTotalNet: items.Sum(i => i.PreviousNetSalary));
+            PreviousTotalNet: items.Sum(i => i.PreviousNetSalary),
+            NotCreatedCount: items.Count(i => i.Status == "NotCreated"),
+            DraftCount: items.Count(i => i.Status == nameof(PayrollStatus.Draft)),
+            CalculatedCount: items.Count(i => i.Status == nameof(PayrollStatus.Calculated)),
+            ApprovedCount: items.Count(i => i.Status == nameof(PayrollStatus.Approved)));
 
         return new PayrollPeriodDto(
             query.Year,
@@ -73,16 +77,16 @@ public class GetPayrollPeriodHandler(IPayrollRepository payrollRepository)
     internal static (int Year, int Month) PreviousPeriod(int year, int month)
         => month == 1 ? (year - 1, 12) : (year, month - 1);
 
-    /// <summary>Thực nhận của một kỳ: đã chi trả thì lấy số đã chốt, chưa thì tính lại.</summary>
+    /// <summary>Thực nhận của một kỳ: đã có bản ghi (Draft trở lên) thì lấy số đã lưu, chưa tạo thì ước tính theo hồ sơ hiện tại.</summary>
     internal static decimal NetSalaryOf(
         User user, PayrollRecord? record, IEnumerable<LeaveRequest> approvedLeaves, int year, int month)
-        => record is { Status: PayrollStatus.Paid }
+        => record is not null
             ? record.NetSalary
             : PayrollCalculator.Compute(user, approvedLeaves, year, month).NetSalary;
 
     /// <summary>
-    /// Kỳ lương đã chi trả trả về đúng con số đã chốt; kỳ chưa chi trả luôn được tính lại
-    /// theo hồ sơ lương và đơn nghỉ hiện tại.
+    /// Kỳ đã tạo (Draft trở lên) trả về đúng số liệu đã lưu — không âm thầm tính lại theo hồ sơ nữa,
+    /// vì Draft có thể đã được sửa Thưởng tay. Kỳ CHƯA tạo hiển thị ước tính realtime (status "NotCreated").
     /// </summary>
     internal static PayrollItemDto BuildItem(
         User user,
@@ -94,17 +98,18 @@ public class GetPayrollPeriodHandler(IPayrollRepository payrollRepository)
     {
         var (employeeId, department, position) = ReadEmploymentProfile(user);
 
-        if (record is { Status: PayrollStatus.Paid })
+        if (record is not null)
         {
             return new PayrollItemDto(
                 user.Id, user.FullName, user.Email ?? string.Empty, user.Role.ToString(),
                 employeeId, department, position, user.PhoneNumber,
                 record.BaseSalary, record.Allowance,
                 record.LeaveDays, record.AllowedLeaveDays, record.ExceededDays,
-                record.Deduction, record.NetSalary,
+                record.Deduction, record.Bonus, record.NetSalary,
                 record.Status.ToString(), record.PaidAt, record.Note,
                 HasSalaryConfigured: record.BaseSalary > 0,
-                previousNetSalary);
+                previousNetSalary,
+                IsCreated: true);
         }
 
         var c = PayrollCalculator.Compute(user, approvedLeaves, year, month);
@@ -114,10 +119,11 @@ public class GetPayrollPeriodHandler(IPayrollRepository payrollRepository)
             employeeId, department, position, user.PhoneNumber,
             c.BaseSalary, c.Allowance,
             c.LeaveDays, c.AllowedLeaveDays, c.ExceededDays,
-            c.Deduction, c.NetSalary,
-            nameof(PayrollStatus.Pending), null, record?.Note,
+            c.Deduction, 0m, c.NetSalary,
+            "NotCreated", null, null,
             c.HasSalaryConfigured,
-            previousNetSalary);
+            previousNetSalary,
+            IsCreated: false);
     }
 
     internal static (string? EmployeeId, string? Department, string? Position) ReadEmploymentProfile(User user)

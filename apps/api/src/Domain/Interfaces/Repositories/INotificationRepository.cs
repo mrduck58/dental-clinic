@@ -16,6 +16,7 @@ public interface INotificationRepository
         string? search = null,
         int page = 1,
         int pageSize = 10,
+        string? sortDir = null,
         CancellationToken ct = default);
 
     Task<int> GetUnreadCountAsync(Guid userId, CancellationToken ct = default);

@@ -14,7 +14,8 @@ public record GetNotificationsQuery(
     bool? IsRead = null,
     string? Search = null,
     int Page = 1,
-    int PageSize = 10) : IRequest<NotificationPagedDto>;
+    int PageSize = 10,
+    string? SortDir = null) : IRequest<NotificationPagedDto>;
 
 public class GetNotificationsHandler(
     INotificationRepository repository,
@@ -39,6 +40,7 @@ public class GetNotificationsHandler(
             query.Search,
             page,
             pageSize,
+            query.SortDir,
             ct);
 
         var unreadCount = await repository.GetUnreadCountAsync(query.UserId, ct);

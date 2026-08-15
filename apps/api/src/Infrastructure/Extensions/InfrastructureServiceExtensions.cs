@@ -73,6 +73,8 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IPrescriptionItemRepository, PrescriptionItemRepository>();
         services.AddScoped<ITreatmentPlanRepository, TreatmentPlanRepository>();
         services.AddScoped<IPayrollRepository, PayrollRepository>();
+        services.AddScoped<IExpenseRepository, ExpenseRepository>();
+        services.AddScoped<ICommissionRuleRepository, CommissionRuleRepository>();
         services.AddScoped<IAppointmentSummaryReader, AppointmentSummaryReader>();
         services.AddScoped<IInvoiceRepository, InvoiceRepository>();
         services.AddScoped<IPaymentTransactionRepository, PaymentTransactionRepository>();
@@ -85,6 +87,10 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IStaffDashboardQueryService, StaffDashboardQueryService>();
         services.AddScoped<IDentistDashboardQueryService, DentistDashboardQueryService>();
         services.AddScoped<IOwnerDashboardQueryService, OwnerDashboardQueryService>();
+        services.AddScoped<IRevenueQueryService, RevenueQueryService>();
+        services.AddScoped<IExpenseQueryService, ExpenseQueryService>();
+        services.AddScoped<ICommissionQueryService, CommissionQueryService>();
+        services.AddScoped<IFinanceOverviewQueryService, FinanceOverviewQueryService>();
 
         // ── Services ────────────────────────────────────────────────────────
         services.AddSingleton<IFirebasePushNotificationService, FirebasePushNotificationService>();
