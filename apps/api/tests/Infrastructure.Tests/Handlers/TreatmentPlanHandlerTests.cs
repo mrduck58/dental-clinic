@@ -528,7 +528,7 @@ public class TreatmentPlanHandlerTests
         var partial = await _addStep.Handle(new AddStepProgressCommand(
             plan.Id, new AddStepProgressRequest(1, "Lấy tủy", 60, null, null)), CancellationToken.None);
         partial.Status.Should().Be("InProgress");
-        partial.ProgressPercent.Should().Be(0); // 0/1 bước xong
+        partial.ProgressPercent.Should().Be(60); // 60% của 1 bước quy trình
 
         var done = await _updateStep.Handle(new UpdateStepProgressCommand(
             plan.Id, new UpdateStepProgressRequest(0, 100, null)), CancellationToken.None);
