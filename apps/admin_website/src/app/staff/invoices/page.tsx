@@ -1056,11 +1056,20 @@ function HistoryTab({ paid }: { paid: Invoice[] }) {
       {/* Table */}
       <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-        <table className="w-full text-[13px] min-w-[650px]">
+        <table className="w-full text-[13px] min-w-[900px]">
           <thead>
             <tr className="bg-slate-50/70 border-b border-slate-200">
-              {["Mã HĐ","Ngày thu","Bệnh nhân","Bác sĩ","Nội dung","Thanh toán","Tổng tiền"].map(h => (
-                <th key={h} className="px-5 py-3 text-left text-[11px] font-extrabold text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+              {/* Cột tiền canh phải để tiêu đề thẳng hàng với con số bên dưới */}
+              {([
+                { label: "Mã HĐ",      cls: "text-left w-28" },
+                { label: "Ngày thu",   cls: "text-left w-24" },
+                { label: "Bệnh nhân",  cls: "text-left" },
+                { label: "Bác sĩ",     cls: "text-left" },
+                { label: "Nội dung",   cls: "text-left" },
+                { label: "Thanh toán", cls: "text-left" },
+                { label: "Tổng tiền",  cls: "text-right" },
+              ] as const).map(h => (
+                <th key={h.label} className={`px-4 py-3 text-[11px] font-extrabold text-slate-400 uppercase tracking-wider whitespace-nowrap ${h.cls}`}>{h.label}</th>
               ))}
             </tr>
           </thead>
@@ -1069,31 +1078,33 @@ function HistoryTab({ paid }: { paid: Invoice[] }) {
               const m = inv.paymentMethod ? PAY_CFG[inv.paymentMethod] : null;
               return (
                 <tr key={inv.id} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="px-5 py-3.5 font-black text-slate-500 font-mono text-[12px]">{inv.id}</td>
-                  <td className="px-5 py-3.5 font-semibold text-slate-500 whitespace-nowrap">{inv.paidDate ?? inv.date}</td>
-                  <td className="px-5 py-3.5">
+                  {/* Mã hóa đơn dạng người đọc được (INV001) — in cả GUID thì ô tràn 3 dòng */}
+                  <td className="px-4 py-3.5 font-black text-slate-500 font-mono text-[12px] whitespace-nowrap" title={inv.id}>{inv.planId}</td>
+                  <td className="px-4 py-3.5 font-semibold text-slate-500 whitespace-nowrap">{inv.paidDate ?? inv.date}</td>
+                  <td className="px-4 py-3.5 whitespace-nowrap">
                     <div className="font-black text-slate-900">{inv.patientName}</div>
                     <div className="font-mono text-slate-400 text-[11.5px]">{inv.patientPhone}</div>
                   </td>
-                  <td className="px-5 py-3.5">
-                    <span className={`text-[11.5px] font-black px-2 py-0.5 rounded-lg border ${DENTIST_COLOR[inv.dentist] ?? "bg-slate-50 text-slate-600 border-slate-200"}`}>{inv.dentist}</span>
+                  <td className="px-4 py-3.5 whitespace-nowrap">
+                    <span className={`inline-block text-[11.5px] font-black px-2 py-0.5 rounded-lg border whitespace-nowrap ${DENTIST_COLOR[inv.dentist] ?? "bg-slate-50 text-slate-600 border-slate-200"}`}>{inv.dentist}</span>
                   </td>
-                  <td className="px-5 py-3.5 max-w-[200px]">
+                  {/* Chỉ cột nội dung được xuống dòng — các cột còn lại giữ trên một hàng */}
+                  <td className="px-4 py-3.5 min-w-[220px]">
                     <p className="text-slate-600 font-semibold text-[12.5px] leading-snug">
                       {inv.items.map((it, i) => (
                         <span key={i}>{it.qty > 1 ? `${it.qty}× ` : ""}{it.name}{i < inv.items.length - 1 ? "; " : ""}</span>
                       ))}
                     </p>
                   </td>
-                  <td className="px-5 py-3.5">
+                  <td className="px-4 py-3.5 whitespace-nowrap">
                     {m && (
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[12px] font-black border ${m.bg} ${m.border} ${m.color}`}>
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d={m.icon} /></svg>
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[12px] font-black border whitespace-nowrap ${m.bg} ${m.border} ${m.color}`}>
+                        <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d={m.icon} /></svg>
                         {m.label}
                       </span>
                     )}
                   </td>
-                  <td className="px-5 py-3.5 text-right">
+                  <td className="px-4 py-3.5 text-right whitespace-nowrap">
                     <div className="font-black text-slate-900 font-mono text-[13.5px]">{fmt(inv.depositAmount)}</div>
                     {inv.paymentType === "deposit"
                       ? <div className="text-[11px] text-amber-600 font-semibold">Đặt cọc · còn {fmt(inv.remaining)}</div>
