@@ -62,6 +62,8 @@ class _SelectServicePageState extends State<SelectServicePage> {
       name: s.name,
       description: s.description,
       price: s.formattedPrice,
+      imageUrl: s.imageUrl,
+      iconUrl: s.iconUrl,
     );
     context.push(AppRoutes.bookingSelectDatetime, extra: widget.draft.copyWith(service: service));
   }
@@ -71,6 +73,8 @@ class _SelectServicePageState extends State<SelectServicePage> {
         name: s.name,
         description: s.description,
         price: s.formattedPrice,
+        imageUrl: s.imageUrl,
+        iconUrl: s.iconUrl,
       );
 
   @override

@@ -80,4 +80,19 @@ public class FirebasePushNotificationTests
             TestContext.Progress.WriteLine($"Latest Appointment: Id={latestAppt.Id}, Status={latestAppt.Status}, PatientId={latestAppt.PatientId}, PatientUserId={latestAppt.Patient?.UserId}");
         }
     }
+
+    [Test]
+    public async Task CheckServicesData()
+    {
+        var optionsBuilder = new DbContextOptionsBuilder<DentalClinic.API.Infrastructure.Persistence.AppDbContext>();
+        optionsBuilder.UseNpgsql("Host=aws-1-ap-southeast-1.pooler.supabase.com;Port=5432;Database=postgres;Username=postgres.iyuwmzlolzsdqcucgufr;Password=Huan0508@2004;SslMode=Require;TrustServerCertificate=true;Maximum Pool Size=3;Minimum Pool Size=0;Connection Idle Lifetime=15;");
+        using var db = new DentalClinic.API.Infrastructure.Persistence.AppDbContext(optionsBuilder.Options);
+
+        var services = await db.Services.ToListAsync();
+        TestContext.Progress.WriteLine($"Total Services: {services.Count}");
+        foreach (var s in services)
+        {
+            TestContext.Progress.WriteLine($"Service: {s.Name}, ImageUrl: '{s.ImageUrl}', IconUrl: '{s.IconUrl}'");
+        }
+    }
 }

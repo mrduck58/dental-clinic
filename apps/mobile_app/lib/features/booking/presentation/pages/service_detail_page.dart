@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/settings_manager.dart';
+import 'package:mobile_app/core/constants/api_constants.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/booking/data/booking_models.dart';
 import 'package:mobile_app/features/booking/presentation/widgets/booking_widgets.dart';
@@ -9,10 +11,67 @@ class ServiceDetailPage extends StatelessWidget {
   final ServiceInfo service;
   const ServiceDetailPage({super.key, required this.service});
 
+  Widget _buildServiceIcon(BuildContext context) {
+    if (service.iconUrl != null && service.iconUrl!.isNotEmpty) {
+      final resolved = ApiConstants.resolveAssetUrl(service.iconUrl);
+      if (resolved != null && resolved.isNotEmpty) {
+        if (resolved.toLowerCase().contains('.svg')) {
+          return Container(
+            width: 52,
+            height: 52,
+            padding: const EdgeInsets.all(11),
+            decoration: BoxDecoration(
+              color: context.isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: SvgPicture.network(
+              resolved,
+              fit: BoxFit.contain,
+              placeholderBuilder: (_) => const SizedBox(),
+            ),
+          );
+        }
+        return Container(
+          width: 52,
+          height: 52,
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: context.isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Image.network(
+            resolved,
+            fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => Icon(
+              Iconsax.health,
+              color: context.isDark ? Colors.white : AppColors.primary,
+              size: 26,
+            ),
+          ),
+        );
+      }
+    }
+
+    return Container(
+      width: 52,
+      height: 52,
+      decoration: BoxDecoration(
+        color: context.isDark ? const Color(0xFF451A1A) : AppColors.primaryLight,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Icon(
+        Iconsax.health,
+        color: context.isDark ? Colors.white : AppColors.primary,
+        size: 26,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     final bottomPad = MediaQuery.of(context).padding.bottom;
+    final hasImageUrl = service.imageUrl != null && service.imageUrl!.isNotEmpty;
 
     return Scaffold(
       backgroundColor: context.bg,
@@ -25,6 +84,55 @@ class ServiceDetailPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // ── Hero Image Banner (nếu có ảnh dịch vụ trên Supabase) ──
+                  if (hasImageUrl) ...[
+                    Container(
+                      width: double.infinity,
+                      height: 190,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: context.isDark ? 0.25 : 0.08),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            Image.network(
+                              ApiConstants.resolveAssetUrl(service.imageUrl)!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                color: context.isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                                child: Center(
+                                  child: Icon(Iconsax.health, size: 48, color: AppColors.primary.withValues(alpha: 0.4)),
+                                ),
+                              ),
+                            ),
+                            Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Colors.transparent,
+                                    Colors.black.withValues(alpha: 0.35),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+
                   // ── Header card ─────────────────────────────────────────
                   Container(
                     width: double.infinity,
@@ -48,19 +156,7 @@ class ServiceDetailPage extends StatelessWidget {
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              width: 48,
-                              height: 48,
-                              decoration: BoxDecoration(
-                                color: context.isDark ? const Color(0xFF451A1A) : AppColors.primaryLight,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Icon(
-                                Iconsax.health,
-                                color: context.isDark ? Colors.white : AppColors.primary,
-                                size: 24,
-                              ),
-                            ),
+                            _buildServiceIcon(context),
                             const SizedBox(width: 14),
                             Expanded(
                               child: Column(

@@ -282,6 +282,8 @@ class _ServicesListPageState extends State<ServicesListPage> {
             description: service.description,
             price: service.formattedPrice,
             note: '$quickInfo • ${isVi ? 'Khám sơ bộ miễn phí' : 'Free preliminary exam'}',
+            imageUrl: service.imageUrl,
+            iconUrl: service.iconUrl,
           ),
         );
       },

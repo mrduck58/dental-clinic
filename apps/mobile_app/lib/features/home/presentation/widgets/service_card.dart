@@ -47,6 +47,8 @@ class ServiceCard extends StatelessWidget {
               description: service.description,
               price: service.formattedPrice,
               note: '${service.durationText} - ${context.l10n('free_checkup')}',
+              imageUrl: service.imageUrl,
+              iconUrl: service.iconUrl,
             ),
           );
         },
