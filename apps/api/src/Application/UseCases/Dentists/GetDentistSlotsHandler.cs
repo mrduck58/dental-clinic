@@ -28,12 +28,6 @@ public class GetDentistSlotsHandler(
     {
         var date = request.Date;
 
-        // Chủ Nhật mặc định phòng khám nghỉ
-        if (date.DayOfWeek == DayOfWeek.Sunday)
-        {
-            return Enumerable.Empty<DentistWithSlotsDto>();
-        }
-
         // Kiểm tra WorkSchedule cho ngày này
         var daySchedules = await workScheduleRepository.GetByDateAsync(date, ct);
 

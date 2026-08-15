@@ -688,39 +688,50 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
                     child: SizedBox(
                       height: 50,
                       child: OutlinedButton.icon(
-                        // Vào wizard đặt lịch từ bước CHỌN NGÀY GIỜ (thứ tự thật của wizard là
-                        // bệnh nhân → dịch vụ → ngày giờ → bác sĩ → xác nhận). Bỏ qua hai bước đầu
-                        // vì dời lịch không đổi bệnh nhân lẫn dịch vụ; chỉ bước xác nhận cuối gọi
-                        // API dời thay vì API đặt mới.
                         onPressed: () {
-                          context.push(
-                            AppRoutes.bookingSelectDatetime,
-                            extra: BookingDraft(
-                              reschedulingAppointmentId: item.appointmentId,
-                              // Mã lịch hẹn không đổi khi dời — mang theo để màn xác nhận và màn
-                              // hoàn tất hiển thị đúng mã cũ thay vì chỗ trống.
-                              appointmentCode: item.appointmentCode,
-                              // Làm nổi bật bác sĩ đang phụ trách ở bước chọn bác sĩ, nhưng vẫn cho
-                              // đổi sang người khác nếu họ không còn trống khung giờ mới.
-                              preferredDentistId: item.dentistId,
-                              // Chỉ để màn xác nhận hiển thị đúng tên bệnh nhân/dịch vụ hiện tại.
-                              // Id dịch vụ không có trong MyAppointmentItem, và cũng không cần:
-                              // luồng dời gửi serviceId = null nghĩa là giữ nguyên dịch vụ cũ.
-                              patient: PatientInfo(
-                                id: item.patientId ?? 'self',
-                                name: item.patientName ?? '',
-                                relationship: item.patientRelationship ?? '',
-                              ),
-                              service: item.serviceName == null
-                                  ? null
-                                  : ServiceInfo(
-                                      id: '',
-                                      name: item.serviceName!,
-                                      description: '',
-                                      price: '',
-                                    ),
-                            ),
+                          final parsedDate = item.parsedDate;
+                          final date = DateTime(parsedDate.year, parsedDate.month, parsedDate.day);
+                          final startHour = parsedDate.hour.toString().padLeft(2, '0');
+                          final startMin = parsedDate.minute.toString().padLeft(2, '0');
+                          final endHour = (parsedDate.hour + 1).toString().padLeft(2, '0');
+                          final timeSlot = TimeSlot(range: '$startHour:$startMin - $endHour:$startMin');
+
+                          final doctor = DoctorInfo(
+                            id: item.dentistId,
+                            name: item.dentistName,
+                            title: '',
+                            specialty: item.specialization,
+                            room: '',
+                            session: parsedDate.hour < 12 ? DoctorSession.morning : DoctorSession.afternoon,
+                            rating: 5.0,
+                            reviewCount: 0,
+                            avatarUrl: item.dentistAvatarUrl,
                           );
+
+                          final draft = BookingDraft(
+                            reschedulingAppointmentId: item.appointmentId,
+                            appointmentCode: item.appointmentCode,
+                            preferredDentistId: item.dentistId,
+                            patient: PatientInfo(
+                              id: item.patientId ?? 'self',
+                              name: item.patientName ?? '',
+                              relationship: item.patientRelationship ?? '',
+                            ),
+                            service: item.serviceName == null
+                                ? null
+                                : ServiceInfo(
+                                    id: '',
+                                    name: item.serviceName!,
+                                    description: '',
+                                    price: '',
+                                  ),
+                            date: date,
+                            timeSlot: timeSlot,
+                            doctor: doctor,
+                            symptoms: item.symptoms,
+                          );
+
+                          context.push(AppRoutes.bookingReview, extra: draft);
                         },
                         style: OutlinedButton.styleFrom(
                           foregroundColor: context.textPrimary,
@@ -909,6 +920,7 @@ class _CancelReasonBottomSheetState extends State<_CancelReasonBottomSheet> {
   String? _reasonsError;
   final _textController = TextEditingController();
   bool _submitting = false;
+  String? _submitError;
 
   CancellationReasonOption? get _selectedReason =>
       _reasons.where((r) => r.code == _selectedCode).firstOrNull;
@@ -961,7 +973,10 @@ class _CancelReasonBottomSheetState extends State<_CancelReasonBottomSheet> {
     final reason = _selectedReason;
     if (reason == null) return;
 
-    setState(() => _submitting = true);
+    setState(() {
+      _submitting = true;
+      _submitError = null;
+    });
     try {
       final note = _textController.text.trim();
       await _bookingService.cancelAppointment(
@@ -982,6 +997,7 @@ class _CancelReasonBottomSheetState extends State<_CancelReasonBottomSheet> {
           SnackBar(
             content: Text(widget.isVi ? 'Đã hủy lịch khám thành công.' : 'Appointment cancelled successfully.'),
             behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 100),
             backgroundColor: const Color(0xFF16A34A),
           ),
         );
@@ -992,20 +1008,14 @@ class _CancelReasonBottomSheetState extends State<_CancelReasonBottomSheet> {
         if (e is DioException) {
           msg = ApiClient.errorMessage(e);
         }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(msg),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: const Color(0xFFEF4444),
-          ),
-        );
+        setState(() {
+          _submitError = msg;
+        });
       }
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
   }
-
-  // _translateToVi đã bỏ: nhãn song ngữ nay do server trả về kèm mỗi lý do, app không tự dịch nữa.
 
   @override
   Widget build(BuildContext context) {
@@ -1027,10 +1037,15 @@ class _CancelReasonBottomSheetState extends State<_CancelReasonBottomSheet> {
         top: 14,
         bottom: 24 + MediaQuery.of(context).viewInsets.bottom,
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.85,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
           Center(
             child: Container(
               width: 48,
@@ -1122,6 +1137,38 @@ class _CancelReasonBottomSheetState extends State<_CancelReasonBottomSheet> {
               contentPadding: const EdgeInsets.all(16),
             ),
           ),
+          if (_submitError != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: context.isDark ? const Color(0xFF451A1A) : const Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: context.isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFCA5A5),
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.error_outline_rounded, color: Color(0xFFDC2626), size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _submitError!,
+                      style: TextStyle(
+                        color: context.isDark ? const Color(0xFFFCA5A5) : const Color(0xFF991B1B),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,
@@ -1165,7 +1212,9 @@ class _CancelReasonBottomSheetState extends State<_CancelReasonBottomSheet> {
           ),
         ],
       ),
-    );
+    ),
+  ),
+);
   }
 
   Widget _buildRadioOption(String value, String label) {

@@ -62,8 +62,15 @@ class _SelectServicePageState extends State<SelectServicePage> {
       name: s.name,
       description: s.description,
       price: s.formattedPrice,
+      imageUrl: s.imageUrl,
+      iconUrl: s.iconUrl,
     );
-    context.push(AppRoutes.bookingSelectDatetime, extra: widget.draft.copyWith(service: service));
+    final updatedDraft = widget.draft.copyWith(service: service);
+    if (updatedDraft.date != null && updatedDraft.timeSlot != null && updatedDraft.doctor != null) {
+      context.push(AppRoutes.bookingReview, extra: updatedDraft);
+    } else {
+      context.push(AppRoutes.bookingSelectDatetime, extra: updatedDraft);
+    }
   }
 
   ServiceInfo _toServiceInfo(ServiceModel s) => ServiceInfo(
@@ -71,6 +78,8 @@ class _SelectServicePageState extends State<SelectServicePage> {
         name: s.name,
         description: s.description,
         price: s.formattedPrice,
+        imageUrl: s.imageUrl,
+        iconUrl: s.iconUrl,
       );
 
   @override
