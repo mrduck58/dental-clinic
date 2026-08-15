@@ -124,7 +124,11 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
 
     return Scaffold(
       backgroundColor: context.bg,
-      appBar: BookingAppBar(title: isVi ? 'Xác nhận đặt khám' : 'Confirm Booking'),
+      appBar: BookingAppBar(
+        title: d.isRescheduling
+            ? (isVi ? 'Xác nhận đổi lịch' : 'Confirm Reschedule')
+            : (isVi ? 'Xác nhận đặt khám' : 'Confirm Booking'),
+      ),
       body: Column(
         children: [
           Expanded(
@@ -150,14 +154,19 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
                     ),
                     child: Column(
                       children: [
+                        if (d.patient != null)
+                          _InfoRow(
+                            icon: Iconsax.user,
+                            label: isVi ? 'Bệnh nhân' : 'Patient',
+                            value: '${d.patient!.name} (${d.patient!.relationship})',
+                            onEdit: d.isRescheduling ? null : () => context.push(AppRoutes.bookingSelectPatient, extra: d),
+                          ),
                         if (d.service != null)
                           _InfoRow(
                             icon: Iconsax.health,
                             label: isVi ? 'Chuyên khoa' : 'Service',
-                            // Không dùng d.service! — luồng dời lịch có thể tới đây mà không mang
-                            // dịch vụ (lịch cũ không gắn dịch vụ nào), null assertion sẽ làm crash màn hình.
                             value: d.service?.name ?? (isVi ? 'Khám tổng quát' : 'General check-up'),
-                            onEdit: () => context.push(AppRoutes.bookingSelectService, extra: d),
+                            onEdit: d.isRescheduling ? null : () => context.push(AppRoutes.bookingSelectService, extra: d),
                           ),
                         if (d.date != null)
                           _InfoRow(
@@ -296,7 +305,9 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
                             color: Colors.white, strokeWidth: 2),
                       )
                     : Text(
-                        isVi ? 'Xác nhận đặt khám' : 'Confirm Booking',
+                        d.isRescheduling
+                            ? (isVi ? 'Xác nhận đổi lịch' : 'Confirm Reschedule')
+                            : (isVi ? 'Xác nhận đặt khám' : 'Confirm Booking'),
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
