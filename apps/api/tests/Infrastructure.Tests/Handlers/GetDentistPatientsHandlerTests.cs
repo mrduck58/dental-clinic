@@ -211,4 +211,50 @@ public class GetDentistPatientsHandlerTests
 
         result.Patients.Should().BeEmpty();
     }
+
+    /// <summary>Bệnh nhân phải được sắp xếp theo thứ tự hàng đợi (InProgress -> CheckedIn theo QueueOrder) và có QueueNumber chính xác.</summary>
+    [Test]
+    public async Task HandleAsync_OrdersPatientsByQueueOrder_AndAssignsQueueNumbers()
+    {
+        var dentistUser = User.Create("gp7", $"gp7-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist);
+        var patientUser1 = User.Create("gp7-p1", $"gp7-p1-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient, fullName: "Bệnh nhân 1 (Hẹn sớm nhưng checkin sau)");
+        var patientUser2 = User.Create("gp7-p2", $"gp7-p2-{Guid.NewGuid()}@test.com", "hash", UserRole.Patient, fullName: "Bệnh nhân 2 (Hẹn muộn nhưng checkin trước)");
+        _db.Users.AddRange(dentistUser, patientUser1, patientUser2);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
+        var patient1 = Patient.Create(patientUser1.Id, new DateOnly(1990, 1, 1), "Nam");
+        var patient2 = Patient.Create(patientUser2.Id, new DateOnly(1995, 1, 1), "Nữ");
+        patient1.User = patientUser1;
+        patient2.User = patientUser2;
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
+        _db.Patients.AddRange(patient1, patient2);
+
+        // Lịch 1: hẹn 10:00, check-in lúc 08:30 (Ticks lớn hơn)
+        var appt1 = Appointment.Create(patient1.Id, dentist.Id, VietnamTimeToday(10));
+        appt1.CheckIn();
+        appt1.SetQueueEntryOrder(2000);
+        appt1.SetQueueOrder(2000);
+
+        // Lịch 2: hẹn 10:30, check-in lúc 08:00 (Ticks nhỏ hơn -> bốc số #1 và đứng đầu queue)
+        var appt2 = Appointment.Create(patient2.Id, dentist.Id, VietnamTimeToday(11));
+        appt2.CheckIn();
+        appt2.SetQueueEntryOrder(1000);
+        appt2.SetQueueOrder(1000);
+
+        _db.Appointments.AddRange(appt1, appt2);
+        await _db.SaveChangesAsync();
+
+        var result = await _handler.Handle(new GetDentistPatientsQuery(dentist.Id, VietnamToday()), CancellationToken.None);
+
+        result.Patients.Should().HaveCount(2);
+        // Appt2 phải đứng đầu vì QueueOrder nhỏ hơn
+        result.Patients[0].AppointmentId.Should().Be(appt2.Id);
+        result.Patients[0].QueueNumber.Should().Be(1);
+        // Appt1 đứng sau
+        result.Patients[1].AppointmentId.Should().Be(appt1.Id);
+        result.Patients[1].QueueNumber.Should().Be(2);
+    }
 }

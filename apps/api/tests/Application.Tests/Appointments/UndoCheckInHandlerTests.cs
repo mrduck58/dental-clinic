@@ -64,40 +64,38 @@ public class UndoCheckInHandlerTests
     private Task Undo(Appointment appointment) =>
         _handler.Handle(new UndoCheckInCommand(appointment.Id), CancellationToken.None);
 
-    /// <summary>Lịch bệnh nhân tự đặt quay về hàng chờ xác nhận — đúng chỗ nó đến trước khi bị bấm nhầm.</summary>
+    /// <summary>Lịch bệnh nhân tự đặt quay về danh sách chờ check-in (Confirmed).</summary>
     [Test]
-    public async Task Undo_OnlineAppointment_GoesBackToPending()
+    public async Task Undo_OnlineAppointment_GoesBackToConfirmed()
     {
         var appointment = SeedOnlineCheckedIn();
 
         await Undo(appointment);
 
-        appointment.Status.Should().Be(AppointmentStatus.Pending);
+        appointment.Status.Should().Be(AppointmentStatus.Confirmed);
         appointment.CheckedInAt.Should().BeNull();
         appointment.CancelledAt.Should().BeNull("hoàn tác không phải là hủy lịch");
         await _repo.Received(1).UpdateAsync(appointment, Arg.Any<CancellationToken>());
     }
 
     /// <summary>
-    /// Lịch tại quầy sinh ra ngay tại lúc check-in nên không có trạng thái nào trước đó để quay về:
-    /// hoàn tác chỉ có thể là hủy hẳn, và phải ghi rõ ai hủy để báo cáo không tính nhầm thành
-    /// bệnh nhân bỏ hẹn.
+    /// Lịch tại quầy khi hoàn tác check-in cũng quay về danh sách chờ check-in (Confirmed)
+    /// để nhân viên có thể thực hiện check-in lại khi bệnh nhân sẵn sàng.
     /// </summary>
     [Test]
-    public async Task Undo_WalkInAppointment_IsCancelledWithReason()
+    public async Task Undo_WalkInAppointment_GoesBackToConfirmed()
     {
         var appointment = SeedWalkInCheckedIn();
 
         await Undo(appointment);
 
-        appointment.Status.Should().Be(AppointmentStatus.Cancelled);
-        appointment.CancellationReason.Should().Be(CancellationReason.Other);
-        appointment.CancellationNote.Should().Be(Appointment.UndoCheckInCancellationNote);
-        appointment.CancelledByUserId.Should().Be(StaffUserId);
+        appointment.Status.Should().Be(AppointmentStatus.Confirmed);
+        appointment.CancelledAt.Should().BeNull();
         appointment.CheckedInAt.Should().BeNull();
+        await _repo.Received(1).UpdateAsync(appointment, Arg.Any<CancellationToken>());
     }
 
-    /// <summary>Kết quả trả về nói rõ đã xảy ra chuyện gì, vì hai nguồn cho hai kết cục khác nhau.</summary>
+    /// <summary>Kết quả trả về nói rõ đã xảy ra chuyện gì.</summary>
     [Test]
     public async Task Undo_ReportsOriginAndResultingStatus()
     {
@@ -106,7 +104,7 @@ public class UndoCheckInHandlerTests
         var result = await _handler.Handle(new UndoCheckInCommand(appointment.Id), CancellationToken.None);
 
         result.Origin.Should().Be(nameof(AppointmentOrigin.WalkIn));
-        result.Status.Should().Be(nameof(AppointmentStatus.Cancelled));
+        result.Status.Should().Be(nameof(AppointmentStatus.Confirmed));
     }
 
     /// <summary>

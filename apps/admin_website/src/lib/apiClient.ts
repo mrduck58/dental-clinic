@@ -1798,7 +1798,7 @@ export interface UndoCheckInResult {
   appointmentId: string;
   /** Nguồn lịch hẹn TRƯỚC khi hoàn tác — dùng để nói đúng chuyện gì vừa xảy ra. */
   origin: AppointmentOrigin;
-  /** "Pending" (lịch đặt từ xa) hoặc "Cancelled" (lịch tại quầy). */
+  /** "Confirmed" (quay về danh sách chờ check-in). */
   status: string;
 }
 
@@ -1977,6 +1977,9 @@ export interface DentistPatientDto {
   symptoms: string | null;
   isNew: boolean;
   isFollowUpVisit: boolean; // Buổi hẹn do staff check-in từ tab Tái khám
+  queueNumber?: number;
+  checkedInAt?: string | null;
+  waitMinutes?: number;
 }
 
 export interface DentistPatientsResponse {
@@ -2048,6 +2051,7 @@ export async function getStaffScheduleApi(date?: string): Promise<StaffScheduleR
   const query = params.toString() ? `?${params}` : "";
   const res = await fetch(`${API_URL}/api/appointments/staff/schedule${query}`, {
     headers: { ...authHeaders() },
+    cache: "no-store",
   });
   await checkAuth(res);
   if (!res.ok) {

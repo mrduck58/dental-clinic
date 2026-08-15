@@ -15,7 +15,10 @@ public record DentistPatientDto(
     string? ServiceName,
     string? Symptoms,
     bool IsNew,
-    bool IsFollowUpVisit); // Buổi hẹn do staff check-in từ tab Tái khám (gắn về buổi gốc)
+    bool IsFollowUpVisit, // Buổi hẹn do staff check-in từ tab Tái khám (gắn về buổi gốc)
+    int QueueNumber = 0,
+    DateTimeOffset? CheckedInAt = null,
+    int WaitMinutes = 0);
 
 public record DentistPatientsResponse(
     DateOnly Date,

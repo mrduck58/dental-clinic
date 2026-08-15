@@ -178,9 +178,14 @@ public class GetStaffScheduleHandler(
         // 1. Tìm lịch hẹn bắt đầu đúng khung giờ này (ưu tiên lấy thông tin bệnh nhân chính)
         var exactMatch = appts.FirstOrDefault(a => a.AppointmentDate == utcSlot);
 
-        // 2. Nếu không có lịch hẹn bắt đầu đúng khung giờ này, kiểm tra xem có lịch hẹn nào trước đó kéo dài trùm qua khung giờ này không
+        // 2. Nếu không có lịch hẹn bắt đầu đúng khung giờ này, kiểm tra xem có lịch hẹn nào trước đó kéo dài trùm qua khung giờ này không.
+        // LƯU Ý: Nếu lịch hẹn trước đó đã khám xong (PendingPayment/Completed/NoShow), các khung giờ phía sau
+        // được giải phóng (không bị khóa nữa), chỉ giữ thông tin người đặt tại khung giờ bắt đầu chính (exactMatch).
         var overlappingMatch = exactMatch ?? appts.FirstOrDefault(a =>
         {
+            if (a.Status is AppointmentStatus.PendingPayment or AppointmentStatus.Completed or AppointmentStatus.NoShow)
+                return false;
+
             var aLocal = a.AppointmentDate.UtcDateTime.AddHours(7);
             var aStart = aLocal.Hour * 60 + aLocal.Minute;
             var duration = (a.Service != null && a.Service.DurationMinutes > 0) ? a.Service.DurationMinutes : SlotCalculator.SlotMinutes;
@@ -189,7 +194,8 @@ public class GetStaffScheduleHandler(
         });
 
         var isBooked = overlappingMatch != null;
-        var isPast = utcSlot < DateTimeOffset.UtcNow;
+        // Cho phép đặt lịch tại quầy trong 15 phút đầu của ca (trước 15 phút so với ca tiếp theo).
+        var isPast = utcSlot.AddMinutes(SlotCalculator.WalkInGraceMinutes) <= DateTimeOffset.UtcNow;
         return new StaffScheduleSlot(time, isBooked, overlappingMatch?.Patient.FullName, isPast);
     }
 }

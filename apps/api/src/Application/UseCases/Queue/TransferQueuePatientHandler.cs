@@ -101,17 +101,17 @@ public class TransferQueuePatientHandler(
     {
         var roomSchedules = await workScheduleRepository.GetDentistSchedulesForDateAsync(today, roomName, ct);
 
-        var onShiftNames = roomSchedules
+        var onShiftSchedules = roomSchedules
             .Where(ws => WorkShifts.IsWorkingAt([ws.Shift], nowVietnam.Hour, nowVietnam.Minute))
-            .Select(ws => ws.StaffName)
-            .ToHashSet();
+            .ToList();
 
-        if (onShiftNames.Count == 0) return null;
+        if (onShiftSchedules.Count == 0) return null;
 
         var dentists = await dentistRepository.GetAllWithUserAsync(ct);
 
         return dentists
-            .Where(d => onShiftNames.Contains(d.FullName) && IsEmployed(d.Employee.EmploymentStatus))
+            .Where(d => IsEmployed(d.Employee.EmploymentStatus) &&
+                        onShiftSchedules.Any(ws => MatchesDentist(ws, d)))
             .OrderBy(d => d.FullName, StringComparer.CurrentCulture)
             .FirstOrDefault();
     }
@@ -129,20 +129,27 @@ public class TransferQueuePatientHandler(
 
         var roomSchedules = await workScheduleRepository.GetDentistSchedulesForDateAsync(today, roomName, ct);
 
-        var assignableNames = roomSchedules
+        var assignableSchedules = roomSchedules
             .Where(ws => WorkShifts.IsWorkingAt([ws.Shift], nowVietnam.Hour, nowVietnam.Minute) ||
                          WorkShifts.StartsWithinMinutes(ws.Shift, nowMinutes, WorkShifts.ShiftHandoverWindowMinutes))
-            .Select(ws => ws.StaffName)
-            .ToHashSet();
+            .ToList();
 
-        if (assignableNames.Count == 0) return null;
+        if (assignableSchedules.Count == 0) return null;
 
         var dentists = await dentistRepository.GetAllWithUserAsync(ct);
 
         return dentists.FirstOrDefault(d =>
             d.Id == dentistId &&
-            assignableNames.Contains(d.FullName) &&
-            IsEmployed(d.Employee.EmploymentStatus));
+            IsEmployed(d.Employee.EmploymentStatus) &&
+            assignableSchedules.Any(ws => MatchesDentist(ws, d)));
+    }
+
+    private static bool MatchesDentist(WorkSchedule ws, DentistProfile dentist)
+    {
+        if (ws.EmployeeId.HasValue)
+            return ws.EmployeeId.Value == dentist.EmployeeId;
+
+        return StaffNameMatcher.IsSamePerson(ws.StaffName, dentist.FullName);
     }
 
     /// <summary>Bác sĩ còn đang làm việc: EmploymentStatus phải là "Active".</summary>

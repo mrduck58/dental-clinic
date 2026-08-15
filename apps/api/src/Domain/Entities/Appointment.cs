@@ -140,10 +140,8 @@ public class Appointment
     /// vào phòng (InProgress trở đi) thì buổi khám có thật, không còn là cú bấm nhầm nữa và đã có
     /// bệnh án/hóa đơn treo vào lịch này.
     ///
-    /// Lịch đặt từ xa quay về <see cref="AppointmentStatus.Pending"/> — trả nó về đúng chỗ nó đến,
-    /// tức danh sách đơn chờ lễ tân xử lý. Lịch lập tại quầy (<see cref="AppointmentOrigin.WalkIn"/>)
-    /// sinh ra ngay tại lúc check-in nên không có trạng thái nào trước đó để quay về: chỉ còn cách
-    /// hủy hẳn, đúng nghĩa "xóa việc vừa lỡ tạo ra".
+    /// Lịch quay về <see cref="AppointmentStatus.Confirmed"/> — tức danh sách Đang chờ check-in,
+    /// để nhân viên có thể thực hiện check-in lại khi bệnh nhân có mặt hoặc tiếp tục quản lý.
     ///
     /// Xóa luôn vị trí hàng đợi để bệnh nhân biến khỏi màn hình hàng đợi phòng khám — giữ lại thì
     /// bác sĩ vẫn thấy một người không còn ở đó.
@@ -157,18 +155,7 @@ public class Appointment
         CheckedInAt = null;
         QueueOrder = null;
         QueueEntryOrder = null;
-
-        if (Origin == AppointmentOrigin.WalkIn)
-        {
-            Status = AppointmentStatus.Cancelled;
-            CancellationReason = Enums.CancellationReason.Other;
-            CancellationNote = UndoCheckInCancellationNote;
-            CancelledAt = now;
-            CancelledByUserId = undoneByUserId;
-            return;
-        }
-
-        Status = AppointmentStatus.Pending;
+        Status = AppointmentStatus.Confirmed;
     }
     public void StartTreatment() => Status = AppointmentStatus.InProgress;
     public void EndTreatment() => Status = AppointmentStatus.PendingPayment;
