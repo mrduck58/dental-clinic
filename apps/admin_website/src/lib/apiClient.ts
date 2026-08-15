@@ -1611,6 +1611,7 @@ export async function approveLeaveRequestApi(id: string): Promise<ApproveLeaveRe
 export interface StaffAppointmentDto {
   appointmentId: string;
   appointmentCode: string;
+  patientId: string;
   patientName: string;
   patientPhone: string | null;
   dentistName: string;
@@ -1620,7 +1621,16 @@ export interface StaffAppointmentDto {
   status: string;          // "Pending" | "Confirmed" | "CheckedIn" | "InProgress" | "PendingPayment" | "Completed" | "Cancelled" | "NoShow"
   symptoms: string | null;
   checkedInAt: string | null; // ISO8601 — thời điểm check-in (null nếu chưa check-in)
+  /** "Online" = bệnh nhân tự đặt trên app/web · "WalkIn" = lễ tân lập tại quầy. */
+  origin: AppointmentOrigin;
 }
+
+/**
+ * Nguồn của lịch hẹn. Quyết định chuyện gì xảy ra khi hoàn tác check-in: lịch đặt từ xa quay về
+ * chờ xác nhận, còn lịch lập tại quầy bị hủy vì nó sinh ra ngay tại lúc check-in, không có
+ * trạng thái nào trước đó để quay về.
+ */
+export type AppointmentOrigin = "Online" | "WalkIn";
 
 // ── Appointment endpoints ──────────────────────────────────────────────────────
 
@@ -1742,6 +1752,31 @@ export async function checkInAppointmentApi(id: string): Promise<void> {
   }
 }
 
+export interface UndoCheckInResult {
+  appointmentId: string;
+  /** Nguồn lịch hẹn TRƯỚC khi hoàn tác — dùng để nói đúng chuyện gì vừa xảy ra. */
+  origin: AppointmentOrigin;
+  /** "Pending" (lịch đặt từ xa) hoặc "Cancelled" (lịch tại quầy). */
+  status: string;
+}
+
+/**
+ * Gỡ một lần check-in bấm nhầm. Chỉ dùng được khi lịch còn ở trạng thái CheckedIn — bác sĩ đã bắt
+ * đầu khám thì server từ chối, vì lúc đó buổi khám đã có thật.
+ */
+export async function undoCheckInAppointmentApi(id: string): Promise<UndoCheckInResult> {
+  const res = await fetch(`${API_URL}/api/appointments/${id}/undo-checkin`, {
+    method: "PUT",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Hoàn tác check-in thất bại");
+  }
+  return res.json() as Promise<UndoCheckInResult>;
+}
+
 export async function markNoShowAppointmentApi(id: string): Promise<void> {
   const res = await fetch(`${API_URL}/api/appointments/${id}/no-show`, {
     method: "PUT",
@@ -1751,6 +1786,22 @@ export async function markNoShowAppointmentApi(id: string): Promise<void> {
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { title?: string }).title ?? "Ghi nhận vắng thất bại");
+  }
+}
+
+/**
+ * Gỡ một lần ghi nhận vắng mặt bấm nhầm. Chỉ dùng được khi lịch còn ở trạng thái NoShow — luôn
+ * quay về Confirmed, chờ bệnh nhân đến check-in.
+ */
+export async function undoNoShowAppointmentApi(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/appointments/${id}/undo-noshow`, {
+    method: "PUT",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Hoàn tác vắng mặt thất bại");
   }
 }
 
@@ -3197,6 +3248,18 @@ export async function getOutstandingInvoicesApi(): Promise<InvoiceDto[]> {
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách công nợ");
+  }
+  return res.json() as Promise<InvoiceDto[]>;
+}
+
+export async function getInvoicesByPatientApi(patientId: string): Promise<InvoiceDto[]> {
+  const res = await fetch(`${API_URL}/api/invoices/by-patient/${patientId}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải hóa đơn của bệnh nhân");
   }
   return res.json() as Promise<InvoiceDto[]>;
 }
