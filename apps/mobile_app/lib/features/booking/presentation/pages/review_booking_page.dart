@@ -74,7 +74,10 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
         if (!mounted) return;
         context.pushReplacement(
           AppRoutes.bookingSuccess,
-          extra: d.copyWith(symptoms: _symptomCtrl.text.trim()),
+          extra: d.copyWith(
+            symptoms: _symptomCtrl.text.trim(),
+            appointmentId: d.reschedulingAppointmentId,
+          ),
         );
         return;
       }
@@ -172,7 +175,7 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
                         if (d.service != null)
                           _InfoRow(
                             icon: Iconsax.health,
-                            label: isVi ? 'Chuyên khoa' : 'Service',
+                            label: isVi ? 'Dịch vụ' : 'Service',
                             value: d.service?.name ?? (isVi ? 'Khám tổng quát' : 'General check-up'),
                             onEdit: () => context.push(AppRoutes.bookingSelectService, extra: d),
                           ),

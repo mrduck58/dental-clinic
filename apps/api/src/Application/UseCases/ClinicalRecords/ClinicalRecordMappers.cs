@@ -102,9 +102,12 @@ public static class ClinicalRecordMappers
             .GroupBy(e => e.StepNumber > 0 ? $"#{e.StepNumber}" : $"~{e.StepName.Trim().ToLowerInvariant()}")
             .ToDictionary(g => g.Key, g => g.Max(e => e.Percent));
 
-        var total = maxPercentByStep.Count;
-        var completed = maxPercentByStep.Values.Count(p => p >= 100);
-        var sumPercent = maxPercentByStep.Values.Sum();
+        var procedureKeys = (procedureStepNumbers ?? Enumerable.Empty<int>()).Distinct().Select(n => $"#{n}").ToList();
+        var allKeys = procedureKeys.Union(maxPercentByStep.Keys).ToList();
+
+        var total = procedureKeys.Count > 0 ? allKeys.Count : maxPercentByStep.Count;
+        var completed = allKeys.Count(k => maxPercentByStep.GetValueOrDefault(k, 0) >= 100);
+        var sumPercent = allKeys.Sum(k => maxPercentByStep.GetValueOrDefault(k, 0));
         var percent = total == 0 ? 0 : (int)Math.Round(sumPercent * 1.0 / total);
 
         return (total, completed, percent, total > 0 && completed == total);

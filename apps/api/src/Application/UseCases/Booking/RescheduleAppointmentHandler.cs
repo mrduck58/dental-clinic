@@ -2,6 +2,7 @@ using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
+using DentalClinic.API.Domain.Schedules;
 using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Booking;
@@ -54,7 +55,7 @@ public class RescheduleAppointmentHandler(
                 "Vui lòng liên hệ phòng khám để được hỗ trợ.");
         }
 
-        if (command.AppointmentDate <= now)
+        if (command.AppointmentDate.AddMinutes(SlotCalculator.WalkInGraceMinutes) <= now)
             throw new ValidationException("Không thể dời lịch về thời điểm trong quá khứ.");
 
         var previousDentistId = appointment.DentistId;

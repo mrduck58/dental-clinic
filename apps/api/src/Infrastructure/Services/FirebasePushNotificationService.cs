@@ -122,7 +122,9 @@ public class FirebasePushNotificationService : IFirebasePushNotificationService
     {
         if (string.IsNullOrWhiteSpace(token)) return;
 
+        // Chỉ giữ 1 token duy nhất cho mỗi user để tránh gửi trùng nhiều lần
         var tokens = UserTokens.GetOrAdd(userId, _ => new ConcurrentDictionary<string, DateTimeOffset>());
+        tokens.Clear();
         tokens[token] = DateTimeOffset.UtcNow;
         _logger.LogInformation("Registered device token for user {UserId} ({DeviceType})", userId, deviceType ?? "Unknown");
 
@@ -131,26 +133,26 @@ public class FirebasePushNotificationService : IFirebasePushNotificationService
         {
             using var scope = _scopeFactory.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var existing = await db.UserDeviceTokens
-                .FirstOrDefaultAsync(t => t.UserId == userId && t.Token == token, ct);
+            
+            // Xóa tất cả token cũ của user này hoặc cùng device token để đảm bảo chỉ có 1 token active
+            var oldTokens = await db.UserDeviceTokens
+                .Where(t => t.UserId == userId || t.Token == token)
+                .ToListAsync(ct);
 
-            if (existing != null)
+            if (oldTokens.Count > 0)
             {
-                existing.UpdatedAt = DateTimeOffset.UtcNow;
-                existing.DeviceType = deviceType;
-                db.UserDeviceTokens.Update(existing);
+                db.UserDeviceTokens.RemoveRange(oldTokens);
             }
-            else
+
+            db.UserDeviceTokens.Add(new UserDeviceToken
             {
-                db.UserDeviceTokens.Add(new UserDeviceToken
-                {
-                    Id = Guid.NewGuid(),
-                    UserId = userId,
-                    Token = token,
-                    DeviceType = deviceType,
-                    UpdatedAt = DateTimeOffset.UtcNow
-                });
-            }
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                Token = token,
+                DeviceType = deviceType,
+                UpdatedAt = DateTimeOffset.UtcNow
+            });
+
             await db.SaveChangesAsync(ct);
         }
         catch (Exception ex)
@@ -178,7 +180,7 @@ public class FirebasePushNotificationService : IFirebasePushNotificationService
         List<string> activeTokens;
         if (UserTokens.TryGetValue(userId, out var tokens) && !tokens.IsEmpty)
         {
-            activeTokens = tokens.Keys.ToList();
+            activeTokens = tokens.Keys.Distinct().ToList();
         }
         else
         {
@@ -188,12 +190,15 @@ public class FirebasePushNotificationService : IFirebasePushNotificationService
                 var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                 activeTokens = await db.UserDeviceTokens
                     .Where(t => t.UserId == userId)
+                    .OrderByDescending(t => t.UpdatedAt)
                     .Select(t => t.Token)
+                    .Distinct()
                     .ToListAsync(ct);
 
                 if (activeTokens.Count > 0)
                 {
                     var userDict = UserTokens.GetOrAdd(userId, _ => new ConcurrentDictionary<string, DateTimeOffset>());
+                    userDict.Clear();
                     foreach (var t in activeTokens) userDict[t] = DateTimeOffset.UtcNow;
                 }
             }
@@ -212,7 +217,8 @@ public class FirebasePushNotificationService : IFirebasePushNotificationService
 
         var expiredTokens = new List<string>();
 
-        foreach (var token in activeTokens)
+        // Chỉ gửi đến các token duy nhất (thường là 1 token mới nhất của user)
+        foreach (var token in activeTokens.Distinct())
         {
             try
             {

@@ -98,7 +98,7 @@ class _SelectServicePageState extends State<SelectServicePage> {
               controller: _searchCtrl,
               style: TextStyle(fontSize: 14, color: context.textPrimary),
               decoration: InputDecoration(
-                hintText: isVi ? 'Tìm nhanh chuyên khoa' : 'Search services...',
+                hintText: isVi ? 'Tìm nhanh dịch vụ' : 'Search services...',
                 hintStyle: TextStyle(color: context.textSecondary, fontSize: 14),
                 prefixIcon: Icon(Iconsax.search_normal, color: context.textSecondary, size: 20),
                 filled: true,
@@ -208,13 +208,43 @@ class _ServiceItem extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
-                          child: Text(
-                            service.name,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              color: context.textPrimary,
-                            ),
+                          child: Wrap(
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            spacing: 6,
+                            runSpacing: 4,
+                            children: [
+                              Text(
+                                service.name,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                  color: context.textPrimary,
+                                ),
+                              ),
+                              if (service.durationMinutes > 0)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary.withValues(alpha: context.isDark ? 0.2 : 0.1),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Iconsax.clock, size: 10, color: AppColors.primary),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        service.durationText,
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                          color: AppColors.primary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
                         const SizedBox(width: 8),

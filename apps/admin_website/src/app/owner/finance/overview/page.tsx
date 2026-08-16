@@ -220,7 +220,14 @@ export default function OwnerFinanceOverviewPage() {
                         <td className="px-6 py-4 font-extrabold text-slate-900">{t.patientName}</td>
                         <td className="px-6 py-4 font-semibold text-slate-600">{t.serviceSummary}</td>
                         <td className="px-6 py-4 font-semibold text-slate-500">{formatDate(t.date)}</td>
-                        <td className="px-6 py-4 text-right font-black text-slate-900">{fmt(t.amount)}</td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="font-black text-slate-900">{fmt(t.amount)}</div>
+                          {t.remainingAmount > 0 && (
+                            <div className="text-[10.5px] text-amber-600 font-bold mt-0.5 whitespace-nowrap">
+                              Còn thiếu {fmt(t.remainingAmount)} (chưa xuất HĐ)
+                            </div>
+                          )}
+                        </td>
                         <td className="px-6 py-4 text-center">
                           <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-black ${cfg.cls}`}>
                             <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />

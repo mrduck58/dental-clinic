@@ -397,7 +397,14 @@ export default function OwnerRevenuePage() {
                         <td className="px-6 py-4 font-semibold text-slate-600">{item.dentistName}</td>
                         <td className="px-6 py-4 font-semibold text-slate-500">{formatDate(item.date)}</td>
                         <td className="px-6 py-4 font-semibold text-slate-500">{item.paymentMethod}</td>
-                        <td className="px-6 py-4 text-right font-black text-slate-900">{fmt(item.amount)}</td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="font-black text-slate-900">{fmt(item.amount)}</div>
+                          {item.remainingAmount > 0 && (
+                            <div className="text-[10.5px] text-amber-600 font-bold mt-0.5 whitespace-nowrap">
+                              Còn thiếu {fmt(item.remainingAmount)} (chưa xuất HĐ)
+                            </div>
+                          )}
+                        </td>
                         <td className="px-6 py-4 text-center">
                           <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-black ${cfg.cls}`}>
                             <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />

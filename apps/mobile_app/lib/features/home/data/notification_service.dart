@@ -52,6 +52,12 @@ class NotificationService {
     await _client.delete(ApiConstants.notificationDelete(id), token: token);
   }
 
+  Future<void> deleteAll() async {
+    final token = await _auth.getToken();
+    if (token == null) throw Exception('Chưa đăng nhập.');
+    await _client.delete(ApiConstants.notifications, token: token);
+  }
+
   /// Gửi FCM device token lên backend để nhận thông báo đẩy native khi tắt app
   Future<void> registerDeviceToken(String deviceToken, {String deviceType = 'Android'}) async {
     try {

@@ -1,3 +1,5 @@
+using DentalClinic.API.Domain.Enums;
+
 namespace DentalClinic.API.Domain.Schedules;
 
 /// <summary>
@@ -9,6 +11,12 @@ namespace DentalClinic.API.Domain.Schedules;
 public static class SlotCalculator
 {
     public const int SlotMinutes = 30;
+
+    /// <summary>
+    /// Thời gian ân hạn cho phép đặt lịch tại quầy sau khi ca đã bắt đầu (15 phút đầu ca, tức còn 15 phút trước ca tiếp theo).
+    /// Ví dụ: ca 09:00 - 09:30 trước 09:15 vẫn mở để đặt lịch tại quầy, từ 09:15 trở đi sẽ bị khóa.
+    /// </summary>
+    public const int WalkInGraceMinutes = 15;
 
     /// <summary>Khung giờ ứng viên bước 30 phút, trải từ ca sớm nhất đến ca muộn nhất trong <see cref="WorkShifts.All"/>.</summary>
     public static readonly IReadOnlyList<(int Hour, int Minute)> AllTimes = GenerateCandidates();
@@ -45,12 +53,15 @@ public static class SlotCalculator
 
     /// <summary>
     /// Khoảng thời gian một lịch hẹn chiếm dụng, dựa theo thời lượng dịch vụ đã đặt.
+    /// Nếu lịch đã hoàn tất khám (PendingPayment / Completed / NoShow), nó không còn kéo dài chiếm dụng
+    /// các khung giờ phía sau nữa mà chỉ giữ đúng khung giờ bắt đầu (30 phút).
     /// Mặc định 30 phút nếu lịch hẹn không gắn dịch vụ hoặc dịch vụ không có thời lượng hợp lệ.
     /// </summary>
-    public static OccupiedRange BuildOccupiedRange(int startHour, int startMinute, int? serviceDurationMinutes)
+    public static OccupiedRange BuildOccupiedRange(int startHour, int startMinute, int? serviceDurationMinutes, AppointmentStatus? status = null)
     {
         var start = startHour * 60 + startMinute;
-        var duration = serviceDurationMinutes is > 0 ? serviceDurationMinutes.Value : SlotMinutes;
+        var isFinished = status is AppointmentStatus.PendingPayment or AppointmentStatus.Completed or AppointmentStatus.NoShow;
+        var duration = (!isFinished && serviceDurationMinutes is > 0) ? serviceDurationMinutes.Value : SlotMinutes;
         return new OccupiedRange(start, start + duration);
     }
 }

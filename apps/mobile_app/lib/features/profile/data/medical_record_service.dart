@@ -230,6 +230,9 @@ class RealTreatmentPlan {
   final double totalCost;
   final double amountPaid;
   final List<StepProgressEntry> stepProgress;
+  final int totalSteps;
+  final int completedSteps;
+  final int progressPercent;
   final DateTime createdAt;
   final DateTime? completedAt;
 
@@ -248,6 +251,9 @@ class RealTreatmentPlan {
     required this.totalCost,
     required this.amountPaid,
     required this.stepProgress,
+    this.totalSteps = 0,
+    this.completedSteps = 0,
+    this.progressPercent = 0,
     required this.createdAt,
     this.completedAt,
   });
@@ -269,6 +275,9 @@ class RealTreatmentPlan {
         stepProgress: (json['stepProgress'] as List<dynamic>? ?? [])
             .map((e) => StepProgressEntry.fromJson(e as Map<String, dynamic>))
             .toList(),
+        totalSteps: (json['totalSteps'] as num?)?.toInt() ?? 0,
+        completedSteps: (json['completedSteps'] as num?)?.toInt() ?? 0,
+        progressPercent: (json['progressPercent'] as num?)?.toInt() ?? 0,
         createdAt: DateTime.parse(json['createdAt'] as String),
         completedAt: json['completedAt'] == null ? null : DateTime.parse(json['completedAt'] as String),
       );

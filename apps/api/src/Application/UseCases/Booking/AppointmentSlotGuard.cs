@@ -38,7 +38,7 @@ public class AppointmentSlotGuard(
             .Select(a =>
             {
                 var otherLocal = a.AppointmentDate.UtcDateTime.AddHours(7);
-                return SlotCalculator.BuildOccupiedRange(otherLocal.Hour, otherLocal.Minute, a.Service?.DurationMinutes);
+                return SlotCalculator.BuildOccupiedRange(otherLocal.Hour, otherLocal.Minute, a.Service?.DurationMinutes, a.Status);
             });
 
         if (SlotCalculator.IsOccupied(newRange.StartMinutes, newRange.EndMinutes, existingRanges))

@@ -203,4 +203,42 @@ public class TransferQueuePatientHandlerTests
             Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
         await _notificationService.DidNotReceive().CreateAsync(Arg.Any<CreateNotificationRequest>(), Arg.Any<CancellationToken>());
     }
+
+    /// <summary>Bác sĩ có tiền tố chức danh trên lịch trực (BS. Đỗ Văn Phong) nhưng User.FullName không có tiền tố (Đỗ Văn Phong)
+    /// vẫn phải khớp đúng qua StaffNameMatcher.</summary>
+    [Test]
+    public async Task HandleAsync_TargetDentistHasTitlePrefixInWorkSchedule_SuccessfullyTransfers()
+    {
+        var shift = CurrentShiftCodeOrNull();
+        if (shift is null)
+            Assert.Ignore("Đang ngoài giờ làm (giờ nghỉ trưa/tối) — không có ca legacy nào che phủ 'bây giờ' để test.");
+        var today = DateOnly.FromDateTime(NowVietnam().Date);
+
+        var sourceDentistUser = User.Create("tq6", $"tq6-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: "BS Nguồn");
+        var targetDentistUser = User.Create("tq7", $"tq7-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: "Đỗ Văn Phong");
+        _db.Users.AddRange(sourceDentistUser, targetDentistUser);
+        var sourceEmployee = Employee.Create(sourceDentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        var targetEmployee = Employee.Create(targetDentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        sourceEmployee.User = sourceDentistUser;
+        targetEmployee.User = targetDentistUser;
+        var sourceDentist = DentistProfile.Create(sourceEmployee.Id, "Nha khoa tổng quát", "N/A", 5);
+        var targetDentist = DentistProfile.Create(targetEmployee.Id, "Nha khoa tổng quát", "N/A", 5);
+        sourceDentist.Employee = sourceEmployee;
+        targetDentist.Employee = targetEmployee;
+        var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
+        _db.Employees.AddRange(sourceEmployee, targetEmployee);
+        _db.DentistProfiles.AddRange(sourceDentist, targetDentist);
+        _db.Patients.Add(patient);
+        _db.WorkSchedules.Add(WorkSchedule.Create(
+            today, shift, "dentist", "dentist", "BS.Đỗ Văn Phong", "Phòng 2", "border-primary", false));
+        var appointment = Appointment.Create(patient.Id, sourceDentist.Id, DateTimeOffset.UtcNow);
+        appointment.CheckIn();
+        _db.Appointments.Add(appointment);
+        await _db.SaveChangesAsync();
+
+        var result = await _handler.Handle(new TransferQueuePatientCommand(appointment.Id, "Phòng 2", targetDentist.Id), CancellationToken.None);
+
+        result.DentistId.Should().Be(targetDentist.Id);
+        (await _db.Appointments.SingleAsync(a => a.Id == appointment.Id)).DentistId.Should().Be(targetDentist.Id);
+    }
 }

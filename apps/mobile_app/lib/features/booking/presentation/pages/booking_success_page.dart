@@ -110,8 +110,8 @@ class _BookingSuccessPageState extends State<BookingSuccessPage>
                     const SizedBox(height: 8),
                     Text(
                       isVi
-                          ? 'Lịch khám của bạn đã được xác nhận.\nPhòng khám sẽ liên hệ nếu có thay đổi.'
-                          : 'Your appointment is confirmed.\nWe will contact you if there are changes.',
+                          ? 'Lịch khám của bạn đang chờ phòng khám xác nhận.\nChúng tôi sẽ thông báo cho bạn sớm nhất.'
+                          : 'Your appointment is pending confirmation.\nWe will notify you soon.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 14,
@@ -146,12 +146,12 @@ class _BookingSuccessPageState extends State<BookingSuccessPage>
                                 Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                    color: AppColors.successLight,
+                                    color: context.isDark ? const Color(0xFF451A03) : const Color(0xFFFEF3C7),
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: const Icon(
                                     Iconsax.calendar_tick,
-                                    color: AppColors.success,
+                                    color: Color(0xFFD97706),
                                     size: 20,
                                   ),
                                 ),
@@ -181,15 +181,15 @@ class _BookingSuccessPageState extends State<BookingSuccessPage>
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 10, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: AppColors.successLight,
+                                    color: context.isDark ? const Color(0xFF451A03) : const Color(0xFFFEF3C7),
                                     borderRadius: BorderRadius.circular(999),
                                   ),
                                   child: Text(
-                                    isVi ? 'Đã xác nhận' : 'Confirmed',
+                                    isVi ? 'Chờ xác nhận' : 'Pending',
                                     style: const TextStyle(
                                       fontSize: 11,
                                       fontWeight: FontWeight.w700,
-                                      color: AppColors.success,
+                                      color: Color(0xFFD97706),
                                     ),
                                   ),
                                 ),
@@ -284,7 +284,10 @@ class _BookingSuccessPageState extends State<BookingSuccessPage>
                     child: ElevatedButton(
                       onPressed: () {
                         final d = widget.draft;
-                        if (d.patient != null && d.patient!.id != 'self') {
+                        final appId = d.appointmentId ?? d.reschedulingAppointmentId;
+                        if (appId != null && appId.isNotEmpty) {
+                          context.push(AppRoutes.appointmentDetails, extra: appId);
+                        } else if (d.patient != null && d.patient!.id != 'self') {
                           context.go(
                             AppRoutes.appointments,
                             extra: {
@@ -305,7 +308,7 @@ class _BookingSuccessPageState extends State<BookingSuccessPage>
                         ),
                       ),
                       child: Text(
-                        isVi ? 'Xem lịch hẹn' : 'View appointments',
+                        isVi ? 'Xem chi tiết lịch hẹn' : 'View appointment details',
                         style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                       ),
                     ),
