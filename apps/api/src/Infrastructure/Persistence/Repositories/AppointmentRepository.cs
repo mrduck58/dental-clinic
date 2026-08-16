@@ -500,7 +500,7 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
     }
 
     public async Task<bool> HasActiveAppointmentOnDateAsync(
-        Guid patientId,
+        Guid accountOrPatientId,
         DateOnly date,
         Guid? excludeAppointmentId = null,
         CancellationToken cancellationToken = default)
@@ -510,7 +510,7 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
         var endUtc = startUtc.AddDays(1);
 
         return await dbContext.Appointments.AnyAsync(a =>
-            a.PatientId == patientId &&
+            (a.Patient.UserId == accountOrPatientId || a.PatientId == accountOrPatientId) &&
             (excludeAppointmentId == null || a.Id != excludeAppointmentId) &&
             a.AppointmentDate >= startUtc && a.AppointmentDate < endUtc &&
             a.Status != AppointmentStatus.Cancelled, cancellationToken);

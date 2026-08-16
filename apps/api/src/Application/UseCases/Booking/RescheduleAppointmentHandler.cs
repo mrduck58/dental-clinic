@@ -64,11 +64,14 @@ public class RescheduleAppointmentHandler(
         var newServiceId = command.ServiceId ?? appointment.ServiceId;
 
         var localNewDate = DateOnly.FromDateTime(command.AppointmentDate.UtcDateTime.AddHours(7));
+        var accountUserId = appointment.Patient?.UserId != null && appointment.Patient.UserId != Guid.Empty
+            ? appointment.Patient.UserId
+            : appointment.PatientId;
         var hasActiveAppointment = await appointmentRepository.HasActiveAppointmentOnDateAsync(
-            appointment.PatientId, localNewDate, excludeAppointmentId: appointment.Id, ct);
+            accountUserId, localNewDate, excludeAppointmentId: appointment.Id, ct);
         if (hasActiveAppointment)
         {
-            throw new ConflictException("Bạn đã có một lịch hẹn khác trong ngày này. Mỗi bệnh nhân chỉ được có tối đa 1 lịch hẹn mỗi ngày.");
+            throw new ConflictException("Tài khoản của bạn đã có một lịch hẹn khác trong ngày này. Mỗi tài khoản chỉ được có tối đa 1 lịch hẹn mỗi ngày.");
         }
 
         await slotGuard.EnsureSlotAvailableAsync(
