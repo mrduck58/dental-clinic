@@ -27,4 +27,6 @@ public interface INotificationService
     /// <summary>Xóa thông báo. <paramref name="userId"/> là chủ sở hữu bắt buộc — thông báo của
     /// người khác bị coi như không tồn tại (ném <c>NotFoundException</c>).</summary>
     Task DeleteAsync(Guid notificationId, Guid userId, CancellationToken ct = default);
+
+    Task DeleteAllAsync(Guid userId, CancellationToken ct = default);
 }

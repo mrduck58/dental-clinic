@@ -77,4 +77,12 @@ public class NotificationsController(
         await notificationService.DeleteAsync(id, CurrentUserId, cancellationToken);
         return Ok(new { message = "Đã xóa thông báo." });
     }
+
+    /// <summary>DELETE api/notifications — Xóa tất cả thông báo của user hiện tại</summary>
+    [HttpDelete]
+    public async Task<IActionResult> DeleteAll(CancellationToken cancellationToken)
+    {
+        await notificationService.DeleteAllAsync(CurrentUserId, cancellationToken);
+        return Ok(new { message = "Đã xóa tất cả thông báo." });
+    }
 }

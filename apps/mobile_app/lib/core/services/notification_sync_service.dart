@@ -36,17 +36,9 @@ class NotificationSyncService with WidgetsBindingObserver {
     _isRunning = true;
     _timer?.cancel();
     checkForNewNotifications();
-    _timer = Timer.periodic(const Duration(seconds: 3), (_) {
+    _timer = Timer.periodic(const Duration(seconds: 5), (_) {
       checkForNewNotifications();
     });
-    _runAsyncLoop();
-  }
-
-  Future<void> _runAsyncLoop() async {
-    while (_isRunning) {
-      await checkForNewNotifications();
-      await Future.delayed(const Duration(seconds: 3));
-    }
   }
 
   void stop() {
@@ -58,11 +50,13 @@ class NotificationSyncService with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Tự động kiểm tra ngay khi app chuyển trạng thái (mở lại, chạy nền, mở khóa màn hình)
-    checkForNewNotifications();
+    if (state == AppLifecycleState.resumed) {
+      checkForNewNotifications();
+    }
   }
 
   Future<void> checkForNewNotifications() async {
-    if (_isChecking || kIsWeb) return;
+    if (!_isRunning || _isChecking || kIsWeb) return;
     _isChecking = true;
 
     try {
@@ -97,6 +91,7 @@ class NotificationSyncService with WidgetsBindingObserver {
           body: item.body,
           type: item.type,
           payload: item.relatedEntityId,
+          notificationId: item.id,
         );
       }
 

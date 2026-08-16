@@ -138,7 +138,10 @@ class _NotificationBellState extends State<_NotificationBell> {
     return GestureDetector(
       // Quay lại trang chủ từ trang thông báo sẽ tạo lại widget này (route mới trong go_router
       // navigation stack), nên số lượng chưa đọc tự làm mới mà không cần cơ chế polling riêng.
-      onTap: () => context.push(AppRoutes.notifications),
+      onTap: () async {
+        await context.push(AppRoutes.notifications);
+        _loadUnreadCount();
+      },
       child: Stack(
         clipBehavior: Clip.none,
         children: [

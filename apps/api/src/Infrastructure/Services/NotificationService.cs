@@ -118,6 +118,11 @@ public class NotificationService(
         await repository.DeleteAsync(notificationId, ct);
     }
 
+    public async Task DeleteAllAsync(Guid userId, CancellationToken ct = default)
+    {
+        await repository.DeleteAllByUserAsync(userId, ct);
+    }
+
     /// <summary>
     /// Nạp thông báo và khẳng định nó thuộc về <paramref name="userId"/>. Thông báo của người khác
     /// trả 404 chứ không phải 403: 403 xác nhận "id này có tồn tại", đủ để dò xem người khác có

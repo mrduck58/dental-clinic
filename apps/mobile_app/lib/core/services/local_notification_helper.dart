@@ -161,6 +161,18 @@ class LocalNotificationHelper {
     });
   }
 
+  final Map<String, DateTime> _recentShown = {};
+
+  bool _isDuplicate(String key) {
+    final now = DateTime.now();
+    _recentShown.removeWhere((_, time) => now.difference(time).inSeconds > 15);
+    if (_recentShown.containsKey(key)) {
+      return true;
+    }
+    _recentShown[key] = now;
+    return false;
+  }
+
   /// Hiển thị thông báo đẩy trên thiết bị (Status bar, Popup banner, Lock screen)
   /// Tuân thủ đúng các cấu hình trong SettingsManager:
   /// - pushNotificationsEnabled: Tắt thì không hiển thị
@@ -172,8 +184,13 @@ class LocalNotificationHelper {
     required String body,
     String type = 'booking',
     String? payload,
+    String? notificationId,
   }) async {
     if (kIsWeb) return;
+
+    final dedupeKey = notificationId ?? '${title.trim()}|${body.trim()}|$payload';
+    if (_isDuplicate(dedupeKey)) return;
+
     if (!_isInitialized) await init();
 
     final sm = SettingsManager.instance;
