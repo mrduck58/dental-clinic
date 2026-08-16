@@ -96,6 +96,16 @@ public class NotificationRepository(AppDbContext db) : INotificationRepository
         }
     }
 
+    public async Task DeleteAllByUserAsync(Guid userId, CancellationToken ct = default)
+    {
+        var userNotifications = await db.Notifications.Where(n => n.UserId == userId).ToListAsync(ct);
+        if (userNotifications.Count > 0)
+        {
+            db.Notifications.RemoveRange(userNotifications);
+            await db.SaveChangesAsync(ct);
+        }
+    }
+
     public async Task<IReadOnlyList<NotificationReminderKey>> GetAppointmentReminderKeysAsync(Guid userId, CancellationToken ct = default)
         => await db.Notifications
             .AsNoTracking()

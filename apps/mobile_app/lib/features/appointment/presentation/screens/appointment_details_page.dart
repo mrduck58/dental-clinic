@@ -507,7 +507,8 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
                   ],
                   const SizedBox(height: 28),
 
-                  // Clinic location section
+                  /*
+                  // Clinic location section (Tạm thời ẩn do chưa tích hợp bản đồ)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -626,6 +627,7 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
                     ),
                   ),
                   const SizedBox(height: 28),
+                  */
 
                   // Pre-Visit Reminder Box
                   Container(

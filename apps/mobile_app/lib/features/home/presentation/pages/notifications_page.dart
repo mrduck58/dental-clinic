@@ -140,13 +140,28 @@ class _NotificationsPageState extends State<NotificationsPage> {
   }
 
   Future<void> _deleteAll() async {
-    final items = _notifications;
+    final previous = _notifications;
     setState(() => _notifications = []);
     try {
-      await Future.wait(items.map((n) => _service.delete(n.id)));
+      await _service.deleteAll();
+      if (!mounted) return;
+      final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(isVi ? 'Đã xóa tất cả thông báo.' : 'All notifications deleted.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     } catch (_) {
-      // Một vài item có thể xóa thất bại giữa chừng — tải lại để đồng bộ đúng trạng thái thật.
-      await _load();
+      if (!mounted) return;
+      setState(() => _notifications = previous);
+      final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(isVi ? 'Không thể xóa thông báo. Thử lại sau.' : 'Could not delete notifications. Try again later.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 

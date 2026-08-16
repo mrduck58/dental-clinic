@@ -24,6 +24,7 @@ public interface INotificationRepository
     Task UpdateAsync(Notification notification, CancellationToken ct = default);
     Task UpdateRangeAsync(IEnumerable<Notification> notifications, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);
+    Task DeleteAllByUserAsync(Guid userId, CancellationToken ct = default);
 
     /// <summary>Cặp (Title, RelatedEntityId) của các thông báo loại Appointment đã tồn tại của một user —
     /// dùng để chống tạo trùng nhắc lịch hẹn tự động.</summary>
