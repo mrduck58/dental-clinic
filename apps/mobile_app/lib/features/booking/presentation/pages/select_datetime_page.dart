@@ -80,7 +80,14 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
   }
 
   bool _isAvailable(DateTime d) {
-    return !_isPast(d);
+    if (_isPast(d)) return false;
+    final docId = widget.draft.doctor?.id ?? widget.draft.preferredDentistId;
+    if (docId != null) {
+      if (_loadingWorkingDates) return false;
+      final ymd = '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+      return _workingDates.contains(ymd);
+    }
+    return true;
   }
   bool _isSelected(DateTime d) =>
       _selected != null &&
@@ -202,7 +209,13 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            if (_loadingWorkingDates) ...[
+              const SizedBox(height: 8),
+              const LinearProgressIndicator(minHeight: 2),
+              const SizedBox(height: 10),
+            ] else ...[
+              const SizedBox(height: 20),
+            ],
 
             // ── Day headers ──────────────────────────────────────────────────
             Row(
