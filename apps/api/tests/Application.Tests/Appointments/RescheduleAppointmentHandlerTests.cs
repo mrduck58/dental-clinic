@@ -322,7 +322,7 @@ public class RescheduleAppointmentHandlerTests
         ActAsStaff();
         var appointment = SeedAppointment();
         _repo.HasActiveAppointmentOnDateAsync(
-            appointment.PatientId, Arg.Any<DateOnly>(), appointment.Id, Arg.Any<CancellationToken>())
+            Arg.Any<Guid>(), Arg.Any<DateOnly>(), appointment.Id, Arg.Any<CancellationToken>())
             .Returns(true);
 
         Func<Task> act = () => RescheduleTo(appointment, DateTimeOffset.UtcNow.AddDays(3));
