@@ -94,11 +94,19 @@ public class DentistDashboardQueryService(AppDbContext db) : IDentistDashboardQu
         int weekAfternoon = weekSchedules.Count(s => WorkShifts.PeriodOf(s.Shift) == WorkShifts.PeriodAfternoon);
         int weekEvening   = weekSchedules.Count(s => WorkShifts.PeriodOf(s.Shift) == WorkShifts.PeriodEvening);
 
-        // Upcoming patients: InProgress first, then CheckedIn, then Confirmed — top 5
+        // Upcoming patients: InProgress first, then CheckedIn (ordered by queue), then Confirmed — top 5
         var upcomingPatients = todayAppointments
             .Where(a => a.Status == AppointmentStatus.InProgress  ||
                         a.Status == AppointmentStatus.CheckedIn   ||
                         a.Status == AppointmentStatus.Confirmed)
+            .OrderBy(a => a.Status switch
+            {
+                AppointmentStatus.InProgress => 0,
+                AppointmentStatus.CheckedIn => 1,
+                _ => 2
+            })
+            .ThenBy(a => a.QueueOrder ?? (a.CheckedInAt ?? a.AppointmentDate).UtcTicks)
+            .ThenBy(a => a.Id)
             .Take(5)
             .Select(a =>
             {
@@ -163,6 +171,7 @@ public class DentistDashboardQueryService(AppDbContext db) : IDentistDashboardQu
         var vietnamDateStart = new DateTimeOffset(date.Year, date.Month, date.Day, 0, 0, 0, VietnamTz.BaseUtcOffset);
         var utcStart = vietnamDateStart.ToUniversalTime();
         var utcEnd = utcStart.AddDays(1);
+        var nowUtc = DateTimeOffset.UtcNow;
 
         var appointments = await db.Appointments
             .Include(a => a.Patient).ThenInclude(p => p.User)
@@ -175,10 +184,35 @@ public class DentistDashboardQueryService(AppDbContext db) : IDentistDashboardQu
                          a.Status == AppointmentStatus.InProgress   ||
                          a.Status == AppointmentStatus.PendingPayment ||
                          a.Status == AppointmentStatus.Completed))
-            .OrderBy(a => a.AppointmentDate)
             .ToListAsync(ct);
 
-        var patients = appointments.Select(a => new DentistPatientDto(
+        // Số thứ tự đánh theo MỐC VÀO HÀNG ĐỢI (QueueEntryOrder ?? CheckedInAt ?? AppointmentDate)
+        var stableNumbers = appointments
+            .Where(a => a.Status is AppointmentStatus.CheckedIn
+                                 or AppointmentStatus.InProgress
+                                 or AppointmentStatus.Completed
+                                 or AppointmentStatus.PendingPayment)
+            .OrderBy(a => a.QueueEntryOrder ?? (a.CheckedInAt ?? a.AppointmentDate).UtcTicks)
+            .ThenBy(a => a.Id)
+            .Select((a, i) => (a.Id, Number: i + 1))
+            .ToDictionary(x => x.Id, x => x.Number);
+
+        // Sắp xếp thứ tự theo hàng đợi:
+        // 1. InProgress (0) -> CheckedIn (1) -> PendingPayment / Completed (2)
+        // 2. QueueOrder ?? CheckedInAt ?? AppointmentDate
+        // 3. Id
+        var orderedAppointments = appointments
+            .OrderBy(a => a.Status switch
+            {
+                AppointmentStatus.InProgress => 0,
+                AppointmentStatus.CheckedIn => 1,
+                _ => 2
+            })
+            .ThenBy(a => a.QueueOrder ?? (a.CheckedInAt ?? a.AppointmentDate).UtcTicks)
+            .ThenBy(a => a.Id)
+            .ToList();
+
+        var patients = orderedAppointments.Select(a => new DentistPatientDto(
             a.Id,
             $"DK{a.AppointmentDate:yyyyMMdd}{a.Id.ToString("N")[..6].ToUpper()}",
             a.Patient.FullName,
@@ -190,7 +224,12 @@ public class DentistDashboardQueryService(AppDbContext db) : IDentistDashboardQu
             a.Service?.Name,
             a.Symptoms,
             IsNewPatient(a.PatientId),
-            a.FollowUpFromAppointmentId != null
+            a.FollowUpFromAppointmentId != null,
+            stableNumbers.GetValueOrDefault(a.Id, 0),
+            a.CheckedInAt,
+            a.Status == AppointmentStatus.CheckedIn
+                ? Math.Max(0, (int)(nowUtc - (a.CheckedInAt ?? a.AppointmentDate)).TotalMinutes)
+                : 0
         )).ToList();
 
         return new DentistPatientsResponse(

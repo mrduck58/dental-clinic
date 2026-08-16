@@ -331,4 +331,48 @@ public class GetStaffScheduleHandlerTests
         result.Date.Should().Be(vietnamToday);
         result.Dentists.Should().ContainSingle(d => d.Name == "BS. Hôm nay");
     }
+
+    /// <summary>
+    /// Khi khám xong cho bệnh nhân (PendingPayment/Completed), các slot kéo dài phía sau được giải phóng
+    /// để có thể đặt lịch mới, trong khi ô bắt đầu của lịch khám vẫn giữ nguyên tên bệnh nhân.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_FinishedAppointment_ReleasesOverlappingSlots_KeepsStartSlot()
+    {
+        var user = await SeedActiveDentistUserAsync("BS. Khám Xong");
+        _db.WorkSchedules.Add(WorkSchedule.Create(
+            Today, "08:00-10:00", "dentist", "dentist", user.FullName!, "Phòng 1", "border-primary", false));
+
+        var patientUser = User.Create("bn-phong", $"{Guid.NewGuid()}@test.com", "hash", UserRole.Patient, fullName: "Phong");
+        _db.Users.Add(patientUser);
+        var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
+        patient.User = patientUser;
+        _db.Patients.Add(patient);
+
+        var dentist = DentistProfile.Create(user.Employee!.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = user.Employee!;
+        _db.DentistProfiles.Add(dentist);
+
+        var service = Service.Create("Dịch vụ 60 phút", 500000, 60, "Mô tả");
+        _db.Services.Add(service);
+        await _db.SaveChangesAsync();
+
+        var appointmentDate = new DateTimeOffset(Today.Year, Today.Month, Today.Day, 8, 0, 0, TimeSpan.FromHours(7));
+        var appt = Appointment.Create(patient.Id, dentist.Id, appointmentDate, serviceId: service.Id);
+        appt.EndTreatment(); // Bác sĩ khám xong -> Status = PendingPayment
+        _db.Appointments.Add(appt);
+        await _db.SaveChangesAsync();
+
+        var result = await _handler.Handle(new GetStaffScheduleQuery(Today), CancellationToken.None);
+
+        var dto = result.Dentists.Should().ContainSingle().Subject;
+        var slot800 = dto.Slots.Single(s => s.Time == "08:00");
+        slot800.IsBooked.Should().BeTrue();
+        slot800.PatientName.Should().Be("Phong");
+
+        // Slot 8:30 ban đầu bị chiếm bởi dịch vụ 60p, nhưng do ca 8:00 đã khám xong nên 8:30 được giải phóng
+        var slot830 = dto.Slots.Single(s => s.Time == "08:30");
+        slot830.IsBooked.Should().BeFalse();
+        slot830.PatientName.Should().BeNull();
+    }
 }

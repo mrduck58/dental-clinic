@@ -37,11 +37,12 @@ const STATUS_CFG: Record<PatientStatus, { label: string; bar: string; badge: str
   done:        { label: "Hoàn thành", bar: "bg-emerald-400",badge: "bg-emerald-50 text-emerald-700 border border-emerald-200", dot: "bg-emerald-500" },
 };
 
-function PatientRow({ p, idx }: { p: DentistPatientDto; idx: number }) {
+function PatientRow({ p, idx, isTopWaiting }: { p: DentistPatientDto; idx: number; isTopWaiting?: boolean }) {
   const status = STATUS_MAP[p.status] ?? "waiting";
   const s = STATUS_CFG[status];
   const isActive = status === "in_progress";
   const isDone   = status === "done";
+  const isWaiting = status === "waiting";
   const initials = p.patientName.trim().split(/\s+/).slice(-2).map((w: string) => w[0]).join("").toUpperCase();
 
   const fmtTime = (iso: string) => {
@@ -49,22 +50,49 @@ function PatientRow({ p, idx }: { p: DentistPatientDto; idx: number }) {
     return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
   };
 
-  const time = fmtTime(p.appointmentDate);
+  const fmtWait = (mins?: number) => {
+    if (!mins || mins <= 0) return null;
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return h > 0 ? `${h}h${m > 0 ? `${String(m).padStart(2, "0")}p` : ""}` : `${m}p`;
+  };
+
+  const apptTime = fmtTime(p.appointmentDate);
+  const checkInTime = p.checkedInAt ? fmtTime(p.checkedInAt) : null;
   const shift = new Date(p.appointmentDate).getHours() < 12 ? "morning" : "afternoon";
+  const waitDuration = fmtWait(p.waitMinutes);
 
   return (
     <div className={`flex rounded-2xl border overflow-hidden transition-all hover:shadow-md ${
-      isActive ? "bg-white border-sky-200 shadow-sm shadow-sky-100/40" : "bg-white border-slate-200/70 hover:-translate-y-px"
+      isActive
+        ? "bg-white border-sky-300 shadow-sm shadow-sky-100 ring-2 ring-sky-100"
+        : isTopWaiting
+          ? "bg-white border-amber-300 shadow-sm shadow-amber-100/60 ring-2 ring-amber-100"
+          : isDone
+            ? "bg-white border-slate-200/60 opacity-85 hover:opacity-100"
+            : "bg-white border-slate-200/70 hover:-translate-y-px"
     }`}>
       {/* Status accent bar */}
       <div className={`w-1.5 shrink-0 ${s.bar}`} />
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 sm:px-5 sm:py-4 flex-1 min-w-0">
         <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
-          {/* Time + order */}
+          {/* Queue number + Time */}
           <div className="flex flex-col items-center w-12 sm:w-14 shrink-0">
-            <span className="text-[17px] sm:text-[19px] font-black text-slate-900 font-mono leading-none tabular-nums">{time}</span>
-            <span className="text-[11px] font-bold text-slate-400 mt-1">#{idx + 1}</span>
+            <span className="text-[17px] sm:text-[19px] font-black text-slate-900 font-mono leading-none tabular-nums">
+              {apptTime}
+            </span>
+            <span className={`text-[11px] font-black px-2 py-0.5 rounded-md mt-1.5 tabular-nums ${
+              isActive
+                ? "bg-sky-100 text-sky-700"
+                : isTopWaiting
+                  ? "bg-amber-100 text-amber-800 ring-1 ring-amber-300/60"
+                  : isDone
+                    ? "bg-slate-100 text-slate-500"
+                    : "bg-amber-50 text-amber-700 border border-amber-200/60"
+            }`}>
+              #{p.queueNumber || idx + 1}
+            </span>
           </div>
 
           {/* Divider */}
@@ -81,6 +109,11 @@ function PatientRow({ p, idx }: { p: DentistPatientDto; idx: number }) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className={`text-[15px] font-black leading-tight ${isDone ? "text-slate-400" : "text-slate-900"}`}>{p.patientName}</span>
+              {isTopWaiting && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-500 text-white text-[10px] font-black rounded-md tracking-wide shadow-sm shadow-amber-500/30 animate-pulse">
+                  ĐẦU HÀNG ĐỢI
+                </span>
+              )}
               {p.isNew && (
                 <span className="px-1.5 py-0.5 bg-violet-100 text-violet-700 text-[10px] font-black rounded-md tracking-wide">MỚI</span>
               )}
@@ -89,17 +122,27 @@ function PatientRow({ p, idx }: { p: DentistPatientDto; idx: number }) {
               )}
               <span className="text-[12px] text-slate-400 font-semibold">{p.age} tuổi · {p.gender}</span>
             </div>
-            <div className="flex items-center gap-1.5 mt-1">
-              <svg className="w-3.5 h-3.5 text-slate-300 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
-              </svg>
-              <span className={`text-[13px] sm:text-[13.5px] font-semibold truncate ${isDone ? "text-slate-400" : "text-slate-700"}`}>{p.symptoms ?? p.serviceName ?? "Khám tổng quát"}</span>
+
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <span className={`text-[13px] sm:text-[13.5px] font-semibold truncate ${isDone ? "text-slate-400" : "text-slate-700"}`}>
+                {p.symptoms ?? p.serviceName ?? "Khám tổng quát"}
+              </span>
+              {checkInTime && isWaiting && (
+                <span className="text-[11.5px] font-bold text-slate-400">
+                  · Check-in {checkInTime}
+                </span>
+              )}
+              {waitDuration && isWaiting && (
+                <span className="inline-flex items-center px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-100 rounded-md text-[11px] font-black">
+                  đã chờ {waitDuration}
+                </span>
+              )}
             </div>
             <div className="text-[12px] text-slate-400 font-medium mt-0.5 font-mono">{p.phone ?? "—"}</div>
           </div>
         </div>
 
-        {/* Status + Action buttons row on mobile */}
+        {/* Status + Action buttons */}
         <div className="flex items-center justify-between sm:justify-end gap-2.5 shrink-0 border-t sm:border-t-0 pt-3 sm:pt-0 border-slate-100 w-full sm:w-auto">
           {/* Status badge */}
           <div className="flex items-center gap-1.5">
@@ -117,54 +160,33 @@ function PatientRow({ p, idx }: { p: DentistPatientDto; idx: number }) {
             {isDone && (
               <Link
                 href={`/dentist/patients/${p.appointmentId}?edit=1`}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12.5px] sm:text-[13px] font-bold transition-all bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12.5px] sm:text-[13px] font-bold transition-all bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 cursor-pointer"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
                 </svg>
                 Sửa
               </Link>
             )}
             <Link
               href={`/dentist/patients/${p.appointmentId}`}
-              className={`flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-[12.5px] sm:text-[13px] font-bold transition-all whitespace-nowrap ${
+              className={`flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-[12.5px] sm:text-[13px] font-bold transition-all whitespace-nowrap cursor-pointer ${
                 isActive
-                  ? "bg-primary text-white hover:bg-red-600 shadow-sm shadow-primary/25"
-                  : isDone
-                    ? "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                    : "bg-red-50 text-primary border border-primary/20 hover:bg-primary hover:text-white"
+                  ? "bg-sky-600 text-white hover:bg-sky-700 shadow-sm shadow-sky-600/25"
+                  : isTopWaiting
+                    ? "bg-primary text-white hover:bg-red-600 shadow-sm shadow-primary/30"
+                    : isDone
+                      ? "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                      : "bg-red-50 text-primary border border-primary/20 hover:bg-primary hover:text-white"
               }`}
             >
-              {isActive ? "Tiếp tục" : isDone ? "Xem hồ sơ" : "Chi tiết"}
+              {isActive ? "Tiếp tục khám" : isTopWaiting ? "Khám ngay" : isDone ? "Xem hồ sơ" : "Chi tiết"}
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
               </svg>
             </Link>
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-function ShiftSection({ label, icon, patients, emptyMsg }: {
-  label: string; icon: string; patients: DentistPatientDto[]; emptyMsg: string;
-}) {
-  if (patients.length === 0) return null;
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2">
-          <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d={icon} />
-          </svg>
-          <span className="text-[13px] font-black text-slate-600 uppercase tracking-wider">{label}</span>
-        </div>
-        <span className="text-[12px] font-bold text-slate-400">{patients.length} bệnh nhân</span>
-        <div className="flex-1 h-px bg-slate-200" />
-      </div>
-      <div className="flex flex-col gap-2.5">
-        {patients.map((p, idx) => <PatientRow key={p.appointmentId} p={p} idx={idx} />)}
       </div>
     </div>
   );
@@ -230,8 +252,9 @@ export default function DentistPatientsPage() {
   const active = patients.filter(p => (STATUS_MAP[p.status] ?? "waiting") === "in_progress").length;
   const done = patients.filter(p => (STATUS_MAP[p.status] ?? "waiting") === "done").length;
 
-  const morning = filtered.filter(p => new Date(p.appointmentDate).getHours() < 12);
-  const afternoon = filtered.filter(p => new Date(p.appointmentDate).getHours() >= 12);
+  const firstWaitingId = useMemo(() => {
+    return filtered.find(p => (STATUS_MAP[p.status] ?? "waiting") === "waiting")?.appointmentId;
+  }, [filtered]);
 
   const selectCls = "px-4 py-2.5 text-[13px] bg-white border border-slate-200 rounded-xl focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-semibold text-slate-600 appearance-none cursor-pointer pr-8";
 
@@ -300,7 +323,7 @@ export default function DentistPatientsPage() {
                 <button
                   key={filter.key}
                   onClick={() => setStatusFilter(filter.key)}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-bold transition-all ${
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-bold transition-all cursor-pointer ${
                     isActive
                       ? `${filter.color} border shadow-sm`
                       : "bg-white text-slate-500 border border-slate-200 hover:border-slate-300"
@@ -334,21 +357,30 @@ export default function DentistPatientsPage() {
             </div>
           )}
 
-          {/* Patient sections */}
+          {/* Patient queue list */}
           {!loading && !error && filtered.length > 0 ? (
-            <div className="flex flex-col gap-7">
-              <ShiftSection
-                label="Ca sáng"
-                icon="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"
-                patients={morning}
-                emptyMsg="Không có bệnh nhân ca sáng"
-              />
-              <ShiftSection
-                label="Ca chiều"
-                icon="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z"
-                patients={afternoon}
-                emptyMsg="Không có bệnh nhân ca chiều"
-              />
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between px-1">
+                <span className="text-[13px] font-black text-slate-600 uppercase tracking-wider flex items-center gap-2">
+                  <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                  </svg>
+                  Hàng Đợi Khám ({filtered.length} bệnh nhân)
+                </span>
+                <span className="text-[12px] font-bold text-slate-400">
+                  Thứ tự theo hàng đợi thực tế
+                </span>
+              </div>
+              <div className="flex flex-col gap-2.5">
+                {filtered.map((p, idx) => (
+                  <PatientRow
+                    key={p.appointmentId}
+                    p={p}
+                    idx={idx}
+                    isTopWaiting={p.appointmentId === firstWaitingId}
+                  />
+                ))}
+              </div>
             </div>
           ) : !loading && !error && (
             <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm flex flex-col items-center gap-3 py-20">

@@ -77,15 +77,27 @@ public class CreateWalkInAppointmentHandlerTests
         null,
         null);
 
-    /// <summary>Không cho đặt lịch cho khung giờ đã qua — chặn cả trường hợp bypass UI.</summary>
+    /// <summary>Không cho đặt lịch cho khung giờ đã qua quá 15 phút (vượt quá thời gian ân hạn).</summary>
     [Test]
-    public async Task HandleAsync_PastAppointmentDate_ThrowsValidationException()
+    public async Task HandleAsync_PastAppointmentDate_Beyond15Minutes_ThrowsValidationException()
     {
-        var pastDate = DateTimeOffset.UtcNow.AddHours(-1);
+        var pastDate = DateTimeOffset.UtcNow.AddMinutes(-20);
 
         Func<Task> act = async () => await _handler.Handle(MakeCommand(pastDate), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    /// <summary>Cho phép đặt lịch cho khung giờ đã bắt đầu nhưng chưa quá 15 phút (trong thời gian ân hạn).</summary>
+    [Test]
+    public async Task HandleAsync_PastAppointmentDate_Within15Minutes_Succeeds()
+    {
+        var recentDate = DateTimeOffset.UtcNow.AddMinutes(-5);
+
+        var result = await _handler.Handle(MakeCommand(recentDate), CancellationToken.None);
+
+        result.Status.Should().Be("CheckedIn");
+        result.PatientName.Should().Be("Nguyễn Văn A");
     }
 
     /// <summary>

@@ -781,7 +781,16 @@ function WalkinTab({
     }
   }, [gridDate]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    const channel = supabase
+      .channel(`staff-walkin-grid-${gridDate}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "Appointments" }, () => {
+        void load();
+      })
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [load, gridDate]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1516,13 +1525,11 @@ export default function CheckinPage() {
     setLoadingId(appt.appointmentId);
     setBusyKind("undo");
     try {
-      const result = await undoCheckInAppointmentApi(appt.appointmentId);
+      await undoCheckInAppointmentApi(appt.appointmentId);
       await loadAppointments();
       setConfirmingUndo(false);
       setSelected(null);
-      showToast(result.origin === "WalkIn"
-        ? `Đã hủy lịch tại quầy của ${appt.patientName}.`
-        : `Đã gỡ check-in. Lịch của ${appt.patientName} quay về danh sách chờ xác nhận.`);
+      showToast(`Đã hoàn tác check-in. Lịch của ${appt.patientName} quay về danh sách chờ check-in.`);
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Hoàn tác check-in thất bại. Vui lòng thử lại.", "error");
     } finally {
@@ -1669,30 +1676,26 @@ export default function CheckinPage() {
                 </div>
                 <div>
                   <div className="text-[14px] font-black text-slate-900">
-                    {isNoShow ? "Hoàn tác ghi nhận vắng mặt?" : isWalkIn ? "Hủy lịch tại quầy này?" : "Gỡ check-in của bệnh nhân này?"}
+                    {isNoShow ? "Hoàn tác ghi nhận vắng mặt?" : "Hoàn tác check-in?"}
                   </div>
                   <div className="text-[12.5px] font-semibold text-slate-600 mt-1 leading-relaxed">
                     <span className="font-black">{p.patientName}</span>{" "}
                     {isNoShow
                       ? "sẽ quay lại danh sách chờ check-in, như thể chưa từng bị ghi nhận vắng mặt."
-                      : isWalkIn
-                      ? "được lễ tân lập lịch ngay lúc check-in nên không có trạng thái nào trước đó để quay về — hoàn tác đồng nghĩa với hủy hẳn lịch hẹn này."
-                      : "sẽ rời hàng đợi và lịch hẹn quay về mục Đơn đặt online ở trang Đặt Lịch & Nhận Đơn, chờ xác nhận lại."}
+                      : "sẽ rời hàng đợi và quay về danh sách chờ check-in."}
                   </div>
                 </div>
               </div>
               <div className="flex gap-3">
                 <button onClick={() => (isNoShow ? doUndoNoShow(p) : doUndoCheckin(p))}
                   disabled={loadingId === p.appointmentId}
-                  className={`flex-1 flex items-center justify-center gap-2 py-3 disabled:opacity-50 text-white rounded-xl text-[14px] font-black shadow-sm transition-all cursor-pointer ${
-                    isWalkIn && !isNoShow ? "bg-primary hover:bg-red-600 shadow-primary/25" : "bg-slate-700 hover:bg-slate-800 shadow-slate-200"
-                  }`}>
+                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-slate-700 hover:bg-slate-800 disabled:opacity-50 text-white rounded-xl text-[14px] font-black shadow-sm shadow-slate-200 transition-all cursor-pointer">
                   {loadingId === p.appointmentId && busyKind === "undo" ? (
                     <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                   ) : (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d={isWalkIn && !isNoShow ? BAN_ICON : "M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"} /></svg>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" /></svg>
                   )}
-                  {isNoShow ? "Xác nhận hoàn tác" : isWalkIn ? "Xác nhận hủy lịch" : "Xác nhận gỡ check-in"}
+                  {isNoShow ? "Xác nhận hoàn tác" : "Xác nhận hoàn tác"}
                 </button>
                 <button onClick={() => setConfirmingUndo(false)}
                   disabled={loadingId === p.appointmentId}

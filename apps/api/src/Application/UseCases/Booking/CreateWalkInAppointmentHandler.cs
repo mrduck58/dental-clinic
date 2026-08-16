@@ -4,6 +4,7 @@ using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
+using DentalClinic.API.Domain.Schedules;
 using DentalClinic.API.Application.UseCases.Patients;
 using MediatR;
 
@@ -46,8 +47,8 @@ public class CreateWalkInAppointmentHandler(
     {
         var utcAppointmentDate = cmd.AppointmentDate.ToUniversalTime();
 
-        // 1. Không cho đặt lịch cho khung giờ đã qua (chặn cả trường hợp bypass UI).
-        if (utcAppointmentDate < DateTimeOffset.UtcNow)
+        // 1. Không cho đặt lịch cho khung giờ đã qua 15 phút (cho phép trễ tối đa 15 phút đầu ca).
+        if (utcAppointmentDate.AddMinutes(SlotCalculator.WalkInGraceMinutes) <= DateTimeOffset.UtcNow)
             throw new ValidationException("Không thể đặt lịch cho khung giờ đã qua.");
 
         // 1b. Kiểm tra bác sĩ có tồn tại không
