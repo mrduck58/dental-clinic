@@ -321,11 +321,17 @@ export default function PatientDetailPage() {
     }
   };
 
+  const hasPlans = (examination?.treatmentPlans?.length ?? 0) > 0;
+
   // End treatment
   const handleEndTreatment = async () => {
     try {
       await endTreatmentApi(id);
-      showToast("Đã kết thúc điều trị. Chuyển sang chờ thanh toán!", "success");
+      if (hasPlans) {
+        showToast("Đã kết thúc điều trị. Chuyển sang chờ thanh toán!", "success");
+      } else {
+        showToast("Đã hoàn tất ca khám!", "success");
+      }
       await loadExamination();
       setTimeout(() => router.push("/dentist/patients"), 1500);
     } catch (err) {
@@ -452,12 +458,14 @@ return (
               {isInProgress && (
                 <button
                   onClick={handleEndTreatment}
-                  className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-[13px] font-bold rounded-xl transition-all shadow-sm cursor-pointer"
+                  className={`flex items-center gap-2 px-4 py-2 text-white text-[13px] font-bold rounded-xl transition-all shadow-sm cursor-pointer ${
+                    hasPlans ? "bg-orange-500 hover:bg-orange-600" : "bg-emerald-600 hover:bg-emerald-700"
+                  }`}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  Kết thúc điều trị
+                  {hasPlans ? "Kết thúc điều trị" : "Hoàn tất ca khám"}
                 </button>
               )}
               {!isInProgress && examination.status === "CheckedIn" && (

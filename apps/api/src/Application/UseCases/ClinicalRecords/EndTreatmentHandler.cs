@@ -23,6 +23,7 @@ public class EndTreatmentHandler(
     IAppointmentRepository appointmentRepository,
     INotificationService notificationService,
     IPatientRepository? patientRepository = null,
+    ITreatmentPlanRepository? treatmentPlanRepository = null,
     ILogger<EndTreatmentHandler>? logger = null) : IRequestHandler<EndTreatmentCommand>
 {
     public async Task Handle(EndTreatmentCommand command, CancellationToken ct)
@@ -39,9 +40,27 @@ public class EndTreatmentHandler(
         if (appointment.Status != AppointmentStatus.InProgress)
             throw new InvalidOperationException("Chỉ có thể kết thúc điều trị khi đang trong trạng thái đang khám.");
 
-        appointment.EndTreatment();
+        var hasActivePlans = false;
+        if (treatmentPlanRepository != null)
+        {
+            var plans = await treatmentPlanRepository.GetByPatientIdAsync(appointment.PatientId, ct);
+            hasActivePlans = plans.Any(p => p.AppointmentId == appointmentId && p.Status != TreatmentPlanStatus.Cancelled);
+        }
+
+        if (treatmentPlanRepository != null && !hasActivePlans)
+        {
+            // Bác sĩ không thêm liệu trình nào -> Hoàn tất ca khám trực tiếp (không thu phí / không chờ thanh toán)
+            appointment.Complete();
+            logger?.LogInformation("Appointment {Id} has no treatment plans, completed directly without billing", appointmentId);
+        }
+        else
+        {
+            // Có liệu trình cần thu phí -> Chuyển sang chờ thanh toán
+            appointment.EndTreatment();
+            logger?.LogInformation("Appointment {Id} ended treatment, moved to pending payment", appointmentId);
+        }
+
         await appointmentRepository.UpdateAsync(appointment, ct);
-        logger?.LogInformation("Appointment {Id} ended treatment, moved to pending payment", appointmentId);
 
         // Bác sĩ có hẹn tái khám → báo cho bệnh nhân (nếu có tài khoản liên kết).
         if (appointment.FollowUpDate is DateOnly followUpDate && patientRepository != null)
