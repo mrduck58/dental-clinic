@@ -150,8 +150,8 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
         date: d.date!,
         timeSlotRange: d.timeSlot!.range,
         symptoms: _symptomCtrl.text.trim().isEmpty ? null : _symptomCtrl.text.trim(),
-        serviceId: d.service?.id,
-        patientId: d.patient?.id == 'self' ? null : d.patient?.id,
+        serviceId: (d.service != null && d.service!.id.isNotEmpty) ? d.service!.id : null,
+        patientId: (d.patient != null && d.patient!.id.isNotEmpty && d.patient!.id != 'self') ? d.patient!.id : null,
       );
       if (!mounted) return;
       final updatedDraft = d.copyWith(

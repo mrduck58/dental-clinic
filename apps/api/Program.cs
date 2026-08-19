@@ -185,8 +185,12 @@ using (var scope = app.Services.CreateScope())
                 ""CreatedAt"" timestamp with time zone NOT NULL,
                 ""ExpiresAt"" timestamp with time zone NOT NULL,
                 ""Status"" text NOT NULL,
-                ""IsSuccess"" boolean NOT NULL DEFAULT false
+                ""IsSuccess"" boolean NOT NULL DEFAULT false,
+                ""ServiceId"" uuid NULL,
+                ""DurationMinutes"" integer NOT NULL DEFAULT 30
             );
+            ALTER TABLE ""AppointmentSlotHolds"" ADD COLUMN IF NOT EXISTS ""ServiceId"" uuid NULL;
+            ALTER TABLE ""AppointmentSlotHolds"" ADD COLUMN IF NOT EXISTS ""DurationMinutes"" integer NOT NULL DEFAULT 30;
             CREATE INDEX IF NOT EXISTS ""IX_AppointmentSlotHolds_Dentist_Date"" ON ""AppointmentSlotHolds"" (""DentistId"", ""AppointmentDate"");
             CREATE INDEX IF NOT EXISTS ""IX_AppointmentSlotHolds_Patient_Date"" ON ""AppointmentSlotHolds"" (""PatientId"", ""CreatedAt"");
         ");

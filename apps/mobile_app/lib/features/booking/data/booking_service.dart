@@ -92,6 +92,7 @@ class BookingService {
     required String dentistId,
     required DateTime date,
     required String timeSlot,
+    String? serviceId,
   }) async {
     final token = await _auth.getToken();
     if (token == null) throw Exception('Chưa đăng nhập.');
@@ -99,12 +100,17 @@ class BookingService {
     final dateStr =
         '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
-    final body = {
-      'patientId': patientId,
+    final body = <String, dynamic>{
       'dentistId': dentistId,
       'date': dateStr,
       'timeSlot': timeSlot,
     };
+    if (patientId.isNotEmpty && patientId != 'self') {
+      body['patientId'] = patientId;
+    }
+    if (serviceId != null && serviceId.isNotEmpty) {
+      body['serviceId'] = serviceId;
+    }
 
     final res = await _client.post(
       ApiConstants.holdSlot,
@@ -129,12 +135,14 @@ class BookingService {
       final dateStr =
           '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
-      final body = {
-        'patientId': patientId,
+      final body = <String, dynamic>{
         'dentistId': dentistId,
         'date': dateStr,
         'timeSlot': timeSlot,
       };
+      if (patientId.isNotEmpty && patientId != 'self') {
+        body['patientId'] = patientId;
+      }
 
       final res = await _client.post(
         ApiConstants.releaseHold,
@@ -155,9 +163,14 @@ class BookingService {
     if (token == null) return null;
 
     try {
+      final query = <String, dynamic>{};
+      if (patientId.isNotEmpty && patientId != 'self') {
+        query['patientId'] = patientId;
+      }
+
       final res = await _client.get(
         ApiConstants.activeHold,
-        queryParameters: {'patientId': patientId},
+        queryParameters: query.isNotEmpty ? query : null,
         token: token,
       );
 
@@ -211,10 +224,12 @@ class BookingService {
     final body = <String, dynamic>{
       'dentistId': dentistId,
       'appointmentDate': isoDate,
-      'symptoms': effectiveSymptoms,
-      'serviceId': serviceId,
-      'patientId': patientId,
     };
+    if (effectiveSymptoms != null) body['symptoms'] = effectiveSymptoms;
+    if (serviceId != null && serviceId.isNotEmpty) body['serviceId'] = serviceId;
+    if (patientId != null && patientId.isNotEmpty && patientId != 'self') {
+      body['patientId'] = patientId;
+    }
 
     // Diagnostics print
     debugPrint('BookingService: Sending POST request to ${ApiConstants.appointments}');

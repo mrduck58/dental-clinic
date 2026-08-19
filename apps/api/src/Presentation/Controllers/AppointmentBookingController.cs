@@ -72,7 +72,8 @@ public class AppointmentBookingController(ISender sender) : ControllerBase
             request.PatientId,
             request.DentistId,
             request.Date,
-            request.TimeSlot);
+            request.TimeSlot,
+            request.ServiceId);
 
         var result = await handler.Handle(cmd, cancellationToken);
         return Ok(result);
@@ -100,11 +101,23 @@ public class AppointmentBookingController(ISender sender) : ControllerBase
     [HttpGet("api/appointments/active-hold")]
     [Authorize(Roles = "Patient")]
     public async Task<IActionResult> GetActiveHold(
-        [FromQuery] Guid patientId,
+        [FromQuery] Guid? patientId,
         [FromServices] GetActiveSlotHoldHandler handler,
+        [FromServices] DentalClinic.API.Domain.Interfaces.Repositories.IPatientRepository patientRepository,
         CancellationToken cancellationToken)
     {
-        var result = await handler.Handle(patientId, cancellationToken);
+        var userId = GetCurrentUserId();
+        var targetPatientId = patientId;
+        if (!targetPatientId.HasValue || targetPatientId.Value == Guid.Empty)
+        {
+            var myPatient = await patientRepository.GetByUserIdAsync(userId, cancellationToken);
+            targetPatientId = myPatient?.Id;
+        }
+
+        if (!targetPatientId.HasValue || targetPatientId.Value == Guid.Empty)
+            return Ok(null);
+
+        var result = await handler.Handle(targetPatientId.Value, cancellationToken);
         return Ok(result);
     }
 
@@ -318,13 +331,14 @@ public record RescheduleAppointmentRequest(
     string? Reason);
 
 public record HoldSlotRequest(
-    Guid PatientId,
+    Guid? PatientId,
     Guid DentistId,
     DateOnly Date,
-    string TimeSlot);
+    string TimeSlot,
+    Guid? ServiceId = null);
 
 public record ReleaseHoldRequest(
-    Guid PatientId,
+    Guid? PatientId,
     Guid DentistId,
     DateOnly Date,
     string TimeSlot);

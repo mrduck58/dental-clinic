@@ -110,8 +110,6 @@ public class GetDentistSlotsHandler(
                 ? await slotHoldRepository.GetActiveHoldsForDentistAndDateAsync(d.Id, date, now, ct)
                 : (IReadOnlyList<AppointmentSlotHold>)[];
 
-            var heldSlotMap = activeHolds.ToDictionary(h => h.TimeSlot, h => h);
-
             var slots = SlotCalculator.AllTimes
                 .Where(t => WorkShifts.IsWorkingAt(assignedShifts, t.Hour, t.Minute))
                 .Select(t =>
@@ -120,10 +118,18 @@ public class GetDentistSlotsHandler(
                     var slotEnd = slotStart + SlotCalculator.SlotMinutes;
                     var range = $"{t.Hour:D2}:{t.Minute:D2} - {slotEnd / 60:D2}:{slotEnd % 60:D2}";
                     var isAppointmentOccupied = SlotCalculator.IsOccupied(slotStart, slotEnd, occupiedRanges);
-                    var isHeld = heldSlotMap.TryGetValue(range, out var hold);
+
+                    var matchingHold = activeHolds.FirstOrDefault(h =>
+                    {
+                        var localTime = h.AppointmentDate.UtcDateTime.AddHours(7);
+                        var holdRange = SlotCalculator.BuildOccupiedRange(localTime.Hour, localTime.Minute, h.DurationMinutes > 0 ? h.DurationMinutes : 30);
+                        return slotStart < holdRange.EndMinutes && slotEnd > holdRange.StartMinutes;
+                    });
+
+                    var isHeld = matchingHold != null;
                     var isBooked = isAppointmentOccupied || isHeld;
                     var period = SlotCalculator.PeriodAt(t.Hour, t.Minute);
-                    var remaining = isHeld ? (int)Math.Max(0, (hold!.ExpiresAt - now).TotalSeconds) : 0;
+                    var remaining = isHeld ? (int)Math.Max(0, (matchingHold!.ExpiresAt - now).TotalSeconds) : 0;
 
                     return new TimeSlotDto(
                         range,
