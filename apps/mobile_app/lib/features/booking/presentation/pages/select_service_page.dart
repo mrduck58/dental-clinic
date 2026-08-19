@@ -56,7 +56,7 @@ class _SelectServicePageState extends State<SelectServicePage> {
         .toList();
   }
 
-  void _onSelectService(ServiceModel s) {
+  Future<void> _onSelectService(ServiceModel s) async {
     final service = ServiceInfo(
       id: s.id,
       name: s.name,
@@ -67,8 +67,65 @@ class _SelectServicePageState extends State<SelectServicePage> {
       durationMinutes: s.durationMinutes,
       options: s.options,
     );
-    final updatedDraft = widget.draft.copyWith(service: service);
+    var updatedDraft = widget.draft.copyWith(service: service);
+
     if (updatedDraft.date != null && updatedDraft.timeSlot != null && updatedDraft.doctor != null) {
+      try {
+        final patientId = updatedDraft.patient?.id ?? 'self';
+        final res = await _bookingService.holdSlot(
+          patientId: patientId == 'self' ? '' : patientId,
+          dentistId: updatedDraft.doctor!.id,
+          date: updatedDraft.date!,
+          timeSlot: updatedDraft.timeSlot!.range,
+          serviceId: s.id,
+        );
+        if (res.isSuccess && res.expiresAt != null) {
+          updatedDraft = updatedDraft.copyWith(holdExpiresAt: res.expiresAt);
+        }
+      } catch (e) {
+        if (!mounted) return;
+        final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
+        await showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(
+              children: [
+                const Icon(Iconsax.warning_2, color: Color(0xFFEF4444), size: 24),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    isVi ? 'Khung giờ không đủ thời lượng' : 'Slot Overlap',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            content: Text(
+              isVi
+                  ? 'Dịch vụ "${s.name}" có thời lượng ước tính ${s.durationMinutes} phút và bị trùng với lịch hẹn/ca giữ khác ở khung giờ đã chọn. Vui lòng chọn lại giờ khám.'
+                  : 'Service "${s.name}" takes ${s.durationMinutes} minutes and overlaps with an existing appointment. Please select another slot.',
+              style: const TextStyle(fontSize: 14, height: 1.4),
+            ),
+            actions: [
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  context.push(AppRoutes.bookingSelectTimeSlot, extra: updatedDraft);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                child: Text(isVi ? 'Chọn lại giờ khám' : 'Select Time Slot'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+      if (!mounted) return;
       context.push(AppRoutes.bookingReview, extra: updatedDraft);
     } else {
       context.push(AppRoutes.bookingSelectDatetime, extra: updatedDraft);
@@ -95,6 +152,8 @@ class _SelectServicePageState extends State<SelectServicePage> {
       appBar: BookingAppBar(title: isVi ? 'Chọn dịch vụ' : 'Select Service'),
       body: Column(
         children: [
+          if (widget.draft.holdExpiresAt != null)
+            HoldCountdownBanner(holdExpiresAt: widget.draft.holdExpiresAt),
           // ── Search bar ────────────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),

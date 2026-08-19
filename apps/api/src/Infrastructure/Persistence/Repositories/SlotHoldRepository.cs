@@ -34,6 +34,20 @@ public class SlotHoldRepository(AppDbContext dbContext) : ISlotHoldRepository
             .FirstOrDefaultAsync(ct);
     }
 
+    public async Task<IReadOnlyList<AppointmentSlotHold>> GetActiveHoldsForUserOrPatientAsync(
+        Guid userId,
+        Guid patientId,
+        DateTimeOffset now,
+        CancellationToken ct = default)
+    {
+        return await dbContext.AppointmentSlotHolds
+            .Where(h => ((userId != Guid.Empty && h.UserId == userId) || (patientId != Guid.Empty && h.PatientId == patientId))
+                     && h.Status == AppointmentSlotHold.StatusHeld
+                     && h.ExpiresAt > now)
+            .OrderByDescending(h => h.CreatedAt)
+            .ToListAsync(ct);
+    }
+
     public async Task<IReadOnlyList<AppointmentSlotHold>> GetActiveHoldsForDentistAndDateAsync(
         Guid dentistId,
         DateOnly date,
@@ -65,7 +79,6 @@ public class SlotHoldRepository(AppDbContext dbContext) : ISlotHoldRepository
                           && h.CreatedAt >= startOfVnToday
                           && !h.IsSuccess
                           && (h.Status == AppointmentSlotHold.StatusExpired
-                              || h.Status == AppointmentSlotHold.StatusReleased
                               || (h.Status == AppointmentSlotHold.StatusHeld && h.ExpiresAt <= now)),
                         ct);
     }

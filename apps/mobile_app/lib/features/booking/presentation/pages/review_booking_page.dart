@@ -23,8 +23,6 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
   final _symptomCtrl = TextEditingController();
   final _bookingService = BookingService();
   bool _isLoading = false;
-  Timer? _holdTimer;
-  int _remainingSeconds = 0;
 
   static const _weekdaysVi = [
     '', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy', 'Chủ Nhật'
@@ -42,32 +40,10 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
   void initState() {
     super.initState();
     _symptomCtrl.text = widget.draft.symptoms ?? '';
-
-    // Khởi động đếm ngược hạn giữ chỗ nếu có
-    if (widget.draft.holdExpiresAt != null) {
-      final diff = widget.draft.holdExpiresAt!.difference(DateTime.now()).inSeconds;
-      _remainingSeconds = diff > 0 ? diff : 0;
-      if (_remainingSeconds > 0) {
-        _holdTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-          if (!mounted) {
-            timer.cancel();
-            return;
-          }
-          if (_remainingSeconds <= 1) {
-            timer.cancel();
-            setState(() => _remainingSeconds = 0);
-            _showExpiredAndRedirect();
-          } else {
-            setState(() => _remainingSeconds--);
-          }
-        });
-      }
-    }
   }
 
   @override
   void dispose() {
-    _holdTimer?.cancel();
     _symptomCtrl.dispose();
     super.dispose();
   }
@@ -189,78 +165,6 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
     }
   }
 
-  Widget _buildHoldCountdownBanner(bool isVi) {
-    final minutes = _remainingSeconds ~/ 60;
-    final seconds = _remainingSeconds % 60;
-    final timeStr = '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
-    final isUrgent = _remainingSeconds <= 60;
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: isUrgent
-            ? (context.isDark ? const Color(0xFF3B1515) : const Color(0xFFFEF2F2))
-            : (context.isDark ? const Color(0xFF38290D) : const Color(0xFFFFFBEB)),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isUrgent
-              ? (context.isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFCA5A5))
-              : (context.isDark ? const Color(0xFF78350F) : const Color(0xFFFDE68A)),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: isUrgent
-                  ? (context.isDark ? const Color(0xFF5A1A1A) : const Color(0xFFFEE2E2))
-                  : (context.isDark ? const Color(0xFF451A03) : const Color(0xFFFEF3C7)),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Iconsax.timer_1,
-              size: 18,
-              color: isUrgent ? const Color(0xFFEF4444) : const Color(0xFFD97706),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              isVi
-                  ? 'Thời gian giữ chỗ còn lại:'
-                  : 'Hold time remaining:',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: isUrgent
-                    ? (context.isDark ? const Color(0xFFFCA5A5) : const Color(0xFF991B1B))
-                    : (context.isDark ? const Color(0xFFFDE68A) : const Color(0xFF92400E)),
-              ),
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: isUrgent ? const Color(0xFFDC2626) : const Color(0xFFD97706),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              timeStr,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                color: Colors.white,
-                fontFeatures: [FontFeature.tabularFigures()],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
@@ -281,8 +185,11 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
             child: SingleChildScrollView(
               child: Column(
                 children: [
-                  if (_remainingSeconds > 0)
-                    _buildHoldCountdownBanner(isVi),
+                  if (widget.draft.holdExpiresAt != null)
+                    HoldCountdownBanner(
+                      holdExpiresAt: widget.draft.holdExpiresAt,
+                      onExpired: _showExpiredAndRedirect,
+                    ),
 
                   const SizedBox(height: 12),
 

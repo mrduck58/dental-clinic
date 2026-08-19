@@ -1,11 +1,13 @@
 using DentalClinic.API.Application.UseCases.Dentists;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
+using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Domain.Schedules;
 using DentalClinic.API.Infrastructure.Persistence;
 using DentalClinic.API.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using NSubstitute;
 using NUnit.Framework;
 
 namespace DentalClinic.API.Infrastructure.Tests.Handlers;
@@ -184,5 +186,47 @@ public class GetDentistSlotsHandlerTests
         var result = (await _handler.Handle(new GetDentistSlotsQuery(date), CancellationToken.None)).ToList();
 
         result.Should().ContainSingle(d => d.FullName == "BS. Có ca");
+    }
+
+    [Test]
+    public async Task HandleAsync_WhenSlotHeldByCurrentUser_ShouldMarkIsHeldByMeTrueAndIsBookedFalse()
+    {
+        var date = NextWorkingDate();
+        var dentistUser = User.Create("d5", "d5@test.com", "hash", UserRole.Dentist, fullName: "BS. Held");
+        _db.Users.Add(dentistUser);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Chỉnh nha", "N/A", 5);
+        dentist.Employee = employee;
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
+        _db.WorkSchedules.Add(WorkSchedule.Create(date, "08:00-10:00", "dentist", "Dentist", dentist.FullName, "P1", "#fff", false));
+
+        var currentUserId = Guid.NewGuid();
+        var patientId = Guid.NewGuid();
+        var apptDateTime = date.ToDateTime(new TimeOnly(8, 0));
+        var apptDateUtc = new DateTimeOffset(apptDateTime, TimeSpan.FromHours(7)).ToUniversalTime();
+
+        var hold = AppointmentSlotHold.Create(patientId, currentUserId, dentist.Id, apptDateUtc, "08:00 - 08:30", DateTimeOffset.UtcNow);
+        _db.AppointmentSlotHolds.Add(hold);
+        await _db.SaveChangesAsync();
+
+        var currentUserMock = Substitute.For<ICurrentUserService>();
+        currentUserMock.UserId.Returns(currentUserId);
+
+        var handler = new GetDentistSlotsHandler(
+            new WorkScheduleRepository(_db),
+            new DentistRepository(_db),
+            new AppointmentRepository(_db),
+            new SlotHoldRepository(_db),
+            currentUserMock);
+
+        var result = (await handler.Handle(new GetDentistSlotsQuery(date), CancellationToken.None)).ToList();
+
+        var dto = result.Should().ContainSingle().Subject;
+        var slot800 = dto.Slots.First(s => s.Range.StartsWith("08:00"));
+        slot800.IsHeld.Should().BeTrue();
+        slot800.IsHeldByMe.Should().BeTrue();
+        slot800.IsBooked.Should().BeFalse();
     }
 }

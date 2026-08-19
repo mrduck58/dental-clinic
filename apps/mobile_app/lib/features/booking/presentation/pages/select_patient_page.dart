@@ -235,6 +235,10 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
           ? const Center(child: CircularProgressIndicator())
           : CustomScrollView(
         slivers: [
+          if (widget.initialDraft?.holdExpiresAt != null)
+            SliverToBoxAdapter(
+              child: HoldCountdownBanner(holdExpiresAt: widget.initialDraft?.holdExpiresAt),
+            ),
           // ── Header + avatar row ──────────────────────────────
           SliverToBoxAdapter(
             child: ColoredBox(

@@ -178,3 +178,148 @@ class BookingSectionLabel extends StatelessWidget {
     );
   }
 }
+
+// ─── Hold Countdown Banner ───────────────────────────────────────────────────
+
+class HoldCountdownBanner extends StatefulWidget {
+  final DateTime? holdExpiresAt;
+  final VoidCallback? onExpired;
+  final EdgeInsetsGeometry margin;
+
+  const HoldCountdownBanner({
+    super.key,
+    required this.holdExpiresAt,
+    this.onExpired,
+    this.margin = const EdgeInsets.fromLTRB(16, 8, 16, 8),
+  });
+
+  @override
+  State<HoldCountdownBanner> createState() => _HoldCountdownBannerState();
+}
+
+class _HoldCountdownBannerState extends State<HoldCountdownBanner> {
+  int _remainingSeconds = 0;
+  bool _initialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initTimer();
+  }
+
+  @override
+  void didUpdateWidget(covariant HoldCountdownBanner oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.holdExpiresAt != widget.holdExpiresAt) {
+      _initTimer();
+    }
+  }
+
+  void _initTimer() {
+    if (widget.holdExpiresAt == null) {
+      _remainingSeconds = 0;
+      return;
+    }
+    final diff = widget.holdExpiresAt!.difference(DateTime.now()).inSeconds;
+    _remainingSeconds = diff > 0 ? diff : 0;
+    if (!_initialized && _remainingSeconds > 0) {
+      _initialized = true;
+      _startPeriodicCheck();
+    }
+  }
+
+  void _startPeriodicCheck() {
+    Future.doWhile(() async {
+      await Future.delayed(const Duration(seconds: 1));
+      if (!mounted) return false;
+      if (widget.holdExpiresAt == null) return false;
+      final diff = widget.holdExpiresAt!.difference(DateTime.now()).inSeconds;
+      final newRemaining = diff > 0 ? diff : 0;
+      if (newRemaining != _remainingSeconds) {
+        setState(() => _remainingSeconds = newRemaining);
+      }
+      if (newRemaining <= 0) {
+        widget.onExpired?.call();
+        return false;
+      }
+      return true;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_remainingSeconds <= 0 || widget.holdExpiresAt == null) {
+      return const SizedBox.shrink();
+    }
+
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
+    final minutes = _remainingSeconds ~/ 60;
+    final seconds = _remainingSeconds % 60;
+    final timeStr = '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+    final isUrgent = _remainingSeconds <= 60;
+
+    return Container(
+      margin: widget.margin,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: isUrgent
+            ? (context.isDark ? const Color(0xFF3B1515) : const Color(0xFFFEF2F2))
+            : (context.isDark ? const Color(0xFF38290D) : const Color(0xFFFFFBEB)),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isUrgent
+              ? (context.isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFCA5A5))
+              : (context.isDark ? const Color(0xFF78350F) : const Color(0xFFFDE68A)),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: isUrgent
+                  ? (context.isDark ? const Color(0xFF5A1A1A) : const Color(0xFFFEE2E2))
+                  : (context.isDark ? const Color(0xFF451A03) : const Color(0xFFFEF3C7)),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Iconsax.timer_1,
+              size: 18,
+              color: isUrgent ? const Color(0xFFEF4444) : const Color(0xFFD97706),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              isVi
+                  ? 'Thời gian giữ chỗ còn lại:'
+                  : 'Hold time remaining:',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: isUrgent
+                    ? (context.isDark ? const Color(0xFFFCA5A5) : const Color(0xFF991B1B))
+                    : (context.isDark ? const Color(0xFFFDE68A) : const Color(0xFF92400E)),
+              ),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: isUrgent ? const Color(0xFFDC2626) : const Color(0xFFD97706),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              timeStr,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

@@ -35,9 +35,11 @@ class BookingService {
   Future<List<ApiDoctorWithSlots>> getDoctorsWithSlots(DateTime date) async {
     final dateStr =
         '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    final token = await _auth.getToken();
     final res = await _client.get(
       ApiConstants.dentistSlots,
       queryParameters: {'date': dateStr},
+      token: token,
     );
     final list = res.data as List<dynamic>;
     return list
