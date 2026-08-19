@@ -281,6 +281,10 @@ class _ChatbotPageState extends State<ChatbotPage> {
             name: match.name,
             description: match.description,
             price: match.formattedPrice,
+            imageUrl: match.imageUrl,
+            iconUrl: match.iconUrl,
+            durationMinutes: match.durationMinutes,
+            options: match.options,
           );
         }
       } catch (_) {

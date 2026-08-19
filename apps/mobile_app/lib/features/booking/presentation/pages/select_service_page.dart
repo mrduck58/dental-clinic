@@ -64,6 +64,8 @@ class _SelectServicePageState extends State<SelectServicePage> {
       price: s.formattedPrice,
       imageUrl: s.imageUrl,
       iconUrl: s.iconUrl,
+      durationMinutes: s.durationMinutes,
+      options: s.options,
     );
     final updatedDraft = widget.draft.copyWith(service: service);
     if (updatedDraft.date != null && updatedDraft.timeSlot != null && updatedDraft.doctor != null) {
@@ -80,6 +82,8 @@ class _SelectServicePageState extends State<SelectServicePage> {
         price: s.formattedPrice,
         imageUrl: s.imageUrl,
         iconUrl: s.iconUrl,
+        durationMinutes: s.durationMinutes,
+        options: s.options,
       );
 
   @override
@@ -203,7 +207,7 @@ class _ServiceItem extends StatelessWidget {
                 GestureDetector(
                   onTap: onTap,
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 14, 0, 0),
+                    padding: const EdgeInsets.fromLTRB(16, 14, 12, 0),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -245,15 +249,6 @@ class _ServiceItem extends StatelessWidget {
                                   ),
                                 ),
                             ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          service.formattedPrice,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.primary,
                           ),
                         ),
                       ],

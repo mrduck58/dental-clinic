@@ -25,6 +25,12 @@ class BookingService {
         .toList();
   }
 
+  /// Lấy thông tin chi tiết của một dịch vụ kèm danh sách options.
+  Future<ServiceModel> getServiceById(String serviceId) async {
+    final res = await _client.get('${ApiConstants.services}/$serviceId');
+    return ServiceModel.fromJson(res.data as Map<String, dynamic>);
+  }
+
   /// Lấy danh sách nha sĩ kèm slot khả dụng cho một ngày cụ thể.
   Future<List<ApiDoctorWithSlots>> getDoctorsWithSlots(DateTime date) async {
     final dateStr =

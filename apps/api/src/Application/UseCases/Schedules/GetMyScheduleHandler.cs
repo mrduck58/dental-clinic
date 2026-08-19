@@ -16,7 +16,7 @@ public class GetMyScheduleHandler(
 {
     public async Task<IEnumerable<ScheduleEntryDto>> Handle(GetMyScheduleQuery query, CancellationToken ct)
     {
-        if (!DateOnly.TryParse(query.WeekStart, out var start))
+        if (!DateOnly.TryParseExact(query.WeekStart, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var start))
             throw new ArgumentException("Invalid date format. Use YYYY-MM-DD.");
 
         var dentist = await dentistRepository.GetByUserIdWithUserAsync(query.UserId, ct);

@@ -1,3 +1,5 @@
+import 'package:mobile_app/features/home/data/models/service_model.dart';
+
 // ─── Patient ─────────────────────────────────────────────────────────────────
 
 class PatientInfo {
@@ -32,6 +34,8 @@ class ServiceInfo {
   final String price;
   final String? imageUrl;
   final String? iconUrl;
+  final int durationMinutes;
+  final List<ServiceOptionModel> options;
 
   const ServiceInfo({
     required this.id,
@@ -41,6 +45,8 @@ class ServiceInfo {
     required this.price,
     this.imageUrl,
     this.iconUrl,
+    this.durationMinutes = 0,
+    this.options = const [],
   });
 }
 

@@ -52,16 +52,28 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
 
   Future<void> _loadWorkingDates() async {
     final docId = widget.draft.doctor?.id ?? widget.draft.preferredDentistId;
-    if (docId == null) return;
+    if (docId == null || docId.isEmpty) return;
     setState(() => _loadingWorkingDates = true);
-    final dates = await BookingService().getWorkingDatesForDentist(docId, _month.year, _month.month);
-    if (mounted) {
-      setState(() {
-        _workingDates = dates;
-        _loadingWorkingDates = false;
-      });
+    try {
+      final dates = await BookingService().getWorkingDatesForDentist(docId, _month.year, _month.month);
+      if (mounted) {
+        setState(() {
+          _workingDates = dates;
+          _loadingWorkingDates = false;
+          if (_selected != null && !_workingDates.contains(_toDateStr(_selected!))) {
+            _selected = null;
+          }
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _loadingWorkingDates = false);
+      }
     }
   }
+
+  String _toDateStr(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   void _changeMonth(int delta) {
     setState(() {
@@ -74,14 +86,22 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
     final today = DateTime.now();
     return d.isBefore(DateTime(today.year, today.month, today.day));
   }
+
   bool _isToday(DateTime d) {
     final now = DateTime.now();
     return d.year == now.year && d.month == now.month && d.day == now.day;
   }
 
   bool _isAvailable(DateTime d) {
-    return !_isPast(d);
+    if (_isPast(d)) return false;
+    final docId = widget.draft.doctor?.id ?? widget.draft.preferredDentistId;
+    if (docId != null && docId.isNotEmpty) {
+      if (_loadingWorkingDates) return false;
+      return _workingDates.contains(_toDateStr(d));
+    }
+    return true;
   }
+
   bool _isSelected(DateTime d) =>
       _selected != null &&
       d.year == _selected!.year &&
@@ -150,7 +170,7 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
                             ? Image.network(
                                 ApiConstants.resolveAssetUrl(widget.draft.doctor!.avatarUrl)!,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => const Icon(Iconsax.user, color: AppColors.primary, size: 20),
+                                errorBuilder: (_, _, _) => const Icon(Iconsax.user, color: AppColors.primary, size: 20),
                               )
                             : const Icon(Iconsax.user, color: AppColors.primary, size: 20),
                       ),
@@ -186,14 +206,27 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
                   onTap: () => _changeMonth(-1),
                 ),
                 Expanded(
-                  child: Text(
-                    '${monthNames[_month.month]} - ${_month.year}',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: context.isDark ? Colors.white : AppColors.primary,
-                    ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        '${monthNames[_month.month]} - ${_month.year}',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: context.isDark ? Colors.white : AppColors.primary,
+                        ),
+                      ),
+                      if (_loadingWorkingDates) ...[
+                        const SizedBox(width: 8),
+                        const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
                 _NavBtn(
@@ -311,6 +344,39 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
             ),
             const SizedBox(height: 24),
 
+            // ── No dates notice if doctor has no dates in month ─────────────
+            if ((widget.draft.doctor != null || widget.draft.preferredDentistId != null) &&
+                !_loadingWorkingDates &&
+                _workingDates.isEmpty) ...[
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withValues(alpha: context.isDark ? 0.2 : 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Iconsax.info_circle, color: Colors.amber, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        isVi
+                            ? 'Nha sĩ không có lịch làm việc trong tháng này. Vui lòng bấm nút > để chọn tháng tiếp theo.'
+                            : 'Dentist has no available slots this month. Please click > for next month.',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          color: context.textPrimary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
             // ── Instruction ──────────────────────────────────────────────────
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -331,7 +397,11 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    TextSpan(text: isVi ? ' để đặt khám.' : ' to schedule appointment.'),
+                    TextSpan(
+                      text: (widget.draft.doctor != null || widget.draft.preferredDentistId != null)
+                          ? (isVi ? ' (bác sĩ có lịch làm việc) để đặt khám.' : ' (dentist working dates) to book.')
+                          : (isVi ? ' để đặt khám.' : ' to schedule appointment.'),
+                    ),
                   ],
                 ),
               ),
@@ -339,7 +409,7 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
             const SizedBox(height: 24),
 
             // ── Legend ───────────────────────────────────────────────────────
-            _Legend(),
+            _Legend(isDoctorSpecific: widget.draft.doctor != null || widget.draft.preferredDentistId != null),
             const SizedBox(height: 24),
           ],
         ),
@@ -382,16 +452,27 @@ class _NavBtn extends StatelessWidget {
 // ─── Legend ───────────────────────────────────────────────────────────────────
 
 class _Legend extends StatelessWidget {
+  final bool isDoctorSpecific;
+  const _Legend({this.isDoctorSpecific = false});
+
   @override
   Widget build(BuildContext context) {
     final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     final inactiveBg = context.isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9);
 
+    final availableLabel = isDoctorSpecific
+        ? (isVi ? 'Ngày bác sĩ có lịch khám' : 'Dentist working date')
+        : (isVi ? 'Ngày có thể đặt khám' : 'Available dates');
+
+    final unavailableLabel = isDoctorSpecific
+        ? (isVi ? 'Ngày bác sĩ nghỉ / hết chỗ / đã qua' : 'No slots / off / past')
+        : (isVi ? 'Ngày đã qua' : 'Past dates');
+
     return Column(
       children: [
         _LegendRow(
           color: AppColors.primary,
-          label: isVi ? 'Ngày có thể đặt khám' : 'Available dates',
+          label: availableLabel,
           isRect: true,
         ),
         const SizedBox(height: 6),
@@ -404,7 +485,7 @@ class _Legend extends StatelessWidget {
         const SizedBox(height: 6),
         _LegendRow(
           color: inactiveBg,
-          label: isVi ? 'Ngày đã qua' : 'Past dates',
+          label: unavailableLabel,
           isRect: true,
         ),
       ],
