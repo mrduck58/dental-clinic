@@ -56,6 +56,7 @@ abstract class ApiConstants {
   static const String dentists = '/dentists';
   static const String dentistSlots = '/dentists/slots';
   static String dentistDetail(String id) => '/dentists/$id';
+  static String dentistWorkingDates(String id) => '/dentists/$id/working-dates';
   static String dentistReviews(String id) => '/dentists/$id/reviews';
   static String dentistReviewEligibility(String id) => '/dentists/$id/review-eligibility';
   static const String feedbacks = '/feedbacks';
