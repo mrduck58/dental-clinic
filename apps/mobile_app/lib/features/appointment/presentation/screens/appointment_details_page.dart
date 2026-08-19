@@ -995,32 +995,7 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
   }
 }
 
-class _MapGridPainter extends CustomPainter {
-  final Color lineColor;
-  _MapGridPainter({required this.lineColor});
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = lineColor
-      ..strokeWidth = 3
-      ..style = PaintingStyle.stroke;
-
-    // Draw some random roads intersecting
-    canvas.drawLine(Offset(0, size.height * 0.3), Offset(size.width, size.height * 0.4), paint);
-    canvas.drawLine(Offset(size.width * 0.25, 0), Offset(size.width * 0.3, size.height), paint);
-    canvas.drawLine(Offset(size.width * 0.7, 0), Offset(size.width * 0.6, size.height), paint);
-    canvas.drawLine(Offset(0, size.height * 0.7), Offset(size.width, size.height * 0.65), paint);
-    
-    // Draw minor streets
-    paint.strokeWidth = 1.5;
-    canvas.drawLine(Offset(0, size.height * 0.15), Offset(size.width * 0.3, size.height * 0.2), paint);
-    canvas.drawLine(Offset(size.width * 0.3, size.height * 0.2), Offset(size.width * 0.6, size.height * 0.1), paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
 
 class _CancelReasonBottomSheet extends StatefulWidget {
   final String appointmentId;
@@ -1129,9 +1104,18 @@ class _CancelReasonBottomSheetState extends State<_CancelReasonBottomSheet> {
 
         Navigator.pop(context); // close bottom sheet
         widget.onCancelled(displayed);
+        final willHaveCooldown = _eligibility != null && _eligibility!.cancellationCount >= 1;
+        final successMsg = widget.isVi
+            ? (willHaveCooldown
+                ? 'Đã hủy lịch khám. Bệnh nhân này sẽ tạm chờ 30 phút trước khi đặt lịch mới.'
+                : 'Đã hủy lịch khám thành công.')
+            : (willHaveCooldown
+                ? 'Appointment cancelled. 30-minute cooldown active for this patient.'
+                : 'Appointment cancelled successfully.');
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(widget.isVi ? 'Đã hủy lịch khám thành công.' : 'Appointment cancelled successfully.'),
+            content: Text(successMsg),
             behavior: SnackBarBehavior.floating,
             margin: const EdgeInsets.fromLTRB(16, 0, 16, 100),
             backgroundColor: const Color(0xFF16A34A),

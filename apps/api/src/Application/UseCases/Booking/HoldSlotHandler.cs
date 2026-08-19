@@ -60,6 +60,24 @@ public class HoldSlotHandler(
                 "Bệnh nhân đã đạt giới hạn 3 lần giữ chỗ không thành công trong ngày. " +
                 "Vui lòng quay lại vào ngày mai.");
 
+        // 3.1. Kiểm tra nếu bệnh nhân đang trong thời gian chờ (cooldown 30 phút sau khi hủy/dời từ lần 2)
+        var cooldownUntil = await appointmentRepository.GetPatientCooldownUntilAsync(command.PatientId, now, ct);
+        if (cooldownUntil.HasValue && cooldownUntil.Value > now)
+        {
+            var remaining = (int)Math.Ceiling((cooldownUntil.Value - now).TotalMinutes);
+            throw new ConflictException($"Bệnh nhân đang trong thời gian chờ sau khi đổi/hủy lịch. Vui lòng thử lại sau {remaining} phút.");
+        }
+
+        // 3.2. Kiểm tra giới hạn tối đa 2 lịch hẹn đang hoạt động của tài khoản
+        if (userId != Guid.Empty)
+        {
+            var activeCount = await appointmentRepository.CountActiveAppointmentsForUserAsync(userId, excludeAppointmentId: null, ct);
+            if (activeCount >= 2)
+            {
+                throw new ConflictException("Tài khoản của bạn đã đạt giới hạn tối đa 2 lịch hẹn đang hoạt động. Vui lòng hoàn thành hoặc dời/hủy bớt lịch hẹn trước khi đặt thêm.");
+            }
+        }
+
         // 4. Kiểm tra ca khám đã có lịch hẹn chính thức chưa
         var appointments = await appointmentRepository.GetByDateAsync(command.Date, ct);
         if (appointments.Any(a => a.DentistId == command.DentistId
