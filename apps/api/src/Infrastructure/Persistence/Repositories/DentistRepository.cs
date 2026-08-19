@@ -52,10 +52,15 @@ public class DentistRepository(AppDbContext db) : IDentistRepository
 
     public async Task<List<DentistProfile>> GetActiveByNamesAsync(IEnumerable<string> names, CancellationToken ct = default)
     {
-        var nameSet = names.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        return await db.DentistProfiles
+        var allActive = await db.DentistProfiles
             .Include(d => d.Employee).ThenInclude(e => e.User)
-            .Where(d => d.Employee.User.IsActive && nameSet.Contains(d.Employee.User.FullName ?? string.Empty))
+            .Where(d => d.Employee.User.IsActive)
             .ToListAsync(ct);
+
+        var nameList = names.ToList();
+        return allActive
+            .Where(d => nameList.Any(n => DentalClinic.API.Domain.Schedules.StaffNameMatcher.IsSamePerson(n, d.FullName)
+                                         || DentalClinic.API.Domain.Schedules.StaffNameMatcher.IsSamePerson(n, d.Employee?.User?.FullName)))
+            .ToList();
     }
 }

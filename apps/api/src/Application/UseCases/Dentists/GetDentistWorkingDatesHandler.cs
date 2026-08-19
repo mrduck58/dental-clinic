@@ -27,12 +27,14 @@ public class GetDentistWorkingDatesHandler(
 
         string fullName;
         Guid realDentistId;
+        Guid? employeeId = null;
         string defaultShift;
 
         if (dentist != null)
         {
             fullName = dentist.FullName;
             realDentistId = dentist.Id;
+            employeeId = dentist.EmployeeId;
             defaultShift = dentist.Shift;
         }
         else
@@ -41,6 +43,7 @@ public class GetDentistWorkingDatesHandler(
             if (user == null) return Enumerable.Empty<string>();
             fullName = user.FullName ?? string.Empty;
             realDentistId = user.Id;
+            employeeId = user.Employee?.Id;
             defaultShift = "FullTime";
         }
 
@@ -61,10 +64,14 @@ public class GetDentistWorkingDatesHandler(
             .Select(ws => ws.Date)
             .ToHashSet();
 
-        var shiftsByDate = schedules
+        var dentistSchedules = schedules
             .Where(ws => (ws.Type == "dentist" || ws.Role == "dentist" || string.Equals(ws.Type, "Khám", StringComparison.OrdinalIgnoreCase))
-                         && IsStaffNameMatch(ws.StaffName, fullName)
                          && !ws.IsHoliday)
+            .ToList();
+
+        var shiftsByDate = dentistSchedules
+            .Where(ws => (employeeId.HasValue && ws.EmployeeId.HasValue && ws.EmployeeId.Value == employeeId.Value)
+                         || StaffNameMatcher.IsSamePerson(ws.StaffName, fullName))
             .GroupBy(ws => ws.Date)
             .ToDictionary(g => g.Key, g => g.Select(ws => ws.Shift).ToList());
 
@@ -80,18 +87,26 @@ public class GetDentistWorkingDatesHandler(
             IEnumerable<string> assignedShifts;
             if (shiftsByDate.TryGetValue(date, out var customShifts) && customShifts.Count > 0)
             {
-                if (customShifts.All(s => string.Equals(s, "Off", StringComparison.OrdinalIgnoreCase) || string.Equals(s, "Nghỉ", StringComparison.OrdinalIgnoreCase)))
+                var activeCustomShifts = customShifts
+                    .Where(s => !string.IsNullOrWhiteSpace(s) && !string.Equals(s, "Off", StringComparison.OrdinalIgnoreCase) && !string.Equals(s, "Nghỉ", StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+
+                if (activeCustomShifts.Count == 0)
                     continue;
-                assignedShifts = customShifts;
+
+                assignedShifts = activeCustomShifts;
             }
-            else if (schedules.Any(ws => ws.Date == date && (ws.Type == "dentist" || ws.Role == "dentist")))
+            else if (dentistSchedules.Any(ws => ws.Date == date))
             {
                 // Có phân ca trong ngày cho bác sĩ khác nhưng không phân cho bác sĩ này -> Bác sĩ nghỉ
                 continue;
             }
             else
             {
-                // Chưa có ca lẻ phân trong hệ thống -> Dùng ca mặc định của bác sĩ
+                // Chưa có ca lẻ phân trong hệ thống -> Mặc định Chủ Nhật nghỉ, ngày thường dùng ca mặc định của bác sĩ
+                if (date.DayOfWeek == DayOfWeek.Sunday)
+                    continue;
+
                 assignedShifts = [defaultShift];
             }
 
@@ -120,26 +135,5 @@ public class GetDentistWorkingDatesHandler(
         }
 
         return availableDates;
-    }
-
-    private static bool IsStaffNameMatch(string staffName, string fullName)
-    {
-        if (string.IsNullOrWhiteSpace(staffName) || string.IsNullOrWhiteSpace(fullName)) return false;
-        var cleanStaff = CleanName(staffName);
-        var cleanFull = CleanName(fullName);
-        return string.Equals(cleanStaff, cleanFull, StringComparison.OrdinalIgnoreCase)
-               || cleanStaff.Contains(cleanFull, StringComparison.OrdinalIgnoreCase)
-               || cleanFull.Contains(cleanStaff, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string CleanName(string name)
-    {
-        return name.Replace("Bác sĩ", "", StringComparison.OrdinalIgnoreCase)
-                   .Replace("BS.", "", StringComparison.OrdinalIgnoreCase)
-                   .Replace("BS", "", StringComparison.OrdinalIgnoreCase)
-                   .Replace("Dr.", "", StringComparison.OrdinalIgnoreCase)
-                   .Replace("Dr", "", StringComparison.OrdinalIgnoreCase)
-                   .Replace(".", "")
-                   .Trim();
     }
 }

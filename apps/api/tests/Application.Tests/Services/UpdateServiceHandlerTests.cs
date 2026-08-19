@@ -50,7 +50,7 @@ public class UpdateServiceHandlerTests
     [Test]
     public async Task HandleAsync_NullImageUrl_DoesNotOverwriteExistingImage()
     {
-        var service = Service.Create("Nhổ răng", 200000m, 30, "Mô tả", "https://existing.jpg");
+        var service = Service.Create("Nhổ răng", 200000m, 30, "Mô tả", imageUrl: "https://existing.jpg");
         _repo.GetByIdAsync(service.Id, Arg.Any<CancellationToken>()).Returns(service);
         var handler = new UpdateServiceHandler(_repo, _activityLog, _currentUser);
 
