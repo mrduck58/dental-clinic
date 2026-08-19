@@ -40,7 +40,7 @@ public class UpdateAppointmentStatusHandlerTests
         _notification = Substitute.For<INotificationService>();
         _patientRepo = Substitute.For<IPatientRepository>();
         _confirm = new ConfirmAppointmentHandler(_repo, _activityLog, _notification, _currentUser, _patientRepo);
-        _changeGuard = new AppointmentChangeGuard(_currentUser, _patientRepo);
+        _changeGuard = new AppointmentChangeGuard(_currentUser, _patientRepo, _repo);
         _cancel = new CancelAppointmentHandler(_repo, _activityLog, _notification, _currentUser, _patientRepo, _changeGuard);
         _checkIn = new CheckInAppointmentHandler(_repo, _activityLog, _notification, _currentUser, _patientRepo);
         _noShow = new MarkNoShowHandler(_repo, _activityLog, _notification, _currentUser, _patientRepo);

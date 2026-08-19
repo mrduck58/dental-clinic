@@ -5,7 +5,13 @@ using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Dentists;
 
-public record TimeSlotDto(string Range, bool IsBooked, string Period);
+public record TimeSlotDto(
+    string Range,
+    bool IsBooked,
+    string Period,
+    bool IsHeld = false,
+    bool IsHeldByMe = false,
+    int HoldRemainingSeconds = 0);
 
 public record DentistWithSlotsDto(
     Guid DentistId,
@@ -21,12 +27,14 @@ public record GetDentistSlotsQuery(DateOnly Date) : IRequest<IEnumerable<Dentist
 public class GetDentistSlotsHandler(
     IWorkScheduleRepository workScheduleRepository,
     IDentistRepository dentistRepository,
-    IAppointmentRepository appointmentRepository)
+    IAppointmentRepository appointmentRepository,
+    ISlotHoldRepository? slotHoldRepository = null)
     : IRequestHandler<GetDentistSlotsQuery, IEnumerable<DentistWithSlotsDto>>
 {
     public async Task<IEnumerable<DentistWithSlotsDto>> Handle(GetDentistSlotsQuery request, CancellationToken ct)
     {
         var date = request.Date;
+        var now = DateTimeOffset.UtcNow;
 
         // Kiểm tra WorkSchedule cho ngày này
         var daySchedules = await workScheduleRepository.GetByDateAsync(date, ct);
@@ -82,7 +90,9 @@ public class GetDentistSlotsHandler(
                 .ToList();
         }
 
-        return targetDentists.Select(item =>
+        var result = new List<DentistWithSlotsDto>();
+
+        foreach (var item in targetDentists)
         {
             var d = item.Dentist;
             var assignedShifts = item.AssignedShifts;
@@ -96,6 +106,12 @@ public class GetDentistSlotsHandler(
                 })
                 .ToList();
 
+            var activeHolds = slotHoldRepository != null
+                ? await slotHoldRepository.GetActiveHoldsForDentistAndDateAsync(d.Id, date, now, ct)
+                : (IReadOnlyList<AppointmentSlotHold>)[];
+
+            var heldSlotMap = activeHolds.ToDictionary(h => h.TimeSlot, h => h);
+
             var slots = SlotCalculator.AllTimes
                 .Where(t => WorkShifts.IsWorkingAt(assignedShifts, t.Hour, t.Minute))
                 .Select(t =>
@@ -103,19 +119,31 @@ public class GetDentistSlotsHandler(
                     var slotStart = t.Hour * 60 + t.Minute;
                     var slotEnd = slotStart + SlotCalculator.SlotMinutes;
                     var range = $"{t.Hour:D2}:{t.Minute:D2} - {slotEnd / 60:D2}:{slotEnd % 60:D2}";
-                    var isBooked = SlotCalculator.IsOccupied(slotStart, slotEnd, occupiedRanges);
+                    var isAppointmentOccupied = SlotCalculator.IsOccupied(slotStart, slotEnd, occupiedRanges);
+                    var isHeld = heldSlotMap.TryGetValue(range, out var hold);
+                    var isBooked = isAppointmentOccupied || isHeld;
                     var period = SlotCalculator.PeriodAt(t.Hour, t.Minute);
-                    return new TimeSlotDto(range, isBooked, period);
+                    var remaining = isHeld ? (int)Math.Max(0, (hold!.ExpiresAt - now).TotalSeconds) : 0;
+
+                    return new TimeSlotDto(
+                        range,
+                        isBooked,
+                        period,
+                        IsHeld: isHeld,
+                        IsHeldByMe: false,
+                        HoldRemainingSeconds: remaining);
                 }).ToList();
 
-            return new DentistWithSlotsDto(
+            result.Add(new DentistWithSlotsDto(
                 d.Id,
                 d.FullName,
                 d.Specialization,
                 d.ProfilePictureUrl,
                 d.Shift,
                 d.ExperienceYears ?? 0,
-                slots);
-        });
+                slots));
+        }
+
+        return result;
     }
 }

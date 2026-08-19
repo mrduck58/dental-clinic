@@ -38,7 +38,7 @@ public class RescheduleAppointmentHandlerTests
 
         _handler = new RescheduleAppointmentHandler(
             _repo, _patientRepo,
-            new AppointmentChangeGuard(_currentUser, _patientRepo),
+            new AppointmentChangeGuard(_currentUser, _patientRepo, _repo),
             new AppointmentSlotGuard(_repo, _serviceRepo),
             _activityLog, _notification, _currentUser);
     }
@@ -139,13 +139,13 @@ public class RescheduleAppointmentHandlerTests
 
     // ── Giới hạn dành riêng cho bệnh nhân ─────────────────────────────────────
 
-    /// <summary>Trong vòng 24 giờ trước giờ khám, bệnh nhân phải gọi phòng khám thay vì tự dời.</summary>
+    /// <summary>Sau 24 giờ kể từ thời điểm đặt lịch, bệnh nhân phải gọi phòng khám thay vì tự dời.</summary>
     [Test]
     public async Task Handle_PatientWithinDeadline_ThrowsConflict()
     {
-        var appointment = SeedAppointment(daysAhead: 0);
-        typeof(Appointment).GetProperty("AppointmentDate")!
-            .SetValue(appointment, DateTimeOffset.UtcNow.AddHours(5));
+        var appointment = SeedAppointment(daysAhead: 5);
+        typeof(Appointment).GetProperty("CreatedAt")!
+            .SetValue(appointment, DateTimeOffset.UtcNow.AddHours(-25));
         ActAsOwningPatient(appointment);
 
         Func<Task> act = () => RescheduleTo(appointment, DateTimeOffset.UtcNow.AddDays(7));
@@ -159,9 +159,9 @@ public class RescheduleAppointmentHandlerTests
     public async Task Handle_StaffWithinDeadline_IsAllowed()
     {
         ActAsStaff();
-        var appointment = SeedAppointment(daysAhead: 0);
-        typeof(Appointment).GetProperty("AppointmentDate")!
-            .SetValue(appointment, DateTimeOffset.UtcNow.AddHours(5));
+        var appointment = SeedAppointment(daysAhead: 5);
+        typeof(Appointment).GetProperty("CreatedAt")!
+            .SetValue(appointment, DateTimeOffset.UtcNow.AddHours(-25));
 
         Func<Task> act = () => RescheduleTo(appointment, DateTimeOffset.UtcNow.AddDays(7));
 
