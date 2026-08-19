@@ -180,57 +180,11 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
     }
   }
 
-  Future<void> _onSlotTapped(ApiTimeSlot slot) async {
+  void _onSlotTapped(ApiTimeSlot slot) {
     if (slot.isBooked || _isHoldingSlot) return;
-    if (_selectedSlot?.range == slot.range && _holdRemainingSeconds > 0) return;
-
-    final doc = _doctorWithSlots;
-    if (doc == null) return;
-
-    final patientId = widget.draft.patient?.id ?? 'self';
-
     setState(() {
-      _isHoldingSlot = true;
+      _selectedSlot = slot;
     });
-
-    try {
-      final result = await _service.holdSlot(
-        patientId: patientId == 'self' ? '' : patientId,
-        dentistId: doc.dentistId,
-        date: _currentDate,
-        timeSlot: slot.range,
-      );
-
-      if (!mounted) return;
-
-      if (result.isSuccess) {
-        _startHoldCountdown(result.remainingSeconds, result.expiresAt);
-        setState(() {
-          _selectedSlot = slot;
-          _isHoldingSlot = false;
-        });
-      } else {
-        setState(() {
-          _isHoldingSlot = false;
-        });
-        _showHoldErrorDialog(result.message);
-      }
-    } on DioException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isHoldingSlot = false;
-      });
-      final msg = _extractDioError(e);
-      _showHoldErrorDialog(msg);
-      _load(silent: true);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isHoldingSlot = false;
-      });
-      _showHoldErrorDialog('Không thể giữ ca khám. Vui lòng thử lại.');
-      _load(silent: true);
-    }
   }
 
   String _extractDioError(DioException e) {
@@ -338,16 +292,59 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
     };
   }
 
-  void _onContinue() {
-    if (_selectedSlot == null || _doctorWithSlots == null) return;
-    final doctorInfo = _doctorWithSlots!.toDoctorInfo();
-    final updatedDraft = widget.draft.copyWith(
-      date: _currentDate,
-      doctor: doctorInfo,
-      timeSlot: _selectedSlot!.toTimeSlot(),
-      holdExpiresAt: _holdExpiresAt,
-    );
-    context.push(AppRoutes.bookingReview, extra: updatedDraft);
+  Future<void> _onContinue() async {
+    if (_selectedSlot == null || _doctorWithSlots == null || _isHoldingSlot) return;
+    final doc = _doctorWithSlots!;
+    final patientId = widget.draft.patient?.id ?? 'self';
+
+    setState(() {
+      _isHoldingSlot = true;
+    });
+
+    try {
+      final result = await _service.holdSlot(
+        patientId: patientId == 'self' ? '' : patientId,
+        dentistId: doc.dentistId,
+        date: _currentDate,
+        timeSlot: _selectedSlot!.range,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _isHoldingSlot = false;
+      });
+
+      if (result.isSuccess) {
+        _startHoldCountdown(result.remainingSeconds, result.expiresAt);
+        final doctorInfo = doc.toDoctorInfo();
+        final updatedDraft = widget.draft.copyWith(
+          date: _currentDate,
+          doctor: doctorInfo,
+          timeSlot: _selectedSlot!.toTimeSlot(),
+          holdExpiresAt: result.expiresAt ?? _holdExpiresAt,
+        );
+        context.push(AppRoutes.bookingReview, extra: updatedDraft);
+      } else {
+        _showHoldErrorDialog(result.message);
+        _load(silent: true);
+      }
+    } on DioException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isHoldingSlot = false;
+      });
+      final msg = _extractDioError(e);
+      _showHoldErrorDialog(msg);
+      _load(silent: true);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isHoldingSlot = false;
+      });
+      _showHoldErrorDialog('Không thể giữ ca khám. Vui lòng thử lại.');
+      _load(silent: true);
+    }
   }
 
   @override
