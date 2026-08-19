@@ -684,105 +684,230 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
                 color: context.card,
                 border: Border(top: BorderSide(color: context.divider)),
               ),
-              child: Row(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(
-                    child: SizedBox(
-                      height: 50,
-                      child: OutlinedButton.icon(
-                        onPressed: () {
-                          final parsedDate = item.parsedDate;
-                          final date = DateTime(parsedDate.year, parsedDate.month, parsedDate.day);
-                          final startHour = parsedDate.hour.toString().padLeft(2, '0');
-                          final startMin = parsedDate.minute.toString().padLeft(2, '0');
-                          final endHour = (parsedDate.hour + 1).toString().padLeft(2, '0');
-                          final timeSlot = TimeSlot(range: '$startHour:$startMin - $endHour:$startMin');
-
-                          final doctor = DoctorInfo(
-                            id: item.dentistId,
-                            name: item.dentistName,
-                            title: '',
-                            specialty: item.specialization,
-                            room: '',
-                            session: parsedDate.hour < 12 ? DoctorSession.morning : DoctorSession.afternoon,
-                            rating: 5.0,
-                            reviewCount: 0,
-                            avatarUrl: item.dentistAvatarUrl,
-                          );
-
-                          final draft = BookingDraft(
-                            reschedulingAppointmentId: item.appointmentId,
-                            appointmentCode: item.appointmentCode,
-                            preferredDentistId: item.dentistId,
-                            patient: PatientInfo(
-                              id: item.patientId ?? 'self',
-                              name: item.patientName ?? '',
-                              relationship: item.patientRelationship ?? '',
+                  if (!item.canSelfManage)
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: context.isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: context.divider),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.info_outline_rounded, size: 18, color: AppColors.primary),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              isVi
+                                  ? 'Đã quá 24h kể từ khi đặt lịch (hoặc đã đến giờ khám). Vui lòng liên hệ hotline để đổi/hủy lịch.'
+                                  : 'More than 24h since booking. Please contact hotline to reschedule or cancel.',
+                              style: TextStyle(fontSize: 12, color: context.textSecondary, height: 1.3),
                             ),
-                            service: item.serviceName == null
-                                ? null
-                                : ServiceInfo(
-                                    id: '',
-                                    name: item.serviceName!,
-                                    description: '',
-                                    price: '',
+                          ),
+                        ],
+                      ),
+                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SizedBox(
+                          height: 50,
+                          child: OutlinedButton.icon(
+                            onPressed: () async {
+                              if (!item.canSelfManage) {
+                                showDialog(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                    title: Row(
+                                      children: [
+                                        const Icon(Icons.info_outline_rounded, color: AppColors.primary),
+                                        const SizedBox(width: 8),
+                                        Text(isVi ? 'Hỗ trợ đổi lịch' : 'Support Required', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                      ],
+                                    ),
+                                    content: Text(
+                                      isVi
+                                          ? 'Đã quá 24 giờ kể từ thời điểm đặt lịch (hoặc đã đến giờ khám). Bạn không thể tự đổi lịch trên ứng dụng.\n\nVui lòng liên hệ hotline phòng khám để được nhân viên hỗ trợ trực tiếp.'
+                                          : 'It has been more than 24 hours since booking. Please contact clinic hotline for assistance.',
+                                      style: const TextStyle(fontSize: 14, height: 1.4),
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(ctx),
+                                        child: Text(isVi ? 'Đóng' : 'Close'),
+                                      ),
+                                    ],
                                   ),
-                            date: date,
-                            timeSlot: timeSlot,
-                            doctor: doctor,
-                            symptoms: item.symptoms,
-                          );
+                                );
+                                return;
+                              }
 
-                          context.push(AppRoutes.bookingReview, extra: draft);
-                        },
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: context.textPrimary,
-                          side: BorderSide(color: context.divider),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          backgroundColor: context.isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
-                        ),
-                        icon: const Icon(Iconsax.calendar_edit, size: 18),
-                        label: Text(
-                          isVi ? 'Đổi lịch khám' : 'Reschedule',
-                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: SizedBox(
-                      height: 50,
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          showModalBottomSheet(
-                            context: context,
-                            isScrollControlled: true,
-                            backgroundColor: Colors.transparent,
-                            builder: (context) => _CancelReasonBottomSheet(
-                              appointmentId: item.appointmentId,
-                              isVi: isVi,
-                              onCancelled: (reason) {
-                                setState(() {
-                                  _status = 'Cancelled';
-                                });
-                              },
+                              if (item.rescheduledCount >= 1) {
+                                final confirm = await showDialog<bool>(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                    title: Row(
+                                      children: [
+                                        const Icon(Icons.warning_amber_rounded, color: Color(0xFFD97706)),
+                                        const SizedBox(width: 8),
+                                        Text(isVi ? 'Cảnh báo đổi lịch' : 'Reschedule Warning', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                      ],
+                                    ),
+                                    content: Text(
+                                      isVi
+                                          ? 'Đây là lần đổi lịch thứ ${item.rescheduledCount + 1}. Sau khi đổi lịch thành công, bệnh nhân này sẽ phải chờ 30 phút trước khi có thể đổi tiếp hoặc đặt lịch mới.\n\nBạn có chắc chắn muốn tiếp tục đổi lịch?'
+                                          : 'This is reschedule #${item.rescheduledCount + 1}. After rescheduling, this patient will have a 30-minute cooldown.\n\nAre you sure you want to proceed?',
+                                      style: const TextStyle(fontSize: 14, height: 1.4),
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(ctx, false),
+                                        child: Text(isVi ? 'Hủy' : 'Cancel'),
+                                      ),
+                                      ElevatedButton(
+                                        onPressed: () => Navigator.pop(ctx, true),
+                                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+                                        child: Text(isVi ? 'Tiếp tục' : 'Proceed'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                if (confirm != true) return;
+                              }
+
+                              final parsedDate = item.parsedDate;
+                              final date = DateTime(parsedDate.year, parsedDate.month, parsedDate.day);
+                              final startHour = parsedDate.hour.toString().padLeft(2, '0');
+                              final startMin = parsedDate.minute.toString().padLeft(2, '0');
+                              final endHour = (parsedDate.hour + 1).toString().padLeft(2, '0');
+                              final timeSlot = TimeSlot(range: '$startHour:$startMin - $endHour:$startMin');
+
+                              final doctor = DoctorInfo(
+                                id: item.dentistId,
+                                name: item.dentistName,
+                                title: '',
+                                specialty: item.specialization,
+                                room: '',
+                                session: parsedDate.hour < 12 ? DoctorSession.morning : DoctorSession.afternoon,
+                                rating: 5.0,
+                                reviewCount: 0,
+                                avatarUrl: item.dentistAvatarUrl,
+                              );
+
+                              final draft = BookingDraft(
+                                reschedulingAppointmentId: item.appointmentId,
+                                appointmentCode: item.appointmentCode,
+                                preferredDentistId: item.dentistId,
+                                patient: PatientInfo(
+                                  id: item.patientId ?? 'self',
+                                  name: item.patientName ?? '',
+                                  relationship: item.patientRelationship ?? '',
+                                ),
+                                service: item.serviceName == null
+                                    ? null
+                                    : ServiceInfo(
+                                        id: '',
+                                        name: item.serviceName!,
+                                        description: '',
+                                        price: '',
+                                      ),
+                                date: date,
+                                timeSlot: timeSlot,
+                                doctor: doctor,
+                                symptoms: item.symptoms,
+                              );
+
+                              if (context.mounted) {
+                                context.push(AppRoutes.bookingReview, extra: draft);
+                              }
+                            },
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: context.textPrimary,
+                              side: BorderSide(color: context.divider),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              backgroundColor: context.isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
                             ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFC2185B),
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        icon: const Icon(Icons.cancel_outlined, size: 18),
-                        label: Text(
-                          isVi ? 'Hủy lịch khám' : 'Cancel visit',
-                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                            icon: const Icon(Iconsax.calendar_edit, size: 18),
+                            label: Text(
+                              isVi ? 'Đổi lịch khám' : 'Reschedule',
+                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: SizedBox(
+                          height: 50,
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              if (!item.canSelfManage) {
+                                showDialog(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                    title: Row(
+                                      children: [
+                                        const Icon(Icons.info_outline_rounded, color: AppColors.primary),
+                                        const SizedBox(width: 8),
+                                        Text(isVi ? 'Hỗ trợ hủy lịch' : 'Support Required', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                      ],
+                                    ),
+                                    content: Text(
+                                      isVi
+                                          ? 'Đã quá 24 giờ kể từ thời điểm đặt lịch (hoặc đã đến giờ khám). Bạn không thể tự hủy lịch trên ứng dụng.\n\nVui lòng liên hệ hotline phòng khám để được nhân viên hỗ trợ trực tiếp.'
+                                          : 'It has been more than 24 hours since booking. Please contact clinic hotline for assistance.',
+                                      style: const TextStyle(fontSize: 14, height: 1.4),
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(ctx),
+                                        child: Text(isVi ? 'Đóng' : 'Close'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                return;
+                              }
+
+                              showModalBottomSheet(
+                                context: context,
+                                isScrollControlled: true,
+                                backgroundColor: Colors.transparent,
+                                builder: (context) => _CancelReasonBottomSheet(
+                                  appointmentId: item.appointmentId,
+                                  patientId: item.patientId,
+                                  isVi: isVi,
+                                  onCancelled: (reason) {
+                                    setState(() {
+                                      _status = 'Cancelled';
+                                    });
+                                  },
+                                ),
+                              );
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFC2185B),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            icon: const Icon(Icons.cancel_outlined, size: 18),
+                            label: Text(
+                              isVi ? 'Hủy lịch khám' : 'Cancel visit',
+                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -899,11 +1024,13 @@ class _MapGridPainter extends CustomPainter {
 
 class _CancelReasonBottomSheet extends StatefulWidget {
   final String appointmentId;
+  final String? patientId;
   final bool isVi;
   final ValueChanged<String> onCancelled;
 
   const _CancelReasonBottomSheet({
     required this.appointmentId,
+    this.patientId,
     required this.isVi,
     required this.onCancelled,
   });
@@ -914,12 +1041,11 @@ class _CancelReasonBottomSheet extends StatefulWidget {
 
 class _CancelReasonBottomSheetState extends State<_CancelReasonBottomSheet> {
   final _bookingService = BookingService();
-  // Danh sách lý do lấy từ server thay vì hardcode: thêm/sửa một lý do không còn phải phát hành
-  // bản app mới, và mã gửi lên khớp đúng enum của backend nên thống kê gom được theo nhóm.
   List<CancellationReasonOption> _reasons = [];
   String? _selectedCode;
   bool _loadingReasons = true;
   String? _reasonsError;
+  BookingEligibility? _eligibility;
   final _textController = TextEditingController();
   bool _submitting = false;
   String? _submitError;
@@ -927,8 +1053,6 @@ class _CancelReasonBottomSheetState extends State<_CancelReasonBottomSheet> {
   CancellationReasonOption? get _selectedReason =>
       _reasons.where((r) => r.code == _selectedCode).firstOrNull;
 
-  /// Lý do bắt buộc ghi chú (ví dụ "Lý do khác") thì chưa nhập là chưa gửi được —
-  /// backend cũng từ chối, chặn sớm ở đây để người dùng không phải chờ một vòng mạng.
   bool get _canSubmit =>
       _selectedCode != null &&
       (!(_selectedReason?.requiresNote ?? false) || _textController.text.trim().isNotEmpty);
@@ -939,20 +1063,30 @@ class _CancelReasonBottomSheetState extends State<_CancelReasonBottomSheet> {
     _loadReasons();
   }
 
-  /// Gọi từ initState (state khởi tạo đã là đang-tải) và từ nút "Thử lại" — nút tự reset state
-  /// trước khi gọi, nên ở đây không setState đầu hàm để tránh setState dư trong initState.
   Future<void> _loadReasons() async {
     try {
-      final reasons = await _bookingService.getCancellationReasons();
+      final results = await Future.wait([
+        _bookingService.getCancellationReasons(),
+        _bookingService.getBookingEligibility(patientId: widget.patientId).catchError((_) => const BookingEligibility(
+          activeBookingCount: 0,
+          maxActiveBookings: 2,
+          canBookNew: true,
+          isInCooldown: false,
+          cooldownRemainingSeconds: 0,
+          cancellationCount: 0,
+          rescheduleCount: 0,
+        )),
+      ]);
       if (!mounted) return;
+      final reasons = results[0] as List<CancellationReasonOption>;
+      final eligibility = results[1] as BookingEligibility;
       setState(() {
         _reasons = reasons;
+        _eligibility = eligibility;
         _selectedCode = reasons.isNotEmpty ? reasons.first.code : null;
         _loadingReasons = false;
       });
     } catch (e) {
-      // Không nuốt lỗi: danh sách rỗng làm nút gửi bị vô hiệu hóa vĩnh viễn, người dùng chỉ thấy
-      // một nút xám không bấm được và không hiểu vì sao. Phải hiện lỗi kèm nút thử lại.
       if (!mounted) return;
       setState(() {
         _loadingReasons = false;
@@ -1078,6 +1212,38 @@ class _CancelReasonBottomSheetState extends State<_CancelReasonBottomSheet> {
               height: 1.4,
             ),
           ),
+          if (_eligibility != null && _eligibility!.cancellationCount >= 1) ...[
+            const SizedBox(height: 14),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFFBEB),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFF59E0B)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.warning_amber_rounded, color: Color(0xFFD97706), size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      widget.isVi
+                          ? 'Lưu ý: Đây là lần hủy lịch thứ ${_eligibility!.cancellationCount + 1}. Sau khi xác nhận hủy, bệnh nhân này sẽ phải chờ 30 phút mới có thể đặt lịch hẹn mới.'
+                          : 'Warning: This is cancellation #${_eligibility!.cancellationCount + 1}. After cancelling, this patient will have a 30-minute cooldown before booking a new appointment.',
+                      style: const TextStyle(
+                        color: Color(0xFF92400E),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 20),
           if (_loadingReasons)
             const Padding(

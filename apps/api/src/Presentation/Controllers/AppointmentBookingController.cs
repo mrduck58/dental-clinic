@@ -48,6 +48,66 @@ public class AppointmentBookingController(ISender sender) : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>GET api/appointments/booking-eligibility — Kiểm tra giới hạn 2 booking và cooldown của bệnh nhân</summary>
+    [HttpGet("api/appointments/booking-eligibility")]
+    [Authorize(Roles = "Patient")]
+    public async Task<IActionResult> GetBookingEligibility(
+        [FromQuery] Guid? patientId,
+        CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        var result = await sender.Send(new GetBookingEligibilityQuery(userId, patientId), cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>POST api/appointments/hold-slot — Giữ tạm thời một ca khám trong 5 phút</summary>
+    [HttpPost("api/appointments/hold-slot")]
+    [Authorize(Roles = "Patient")]
+    public async Task<IActionResult> HoldSlot(
+        [FromBody] HoldSlotRequest request,
+        [FromServices] HoldSlotHandler handler,
+        CancellationToken cancellationToken)
+    {
+        var cmd = new HoldSlotCommand(
+            request.PatientId,
+            request.DentistId,
+            request.Date,
+            request.TimeSlot);
+
+        var result = await handler.Handle(cmd, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>POST api/appointments/release-hold — Giải phóng ca khám đang giữ tạm</summary>
+    [HttpPost("api/appointments/release-hold")]
+    [Authorize(Roles = "Patient")]
+    public async Task<IActionResult> ReleaseHold(
+        [FromBody] ReleaseHoldRequest request,
+        [FromServices] ReleaseSlotHoldHandler handler,
+        CancellationToken cancellationToken)
+    {
+        var cmd = new ReleaseSlotHoldCommand(
+            request.PatientId,
+            request.DentistId,
+            request.Date,
+            request.TimeSlot);
+
+        var result = await handler.Handle(cmd, cancellationToken);
+        return Ok(new { success = result });
+    }
+
+    /// <summary>GET api/appointments/active-hold — Lấy ca khám đang giữ tạm của bệnh nhân</summary>
+    [HttpGet("api/appointments/active-hold")]
+    [Authorize(Roles = "Patient")]
+    public async Task<IActionResult> GetActiveHold(
+        [FromQuery] Guid patientId,
+        [FromServices] GetActiveSlotHoldHandler handler,
+        CancellationToken cancellationToken)
+    {
+        var result = await handler.Handle(patientId, cancellationToken);
+        return Ok(result);
+    }
+
     /// <summary>GET api/appointments — Danh sách tất cả lịch hẹn (Staff/Admin)</summary>
     [HttpGet("api/appointments")]
     [Authorize(Roles = "Staff,Admin,Owner")]
@@ -257,3 +317,15 @@ public record RescheduleAppointmentRequest(
     Guid? DentistId,
     Guid? ServiceId,
     string? Reason);
+
+public record HoldSlotRequest(
+    Guid PatientId,
+    Guid DentistId,
+    DateOnly Date,
+    string TimeSlot);
+
+public record ReleaseHoldRequest(
+    Guid PatientId,
+    Guid DentistId,
+    DateOnly Date,
+    string TimeSlot);

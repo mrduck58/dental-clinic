@@ -55,8 +55,46 @@ class ServiceInfo {
 class TimeSlot {
   final String range; // e.g. '07:30 - 08:30'
   final bool isBooked;
+  final bool isHeld;
+  final bool isHeldByMe;
+  final int holdRemainingSeconds;
 
-  const TimeSlot({required this.range, this.isBooked = false});
+  const TimeSlot({
+    required this.range,
+    this.isBooked = false,
+    this.isHeld = false,
+    this.isHeldByMe = false,
+    this.holdRemainingSeconds = 0,
+  });
+}
+
+class SlotHoldResult {
+  final bool isSuccess;
+  final String holdId;
+  final DateTime? expiresAt;
+  final int remainingSeconds;
+  final int failedHoldsToday;
+  final String message;
+
+  const SlotHoldResult({
+    required this.isSuccess,
+    this.holdId = '',
+    this.expiresAt,
+    this.remainingSeconds = 0,
+    this.failedHoldsToday = 0,
+    this.message = '',
+  });
+
+  factory SlotHoldResult.fromJson(Map<String, dynamic> json) {
+    return SlotHoldResult(
+      isSuccess: json['isSuccess'] as bool? ?? true,
+      holdId: json['holdId'] as String? ?? json['id'] as String? ?? '',
+      expiresAt: json['expiresAt'] != null ? DateTime.tryParse(json['expiresAt'].toString()) : null,
+      remainingSeconds: (json['remainingSeconds'] as num?)?.toInt() ?? 0,
+      failedHoldsToday: (json['failedHoldsToday'] as num?)?.toInt() ?? 0,
+      message: json['message'] as String? ?? '',
+    );
+  }
 }
 
 // ─── Doctor ──────────────────────────────────────────────────────────────────
@@ -108,6 +146,7 @@ class BookingDraft {
   final String? symptoms;
   final String? appointmentId;
   final String? appointmentCode;
+  final DateTime? holdExpiresAt;
 
   /// Gợi ý bác sĩ từ chatbot AI — chỉ dùng để làm nổi bật lựa chọn ở màn chọn bác sĩ,
   /// không tự động chọn thay người dùng (vẫn cần xác nhận khung giờ thủ công).
@@ -129,6 +168,7 @@ class BookingDraft {
     this.symptoms,
     this.appointmentId,
     this.appointmentCode,
+    this.holdExpiresAt,
     this.preferredDentistId,
     this.reschedulingAppointmentId,
   });
@@ -146,6 +186,7 @@ class BookingDraft {
     String? symptoms,
     String? appointmentId,
     String? appointmentCode,
+    DateTime? holdExpiresAt,
     String? preferredDentistId,
     String? reschedulingAppointmentId,
   }) {
@@ -160,6 +201,7 @@ class BookingDraft {
       symptoms: symptoms ?? this.symptoms,
       appointmentId: appointmentId ?? this.appointmentId,
       appointmentCode: appointmentCode ?? this.appointmentCode,
+      holdExpiresAt: holdExpiresAt ?? this.holdExpiresAt,
       preferredDentistId: preferredDentistId ?? this.preferredDentistId,
       reschedulingAppointmentId: reschedulingAppointmentId ?? this.reschedulingAppointmentId,
     );
@@ -172,16 +214,35 @@ class ApiTimeSlot {
   final String range;
   final bool isBooked;
   final String period;
+  final bool isHeld;
+  final bool isHeldByMe;
+  final int holdRemainingSeconds;
 
-  const ApiTimeSlot({required this.range, required this.isBooked, required this.period});
+  const ApiTimeSlot({
+    required this.range,
+    required this.isBooked,
+    required this.period,
+    this.isHeld = false,
+    this.isHeldByMe = false,
+    this.holdRemainingSeconds = 0,
+  });
 
   factory ApiTimeSlot.fromJson(Map<String, dynamic> json) => ApiTimeSlot(
-        range: json['range'] as String,
-        isBooked: json['isBooked'] as bool,
+        range: json['range'] as String? ?? '',
+        isBooked: json['isBooked'] as bool? ?? false,
         period: json['period'] as String? ?? '',
+        isHeld: json['isHeld'] as bool? ?? false,
+        isHeldByMe: json['isHeldByMe'] as bool? ?? false,
+        holdRemainingSeconds: (json['holdRemainingSeconds'] as num?)?.toInt() ?? 0,
       );
 
-  TimeSlot toTimeSlot() => TimeSlot(range: range, isBooked: isBooked);
+  TimeSlot toTimeSlot() => TimeSlot(
+        range: range,
+        isBooked: isBooked,
+        isHeld: isHeld,
+        isHeldByMe: isHeldByMe,
+        holdRemainingSeconds: holdRemainingSeconds,
+      );
 }
 
 class ApiDoctorWithSlots {
@@ -249,6 +310,8 @@ class MyAppointmentItem {
   final String? patientName;
   final String? patientRelationship;
   final String? patientId;
+  final String? createdAt;
+  final int rescheduledCount;
 
   const MyAppointmentItem({
     required this.appointmentId,
@@ -264,6 +327,8 @@ class MyAppointmentItem {
     this.patientName,
     this.patientRelationship,
     this.patientId,
+    this.createdAt,
+    this.rescheduledCount = 0,
   });
 
   factory MyAppointmentItem.fromJson(Map<String, dynamic> json) =>
@@ -281,9 +346,54 @@ class MyAppointmentItem {
         patientName: json['patientName'] as String?,
         patientRelationship: json['patientRelationship'] as String?,
         patientId: json['patientId']?.toString(),
+        createdAt: json['createdAt']?.toString(),
+        rescheduledCount: json['rescheduledCount'] as int? ?? 0,
       );
 
   DateTime get parsedDate => DateTime.parse(appointmentDate).toLocal();
+  DateTime? get parsedCreatedAt => createdAt != null ? DateTime.tryParse(createdAt!)?.toLocal() : null;
+
+  /// Cho phép tự hủy/dời trong vòng 24 giờ kể từ thời điểm đặt lịch VÀ trước thời gian khám.
+  bool get canSelfManage {
+    final now = DateTime.now();
+    if (now.isAfter(parsedDate) || now.isAtSameMomentAs(parsedDate)) return false;
+    final created = parsedCreatedAt;
+    if (created == null) return true;
+    return now.difference(created).inHours < 24;
+  }
+}
+
+class BookingEligibility {
+  final int activeBookingCount;
+  final int maxActiveBookings;
+  final bool canBookNew;
+  final bool isInCooldown;
+  final int cooldownRemainingSeconds;
+  final int cancellationCount;
+  final int rescheduleCount;
+
+  const BookingEligibility({
+    required this.activeBookingCount,
+    required this.maxActiveBookings,
+    required this.canBookNew,
+    required this.isInCooldown,
+    required this.cooldownRemainingSeconds,
+    required this.cancellationCount,
+    required this.rescheduleCount,
+  });
+
+  factory BookingEligibility.fromJson(Map<String, dynamic> json) =>
+      BookingEligibility(
+        activeBookingCount: json['activeBookingCount'] as int? ?? 0,
+        maxActiveBookings: json['maxActiveBookings'] as int? ?? 2,
+        canBookNew: json['canBookNew'] as bool? ?? true,
+        isInCooldown: json['isInCooldown'] as bool? ?? false,
+        cooldownRemainingSeconds: json['cooldownRemainingSeconds'] as int? ?? 0,
+        cancellationCount: json['cancellationCount'] as int? ?? 0,
+        rescheduleCount: json['rescheduleCount'] as int? ?? 0,
+      );
+
+  int get cooldownRemainingMinutes => (cooldownRemainingSeconds / 60).ceil();
 }
 
 class ApiAppointmentResult {
