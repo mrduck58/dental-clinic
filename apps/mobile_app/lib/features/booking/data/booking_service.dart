@@ -49,13 +49,15 @@ class BookingService {
   Future<Set<String>> getWorkingDatesForDentist(String dentistId, int year, int month) async {
     try {
       final res = await _client.get(
-        '/api/dentists/$dentistId/working-dates',
+        ApiConstants.dentistWorkingDates(dentistId),
         queryParameters: {'year': year, 'month': month},
       );
       if (res.data is List) {
         return (res.data as List<dynamic>).map((e) => e.toString()).toSet();
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('BookingService: getWorkingDatesForDentist error: $e');
+    }
     return {};
   }
 
