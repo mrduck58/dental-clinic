@@ -181,7 +181,7 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
   }
 
   void _onSlotTapped(ApiTimeSlot slot) {
-    if (slot.isBooked || _isHoldingSlot) return;
+    if ((slot.isBooked && !slot.isHeldByMe) || _isHoldingSlot) return;
     setState(() {
       _selectedSlot = slot;
     });
@@ -336,6 +336,30 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
         _isHoldingSlot = false;
       });
       final msg = _extractDioError(e);
+      final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
+      if (msg.contains('3 lần giữ chỗ không thành công') || msg.contains('giới hạn 3 lần')) {
+        final doctorInfo = doc.toDoctorInfo();
+        final updatedDraft = widget.draft.copyWith(
+          date: _currentDate,
+          doctor: doctorInfo,
+          timeSlot: _selectedSlot!.toTimeSlot(),
+          holdExpiresAt: null,
+        );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              isVi
+                  ? 'Bạn đã hết lượt giữ chỗ tạm thời hôm nay. Bạn có thể tiếp tục xác nhận đặt lịch trực tiếp.'
+                  : 'Daily hold limit reached. You can proceed to confirm your booking directly without holding.',
+            ),
+            backgroundColor: const Color(0xFFF59E0B),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+        context.push(AppRoutes.bookingReview, extra: updatedDraft);
+        return;
+      }
       _showHoldErrorDialog(msg);
       _load(silent: true);
     } catch (e) {
@@ -411,6 +435,13 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
                     )
                   : CustomScrollView(
                       slivers: [
+                        if (widget.draft.holdExpiresAt != null)
+                          SliverToBoxAdapter(
+                            child: HoldCountdownBanner(
+                              holdExpiresAt: widget.draft.holdExpiresAt,
+                              onExpired: _showHoldExpiredDialog,
+                            ),
+                          ),
                         // ── Doctor Info Header Card ───────────────────────────
                         SliverToBoxAdapter(
                           child: Container(
@@ -776,7 +807,7 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
                     borderRadius: BorderRadius.circular(99),
                   ),
                   child: Text(
-                    '${periodSlots.where((s) => !s.isBooked && !s.isHeld).length} ${isVi ? 'trống' : 'open'}',
+                    '${periodSlots.where((s) => (!s.isBooked || s.isHeldByMe) && (!s.isHeld || s.isHeldByMe)).length} ${isVi ? 'trống' : 'open'}',
                     style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
@@ -820,7 +851,7 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
                   } catch (_) {}
                 }
 
-                final isAvailable = !isBooked && !isHeld && !isPast;
+                final isAvailable = !isPast && (!isBooked || slot.isHeldByMe) && (!isHeld || slot.isHeldByMe);
                 final isSelected = _selectedSlot?.range == slot.range;
 
                 return GestureDetector(
@@ -870,11 +901,13 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
                         ),
                         if (isHeld)
                           Text(
-                            isVi ? 'Đang giữ' : 'Held',
-                            style: const TextStyle(
+                            slot.isHeldByMe
+                                ? (isVi ? 'Đang giữ' : 'Your hold')
+                                : (isVi ? 'Đang giữ' : 'Held'),
+                            style: TextStyle(
                               fontSize: 9,
                               fontWeight: FontWeight.w600,
-                              color: Color(0xFFD97706),
+                              color: slot.isHeldByMe ? (isSelected ? Colors.white70 : AppColors.primary) : const Color(0xFFD97706),
                             ),
                           )
                         else if (isBooked)

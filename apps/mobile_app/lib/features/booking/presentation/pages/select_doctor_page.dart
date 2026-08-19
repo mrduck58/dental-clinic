@@ -159,6 +159,10 @@ class _SelectDoctorPageState extends State<SelectDoctorPage> {
                 )
               : CustomScrollView(
                   slivers: [
+                    if (widget.draft.holdExpiresAt != null)
+                      SliverToBoxAdapter(
+                        child: HoldCountdownBanner(holdExpiresAt: widget.draft.holdExpiresAt),
+                      ),
                     // ── Date Selector Strip ─────────────────────────────────
                     SliverToBoxAdapter(
                       child: Container(

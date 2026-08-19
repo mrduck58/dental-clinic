@@ -1,5 +1,6 @@
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Domain.Schedules;
 using MediatR;
 
@@ -28,13 +29,15 @@ public class GetDentistSlotsHandler(
     IWorkScheduleRepository workScheduleRepository,
     IDentistRepository dentistRepository,
     IAppointmentRepository appointmentRepository,
-    ISlotHoldRepository? slotHoldRepository = null)
+    ISlotHoldRepository? slotHoldRepository = null,
+    ICurrentUserService? currentUser = null)
     : IRequestHandler<GetDentistSlotsQuery, IEnumerable<DentistWithSlotsDto>>
 {
     public async Task<IEnumerable<DentistWithSlotsDto>> Handle(GetDentistSlotsQuery request, CancellationToken ct)
     {
         var date = request.Date;
         var now = DateTimeOffset.UtcNow;
+        var currentUserId = currentUser?.UserId ?? Guid.Empty;
 
         // Kiểm tra WorkSchedule cho ngày này
         var daySchedules = await workScheduleRepository.GetByDateAsync(date, ct);
@@ -127,7 +130,8 @@ public class GetDentistSlotsHandler(
                     });
 
                     var isHeld = matchingHold != null;
-                    var isBooked = isAppointmentOccupied || isHeld;
+                    var isHeldByMe = isHeld && (currentUserId != Guid.Empty && matchingHold!.UserId == currentUserId);
+                    var isBooked = isAppointmentOccupied || (isHeld && !isHeldByMe);
                     var period = SlotCalculator.PeriodAt(t.Hour, t.Minute);
                     var remaining = isHeld ? (int)Math.Max(0, (matchingHold!.ExpiresAt - now).TotalSeconds) : 0;
 
@@ -136,7 +140,7 @@ public class GetDentistSlotsHandler(
                         isBooked,
                         period,
                         IsHeld: isHeld,
-                        IsHeldByMe: false,
+                        IsHeldByMe: isHeldByMe,
                         HoldRemainingSeconds: remaining);
                 }).ToList();
 

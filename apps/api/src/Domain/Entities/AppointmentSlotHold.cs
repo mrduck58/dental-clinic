@@ -93,5 +93,16 @@ public class AppointmentSlotHold
         IsSuccess = false;
     }
 
+    public void UpdateService(Guid? serviceId, int durationMinutes)
+    {
+        ServiceId = serviceId;
+        DurationMinutes = durationMinutes > 0 ? durationMinutes : 30;
+    }
+
+    public void UpdatePatient(Guid patientId)
+    {
+        PatientId = patientId;
+    }
+
     public bool IsActive(DateTimeOffset now) => Status == StatusHeld && ExpiresAt > now;
 }

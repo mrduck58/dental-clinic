@@ -62,10 +62,10 @@ public class SlotHoldHandlerTests
 
         _slotHoldRepo.GetFailedHoldCountTodayAsync(_patientId, Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
             .Returns(0);
-        _slotHoldRepo.GetActiveHoldForSlotAsync(_dentistId, Arg.Any<DateTimeOffset>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
-            .Returns((AppointmentSlotHold?)null);
-        _slotHoldRepo.GetActiveHoldForPatientAsync(_patientId, Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
-            .Returns((AppointmentSlotHold?)null);
+        _slotHoldRepo.GetActiveHoldsForUserOrPatientAsync(_userId, _patientId, Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+            .Returns(new List<AppointmentSlotHold>());
+        _slotHoldRepo.GetActiveHoldsForDentistAndDateAsync(_dentistId, tomorrow, Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+            .Returns(new List<AppointmentSlotHold>());
 
         var result = await _handler.Handle(command);
 
@@ -144,10 +144,10 @@ public class SlotHoldHandlerTests
 
         _slotHoldRepo.GetFailedHoldCountTodayAsync(_patientId, Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
             .Returns(0);
-        _slotHoldRepo.GetActiveHoldForSlotAsync(_dentistId, Arg.Any<DateTimeOffset>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
-            .Returns(existingHold);
-        _slotHoldRepo.GetActiveHoldForPatientAsync(_patientId, Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
-            .Returns(existingHold);
+        _slotHoldRepo.GetActiveHoldsForUserOrPatientAsync(_userId, _patientId, Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+            .Returns(new List<AppointmentSlotHold> { existingHold });
+        _slotHoldRepo.GetActiveHoldsForDentistAndDateAsync(_dentistId, tomorrow, Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+            .Returns(new List<AppointmentSlotHold> { existingHold });
 
         var result = await _handler.Handle(command);
 
@@ -178,6 +178,6 @@ public class SlotHoldHandlerTests
         var act = () => _handler.Handle(command);
 
         await act.Should().ThrowAsync<ConflictException>()
-            .WithMessage("*trùng với một lịch hẹn đã đặt*");
+            .WithMessage("*trùng với một lịch hẹn*");
     }
 }

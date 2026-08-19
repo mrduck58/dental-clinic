@@ -15,6 +15,12 @@ public interface ISlotHoldRepository
         DateTimeOffset now,
         CancellationToken ct = default);
 
+    Task<IReadOnlyList<AppointmentSlotHold>> GetActiveHoldsForUserOrPatientAsync(
+        Guid userId,
+        Guid patientId,
+        DateTimeOffset now,
+        CancellationToken ct = default);
+
     Task<IReadOnlyList<AppointmentSlotHold>> GetActiveHoldsForDentistAndDateAsync(
         Guid dentistId,
         DateOnly date,
