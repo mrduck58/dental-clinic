@@ -173,6 +173,21 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
 
     // Đã biết đủ bác sĩ + ngày + khung giờ còn trống (từ chatbot hoặc khi sửa đổi lịch) → vào thẳng màn tổng hợp/xác nhận.
     if (draft.doctor != null && draft.date != null && draft.timeSlot != null) {
+      try {
+        final res = await _bookingService.holdSlot(
+          patientId: _patients[index].id == 'self' ? '' : _patients[index].id,
+          dentistId: draft.doctor!.id,
+          date: draft.date!,
+          timeSlot: draft.timeSlot!.range,
+          serviceId: draft.service?.id,
+        );
+        if (res.isSuccess && res.expiresAt != null) {
+          draft = draft.copyWith(holdExpiresAt: res.expiresAt);
+        }
+      } catch (e) {
+        debugPrint('Hold transfer error: $e');
+      }
+      if (!mounted) return;
       context.push(AppRoutes.bookingReview, extra: draft);
     } else if (draft.doctor != null && draft.date != null) {
       context.push(AppRoutes.bookingSelectTimeSlot, extra: draft);

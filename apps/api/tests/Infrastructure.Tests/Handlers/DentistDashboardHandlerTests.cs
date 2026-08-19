@@ -64,15 +64,16 @@ public class DentistDashboardHandlerTests
         _db.Patients.Add(patient);
         await _db.SaveChangesAsync();
 
-        var now = DateTimeOffset.UtcNow;
-        var confirmed = Appointment.Create(patient.Id, dentist.Id, now.AddHours(1));
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+        var baseTime = new DateTimeOffset(today.ToDateTime(new TimeOnly(12, 0)), TimeSpan.FromHours(7)).ToUniversalTime();
+        var confirmed = Appointment.Create(patient.Id, dentist.Id, baseTime.AddHours(1));
         confirmed.Confirm();
-        var inProgress = Appointment.Create(patient.Id, dentist.Id, now);
+        var inProgress = Appointment.Create(patient.Id, dentist.Id, baseTime);
         inProgress.StartTreatment();
-        var completed = Appointment.Create(patient.Id, dentist.Id, now.AddHours(-1));
+        var completed = Appointment.Create(patient.Id, dentist.Id, baseTime.AddHours(-1));
         completed.Complete();
-        var pending = Appointment.Create(patient.Id, dentist.Id, now.AddHours(2));
-        var cancelled = Appointment.Create(patient.Id, dentist.Id, now.AddHours(3));
+        var pending = Appointment.Create(patient.Id, dentist.Id, baseTime.AddHours(2));
+        var cancelled = Appointment.Create(patient.Id, dentist.Id, baseTime.AddHours(3));
         cancelled.Cancel(CancellationReason.ChangeOfPlans, null, cancelledByUserId: null, DateTimeOffset.UtcNow);
         _db.Appointments.AddRange(confirmed, inProgress, completed, pending, cancelled);
         await _db.SaveChangesAsync();

@@ -307,6 +307,7 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
         dentistId: doc.dentistId,
         date: _currentDate,
         timeSlot: _selectedSlot!.range,
+        serviceId: widget.draft.service?.id,
       );
 
       if (!mounted) return;

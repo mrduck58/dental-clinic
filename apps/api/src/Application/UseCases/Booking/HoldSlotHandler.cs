@@ -3,14 +3,16 @@ using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
+using DentalClinic.API.Domain.Schedules;
 
 namespace DentalClinic.API.Application.UseCases.Booking;
 
 public record HoldSlotCommand(
-    Guid PatientId,
+    Guid? PatientId,
     Guid DentistId,
     DateOnly Date,
-    string TimeSlot);
+    string TimeSlot,
+    Guid? ServiceId = null);
 
 public record HoldSlotResult(
     bool IsSuccess,
@@ -24,6 +26,7 @@ public class HoldSlotHandler(
     ISlotHoldRepository slotHoldRepository,
     IAppointmentRepository appointmentRepository,
     IPatientRepository patientRepository,
+    IServiceRepository serviceRepository,
     ICurrentUserService currentUser,
     ISlotNotifier slotNotifier)
 {
@@ -32,19 +35,30 @@ public class HoldSlotHandler(
         var now = DateTimeOffset.UtcNow;
         var userId = currentUser.UserId ?? Guid.Empty;
 
-        // 1. Kiểm tra quyền của bệnh nhân
-        if (currentUser.IsAuthenticated && currentUser.UserRole == "Patient")
+        // 1. Xác định hồ sơ bệnh nhân chính chủ hoặc thành viên gia đình
+        var myPatient = userId != Guid.Empty ? await patientRepository.GetByUserIdAsync(userId, ct) : null;
+        if (myPatient is null && userId != Guid.Empty && currentUser.IsAuthenticated && currentUser.UserRole == "Patient")
         {
-            var myPatient = await patientRepository.GetByUserIdAsync(userId, ct);
-            if (myPatient != null && myPatient.Id != command.PatientId)
-            {
-                var family = await patientRepository.GetFamilyMembersAsync(myPatient.Id, ct);
-                if (!family.Any(f => f.Id == command.PatientId))
-                    throw new ForbiddenException("Bạn không có quyền thao tác trên hồ sơ bệnh nhân này.");
-            }
+            myPatient = Patient.Create(userId: userId, dateOfBirth: null);
+            await patientRepository.AddAsync(myPatient, ct);
         }
 
-        // 2. Phân tích giờ khám
+        var targetPatientId = myPatient?.Id ?? command.PatientId ?? Guid.Empty;
+        if (command.PatientId.HasValue && command.PatientId.Value != Guid.Empty)
+        {
+            if (myPatient != null && command.PatientId.Value != myPatient.Id)
+            {
+                var family = await patientRepository.GetFamilyMembersAsync(myPatient.Id, ct);
+                if (!family.Any(f => f.Id == command.PatientId.Value))
+                    throw new ForbiddenException("Bạn không có quyền thao tác trên hồ sơ bệnh nhân này.");
+            }
+            targetPatientId = command.PatientId.Value;
+        }
+
+        if (targetPatientId == Guid.Empty)
+            throw new ValidationException("Không xác định được thông tin bệnh nhân.");
+
+        // 2. Phân tích giờ khám & thời lượng ước tính của dịch vụ (Estimate Time)
         var timePart = command.TimeSlot.Split(" - ")[0].Trim();
         var time = TimeOnly.Parse(timePart);
         var apptDateTime = command.Date.ToDateTime(time);
@@ -53,15 +67,21 @@ public class HoldSlotHandler(
         if (apptDateUtc <= now)
             throw new ConflictException("Không thể giữ chỗ cho ca khám trong quá khứ.");
 
+        var service = command.ServiceId.HasValue ? await serviceRepository.GetByIdAsync(command.ServiceId.Value, ct) : null;
+        var durationMinutes = (service != null && service.DurationMinutes > 0) ? service.DurationMinutes : SlotCalculator.SlotMinutes;
+
+        var slotStartMinutes = time.Hour * 60 + time.Minute;
+        var slotEndMinutes = slotStartMinutes + durationMinutes;
+
         // 3. Kiểm tra số lần giữ không thành công trong ngày (tối đa 3 lần)
-        var failedCount = await slotHoldRepository.GetFailedHoldCountTodayAsync(command.PatientId, now, ct);
+        var failedCount = await slotHoldRepository.GetFailedHoldCountTodayAsync(targetPatientId, now, ct);
         if (failedCount >= 3)
             throw new ConflictException(
                 "Bệnh nhân đã đạt giới hạn 3 lần giữ chỗ không thành công trong ngày. " +
                 "Vui lòng quay lại vào ngày mai.");
 
         // 3.1. Kiểm tra nếu bệnh nhân đang trong thời gian chờ (cooldown 30 phút sau khi hủy/dời từ lần 2)
-        var cooldownUntil = await appointmentRepository.GetPatientCooldownUntilAsync(command.PatientId, now, ct);
+        var cooldownUntil = await appointmentRepository.GetPatientCooldownUntilAsync(targetPatientId, now, ct);
         if (cooldownUntil.HasValue && cooldownUntil.Value > now)
         {
             var remaining = (int)Math.Ceiling((cooldownUntil.Value - now).TotalMinutes);
@@ -78,79 +98,119 @@ public class HoldSlotHandler(
             }
         }
 
-        // 4. Kiểm tra ca khám đã có lịch hẹn chính thức chưa
+        // 4. Kiểm tra ca khám (kèm thời lượng dịch vụ) có bị trùng với Lịch hẹn chính thức không
         var appointments = await appointmentRepository.GetByDateAsync(command.Date, ct);
-        if (appointments.Any(a => a.DentistId == command.DentistId
-                               && a.AppointmentDate == apptDateUtc
-                               && a.Status != AppointmentStatus.Cancelled
-                               && a.Status != AppointmentStatus.NoShow))
+        var appointmentRanges = appointments
+            .Where(a => a.DentistId == command.DentistId
+                     && a.Status != AppointmentStatus.Cancelled
+                     && a.Status != AppointmentStatus.NoShow)
+            .Select(a =>
+            {
+                var local = a.AppointmentDate.UtcDateTime.AddHours(7);
+                return SlotCalculator.BuildOccupiedRange(local.Hour, local.Minute, a.Service?.DurationMinutes);
+            });
+
+        if (SlotCalculator.IsOccupied(slotStartMinutes, slotEndMinutes, appointmentRanges))
         {
-            throw new ConflictException("Ca khám này đã có người đặt.");
+            throw new ConflictException("Ca khám này (hoặc thời lượng dịch vụ) bị trùng với một lịch hẹn đã đặt.");
         }
 
-        // 5. Kiểm tra ca khám có đang bị người khác giữ không
-        var existingHold = await slotHoldRepository.GetActiveHoldForSlotAsync(command.DentistId, apptDateUtc, now, ct);
-        if (existingHold != null && existingHold.PatientId != command.PatientId)
+        DateTimeOffset? inheritedExpiresAt = null;
+
+        var activeHolds = await slotHoldRepository.GetActiveHoldsForDentistAndDateAsync(command.DentistId, command.Date, now, ct);
+
+        // 5. Giải phóng các lượt giữ trước đó của cùng user / bệnh nhân
+        foreach (var userHold in activeHolds.Where(h => (userId != Guid.Empty && h.UserId == userId) || h.PatientId == targetPatientId).ToList())
+        {
+            if (userHold.DentistId == command.DentistId && userHold.AppointmentDate == apptDateUtc)
+            {
+                inheritedExpiresAt ??= userHold.ExpiresAt;
+                if (userHold.PatientId != targetPatientId)
+                {
+                    userHold.Release();
+                    await slotHoldRepository.UpdateAsync(userHold, ct);
+                }
+            }
+            else
+            {
+                inheritedExpiresAt ??= userHold.ExpiresAt;
+                userHold.Release();
+                await slotHoldRepository.UpdateAsync(userHold, ct);
+
+                var oldDateOnly = DateOnly.FromDateTime(userHold.AppointmentDate.ToOffset(TimeSpan.FromHours(7)).DateTime);
+                await slotNotifier.NotifySlotReleasedAsync(
+                    userHold.DentistId,
+                    oldDateOnly,
+                    userHold.TimeSlot,
+                    ct);
+            }
+        }
+
+        // 6. Kiểm tra xem ca khám (kèm thời lượng dịch vụ) có bị người khác giữ không
+        var otherHoldRanges = activeHolds
+            .Where(h => h.PatientId != targetPatientId && (userId == Guid.Empty || h.UserId != userId))
+            .Select(h =>
+            {
+                var local = h.AppointmentDate.UtcDateTime.AddHours(7);
+                return SlotCalculator.BuildOccupiedRange(local.Hour, local.Minute, h.DurationMinutes > 0 ? h.DurationMinutes : 30);
+            });
+
+        if (SlotCalculator.IsOccupied(slotStartMinutes, slotEndMinutes, otherHoldRanges))
         {
             throw new ConflictException(
-                "Ca khám này đang được một bệnh nhân khác giữ tạm (tối đa 5 phút). " +
+                "Ca khám này (hoặc thời lượng dịch vụ) đang được một bệnh nhân khác giữ tạm (tối đa 5 phút). " +
                 "Vui lòng chọn ca khám khác hoặc quay lại sau.");
         }
 
-        // 6. Nếu bệnh nhân đang giữ chính ca này -> trả về hạn cũ không gia hạn
-        var myActiveHold = await slotHoldRepository.GetActiveHoldForPatientAsync(command.PatientId, now, ct);
-        if (myActiveHold != null)
+        // 7. Nếu bệnh nhân đang giữ chính ca này -> trả về thông tin hiện tại
+        var myActiveHold = await slotHoldRepository.GetActiveHoldForPatientAsync(targetPatientId, now, ct);
+        if (myActiveHold != null && myActiveHold.DentistId == command.DentistId && myActiveHold.AppointmentDate == apptDateUtc)
         {
-            if (myActiveHold.DentistId == command.DentistId && myActiveHold.AppointmentDate == apptDateUtc)
-            {
-                var remaining = (int)Math.Max(0, (myActiveHold.ExpiresAt - now).TotalSeconds);
-                return new HoldSlotResult(
-                    true,
-                    myActiveHold.Id,
-                    myActiveHold.ExpiresAt,
-                    remaining,
-                    failedCount,
-                    "Bạn đang giữ chỗ ca khám này.");
-            }
-
-            // Nếu đổi sang ca khác -> giải phóng ca cũ
-            myActiveHold.Release();
-            await slotHoldRepository.UpdateAsync(myActiveHold, ct);
-
-            var oldDateOnly = DateOnly.FromDateTime(myActiveHold.AppointmentDate.ToOffset(TimeSpan.FromHours(7)).DateTime);
-            await slotNotifier.NotifySlotReleasedAsync(
-                myActiveHold.DentistId,
-                oldDateOnly,
-                myActiveHold.TimeSlot,
-                ct);
+            var remaining = (int)Math.Max(0, (myActiveHold.ExpiresAt - now).TotalSeconds);
+            return new HoldSlotResult(
+                true,
+                myActiveHold.Id,
+                myActiveHold.ExpiresAt,
+                remaining,
+                failedCount,
+                "Bạn đang giữ chỗ ca khám này.");
         }
 
-        // 7. Tạo lượt giữ chỗ mới (hạn 5 phút từ bây giờ)
-        var newHold = AppointmentSlotHold.Create(
-            command.PatientId,
+        // 8. Tạo lượt giữ chỗ mới: kế thừa expiresAt của phiên giữ trước (không reset về 5 phút)
+        var expiresAt = (inheritedExpiresAt.HasValue && inheritedExpiresAt.Value > now)
+            ? inheritedExpiresAt.Value
+            : now.AddMinutes(5);
+
+        var newHold = AppointmentSlotHold.CreateWithExpiry(
+            targetPatientId,
             userId,
             command.DentistId,
             apptDateUtc,
             command.TimeSlot,
-            now);
+            now,
+            expiresAt,
+            command.ServiceId,
+            durationMinutes);
 
         await slotHoldRepository.AddAsync(newHold, ct);
 
-        // 8. Broadcast realtime event qua ISlotNotifier
+        // 9. Broadcast realtime event qua ISlotNotifier
         await slotNotifier.NotifySlotHeldAsync(
             command.DentistId,
             command.Date,
             command.TimeSlot,
-            command.PatientId,
+            targetPatientId,
             newHold.ExpiresAt,
             ct);
+
+        var remainingSeconds = (int)Math.Max(0, (newHold.ExpiresAt - now).TotalSeconds);
 
         return new HoldSlotResult(
             true,
             newHold.Id,
             newHold.ExpiresAt,
-            300,
+            remainingSeconds,
             failedCount,
-            "Giữ chỗ thành công trong 5 phút.");
+            "Giữ chỗ thành công.");
     }
 }

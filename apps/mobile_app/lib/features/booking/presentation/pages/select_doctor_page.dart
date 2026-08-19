@@ -52,15 +52,8 @@ class _SelectDoctorPageState extends State<SelectDoctorPage> {
     try {
       final list = await _service.getDoctorsWithSlots(_currentDate);
       if (mounted) {
-        final selectedDocId = widget.draft.doctor?.id ?? widget.draft.preferredDentistId;
-        List<ApiDoctorWithSlots> resultList;
-        if (selectedDocId != null) {
-          resultList = list.where((d) => d.dentistId == selectedDocId).toList();
-        } else {
-          resultList = List.from(list);
-        }
         setState(() {
-          _doctors = resultList;
+          _doctors = List.from(list);
           _loading = false;
         });
       }

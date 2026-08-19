@@ -16,6 +16,8 @@ public class AppointmentSlotHold
     public Guid DentistId { get; private set; }
     public DateTimeOffset AppointmentDate { get; private set; }
     public string TimeSlot { get; private set; } = string.Empty;
+    public Guid? ServiceId { get; private set; }
+    public int DurationMinutes { get; private set; } = 30;
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset ExpiresAt { get; private set; }
     public string Status { get; private set; } = StatusHeld;
@@ -29,7 +31,32 @@ public class AppointmentSlotHold
         Guid dentistId,
         DateTimeOffset appointmentDate,
         string timeSlot,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        Guid? serviceId = null,
+        int durationMinutes = 30)
+    {
+        return CreateWithExpiry(
+            patientId,
+            userId,
+            dentistId,
+            appointmentDate,
+            timeSlot,
+            now,
+            now.AddMinutes(5),
+            serviceId,
+            durationMinutes);
+    }
+
+    public static AppointmentSlotHold CreateWithExpiry(
+        Guid patientId,
+        Guid userId,
+        Guid dentistId,
+        DateTimeOffset appointmentDate,
+        string timeSlot,
+        DateTimeOffset now,
+        DateTimeOffset expiresAt,
+        Guid? serviceId = null,
+        int durationMinutes = 30)
     {
         return new AppointmentSlotHold
         {
@@ -40,9 +67,11 @@ public class AppointmentSlotHold
             AppointmentDate = appointmentDate,
             TimeSlot = timeSlot,
             CreatedAt = now,
-            ExpiresAt = now.AddMinutes(5),
+            ExpiresAt = expiresAt,
             Status = StatusHeld,
             IsSuccess = false,
+            ServiceId = serviceId,
+            DurationMinutes = durationMinutes > 0 ? durationMinutes : 30,
         };
     }
 
