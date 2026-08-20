@@ -1628,6 +1628,12 @@ export interface StaffAppointmentDto {
   checkedInAt: string | null; // ISO8601 — thời điểm check-in (null nếu chưa check-in)
   /** "Online" = bệnh nhân tự đặt trên app/web · "WalkIn" = lễ tân lập tại quầy. */
   origin: AppointmentOrigin;
+  /** Quan hệ với chủ tài khoản (VD: "Con", "Vợ"...) — null nếu bệnh nhân tự đặt cho chính mình. */
+  patientRelationship: string | null;
+  /** Tên chủ tài khoản đã đặt lịch — chính bệnh nhân nếu tự đặt, hoặc người thân nếu đặt hộ. */
+  accountHolderName: string;
+  /** Email đăng nhập của chủ tài khoản đã đặt lịch. */
+  accountHolderEmail: string | null;
 }
 
 /**

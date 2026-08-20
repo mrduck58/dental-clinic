@@ -167,6 +167,7 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
     {
         var query = dbContext.Appointments
             .Include(a => a.Patient).ThenInclude(p => p.User)
+            .Include(a => a.Patient).ThenInclude(p => p.PrimaryPatient).ThenInclude(pp => pp!.User)
             .Include(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
             .Include(a => a.Service)
             .AsQueryable();
@@ -195,6 +196,7 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
     {
         var query = dbContext.Appointments
             .Include(a => a.Patient).ThenInclude(p => p.User)
+            .Include(a => a.Patient).ThenInclude(p => p.PrimaryPatient).ThenInclude(pp => pp!.User)
             .Include(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
             .Include(a => a.Service)
             .AsQueryable();
