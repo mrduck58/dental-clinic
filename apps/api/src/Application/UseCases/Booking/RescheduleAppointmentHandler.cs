@@ -45,15 +45,7 @@ public class RescheduleAppointmentHandler(
         var appointment = await appointmentRepository.GetByIdAsync(command.AppointmentId, ct)
             ?? throw new NotFoundException("Không tìm thấy lịch hẹn.");
 
-        var context = await changeGuard.AuthorizeAsync(appointment, now, ct);
-
-        if (context.IsPatientCaller &&
-            appointment.RescheduledCount >= AppointmentChangeGuard.MaxPatientReschedules)
-        {
-            throw new ConflictException(
-                $"Bạn chỉ được dời lịch tối đa {AppointmentChangeGuard.MaxPatientReschedules} lần. " +
-                "Vui lòng liên hệ phòng khám để được hỗ trợ.");
-        }
+        var context = await changeGuard.AuthorizeAsync(appointment, now, ct, isCancelOperation: false);
 
         if (command.AppointmentDate <= now)
             throw new ValidationException("Không thể dời lịch về thời điểm trong quá khứ.");

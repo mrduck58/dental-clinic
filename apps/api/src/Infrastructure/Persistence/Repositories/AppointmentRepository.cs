@@ -510,6 +510,16 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
             .CountAsync(cancellationToken);
     }
 
+    public async Task<bool> HasActiveAppointmentForPatientAsync(Guid patientId, Guid? excludeAppointmentId = null, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Appointments
+            .AnyAsync(a => a.PatientId == patientId
+                        && (excludeAppointmentId == null || a.Id != excludeAppointmentId)
+                        && a.Status != AppointmentStatus.Cancelled
+                        && a.Status != AppointmentStatus.Completed
+                        && a.Status != AppointmentStatus.NoShow, cancellationToken);
+    }
+
     public async Task<int> GetPatientCancellationCountAsync(Guid patientId, CancellationToken cancellationToken = default)
     {
         return await dbContext.Appointments
@@ -529,9 +539,7 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
 
     public async Task<DateTimeOffset?> GetPatientCooldownUntilAsync(Guid patientId, DateTimeOffset now, CancellationToken cancellationToken = default)
     {
-        DateTimeOffset? cooldownUntil = null;
-
-        // 1. Kiểm tra cooldown do hủy lịch (khi bệnh nhân tự hủy >= 2 lần)
+        // 1. Kiểm tra cooldown 30 phút CHỈ khi bệnh nhân hủy lịch (từ lần 2 trở đi)
         var cancelCount = await GetPatientCancellationCountAsync(patientId, cancellationToken);
         if (cancelCount >= 2)
         {
@@ -550,32 +558,12 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
                 var candidate = latestCancel.Value.AddMinutes(30);
                 if (candidate > now)
                 {
-                    cooldownUntil = candidate;
+                    return candidate;
                 }
             }
         }
 
-        // 2. Kiểm tra cooldown do dời lịch (khi đã dời >= 2 lần)
-        var rescheduleCount = await GetPatientRescheduleCountAsync(patientId, cancellationToken);
-        if (rescheduleCount >= 2)
-        {
-            var latestReschedule = await dbContext.Appointments
-                .Where(a => a.PatientId == patientId && a.LastRescheduledAt != null)
-                .OrderByDescending(a => a.LastRescheduledAt)
-                .Select(a => a.LastRescheduledAt)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            if (latestReschedule.HasValue)
-            {
-                var candidate = latestReschedule.Value.AddMinutes(30);
-                if (candidate > now && (cooldownUntil == null || candidate > cooldownUntil.Value))
-                {
-                    cooldownUntil = candidate;
-                }
-            }
-        }
-
-        return cooldownUntil;
+        return null;
     }
 
     public async Task<bool> HasActiveAppointmentOnDateAsync(

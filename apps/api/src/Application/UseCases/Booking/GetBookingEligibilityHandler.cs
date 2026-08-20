@@ -36,18 +36,18 @@ public class GetBookingEligibilityHandler(
         var targetPatientId = request.PatientId ?? primaryPatient.Id;
         var now = DateTimeOffset.UtcNow;
 
-        var activeCount = await appointmentRepository.CountActiveAppointmentsForUserAsync(request.UserId, null, ct);
+        var hasActive = await appointmentRepository.HasActiveAppointmentForPatientAsync(targetPatientId, null, ct);
         var cooldownUntil = await appointmentRepository.GetPatientCooldownUntilAsync(targetPatientId, now, ct);
         var cancelCount = await appointmentRepository.GetPatientCancellationCountAsync(targetPatientId, ct);
         var rescheduleCount = await appointmentRepository.GetPatientRescheduleCountAsync(targetPatientId, ct);
 
         var isInCooldown = cooldownUntil.HasValue && cooldownUntil.Value > now;
         var cooldownRemaining = isInCooldown ? (int)Math.Max(0, (cooldownUntil!.Value - now).TotalSeconds) : 0;
-        var canBookNew = activeCount < 2 && !isInCooldown;
+        var canBookNew = !hasActive && !isInCooldown;
 
         return new BookingEligibilityDto(
-            ActiveBookingCount: activeCount,
-            MaxActiveBookings: 2,
+            ActiveBookingCount: hasActive ? 1 : 0,
+            MaxActiveBookings: 1,
             CanBookNew: canBookNew,
             IsInCooldown: isInCooldown,
             CooldownRemainingSeconds: cooldownRemaining,
