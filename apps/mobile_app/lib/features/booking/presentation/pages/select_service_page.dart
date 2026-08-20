@@ -73,15 +73,16 @@ class _SelectServicePageState extends State<SelectServicePage> {
       clearTimeSlot: true,
       clearHold: true,
     );
+    _bookingService.setActiveDraft(updatedDraft);
 
     if (updatedDraft.doctor != null) {
       if (updatedDraft.date != null) {
-        context.push(AppRoutes.bookingSelectTimeSlot, extra: updatedDraft);
+        context.pushReplacement(AppRoutes.bookingSelectTimeSlot, extra: updatedDraft);
       } else {
-        context.push(AppRoutes.bookingSelectDatetime, extra: updatedDraft);
+        context.pushReplacement(AppRoutes.bookingSelectDatetime, extra: updatedDraft);
       }
     } else {
-      context.push(AppRoutes.bookingSelectDoctor, extra: updatedDraft);
+      context.pushReplacement(AppRoutes.bookingSelectDoctor, extra: updatedDraft);
     }
   }
 

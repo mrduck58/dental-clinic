@@ -328,8 +328,8 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
                                                 ? 'Yêu cầu hủy lịch sau 24h đang được phòng khám xem xét.'
                                                 : 'Cancellation request after 24h is being reviewed by the clinic.')
                                             : (isVi
-                                                ? 'Yêu cầu dời lịch sang ${_pendingChangeRequest!.desiredDate != null ? '${_pendingChangeRequest!.desiredDate!.day.toString().padLeft(2, '0')}/${_pendingChangeRequest!.desiredDate!.month.toString().padLeft(2, '0')}/${_pendingChangeRequest!.desiredDate!.year}' : ''} (${_pendingChangeRequest!.desiredTimeSlot ?? ''}) đang được phòng khám xem xét.'
-                                                : 'Reschedule request is being reviewed by clinic staff.'),
+                                                ? 'Yêu cầu dời lịch đang được phòng khám xem xét. Sau khi được duyệt, bạn có thể tự chọn ngày và ca khám mới.'
+                                                : 'Reschedule request is being reviewed. Once approved, you can choose a new date and time slot.'),
                                         style: const TextStyle(
                                           fontSize: 12.5,
                                           color: Color(0xFFB45309),
@@ -754,7 +754,32 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (!item.canSelfManage)
+                  if (item.isRescheduleUnlocked && _pendingChangeRequest == null)
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFECFDF5),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFA7F3D0)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.check_circle_outline_rounded, size: 18, color: Color(0xFF059669)),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              isVi
+                                  ? 'Phòng khám đã duyệt yêu cầu dời lịch. Bạn hãy bấm "Dời lịch khám" bên dưới để tự chọn ngày và ca khám mới.'
+                                  : 'Clinic approved your reschedule request. Tap "Reschedule" below to choose a new slot.',
+                              style: const TextStyle(fontSize: 12, color: Color(0xFF065F46), height: 1.3, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else if (!item.canSelfManage)
                     Container(
                       width: double.infinity,
                       margin: const EdgeInsets.only(bottom: 12),
@@ -773,20 +798,16 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
                               isVi
                                   ? (item.isPastAppointmentDate
                                       ? 'Lịch khám đã đến hoặc đã qua giờ hẹn. Vui lòng liên hệ hotline để được hỗ trợ.'
-                                      : 'Đã quá 24h kể từ khi đặt lịch. Vui lòng liên hệ hotline để đổi/hủy lịch.')
+                                      : 'Đã quá 24h kể từ khi đặt lịch. Bấm Dời lịch hoặc Hủy lịch để gửi yêu cầu cho phòng khám xét duyệt.')
                                   : (item.isPastAppointmentDate
                                       ? 'Appointment time has arrived or passed. Please contact hotline for assistance.'
-                                      : 'More than 24h since booking. Please contact hotline to reschedule or cancel.'),
+                                      : 'More than 24h since booking. Tap Reschedule or Cancel to submit a request for clinic approval.'),
                               style: TextStyle(fontSize: 12, color: context.textSecondary, height: 1.3),
                             ),
                           ),
                         ],
                       ),
                     ),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: SizedBox(
                   if (_pendingChangeRequest != null)
                     Container(
                       height: 50,
@@ -1579,8 +1600,6 @@ class _ChangeRequestBottomSheetState extends State<_ChangeRequestBottomSheet> {
   final _bookingService = BookingService();
   late String _type; // "Cancel" or "Reschedule"
   final _reasonController = TextEditingController();
-  DateTime? _desiredDate;
-  String? _desiredTimeSlot;
   bool _submitting = false;
   String? _error;
 
@@ -1592,38 +1611,16 @@ class _ChangeRequestBottomSheetState extends State<_ChangeRequestBottomSheet> {
   ];
 
   final List<String> _rescheduleQuickReasonsVi = [
-    'Muốn dời sang khung giờ phù hợp hơn',
-    'Bận đột xuất vào giờ hẹn cũ',
-    'Muốn khám vào ngày cuối tuần',
-  ];
-
-  final List<String> _timeSlots = [
-    '08:00 - 08:30',
-    '08:30 - 09:00',
-    '09:00 - 09:30',
-    '09:30 - 10:00',
-    '10:00 - 10:30',
-    '10:30 - 11:00',
-    '11:00 - 11:30',
-    '13:30 - 14:00',
-    '14:00 - 14:30',
-    '14:30 - 15:00',
-    '15:00 - 15:30',
-    '15:30 - 16:00',
-    '16:00 - 16:30',
-    '16:30 - 17:00',
-    '17:00 - 17:30',
-    '17:30 - 18:00',
-    '18:00 - 18:30',
-    '18:30 - 19:00',
+    'Muốn dời sang khung giờ / ngày khác',
+    'Bận việc đột xuất vào giờ hẹn cũ',
+    'Muốn dời lịch khám vào cuối tuần',
+    'Muốn đổi nha sĩ phụ trách',
   ];
 
   @override
   void initState() {
     super.initState();
     _type = widget.initialType;
-    _desiredDate = DateTime.now().add(const Duration(days: 1));
-    _desiredTimeSlot = _timeSlots.first;
   }
 
   @override
@@ -1632,28 +1629,7 @@ class _ChangeRequestBottomSheetState extends State<_ChangeRequestBottomSheet> {
     super.dispose();
   }
 
-  bool get _canSubmit {
-    if (_reasonController.text.trim().isEmpty) return false;
-    if (_type == 'Reschedule') {
-      if (_desiredDate == null || _desiredTimeSlot == null) return false;
-    }
-    return true;
-  }
-
-  Future<void> _pickDate() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _desiredDate ?? now.add(const Duration(days: 1)),
-      firstDate: now,
-      lastDate: now.add(const Duration(days: 60)),
-    );
-    if (picked != null) {
-      setState(() {
-        _desiredDate = picked;
-      });
-    }
-  }
+  bool get _canSubmit => _reasonController.text.trim().isNotEmpty;
 
   Future<void> _submit() async {
     if (!_canSubmit) return;
@@ -1663,18 +1639,10 @@ class _ChangeRequestBottomSheetState extends State<_ChangeRequestBottomSheet> {
     });
 
     try {
-      DateTime? effectiveDesiredDate;
-      if (_type == 'Reschedule' && _desiredDate != null && _desiredTimeSlot != null) {
-        effectiveDesiredDate = BookingService.combineDateAndSlot(_desiredDate!, _desiredTimeSlot!);
-      }
-
       await _bookingService.submitChangeRequest(
         appointmentId: widget.appointmentId,
         type: _type,
         reason: _reasonController.text.trim(),
-        desiredDate: effectiveDesiredDate,
-        desiredTimeSlot: _type == 'Reschedule' ? _desiredTimeSlot : null,
-        desiredDentistId: _type == 'Reschedule' ? widget.dentistId : null,
       );
 
       if (!mounted) return;
@@ -1846,84 +1814,6 @@ class _ChangeRequestBottomSheetState extends State<_ChangeRequestBottomSheet> {
               ),
               const SizedBox(height: 18),
 
-              // Reschedule Form Fields
-              if (!isCancel) ...[
-                Text(
-                  widget.isVi ? 'Ngày khám mong muốn' : 'Desired Date',
-                  style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: context.textPrimary),
-                ),
-                const SizedBox(height: 8),
-                InkWell(
-                  onTap: _pickDate,
-                  borderRadius: BorderRadius.circular(14),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: context.isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: context.divider),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(Iconsax.calendar_1, size: 18, color: Color(0xFF4F46E5)),
-                            const SizedBox(width: 10),
-                            Text(
-                              _desiredDate != null
-                                  ? '${_desiredDate!.day.toString().padLeft(2, '0')}/${_desiredDate!.month.toString().padLeft(2, '0')}/${_desiredDate!.year}'
-                                  : 'Chọn ngày',
-                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: context.textPrimary),
-                            ),
-                          ],
-                        ),
-                        Text(
-                          widget.isVi ? 'Đổi ngày' : 'Change',
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF4F46E5)),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                Text(
-                  widget.isVi ? 'Khung giờ mong muốn' : 'Desired Time Slot',
-                  style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: context.textPrimary),
-                ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 40,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _timeSlots.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 8),
-                    itemBuilder: (ctx, idx) {
-                      final slot = _timeSlots[idx];
-                      final isSelected = _desiredTimeSlot == slot;
-                      return ChoiceChip(
-                        label: Text(
-                          slot,
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                            color: isSelected ? Colors.white : context.textPrimary,
-                          ),
-                        ),
-                        selected: isSelected,
-                        selectedColor: const Color(0xFF4F46E5),
-                        backgroundColor: context.isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
-                        onSelected: (val) {
-                          if (val) setState(() => _desiredTimeSlot = slot);
-                        },
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-
               // Quick reason chips
               Text(
                 widget.isVi ? 'Lý do phổ biến' : 'Common Reasons',
@@ -1981,21 +1871,33 @@ class _ChangeRequestBottomSheetState extends State<_ChangeRequestBottomSheet> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFFBEB),
+                  color: isCancel ? const Color(0xFFFFFBEB) : const Color(0xFFEEF2FF),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFFDE68A)),
+                  border: Border.all(color: isCancel ? const Color(0xFFFDE68A) : const Color(0xFFC7D2FE)),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.info_outline_rounded, color: Color(0xFFD97706), size: 18),
+                    Icon(
+                      isCancel ? Icons.info_outline_rounded : Iconsax.information,
+                      color: isCancel ? const Color(0xFFD97706) : const Color(0xFF4F46E5),
+                      size: 18,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         widget.isVi
-                            ? 'Yêu cầu sẽ được lễ tân tiếp nhận và xử lý theo thời gian thực. Bác sĩ và phòng khám sẽ gửi thông báo kết quả xét duyệt cho bạn.'
-                            : 'Staff will review your request in real-time and send an update via notification.',
-                        style: const TextStyle(fontSize: 12, color: Color(0xFF92400E), height: 1.35),
+                            ? (isCancel
+                                ? 'Yêu cầu hủy lịch sẽ được lễ tân tiếp nhận và xử lý. Phòng khám sẽ gửi thông báo kết quả xét duyệt cho bạn.'
+                                : 'Sau khi phòng khám phê duyệt yêu cầu dời lịch, nút "Dời lịch khám" sẽ được mở lại để bạn tự do chọn ngày và ca khám mới.')
+                            : (isCancel
+                                ? 'Cancellation request will be reviewed by clinic staff in real-time.'
+                                : 'Once approved, the "Reschedule" button will be unlocked so you can choose a new date and time slot.'),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isCancel ? const Color(0xFF92400E) : const Color(0xFF3730A3),
+                          height: 1.35,
+                        ),
                       ),
                     ),
                   ],

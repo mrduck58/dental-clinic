@@ -72,22 +72,14 @@ public class CreateAppointmentChangeRequestHandler(
                 throw new ValidationException("Vui lòng cung cấp lý do dời lịch.");
             }
 
-            if (!command.DesiredDate.HasValue)
-            {
-                throw new ValidationException("Vui lòng chọn ngày và giờ mới mong muốn.");
-            }
-
-            var desiredDentistId = command.DesiredDentistId ?? appointment.DentistId;
-            var desiredTimeSlot = command.DesiredTimeSlot ?? string.Empty;
-
             request = AppointmentChangeRequest.CreateRescheduleRequest(
                 appointmentId: appointment.Id,
                 patientId: appointment.PatientId,
                 requestedByUserId: command.UserId,
                 reason: command.Reason.Trim(),
-                desiredDate: command.DesiredDate.Value,
-                desiredTimeSlot: desiredTimeSlot,
-                desiredDentistId: desiredDentistId);
+                desiredDate: command.DesiredDate,
+                desiredTimeSlot: command.DesiredTimeSlot,
+                desiredDentistId: command.DesiredDentistId);
         }
 
         await changeRequestRepository.AddAsync(request, ct);

@@ -38,14 +38,16 @@ public class AppointmentChangeGuard(
 
         await EnsureOwnsAppointmentAsync(appointment, ct);
 
+        var isUnlocked = appointment.SelfManagementUnlockedUntil.HasValue && appointment.SelfManagementUnlockedUntil.Value > now;
+
         // 1. Kiểm tra nếu đã đến hoặc qua giờ khám
         if (now >= appointment.AppointmentDate)
             throw new ConflictException(
                 "Lịch khám đã đến hoặc đã qua giờ hẹn, không thể tự hủy hoặc dời lịch. " +
                 "Vui lòng liên hệ phòng khám để được hỗ trợ.");
 
-        // 2. Kiểm tra nếu đã quá 24 giờ kể từ thời điểm tạo lịch
-        if (now - appointment.CreatedAt > PatientSelfManagementPeriod)
+        // 2. Kiểm tra nếu đã quá 24 giờ kể từ thời điểm tạo lịch (nếu chưa được mở khóa)
+        if (!isUnlocked && now - appointment.CreatedAt > PatientSelfManagementPeriod)
             throw new ConflictException(
                 "Đã quá 24 giờ kể từ thời điểm đặt lịch, bạn không thể tự hủy hoặc dời lịch. " +
                 "Vui lòng liên hệ phòng khám để được hỗ trợ.");

@@ -61,38 +61,56 @@ public class ApproveAppointmentChangeRequestHandler(
         }
         else if (request.Type == AppointmentChangeType.Reschedule)
         {
-            if (!request.DesiredDate.HasValue)
+            if (request.DesiredDate.HasValue)
             {
-                throw new ValidationException("Yêu cầu dời lịch không có thông tin ngày giờ mong muốn.");
+                var targetDentistId = request.DesiredDentistId ?? appointment.DentistId;
+                var targetDate = request.DesiredDate.Value;
+
+                appointment.Reschedule(targetDate, targetDentistId, appointment.ServiceId, requiresReconfirmation: false, now);
+                await appointmentRepository.UpdateAsync(appointment, ct);
+
+                request.Approve(command.StaffUserId, command.StaffNote);
+                await changeRequestRepository.UpdateAsync(request, ct);
+
+                var vnDate = TimeZoneInfo.ConvertTime(targetDate, AppointmentStatusHelper.VietnamTz);
+                var patientUserId = appointment.Patient?.UserId ?? appointment.Patient?.PrimaryPatient?.UserId;
+                if (patientUserId.HasValue)
+                {
+                    await notificationService.CreateAsync(new CreateNotificationRequest(
+                        UserId: patientUserId.Value,
+                        Type: NotificationType.Appointment,
+                        Priority: NotificationPriority.High,
+                        Title: "Yêu cầu dời lịch đã được chấp nhận",
+                        Body: $"Lịch hẹn #{code} của bạn đã được dời sang {vnDate:HH:mm dd/MM/yyyy}.",
+                        RelatedEntityType: "Appointment",
+                        RelatedEntityId: appointment.Id.ToString()), ct);
+                }
             }
+            else
+            {
+                // Mở khóa cho bệnh nhân tự vào chọn ngày và ca khám mới trong vòng 48 giờ
+                appointment.UnlockSelfManagement(now.AddHours(48));
+                await appointmentRepository.UpdateAsync(appointment, ct);
 
-            var targetDentistId = request.DesiredDentistId ?? appointment.DentistId;
-            var targetDate = request.DesiredDate.Value;
+                request.Approve(command.StaffUserId, command.StaffNote);
+                await changeRequestRepository.UpdateAsync(request, ct);
 
-            appointment.Reschedule(targetDate, targetDentistId, appointment.ServiceId, requiresReconfirmation: false, now);
-            await appointmentRepository.UpdateAsync(appointment, ct);
-
-            request.Approve(command.StaffUserId, command.StaffNote);
-            await changeRequestRepository.UpdateAsync(request, ct);
+                var patientUserId = appointment.Patient?.UserId ?? appointment.Patient?.PrimaryPatient?.UserId;
+                if (patientUserId.HasValue)
+                {
+                    await notificationService.CreateAsync(new CreateNotificationRequest(
+                        UserId: patientUserId.Value,
+                        Type: NotificationType.Appointment,
+                        Priority: NotificationPriority.High,
+                        Title: "Yêu cầu dời lịch đã được chấp thuận",
+                        Body: $"Phòng khám đã duyệt yêu cầu dời lịch hẹn #{code}. Bạn có thể vào chi tiết lịch hẹn trên ứng dụng để tự chọn ngày và ca khám mới.",
+                        RelatedEntityType: "Appointment",
+                        RelatedEntityId: appointment.Id.ToString()), ct);
+                }
+            }
 
             logger?.LogInformation("Staff {StaffId} approved reschedule request {RequestId} for Appointment {ApptId}",
                 command.StaffUserId, request.Id, appointment.Id);
-
-            var vnDate = TimeZoneInfo.ConvertTime(targetDate, AppointmentStatusHelper.VietnamTz);
-
-            // Gửi thông báo cho bệnh nhân
-            var patientUserId = appointment.Patient?.UserId ?? appointment.Patient?.PrimaryPatient?.UserId;
-            if (patientUserId.HasValue)
-            {
-                await notificationService.CreateAsync(new CreateNotificationRequest(
-                    UserId: patientUserId.Value,
-                    Type: NotificationType.Appointment,
-                    Priority: NotificationPriority.High,
-                    Title: "Yêu cầu dời lịch đã được chấp nhận",
-                    Body: $"Lịch hẹn #{code} của bạn đã được dời sang {vnDate:HH:mm dd/MM/yyyy}.",
-                    RelatedEntityType: "Appointment",
-                    RelatedEntityId: appointment.Id.ToString()), ct);
-            }
         }
 
         await activityLogService.LogAsync(

@@ -52,8 +52,8 @@ public class AppointmentChangeRequest
         Guid patientId,
         Guid requestedByUserId,
         string reason,
-        DateTimeOffset desiredDate,
-        string desiredTimeSlot,
+        DateTimeOffset? desiredDate = null,
+        string? desiredTimeSlot = null,
         Guid? desiredDentistId = null)
     {
         return new AppointmentChangeRequest

@@ -386,6 +386,7 @@ class MyAppointmentItem {
   final String? patientId;
   final String? createdAt;
   final int rescheduledCount;
+  final String? selfManagementUnlockedUntil;
 
   const MyAppointmentItem({
     required this.appointmentId,
@@ -405,6 +406,7 @@ class MyAppointmentItem {
     this.patientId,
     this.createdAt,
     this.rescheduledCount = 0,
+    this.selfManagementUnlockedUntil,
   });
 
   factory MyAppointmentItem.fromJson(Map<String, dynamic> json) =>
@@ -426,6 +428,7 @@ class MyAppointmentItem {
         patientId: json['patientId']?.toString(),
         createdAt: json['createdAt']?.toString(),
         rescheduledCount: json['rescheduledCount'] as int? ?? 0,
+        selfManagementUnlockedUntil: json['selfManagementUnlockedUntil']?.toString(),
       );
 
   DateTime get parsedDate => DateTime.parse(appointmentDate).toLocal();
@@ -445,8 +448,16 @@ class MyAppointmentItem {
     return now.difference(created).inHours >= 24;
   }
 
-  /// Cho phép tự hủy/dời trong vòng 24 giờ kể từ thời điểm đặt lịch VÀ trước thời gian khám.
-  bool get canSelfManage => !isPastAppointmentDate && !isPast24HoursCreation;
+  /// Được phòng khám phê duyệt mở khóa tự dời lịch (trong thời hạn).
+  bool get isRescheduleUnlocked {
+    if (selfManagementUnlockedUntil == null) return false;
+    final unlocked = DateTime.tryParse(selfManagementUnlockedUntil!)?.toLocal();
+    if (unlocked == null) return false;
+    return DateTime.now().isBefore(unlocked);
+  }
+
+  /// Cho phép tự hủy/dời trong vòng 24 giờ kể từ thời điểm đặt lịch (hoặc sau khi được duyệt mở khóa) VÀ trước thời gian khám.
+  bool get canSelfManage => !isPastAppointmentDate && (!isPast24HoursCreation || isRescheduleUnlocked);
 }
 
 class BookingEligibility {
