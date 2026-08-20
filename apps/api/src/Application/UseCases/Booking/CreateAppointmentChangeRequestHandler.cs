@@ -24,9 +24,11 @@ public class CreateAppointmentChangeRequestHandler(
 
         // Kiểm tra quyền sở hữu
         var primaryPatient = await patientRepository.GetByUserIdAsync(command.UserId, ct);
-        var owns = primaryPatient != null && (appointment.PatientId == primaryPatient.Id ||
-                   appointment.Patient?.PrimaryPatientId == primaryPatient.Id ||
-                   appointment.Patient?.UserId == command.UserId);
+        var targetPatient = await patientRepository.GetByIdAsync(appointment.PatientId, ct);
+        var owns = primaryPatient != null && (
+            appointment.PatientId == primaryPatient.Id ||
+            targetPatient?.PrimaryPatientId == primaryPatient.Id ||
+            targetPatient?.UserId == command.UserId);
 
         if (!owns)
         {
