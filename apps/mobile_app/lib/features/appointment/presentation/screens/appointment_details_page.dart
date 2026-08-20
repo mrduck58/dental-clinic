@@ -27,6 +27,7 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
   bool _isLoading = false;
   String? _errorMessage;
   AppointmentChangeRequestItem? _pendingChangeRequest;
+  bool _isRescheduleApproved = false;
 
   @override
   void initState() {
@@ -44,9 +45,17 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
     try {
       final reqs = await BookingService().getAppointmentChangeRequests(appointmentId);
       final pending = reqs.where((r) => r.isPending).firstOrNull;
+      final approvedReschedule = reqs.where((r) =>
+          !r.isCancel &&
+          r.status.toLowerCase() == 'approved' &&
+          r.processedAt != null &&
+          DateTime.now().difference(r.processedAt!).inHours < 48
+      ).firstOrNull;
+
       if (mounted) {
         setState(() {
           _pendingChangeRequest = pending;
+          _isRescheduleApproved = approvedReschedule != null;
         });
       }
     } catch (_) {}
@@ -754,7 +763,7 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (item.isRescheduleUnlocked && _pendingChangeRequest == null)
+                  if (_isRescheduleApproved && _pendingChangeRequest == null)
                     Container(
                       width: double.infinity,
                       margin: const EdgeInsets.only(bottom: 12),
@@ -841,7 +850,8 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
                             height: 50,
                             child: OutlinedButton.icon(
                               onPressed: () async {
-                                if (!item.canSelfManage) {
+                                final canReschedule = item.canSelfManage || _isRescheduleApproved;
+                                if (!canReschedule) {
                                   if (item.isPastAppointmentDate) {
                                     showDialog(
                                       context: context,

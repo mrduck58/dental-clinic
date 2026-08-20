@@ -88,10 +88,7 @@ public class ApproveAppointmentChangeRequestHandler(
             }
             else
             {
-                // Mở khóa cho bệnh nhân tự vào chọn ngày và ca khám mới trong vòng 48 giờ
-                appointment.UnlockSelfManagement(now.AddHours(48));
-                await appointmentRepository.UpdateAsync(appointment, ct);
-
+                // Phê duyệt yêu cầu dời lịch -> ghi nhận vào AppointmentChangeRequests
                 request.Approve(command.StaffUserId, command.StaffNote);
                 await changeRequestRepository.UpdateAsync(request, ct);
 

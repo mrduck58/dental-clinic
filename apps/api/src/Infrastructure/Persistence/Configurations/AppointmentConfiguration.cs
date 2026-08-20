@@ -24,7 +24,6 @@ public class AppointmentConfiguration : IEntityTypeConfiguration<Appointment>
         builder.Property(a => a.CancellationNote).HasMaxLength(500);
 
         builder.Property(a => a.RescheduledCount).IsRequired().HasDefaultValue(0);
-        builder.Property(a => a.SelfManagementUnlockedUntil);
 
         // Cũng lưu dạng chuỗi như CancellationReason: "WalkIn" đọc thẳng trong DB là hiểu ngay,
         // và thêm nguồn mới (ví dụ Chatbot) không làm sai lệch các bản ghi đã lưu.
