@@ -123,7 +123,7 @@ public class HoldSlotHandler(
             if (durationMinutes > 30)
             {
                 throw new ConflictException(
-                    $"Dịch vụ này ước tính cần {durationMinutes} phút. Không thể đổi sang khung giờ {command.TimeSlot} do bị trùng với một lịch hẹn tiếp theo. Vui lòng chọn giờ khác.");
+                    $"Dịch vụ này ước tính khoảng ~{durationMinutes} phút. Không thể đổi sang khung giờ {command.TimeSlot} do bị trùng với một lịch hẹn tiếp theo. Vui lòng chọn giờ khác.");
             }
             throw new ConflictException("Ca khám này (hoặc thời lượng dịch vụ) bị trùng với một lịch hẹn đã đặt.");
         }
@@ -173,7 +173,7 @@ public class HoldSlotHandler(
             if (durationMinutes > 30)
             {
                 throw new ConflictException(
-                    $"Dịch vụ này ước tính cần {durationMinutes} phút. Không thể đổi sang khung giờ {command.TimeSlot} do bị trùng với ca đang được giữ tạm tiếp theo. Vui lòng chọn giờ khác.");
+                    $"Dịch vụ này ước tính khoảng ~{durationMinutes} phút. Không thể đổi sang khung giờ {command.TimeSlot} do bị trùng với ca đang được giữ tạm tiếp theo. Vui lòng chọn giờ khác.");
             }
             throw new ConflictException(
                 "Ca khám này (hoặc thời lượng dịch vụ) đang được một bệnh nhân khác giữ tạm (tối đa 5 phút). " +

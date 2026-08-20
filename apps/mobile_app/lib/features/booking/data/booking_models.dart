@@ -48,6 +48,29 @@ class ServiceInfo {
     this.durationMinutes = 0,
     this.options = const [],
   });
+
+  String get durationText {
+    if (durationMinutes <= 0) return '';
+    if (durationMinutes < 60) return '~$durationMinutes phút';
+    final h = durationMinutes ~/ 60;
+    final m = durationMinutes % 60;
+    return m == 0 ? '~$h giờ' : '~$h giờ $m phút';
+  }
+
+  String durationTextLocalized(bool isVi) {
+    if (durationMinutes <= 0) return '';
+    if (isVi) {
+      if (durationMinutes < 60) return '~$durationMinutes phút';
+      final h = durationMinutes ~/ 60;
+      final m = durationMinutes % 60;
+      return m == 0 ? '~$h giờ' : '~$h giờ $m phút';
+    } else {
+      if (durationMinutes < 60) return '~$durationMinutes mins';
+      final h = durationMinutes ~/ 60;
+      final m = durationMinutes % 60;
+      return m == 0 ? '~$h hr' : '~$h hr $m mins';
+    }
+  }
 }
 
 // ─── Time slot ───────────────────────────────────────────────────────────────

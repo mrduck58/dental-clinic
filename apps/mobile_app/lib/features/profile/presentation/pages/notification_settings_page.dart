@@ -7,6 +7,7 @@ import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/core/services/local_notification_helper.dart';
+import 'package:mobile_app/core/utils/app_toast.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class NotificationSettingsPage extends StatefulWidget {
@@ -192,25 +193,11 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage>
   }
 
   void _showSnackBar(String message, {bool isSuccess = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(
-              isSuccess ? Icons.check_circle_rounded : Icons.info_outline_rounded,
-              color: Colors.white,
-              size: 20,
-            ),
-            const SizedBox(width: 10),
-            Expanded(child: Text(message)),
-          ],
-        ),
-        backgroundColor: isSuccess ? const Color(0xFF059669) : const Color(0xFF334155),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        duration: const Duration(seconds: 3),
-      ),
-    );
+    if (isSuccess) {
+      AppToast.showSuccess(context, message);
+    } else {
+      AppToast.showInfo(context, message);
+    }
   }
 
   @override

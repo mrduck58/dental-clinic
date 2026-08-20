@@ -103,8 +103,8 @@ class _SelectServicePageState extends State<SelectServicePage> {
             ),
             content: Text(
               isVi
-                  ? 'Dịch vụ "${s.name}" có thời lượng ước tính ${s.durationMinutes} phút và bị trùng với lịch hẹn/ca giữ khác ở khung giờ đã chọn. Vui lòng chọn lại giờ khám.'
-                  : 'Service "${s.name}" takes ${s.durationMinutes} minutes and overlaps with an existing appointment. Please select another slot.',
+                  ? 'Dịch vụ "${s.name}" có thời lượng ước tính khoảng ${s.durationMinutes} phút và bị trùng với lịch hẹn/ca giữ khác ở khung giờ đã chọn. Vui lòng chọn lại giờ khám.'
+                  : 'Service "${s.name}" takes approx. ${s.durationMinutes} minutes and overlaps with an existing appointment. Please select another slot.',
               style: const TextStyle(fontSize: 14, height: 1.4),
             ),
             actions: [

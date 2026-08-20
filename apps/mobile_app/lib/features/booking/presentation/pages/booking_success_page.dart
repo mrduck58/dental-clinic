@@ -210,7 +210,9 @@ class _BookingSuccessPageState extends State<BookingSuccessPage>
                             _SummaryRow(
                               icon: Iconsax.health,
                               label: isVi ? 'Dịch vụ' : 'Service',
-                              value: d.service!.name,
+                              value: d.service!.durationText.isNotEmpty
+                                  ? '${d.service!.name} (${d.service!.durationText})'
+                                  : d.service!.name,
                             ),
                           if (d.doctor != null)
                             _SummaryRow(

@@ -7,6 +7,7 @@ import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/booking/data/booking_models.dart';
 import 'package:mobile_app/features/booking/data/booking_service.dart';
 import 'package:mobile_app/core/network/api_client.dart';
+import 'package:mobile_app/core/utils/app_toast.dart';
 import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/features/home/data/models/doctor_model.dart';
 import 'package:dio/dio.dart';
@@ -1113,14 +1114,7 @@ class _CancelReasonBottomSheetState extends State<_CancelReasonBottomSheet> {
                 ? 'Appointment cancelled. 30-minute cooldown active for this patient.'
                 : 'Appointment cancelled successfully.');
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(successMsg),
-            behavior: SnackBarBehavior.floating,
-            margin: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-            backgroundColor: const Color(0xFF16A34A),
-          ),
-        );
+        AppToast.showSuccess(context, successMsg);
       }
     } catch (e) {
       if (mounted) {
