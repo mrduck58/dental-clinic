@@ -793,11 +793,6 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
 
                               final parsedDate = item.parsedDate;
                               final date = DateTime(parsedDate.year, parsedDate.month, parsedDate.day);
-                              final startHour = parsedDate.hour.toString().padLeft(2, '0');
-                              final startMin = parsedDate.minute.toString().padLeft(2, '0');
-                              final endHour = (parsedDate.hour + 1).toString().padLeft(2, '0');
-                              final timeSlot = TimeSlot(range: '$startHour:$startMin - $endHour:$startMin');
-
                               final doctor = DoctorInfo(
                                 id: item.dentistId,
                                 name: item.dentistName,
@@ -822,19 +817,19 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
                                 service: item.serviceName == null
                                     ? null
                                     : ServiceInfo(
-                                        id: '',
+                                        id: item.serviceId ?? '',
                                         name: item.serviceName!,
                                         description: '',
                                         price: '',
+                                        durationMinutes: item.serviceDurationMinutes ?? 30,
                                       ),
                                 date: date,
-                                timeSlot: timeSlot,
                                 doctor: doctor,
                                 symptoms: item.symptoms,
                               );
 
                               if (context.mounted) {
-                                context.push(AppRoutes.bookingReview, extra: draft);
+                                context.push(AppRoutes.bookingSelectTimeSlot, extra: draft);
                               }
                             },
                             style: OutlinedButton.styleFrom(

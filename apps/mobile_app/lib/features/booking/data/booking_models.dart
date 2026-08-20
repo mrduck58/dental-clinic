@@ -215,6 +215,32 @@ class BookingDraft {
     return patient != null && doctor != null && date != null && timeSlot != null;
   }
 
+  /// Khung giờ thực tế hiển thị bao gồm toàn bộ thời lượng dịch vụ
+  /// Ví dụ: Khung giờ bắt đầu 08:00, dịch vụ 60 phút -> '08:00 - 09:00'
+  String get displayTimeRange {
+    if (timeSlot == null) return '';
+    final rawRange = timeSlot!.range;
+    final duration = service?.durationMinutes ?? 0;
+    if (duration <= 30) return rawRange;
+
+    try {
+      final startPart = rawRange.split(' - ').first.trim();
+      final parts = startPart.split(':');
+      final startH = int.parse(parts[0]);
+      final startM = int.parse(parts[1]);
+
+      final totalEndMinutes = startH * 60 + startM + duration;
+      final endH = (totalEndMinutes ~/ 60) % 24;
+      final endM = totalEndMinutes % 60;
+
+      final startStr = '${startH.toString().padLeft(2, '0')}:${startM.toString().padLeft(2, '0')}';
+      final endStr = '${endH.toString().padLeft(2, '0')}:${endM.toString().padLeft(2, '0')}';
+      return '$startStr - $endStr';
+    } catch (_) {
+      return rawRange;
+    }
+  }
+
   BookingDraft copyWith({
     PatientInfo? patient,
     ServiceInfo? service,
@@ -347,6 +373,8 @@ class MyAppointmentItem {
   final String status;
   final String? symptoms;
   final String? serviceName;
+  final String? serviceId;
+  final int? serviceDurationMinutes;
   final String? patientName;
   final String? patientRelationship;
   final String? patientId;
@@ -364,6 +392,8 @@ class MyAppointmentItem {
     required this.status,
     this.symptoms,
     this.serviceName,
+    this.serviceId,
+    this.serviceDurationMinutes,
     this.patientName,
     this.patientRelationship,
     this.patientId,
@@ -383,6 +413,8 @@ class MyAppointmentItem {
         status: json['status'] as String,
         symptoms: json['symptoms'] as String?,
         serviceName: json['serviceName'] as String?,
+        serviceId: json['serviceId']?.toString(),
+        serviceDurationMinutes: json['serviceDurationMinutes'] as int?,
         patientName: json['patientName'] as String?,
         patientRelationship: json['patientRelationship'] as String?,
         patientId: json['patientId']?.toString(),

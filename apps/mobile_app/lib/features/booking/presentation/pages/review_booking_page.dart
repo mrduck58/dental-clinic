@@ -47,7 +47,11 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
     super.dispose();
   }
 
-    void _showExpiredAndRedirect() {
+  bool _isShowingExpiredDialog = false;
+
+  void _showExpiredAndRedirect() {
+    if (!mounted || _isShowingExpiredDialog) return;
+    _isShowingExpiredDialog = true;
     _bookingService.clearActiveDraft();
     final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     showDialog(
@@ -90,7 +94,9 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
           ),
         ],
       ),
-    );
+    ).then((_) {
+      _isShowingExpiredDialog = false;
+    });
   }
 
   Future<void> _confirm(bool isVi) async {
@@ -225,7 +231,7 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
                           _InfoRow(
                             icon: Iconsax.clock,
                             label: isVi ? 'Giờ khám' : 'Time Slot',
-                            value: '${d.timeSlot!.range}, ${d.doctor?.room ?? ''}',
+                            value: '${d.displayTimeRange}${d.service != null && d.service!.durationMinutes > 30 ? ' (${d.service!.durationTextLocalized(isVi)})' : ''}, ${d.doctor?.room ?? ''}',
                             onEdit: () => context.push(AppRoutes.bookingSelectTimeSlot, extra: d),
                           ),
                         if (d.doctor != null)
