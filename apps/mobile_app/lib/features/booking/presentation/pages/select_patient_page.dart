@@ -35,11 +35,9 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
     super.initState();
     _load();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (widget.initialDraft == null) {
-        final activeDraft = _bookingService.activeDraft;
-        if (activeDraft != null && activeDraft.isHoldActive && activeDraft.isComplete && mounted) {
-          context.pushReplacement(AppRoutes.bookingReview, extra: activeDraft);
-        }
+      final activeDraft = widget.initialDraft ?? _bookingService.activeDraft;
+      if (activeDraft != null && activeDraft.isHoldActive && activeDraft.isComplete && mounted) {
+        context.pushReplacement(AppRoutes.bookingReview, extra: activeDraft);
       }
     });
   }
@@ -83,11 +81,12 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
         rescheduleCount: 0,
       ));
 
+      final activeDraft = widget.initialDraft ?? _bookingService.activeDraft;
       if (mounted) {
         setState(() {
           _patients = [me, ...family];
           _eligibility = eligibility;
-          _selectedId = widget.initialDraft?.patient?.id ?? _selectedId;
+          _selectedId = activeDraft?.patient?.id ?? _selectedId;
           _loading = false;
         });
       }
@@ -173,7 +172,8 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
 
     setState(() => _selectedId = _patients[index].id);
 
-    final initial = widget.initialDraft;
+    final activeDraft = _bookingService.activeDraft;
+    final initial = widget.initialDraft ?? activeDraft;
     var draft = initial != null
         ? initial.copyWith(patient: _patients[index])
         : BookingDraft(patient: _patients[index]);
@@ -201,6 +201,12 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
       context.push(AppRoutes.bookingReview, extra: draft);
     } else if (draft.doctor != null && draft.date != null) {
       context.push(AppRoutes.bookingSelectTimeSlot, extra: draft);
+    } else if (draft.doctor != null) {
+      if (draft.service != null) {
+        context.push(AppRoutes.bookingSelectDatetime, extra: draft);
+      } else {
+        context.push(AppRoutes.bookingSelectService, extra: draft);
+      }
     } else if (draft.service != null && draft.date != null) {
       context.push(AppRoutes.bookingSelectDoctor, extra: draft);
     } else if (draft.service != null) {

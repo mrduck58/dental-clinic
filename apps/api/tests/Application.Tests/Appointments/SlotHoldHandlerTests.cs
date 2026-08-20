@@ -62,7 +62,7 @@ public class SlotHoldHandlerTests
         var tomorrow = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1));
         var command = new HoldSlotCommand(_patientId, _dentistId, tomorrow, "08:00 - 09:00");
 
-        _slotHoldRepo.GetFailedHoldCountTodayAsync(_patientId, Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+        _slotHoldRepo.GetFailedHoldCountTodayAsync(_userId, _patientId, Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
             .Returns(0);
         _slotHoldRepo.GetActiveHoldsForUserOrPatientAsync(_userId, _patientId, Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
             .Returns(new List<AppointmentSlotHold>());
@@ -89,7 +89,7 @@ public class SlotHoldHandlerTests
         var tomorrow = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1));
         var command = new HoldSlotCommand(_patientId, _dentistId, tomorrow, "08:00 - 09:00");
 
-        _slotHoldRepo.GetFailedHoldCountTodayAsync(_patientId, Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+        _slotHoldRepo.GetFailedHoldCountTodayAsync(_userId, _patientId, Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
             .Returns(3);
 
         var act = () => _handler.Handle(command);
@@ -116,7 +116,7 @@ public class SlotHoldHandlerTests
             "08:00 - 09:00",
             DateTimeOffset.UtcNow);
 
-        _slotHoldRepo.GetFailedHoldCountTodayAsync(_patientId, Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+        _slotHoldRepo.GetFailedHoldCountTodayAsync(_userId, _patientId, Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
             .Returns(0);
         _slotHoldRepo.GetActiveHoldsForDentistAndDateAsync(_dentistId, tomorrow, Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
             .Returns(new List<AppointmentSlotHold> { existingHold });
@@ -144,7 +144,7 @@ public class SlotHoldHandlerTests
             "08:00 - 09:00",
             DateTimeOffset.UtcNow.AddMinutes(-2)); // Created 2 mins ago -> 3 mins left
 
-        _slotHoldRepo.GetFailedHoldCountTodayAsync(_patientId, Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+        _slotHoldRepo.GetFailedHoldCountTodayAsync(_userId, _patientId, Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
             .Returns(0);
         _slotHoldRepo.GetActiveHoldsForUserOrPatientAsync(_userId, _patientId, Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
             .Returns(new List<AppointmentSlotHold> { existingHold });

@@ -6,6 +6,7 @@ import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/api_constants.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/booking/data/booking_models.dart';
+import 'package:mobile_app/features/booking/data/booking_service.dart';
 import 'package:mobile_app/features/home/data/models/doctor_model.dart';
 import 'package:mobile_app/features/home/data/models/review_model.dart';
 import 'package:mobile_app/features/home/data/review_service.dart';
@@ -123,11 +124,34 @@ class _DentistReviewsPageState extends State<DentistReviewsPage> {
           child: ElevatedButton.icon(
             onPressed: () {
               final doctorInfo = doc.toDoctorInfo();
-              final draft = BookingDraft(
-                doctor: doctorInfo,
-                preferredDentistId: doc.id,
-              );
-              context.push(AppRoutes.bookingSelectPatient, extra: draft);
+              final activeDraft = BookingService().activeDraft;
+              BookingDraft draft;
+              if (activeDraft != null) {
+                if (activeDraft.doctor?.id == doc.id) {
+                  // Cùng bác sĩ: giữ nguyên toàn bộ (bệnh nhân, dịch vụ, ngày, ca khám, hold 5p)
+                  draft = activeDraft.copyWith(doctor: doctorInfo, preferredDentistId: doc.id);
+                } else {
+                  // Khác bác sĩ: giữ nguyên bệnh nhân và dịch vụ đã chọn, chọn lại ngày và slot khám của bác sĩ mới
+                  draft = activeDraft.copyWith(
+                    doctor: doctorInfo,
+                    preferredDentistId: doc.id,
+                    date: null,
+                    timeSlot: null,
+                    holdExpiresAt: null,
+                  );
+                }
+              } else {
+                draft = BookingDraft(
+                  doctor: doctorInfo,
+                  preferredDentistId: doc.id,
+                );
+              }
+
+              if (draft.isHoldActive && draft.isComplete) {
+                context.push(AppRoutes.bookingReview, extra: draft);
+              } else {
+                context.push(AppRoutes.bookingSelectPatient, extra: draft);
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
