@@ -202,15 +202,9 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
     } else if (draft.doctor != null && draft.date != null) {
       context.push(AppRoutes.bookingSelectTimeSlot, extra: draft);
     } else if (draft.doctor != null) {
-      if (draft.service != null) {
-        context.push(AppRoutes.bookingSelectDatetime, extra: draft);
-      } else {
-        context.push(AppRoutes.bookingSelectService, extra: draft);
-      }
+      context.push(AppRoutes.bookingSelectService, extra: draft);
     } else if (draft.service != null && draft.date != null) {
       context.push(AppRoutes.bookingSelectDoctor, extra: draft);
-    } else if (draft.service != null) {
-      context.push(AppRoutes.bookingSelectDatetime, extra: draft);
     } else {
       context.push(AppRoutes.bookingSelectService, extra: draft);
     }
