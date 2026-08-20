@@ -197,6 +197,35 @@ using (var scope = app.Services.CreateScope())
             ALTER TABLE ""AppointmentSlotHolds"" ADD COLUMN IF NOT EXISTS ""DurationMinutes"" integer NOT NULL DEFAULT 30;
             CREATE INDEX IF NOT EXISTS ""IX_AppointmentSlotHolds_Dentist_Date"" ON ""AppointmentSlotHolds"" (""DentistId"", ""AppointmentDate"");
             CREATE INDEX IF NOT EXISTS ""IX_AppointmentSlotHolds_Patient_Date"" ON ""AppointmentSlotHolds"" (""PatientId"", ""CreatedAt"");
+
+            CREATE TABLE IF NOT EXISTS ""AppointmentChangeRequests"" (
+                ""Id"" uuid PRIMARY KEY,
+                ""AppointmentId"" uuid NOT NULL,
+                ""PatientId"" uuid NOT NULL,
+                ""RequestedByUserId"" uuid NOT NULL,
+                ""Type"" character varying(20) NOT NULL,
+                ""Status"" character varying(20) NOT NULL,
+                ""Reason"" character varying(500) NOT NULL,
+                ""DesiredDate"" timestamp with time zone NULL,
+                ""DesiredTimeSlot"" character varying(50) NULL,
+                ""DesiredDentistId"" uuid NULL,
+                ""StaffNote"" character varying(500) NULL,
+                ""ProcessedByUserId"" uuid NULL,
+                ""ProcessedAt"" timestamp with time zone NULL,
+                ""CreatedAt"" timestamp with time zone NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS ""IX_AppointmentChangeRequests_Status"" ON ""AppointmentChangeRequests"" (""Status"");
+            CREATE INDEX IF NOT EXISTS ""IX_AppointmentChangeRequests_AppointmentId"" ON ""AppointmentChangeRequests"" (""AppointmentId"");
+            CREATE INDEX IF NOT EXISTS ""IX_AppointmentChangeRequests_PatientId"" ON ""AppointmentChangeRequests"" (""PatientId"");
+            CREATE INDEX IF NOT EXISTS ""IX_AppointmentChangeRequests_RequestedByUserId"" ON ""AppointmentChangeRequests"" (""RequestedByUserId"");
+
+            ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""CancellationReason"" character varying(50) NULL;
+            ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""CancellationNote"" character varying(500) NULL;
+            ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""RescheduledCount"" integer NOT NULL DEFAULT 0;
+            ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""LastRescheduledAt"" timestamp with time zone NULL;
+            ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""CancelledAt"" timestamp with time zone NULL;
+            ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""CancelledByUserId"" uuid NULL;
+            ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""Origin"" character varying(20) NOT NULL DEFAULT 'Online';
         ");
         await db.Database.MigrateAsync();
         await DataSeeder.SeedAsync(db);
