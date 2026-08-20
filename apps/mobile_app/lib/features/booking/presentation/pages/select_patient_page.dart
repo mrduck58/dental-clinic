@@ -174,6 +174,8 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
 
     if (!mounted) return;
 
+    _bookingService.setActiveDraft(draft);
+
     // Đã biết đủ bác sĩ + ngày + khung giờ còn trống (từ chatbot hoặc khi sửa đổi lịch) → vào thẳng màn tổng hợp/xác nhận.
     if (draft.doctor != null && draft.date != null && draft.timeSlot != null) {
       try {
@@ -187,6 +189,7 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
         );
         if (res.isSuccess && res.expiresAt != null) {
           draft = draft.copyWith(holdExpiresAt: res.expiresAt);
+          _bookingService.setActiveDraft(draft);
         }
       } catch (e) {
         debugPrint('Hold transfer error: $e');

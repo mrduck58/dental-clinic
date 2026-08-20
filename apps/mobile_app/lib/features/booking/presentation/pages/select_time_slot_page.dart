@@ -485,7 +485,7 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
           holdExpiresAt: result.expiresAt ?? _holdExpiresAt,
         );
         _service.setActiveDraft(updatedDraft);
-        context.push(AppRoutes.bookingReview, extra: updatedDraft);
+        context.pushReplacement(AppRoutes.bookingReview, extra: updatedDraft);
       } else {
         _showHoldErrorDialog(result.message);
         _load(silent: true);
@@ -511,7 +511,7 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
               ? 'Bạn đã hết lượt giữ chỗ tạm thời hôm nay. Bạn có thể tiếp tục xác nhận đặt lịch trực tiếp.'
               : 'Daily hold limit reached. You can proceed to confirm your booking directly without holding.',
         );
-        context.push(AppRoutes.bookingReview, extra: updatedDraft);
+        context.pushReplacement(AppRoutes.bookingReview, extra: updatedDraft);
         return;
       }
       _showHoldErrorDialog(msg);

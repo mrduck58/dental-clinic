@@ -1,5 +1,6 @@
 import 'package:mobile_app/core/constants/api_constants.dart';
 import 'package:mobile_app/core/network/api_client.dart';
+import 'package:mobile_app/features/booking/data/booking_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // ── Response models ──────────────────────────────────────────────────────────
@@ -356,6 +357,7 @@ class AuthService {
   static String? _memoryToken;
 
   Future<void> saveToken(String token, {bool remember = true}) async {
+    BookingService().clearActiveDraft();
     if (remember) {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_tokenKey, token);
@@ -374,6 +376,7 @@ class AuthService {
 
   Future<void> clearToken() async {
     _memoryToken = null;
+    BookingService().clearActiveDraft();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
   }
@@ -457,6 +460,7 @@ class AuthService {
 
   Future<void> clearAll() async {
     _memoryToken = null;
+    BookingService().clearActiveDraft();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
     await prefs.remove(_nameKey);
