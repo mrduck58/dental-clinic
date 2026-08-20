@@ -515,7 +515,8 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
         return await dbContext.Appointments
             .Where(a => a.PatientId == patientId
                      && a.Status == AppointmentStatus.Cancelled
-                     && a.CancelledByUserId != null)
+                     && a.CancelledByUserId != null
+                     && (a.CancelledByUserId == a.Patient.UserId || (a.Patient.PrimaryPatient != null && a.CancelledByUserId == a.Patient.PrimaryPatient.UserId)))
             .CountAsync(cancellationToken);
     }
 
@@ -530,12 +531,16 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
     {
         DateTimeOffset? cooldownUntil = null;
 
-        // 1. Kiểm tra cooldown do hủy lịch (khi đã hủy >= 2 lần)
+        // 1. Kiểm tra cooldown do hủy lịch (khi bệnh nhân tự hủy >= 2 lần)
         var cancelCount = await GetPatientCancellationCountAsync(patientId, cancellationToken);
         if (cancelCount >= 2)
         {
             var latestCancel = await dbContext.Appointments
-                .Where(a => a.PatientId == patientId && a.Status == AppointmentStatus.Cancelled && a.CancelledAt != null)
+                .Where(a => a.PatientId == patientId
+                         && a.Status == AppointmentStatus.Cancelled
+                         && a.CancelledAt != null
+                         && a.CancelledByUserId != null
+                         && (a.CancelledByUserId == a.Patient.UserId || (a.Patient.PrimaryPatient != null && a.CancelledByUserId == a.Patient.PrimaryPatient.UserId)))
                 .OrderByDescending(a => a.CancelledAt)
                 .Select(a => a.CancelledAt)
                 .FirstOrDefaultAsync(cancellationToken);

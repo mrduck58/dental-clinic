@@ -36,7 +36,8 @@ public class RescheduleAppointmentHandler(
     AppointmentSlotGuard slotGuard,
     IActivityLogService activityLogService,
     INotificationService notificationService,
-    ICurrentUserService currentUser) : IRequestHandler<RescheduleAppointmentCommand, RescheduleAppointmentResult>
+    ICurrentUserService currentUser,
+    ISlotHoldRepository? slotHoldRepository = null) : IRequestHandler<RescheduleAppointmentCommand, RescheduleAppointmentResult>
 {
     public async Task<RescheduleAppointmentResult> Handle(RescheduleAppointmentCommand command, CancellationToken ct)
     {
@@ -83,6 +84,17 @@ public class RescheduleAppointmentHandler(
             requiresReconfirmation: context.IsPatientCaller, now);
 
         await appointmentRepository.UpdateAsync(appointment, ct);
+
+        // Xác nhận và tiêu thụ lượt giữ chỗ sau khi dời lịch thành công
+        if (slotHoldRepository != null)
+        {
+            var hold = await slotHoldRepository.GetActiveHoldForSlotAsync(newDentistId, command.AppointmentDate, now, ct);
+            if (hold != null && (hold.PatientId == appointment.PatientId || hold.UserId == currentUser.UserId))
+            {
+                hold.Confirm();
+                await slotHoldRepository.UpdateAsync(hold, ct);
+            }
+        }
 
         await NotifyAsync(appointment, previousDentistId, previousDate, command.Reason, ct);
 

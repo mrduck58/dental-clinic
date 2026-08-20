@@ -118,7 +118,7 @@ public class AppointmentBookingController(ISender sender) : ControllerBase
         if (!targetPatientId.HasValue || targetPatientId.Value == Guid.Empty)
             return Ok(null);
 
-        var result = await handler.Handle(targetPatientId.Value, cancellationToken);
+        var result = await handler.Handle(targetPatientId.Value, userId, cancellationToken);
         return Ok(result);
     }
 

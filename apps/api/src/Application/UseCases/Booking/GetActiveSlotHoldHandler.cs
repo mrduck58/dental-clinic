@@ -15,11 +15,11 @@ public record ActiveSlotHoldDto(
 
 public class GetActiveSlotHoldHandler(ISlotHoldRepository slotHoldRepository)
 {
-    public async Task<ActiveSlotHoldDto?> Handle(Guid patientId, CancellationToken ct = default)
+    public async Task<ActiveSlotHoldDto?> Handle(Guid patientId, Guid? userId = null, CancellationToken ct = default)
     {
         var now = DateTimeOffset.UtcNow;
         var hold = await slotHoldRepository.GetActiveHoldForPatientAsync(patientId, now, ct);
-        var failedCount = await slotHoldRepository.GetFailedHoldCountTodayAsync(patientId, now, ct);
+        var failedCount = await slotHoldRepository.GetFailedHoldCountTodayAsync(userId ?? Guid.Empty, patientId, now, ct);
 
         if (hold == null)
             return null;

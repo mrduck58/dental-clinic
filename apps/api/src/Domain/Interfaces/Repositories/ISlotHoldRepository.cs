@@ -28,6 +28,7 @@ public interface ISlotHoldRepository
         CancellationToken ct = default);
 
     Task<int> GetFailedHoldCountTodayAsync(
+        Guid userId,
         Guid patientId,
         DateTimeOffset now,
         CancellationToken ct = default);

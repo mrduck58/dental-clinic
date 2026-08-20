@@ -67,6 +67,7 @@ public class SlotHoldRepository(AppDbContext dbContext) : ISlotHoldRepository
     }
 
     public async Task<int> GetFailedHoldCountTodayAsync(
+        Guid userId,
         Guid patientId,
         DateTimeOffset now,
         CancellationToken ct = default)
@@ -75,7 +76,7 @@ public class SlotHoldRepository(AppDbContext dbContext) : ISlotHoldRepository
         var startOfVnToday = new DateTimeOffset(vnNow.Year, vnNow.Month, vnNow.Day, 0, 0, 0, TimeSpan.FromHours(7)).ToUniversalTime();
 
         return await dbContext.AppointmentSlotHolds
-            .CountAsync(h => h.PatientId == patientId
+            .CountAsync(h => ((userId != Guid.Empty && h.UserId == userId) || (patientId != Guid.Empty && h.PatientId == patientId))
                           && h.CreatedAt >= startOfVnToday
                           && !h.IsSuccess
                           && (h.Status == AppointmentSlotHold.StatusExpired

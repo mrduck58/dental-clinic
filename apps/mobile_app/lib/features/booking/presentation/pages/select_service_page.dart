@@ -75,7 +75,11 @@ class _SelectServicePageState extends State<SelectServicePage> {
     );
 
     if (updatedDraft.doctor != null) {
-      context.push(AppRoutes.bookingSelectTimeSlot, extra: updatedDraft);
+      if (updatedDraft.date != null) {
+        context.push(AppRoutes.bookingSelectTimeSlot, extra: updatedDraft);
+      } else {
+        context.push(AppRoutes.bookingSelectDatetime, extra: updatedDraft);
+      }
     } else {
       context.push(AppRoutes.bookingSelectDoctor, extra: updatedDraft);
     }

@@ -74,11 +74,11 @@ public class HoldSlotHandler(
         var slotStartMinutes = time.Hour * 60 + time.Minute;
         var slotEndMinutes = slotStartMinutes + durationMinutes;
 
-        // 3. Kiểm tra số lần giữ không thành công trong ngày (tối đa 3 lần)
-        var failedCount = await slotHoldRepository.GetFailedHoldCountTodayAsync(targetPatientId, now, ct);
+        // 3. Kiểm tra số lần giữ không thành công trong ngày (tối đa 3 lần cho cả tài khoản/bệnh nhân)
+        var failedCount = await slotHoldRepository.GetFailedHoldCountTodayAsync(userId, targetPatientId, now, ct);
         if (failedCount >= 3)
             throw new ConflictException(
-                "Bệnh nhân đã đạt giới hạn 3 lần giữ chỗ không thành công trong ngày. " +
+                "Tài khoản của bạn đã đạt giới hạn 3 lần giữ chỗ không thành công trong ngày. " +
                 "Vui lòng quay lại vào ngày mai.");
 
         // 3.1. Kiểm tra nếu bệnh nhân đang trong thời gian chờ (cooldown 30 phút sau khi hủy/dời từ lần 2)
