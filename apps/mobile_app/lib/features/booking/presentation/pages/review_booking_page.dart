@@ -47,7 +47,8 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
     super.dispose();
   }
 
-  void _showExpiredAndRedirect() {
+    void _showExpiredAndRedirect() {
+    _bookingService.clearActiveDraft();
     final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     showDialog(
       context: context,
@@ -133,6 +134,7 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
         appointmentId: result.appointmentId,
         appointmentCode: result.appointmentCode,
       );
+      _bookingService.clearActiveDraft();
       context.pushReplacement(AppRoutes.bookingSuccess, extra: updatedDraft);
     } on DioException catch (e) {
       if (!mounted) return;

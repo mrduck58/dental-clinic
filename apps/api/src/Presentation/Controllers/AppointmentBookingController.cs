@@ -73,7 +73,8 @@ public class AppointmentBookingController(ISender sender) : ControllerBase
             request.DentistId,
             request.Date,
             request.TimeSlot,
-            request.ServiceId);
+            request.ServiceId,
+            request.ReschedulingAppointmentId);
 
         var result = await handler.Handle(cmd, cancellationToken);
         return Ok(result);
@@ -336,7 +337,8 @@ public record HoldSlotRequest(
     Guid DentistId,
     DateOnly Date,
     string TimeSlot,
-    Guid? ServiceId = null);
+    Guid? ServiceId = null,
+    Guid? ReschedulingAppointmentId = null);
 
 public record ReleaseHoldRequest(
     Guid? PatientId,

@@ -339,10 +339,12 @@ class _SelectDoctorPageState extends State<SelectDoctorPage> {
                           delegate: SliverChildBuilderDelegate(
                             (_, i) {
                               final doc = _doctors[i];
+                              final isSelected = widget.draft.doctor?.id == doc.dentistId;
                               final isPreferred = widget.draft.preferredDentistId != null &&
                                   doc.dentistId == widget.draft.preferredDentistId;
                               return _DoctorItemCard(
                                 doctor: doc,
+                                isSelected: isSelected,
                                 isPreferred: isPreferred,
                                 isVi: isVi,
                                 onTap: () => _onSelectDoctor(doc, isVi),
@@ -364,12 +366,14 @@ class _SelectDoctorPageState extends State<SelectDoctorPage> {
 
 class _DoctorItemCard extends StatelessWidget {
   final ApiDoctorWithSlots doctor;
+  final bool isSelected;
   final bool isPreferred;
   final bool isVi;
   final VoidCallback onTap;
 
   const _DoctorItemCard({
     required this.doctor,
+    this.isSelected = false,
     required this.isPreferred,
     required this.isVi,
     required this.onTap,
@@ -384,18 +388,22 @@ class _DoctorItemCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: context.card,
+        color: isSelected
+            ? (context.isDark ? const Color(0xFF1E293B) : const Color(0xFFFFF1F2))
+            : context.card,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isPreferred
+          color: (isSelected || isPreferred)
               ? AppColors.primary
               : (context.isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
-          width: isPreferred ? 1.8 : 1,
+          width: (isSelected || isPreferred) ? 1.8 : 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
+            color: isSelected
+                ? AppColors.primary.withValues(alpha: 0.1)
+                : Colors.black.withValues(alpha: 0.04),
+            blurRadius: isSelected ? 10 : 8,
             offset: const Offset(0, 3),
           ),
         ],
@@ -424,11 +432,30 @@ class _DoctorItemCard extends StatelessWidget {
                               style: TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w800,
-                                color: context.isDark ? Colors.white : AppColors.primary,
+                                color: isSelected
+                                    ? AppColors.primary
+                                    : (context.isDark ? Colors.white : AppColors.primary),
                               ),
                             ),
                           ),
-                          if (isPreferred) ...[
+                          if (isSelected) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                isVi ? '✓ Đang chọn' : '✓ Selected',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ] else if (isPreferred) ...[
                             const SizedBox(width: 6),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),

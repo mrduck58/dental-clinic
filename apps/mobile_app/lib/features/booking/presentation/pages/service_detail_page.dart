@@ -248,7 +248,7 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                             ),
                           ],
                         ),
-                        if (widget.service.price.isNotEmpty && widget.service.price != '0đ') ...[
+                        if (_options.isEmpty && widget.service.price.isNotEmpty && widget.service.price != '0đ') ...[
                           const SizedBox(height: 16),
                           Divider(color: context.divider, height: 1),
                           const SizedBox(height: 14),
@@ -256,9 +256,7 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
-                                _options.isNotEmpty
-                                    ? (isVi ? 'Giá khởi điểm' : 'Starting From')
-                                    : (isVi ? 'Chi phí khám tham khảo' : 'Consultation Cost'),
+                                isVi ? 'Chi phí khám tham khảo' : 'Consultation Cost',
                                 style: TextStyle(
                                   fontSize: 13.5,
                                   color: context.textSecondary,
@@ -266,9 +264,7 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                                 ),
                               ),
                               Text(
-                                _options.isNotEmpty
-                                    ? 'Từ ${widget.service.price}'
-                                    : widget.service.price,
+                                widget.service.price,
                                 style: const TextStyle(
                                   fontSize: 17,
                                   fontWeight: FontWeight.w800,

@@ -34,6 +34,14 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
   void initState() {
     super.initState();
     _load();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.initialDraft == null) {
+        final activeDraft = _bookingService.activeDraft;
+        if (activeDraft != null && activeDraft.isHoldActive && activeDraft.isComplete && mounted) {
+          context.pushReplacement(AppRoutes.bookingReview, extra: activeDraft);
+        }
+      }
+    });
   }
 
   Future<void> _load() async {
@@ -79,6 +87,7 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
         setState(() {
           _patients = [me, ...family];
           _eligibility = eligibility;
+          _selectedId = widget.initialDraft?.patient?.id ?? _selectedId;
           _loading = false;
         });
       }
@@ -105,8 +114,8 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
   Future<void> _select(int index) async {
     final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
 
-    // 1. Kiểm tra nếu tài khoản đã có 2 lịch hẹn đang hoạt động
-    if (_eligibility != null && _eligibility!.activeBookingCount >= 2) {
+    // 1. Kiểm tra nếu tài khoản đã có 2 lịch hẹn đang hoạt động (không chặn nếu đang dời/sửa lịch)
+    if (widget.initialDraft?.isRescheduling != true && _eligibility != null && _eligibility!.activeBookingCount >= 2) {
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -180,6 +189,7 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
           date: draft.date!,
           timeSlot: draft.timeSlot!.range,
           serviceId: draft.service?.id,
+          reschedulingAppointmentId: draft.reschedulingAppointmentId,
         );
         if (res.isSuccess && res.expiresAt != null) {
           draft = draft.copyWith(holdExpiresAt: res.expiresAt);

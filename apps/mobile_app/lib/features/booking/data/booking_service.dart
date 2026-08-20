@@ -13,6 +13,26 @@ class BookingService {
   final _client = ApiClient();
   final _auth = AuthService();
 
+  BookingDraft? _activeDraft;
+
+  /// Lấy bản nháp đang giữ chỗ nếu còn hạn thời gian
+  BookingDraft? get activeDraft {
+    if (_activeDraft != null) {
+      if (_activeDraft!.holdExpiresAt != null && _activeDraft!.holdExpiresAt!.isBefore(DateTime.now())) {
+        _activeDraft = null;
+      }
+    }
+    return _activeDraft;
+  }
+
+  void setActiveDraft(BookingDraft? draft) {
+    _activeDraft = draft;
+  }
+
+  void clearActiveDraft() {
+    _activeDraft = null;
+  }
+
   /// Lấy danh sách dịch vụ đang hoạt động cho luồng đặt khám.
   Future<List<ServiceModel>> getActiveServices() async {
     final res = await _client.get(
@@ -95,6 +115,7 @@ class BookingService {
     required DateTime date,
     required String timeSlot,
     String? serviceId,
+    String? reschedulingAppointmentId,
   }) async {
     final token = await _auth.getToken();
     if (token == null) throw Exception('Chưa đăng nhập.');
@@ -112,6 +133,9 @@ class BookingService {
     }
     if (serviceId != null && serviceId.isNotEmpty) {
       body['serviceId'] = serviceId;
+    }
+    if (reschedulingAppointmentId != null && reschedulingAppointmentId.isNotEmpty) {
+      body['reschedulingAppointmentId'] = reschedulingAppointmentId;
     }
 
     final res = await _client.post(

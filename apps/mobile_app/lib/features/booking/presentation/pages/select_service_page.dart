@@ -78,6 +78,7 @@ class _SelectServicePageState extends State<SelectServicePage> {
           date: updatedDraft.date!,
           timeSlot: updatedDraft.timeSlot!.range,
           serviceId: s.id,
+          reschedulingAppointmentId: updatedDraft.reschedulingAppointmentId,
         );
         if (res.isSuccess && res.expiresAt != null) {
           updatedDraft = updatedDraft.copyWith(holdExpiresAt: res.expiresAt);
@@ -208,8 +209,10 @@ class _SelectServicePageState extends State<SelectServicePage> {
                             itemCount: _filtered.length,
                             itemBuilder: (_, i) {
                               final s = _filtered[i];
+                              final isSelected = widget.draft.service?.id == s.id;
                               return _ServiceItem(
                                 service: s,
+                                isSelected: isSelected,
                                 onTap: () => _onSelectService(s),
                                 onViewDetail: () => context.push(
                                   AppRoutes.bookingServiceDetail,
@@ -229,11 +232,13 @@ class _SelectServicePageState extends State<SelectServicePage> {
 
 class _ServiceItem extends StatelessWidget {
   final ServiceModel service;
+  final bool isSelected;
   final VoidCallback onTap;
   final VoidCallback onViewDetail;
 
   const _ServiceItem({
     required this.service,
+    this.isSelected = false,
     required this.onTap,
     required this.onViewDetail,
   });
@@ -245,13 +250,20 @@ class _ServiceItem extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: context.card,
+        color: isSelected
+            ? (context.isDark ? const Color(0xFF1E293B) : const Color(0xFFFFF1F2))
+            : context.card,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: context.divider),
+        border: Border.all(
+          color: isSelected ? AppColors.primary : context.divider,
+          width: isSelected ? 1.8 : 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 6,
+            color: isSelected
+                ? AppColors.primary.withValues(alpha: 0.1)
+                : Colors.black.withValues(alpha: 0.03),
+            blurRadius: isSelected ? 8 : 6,
             offset: const Offset(0, 2),
           ),
         ],
@@ -281,9 +293,25 @@ class _ServiceItem extends StatelessWidget {
                                 style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w800,
-                                  color: context.textPrimary,
+                                  color: isSelected ? AppColors.primary : context.textPrimary,
                                 ),
                               ),
+                              if (isSelected)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary,
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    isVi ? '✓ Đang chọn' : '✓ Selected',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
                               if (service.durationMinutes > 0)
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -350,7 +378,11 @@ class _ServiceItem extends StatelessWidget {
             onTap: onTap,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Icon(Icons.arrow_forward_ios, color: context.textSecondary, size: 20),
+              child: Icon(
+                isSelected ? Iconsax.tick_circle : Icons.arrow_forward_ios,
+                color: isSelected ? AppColors.primary : context.textSecondary,
+                size: isSelected ? 22 : 20,
+              ),
             ),
           ),
         ],

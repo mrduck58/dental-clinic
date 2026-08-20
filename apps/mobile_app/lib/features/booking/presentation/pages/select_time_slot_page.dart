@@ -131,6 +131,17 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
 
       matched ??= list.firstOrNull;
 
+      // Pre-select slot from draft if not already set and is on the same date
+      if (_selectedSlot == null && widget.draft.timeSlot != null && matched != null) {
+        final sameDate = widget.draft.date != null &&
+            widget.draft.date!.year == _currentDate.year &&
+            widget.draft.date!.month == _currentDate.month &&
+            widget.draft.date!.day == _currentDate.day;
+        if (sameDate) {
+          _selectedSlot = matched.slots.where((s) => s.range == widget.draft.timeSlot!.range).firstOrNull;
+        }
+      }
+
       setState(() {
         _doctorWithSlots = matched;
         _loading = false;
@@ -309,6 +320,7 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
         date: _currentDate,
         timeSlot: _selectedSlot!.range,
         serviceId: widget.draft.service?.id,
+        reschedulingAppointmentId: widget.draft.reschedulingAppointmentId,
       );
 
       if (!mounted) return;
@@ -326,6 +338,7 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
           timeSlot: _selectedSlot!.toTimeSlot(),
           holdExpiresAt: result.expiresAt ?? _holdExpiresAt,
         );
+        _service.setActiveDraft(updatedDraft);
         context.push(AppRoutes.bookingReview, extra: updatedDraft);
       } else {
         _showHoldErrorDialog(result.message);
@@ -430,10 +443,10 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
                     )
                   : CustomScrollView(
                       slivers: [
-                        if (widget.draft.holdExpiresAt != null)
+                        if (_holdExpiresAt != null || widget.draft.holdExpiresAt != null)
                           SliverToBoxAdapter(
                             child: HoldCountdownBanner(
-                              holdExpiresAt: widget.draft.holdExpiresAt,
+                              holdExpiresAt: _holdExpiresAt ?? widget.draft.holdExpiresAt,
                               onExpired: _showHoldExpiredDialog,
                             ),
                           ),
