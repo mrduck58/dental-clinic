@@ -50,24 +50,24 @@ class ServiceInfo {
   });
 
   String get durationText {
-    if (durationMinutes <= 0) return '';
-    if (durationMinutes < 60) return '~$durationMinutes phút';
-    final h = durationMinutes ~/ 60;
-    final m = durationMinutes % 60;
+    final d = durationMinutes > 0 ? durationMinutes : 30;
+    if (d < 60) return '~$d phút';
+    final h = d ~/ 60;
+    final m = d % 60;
     return m == 0 ? '~$h giờ' : '~$h giờ $m phút';
   }
 
   String durationTextLocalized(bool isVi) {
-    if (durationMinutes <= 0) return '';
+    final d = durationMinutes > 0 ? durationMinutes : 30;
     if (isVi) {
-      if (durationMinutes < 60) return '~$durationMinutes phút';
-      final h = durationMinutes ~/ 60;
-      final m = durationMinutes % 60;
+      if (d < 60) return '~$d phút';
+      final h = d ~/ 60;
+      final m = d % 60;
       return m == 0 ? '~$h giờ' : '~$h giờ $m phút';
     } else {
-      if (durationMinutes < 60) return '~$durationMinutes mins';
-      final h = durationMinutes ~/ 60;
-      final m = durationMinutes % 60;
+      if (d < 60) return '~$d mins';
+      final h = d ~/ 60;
+      final m = d % 60;
       return m == 0 ? '~$h hr' : '~$h hr $m mins';
     }
   }

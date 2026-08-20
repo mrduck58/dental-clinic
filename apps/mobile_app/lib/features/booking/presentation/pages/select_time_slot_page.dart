@@ -265,7 +265,9 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
 
   bool _isStartingSlotValidForService(ApiTimeSlot startingSlot) {
     if (_doctorWithSlots == null) return false;
-    final duration = widget.draft.service?.durationMinutes ?? 30;
+    final duration = (widget.draft.service?.durationMinutes != null && widget.draft.service!.durationMinutes > 0)
+        ? widget.draft.service!.durationMinutes
+        : 30;
     if (!_isSlotAvailableForUse(startingSlot)) return false;
     if (duration <= 30) return true;
 
@@ -299,7 +301,9 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
     if (_isHoldingSlot) return;
     if (!_isStartingSlotValidForService(slot)) {
       final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
-      final duration = widget.draft.service?.durationMinutes ?? 30;
+      final duration = (widget.draft.service?.durationMinutes != null && widget.draft.service!.durationMinutes > 0)
+          ? widget.draft.service!.durationMinutes
+          : 30;
       final isOriginalSlot = _isSlotInOriginalAppointmentRange(slot.range);
       if (slot.isBooked && !isOriginalSlot && !slot.isHeldByMe) {
         AppToast.showWarning(
