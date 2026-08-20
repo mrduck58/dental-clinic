@@ -34,12 +34,6 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
   void initState() {
     super.initState();
     _load();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final activeDraft = widget.initialDraft ?? _bookingService.activeDraft;
-      if (activeDraft != null && activeDraft.isHoldActive && activeDraft.isComplete && mounted) {
-        context.pushReplacement(AppRoutes.bookingReview, extra: activeDraft);
-      }
-    });
   }
 
   Future<void> _load() async {
@@ -198,11 +192,15 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
         debugPrint('Hold transfer error: $e');
       }
       if (!mounted) return;
-      context.push(AppRoutes.bookingReview, extra: draft);
+      context.pushReplacement(AppRoutes.bookingReview, extra: draft);
     } else if (draft.doctor != null && draft.date != null) {
       context.push(AppRoutes.bookingSelectTimeSlot, extra: draft);
     } else if (draft.doctor != null) {
-      context.push(AppRoutes.bookingSelectService, extra: draft);
+      if (draft.service != null) {
+        context.push(AppRoutes.bookingSelectDatetime, extra: draft);
+      } else {
+        context.push(AppRoutes.bookingSelectService, extra: draft);
+      }
     } else if (draft.service != null && draft.date != null) {
       context.push(AppRoutes.bookingSelectDoctor, extra: draft);
     } else {
