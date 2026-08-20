@@ -66,6 +66,8 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IAiUsageLogRepository, AiUsageLogRepository>();
         services.AddScoped<IMaterialRequestRepository, MaterialRequestRepository>();
         services.AddScoped<ITreatmentProcedureRepository, TreatmentProcedureRepository>();
+        services.AddScoped<IServiceSupplyItemRepository, ServiceSupplyItemRepository>();
+        services.AddScoped<ITreatmentSupplyUsageRepository, TreatmentSupplyUsageRepository>();
         services.AddScoped<IDentistRepository, DentistRepository>();
         services.AddScoped<IDentistReviewRepository, DentistReviewRepository>();
         services.AddScoped<IDiagnosisRepository, DiagnosisRepository>();

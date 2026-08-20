@@ -167,6 +167,7 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
     {
         var query = dbContext.Appointments
             .Include(a => a.Patient).ThenInclude(p => p.User)
+            .Include(a => a.Patient).ThenInclude(p => p.PrimaryPatient).ThenInclude(pp => pp!.User)
             .Include(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
             .Include(a => a.Service)
             .AsQueryable();
@@ -195,6 +196,7 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
     {
         var query = dbContext.Appointments
             .Include(a => a.Patient).ThenInclude(p => p.User)
+            .Include(a => a.Patient).ThenInclude(p => p.PrimaryPatient).ThenInclude(pp => pp!.User)
             .Include(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
             .Include(a => a.Service)
             .AsQueryable();
@@ -271,7 +273,7 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
     public async Task<IReadOnlyList<Appointment>> GetActiveInRangeAsync(DateTimeOffset utcStart, DateTimeOffset utcEnd, CancellationToken cancellationToken = default)
     {
         return await dbContext.Appointments
-            .Include(a => a.Patient)
+            .Include(a => a.Patient).ThenInclude(p => p.User)
             .Include(a => a.Service)
             .Where(a => a.AppointmentDate >= utcStart && a.AppointmentDate < utcEnd &&
                         a.Status != AppointmentStatus.Cancelled)

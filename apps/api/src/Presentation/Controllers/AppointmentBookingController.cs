@@ -215,8 +215,7 @@ public class AppointmentBookingController(ISender sender) : ControllerBase
 
     /// <summary>
     /// PUT api/appointments/{id}/undo-checkin — Gỡ một lần check-in bấm nhầm (Staff/Admin).
-    /// Lịch đặt từ xa quay về chờ xác nhận; lịch lập tại quầy bị hủy vì không có trạng thái nào
-    /// trước check-in để quay về.
+    /// Lịch hẹn quay về trạng thái Confirmed (danh sách Đang chờ check-in).
     /// </summary>
     [HttpPut("api/appointments/{id}/undo-checkin")]
     [Authorize(Roles = "Staff,Admin,Owner")]

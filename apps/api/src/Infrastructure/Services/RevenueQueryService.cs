@@ -30,7 +30,9 @@ public class RevenueQueryService(AppDbContext db) : IRevenueQueryService
             .SumAsync(i => i.DepositAmount, ct);
 
         // Chưa thu = hóa đơn chưa thanh toán (kể cả hóa đơn thu phần còn lại chưa trả)
-        //          + phần còn nợ của hóa đơn cọc đã thu nhưng CHƯA có hóa đơn con thu nốt được tạo.
+        //          + phần còn nợ của hóa đơn cọc đã thu nhưng CHƯA có hóa đơn con thu nốt được tạo —
+        // khoản này VẪN là công nợ thực tế của phòng khám dù chưa có hóa đơn ghi nhận riêng, nên vẫn
+        // phải tính vào Chưa thu (xem RemainingAmount trên từng dòng giao dịch để biết rõ khoản nào).
         var uncollectedFromUnpaid = await db.Invoices
             .AsNoTracking()
             .Where(i => i.Status == PaymentStatus.Unpaid && i.CreatedAt >= start && i.CreatedAt < end)
@@ -129,22 +131,42 @@ public class RevenueQueryService(AppDbContext db) : IRevenueQueryService
                 i.Status,
                 i.TotalAmount,
                 i.DepositAmount,
+                i.IsSettled,
             })
             .ToListAsync(ct);
 
-        var items = rows.Select(r => new RevenueTransactionDto(
-            r.Id,
-            r.InvoiceNumber,
-            r.PatientId,
-            r.PatientName ?? "Bệnh nhân",
-            DescribeServices(r.ItemNames),
-            r.DentistId,
-            r.DentistName ?? "Bác sĩ",
-            r.CreatedAt,
-            DescribePaymentMethod(r.PaymentMethod),
-            r.Status == PaymentStatus.Paid ? r.DepositAmount : r.TotalAmount,
-            DescribeStatus(r.Status)))
-            .ToList();
+        // Hóa đơn nào trong trang này đã có hóa đơn con "thu phần còn lại" — dùng để không hiển thị
+        // "còn thiếu" trên hóa đơn cọc gốc nữa khi khoản đó đã được tách ra hóa đơn riêng.
+        var pageIds = rows.Select(r => r.Id).ToList();
+        var idsWithChildren = (await db.Invoices
+            .AsNoTracking()
+            .Where(c => c.ParentInvoiceId != null && pageIds.Contains(c.ParentInvoiceId!.Value))
+            .Select(c => c.ParentInvoiceId!.Value)
+            .Distinct()
+            .ToListAsync(ct))
+            .ToHashSet();
+
+        var items = rows.Select(r =>
+        {
+            var remaining = r.Status == PaymentStatus.Paid && !r.IsSettled && r.TotalAmount > r.DepositAmount
+                && !idsWithChildren.Contains(r.Id)
+                ? r.TotalAmount - r.DepositAmount
+                : 0m;
+
+            return new RevenueTransactionDto(
+                r.Id,
+                r.InvoiceNumber,
+                r.PatientId,
+                r.PatientName ?? "Bệnh nhân",
+                DescribeServices(r.ItemNames),
+                r.DentistId,
+                r.DentistName ?? "Bác sĩ",
+                r.CreatedAt,
+                DescribePaymentMethod(r.PaymentMethod),
+                r.Status == PaymentStatus.Paid ? r.DepositAmount : r.TotalAmount,
+                DescribeStatus(r.Status),
+                remaining);
+        }).ToList();
 
         return new RevenueTransactionsPagedDto(
             items,
@@ -168,9 +190,22 @@ public class RevenueQueryService(AppDbContext db) : IRevenueQueryService
             .Select(it => new { it.Name, it.AmountCollected })
             .ToListAsync(ct);
 
+        // Giá vốn vật tư tiêu hao trong kỳ, gộp theo tên dịch vụ (qua TreatmentPlan.ServiceId — có FK thật)
+        // để khớp với ServiceName ở trên (chỉ là chuỗi InvoiceItem.Name, không có FK).
+        var usageRows = await db.TreatmentSupplyUsages
+            .AsNoTracking()
+            .Include(u => u.TreatmentPlan).ThenInclude(tp => tp.Service)
+            .Where(u => u.CreatedAt >= start && u.CreatedAt < end)
+            .Select(u => new { ServiceName = u.TreatmentPlan.Service.Name, Cost = u.Quantity * u.UnitCostAtUsage })
+            .ToListAsync(ct);
+
+        var costByServiceName = usageRows
+            .GroupBy(r => r.ServiceName)
+            .ToDictionary(g => g.Key, g => g.Sum(r => r.Cost));
+
         var byService = paidItems
             .GroupBy(it => it.Name)
-            .Select(g => new RevenueByServiceDto(g.Key, g.Sum(it => it.AmountCollected)))
+            .Select(g => new RevenueByServiceDto(g.Key, g.Sum(it => it.AmountCollected), costByServiceName.GetValueOrDefault(g.Key, 0m)))
             .OrderByDescending(x => x.Amount)
             .Take(10)
             .ToList();

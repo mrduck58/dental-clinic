@@ -38,7 +38,7 @@ const CHART_GRID = "#e2e8f0";
 const CHART_AXIS_TEXT = "#94a3b8";
 
 type SortKey =
-  | "name" | "department" | "base" | "allowance"
+  | "name" | "base" | "allowance"
   | "deduction" | "bonus" | "net" | "status" | "paidAt";
 type SortDir = "asc" | "desc";
 
@@ -194,7 +194,6 @@ export default function OwnerPayrollDentistsPage() {
     const value = (it: PayrollItemDto): string | number => {
       switch (sortKey) {
         case "name":       return (it.fullName || it.email).toLowerCase();
-        case "department": return (it.department ?? "").toLowerCase();
         case "base":       return it.baseSalary;
         case "allowance":  return it.allowance;
         case "deduction":  return it.deduction;
@@ -218,7 +217,7 @@ export default function OwnerPayrollDentistsPage() {
     } else {
       setSortKey(key);
       // Cột chữ mặc định A→Z, cột số mặc định lớn→nhỏ
-      setSortDir(key === "name" || key === "department" ? "asc" : "desc");
+      setSortDir(key === "name" ? "asc" : "desc");
     }
     setPage(1);
   };
@@ -371,8 +370,6 @@ export default function OwnerPayrollDentistsPage() {
       "Mã nhân viên": item.employeeId ?? "Chưa cấp",
       "Họ và tên": item.fullName || item.email,
       "Số điện thoại": item.phoneNumber ?? "—",
-      "Bộ phận": item.department ?? "—",
-      "Chức vụ": item.position ?? "—",
       "Lương cơ bản": item.baseSalary,
       "Phụ cấp": item.allowance,
       "Nghỉ thực tế (ngày)": item.leaveDays,
@@ -776,7 +773,6 @@ export default function OwnerPayrollDentistsPage() {
                   <tr className="border-b border-slate-150 bg-slate-50/80">
                     <Th className="px-4" align="center">STT</Th>
                     <SortableTh column="name" label="Nha sĩ" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-4" />
-                    <SortableTh column="department" label="Bộ phận / Chức vụ" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-4" />
                     <SortableTh column="base" label="Lương cơ bản" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" className="px-4" />
                     <SortableTh column="allowance" label="Phụ cấp" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" className="px-4" />
                     <SortableTh column="deduction" label="Khấu trừ" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" className="px-4" />
@@ -790,13 +786,13 @@ export default function OwnerPayrollDentistsPage() {
                 <tbody className="divide-y divide-slate-100">
                   {isLoading ? (
                     <tr>
-                      <td colSpan={11} className="px-5 py-12 text-center text-slate-400 font-semibold animate-pulse">
+                      <td colSpan={10} className="px-5 py-12 text-center text-slate-400 font-semibold animate-pulse">
                         Đang tải danh sách lương nhân sự...
                       </td>
                     </tr>
                   ) : pagedItems.length === 0 ? (
                     <tr>
-                      <td colSpan={11} className="px-5 py-12 text-center text-slate-400 font-semibold">
+                      <td colSpan={10} className="px-5 py-12 text-center text-slate-400 font-semibold">
                         Không tìm thấy thông tin lương phù hợp.
                       </td>
                     </tr>
@@ -819,10 +815,6 @@ export default function OwnerPayrollDentistsPage() {
                                 <span className="text-[11px] font-mono text-slate-400 font-extrabold">{item.employeeId ?? "Chưa cấp ID"}</span>
                               </div>
                             </div>
-                          </td>
-                          <td className="px-4 py-4">
-                            <div className="font-semibold text-slate-700">{item.department ?? "—"}</div>
-                            <div className="text-[11px] text-slate-400 font-semibold mt-0.5">{item.position ?? item.role}</div>
                           </td>
                           <td className="px-4 py-4 text-right font-bold text-slate-700 tabular-nums">
                             {item.hasSalaryConfigured ? (

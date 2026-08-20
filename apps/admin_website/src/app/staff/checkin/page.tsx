@@ -781,7 +781,16 @@ function WalkinTab({
     }
   }, [gridDate]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    const channel = supabase
+      .channel(`staff-walkin-grid-${gridDate}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "Appointments" }, () => {
+        void load();
+      })
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [load, gridDate]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1516,13 +1525,11 @@ export default function CheckinPage() {
     setLoadingId(appt.appointmentId);
     setBusyKind("undo");
     try {
-      const result = await undoCheckInAppointmentApi(appt.appointmentId);
+      await undoCheckInAppointmentApi(appt.appointmentId);
       await loadAppointments();
       setConfirmingUndo(false);
       setSelected(null);
-      showToast(result.origin === "WalkIn"
-        ? `Đã hủy lịch tại quầy của ${appt.patientName}.`
-        : `Đã gỡ check-in. Lịch của ${appt.patientName} quay về danh sách chờ xác nhận.`);
+      showToast(`Đã hoàn tác check-in. Lịch của ${appt.patientName} quay về danh sách chờ check-in.`);
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Hoàn tác check-in thất bại. Vui lòng thử lại.", "error");
     } finally {
@@ -1557,13 +1564,31 @@ export default function CheckinPage() {
           {p.patientName.trim().split(/\s+/).slice(-2).map(w => w[0]).join("").toUpperCase()}
         </div>
         <div className="min-w-0 flex-1">
-          <h2 className="text-[18px] sm:text-[20px] font-black text-slate-900 truncate">{p.patientName}</h2>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="text-[18px] sm:text-[20px] font-black text-slate-900 truncate">{p.patientName}</h2>
+            {p.patientRelationship && (
+              <span className="px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10.5px] font-black">{p.patientRelationship}</span>
+            )}
+          </div>
           <div className="flex items-center gap-2 sm:gap-3 mt-1 text-[12.5px] sm:text-[13px] text-slate-500 font-semibold flex-wrap">
             <span>{p.patientPhone ?? "—"}</span>
             <span className={`px-2.5 py-0.5 sm:py-1 text-[11px] font-bold rounded-lg border ${getDateBadgeColor(p.appointmentDate.split("T")[0])}`}>
               {formatDateLabel(p.appointmentDate.split("T")[0])}
             </span>
           </div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3 bg-slate-50 border border-slate-100 rounded-xl px-4 py-3">
+        <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center font-black text-[12px] text-slate-500 shrink-0">
+          {p.accountHolderName.trim().split(/\s+/).slice(-2).map(w => w[0]).join("").toUpperCase()}
+        </div>
+        <div className="min-w-0">
+          <div className="text-[10.5px] font-extrabold text-slate-400 uppercase tracking-wider">
+            {p.patientRelationship ? "Người đặt hộ (chủ tài khoản)" : "Chủ tài khoản"}
+          </div>
+          <p className="text-[13px] font-black text-slate-800 truncate">{p.accountHolderName}</p>
+          <p className="text-[12px] font-semibold text-slate-500 truncate">{p.accountHolderEmail ?? "Không có email"}</p>
         </div>
       </div>
 
@@ -1669,30 +1694,26 @@ export default function CheckinPage() {
                 </div>
                 <div>
                   <div className="text-[14px] font-black text-slate-900">
-                    {isNoShow ? "Hoàn tác ghi nhận vắng mặt?" : isWalkIn ? "Hủy lịch tại quầy này?" : "Gỡ check-in của bệnh nhân này?"}
+                    {isNoShow ? "Hoàn tác ghi nhận vắng mặt?" : "Hoàn tác check-in?"}
                   </div>
                   <div className="text-[12.5px] font-semibold text-slate-600 mt-1 leading-relaxed">
                     <span className="font-black">{p.patientName}</span>{" "}
                     {isNoShow
                       ? "sẽ quay lại danh sách chờ check-in, như thể chưa từng bị ghi nhận vắng mặt."
-                      : isWalkIn
-                      ? "được lễ tân lập lịch ngay lúc check-in nên không có trạng thái nào trước đó để quay về — hoàn tác đồng nghĩa với hủy hẳn lịch hẹn này."
-                      : "sẽ rời hàng đợi và lịch hẹn quay về mục Đơn đặt online ở trang Đặt Lịch & Nhận Đơn, chờ xác nhận lại."}
+                      : "sẽ rời hàng đợi và quay về danh sách chờ check-in."}
                   </div>
                 </div>
               </div>
               <div className="flex gap-3">
                 <button onClick={() => (isNoShow ? doUndoNoShow(p) : doUndoCheckin(p))}
                   disabled={loadingId === p.appointmentId}
-                  className={`flex-1 flex items-center justify-center gap-2 py-3 disabled:opacity-50 text-white rounded-xl text-[14px] font-black shadow-sm transition-all cursor-pointer ${
-                    isWalkIn && !isNoShow ? "bg-primary hover:bg-red-600 shadow-primary/25" : "bg-slate-700 hover:bg-slate-800 shadow-slate-200"
-                  }`}>
+                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-slate-700 hover:bg-slate-800 disabled:opacity-50 text-white rounded-xl text-[14px] font-black shadow-sm shadow-slate-200 transition-all cursor-pointer">
                   {loadingId === p.appointmentId && busyKind === "undo" ? (
                     <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                   ) : (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d={isWalkIn && !isNoShow ? BAN_ICON : "M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"} /></svg>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" /></svg>
                   )}
-                  {isNoShow ? "Xác nhận hoàn tác" : isWalkIn ? "Xác nhận hủy lịch" : "Xác nhận gỡ check-in"}
+                  {isNoShow ? "Xác nhận hoàn tác" : "Xác nhận hoàn tác"}
                 </button>
                 <button onClick={() => setConfirmingUndo(false)}
                   disabled={loadingId === p.appointmentId}
@@ -1876,18 +1897,9 @@ export default function CheckinPage() {
                         const apptTime = fmtTime(p.appointmentDate);
                         return (
                           <div key={p.appointmentId} className="flex flex-col gap-2">
-                            {/* div chứ không phải button: bên trong còn nút "Check-in" riêng — button
-                                lồng button là HTML không hợp lệ và gây lỗi hydration. */}
-                            <div
-                              role="button"
-                              tabIndex={0}
+                            <button
+                              type="button"
                               onClick={() => setSelected(isActive ? null : p.appointmentId)}
-                              onKeyDown={e => {
-                                if (e.key === "Enter" || e.key === " ") {
-                                  e.preventDefault();
-                                  setSelected(isActive ? null : p.appointmentId);
-                                }
-                              }}
                               className={`flex rounded-2xl border overflow-hidden w-full text-left transition-all hover:shadow-md cursor-pointer ${
                                 isActive ? "bg-white border-primary shadow-md shadow-primary/10" : "bg-white border-slate-200/70 hover:-translate-y-px"
                               }`}>
@@ -1903,27 +1915,16 @@ export default function CheckinPage() {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <div className="text-[14px] font-black text-slate-900 truncate">{p.patientName}</div>
-                                  <div className="text-[12px] text-slate-500 font-semibold truncate">{p.serviceName ?? "Khám tổng quát"}</div>
+                                  <div className="flex items-center gap-1.5 min-w-0">
+                                    {p.patientRelationship && (
+                                      <span className="shrink-0 px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-black">{p.patientRelationship}</span>
+                                    )}
+                                    <div className="min-w-0 flex-1 text-[12px] text-slate-500 font-semibold truncate">{p.serviceName ?? "Khám tổng quát"}</div>
+                                  </div>
                                   <div className="text-[11.5px] text-slate-400 font-medium font-mono">{p.patientPhone ?? "—"}</div>
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    doCheckin(p);
-                                  }}
-                                  disabled={loadingId === p.appointmentId}
-                                  className="flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white rounded-xl text-[12px] font-black shrink-0 shadow-xs shadow-emerald-200 transition-all cursor-pointer"
-                                >
-                                  {loadingId === p.appointmentId && busyKind === "checkin" ? (
-                                    <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                                  ) : (
-                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
-                                  )}
-                                  Check-in
-                                </button>
                               </div>
-                            </div>
+                            </button>
 
                             {/* Mobile inline detail panel - ngay dưới thẻ bệnh nhân */}
                             {isActive && (
@@ -1970,8 +1971,13 @@ export default function CheckinPage() {
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="text-[13px] font-bold text-emerald-900 truncate">{p.patientName}</div>
-                                <div className="text-[11.5px] text-emerald-600 font-semibold">
-                                  {p.checkedInAt ? `Check-in lúc ${fmtTime(p.checkedInAt)}` : "Đã check-in"}
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  {p.patientRelationship && (
+                                    <span className="shrink-0 px-1.5 py-0.5 rounded-full bg-white/70 text-emerald-700 text-[9.5px] font-black">{p.patientRelationship}</span>
+                                  )}
+                                  <div className="min-w-0 flex-1 text-[11.5px] text-emerald-600 font-semibold truncate">
+                                    {p.checkedInAt ? `Check-in lúc ${fmtTime(p.checkedInAt)}` : "Đã check-in"}
+                                  </div>
                                 </div>
                               </div>
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${getDateBadgeColor(p.appointmentDate.split("T")[0])}`}>
@@ -2017,7 +2023,12 @@ export default function CheckinPage() {
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="text-[13px] font-bold text-amber-900 truncate">{p.patientName}</div>
-                                <div className="text-[11.5px] text-amber-600 font-semibold">Vắng mặt · hẹn {fmtTime(p.appointmentDate)}</div>
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  {p.patientRelationship && (
+                                    <span className="shrink-0 px-1.5 py-0.5 rounded-full bg-white/70 text-amber-700 text-[9.5px] font-black">{p.patientRelationship}</span>
+                                  )}
+                                  <div className="min-w-0 flex-1 text-[11.5px] text-amber-600 font-semibold truncate">Vắng mặt · hẹn {fmtTime(p.appointmentDate)}</div>
+                                </div>
                               </div>
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${getDateBadgeColor(p.appointmentDate.split("T")[0])}`}>
                                 {formatDateLabel(p.appointmentDate.split("T")[0])}

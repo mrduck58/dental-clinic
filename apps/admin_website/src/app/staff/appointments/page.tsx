@@ -5,6 +5,7 @@ import StaffSidebar from "../../../components/shared/StaffSidebar";
 import { Toast, useToast } from "../../../components/shared/Toast";
 import StaffPageHeader from "../../../components/shared/StaffPageHeader";
 import RescheduleAppointmentModal from "../../../components/shared/RescheduleAppointmentModal";
+import AppointmentDetailModal from "../../../components/shared/AppointmentDetailModal";
 import { useRequireStaff } from "../../../hooks/useRequireStaff";
 import {
   getStaffAppointmentsApi,
@@ -102,6 +103,9 @@ function OnlineTab() {
   const [rejectChangeReqTarget, setRejectChangeReqTarget] = useState<string | null>(null);
   const [rejectChangeReqNote,   setRejectChangeReqNote]   = useState("");
   const [reschedulingAppt, setReschedulingAppt] = useState<StaffAppointmentDto | null>(null);
+  // Lịch đang mở xem chi tiết (bấm vào thẻ) — tách riêng khỏi reschedulingAppt vì hai việc độc lập.
+  const [detailAppt, setDetailAppt] = useState<StaffAppointmentDto | null>(null);
+  // "" = tất cả ngày (mặc định).
   const [dateFilter, setDateFilter] = useState("");
   const [reasonOptions, setReasonOptions] = useState<CancellationReasonOption[]>([]);
   const [reasonCode, setReasonCode] = useState("");
@@ -248,6 +252,10 @@ function OnlineTab() {
             );
           }}
         />
+      )}
+
+      {detailAppt && (
+        <AppointmentDetailModal appointment={detailAppt} onClose={() => setDetailAppt(null)} />
       )}
 
       <DateFilterBar
@@ -397,13 +405,18 @@ function OnlineTab() {
             return (
               <div key={appt.appointmentId} className="bg-white rounded-2xl border border-slate-200/70 shadow-sm overflow-hidden">
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 p-4 sm:px-6 sm:py-5">
-                  <div className="flex items-start gap-3 sm:gap-4 flex-1 min-w-0">
+                  <div
+                    onClick={() => setDetailAppt(appt)}
+                    className="flex items-start gap-3 sm:gap-4 flex-1 min-w-0 cursor-pointer rounded-xl -m-1.5 p-1.5 hover:bg-slate-50 transition-colors">
                     <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center font-black text-[13px] text-sky-700 shrink-0">
                       {initials}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-[15px] font-black text-slate-900">{appt.patientName}</span>
+                        {appt.patientRelationship && (
+                          <span className="px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10.5px] font-black">{appt.patientRelationship}</span>
+                        )}
                         {appt.patientPhone && <span className="text-[12px] font-medium text-slate-400 font-mono">{appt.patientPhone}</span>}
                         <span className="px-2 py-0.5 bg-sky-50 text-sky-700 border border-sky-100 rounded-full text-[11.5px] font-black">{appt.serviceName ?? "Khám tổng quát"}</span>
                         <span className="text-[11px] text-slate-400 font-mono">#{appt.appointmentCode}</span>
@@ -415,6 +428,11 @@ function OnlineTab() {
                         </span>
                         <span className="text-slate-300 hidden sm:inline">·</span>
                         <span className="text-slate-400 text-[11.5px] sm:text-[12px]">Gửi ngày {fmtDate(appt.createdAt)}</span>
+                      </div>
+                      <div className="flex items-center gap-1 mt-1.5 text-[12px] text-slate-400 font-semibold flex-wrap">
+                        <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" /></svg>
+                        Đặt bởi <span className="text-slate-500">{appt.accountHolderName}</span>
+                        {appt.accountHolderEmail && <span className="text-slate-300">· {appt.accountHolderEmail}</span>}
                       </div>
                       {appt.symptoms && (
                         <div className="mt-2 flex items-start gap-1.5 text-[12px] sm:text-[12.5px] text-amber-700 bg-amber-50 border border-amber-100 px-3 py-1.5 rounded-lg font-semibold w-fit">
@@ -577,12 +595,9 @@ function ConfirmedTab() {
   const [confirmed, setConfirmed] = useState<StaffAppointmentDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Lịch đã xác nhận vẫn đổi được cho tới khi bệnh nhân check-in: bác sĩ báo nghỉ hay bệnh nhân
-  // gọi điện xin đổi giờ đều xảy ra sau bước xác nhận.
-  const [reschedulingAppt, setReschedulingAppt] = useState<StaffAppointmentDto | null>(null);
   // "" = tất cả ngày (mặc định).
   const [dateFilter, setDateFilter] = useState("");
-  const { toast, showToast } = useToast();
+  const [detailAppt, setDetailAppt] = useState<StaffAppointmentDto | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -625,20 +640,8 @@ function ConfirmedTab() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Toast toast={toast} />
-
-      {reschedulingAppt && (
-        <RescheduleAppointmentModal
-          appointment={reschedulingAppt}
-          onClose={() => setReschedulingAppt(null)}
-          onDone={info => {
-            setReschedulingAppt(null);
-            void load();
-            showToast(
-              `Đã đổi lịch của ${reschedulingAppt.patientName} sang ${info.date.split("-").reverse().join("/")} lúc ${info.time} · ${info.dentistName}.`,
-            );
-          }}
-        />
+      {detailAppt && (
+        <AppointmentDetailModal appointment={detailAppt} onClose={() => setDetailAppt(null)} />
       )}
 
       <DateFilterBar
@@ -663,13 +666,18 @@ function ConfirmedTab() {
             return (
               <div key={appt.appointmentId} className="bg-white rounded-2xl border border-emerald-100 shadow-sm overflow-hidden hover:shadow-md transition-all">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 sm:px-6 sm:py-4">
-                  <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+                  <div
+                    onClick={() => setDetailAppt(appt)}
+                    className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0 cursor-pointer rounded-xl -m-1.5 p-1.5 hover:bg-slate-50 transition-colors">
                     <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center font-black text-[13px] text-emerald-700 shrink-0">
                       {initials}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2.5 flex-wrap">
                         <span className="text-[15px] font-black text-slate-900">{appt.patientName}</span>
+                        {appt.patientRelationship && (
+                          <span className="px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10.5px] font-black">{appt.patientRelationship}</span>
+                        )}
                         {appt.patientPhone && <span className="text-[12px] font-medium text-slate-400 font-mono">{appt.patientPhone}</span>}
                         <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full text-[11.5px] font-black">{appt.serviceName ?? "Khám tổng quát"}</span>
                         <span className="text-[11px] text-slate-400 font-mono">#{appt.appointmentCode}</span>
@@ -679,15 +687,14 @@ function ConfirmedTab() {
                         <span className="text-slate-300">·</span>
                         <span className="text-[12px] text-slate-400">{appt.dentistName}</span>
                       </div>
+                      <div className="flex items-center gap-1 mt-1.5 text-[12px] text-slate-400 font-semibold flex-wrap">
+                        <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" /></svg>
+                        Đặt bởi <span className="text-slate-500">{appt.accountHolderName}</span>
+                        {appt.accountHolderEmail && <span className="text-slate-300">· {appt.accountHolderEmail}</span>}
+                      </div>
                     </div>
                   </div>
                   <div className="shrink-0 flex items-center gap-2 self-end sm:self-center">
-                    <button
-                      onClick={() => setReschedulingAppt(appt)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-bold bg-white text-sky-700 border border-sky-200 hover:bg-sky-50 cursor-pointer transition-all whitespace-nowrap">
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5M12 12.75h.008v.008H12v-.008z" /></svg>
-                      Đổi lịch
-                    </button>
                     <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-black bg-emerald-50 text-emerald-700 border border-emerald-100">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                       Đã xác nhận
@@ -751,6 +758,7 @@ export default function AppointmentsPage() {
   const [todayAppts, setTodayAppts]     = useState<StaffAppointmentDto[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
   const [confirmedCount, setConfirmedCount] = useState(0);
+  const [detailAppt, setDetailAppt] = useState<StaffAppointmentDto | null>(null);
 
   useEffect(() => {
     const today = new Date();
@@ -792,6 +800,10 @@ export default function AppointmentsPage() {
 
   return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
+      {detailAppt && (
+        <AppointmentDetailModal appointment={detailAppt} onClose={() => setDetailAppt(null)} />
+      )}
+
       <StaffSidebar activeMenu="appointments" />
       <main className="flex-1 flex flex-col min-w-0">
         <StaffPageHeader
@@ -853,7 +865,9 @@ export default function AppointmentsPage() {
                       const s = STATUS_CFG[statusKey] ?? STATUS_CFG.waiting;
                       const initials = a.patientName.trim().split(/\s+/).slice(-2).map(w => w[0]).join("").toUpperCase();
                       return (
-                        <div key={a.appointmentId} className="flex rounded-2xl border border-slate-200/70 bg-white overflow-hidden hover:shadow-md hover:-translate-y-px transition-all">
+                        <div key={a.appointmentId}
+                          onClick={() => setDetailAppt(a)}
+                          className="flex rounded-2xl border border-slate-200/70 bg-white overflow-hidden hover:shadow-md hover:-translate-y-px transition-all cursor-pointer">
                           <div className={`w-1.5 shrink-0 ${s.bar}`} />
                           <div className="flex items-center gap-5 px-5 py-4 flex-1 min-w-0">
                             <div className="flex flex-col items-center w-14 shrink-0">
@@ -865,9 +879,17 @@ export default function AppointmentsPage() {
                               {initials}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <div className="text-[15px] font-black text-slate-900 leading-tight">{a.patientName}</div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-[15px] font-black text-slate-900 leading-tight">{a.patientName}</span>
+                                {a.patientRelationship && (
+                                  <span className="px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10.5px] font-black">{a.patientRelationship}</span>
+                                )}
+                              </div>
                               <div className="text-[13px] font-semibold text-slate-500 mt-0.5">{a.serviceName ?? "Khám tổng quát"}</div>
                               {a.patientPhone && <div className="text-[12px] text-slate-400 font-medium mt-0.5 font-mono">{a.patientPhone}</div>}
+                              <div className="text-[11.5px] text-slate-400 font-semibold mt-0.5 truncate">
+                                Đặt bởi {a.accountHolderName}{a.accountHolderEmail && ` · ${a.accountHolderEmail}`}
+                              </div>
                             </div>
                             <div className="shrink-0 flex flex-col items-end gap-2">
                               <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-black whitespace-nowrap ${s.badge}`}>

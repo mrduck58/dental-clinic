@@ -18,6 +18,9 @@ public class TreatmentPlanConfiguration : IEntityTypeConfiguration<TreatmentPlan
         builder.Property(tp => tp.Teeth)
             .HasMaxLength(200);
 
+        builder.Property(tp => tp.ServiceOptionName)
+            .HasMaxLength(200);
+
         builder.Property(tp => tp.Notes)
             .HasMaxLength(2000);
 

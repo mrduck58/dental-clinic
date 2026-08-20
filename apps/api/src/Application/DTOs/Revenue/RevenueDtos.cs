@@ -17,7 +17,10 @@ public record RevenueTransactionDto(
     DateTimeOffset Date,
     string PaymentMethod,
     decimal Amount,
-    string Status);
+    string Status,
+    // > 0 chỉ khi đây là hóa đơn đặt cọc (Paid) đã thu Amount nhưng còn nợ phần này —
+    // và CHƯA có hóa đơn "thu phần còn lại" nào được tạo cho nó.
+    decimal RemainingAmount);
 
 public record RevenueTransactionsPagedDto(
     IReadOnlyList<RevenueTransactionDto> Items,
@@ -26,7 +29,10 @@ public record RevenueTransactionsPagedDto(
     int PageSize,
     int TotalPages);
 
-public record RevenueByServiceDto(string ServiceName, decimal Amount);
+// SupplyCost = giá vốn vật tư đã tiêu hao thực tế cho dịch vụ này trong kỳ (xem TreatmentSupplyUsage) —
+// khớp theo TÊN dịch vụ vì ServiceName ở đây vốn lấy từ InvoiceItem.Name (không có FK ServiceId thật),
+// nên chỉ ước lượng tương đối khi có hai dịch vụ trùng tên.
+public record RevenueByServiceDto(string ServiceName, decimal Amount, decimal SupplyCost);
 
 public record RevenueByDentistDto(Guid DentistId, string DentistName, decimal Amount);
 

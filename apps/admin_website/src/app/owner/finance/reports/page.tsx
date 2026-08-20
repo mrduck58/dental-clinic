@@ -86,8 +86,8 @@ async function loadReport(type: ReportKey, from: string, to: string): Promise<Re
       const d = await getRevenueTransactionsApi({ from, to, page: 1, pageSize: MAX_DETAIL_ROWS, sortBy: "date", sortDir: "desc" });
       return {
         title: "Chi tiết giao dịch doanh thu",
-        columns: ["Mã hóa đơn", "Bệnh nhân", "Dịch vụ", "Bác sĩ", "Ngày", "Phương thức", "Số tiền", "Trạng thái"],
-        rows: d.items.map((t) => [t.invoiceNumber, t.patientName, t.serviceSummary, t.dentistName, formatDate(t.date), t.paymentMethod, fmt(t.amount), t.status]),
+        columns: ["Mã hóa đơn", "Bệnh nhân", "Dịch vụ", "Bác sĩ", "Ngày", "Phương thức", "Số tiền", "Còn thiếu (chưa xuất HĐ)", "Trạng thái"],
+        rows: d.items.map((t) => [t.invoiceNumber, t.patientName, t.serviceSummary, t.dentistName, formatDate(t.date), t.paymentMethod, fmt(t.amount), t.remainingAmount > 0 ? fmt(t.remainingAmount) : "—", t.status]),
         truncatedNote: d.totalCount > MAX_DETAIL_ROWS
           ? `Kỳ này có ${d.totalCount} giao dịch — báo cáo chỉ lấy ${MAX_DETAIL_ROWS} giao dịch mới nhất.`
           : undefined,

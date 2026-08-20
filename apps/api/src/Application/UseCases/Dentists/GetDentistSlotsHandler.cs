@@ -105,7 +105,7 @@ public class GetDentistSlotsHandler(
                 .Select(a =>
                 {
                     var localTime = a.AppointmentDate.UtcDateTime.AddHours(7);
-                    return SlotCalculator.BuildOccupiedRange(localTime.Hour, localTime.Minute, a.Service?.DurationMinutes);
+                    return SlotCalculator.BuildOccupiedRange(localTime.Hour, localTime.Minute, a.Service?.DurationMinutes, a.Status);
                 })
                 .ToList();
 

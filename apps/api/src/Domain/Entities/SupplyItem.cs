@@ -1,3 +1,5 @@
+using DentalClinic.API.Domain.Constants;
+
 namespace DentalClinic.API.Domain.Entities;
 
 public class SupplyItem
@@ -25,7 +27,7 @@ public class SupplyItem
 
     public static SupplyItem Create(
         string code, string name, string category, string unit, int quantity, int minQuantity,
-        string orderType = "standard", decimal? price = null)
+        decimal? price = null)
         => new()
         {
             Id = Guid.NewGuid(),
@@ -35,7 +37,7 @@ public class SupplyItem
             Unit = unit,
             Quantity = quantity,
             MinQuantity = minQuantity,
-            OrderType = orderType,
+            OrderType = InventoryConstants.DeriveOrderType(category),
             Price = price,
             IsActive = true,
             CreatedAt = DateTimeOffset.UtcNow,
@@ -57,6 +59,7 @@ public class SupplyItem
     {
         Name = name;
         Category = category;
+        OrderType = InventoryConstants.DeriveOrderType(category);
         Unit = unit;
         MinQuantity = minQuantity;
         UpdatedAt = DateTimeOffset.UtcNow;

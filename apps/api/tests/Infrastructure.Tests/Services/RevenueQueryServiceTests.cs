@@ -245,6 +245,58 @@ public class RevenueQueryServiceTests
         result.Items.Single().Status.Should().Be("Paid");
     }
 
+    /// <summary>
+    /// Hóa đơn đặt cọc (Paid, còn nợ) mà chưa có hóa đơn con "thu phần còn lại" phải hiển thị
+    /// RemainingAmount &gt; 0 trên chính dòng đó — để người xem biết vì sao khoản này còn tính vào
+    /// "Chưa thu" dù dòng giao dịch hiện đang có trạng thái Đã thu.
+    /// </summary>
+    [Test]
+    public async Task GetTransactionsPagedAsync_UnsettledDeposit_ShowsRemainingAmountOnRow()
+    {
+        var (_, _, appt) = await SeedAppointmentAsync();
+        var invoice = IssuePaidInvoice(appt.Id, "Niềng răng", 10_000_000m, new DateTimeOffset(2026, 8, 10, 3, 0, 0, TimeSpan.Zero), amountCollected: 3_000_000m);
+        SetCreatedAt(invoice, new DateTimeOffset(2026, 8, 10, 3, 0, 0, TimeSpan.Zero));
+        _db.Invoices.Add(invoice);
+        await _db.SaveChangesAsync();
+
+        var result = await _sut.GetTransactionsPagedAsync(
+            new RevenueTransactionsFilter(PeriodFrom, PeriodTo, null, null, null, null, null, 1, 20, null, null),
+            CancellationToken.None);
+
+        var row = result.Items.Single();
+        row.Amount.Should().Be(3_000_000m);
+        row.RemainingAmount.Should().Be(7_000_000m);
+    }
+
+    /// <summary>
+    /// Một khi hóa đơn con "thu phần còn lại" đã được tạo, hóa đơn cọc gốc không còn hiển thị
+    /// RemainingAmount nữa — khoản đó đã chuyển sang chính hóa đơn con.
+    /// </summary>
+    [Test]
+    public async Task GetTransactionsPagedAsync_DepositWithChildCreated_ParentNoLongerShowsRemainingAmount()
+    {
+        var (_, _, appt) = await SeedAppointmentAsync();
+        var parent = IssuePaidInvoice(appt.Id, "Niềng răng", 10_000_000m, new DateTimeOffset(2026, 8, 3, 3, 0, 0, TimeSpan.Zero), amountCollected: 3_000_000m);
+        SetCreatedAt(parent, new DateTimeOffset(2026, 8, 3, 3, 0, 0, TimeSpan.Zero));
+        _db.Invoices.Add(parent);
+        await _db.SaveChangesAsync();
+
+        var child = Invoice.IssueRemaining(appt.Id, $"INV-{Guid.NewGuid():N}", parent.Id, "Thu phần còn lại", 7_000_000m, PaymentMethod.Cash);
+        SetCreatedAt(child, new DateTimeOffset(2026, 8, 20, 3, 0, 0, TimeSpan.Zero));
+        _db.Invoices.Add(child);
+        await _db.SaveChangesAsync();
+
+        var result = await _sut.GetTransactionsPagedAsync(
+            new RevenueTransactionsFilter(PeriodFrom, PeriodTo, null, null, null, null, null, 1, 20, null, null),
+            CancellationToken.None);
+
+        var parentRow = result.Items.Single(r => r.InvoiceId == parent.Id);
+        var childRow = result.Items.Single(r => r.InvoiceId == child.Id);
+        parentRow.RemainingAmount.Should().Be(0m);
+        childRow.Amount.Should().Be(7_000_000m);
+        childRow.RemainingAmount.Should().Be(0m);
+    }
+
     // ── GetChartsAsync ───────────────────────────────────────────────────────
 
     [Test]
@@ -260,5 +312,33 @@ public class RevenueQueryServiceTests
 
         result.ByService.Should().ContainSingle(s => s.ServiceName == "Trám răng" && s.Amount == 1_000_000m);
         result.ByDentist.Should().ContainSingle(d => d.DentistId == dentist.Id && d.Amount == 1_000_000m);
+    }
+
+    /// <summary>Giá vốn vật tư tiêu hao (TreatmentSupplyUsage) trong kỳ phải được cộng vào đúng dịch vụ —
+    /// khớp theo tên dịch vụ (TreatmentPlan.Service.Name so với InvoiceItem.Name).</summary>
+    [Test]
+    public async Task GetChartsAsync_IncludesSupplyCostForMatchingServiceName()
+    {
+        var (patient, dentist, appt) = await SeedAppointmentAsync();
+        var service = Service.Create("Trám răng", 500_000m, 30, "Trám răng thẩm mỹ");
+        _db.Services.Add(service);
+        var inv = IssuePaidInvoice(appt.Id, "Trám răng", 500_000m, new DateTimeOffset(2026, 8, 10, 3, 0, 0, TimeSpan.Zero));
+        _db.Invoices.Add(inv);
+
+        var plan = TreatmentPlan.Create(patient.Id, dentist.Id, appt.Id, service.Id, 500_000m, 1);
+        _db.TreatmentPlans.Add(plan);
+        var supplyItem = SupplyItem.Create("VT-001", "Chỉ khâu", "Vật dụng", "Cái", 100, 10, price: 20_000m);
+        _db.SupplyItems.Add(supplyItem);
+        var tx = SupplyTransaction.Create(supplyItem.Id, "export", 2, null, "BS Test");
+        _db.SupplyTransactions.Add(tx);
+        var usage = TreatmentSupplyUsage.Create(plan.Id, supplyItem.Id, 2, 20_000m, tx.Id, "BS Test");
+        _db.TreatmentSupplyUsages.Add(usage);
+        typeof(TreatmentSupplyUsage).GetProperty(nameof(TreatmentSupplyUsage.CreatedAt))!
+            .SetValue(usage, new DateTimeOffset(2026, 8, 11, 3, 0, 0, TimeSpan.Zero));
+        await _db.SaveChangesAsync();
+
+        var result = await _sut.GetChartsAsync(PeriodFrom, PeriodTo, CancellationToken.None);
+
+        result.ByService.Should().ContainSingle(s => s.ServiceName == "Trám răng" && s.SupplyCost == 40_000m);
     }
 }
