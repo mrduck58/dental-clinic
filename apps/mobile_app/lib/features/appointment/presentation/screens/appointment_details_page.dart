@@ -793,6 +793,13 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
 
                               final parsedDate = item.parsedDate;
                               final date = DateTime(parsedDate.year, parsedDate.month, parsedDate.day);
+                              final startHour = parsedDate.hour.toString().padLeft(2, '0');
+                              final startMin = parsedDate.minute.toString().padLeft(2, '0');
+                              final slotEndMinTotal = parsedDate.hour * 60 + parsedDate.minute + 30;
+                              final endHour = (slotEndMinTotal ~/ 60 % 24).toString().padLeft(2, '0');
+                              final endMin = (slotEndMinTotal % 60).toString().padLeft(2, '0');
+                              final currentSlotRange = '$startHour:$startMin - $endHour:$endMin';
+
                               final doctor = DoctorInfo(
                                 id: item.dentistId,
                                 name: item.dentistName,
@@ -824,6 +831,7 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
                                         durationMinutes: item.serviceDurationMinutes ?? 30,
                                       ),
                                 date: date,
+                                timeSlot: TimeSlot(range: currentSlotRange),
                                 doctor: doctor,
                                 symptoms: item.symptoms,
                               );

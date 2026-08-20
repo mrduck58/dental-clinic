@@ -120,6 +120,7 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
           reason: _symptomCtrl.text.trim().isEmpty ? null : _symptomCtrl.text.trim(),
         );
         if (!mounted) return;
+        _bookingService.clearActiveDraft();
         context.pushReplacement(
           AppRoutes.bookingSuccess,
           extra: d.copyWith(

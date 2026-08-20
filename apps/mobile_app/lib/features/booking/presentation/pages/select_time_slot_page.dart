@@ -119,9 +119,13 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
       setState(() {
         _doctorWithSlots = matched;
         _loading = false;
-        // Nếu slot đã chọn bị người khác đặt hoặc không còn khả dụng
+        // Nếu slot đã chọn bị người khác đặt hoặc không còn khả dụng (ngoại trừ slot lịch hẹn đang dời của chính mình)
         if (_selectedSlot != null && matched != null && (_holdExpiresAt == null || _holdExpiresAt!.isBefore(DateTime.now()))) {
-          final stillAvailable = matched.slots.any(
+          final isCurrentReschedulingSlot = widget.draft.isRescheduling &&
+              widget.draft.timeSlot != null &&
+              _selectedSlot!.range == widget.draft.timeSlot!.range;
+
+          final stillAvailable = isCurrentReschedulingSlot || matched.slots.any(
             (s) => s.range == _selectedSlot!.range && !s.isBooked,
           );
           if (!stillAvailable) _selectedSlot = null;
@@ -865,7 +869,11 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
                   } catch (_) {}
                 }
 
-                final isAvailable = !isPast && (!isBooked || slot.isHeldByMe) && (!isHeld || slot.isHeldByMe);
+                final isCurrentRescheduleSlot = widget.draft.isRescheduling &&
+                    widget.draft.timeSlot != null &&
+                    _isSlotInSelectedRange(slot.range);
+
+                final isAvailable = !isPast && (!isBooked || slot.isHeldByMe || isCurrentRescheduleSlot) && (!isHeld || slot.isHeldByMe);
                 final isSelected = _isSlotInSelectedRange(slot.range);
 
                 return GestureDetector(
@@ -913,7 +921,16 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
                                     : context.textMuted,
                           ),
                         ),
-                        if (isHeld)
+                        if (isSelected && isCurrentRescheduleSlot && (_holdExpiresAt == null || _holdExpiresAt!.isBefore(DateTime.now())))
+                          Text(
+                            isVi ? 'Lịch hiện tại' : 'Current slot',
+                            style: const TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white70,
+                            ),
+                          )
+                        else if (isHeld)
                           Text(
                             slot.isHeldByMe
                                 ? (isVi ? 'Đang giữ' : 'Your hold')
@@ -924,12 +941,12 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
                               color: slot.isHeldByMe ? (isSelected ? Colors.white70 : AppColors.primary) : const Color(0xFFD97706),
                             ),
                           )
-                        else if (isBooked)
+                        else if (isBooked && !isCurrentRescheduleSlot)
                           Text(
                             isVi ? 'Đã kín' : 'Booked',
                             style: const TextStyle(
                               fontSize: 9,
-                              fontWeight: FontWeight.w500,
+                              fontWeight: FontWeight.w600,
                               color: Color(0xFFEF4444),
                             ),
                           )
