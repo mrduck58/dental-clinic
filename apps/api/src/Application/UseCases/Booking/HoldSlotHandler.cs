@@ -98,6 +98,14 @@ public class HoldSlotHandler(
             }
         }
 
+        // 3.3. Kiểm tra mỗi bệnh nhân chỉ được đặt tối đa 1 lịch hẹn trong 1 ngày
+        var hasActiveAppointmentOnDate = await appointmentRepository.HasActiveAppointmentOnDateAsync(
+            targetPatientId, command.Date, excludeAppointmentId: null, ct);
+        if (hasActiveAppointmentOnDate)
+        {
+            throw new ConflictException("Bệnh nhân này đã có một lịch hẹn trong ngày này. Mỗi bệnh nhân chỉ được đặt tối đa 1 lịch hẹn mỗi ngày (nếu muốn đổi giờ, vui lòng dời hoặc hủy lịch cũ).");
+        }
+
         // 4. Kiểm tra ca khám (kèm thời lượng dịch vụ) có bị trùng với Lịch hẹn chính thức không
         var appointments = await appointmentRepository.GetByDateAsync(command.Date, ct);
         var appointmentRanges = appointments

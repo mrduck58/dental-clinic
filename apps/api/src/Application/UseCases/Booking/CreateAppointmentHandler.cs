@@ -83,10 +83,10 @@ public class CreateAppointmentHandler(
 
         var localDate = DateOnly.FromDateTime(cmd.AppointmentDate.UtcDateTime.AddHours(7));
         var hasActiveAppointment = await appointmentRepository.HasActiveAppointmentOnDateAsync(
-            cmd.UserId, localDate, excludeAppointmentId: null, ct);
+            targetPatientId, localDate, excludeAppointmentId: null, ct);
         if (hasActiveAppointment)
         {
-            throw new ConflictException("Tài khoản của bạn đã có một lịch hẹn trong ngày này. Mỗi tài khoản chỉ được đặt tối đa 1 lịch hẹn mỗi ngày (nếu muốn đổi giờ, vui lòng dời hoặc hủy lịch cũ).");
+            throw new ConflictException("Bệnh nhân này đã có một lịch hẹn trong ngày này. Mỗi bệnh nhân chỉ được đặt tối đa 1 lịch hẹn mỗi ngày (nếu muốn đổi giờ, vui lòng dời hoặc hủy lịch cũ).");
         }
 
         await slotGuard.EnsureSlotAvailableAsync(

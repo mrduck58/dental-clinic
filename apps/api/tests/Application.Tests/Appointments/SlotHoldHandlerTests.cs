@@ -44,6 +44,8 @@ public class SlotHoldHandlerTests
 
         _appointmentRepo.GetByDateAsync(Arg.Any<DateOnly>(), Arg.Any<CancellationToken>())
             .Returns(new List<Appointment>());
+        _appointmentRepo.HasActiveAppointmentOnDateAsync(Arg.Any<Guid>(), Arg.Any<DateOnly>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
+            .Returns(false);
 
         _handler = new HoldSlotHandler(
             _slotHoldRepo,
