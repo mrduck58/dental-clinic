@@ -119,14 +119,11 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
       setState(() {
         _doctorWithSlots = matched;
         _loading = false;
-        // Nếu slot đã chọn bị người khác đặt hoặc không còn khả dụng (ngoại trừ slot lịch hẹn đang dời của chính mình)
+        // Nếu slot đã chọn bị người khác đặt hoặc không còn đủ thời lượng cho dịch vụ
         if (_selectedSlot != null && matched != null && (_holdExpiresAt == null || _holdExpiresAt!.isBefore(DateTime.now()))) {
-          final isCurrentReschedulingSlot = _isSlotInOriginalAppointmentRange(_selectedSlot!.range);
-
-          final stillAvailable = isCurrentReschedulingSlot || matched.slots.any(
-            (s) => s.range == _selectedSlot!.range && !s.isBooked,
-          );
-          if (!stillAvailable) _selectedSlot = null;
+          if (!_isStartingSlotValidForService(_selectedSlot!)) {
+            _selectedSlot = null;
+          }
         }
       });
     } catch (e) {
@@ -239,9 +236,91 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
     }
   }
 
+  bool _isSlotAvailableForUse(ApiTimeSlot s) {
+    final now = DateTime.now();
+    final isToday = _currentDate.year == now.year &&
+        _currentDate.month == now.month &&
+        _currentDate.day == now.day;
+    if (isToday) {
+      try {
+        final startPart = s.range.split(' - ').first.trim();
+        final parts = startPart.split(':');
+        final slotHour = int.parse(parts[0]);
+        final slotMin = int.parse(parts[1]);
+        if (now.hour > slotHour || (now.hour == slotHour && now.minute >= slotMin)) {
+          return false;
+        }
+      } catch (_) {}
+    }
+
+    final isHeld = s.isHeld;
+    final isHeldByMe = s.isHeldByMe;
+    final isBooked = s.isBooked;
+    final isOriginalSlot = _isSlotInOriginalAppointmentRange(s.range);
+
+    if (isBooked && !isHeldByMe && !isOriginalSlot) return false;
+    if (isHeld && !isHeldByMe) return false;
+    return true;
+  }
+
+  bool _isStartingSlotValidForService(ApiTimeSlot startingSlot) {
+    if (_doctorWithSlots == null) return false;
+    final duration = widget.draft.service?.durationMinutes ?? 30;
+    if (!_isSlotAvailableForUse(startingSlot)) return false;
+    if (duration <= 30) return true;
+
+    try {
+      final startPart = startingSlot.range.split(' - ').first.trim();
+      final parts = startPart.split(':');
+      final startMin = int.parse(parts[0]) * 60 + int.parse(parts[1]);
+      final neededSlotsCount = (duration / 30).ceil();
+
+      for (int i = 1; i < neededSlotsCount; i++) {
+        final curMin = startMin + i * 30;
+        final curH = (curMin ~/ 60) % 24;
+        final curM = curMin % 60;
+        final endH = ((curMin + 30) ~/ 60) % 24;
+        final endM = (curMin + 30) % 60;
+
+        final targetRange = '${curH.toString().padLeft(2, '0')}:${curM.toString().padLeft(2, '0')} - ${endH.toString().padLeft(2, '0')}:${endM.toString().padLeft(2, '0')}';
+
+        final match = _doctorWithSlots!.slots.where((s) => s.range == targetRange).firstOrNull;
+        if (match == null || !_isSlotAvailableForUse(match)) {
+          return false;
+        }
+      }
+      return true;
+    } catch (_) {
+      return _isSlotAvailableForUse(startingSlot);
+    }
+  }
+
   void _onSlotTapped(ApiTimeSlot slot) {
-    final isOriginalSlot = _isSlotInOriginalAppointmentRange(slot.range);
-    if ((slot.isBooked && !slot.isHeldByMe && !isOriginalSlot) || _isHoldingSlot) return;
+    if (_isHoldingSlot) return;
+    if (!_isStartingSlotValidForService(slot)) {
+      final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
+      final duration = widget.draft.service?.durationMinutes ?? 30;
+      final isOriginalSlot = _isSlotInOriginalAppointmentRange(slot.range);
+      if (slot.isBooked && !isOriginalSlot && !slot.isHeldByMe) {
+        AppToast.showWarning(
+          context,
+          isVi ? 'Ca khám này đã có người đặt' : 'This time slot is already booked',
+        );
+      } else if (slot.isHeld && !slot.isHeldByMe) {
+        AppToast.showWarning(
+          context,
+          isVi ? 'Ca khám đang được người khác giữ chỗ' : 'This slot is currently held',
+        );
+      } else {
+        AppToast.showWarning(
+          context,
+          isVi
+              ? 'Khung giờ này không đủ thời lượng $duration phút cho dịch vụ'
+              : 'Not enough time ($duration mins) available starting from this slot',
+        );
+      }
+      return;
+    }
     setState(() {
       _selectedSlot = slot;
     });
@@ -899,24 +978,24 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
                 }
 
                 final isOriginalRescheduleSlot = _isSlotInOriginalAppointmentRange(slot.range);
-                final isAvailable = !isPast && (!isBooked || slot.isHeldByMe || isOriginalRescheduleSlot) && (!isHeld || slot.isHeldByMe);
+                final isSlotStartValid = _isStartingSlotValidForService(slot);
                 final isSelected = _isSlotInSelectedRange(slot.range);
 
                 return GestureDetector(
-                  onTap: isAvailable ? () => _onSlotTapped(slot) : null,
+                  onTap: () => _onSlotTapped(slot),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 150),
                     decoration: BoxDecoration(
                       color: isSelected
                           ? AppColors.primary
-                          : isAvailable
+                          : isSlotStartValid
                               ? (context.isDark ? const Color(0xFF1E293B) : Colors.white)
                               : (context.isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9)),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
                         color: isSelected
                             ? AppColors.primary
-                            : isAvailable
+                            : isSlotStartValid
                                 ? (isOriginalRescheduleSlot
                                     ? AppColors.primary.withValues(alpha: 0.6)
                                     : AppColors.primary.withValues(alpha: 0.3))
@@ -941,10 +1020,10 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
                           slot.range,
                           style: TextStyle(
                             fontSize: 12,
-                            fontWeight: isSelected ? FontWeight.w800 : (isAvailable ? FontWeight.w600 : FontWeight.w400),
+                            fontWeight: isSelected ? FontWeight.w800 : (isSlotStartValid ? FontWeight.w600 : FontWeight.w400),
                             color: isSelected
                                 ? Colors.white
-                                : isAvailable
+                                : isSlotStartValid
                                     ? (isOriginalRescheduleSlot
                                         ? AppColors.primary
                                         : (context.isDark ? Colors.white : AppColors.primary))
@@ -996,6 +1075,15 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
                               fontSize: 9,
                               fontWeight: FontWeight.w500,
                               color: context.textMuted,
+                            ),
+                          )
+                        else if (!isSlotStartValid && !isSelected)
+                          Text(
+                            isVi ? 'Không đủ giờ' : 'Short time',
+                            style: const TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFFF97316),
                             ),
                           ),
                       ],
