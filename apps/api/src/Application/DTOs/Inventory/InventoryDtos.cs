@@ -38,8 +38,14 @@ public record CreateSupplyItemRequest(
     string Unit,
     int Quantity,
     int MinQuantity,
-    string? OrderType = null,
     decimal? Price = null);
+
+public record UpdateSupplyItemRequest(
+    string Name,
+    string Category,
+    string Unit,
+    int MinQuantity,
+    decimal? Price);
 
 public record StockImportRequest(
     string Name,
@@ -47,5 +53,4 @@ public record StockImportRequest(
     string Category,
     int Quantity,
     string? Note,
-    decimal? UnitPrice = null,
-    string? OrderType = null);
+    decimal? UnitPrice = null);

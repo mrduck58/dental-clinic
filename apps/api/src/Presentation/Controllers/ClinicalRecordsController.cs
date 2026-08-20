@@ -203,6 +203,28 @@ public class ClinicalRecordsController(ISender sender, ClinicalRecordWriteGuard 
         return Ok(result);
     }
 
+    /// <summary>GET api/appointments/treatment-plan/{treatmentPlanId}/supply-usage — Vật tư đã ghi nhận tiêu hao cho liệu trình.</summary>
+    [HttpGet("api/appointments/treatment-plan/{treatmentPlanId}/supply-usage")]
+    [Authorize(Roles = "Staff,Admin,Dentist,Owner")]
+    public async Task<IActionResult> GetTreatmentSupplyUsage(Guid treatmentPlanId, CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new GetTreatmentSupplyUsageQuery(treatmentPlanId), cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>POST api/appointments/treatment-plan/{treatmentPlanId}/supply-usage — Ghi nhận vật tư đã dùng (tự trừ kho).</summary>
+    [HttpPost("api/appointments/treatment-plan/{treatmentPlanId}/supply-usage")]
+    [Authorize(Roles = "Staff,Admin,Dentist")]
+    public async Task<IActionResult> RecordTreatmentSupplyUsage(
+        Guid treatmentPlanId,
+        [FromBody] RecordTreatmentSupplyUsageRequest request,
+        CancellationToken cancellationToken)
+    {
+        await writeGuard.EnsureCanWriteTreatmentPlanAsync(treatmentPlanId, cancellationToken);
+        var result = await sender.Send(new RecordTreatmentSupplyUsageCommand(treatmentPlanId, request), cancellationToken);
+        return Ok(result);
+    }
+
     #endregion
 
     #region Prescription

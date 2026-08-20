@@ -1,4 +1,5 @@
 using DentalClinic.API.Application.UseCases.Inventory;
+using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Infrastructure.Persistence;
@@ -97,5 +98,23 @@ public class CreateSupplyItemHandlerTests
         var result = await _handler.Handle(MakeRequest("VT020") with { Name = "  Chỉ nha khoa  " }, CancellationToken.None);
 
         result.Name.Should().Be("Chỉ nha khoa");
+    }
+
+    /// <summary>Danh mục không nằm trong 3 danh mục cho phép phải bị từ chối.</summary>
+    [Test]
+    public async Task HandleAsync_CategoryNotInAllowedList_ThrowsValidationException()
+    {
+        Func<Task> act = () => _handler.Handle(MakeRequest() with { Category = "Bảo hộ" }, CancellationToken.None);
+
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    /// <summary>Tạo vật tư danh mục "Vật tư chính" phải tự suy ra OrderType "custom" — không cho chọn tay.</summary>
+    [Test]
+    public async Task HandleAsync_CategoryMain_DerivesCustomOrderType()
+    {
+        var result = await _handler.Handle(MakeRequest("VT030") with { Category = InventoryConstants.CategoryMain }, CancellationToken.None);
+
+        result.OrderType.Should().Be("custom");
     }
 }

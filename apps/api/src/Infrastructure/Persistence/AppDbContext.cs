@@ -34,6 +34,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<SupplyTransaction> SupplyTransactions => Set<SupplyTransaction>();
     public DbSet<MaterialRequest> MaterialRequests => Set<MaterialRequest>();
     public DbSet<MaterialRequestItem> MaterialRequestItems => Set<MaterialRequestItem>();
+    public DbSet<ServiceSupplyItem> ServiceSupplyItems => Set<ServiceSupplyItem>();
+    public DbSet<TreatmentSupplyUsage> TreatmentSupplyUsages => Set<TreatmentSupplyUsage>();
     public DbSet<Diagnosis> Diagnoses => Set<Diagnosis>();
     public DbSet<TreatmentPlan> TreatmentPlans => Set<TreatmentPlan>();
     public DbSet<TreatmentProcedure> TreatmentProcedures => Set<TreatmentProcedure>();

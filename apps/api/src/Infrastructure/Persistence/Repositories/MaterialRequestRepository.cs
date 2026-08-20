@@ -27,13 +27,13 @@ public class MaterialRequestRepository(AppDbContext db) : IMaterialRequestReposi
         if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<MaterialRequestStatus>(status, true, out var st))
             q = q.Where(m => m.Status == st);
 
-        // Lọc theo bệnh nhân: khớp PatientId (lưu ở CourseId) HOẶC tên (bao gồm dữ liệu cũ chưa có id).
+        // Lọc theo bệnh nhân: khớp PatientId HOẶC tên (bao gồm dữ liệu cũ chưa có id).
         var hasId = patientId is Guid;
         var hasName = !string.IsNullOrWhiteSpace(patientName);
         if (hasId && hasName)
-            q = q.Where(m => m.CourseId == patientId || m.PatientName == patientName);
+            q = q.Where(m => m.PatientId == patientId || m.PatientName == patientName);
         else if (hasId)
-            q = q.Where(m => m.CourseId == patientId);
+            q = q.Where(m => m.PatientId == patientId);
         else if (hasName)
             q = q.Where(m => m.PatientName == patientName);
 
