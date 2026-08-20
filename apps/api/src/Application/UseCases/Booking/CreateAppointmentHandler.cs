@@ -71,14 +71,14 @@ public class CreateAppointmentHandler(
         if (cooldownUntil.HasValue && cooldownUntil.Value > now)
         {
             var remaining = (int)Math.Ceiling((cooldownUntil.Value - now).TotalMinutes);
-            throw new ConflictException($"Bệnh nhân đang trong thời gian chờ sau khi đổi/hủy lịch. Vui lòng thử lại sau {remaining} phút.");
+            throw new ConflictException($"Bệnh nhân đang trong thời gian chờ sau khi hủy lịch. Vui lòng thử lại sau {remaining} phút.");
         }
 
-        // 2. Kiểm tra giới hạn tối đa 2 lịch hẹn đang hoạt động của tài khoản
-        var activeCount = await appointmentRepository.CountActiveAppointmentsForUserAsync(cmd.UserId, excludeAppointmentId: null, ct);
-        if (activeCount >= 2)
+        // 2. Kiểm tra mỗi bệnh nhân chỉ được có tối đa 1 lịch hẹn đang hoạt động
+        var hasActiveAppointmentForPatient = await appointmentRepository.HasActiveAppointmentForPatientAsync(targetPatientId, excludeAppointmentId: null, ct);
+        if (hasActiveAppointmentForPatient)
         {
-            throw new ConflictException("Tài khoản của bạn đã đạt giới hạn tối đa 2 lịch hẹn đang hoạt động. Vui lòng hoàn thành hoặc dời/hủy bớt lịch hẹn trước khi đặt thêm.");
+            throw new ConflictException("Bệnh nhân này đã có một lịch hẹn đang hoạt động. Vui lòng hoàn thành hoặc dời/hủy lịch hẹn hiện tại trước khi đặt lịch mới.");
         }
 
         var localDate = DateOnly.FromDateTime(cmd.AppointmentDate.UtcDateTime.AddHours(7));

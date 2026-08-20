@@ -437,16 +437,8 @@ class MyAppointmentItem {
     return now.isAfter(parsedDate) || now.isAtSameMomentAs(parsedDate);
   }
 
-  /// Đã quá 24 giờ kể từ thời điểm đặt lịch.
-  bool get isPast24HoursCreation {
-    final created = parsedCreatedAt;
-    if (created == null) return false;
-    final now = DateTime.now();
-    return now.difference(created).inHours >= 24;
-  }
-
-  /// Cho phép tự hủy/dời trong vòng 24 giờ kể từ thời điểm đặt lịch VÀ trước thời gian khám.
-  bool get canSelfManage => !isPastAppointmentDate && !isPast24HoursCreation;
+  /// Cho phép tự hủy/dời trước thời gian khám.
+  bool get canSelfManage => !isPastAppointmentDate;
 }
 
 class BookingEligibility {

@@ -788,7 +788,7 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
                         ],
                       ),
                     )
-                  else if (!item.canSelfManage)
+                  else if (item.isPastAppointmentDate)
                     Container(
                       width: double.infinity,
                       margin: const EdgeInsets.only(bottom: 12),
@@ -805,12 +805,8 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
                           Expanded(
                             child: Text(
                               isVi
-                                  ? (item.isPastAppointmentDate
-                                      ? 'Lịch khám đã đến hoặc đã qua giờ hẹn. Vui lòng liên hệ hotline để được hỗ trợ.'
-                                      : 'Đã quá 24h kể từ khi đặt lịch. Bấm Dời lịch hoặc Hủy lịch để gửi yêu cầu cho phòng khám xét duyệt.')
-                                  : (item.isPastAppointmentDate
-                                      ? 'Appointment time has arrived or passed. Please contact hotline for assistance.'
-                                      : 'More than 24h since booking. Tap Reschedule or Cancel to submit a request for clinic approval.'),
+                                  ? 'Lịch khám đã đến hoặc đã qua giờ hẹn. Vui lòng liên hệ hotline để được hỗ trợ.'
+                                  : 'Appointment time has arrived or passed. Please contact hotline for assistance.',
                               style: TextStyle(fontSize: 12, color: context.textSecondary, height: 1.3),
                             ),
                           ),
@@ -850,88 +846,33 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
                             height: 50,
                             child: OutlinedButton.icon(
                               onPressed: () async {
-                                final canReschedule = item.canSelfManage || _isRescheduleApproved;
-                                if (!canReschedule) {
-                                  if (item.isPastAppointmentDate) {
-                                    showDialog(
-                                      context: context,
-                                      builder: (ctx) => AlertDialog(
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                        title: Row(
-                                          children: [
-                                            const Icon(Icons.info_outline_rounded, color: AppColors.primary),
-                                            const SizedBox(width: 8),
-                                            Text(isVi ? 'Hỗ trợ đổi lịch' : 'Support Required', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                                          ],
-                                        ),
-                                        content: Text(
-                                          isVi
-                                              ? 'Lịch khám đã đến hoặc đã qua giờ hẹn. Bạn không thể tự đổi lịch trên ứng dụng.\n\nVui lòng liên hệ hotline phòng khám để được nhân viên hỗ trợ trực tiếp.'
-                                              : 'Appointment time has arrived or passed. You cannot reschedule in the app.\n\nPlease contact the clinic hotline for assistance.',
-                                          style: const TextStyle(fontSize: 14, height: 1.4),
-                                        ),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () => Navigator.pop(ctx),
-                                            child: Text(isVi ? 'Đóng' : 'Close'),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                    return;
-                                  }
-
-                                  // Sau 24h: Mở modal gửi yêu cầu dời lịch
-                                  showModalBottomSheet(
-                                    context: context,
-                                    isScrollControlled: true,
-                                    backgroundColor: Colors.transparent,
-                                    builder: (context) => _ChangeRequestBottomSheet(
-                                      appointmentId: item.appointmentId,
-                                      patientId: item.patientId,
-                                      dentistId: item.dentistId,
-                                      dentistName: item.dentistName,
-                                      currentAppointmentDate: item.parsedDate,
-                                      initialType: 'Reschedule',
-                                      isVi: isVi,
-                                      onRequestSubmitted: () => _loadPendingRequest(item.appointmentId),
-                                    ),
-                                  );
-                                  return;
-                                }
-
-                                if (item.rescheduledCount >= 1) {
-                                  final confirm = await showDialog<bool>(
+                                if (item.isPastAppointmentDate) {
+                                  showDialog(
                                     context: context,
                                     builder: (ctx) => AlertDialog(
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                                       title: Row(
                                         children: [
-                                          const Icon(Icons.warning_amber_rounded, color: Color(0xFFD97706)),
+                                          const Icon(Icons.info_outline_rounded, color: AppColors.primary),
                                           const SizedBox(width: 8),
-                                          Text(isVi ? 'Cảnh báo đổi lịch' : 'Reschedule Warning', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                          Text(isVi ? 'Hỗ trợ đổi lịch' : 'Support Required', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                                         ],
                                       ),
                                       content: Text(
                                         isVi
-                                            ? 'Đây là lần đổi lịch thứ ${item.rescheduledCount + 1}. Sau khi đổi lịch thành công, bệnh nhân này sẽ phải chờ 30 phút trước khi có thể đổi tiếp hoặc đặt lịch mới.\n\nBạn có chắc chắn muốn tiếp tục đổi lịch?'
-                                            : 'This is reschedule #${item.rescheduledCount + 1}. After rescheduling, this patient will have a 30-minute cooldown.\n\nAre you sure you want to proceed?',
+                                            ? 'Lịch khám đã đến hoặc đã qua giờ hẹn. Bạn không thể tự đổi lịch trên ứng dụng.\n\nVui lòng liên hệ hotline phòng khám để được nhân viên hỗ trợ trực tiếp.'
+                                            : 'Appointment time has arrived or passed. You cannot reschedule in the app.\n\nPlease contact the clinic hotline for assistance.',
                                         style: const TextStyle(fontSize: 14, height: 1.4),
                                       ),
                                       actions: [
                                         TextButton(
-                                          onPressed: () => Navigator.pop(ctx, false),
-                                          child: Text(isVi ? 'Hủy' : 'Cancel'),
-                                        ),
-                                        ElevatedButton(
-                                          onPressed: () => Navigator.pop(ctx, true),
-                                          style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
-                                          child: Text(isVi ? 'Tiếp tục' : 'Proceed'),
+                                          onPressed: () => Navigator.pop(ctx),
+                                          child: Text(isVi ? 'Đóng' : 'Close'),
                                         ),
                                       ],
                                     ),
                                   );
-                                  if (confirm != true) return;
+                                  return;
                                 }
 
                                 final parsedDate = item.parsedDate;
@@ -1003,50 +944,30 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
                             height: 50,
                             child: ElevatedButton.icon(
                               onPressed: () {
-                                if (!item.canSelfManage) {
-                                  if (item.isPastAppointmentDate) {
-                                    showDialog(
-                                      context: context,
-                                      builder: (ctx) => AlertDialog(
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                        title: Row(
-                                          children: [
-                                            const Icon(Icons.info_outline_rounded, color: AppColors.primary),
-                                            const SizedBox(width: 8),
-                                            Text(isVi ? 'Hỗ trợ hủy lịch' : 'Support Required', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                                          ],
-                                        ),
-                                        content: Text(
-                                          isVi
-                                              ? 'Lịch khám đã đến hoặc đã qua giờ hẹn. Bạn không thể tự hủy lịch trên ứng dụng.\n\nVui lòng liên hệ hotline phòng khám để được nhân viên hỗ trợ trực tiếp.'
-                                              : 'Appointment time has arrived or passed. You cannot cancel in the app.\n\nPlease contact the clinic hotline for assistance.',
-                                          style: const TextStyle(fontSize: 14, height: 1.4),
-                                        ),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () => Navigator.pop(ctx),
-                                            child: Text(isVi ? 'Đóng' : 'Close'),
-                                          ),
+                                if (item.isPastAppointmentDate) {
+                                  showDialog(
+                                    context: context,
+                                    builder: (ctx) => AlertDialog(
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                      title: Row(
+                                        children: [
+                                          const Icon(Icons.info_outline_rounded, color: AppColors.primary),
+                                          const SizedBox(width: 8),
+                                          Text(isVi ? 'Hỗ trợ hủy lịch' : 'Support Required', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                                         ],
                                       ),
-                                    );
-                                    return;
-                                  }
-
-                                  // Sau 24h: Mở modal gửi yêu cầu hủy lịch
-                                  showModalBottomSheet(
-                                    context: context,
-                                    isScrollControlled: true,
-                                    backgroundColor: Colors.transparent,
-                                    builder: (context) => _ChangeRequestBottomSheet(
-                                      appointmentId: item.appointmentId,
-                                      patientId: item.patientId,
-                                      dentistId: item.dentistId,
-                                      dentistName: item.dentistName,
-                                      currentAppointmentDate: item.parsedDate,
-                                      initialType: 'Cancel',
-                                      isVi: isVi,
-                                      onRequestSubmitted: () => _loadPendingRequest(item.appointmentId),
+                                      content: Text(
+                                        isVi
+                                            ? 'Lịch khám đã đến hoặc đã qua giờ hẹn. Bạn không thể tự hủy lịch trên ứng dụng.\n\nVui lòng liên hệ hotline phòng khám để được nhân viên hỗ trợ trực tiếp.'
+                                            : 'Appointment time has arrived or passed. You cannot cancel in the app.\n\nPlease contact the clinic hotline for assistance.',
+                                        style: const TextStyle(fontSize: 14, height: 1.4),
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(ctx),
+                                          child: Text(isVi ? 'Đóng' : 'Close'),
+                                        ),
+                                      ],
                                     ),
                                   );
                                   return;

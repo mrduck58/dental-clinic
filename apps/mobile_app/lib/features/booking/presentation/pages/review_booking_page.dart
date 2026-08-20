@@ -242,7 +242,7 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _onBack();
+        if (!didPop) _cancelBookingSession(isVi);
       },
       child: Scaffold(
         backgroundColor: context.bg,
@@ -250,7 +250,9 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
           title: d.isRescheduling
               ? (isVi ? 'Xác nhận đổi lịch' : 'Confirm Reschedule')
               : (isVi ? 'Xác nhận đặt khám' : 'Confirm Booking'),
-          onBack: _onBack,
+          showBack: false,
+          showHome: true,
+          onHome: () => _cancelBookingSession(isVi),
         ),
         body: Column(
           children: [
@@ -402,8 +404,8 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
                           Expanded(
                             child: Text(
                               isVi
-                                  ? 'Vui lòng đến trước 10-15 phút để làm thủ tục check-in. Bạn có thể hủy hoặc đổi lịch khám miễn phí trong 24 giờ kể từ khi đặt.'
-                                  : 'Please arrive 10-15 minutes early for check-in. You can cancel or reschedule freely within 24 hours of booking.',
+                                  ? 'Vui lòng đến trước 10-15 phút để làm thủ tục check-in. Bạn có thể tự do hủy hoặc đổi lịch khám trước giờ hẹn.'
+                                  : 'Please arrive 10-15 minutes early for check-in. You can cancel or reschedule freely before the appointment time.',
                               style: const TextStyle(
                                 fontSize: 12,
                                 color: Color(0xFF1E40AF),
@@ -435,60 +437,38 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
                   ),
                 ],
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : () => _confirm(isVi),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                      child: _isLoading
-                          ? const SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.5,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                              ),
-                            )
-                          : Text(
-                              d.isRescheduling
-                                  ? (isVi ? 'Xác nhận đổi lịch khám' : 'Confirm Reschedule')
-                                  : (isVi ? 'Xác nhận đặt khám' : 'Confirm Appointment'),
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
+              child: SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : () => _confirm(isVi),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 38,
-                    child: TextButton.icon(
-                      onPressed: _isLoading ? null : () => _cancelBookingSession(isVi),
-                      icon: const Icon(Icons.cancel_outlined, size: 16, color: Color(0xFFDC2626)),
-                      label: Text(
-                        isVi ? 'Hủy phiên đặt lịch & giải phóng ca khám' : 'Cancel booking and release slot',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFFDC2626),
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : Text(
+                          d.isRescheduling
+                              ? (isVi ? 'Xác nhận đổi lịch khám' : 'Confirm Reschedule')
+                              : (isVi ? 'Xác nhận đặt khám' : 'Confirm Appointment'),
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ],

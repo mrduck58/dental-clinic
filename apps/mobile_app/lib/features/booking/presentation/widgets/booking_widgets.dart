@@ -12,12 +12,16 @@ class BookingAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final VoidCallback? onBack;
   final bool showHome;
+  final bool showBack;
+  final VoidCallback? onHome;
 
   const BookingAppBar({
     super.key,
     required this.title,
     this.onBack,
     this.showHome = true,
+    this.showBack = true,
+    this.onHome,
   });
 
   @override
@@ -33,10 +37,13 @@ class BookingAppBar extends StatelessWidget implements PreferredSizeWidget {
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       scrolledUnderElevation: 0,
-      leading: GestureDetector(
-        onTap: onBack ?? () => Navigator.of(context).pop(),
-        child: Icon(Iconsax.arrow_left, color: iconColor, size: 28),
-      ),
+      automaticallyImplyLeading: false,
+      leading: showBack
+          ? GestureDetector(
+              onTap: onBack ?? () => Navigator.of(context).pop(),
+              child: Icon(Iconsax.arrow_left, color: iconColor, size: 28),
+            )
+          : null,
       title: Text(
         title,
         style: TextStyle(
@@ -49,7 +56,7 @@ class BookingAppBar extends StatelessWidget implements PreferredSizeWidget {
       actions: showHome
           ? [
               GestureDetector(
-                onTap: () => context.go(AppRoutes.home),
+                onTap: onHome ?? () => context.go(AppRoutes.home),
                 child: Padding(
                   padding: const EdgeInsets.only(right: 16),
                   child: Icon(Iconsax.home_2, color: iconColor, size: 28),
