@@ -232,7 +232,7 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                                           const Icon(Iconsax.clock, size: 12, color: AppColors.primary),
                                           const SizedBox(width: 4),
                                           Text(
-                                            '${widget.service.durationMinutes} phút',
+                                            widget.service.durationText,
                                             style: const TextStyle(
                                               fontSize: 11,
                                               fontWeight: FontWeight.w700,

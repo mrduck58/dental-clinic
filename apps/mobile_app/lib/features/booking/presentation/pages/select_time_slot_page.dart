@@ -7,6 +7,7 @@ import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/api_constants.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
+import 'package:mobile_app/core/utils/app_toast.dart';
 import 'package:mobile_app/features/booking/data/booking_models.dart';
 import 'package:mobile_app/features/booking/data/booking_service.dart';
 import 'package:mobile_app/features/booking/presentation/widgets/booking_widgets.dart';
@@ -345,17 +346,11 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
           timeSlot: _selectedSlot!.toTimeSlot(),
           holdExpiresAt: null,
         );
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              isVi
-                  ? 'Bạn đã hết lượt giữ chỗ tạm thời hôm nay. Bạn có thể tiếp tục xác nhận đặt lịch trực tiếp.'
-                  : 'Daily hold limit reached. You can proceed to confirm your booking directly without holding.',
-            ),
-            backgroundColor: const Color(0xFFF59E0B),
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 4),
-          ),
+        AppToast.showWarning(
+          context,
+          isVi
+              ? 'Bạn đã hết lượt giữ chỗ tạm thời hôm nay. Bạn có thể tiếp tục xác nhận đặt lịch trực tiếp.'
+              : 'Daily hold limit reached. You can proceed to confirm your booking directly without holding.',
         );
         context.push(AppRoutes.bookingReview, extra: updatedDraft);
         return;
@@ -507,6 +502,80 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
                             ),
                           ),
                         ),
+
+                        // ── Service & Estimate Time Badge ────────────────────
+                        if (widget.draft.service != null)
+                          SliverToBoxAdapter(
+                            child: Container(
+                              margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: context.isDark ? const Color(0xFF1E293B) : const Color(0xFFF0FDF4),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: context.isDark ? context.divider : const Color(0xFFBBF7D0),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
+                                      color: context.isDark ? const Color(0xFF064E3B) : const Color(0xFFDCFCE7),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(Iconsax.clock, size: 16, color: Color(0xFF16A34A)),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          widget.draft.service!.name,
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w700,
+                                            color: context.textPrimary,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Row(
+                                          children: [
+                                            Text(
+                                              isVi ? 'Thời lượng dự kiến: ' : 'Est. Duration: ',
+                                              style: TextStyle(fontSize: 11.5, color: context.textSecondary),
+                                            ),
+                                            Text(
+                                              widget.draft.service!.durationText.isNotEmpty
+                                                  ? widget.draft.service!.durationText
+                                                  : (isVi ? '~30 phút' : '~30 mins'),
+                                              style: const TextStyle(
+                                                fontSize: 11.5,
+                                                fontWeight: FontWeight.w700,
+                                                color: Color(0xFF16A34A),
+                                              ),
+                                            ),
+                                            if (widget.draft.service!.durationMinutes > 30) ...[
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                isVi
+                                                    ? '(${((widget.draft.service!.durationMinutes + 29) ~/ 30)} ca)'
+                                                    : '(${((widget.draft.service!.durationMinutes + 29) ~/ 30)} slots)',
+                                                style: TextStyle(fontSize: 11, color: context.textSecondary),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
 
                         // ── Hold Timer Banner (Realtime 5-minute countdown) ───
                         if (_selectedSlot != null && _holdRemainingSeconds > 0)

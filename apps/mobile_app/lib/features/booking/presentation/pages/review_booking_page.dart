@@ -7,6 +7,7 @@ import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:dio/dio.dart';
 import 'package:mobile_app/core/network/api_client.dart';
+import 'package:mobile_app/core/utils/app_toast.dart';
 import 'package:mobile_app/features/booking/data/booking_models.dart';
 import 'package:mobile_app/features/booking/data/booking_service.dart';
 import 'package:mobile_app/features/booking/presentation/widgets/booking_widgets.dart';
@@ -33,8 +34,6 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
 
   String _fmtDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
-
-  String? _submitError;
 
   @override
   void initState() {
@@ -92,7 +91,6 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
   Future<void> _confirm(bool isVi) async {
     setState(() {
       _isLoading = true;
-      _submitError = null;
     });
     try {
       final d = widget.draft;
@@ -139,27 +137,11 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
     } on DioException catch (e) {
       if (!mounted) return;
       final msg = ApiClient.errorMessage(e);
-      setState(() => _submitError = msg);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(msg),
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.fromLTRB(16, 0, 16, 110),
-          backgroundColor: const Color(0xFFEF4444),
-        ),
-      );
+      AppToast.showError(context, msg);
     } catch (e) {
       if (!mounted) return;
       final msg = isVi ? 'Đặt lịch thất bại. Vui lòng thử lại.' : 'Booking failed. Please try again.';
-      setState(() => _submitError = msg);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(msg),
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.fromLTRB(16, 0, 16, 110),
-          backgroundColor: const Color(0xFFEF4444),
-        ),
-      );
+      AppToast.showError(context, msg);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -221,7 +203,9 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
                           _InfoRow(
                             icon: Iconsax.health,
                             label: isVi ? 'Dịch vụ' : 'Service',
-                            value: d.service?.name ?? (isVi ? 'Khám tổng quát' : 'General check-up'),
+                            value: d.service!.durationText.isNotEmpty
+                                ? '${d.service!.name} (${d.service!.durationText})'
+                                : (d.service?.name ?? (isVi ? 'Khám tổng quát' : 'General check-up')),
                             onEdit: () => context.push(AppRoutes.bookingSelectService, extra: d),
                           ),
                         if (d.date != null)
@@ -360,22 +344,10 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
                 ),
               ],
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (_submitError != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Text(
-                      _submitError!,
-                      style: const TextStyle(color: Color(0xFFEF4444), fontSize: 12),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
+            child: SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
                     onPressed: _isLoading ? null : () => _confirm(isVi),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
@@ -404,8 +376,6 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
                             ),
                           ),
                   ),
-                ),
-              ],
             ),
           ),
         ],
