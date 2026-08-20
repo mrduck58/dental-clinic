@@ -890,13 +890,13 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
                                   title: '',
                                   specialty: item.specialization,
                                   room: '',
+                                  session: parsedDate.hour < 12 ? DoctorSession.morning : DoctorSession.afternoon,
                                   rating: 5.0,
                                   reviewCount: 0,
-                                  isAvailable: true,
+                                  avatarUrl: item.dentistAvatarUrl,
                                 );
 
                                 final draft = BookingDraft(
-                                  isRescheduling: true,
                                   reschedulingAppointmentId: item.appointmentId,
                                   appointmentCode: item.appointmentCode,
                                   preferredDentistId: item.dentistId,
