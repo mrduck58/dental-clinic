@@ -501,3 +501,62 @@ class ApiAppointmentResult {
       );
 }
 
+class AppointmentChangeRequestItem {
+  final String id;
+  final String appointmentId;
+  final String type; // "Cancel" or "Reschedule"
+  final String status; // "Pending", "Approved", "Rejected"
+  final String reason;
+  final DateTime? desiredDate;
+  final String? desiredTimeSlot;
+  final String? desiredDentistId;
+  final String? desiredDentistName;
+  final String? staffNote;
+  final DateTime createdAt;
+  final DateTime? processedAt;
+
+  const AppointmentChangeRequestItem({
+    required this.id,
+    required this.appointmentId,
+    required this.type,
+    required this.status,
+    required this.reason,
+    this.desiredDate,
+    this.desiredTimeSlot,
+    this.desiredDentistId,
+    this.desiredDentistName,
+    this.staffNote,
+    required this.createdAt,
+    this.processedAt,
+  });
+
+  factory AppointmentChangeRequestItem.fromJson(Map<String, dynamic> json) =>
+      AppointmentChangeRequestItem(
+        id: json['id'] as String,
+        appointmentId: json['appointmentId'] as String,
+        type: json['type'] as String? ?? 'Cancel',
+        status: json['status'] as String? ?? 'Pending',
+        reason: json['reason'] as String? ?? '',
+        desiredDate: json['desiredDate'] != null
+            ? DateTime.parse(json['desiredDate'] as String).toLocal()
+            : null,
+        desiredTimeSlot: json['desiredTimeSlot'] as String?,
+        desiredDentistId: json['desiredDentistId'] as String?,
+        desiredDentistName: json['desiredDentistName'] as String?,
+        staffNote: json['staffNote'] as String?,
+        createdAt: json['createdAt'] != null
+            ? DateTime.parse(json['createdAt'] as String).toLocal()
+            : DateTime.now(),
+        processedAt: json['processedAt'] != null
+            ? DateTime.parse(json['processedAt'] as String).toLocal()
+            : null,
+      );
+
+  bool get isPending => status.toLowerCase() == 'pending';
+  bool get isApproved => status.toLowerCase() == 'approved';
+  bool get isRejected => status.toLowerCase() == 'rejected';
+  bool get isCancel => type.toLowerCase() == 'cancel';
+  bool get isReschedule => type.toLowerCase() == 'reschedule';
+}
+
+

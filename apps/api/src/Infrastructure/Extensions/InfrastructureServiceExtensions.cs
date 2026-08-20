@@ -79,6 +79,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IInvoiceRepository, InvoiceRepository>();
         services.AddScoped<IPaymentTransactionRepository, PaymentTransactionRepository>();
         services.AddScoped<ISlotHoldRepository, SlotHoldRepository>();
+        services.AddScoped<IAppointmentChangeRequestRepository, AppointmentChangeRequestRepository>();
         services.AddHostedService<SlotHoldCleanupService>();
         // AppDbContext đã implement IUnitOfWork — resolve về ĐÚNG instance scoped của request này
         // (không tạo DbContext mới) để các repository stage thay đổi và unit of work chốt lưu chung 1 lần.

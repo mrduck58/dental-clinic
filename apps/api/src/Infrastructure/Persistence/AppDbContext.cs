@@ -51,6 +51,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<CommissionRule> CommissionRules => Set<CommissionRule>();
     public DbSet<UserDeviceToken> UserDeviceTokens => Set<UserDeviceToken>();
     public DbSet<AppointmentSlotHold> AppointmentSlotHolds => Set<AppointmentSlotHold>();
+    public DbSet<AppointmentChangeRequest> AppointmentChangeRequests => Set<AppointmentChangeRequest>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
