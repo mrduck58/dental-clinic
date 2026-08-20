@@ -317,9 +317,9 @@ class _DentistProfilePageState extends State<DentistProfilePage> {
                         draft = activeDraft.copyWith(
                           doctor: doctorInfo,
                           preferredDentistId: doc.id,
-                          date: null,
-                          timeSlot: null,
-                          holdExpiresAt: null,
+                          clearDate: true,
+                          clearTimeSlot: true,
+                          clearHold: true,
                         );
                       }
                     } else {
@@ -331,6 +331,10 @@ class _DentistProfilePageState extends State<DentistProfilePage> {
 
                     if (draft.isHoldActive && draft.isComplete) {
                       context.push(AppRoutes.bookingReview, extra: draft);
+                    } else if (draft.patient != null && draft.service != null) {
+                      context.push(AppRoutes.bookingSelectDatetime, extra: draft);
+                    } else if (draft.patient != null) {
+                      context.push(AppRoutes.bookingSelectService, extra: draft);
                     } else {
                       context.push(AppRoutes.bookingSelectPatient, extra: draft);
                     }

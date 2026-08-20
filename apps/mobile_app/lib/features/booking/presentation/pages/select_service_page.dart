@@ -70,8 +70,8 @@ class _SelectServicePageState extends State<SelectServicePage> {
     // Khi chọn/đổi dịch vụ (có thể khác thời lượng khám), xóa slot cũ để người dùng chọn lại ca khám phù hợp
     final updatedDraft = widget.draft.copyWith(
       service: service,
-      timeSlot: null,
-      holdExpiresAt: null,
+      clearTimeSlot: true,
+      clearHold: true,
     );
 
     if (updatedDraft.doctor != null) {
