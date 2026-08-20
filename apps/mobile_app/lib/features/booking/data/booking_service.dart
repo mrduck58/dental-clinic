@@ -333,6 +333,55 @@ class BookingService {
       token: token,
     );
   }
+
+  /// Gửi yêu cầu thay đổi lịch hẹn (Hủy hoặc Dời lịch sau 24h)
+  Future<void> submitChangeRequest({
+    required String appointmentId,
+    required String type, // "Cancel" or "Reschedule"
+    required String reason,
+    DateTime? desiredDate,
+    String? desiredTimeSlot,
+    String? desiredDentistId,
+  }) async {
+    final token = await _auth.getToken();
+    if (token == null) throw Exception('Chưa đăng nhập.');
+
+    final body = <String, dynamic>{
+      'type': type,
+      'reason': reason.trim(),
+    };
+    if (desiredDate != null) {
+      body['desiredDate'] = desiredDate.toUtc().toIso8601String();
+    }
+    if (desiredTimeSlot != null && desiredTimeSlot.isNotEmpty) {
+      body['desiredTimeSlot'] = desiredTimeSlot;
+    }
+    if (desiredDentistId != null && desiredDentistId.isNotEmpty) {
+      body['desiredDentistId'] = desiredDentistId;
+    }
+
+    await _client.post(
+      '${ApiConstants.appointments}/$appointmentId/change-request',
+      body,
+      token: token,
+    );
+  }
+
+  /// Lấy danh sách các yêu cầu thay đổi của lịch hẹn
+  Future<List<AppointmentChangeRequestItem>> getAppointmentChangeRequests(String appointmentId) async {
+    final token = await _auth.getToken();
+    if (token == null) throw Exception('Chưa đăng nhập.');
+
+    final res = await _client.get(
+      '${ApiConstants.appointments}/$appointmentId/change-requests',
+      token: token,
+    );
+
+    final list = res.data as List<dynamic>;
+    return list
+        .map((e) => AppointmentChangeRequestItem.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
 }
 
 /// Một lựa chọn lý do hủy do backend cung cấp.

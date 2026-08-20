@@ -11,8 +11,12 @@ import {
   confirmAppointmentApi,
   cancelAppointmentApi,
   getCancellationReasonsApi,
+  getStaffAppointmentChangeRequestsApi,
+  approveAppointmentChangeRequestApi,
+  rejectAppointmentChangeRequestApi,
   type StaffAppointmentDto,
   type CancellationReasonOption,
+  type AppointmentChangeRequestDto,
 } from "../../../lib/apiClient";
 import { supabase } from "../../../lib/supabaseClient";
 import { SHIFT_PERIODS, periodOfTime, type ShiftPeriod } from "../../../lib/shifts";
@@ -86,19 +90,19 @@ function DateFilterBar({
 type ProcessedEntry = { appt: StaffAppointmentDto; action: "confirmed" | "cancelled" };
 
 function OnlineTab() {
-  const [pending,    setPending]    = useState<StaffAppointmentDto[]>([]);
-  const [processed,  setProcessed]  = useState<ProcessedEntry[]>([]);
-  const [loadingId,  setLoadingId]  = useState<string | null>(null);
-  const [error,      setError]      = useState<string | null>(null);
-  const [expanding,  setExpanding]  = useState<string | null>(null);
-  const [rejectTarget, setRejectTarget] = useState<string | null>(null);
-  const [rejectReason, setRejectReason] = useState("");
-  // Lịch đang mở hộp thoại đổi giờ. Giữ cả bản ghi (không chỉ id) để modal hiện được giờ hẹn cũ
-  // ngay cả khi danh sách vừa được tải lại và bản ghi đã rời khỏi `pending`.
+  const [pending,        setPending]        = useState<StaffAppointmentDto[]>([]);
+  const [changeRequests, setChangeRequests] = useState<AppointmentChangeRequestDto[]>([]);
+  const [processed,      setProcessed]      = useState<ProcessedEntry[]>([]);
+  const [loadingId,      setLoadingId]      = useState<string | null>(null);
+  const [loadingChangeReqId, setLoadingChangeReqId] = useState<string | null>(null);
+  const [error,          setError]          = useState<string | null>(null);
+  const [expanding,      setExpanding]      = useState<string | null>(null);
+  const [rejectTarget,   setRejectTarget]   = useState<string | null>(null);
+  const [rejectReason,   setRejectReason]   = useState("");
+  const [rejectChangeReqTarget, setRejectChangeReqTarget] = useState<string | null>(null);
+  const [rejectChangeReqNote,   setRejectChangeReqNote]   = useState("");
   const [reschedulingAppt, setReschedulingAppt] = useState<StaffAppointmentDto | null>(null);
-  // "" = tất cả ngày (mặc định).
   const [dateFilter, setDateFilter] = useState("");
-  // Nhóm lý do lấy từ server (không hardcode) — nhờ đó thống kê "vì sao lịch bị hủy" mới gom được.
   const [reasonOptions, setReasonOptions] = useState<CancellationReasonOption[]>([]);
   const [reasonCode, setReasonCode] = useState("");
   const { toast, showToast } = useToast();
@@ -119,8 +123,12 @@ function OnlineTab() {
 
   const load = useCallback(async () => {
     try {
-      const data = await getStaffAppointmentsApi({ status: "Pending", date: dateFilter || undefined });
-      setPending(data);
+      const [apptData, reqData] = await Promise.all([
+        getStaffAppointmentsApi({ status: "Pending", date: dateFilter || undefined }),
+        getStaffAppointmentChangeRequestsApi({ status: "Pending", date: dateFilter || undefined }),
+      ]);
+      setPending(apptData);
+      setChangeRequests(reqData);
     } catch {
       setError("Không thể tải danh sách đặt lịch.");
     }
@@ -131,6 +139,9 @@ function OnlineTab() {
     const channel = supabase
       .channel("staff-online-tab")
       .on("postgres_changes", { event: "*", schema: "public", table: "Appointments" }, () => {
+        void load();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "AppointmentChangeRequests" }, () => {
         void load();
       })
       .subscribe();
@@ -146,8 +157,6 @@ function OnlineTab() {
       setExpanding(null);
       showToast("Đã xác nhận lịch hẹn và thông báo cho bệnh nhân.");
     } catch (e) {
-      // Hiện đúng thông điệp server trả về (trạng thái không hợp lệ, lịch đã bị hủy...) thay vì
-      // câu chung chung — người dùng cần biết vì sao mới biết làm gì tiếp.
       showToast(e instanceof Error ? e.message : "Xác nhận thất bại. Vui lòng thử lại.", "error");
     } finally {
       setLoadingId(null);
@@ -155,8 +164,6 @@ function OnlineTab() {
   };
 
   const doCancel = async (appt: StaffAppointmentDto) => {
-    // Nút đã bị vô hiệu hóa khi chưa hợp lệ nên nhánh này không tới được từ UI — giữ lại làm chốt
-    // chặn nếu sau này nút được bật ở nơi khác, và để hàm an toàn khi gọi trực tiếp.
     if (!canSubmitCancel) return;
 
     setLoadingId(appt.appointmentId);
@@ -168,11 +175,42 @@ function OnlineTab() {
       setRejectReason("");
       showToast("Đã từ chối lịch hẹn và thông báo cho bệnh nhân.");
     } catch (e) {
-      // Hiển thị đúng thông điệp của server (trạng thái không hủy được, đã hủy rồi...) thay vì
-      // câu chung chung — người dùng cần biết vì sao mới biết phải làm gì tiếp.
       showToast(e instanceof Error ? e.message : "Hủy lịch thất bại. Vui lòng thử lại.", "error");
     } finally {
       setLoadingId(null);
+    }
+  };
+
+  const doApproveChangeRequest = async (req: AppointmentChangeRequestDto) => {
+    setLoadingChangeReqId(req.id);
+    try {
+      await approveAppointmentChangeRequestApi(req.id);
+      setChangeRequests(prev => prev.filter(r => r.id !== req.id));
+      showToast(`Đã duyệt yêu cầu ${req.type === "Cancel" ? "hủy" : "dời"} lịch của ${req.patientName}.`);
+      void load();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Duyệt yêu cầu thất bại.", "error");
+    } finally {
+      setLoadingChangeReqId(null);
+    }
+  };
+
+  const doRejectChangeRequest = async (req: AppointmentChangeRequestDto) => {
+    if (!rejectChangeReqNote.trim()) {
+      showToast("Vui lòng nhập lý do từ chối.", "error");
+      return;
+    }
+    setLoadingChangeReqId(req.id);
+    try {
+      await rejectAppointmentChangeRequestApi(req.id, rejectChangeReqNote.trim());
+      setChangeRequests(prev => prev.filter(r => r.id !== req.id));
+      setRejectChangeReqTarget(null);
+      setRejectChangeReqNote("");
+      showToast(`Đã từ chối yêu cầu của ${req.patientName}.`);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Từ chối yêu cầu thất bại.", "error");
+    } finally {
+      setLoadingChangeReqId(null);
     }
   };
 
@@ -191,6 +229,8 @@ function OnlineTab() {
       <button onClick={load} className="px-4 py-2 text-[13px] font-bold bg-primary text-white rounded-xl cursor-pointer">Thử lại</button>
     </div>
   );
+
+  const totalActionsCount = pending.length + changeRequests.length;
 
   return (
     <div className="flex flex-col gap-6">
@@ -213,8 +253,133 @@ function OnlineTab() {
       <DateFilterBar
         value={dateFilter}
         onChange={setDateFilter}
-        countLabel={`${pending.length} đơn chờ xác nhận`}
+        countLabel={`${totalActionsCount} mục cần xử lý`}
       />
+
+      {/* Yêu cầu thay đổi lịch (Hủy / Dời sau 24h) */}
+      {changeRequests.length > 0 && (
+        <div className="flex flex-col gap-3">
+          <SectionHeader
+            icon="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"
+            label="Yêu cầu thay đổi lịch (Hủy / Dời sau 24h)"
+            count={changeRequests.length}
+          />
+          {changeRequests.map(req => {
+            const isLoading = loadingChangeReqId === req.id;
+            const isRejecting = rejectChangeReqTarget === req.id;
+            const initials = req.patientName.trim().split(/\s+/).slice(-2).map(w => w[0]).join("").toUpperCase();
+            const isCancel = req.type === "Cancel";
+
+            return (
+              <div key={req.id} className="bg-white rounded-2xl border border-amber-200/80 shadow-sm overflow-hidden ring-1 ring-amber-400/20">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 p-4 sm:px-6 sm:py-5">
+                  <div className="flex items-start gap-3 sm:gap-4 flex-1 min-w-0">
+                    <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center font-black text-[13px] shrink-0 ${
+                      isCancel ? "bg-rose-50 border border-rose-100 text-rose-700" : "bg-indigo-50 border border-indigo-100 text-indigo-700"
+                    }`}>
+                      {initials}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[15px] font-black text-slate-900">{req.patientName}</span>
+                        {req.patientPhone && <span className="text-[12px] font-medium text-slate-400 font-mono">{req.patientPhone}</span>}
+                        {isCancel ? (
+                          <span className="px-2.5 py-0.5 bg-rose-50 text-rose-700 border border-rose-200 rounded-full text-[11.5px] font-black flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                            Yêu cầu hủy lịch
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full text-[11.5px] font-black flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                            Yêu cầu dời lịch
+                          </span>
+                        )}
+                        <span className="text-[11px] text-slate-400 font-mono">#{req.appointmentCode}</span>
+                      </div>
+
+                      {/* Lịch cũ */}
+                      <div className="flex items-center gap-2 mt-1.5 text-[12.5px] sm:text-[13px] text-slate-500 font-semibold flex-wrap">
+                        <span>Lịch hiện tại: <strong className="text-slate-700">{fmtDate(req.currentAppointmentDate)}</strong> lúc <strong className="text-slate-700">{fmtTime(req.currentAppointmentDate)}</strong> · {req.currentDentistName}</span>
+                        <span className="text-slate-300 hidden sm:inline">·</span>
+                        <span className="text-slate-400 text-[11.5px] sm:text-[12px]">Gửi lúc {fmtDate(req.createdAt)} {fmtTime(req.createdAt)}</span>
+                      </div>
+
+                      {/* Lịch mới nếu là dời */}
+                      {!isCancel && req.desiredDate && (
+                        <div className="mt-2 flex items-center gap-2 text-[12.5px] sm:text-[13px] text-indigo-700 bg-indigo-50/80 border border-indigo-100 px-3 py-1.5 rounded-xl font-bold w-fit flex-wrap">
+                          <svg className="w-4 h-4 text-indigo-500 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                          </svg>
+                          <span>Dời sang: <strong className="text-indigo-900">{fmtDate(req.desiredDate.toString())}</strong> lúc <strong className="text-indigo-900">{req.desiredTimeSlot || fmtTime(req.desiredDate.toString())}</strong></span>
+                          {req.desiredDentistName && <span>· BS: <strong className="text-indigo-900">{req.desiredDentistName}</strong></span>}
+                        </div>
+                      )}
+
+                      {/* Lý do bệnh nhân gửi */}
+                      <div className="mt-2 flex items-start gap-1.5 text-[12px] sm:text-[12.5px] text-amber-900 bg-amber-50/90 border border-amber-200/70 px-3 py-1.5 rounded-xl font-medium w-fit">
+                        <svg className="w-3.5 h-3.5 mt-0.5 shrink-0 text-amber-600" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
+                        </svg>
+                        <span>Lý do bệnh nhân: <strong className="text-amber-950 font-semibold">{req.reason}</strong></span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0 border-t sm:border-t-0 pt-3 sm:pt-0 border-slate-100 w-full sm:w-auto justify-end">
+                    <button
+                      disabled={isLoading}
+                      onClick={() => doApproveChangeRequest(req)}
+                      className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2.5 sm:py-2 rounded-xl text-[13px] font-bold cursor-pointer transition-all border disabled:opacity-50 whitespace-nowrap bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 shadow-sm">
+                      {isLoading ? (
+                        <span className="w-4 h-4 border-2 border-emerald-600/40 border-t-emerald-600 rounded-full animate-spin" />
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                      )}
+                      Duyệt
+                    </button>
+                    <button
+                      disabled={isLoading}
+                      onClick={() => isRejecting ? setRejectChangeReqTarget(null) : (setRejectChangeReqTarget(req.id), setRejectChangeReqNote(""))}
+                      className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2.5 sm:py-2 rounded-xl text-[13px] font-bold cursor-pointer transition-all border disabled:opacity-50 whitespace-nowrap ${
+                        isRejecting ? "bg-slate-700 text-white border-slate-700" : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200"
+                      }`}>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                      Từ chối
+                    </button>
+                  </div>
+                </div>
+
+                {/* Reject box for Change Request */}
+                {isRejecting && (
+                  <div className="border-t border-amber-100 bg-amber-50/40 px-4 sm:px-6 py-4">
+                    <p className="text-[12.5px] font-extrabold text-slate-600 uppercase tracking-wider mb-2">Lý do từ chối yêu cầu</p>
+                    <textarea
+                      value={rejectChangeReqNote}
+                      onChange={e => setRejectChangeReqNote(e.target.value)}
+                      rows={2}
+                      placeholder="Nêu rõ lý do từ chối để bệnh nhân nhận được thông báo cụ thể..."
+                      className="w-full px-4 py-2.5 text-[13px] bg-white border border-slate-200 rounded-xl focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-semibold text-slate-700 placeholder:text-slate-400 resize-none mb-3"
+                    />
+                    <div className="flex gap-2.5">
+                      <button
+                        onClick={() => doRejectChangeRequest(req)}
+                        disabled={isLoading || !rejectChangeReqNote.trim()}
+                        className="px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white rounded-xl text-[12.5px] font-black cursor-pointer transition-all shadow-sm">
+                        Xác nhận từ chối
+                      </button>
+                      <button
+                        onClick={() => setRejectChangeReqTarget(null)}
+                        className="px-4 py-2 bg-white text-slate-500 border border-slate-200 rounded-xl text-[12.5px] font-bold cursor-pointer hover:bg-slate-50 transition-all">
+                        Huỷ
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Pending */}
       {pending.length > 0 && (
@@ -268,9 +433,6 @@ function OnlineTab() {
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
                       Xác nhận
                     </button>
-                    {/* Bệnh nhân gửi giờ mong muốn, không phải giờ chốt: lễ tân thường phải kê lại
-                        cho khớp ca bác sĩ. Không có nút này thì cách duy nhất là từ chối rồi bảo
-                        bệnh nhân đặt lại — mất đơn vì một việc lẽ ra sửa tại chỗ. */}
                     <button disabled={isLoading}
                       onClick={() => { setReschedulingAppt(appt); setExpanding(null); setRejectTarget(null); }}
                       className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2.5 sm:py-2 rounded-xl text-[13px] font-bold cursor-pointer transition-all border disabled:opacity-50 whitespace-nowrap bg-sky-50 text-sky-700 border-sky-200 hover:bg-sky-100">
@@ -323,8 +485,6 @@ function OnlineTab() {
                         ? "Nêu rõ lý do để bệnh nhân được biết"
                         : "Ghi chú thêm (không bắt buộc)"}
                       className="w-full px-4 py-3 text-[13.5px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-semibold text-slate-700 placeholder:text-slate-400 resize-none mb-3" />
-                    {/* Nút bị vô hiệu hóa phải nói được VÌ SAO, không thì người dùng chỉ thấy nút xám
-                        và không biết còn thiếu gì. */}
                     {missingNote && (
                       <p className="text-[12.5px] font-bold text-amber-600 mb-3">
                         Chọn &ldquo;Lý do khác&rdquo; thì cần ghi rõ nội dung để bệnh nhân hiểu.
@@ -389,7 +549,7 @@ function OnlineTab() {
         </div>
       )}
 
-      {pending.length === 0 && processed.length === 0 && (
+      {pending.length === 0 && changeRequests.length === 0 && processed.length === 0 && (
         <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm flex flex-col items-center gap-3 py-20">
           <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center">
             <svg className="w-7 h-7 text-slate-400" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" /></svg>
@@ -397,7 +557,7 @@ function OnlineTab() {
           <p className="text-[14px] font-bold text-slate-500">
             {dateFilter
               ? `Không có đơn nào hẹn ngày ${dateFilter.split("-").reverse().join("/")}.`
-              : "Không có đơn đặt lịch nào đang chờ."}
+              : "Không có đơn đặt lịch hay yêu cầu thay đổi nào đang chờ."}
           </p>
           {dateFilter && (
             <button onClick={() => setDateFilter("")}
@@ -598,7 +758,10 @@ export default function AppointmentsPage() {
 
     const reload = () => {
       void getStaffAppointmentsApi({ date: dateStr }).then(data => setTodayAppts(data));
-      void getStaffAppointmentsApi({ status: "Pending" }).then(data => setPendingCount(data.length));
+      void Promise.all([
+        getStaffAppointmentsApi({ status: "Pending" }),
+        getStaffAppointmentChangeRequestsApi({ status: "Pending" }),
+      ]).then(([appts, reqs]) => setPendingCount(appts.length + reqs.length));
     };
 
     reload();
@@ -606,6 +769,7 @@ export default function AppointmentsPage() {
     const channel = supabase
       .channel("staff-page-header")
       .on("postgres_changes", { event: "*", schema: "public", table: "Appointments" }, reload)
+      .on("postgres_changes", { event: "*", schema: "public", table: "AppointmentChangeRequests" }, reload)
       .subscribe();
 
     return () => { void supabase.removeChannel(channel); };
