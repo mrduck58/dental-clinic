@@ -13,6 +13,26 @@ class BookingService {
   final _client = ApiClient();
   final _auth = AuthService();
 
+  BookingDraft? _activeDraft;
+
+  /// Lấy bản nháp đang giữ chỗ nếu còn hạn thời gian
+  BookingDraft? get activeDraft {
+    if (_activeDraft != null) {
+      if (_activeDraft!.holdExpiresAt != null && _activeDraft!.holdExpiresAt!.isBefore(DateTime.now())) {
+        _activeDraft = null;
+      }
+    }
+    return _activeDraft;
+  }
+
+  void setActiveDraft(BookingDraft? draft) {
+    _activeDraft = draft;
+  }
+
+  void clearActiveDraft() {
+    _activeDraft = null;
+  }
+
   /// Lấy danh sách dịch vụ đang hoạt động cho luồng đặt khám.
   Future<List<ServiceModel>> getActiveServices() async {
     final res = await _client.get(
@@ -25,13 +45,21 @@ class BookingService {
         .toList();
   }
 
+  /// Lấy thông tin chi tiết của một dịch vụ kèm danh sách options.
+  Future<ServiceModel> getServiceById(String serviceId) async {
+    final res = await _client.get('${ApiConstants.services}/$serviceId');
+    return ServiceModel.fromJson(res.data as Map<String, dynamic>);
+  }
+
   /// Lấy danh sách nha sĩ kèm slot khả dụng cho một ngày cụ thể.
   Future<List<ApiDoctorWithSlots>> getDoctorsWithSlots(DateTime date) async {
     final dateStr =
         '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    final token = await _auth.getToken();
     final res = await _client.get(
       ApiConstants.dentistSlots,
       queryParameters: {'date': dateStr},
+      token: token,
     );
     final list = res.data as List<dynamic>;
     return list
@@ -43,14 +71,141 @@ class BookingService {
   Future<Set<String>> getWorkingDatesForDentist(String dentistId, int year, int month) async {
     try {
       final res = await _client.get(
-        '/api/dentists/$dentistId/working-dates',
+        ApiConstants.dentistWorkingDates(dentistId),
         queryParameters: {'year': year, 'month': month},
       );
       if (res.data is List) {
         return (res.data as List<dynamic>).map((e) => e.toString()).toSet();
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('BookingService: getWorkingDatesForDentist error: $e');
+    }
     return {};
+  }
+
+  /// Lấy thông tin điều kiện đặt lịch / hủy lịch / đổi lịch và trạng thái cooldown
+  Future<BookingEligibility> getBookingEligibility({String? patientId}) async {
+    final token = await _auth.getToken();
+    if (token == null) throw Exception('Chưa đăng nhập.');
+    try {
+      final res = await _client.get(
+        ApiConstants.bookingEligibility,
+        queryParameters: patientId != null ? {'patientId': patientId} : null,
+        token: token,
+      );
+      return BookingEligibility.fromJson(res.data as Map<String, dynamic>);
+    } catch (e) {
+      debugPrint('BookingService: getBookingEligibility error: $e');
+      return const BookingEligibility(
+        activeBookingCount: 0,
+        maxActiveBookings: 2,
+        canBookNew: true,
+        isInCooldown: false,
+        cooldownRemainingSeconds: 0,
+        cancellationCount: 0,
+        rescheduleCount: 0,
+      );
+    }
+  }
+
+  /// Giữ tạm thời một ca khám trong tối đa 5 phút
+  Future<SlotHoldResult> holdSlot({
+    required String patientId,
+    required String dentistId,
+    required DateTime date,
+    required String timeSlot,
+    String? serviceId,
+    String? reschedulingAppointmentId,
+  }) async {
+    final token = await _auth.getToken();
+    if (token == null) throw Exception('Chưa đăng nhập.');
+
+    final dateStr =
+        '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+
+    final body = <String, dynamic>{
+      'dentistId': dentistId,
+      'date': dateStr,
+      'timeSlot': timeSlot,
+    };
+    if (patientId.isNotEmpty && patientId != 'self') {
+      body['patientId'] = patientId;
+    }
+    if (serviceId != null && serviceId.isNotEmpty) {
+      body['serviceId'] = serviceId;
+    }
+    if (reschedulingAppointmentId != null && reschedulingAppointmentId.isNotEmpty) {
+      body['reschedulingAppointmentId'] = reschedulingAppointmentId;
+    }
+
+    final res = await _client.post(
+      ApiConstants.holdSlot,
+      body,
+      token: token,
+    );
+
+    return SlotHoldResult.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  /// Giải phóng ca khám đang giữ tạm
+  Future<bool> releaseHold({
+    required String patientId,
+    required String dentistId,
+    required DateTime date,
+    required String timeSlot,
+  }) async {
+    final token = await _auth.getToken();
+    if (token == null) return false;
+
+    try {
+      final dateStr =
+          '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+
+      final body = <String, dynamic>{
+        'dentistId': dentistId,
+        'date': dateStr,
+        'timeSlot': timeSlot,
+      };
+      if (patientId.isNotEmpty && patientId != 'self') {
+        body['patientId'] = patientId;
+      }
+
+      final res = await _client.post(
+        ApiConstants.releaseHold,
+        body,
+        token: token,
+      );
+
+      return (res.data as Map<String, dynamic>?)?['success'] as bool? ?? true;
+    } catch (e) {
+      debugPrint('BookingService: releaseHold error: $e');
+      return false;
+    }
+  }
+
+  /// Lấy ca khám đang giữ tạm hiện tại của bệnh nhân
+  Future<SlotHoldResult?> getActiveHold({required String patientId}) async {
+    final token = await _auth.getToken();
+    if (token == null) return null;
+
+    try {
+      final query = <String, dynamic>{};
+      if (patientId.isNotEmpty && patientId != 'self') {
+        query['patientId'] = patientId;
+      }
+
+      final res = await _client.get(
+        ApiConstants.activeHold,
+        queryParameters: query.isNotEmpty ? query : null,
+        token: token,
+      );
+
+      if (res.data == null) return null;
+      return SlotHoldResult.fromJson(res.data as Map<String, dynamic>);
+    } catch (e) {
+      debugPrint('BookingService: getActiveHold error: $e');
+      return null;
+    }
   }
 
   /// Lấy danh sách lịch hẹn của bệnh nhân hiện tại.
@@ -95,10 +250,12 @@ class BookingService {
     final body = <String, dynamic>{
       'dentistId': dentistId,
       'appointmentDate': isoDate,
-      'symptoms': effectiveSymptoms,
-      'serviceId': serviceId,
-      'patientId': patientId,
     };
+    if (effectiveSymptoms != null) body['symptoms'] = effectiveSymptoms;
+    if (serviceId != null && serviceId.isNotEmpty) body['serviceId'] = serviceId;
+    if (patientId != null && patientId.isNotEmpty && patientId != 'self') {
+      body['patientId'] = patientId;
+    }
 
     // Diagnostics print
     debugPrint('BookingService: Sending POST request to ${ApiConstants.appointments}');
@@ -175,6 +332,55 @@ class BookingService {
       },
       token: token,
     );
+  }
+
+  /// Gửi yêu cầu thay đổi lịch hẹn (Hủy hoặc Dời lịch sau 24h)
+  Future<void> submitChangeRequest({
+    required String appointmentId,
+    required String type, // "Cancel" or "Reschedule"
+    required String reason,
+    DateTime? desiredDate,
+    String? desiredTimeSlot,
+    String? desiredDentistId,
+  }) async {
+    final token = await _auth.getToken();
+    if (token == null) throw Exception('Chưa đăng nhập.');
+
+    final body = <String, dynamic>{
+      'type': type,
+      'reason': reason.trim(),
+    };
+    if (desiredDate != null) {
+      body['desiredDate'] = desiredDate.toUtc().toIso8601String();
+    }
+    if (desiredTimeSlot != null && desiredTimeSlot.isNotEmpty) {
+      body['desiredTimeSlot'] = desiredTimeSlot;
+    }
+    if (desiredDentistId != null && desiredDentistId.isNotEmpty) {
+      body['desiredDentistId'] = desiredDentistId;
+    }
+
+    await _client.post(
+      '${ApiConstants.appointments}/$appointmentId/change-request',
+      body,
+      token: token,
+    );
+  }
+
+  /// Lấy danh sách các yêu cầu thay đổi của lịch hẹn
+  Future<List<AppointmentChangeRequestItem>> getAppointmentChangeRequests(String appointmentId) async {
+    final token = await _auth.getToken();
+    if (token == null) throw Exception('Chưa đăng nhập.');
+
+    final res = await _client.get(
+      '${ApiConstants.appointments}/$appointmentId/change-requests',
+      token: token,
+    );
+
+    final list = res.data as List<dynamic>;
+    return list
+        .map((e) => AppointmentChangeRequestItem.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 }
 

@@ -6,6 +6,7 @@ import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/api_constants.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/core/network/api_client.dart';
+import 'package:mobile_app/core/utils/app_toast.dart';
 import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/features/auth/data/auth_service.dart';
 
@@ -169,26 +170,19 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
       await _auth.clearSavedEmail();
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
-                SizedBox(width: 8),
-                Text(isVi ? 'Đổi mật khẩu thành công!' : 'Password changed successfully!'),
-              ],
-            ),
-            backgroundColor: AppColors.success,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
+        AppToast.showSuccess(
+          context,
+          isVi ? 'Đổi mật khẩu thành công!' : 'Password changed successfully!',
         );
         _leave();
       }
     } on DioException catch (e) {
-      _showSnackbar(ApiClient.errorMessage(e));
+      _showSnackbar(ApiClient.errorMessage(e), isError: true);
     } catch (e) {
-      _showSnackbar(isVi ? 'Đã xảy ra lỗi khi cập nhật mật khẩu.' : 'An error occurred while updating the password.');
+      _showSnackbar(
+        isVi ? 'Đã xảy ra lỗi khi cập nhật mật khẩu.' : 'An error occurred while updating the password.',
+        isError: true,
+      );
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -211,15 +205,12 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
   /// thoát được nghĩa là vẫn dùng app với mật khẩu tạm còn nằm trong hộp thư.
   bool get _isForced => !context.canPop();
 
-  void _showSnackbar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppColors.primary,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
+  void _showSnackbar(String message, {bool isError = false}) {
+    if (isError) {
+      AppToast.showError(context, message);
+    } else {
+      AppToast.showInfo(context, message);
+    }
   }
 
   @override

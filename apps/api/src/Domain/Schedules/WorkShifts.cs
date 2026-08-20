@@ -69,7 +69,8 @@ public static class WorkShifts
         if (string.IsNullOrWhiteSpace(shift))
             return (minutesOfDay >= 8 * 60 && minutesOfDay < NoonMinutes) || (minutesOfDay >= 13 * 60 + 30 && minutesOfDay < 17 * 60 + 30);
 
-        if (ByCode.TryGetValue(shift, out var def))
+        var cleaned = shift.Trim().Replace(" ", "").Replace("–", "-");
+        if (ByCode.TryGetValue(cleaned, out var def))
             return minutesOfDay >= def.StartMinutes && minutesOfDay < def.EndMinutes;
 
         var s = shift.Trim().ToLower();
@@ -77,6 +78,8 @@ public static class WorkShifts
             return minutesOfDay >= 8 * 60 && minutesOfDay < NoonMinutes;
         if (s == "afternoon" || s == "chiều" || s == "ca chiều")
             return minutesOfDay >= 13 * 60 + 30 && minutesOfDay < 17 * 60 + 30;
+        if (s == "evening" || s == "tối" || s == "ca tối")
+            return minutesOfDay >= 17 * 60 + 30 && minutesOfDay < 21 * 60 + 30;
         if (s == "fulltime" || s == "full time" || s == "cả ngày" || s == "tất cả" || s == "toàn thời gian")
             return (minutesOfDay >= 8 * 60 && minutesOfDay < NoonMinutes) || (minutesOfDay >= 13 * 60 + 30 && minutesOfDay < 17 * 60 + 30);
 

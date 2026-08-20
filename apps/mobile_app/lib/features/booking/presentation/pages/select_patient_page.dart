@@ -7,6 +7,7 @@ import 'package:mobile_app/core/constants/api_constants.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/features/auth/data/auth_service.dart';
 import 'package:mobile_app/features/booking/data/booking_models.dart';
+import 'package:mobile_app/features/booking/data/booking_service.dart';
 import 'package:mobile_app/features/booking/presentation/widgets/booking_widgets.dart';
 import 'package:mobile_app/features/profile/data/family_member.dart';
 
@@ -23,9 +24,11 @@ class SelectPatientPage extends StatefulWidget {
 
 class _SelectPatientPageState extends State<SelectPatientPage> {
   final _auth = AuthService();
+  final _bookingService = BookingService();
   List<PatientInfo> _patients = [];
   bool _loading = true;
   String? _selectedId;
+  BookingEligibility? _eligibility;
 
   @override
   void initState() {
@@ -62,7 +65,25 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
         );
       }).toList();
 
-      if (mounted) setState(() { _patients = [me, ...family]; _loading = false; });
+      final eligibility = await _bookingService.getBookingEligibility().catchError((_) => const BookingEligibility(
+        activeBookingCount: 0,
+        maxActiveBookings: 2,
+        canBookNew: true,
+        isInCooldown: false,
+        cooldownRemainingSeconds: 0,
+        cancellationCount: 0,
+        rescheduleCount: 0,
+      ));
+
+      final activeDraft = widget.initialDraft ?? _bookingService.activeDraft;
+      if (mounted) {
+        setState(() {
+          _patients = [me, ...family];
+          _eligibility = eligibility;
+          _selectedId = activeDraft?.patient?.id ?? _selectedId;
+          _loading = false;
+        });
+      }
     } catch (_) {
       // fallback: dùng tên đã lưu local nếu API lỗi
       final name = await _auth.getUserName() ?? '';
@@ -83,22 +104,105 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
     return '${parts[2]}/${parts[1]}/${parts[0]}';
   }
 
-  void _select(int index) {
+  Future<void> _select(int index) async {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
+
+    // 1. Kiểm tra nếu tài khoản đã có 2 lịch hẹn đang hoạt động (không chặn nếu đang dời/sửa lịch)
+    if (widget.initialDraft?.isRescheduling != true && _eligibility != null && _eligibility!.activeBookingCount >= 2) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              const Icon(Icons.error_outline_rounded, color: Color(0xFFDC2626)),
+              const SizedBox(width: 8),
+              Text(isVi ? 'Đạt giới hạn đặt lịch' : 'Booking Limit Reached', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: Text(
+            isVi
+                ? 'Tài khoản của bạn đã có 2 lịch hẹn đang hoạt động (tối đa 2 lịch cùng lúc).\n\nVui lòng hoàn thành hoặc dời/hủy bớt lịch hẹn cũ trước khi đặt lịch mới.'
+                : 'You already have 2 active appointments (maximum 2 allowed). Please complete or cancel existing appointments first.',
+            style: const TextStyle(fontSize: 14, height: 1.4),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(isVi ? 'Đóng' : 'Close')),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // 2. Kiểm tra nếu bệnh nhân được chọn đang bị cooldown 30 phút
+    final patientId = _patients[index].id == 'self' ? null : _patients[index].id;
+    final patientEligibility = await _bookingService.getBookingEligibility(patientId: patientId);
+    if (patientEligibility.isInCooldown) {
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              const Icon(Icons.access_time_rounded, color: Color(0xFFD97706)),
+              const SizedBox(width: 8),
+              Text(isVi ? 'Thời gian chờ (Cooldown)' : 'Cooldown Active', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: Text(
+            isVi
+                ? 'Bệnh nhân này đang trong thời gian chờ sau khi đổi/hủy lịch (còn ${patientEligibility.cooldownRemainingMinutes} phút).\n\nVui lòng thử lại sau hoặc chọn bệnh nhân khác trong gia đình.'
+                : 'This patient is in a 30-minute cooldown period (${patientEligibility.cooldownRemainingMinutes} mins remaining). Please try again later or select another family member.',
+            style: const TextStyle(fontSize: 14, height: 1.4),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(isVi ? 'Đóng' : 'Close')),
+          ],
+        ),
+      );
+      return;
+    }
+
     setState(() => _selectedId = _patients[index].id);
 
-    final initial = widget.initialDraft;
+    final activeDraft = _bookingService.activeDraft;
+    final initial = widget.initialDraft ?? activeDraft;
     var draft = initial != null
         ? initial.copyWith(patient: _patients[index])
         : BookingDraft(patient: _patients[index]);
 
+    if (!mounted) return;
+
     // Đã biết đủ bác sĩ + ngày + khung giờ còn trống (từ chatbot hoặc khi sửa đổi lịch) → vào thẳng màn tổng hợp/xác nhận.
     if (draft.doctor != null && draft.date != null && draft.timeSlot != null) {
-      context.push(AppRoutes.bookingReview, extra: draft);
+      try {
+        final res = await _bookingService.holdSlot(
+          patientId: _patients[index].id == 'self' ? '' : _patients[index].id,
+          dentistId: draft.doctor!.id,
+          date: draft.date!,
+          timeSlot: draft.timeSlot!.range,
+          serviceId: draft.service?.id,
+          reschedulingAppointmentId: draft.reschedulingAppointmentId,
+        );
+        if (res.isSuccess && res.expiresAt != null) {
+          draft = draft.copyWith(holdExpiresAt: res.expiresAt);
+        }
+      } catch (e) {
+        debugPrint('Hold transfer error: $e');
+      }
+      if (!mounted) return;
+      context.pushReplacement(AppRoutes.bookingReview, extra: draft);
+    } else if (draft.doctor != null && draft.date != null) {
+      context.push(AppRoutes.bookingSelectTimeSlot, extra: draft);
+    } else if (draft.doctor != null) {
+      if (draft.service != null) {
+        context.push(AppRoutes.bookingSelectDatetime, extra: draft);
+      } else {
+        context.push(AppRoutes.bookingSelectService, extra: draft);
+      }
     } else if (draft.service != null && draft.date != null) {
-      // Đã biết dịch vụ + ngày → bỏ qua các bước đã rõ, vào thẳng chọn bác sĩ/khung giờ.
       context.push(AppRoutes.bookingSelectDoctor, extra: draft);
-    } else if (draft.service != null) {
-      context.push(AppRoutes.bookingSelectDatetime, extra: draft);
     } else {
       context.push(AppRoutes.bookingSelectService, extra: draft);
     }
@@ -139,6 +243,10 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
           ? const Center(child: CircularProgressIndicator())
           : CustomScrollView(
         slivers: [
+          if (widget.initialDraft?.holdExpiresAt != null)
+            SliverToBoxAdapter(
+              child: HoldCountdownBanner(holdExpiresAt: widget.initialDraft?.holdExpiresAt),
+            ),
           // ── Header + avatar row ──────────────────────────────
           SliverToBoxAdapter(
             child: ColoredBox(

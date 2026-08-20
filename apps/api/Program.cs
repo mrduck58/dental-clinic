@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using DentalClinic.API.Application.DependencyInjection;
 using DentalClinic.API.Infrastructure.Extensions;
+using DentalClinic.API.Infrastructure.Hubs;
 using DentalClinic.API.Infrastructure.Persistence;
 using DentalClinic.API.Presentation.Middlewares;
 using DentalClinic.API.Presentation.RateLimiting;
@@ -22,6 +23,7 @@ var builder = WebApplication.CreateBuilder(args);
 // ── Services ───────────────────────────────────────────────────────────────
 builder.Services.AddOpenApi();
 builder.Services.AddControllers();
+builder.Services.AddSignalR();
 
 // Sau reverse proxy (nginx), Connection.RemoteIpAddress là IP container nginx với MỌI request.
 // Không dịch lại thì rate limiting theo IP sẽ gom cả thế giới vào một xô và tự khóa toàn hệ thống.
@@ -172,6 +174,25 @@ using (var scope = app.Services.CreateScope())
             );
             CREATE INDEX IF NOT EXISTS ""IX_UserDeviceTokens_UserId"" ON ""UserDeviceTokens"" (""UserId"");
             CREATE INDEX IF NOT EXISTS ""IX_UserDeviceTokens_Token"" ON ""UserDeviceTokens"" (""Token"");
+
+            CREATE TABLE IF NOT EXISTS ""AppointmentSlotHolds"" (
+                ""Id"" uuid PRIMARY KEY,
+                ""PatientId"" uuid NOT NULL,
+                ""UserId"" uuid NOT NULL,
+                ""DentistId"" uuid NOT NULL,
+                ""AppointmentDate"" timestamp with time zone NOT NULL,
+                ""TimeSlot"" text NOT NULL,
+                ""CreatedAt"" timestamp with time zone NOT NULL,
+                ""ExpiresAt"" timestamp with time zone NOT NULL,
+                ""Status"" text NOT NULL,
+                ""IsSuccess"" boolean NOT NULL DEFAULT false,
+                ""ServiceId"" uuid NULL,
+                ""DurationMinutes"" integer NOT NULL DEFAULT 30
+            );
+            ALTER TABLE ""AppointmentSlotHolds"" ADD COLUMN IF NOT EXISTS ""ServiceId"" uuid NULL;
+            ALTER TABLE ""AppointmentSlotHolds"" ADD COLUMN IF NOT EXISTS ""DurationMinutes"" integer NOT NULL DEFAULT 30;
+            CREATE INDEX IF NOT EXISTS ""IX_AppointmentSlotHolds_Dentist_Date"" ON ""AppointmentSlotHolds"" (""DentistId"", ""AppointmentDate"");
+            CREATE INDEX IF NOT EXISTS ""IX_AppointmentSlotHolds_Patient_Date"" ON ""AppointmentSlotHolds"" (""PatientId"", ""CreatedAt"");
         ");
         await db.Database.MigrateAsync();
         await DataSeeder.SeedAsync(db);
@@ -188,6 +209,7 @@ app.UseAuthentication();
 app.UseMiddleware<AccountStatusMiddleware>();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHub<BookingHub>("/hubs/booking");
 
 // Health check endpoint cho keep-alive (cron-job.org, uptime monitor) và warm-up
 app.MapGet("/health", () => Results.Ok(new

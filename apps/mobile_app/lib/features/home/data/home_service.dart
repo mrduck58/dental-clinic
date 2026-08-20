@@ -37,6 +37,11 @@ class HomeService {
         .toList();
   }
 
+  Future<ServiceModel> getServiceById(String serviceId) async {
+    final res = await _client.get('${ApiConstants.services}/$serviceId');
+    return ServiceModel.fromJson(res.data as Map<String, dynamic>);
+  }
+
   Future<List<PostModel>> getPosts() async {
     final res = await _client.get(
       ApiConstants.posts,

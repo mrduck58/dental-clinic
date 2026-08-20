@@ -30,11 +30,12 @@ public class ClinicalRecordsController(ISender sender, ClinicalRecordWriteGuard 
         return Ok(new { message = "Đã bắt đầu khám." });
     }
 
-    /// <summary>PUT api/appointments/{id}/complete — Hoàn thành khám (Staff/Admin/Owner)</summary>
+    /// <summary>PUT api/appointments/{id}/complete — Hoàn thành khám (Staff/Admin/Owner/Dentist)</summary>
     [HttpPut("api/appointments/{id}/complete")]
-    [Authorize(Roles = "Staff,Admin,Owner")]
+    [Authorize(Roles = "Staff,Admin,Owner,Dentist")]
     public async Task<IActionResult> CompleteTreatment(Guid id, CancellationToken cancellationToken)
     {
+        await writeGuard.EnsureCanWriteAppointmentAsync(id, cancellationToken);
         await sender.Send(new CompleteAppointmentCommand(id), cancellationToken);
         return Ok(new { message = "Đã hoàn thành khám." });
     }

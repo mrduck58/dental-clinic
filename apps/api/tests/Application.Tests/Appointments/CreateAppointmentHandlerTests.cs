@@ -253,7 +253,7 @@ public class CreateAppointmentHandlerTests
         var existingPatient = Patient.Create(cmd.UserId, DateOnly.FromDateTime(DateTime.Today.AddYears(-20)), "Nam");
         _patientRepo.GetByUserIdAsync(cmd.UserId, Arg.Any<CancellationToken>()).Returns(existingPatient);
         _appointmentRepo.HasActiveAppointmentOnDateAsync(
-            existingPatient.Id, Arg.Any<DateOnly>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
+            Arg.Any<Guid>(), Arg.Any<DateOnly>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
             .Returns(true);
 
         Func<Task> act = () => _handler.Handle(cmd, CancellationToken.None);
@@ -262,7 +262,7 @@ public class CreateAppointmentHandlerTests
     }
 
     /// <summary>
-    /// Khi lịch hẹn trước đó trong ngày của bệnh nhân đã bị Cancelled (HasActiveAppointmentOnDateAsync trả false),
+    /// Khi lịch hẹn trước đó trong ngày của tài khoản đã bị Cancelled (HasActiveAppointmentOnDateAsync trả false),
     /// bệnh nhân được phép đặt lịch hẹn mới thành công.
     /// </summary>
     [Test]
@@ -272,7 +272,7 @@ public class CreateAppointmentHandlerTests
         var existingPatient = Patient.Create(cmd.UserId, DateOnly.FromDateTime(DateTime.Today.AddYears(-20)), "Nam");
         _patientRepo.GetByUserIdAsync(cmd.UserId, Arg.Any<CancellationToken>()).Returns(existingPatient);
         _appointmentRepo.HasActiveAppointmentOnDateAsync(
-            existingPatient.Id, Arg.Any<DateOnly>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
+            Arg.Any<Guid>(), Arg.Any<DateOnly>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
             .Returns(false);
 
         var result = await _handler.Handle(cmd, CancellationToken.None);

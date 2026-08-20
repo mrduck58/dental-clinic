@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/core/network/api_client.dart';
+import 'package:mobile_app/core/utils/app_toast.dart';
 import 'package:mobile_app/features/auth/data/auth_service.dart';
 import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
@@ -206,40 +207,24 @@ class _EditProfilePageState extends State<EditProfilePage> {
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Row(
-              children: [
-                Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
-                SizedBox(width: 8),
-                Text('Cập nhật hồ sơ thành công!'),
-              ],
-            ),
-            backgroundColor: AppColors.success,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
+        AppToast.showSuccess(context, 'Cập nhật hồ sơ thành công!');
         context.pop(true); // Trả về true để reload lại trang profile
       }
     } on DioException catch (e) {
-      _showSnackbar(ApiClient.errorMessage(e));
+      _showSnackbar(ApiClient.errorMessage(e), isError: true);
     } catch (e) {
-      _showSnackbar('Đã xảy ra lỗi khi cập nhật hồ sơ.');
+      _showSnackbar('Đã xảy ra lỗi khi cập nhật hồ sơ.', isError: true);
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
   }
 
-  void _showSnackbar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppColors.primary,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
+  void _showSnackbar(String message, {bool isError = false}) {
+    if (isError) {
+      AppToast.showError(context, message);
+    } else {
+      AppToast.showInfo(context, message);
+    }
   }
 
   @override

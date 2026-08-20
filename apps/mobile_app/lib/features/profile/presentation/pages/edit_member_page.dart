@@ -8,6 +8,7 @@ import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/api_constants.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/core/network/api_client.dart';
+import 'package:mobile_app/core/utils/app_toast.dart';
 import 'package:mobile_app/features/auth/data/auth_service.dart';
 import 'package:mobile_app/features/profile/data/family_member.dart';
 
@@ -171,21 +172,7 @@ class _EditMemberPageState extends State<EditMemberPage> {
     }
 
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Row(
-          children: [
-            Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
-            SizedBox(width: 8),
-            Text('Đã cập nhật hồ sơ thành viên thành công!'),
-          ],
-        ),
-        backgroundColor: AppColors.success,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
-
+    AppToast.showSuccess(context, 'Đã cập nhật hồ sơ thành viên thành công!');
     context.pop(true); // Return success to reload
   }
 
@@ -212,38 +199,22 @@ class _EditMemberPageState extends State<EditMemberPage> {
       try {
         await _familyService.removeMember(widget.member.id);
       } catch (_) {
-        if (mounted) _showSnackbar('Không thể xóa thành viên. Vui lòng thử lại.');
+        if (mounted) _showSnackbar('Không thể xóa thành viên. Vui lòng thử lại.', isError: true);
         return;
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Row(
-              children: [
-                Icon(Icons.delete_forever_rounded, color: Colors.white, size: 20),
-                SizedBox(width: 8),
-                Text('Đã xóa thành viên thành công!'),
-              ],
-            ),
-            backgroundColor: AppColors.primary,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
+        AppToast.showSuccess(context, 'Đã xóa thành viên thành công!');
         context.pop(true); // Return success to reload
       }
     }
   }
 
-  void _showSnackbar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppColors.primary,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
+  void _showSnackbar(String message, {bool isError = false}) {
+    if (isError) {
+      AppToast.showError(context, message);
+    } else {
+      AppToast.showInfo(context, message);
+    }
   }
 
   @override
