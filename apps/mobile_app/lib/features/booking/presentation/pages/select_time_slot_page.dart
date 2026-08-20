@@ -28,10 +28,8 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
   bool _loading = true;
   bool _isHoldingSlot = false;
   String? _error;
-
-  Timer? _holdCountdownTimer;
+  bool _isShowingExpiredDialog = false;
   Timer? _autoRefreshTimer;
-  int _holdRemainingSeconds = 0;
   DateTime? _holdExpiresAt;
 
   static const _weekdaysVi = [
@@ -63,7 +61,6 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
 
   @override
   void dispose() {
-    _holdCountdownTimer?.cancel();
     _autoRefreshTimer?.cancel();
     super.dispose();
   }
@@ -83,31 +80,8 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
   }
 
   void _startHoldCountdown(int seconds, DateTime? expiresAt) {
-    _holdCountdownTimer?.cancel();
     setState(() {
-      _holdRemainingSeconds = seconds;
       _holdExpiresAt = expiresAt ?? DateTime.now().add(Duration(seconds: seconds));
-    });
-
-    _holdCountdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-      if (_holdRemainingSeconds <= 1) {
-        timer.cancel();
-        setState(() {
-          _holdRemainingSeconds = 0;
-          _selectedSlot = null;
-          _holdExpiresAt = null;
-        });
-        _showHoldExpiredDialog();
-        _load(silent: true);
-      } else {
-        setState(() {
-          _holdRemainingSeconds--;
-        });
-      }
     });
   }
 
@@ -131,11 +105,22 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
 
       matched ??= list.firstOrNull;
 
+      // Pre-select slot from draft if not already set and is on the same date
+      if (_selectedSlot == null && widget.draft.timeSlot != null && matched != null) {
+        final sameDate = widget.draft.date != null &&
+            widget.draft.date!.year == _currentDate.year &&
+            widget.draft.date!.month == _currentDate.month &&
+            widget.draft.date!.day == _currentDate.day;
+        if (sameDate) {
+          _selectedSlot = matched.slots.where((s) => s.range == widget.draft.timeSlot!.range).firstOrNull;
+        }
+      }
+
       setState(() {
         _doctorWithSlots = matched;
         _loading = false;
         // Nếu slot đã chọn bị người khác đặt hoặc không còn khả dụng
-        if (_selectedSlot != null && matched != null && _holdRemainingSeconds <= 0) {
+        if (_selectedSlot != null && matched != null && (_holdExpiresAt == null || _holdExpiresAt!.isBefore(DateTime.now()))) {
           final stillAvailable = matched.slots.any(
             (s) => s.range == _selectedSlot!.range && !s.isBooked,
           );
@@ -161,8 +146,6 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
     setState(() {
       _currentDate = newDate;
       _selectedSlot = null;
-      _holdCountdownTimer?.cancel();
-      _holdRemainingSeconds = 0;
       _holdExpiresAt = null;
     });
     _load();
@@ -178,6 +161,49 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
     );
     if (picked != null) {
       _onDateSelected(picked);
+    }
+  }
+
+  String _calculateDisplaySlotRange(String rawRange) {
+    final duration = widget.draft.service?.durationMinutes ?? 0;
+    if (duration <= 30) return rawRange;
+    try {
+      final startPart = rawRange.split(' - ').first.trim();
+      final parts = startPart.split(':');
+      final startH = int.parse(parts[0]);
+      final startM = int.parse(parts[1]);
+
+      final totalEndMinutes = startH * 60 + startM + duration;
+      final endH = (totalEndMinutes ~/ 60) % 24;
+      final endM = totalEndMinutes % 60;
+
+      final startStr = '${startH.toString().padLeft(2, '0')}:${startM.toString().padLeft(2, '0')}';
+      final endStr = '${endH.toString().padLeft(2, '0')}:${endM.toString().padLeft(2, '0')}';
+      return '$startStr - $endStr';
+    } catch (_) {
+      return rawRange;
+    }
+  }
+
+  bool _isSlotInSelectedRange(String slotRange) {
+    if (_selectedSlot == null) return false;
+    final duration = widget.draft.service?.durationMinutes ?? 30;
+    if (duration <= 30) return _selectedSlot!.range == slotRange;
+
+    try {
+      final selStartPart = _selectedSlot!.range.split(' - ').first.trim();
+      final selParts = selStartPart.split(':');
+      final selStartMin = int.parse(selParts[0]) * 60 + int.parse(selParts[1]);
+      final selEndMin = selStartMin + duration;
+
+      final curStartPart = slotRange.split(' - ').first.trim();
+      final curParts = curStartPart.split(':');
+      final curStartMin = int.parse(curParts[0]) * 60 + int.parse(curParts[1]);
+      final curEndMin = curStartMin + 30;
+
+      return curStartMin >= selStartMin && curEndMin <= selEndMin;
+    } catch (_) {
+      return _selectedSlot!.range == slotRange;
     }
   }
 
@@ -234,6 +260,16 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
   }
 
   void _showHoldExpiredDialog() {
+    if (!mounted || _isShowingExpiredDialog) return;
+    _isShowingExpiredDialog = true;
+    setState(() {
+      _holdExpiresAt = null;
+      _selectedSlot = null;
+      _isHoldingSlot = false;
+    });
+    _service.clearActiveDraft();
+    _load(silent: true);
+
     final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     showDialog(
       context: context,
@@ -257,7 +293,10 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
         ),
         actions: [
           ElevatedButton(
-            onPressed: () => Navigator.of(ctx).pop(),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _load();
+            },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
@@ -267,7 +306,9 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
           ),
         ],
       ),
-    );
+    ).then((_) {
+      _isShowingExpiredDialog = false;
+    });
   }
 
   String _fmtDate(DateTime d) =>
@@ -309,6 +350,7 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
         date: _currentDate,
         timeSlot: _selectedSlot!.range,
         serviceId: widget.draft.service?.id,
+        reschedulingAppointmentId: widget.draft.reschedulingAppointmentId,
       );
 
       if (!mounted) return;
@@ -326,6 +368,7 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
           timeSlot: _selectedSlot!.toTimeSlot(),
           holdExpiresAt: result.expiresAt ?? _holdExpiresAt,
         );
+        _service.setActiveDraft(updatedDraft);
         context.push(AppRoutes.bookingReview, extra: updatedDraft);
       } else {
         _showHoldErrorDialog(result.message);
@@ -430,10 +473,10 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
                     )
                   : CustomScrollView(
                       slivers: [
-                        if (widget.draft.holdExpiresAt != null)
+                        if (_holdExpiresAt != null || widget.draft.holdExpiresAt != null)
                           SliverToBoxAdapter(
                             child: HoldCountdownBanner(
-                              holdExpiresAt: widget.draft.holdExpiresAt,
+                              holdExpiresAt: _holdExpiresAt ?? widget.draft.holdExpiresAt,
                               onExpired: _showHoldExpiredDialog,
                             ),
                           ),
@@ -577,11 +620,6 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
                             ),
                           ),
 
-                        // ── Hold Timer Banner (Realtime 5-minute countdown) ───
-                        if (_selectedSlot != null && _holdRemainingSeconds > 0)
-                          SliverToBoxAdapter(
-                            child: _buildHoldTimerBanner(isVi),
-                          ),
 
                         // ── Date Selector Strip ───────────────────────────────
                         SliverToBoxAdapter(
@@ -716,110 +754,17 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
               label: _isHoldingSlot
                   ? (isVi ? 'Đang giữ ca khám...' : 'Holding slot...')
                   : _selectedSlot != null
-                      ? (isVi ? 'Tiếp tục • ${_selectedSlot!.range}' : 'Continue • ${_selectedSlot!.range}')
+                      ? (isVi
+                          ? ((widget.draft.service?.durationMinutes ?? 0) > 30
+                              ? 'Tiếp tục • ${_calculateDisplaySlotRange(_selectedSlot!.range)} (~${widget.draft.service!.durationMinutes}p)'
+                              : 'Tiếp tục • ${_selectedSlot!.range}')
+                          : ((widget.draft.service?.durationMinutes ?? 0) > 30
+                              ? 'Continue • ${_calculateDisplaySlotRange(_selectedSlot!.range)} (~${widget.draft.service!.durationMinutes}m)'
+                              : 'Continue • ${_selectedSlot!.range}'))
                       : (isVi ? 'Vui lòng chọn ca khám' : 'Please select a slot'),
               onTap: (_selectedSlot != null && !_isHoldingSlot) ? _onContinue : null,
             )
           : null,
-    );
-  }
-
-  Widget _buildHoldTimerBanner(bool isVi) {
-    final minutes = _holdRemainingSeconds ~/ 60;
-    final seconds = _holdRemainingSeconds % 60;
-    final timeStr = '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
-    final isUrgent = _holdRemainingSeconds <= 60;
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: isUrgent
-            ? (context.isDark ? const Color(0xFF3B1515) : const Color(0xFFFEF2F2))
-            : (context.isDark ? const Color(0xFF38290D) : const Color(0xFFFFFBEB)),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isUrgent
-              ? (context.isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFCA5A5))
-              : (context.isDark ? const Color(0xFF78350F) : const Color(0xFFFDE68A)),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: (isUrgent ? Colors.red : Colors.amber).withValues(alpha: 0.08),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(7),
-            decoration: BoxDecoration(
-              color: isUrgent
-                  ? (context.isDark ? const Color(0xFF5A1A1A) : const Color(0xFFFEE2E2))
-                  : (context.isDark ? const Color(0xFF451A03) : const Color(0xFFFEF3C7)),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Iconsax.timer_1,
-              size: 18,
-              color: isUrgent ? const Color(0xFFEF4444) : const Color(0xFFD97706),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      isVi ? 'Đang giữ ca: ${_selectedSlot?.range}' : 'Holding: ${_selectedSlot?.range}',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: isUrgent
-                            ? (context.isDark ? const Color(0xFFFCA5A5) : const Color(0xFF991B1B))
-                            : (context.isDark ? const Color(0xFFFDE68A) : const Color(0xFF92400E)),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: isUrgent ? const Color(0xFFDC2626) : const Color(0xFFD97706),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        timeStr,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                          fontFeatures: [FontFeature.tabularFigures()],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  isVi
-                      ? 'Ca khám sẽ tự động giải phóng sau 5 phút nếu chưa đặt.'
-                      : 'Slot will be auto-released after 5 mins if not booked.',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: isUrgent
-                        ? (context.isDark ? const Color(0xFFF87171) : const Color(0xFFB91C1C))
-                        : (context.isDark ? const Color(0xFFFBBF24) : const Color(0xFFB45309)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -921,7 +866,7 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
                 }
 
                 final isAvailable = !isPast && (!isBooked || slot.isHeldByMe) && (!isHeld || slot.isHeldByMe);
-                final isSelected = _selectedSlot?.range == slot.range;
+                final isSelected = _isSlotInSelectedRange(slot.range);
 
                 return GestureDetector(
                   onTap: isAvailable ? () => _onSlotTapped(slot) : null,

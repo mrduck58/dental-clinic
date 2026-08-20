@@ -47,7 +47,12 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
     super.dispose();
   }
 
+  bool _isShowingExpiredDialog = false;
+
   void _showExpiredAndRedirect() {
+    if (!mounted || _isShowingExpiredDialog) return;
+    _isShowingExpiredDialog = true;
+    _bookingService.clearActiveDraft();
     final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     showDialog(
       context: context,
@@ -74,7 +79,11 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
           ElevatedButton(
             onPressed: () {
               Navigator.of(ctx).pop();
-              context.pushReplacement(AppRoutes.bookingSelectTimeSlot, extra: widget.draft);
+              final clearedDraft = widget.draft.copyWith(
+                holdExpiresAt: null,
+                timeSlot: null,
+              );
+              context.pushReplacement(AppRoutes.bookingSelectTimeSlot, extra: clearedDraft);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
@@ -85,7 +94,9 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
           ),
         ],
       ),
-    );
+    ).then((_) {
+      _isShowingExpiredDialog = false;
+    });
   }
 
   Future<void> _confirm(bool isVi) async {
@@ -133,6 +144,7 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
         appointmentId: result.appointmentId,
         appointmentCode: result.appointmentCode,
       );
+      _bookingService.clearActiveDraft();
       context.pushReplacement(AppRoutes.bookingSuccess, extra: updatedDraft);
     } on DioException catch (e) {
       if (!mounted) return;
@@ -219,7 +231,7 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
                           _InfoRow(
                             icon: Iconsax.clock,
                             label: isVi ? 'Giờ khám' : 'Time Slot',
-                            value: '${d.timeSlot!.range}, ${d.doctor?.room ?? ''}',
+                            value: '${d.displayTimeRange}${d.service != null && d.service!.durationMinutes > 30 ? ' (${d.service!.durationTextLocalized(isVi)})' : ''}, ${d.doctor?.room ?? ''}',
                             onEdit: () => context.push(AppRoutes.bookingSelectTimeSlot, extra: d),
                           ),
                         if (d.doctor != null)

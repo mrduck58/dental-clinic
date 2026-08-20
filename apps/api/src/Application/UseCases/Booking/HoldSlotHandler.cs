@@ -12,7 +12,8 @@ public record HoldSlotCommand(
     Guid DentistId,
     DateOnly Date,
     string TimeSlot,
-    Guid? ServiceId = null);
+    Guid? ServiceId = null,
+    Guid? ReschedulingAppointmentId = null);
 
 public record HoldSlotResult(
     bool IsSuccess,
@@ -88,19 +89,20 @@ public class HoldSlotHandler(
             throw new ConflictException($"Bệnh nhân đang trong thời gian chờ sau khi đổi/hủy lịch. Vui lòng thử lại sau {remaining} phút.");
         }
 
-        // 3.2. Kiểm tra giới hạn tối đa 2 lịch hẹn đang hoạt động của tài khoản
+        // 3.2. Kiểm tra giới hạn tối đa 2 lịch hẹn đang hoạt động của tài khoản (loại trừ lịch đang được dời)
         if (userId != Guid.Empty)
         {
-            var activeCount = await appointmentRepository.CountActiveAppointmentsForUserAsync(userId, excludeAppointmentId: null, ct);
+            var activeCount = await appointmentRepository.CountActiveAppointmentsForUserAsync(
+                userId, excludeAppointmentId: command.ReschedulingAppointmentId, ct);
             if (activeCount >= 2)
             {
                 throw new ConflictException("Tài khoản của bạn đã đạt giới hạn tối đa 2 lịch hẹn đang hoạt động. Vui lòng hoàn thành hoặc dời/hủy bớt lịch hẹn trước khi đặt thêm.");
             }
         }
 
-        // 3.3. Kiểm tra mỗi bệnh nhân chỉ được đặt tối đa 1 lịch hẹn trong 1 ngày
+        // 3.3. Kiểm tra mỗi bệnh nhân chỉ được đặt tối đa 1 lịch hẹn trong 1 ngày (loại trừ lịch đang được dời)
         var hasActiveAppointmentOnDate = await appointmentRepository.HasActiveAppointmentOnDateAsync(
-            targetPatientId, command.Date, excludeAppointmentId: null, ct);
+            targetPatientId, command.Date, excludeAppointmentId: command.ReschedulingAppointmentId, ct);
         if (hasActiveAppointmentOnDate)
         {
             throw new ConflictException("Bệnh nhân này đã có một lịch hẹn trong ngày này. Mỗi bệnh nhân chỉ được đặt tối đa 1 lịch hẹn mỗi ngày (nếu muốn đổi giờ, vui lòng dời hoặc hủy lịch cũ).");
@@ -110,6 +112,7 @@ public class HoldSlotHandler(
         var appointments = await appointmentRepository.GetByDateAsync(command.Date, ct);
         var appointmentRanges = appointments
             .Where(a => a.DentistId == command.DentistId
+                     && a.Id != command.ReschedulingAppointmentId
                      && a.Status != AppointmentStatus.Cancelled
                      && a.Status != AppointmentStatus.NoShow)
             .Select(a =>

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
@@ -199,7 +200,7 @@ class HoldCountdownBanner extends StatefulWidget {
 
 class _HoldCountdownBannerState extends State<HoldCountdownBanner> {
   int _remainingSeconds = 0;
-  bool _initialized = false;
+  Timer? _timer;
 
   @override
   void initState() {
@@ -215,34 +216,54 @@ class _HoldCountdownBannerState extends State<HoldCountdownBanner> {
     }
   }
 
-  void _initTimer() {
-    if (widget.holdExpiresAt == null) {
-      _remainingSeconds = 0;
-      return;
-    }
-    final diff = widget.holdExpiresAt!.difference(DateTime.now()).inSeconds;
-    _remainingSeconds = diff > 0 ? diff : 0;
-    if (!_initialized && _remainingSeconds > 0) {
-      _initialized = true;
-      _startPeriodicCheck();
-    }
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
   }
 
-  void _startPeriodicCheck() {
-    Future.doWhile(() async {
-      await Future.delayed(const Duration(seconds: 1));
-      if (!mounted) return false;
-      if (widget.holdExpiresAt == null) return false;
-      final diff = widget.holdExpiresAt!.difference(DateTime.now()).inSeconds;
-      final newRemaining = diff > 0 ? diff : 0;
+  void _initTimer() {
+    _timer?.cancel();
+    _timer = null;
+
+    if (widget.holdExpiresAt == null) {
+      if (mounted) setState(() => _remainingSeconds = 0);
+      return;
+    }
+
+    final diff = widget.holdExpiresAt!.difference(DateTime.now()).inSeconds;
+    final initialRemaining = diff > 0 ? diff : 0;
+    if (mounted) {
+      setState(() => _remainingSeconds = initialRemaining);
+    }
+
+    if (initialRemaining <= 0) {
+      if (mounted) setState(() => _remainingSeconds = 0);
+      return;
+    }
+
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (widget.holdExpiresAt == null) {
+        timer.cancel();
+        setState(() => _remainingSeconds = 0);
+        return;
+      }
+      final curDiff = widget.holdExpiresAt!.difference(DateTime.now()).inSeconds;
+      final newRemaining = curDiff > 0 ? curDiff : 0;
+
       if (newRemaining != _remainingSeconds) {
         setState(() => _remainingSeconds = newRemaining);
       }
+
       if (newRemaining <= 0) {
+        timer.cancel();
+        _timer = null;
         widget.onExpired?.call();
-        return false;
       }
-      return true;
     });
   }
 

@@ -109,11 +109,17 @@ class SlotHoldResult {
   });
 
   factory SlotHoldResult.fromJson(Map<String, dynamic> json) {
+    final remainingSec = (json['remainingSeconds'] as num?)?.toInt() ?? 0;
+    // Tính expiresAt theo đồng hồ thiết bị dựa trên remainingSeconds của server để triệt tiêu lệch giờ (clock drift)
+    final localExpiresAt = remainingSec > 0
+        ? DateTime.now().add(Duration(seconds: remainingSec))
+        : (json['expiresAt'] != null ? DateTime.tryParse(json['expiresAt'].toString())?.toLocal() : null);
+
     return SlotHoldResult(
       isSuccess: json['isSuccess'] as bool? ?? true,
       holdId: json['holdId'] as String? ?? json['id'] as String? ?? '',
-      expiresAt: json['expiresAt'] != null ? DateTime.tryParse(json['expiresAt'].toString()) : null,
-      remainingSeconds: (json['remainingSeconds'] as num?)?.toInt() ?? 0,
+      expiresAt: localExpiresAt,
+      remainingSeconds: remainingSec,
       failedHoldsToday: (json['failedHoldsToday'] as num?)?.toInt() ?? 0,
       message: json['message'] as String? ?? '',
     );
@@ -197,6 +203,43 @@ class BookingDraft {
   });
 
   bool get isRescheduling => reschedulingAppointmentId != null;
+
+  /// Kiểm tra ca khám đang được giữ chỗ và còn hạn thời gian
+  bool get isHoldActive {
+    if (holdExpiresAt == null) return false;
+    return holdExpiresAt!.isAfter(DateTime.now());
+  }
+
+  /// Kiểm tra thông tin đặt lịch đã đủ các bước (bệnh nhân, bác sĩ, ngày, giờ)
+  bool get isComplete {
+    return patient != null && doctor != null && date != null && timeSlot != null;
+  }
+
+  /// Khung giờ thực tế hiển thị bao gồm toàn bộ thời lượng dịch vụ
+  /// Ví dụ: Khung giờ bắt đầu 08:00, dịch vụ 60 phút -> '08:00 - 09:00'
+  String get displayTimeRange {
+    if (timeSlot == null) return '';
+    final rawRange = timeSlot!.range;
+    final duration = service?.durationMinutes ?? 0;
+    if (duration <= 30) return rawRange;
+
+    try {
+      final startPart = rawRange.split(' - ').first.trim();
+      final parts = startPart.split(':');
+      final startH = int.parse(parts[0]);
+      final startM = int.parse(parts[1]);
+
+      final totalEndMinutes = startH * 60 + startM + duration;
+      final endH = (totalEndMinutes ~/ 60) % 24;
+      final endM = totalEndMinutes % 60;
+
+      final startStr = '${startH.toString().padLeft(2, '0')}:${startM.toString().padLeft(2, '0')}';
+      final endStr = '${endH.toString().padLeft(2, '0')}:${endM.toString().padLeft(2, '0')}';
+      return '$startStr - $endStr';
+    } catch (_) {
+      return rawRange;
+    }
+  }
 
   BookingDraft copyWith({
     PatientInfo? patient,
@@ -330,6 +373,8 @@ class MyAppointmentItem {
   final String status;
   final String? symptoms;
   final String? serviceName;
+  final String? serviceId;
+  final int? serviceDurationMinutes;
   final String? patientName;
   final String? patientRelationship;
   final String? patientId;
@@ -347,6 +392,8 @@ class MyAppointmentItem {
     required this.status,
     this.symptoms,
     this.serviceName,
+    this.serviceId,
+    this.serviceDurationMinutes,
     this.patientName,
     this.patientRelationship,
     this.patientId,
@@ -366,6 +413,8 @@ class MyAppointmentItem {
         status: json['status'] as String,
         symptoms: json['symptoms'] as String?,
         serviceName: json['serviceName'] as String?,
+        serviceId: json['serviceId']?.toString(),
+        serviceDurationMinutes: json['serviceDurationMinutes'] as int?,
         patientName: json['patientName'] as String?,
         patientRelationship: json['patientRelationship'] as String?,
         patientId: json['patientId']?.toString(),
@@ -376,14 +425,22 @@ class MyAppointmentItem {
   DateTime get parsedDate => DateTime.parse(appointmentDate).toLocal();
   DateTime? get parsedCreatedAt => createdAt != null ? DateTime.tryParse(createdAt!)?.toLocal() : null;
 
-  /// Cho phép tự hủy/dời trong vòng 24 giờ kể từ thời điểm đặt lịch VÀ trước thời gian khám.
-  bool get canSelfManage {
+  /// Đã đến hoặc đã qua giờ hẹn khám.
+  bool get isPastAppointmentDate {
     final now = DateTime.now();
-    if (now.isAfter(parsedDate) || now.isAtSameMomentAs(parsedDate)) return false;
-    final created = parsedCreatedAt;
-    if (created == null) return true;
-    return now.difference(created).inHours < 24;
+    return now.isAfter(parsedDate) || now.isAtSameMomentAs(parsedDate);
   }
+
+  /// Đã quá 24 giờ kể từ thời điểm đặt lịch.
+  bool get isPast24HoursCreation {
+    final created = parsedCreatedAt;
+    if (created == null) return false;
+    final now = DateTime.now();
+    return now.difference(created).inHours >= 24;
+  }
+
+  /// Cho phép tự hủy/dời trong vòng 24 giờ kể từ thời điểm đặt lịch VÀ trước thời gian khám.
+  bool get canSelfManage => !isPastAppointmentDate && !isPast24HoursCreation;
 }
 
 class BookingEligibility {

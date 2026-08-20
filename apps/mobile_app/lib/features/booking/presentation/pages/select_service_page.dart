@@ -67,68 +67,17 @@ class _SelectServicePageState extends State<SelectServicePage> {
       durationMinutes: s.durationMinutes,
       options: s.options,
     );
-    var updatedDraft = widget.draft.copyWith(service: service);
+    // Khi chọn/đổi dịch vụ (có thể khác thời lượng khám), xóa slot cũ để người dùng chọn lại ca khám phù hợp
+    final updatedDraft = widget.draft.copyWith(
+      service: service,
+      timeSlot: null,
+      holdExpiresAt: null,
+    );
 
-    if (updatedDraft.date != null && updatedDraft.timeSlot != null && updatedDraft.doctor != null) {
-      try {
-        final patientId = updatedDraft.patient?.id ?? 'self';
-        final res = await _bookingService.holdSlot(
-          patientId: patientId == 'self' ? '' : patientId,
-          dentistId: updatedDraft.doctor!.id,
-          date: updatedDraft.date!,
-          timeSlot: updatedDraft.timeSlot!.range,
-          serviceId: s.id,
-        );
-        if (res.isSuccess && res.expiresAt != null) {
-          updatedDraft = updatedDraft.copyWith(holdExpiresAt: res.expiresAt);
-        }
-      } catch (e) {
-        if (!mounted) return;
-        final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
-        await showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: Row(
-              children: [
-                const Icon(Iconsax.warning_2, color: Color(0xFFEF4444), size: 24),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    isVi ? 'Khung giờ không đủ thời lượng' : 'Slot Overlap',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
-            ),
-            content: Text(
-              isVi
-                  ? 'Dịch vụ "${s.name}" có thời lượng ước tính khoảng ${s.durationMinutes} phút và bị trùng với lịch hẹn/ca giữ khác ở khung giờ đã chọn. Vui lòng chọn lại giờ khám.'
-                  : 'Service "${s.name}" takes approx. ${s.durationMinutes} minutes and overlaps with an existing appointment. Please select another slot.',
-              style: const TextStyle(fontSize: 14, height: 1.4),
-            ),
-            actions: [
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.of(ctx).pop();
-                  context.push(AppRoutes.bookingSelectTimeSlot, extra: updatedDraft);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                child: Text(isVi ? 'Chọn lại giờ khám' : 'Select Time Slot'),
-              ),
-            ],
-          ),
-        );
-        return;
-      }
-      if (!mounted) return;
-      context.push(AppRoutes.bookingReview, extra: updatedDraft);
+    if (updatedDraft.doctor != null) {
+      context.push(AppRoutes.bookingSelectTimeSlot, extra: updatedDraft);
     } else {
-      context.push(AppRoutes.bookingSelectDatetime, extra: updatedDraft);
+      context.push(AppRoutes.bookingSelectDoctor, extra: updatedDraft);
     }
   }
 
@@ -208,8 +157,10 @@ class _SelectServicePageState extends State<SelectServicePage> {
                             itemCount: _filtered.length,
                             itemBuilder: (_, i) {
                               final s = _filtered[i];
+                              final isSelected = widget.draft.service?.id == s.id;
                               return _ServiceItem(
                                 service: s,
+                                isSelected: isSelected,
                                 onTap: () => _onSelectService(s),
                                 onViewDetail: () => context.push(
                                   AppRoutes.bookingServiceDetail,
@@ -229,11 +180,13 @@ class _SelectServicePageState extends State<SelectServicePage> {
 
 class _ServiceItem extends StatelessWidget {
   final ServiceModel service;
+  final bool isSelected;
   final VoidCallback onTap;
   final VoidCallback onViewDetail;
 
   const _ServiceItem({
     required this.service,
+    this.isSelected = false,
     required this.onTap,
     required this.onViewDetail,
   });
@@ -245,13 +198,20 @@ class _ServiceItem extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: context.card,
+        color: isSelected
+            ? (context.isDark ? const Color(0xFF1E293B) : const Color(0xFFFFF1F2))
+            : context.card,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: context.divider),
+        border: Border.all(
+          color: isSelected ? AppColors.primary : context.divider,
+          width: isSelected ? 1.8 : 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 6,
+            color: isSelected
+                ? AppColors.primary.withValues(alpha: 0.1)
+                : Colors.black.withValues(alpha: 0.03),
+            blurRadius: isSelected ? 8 : 6,
             offset: const Offset(0, 2),
           ),
         ],
@@ -281,9 +241,25 @@ class _ServiceItem extends StatelessWidget {
                                 style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w800,
-                                  color: context.textPrimary,
+                                  color: isSelected ? AppColors.primary : context.textPrimary,
                                 ),
                               ),
+                              if (isSelected)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary,
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    isVi ? '✓ Đang chọn' : '✓ Selected',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
                               if (service.durationMinutes > 0)
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -350,7 +326,11 @@ class _ServiceItem extends StatelessWidget {
             onTap: onTap,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Icon(Icons.arrow_forward_ios, color: context.textSecondary, size: 20),
+              child: Icon(
+                isSelected ? Iconsax.tick_circle : Icons.arrow_forward_ios,
+                color: isSelected ? AppColors.primary : context.textSecondary,
+                size: isSelected ? 22 : 20,
+              ),
             ),
           ),
         ],

@@ -705,8 +705,12 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
                           Expanded(
                             child: Text(
                               isVi
-                                  ? 'Đã quá 24h kể từ khi đặt lịch (hoặc đã đến giờ khám). Vui lòng liên hệ hotline để đổi/hủy lịch.'
-                                  : 'More than 24h since booking. Please contact hotline to reschedule or cancel.',
+                                  ? (item.isPastAppointmentDate
+                                      ? 'Lịch khám đã đến hoặc đã qua giờ hẹn. Vui lòng liên hệ hotline để được hỗ trợ.'
+                                      : 'Đã quá 24h kể từ khi đặt lịch. Vui lòng liên hệ hotline để đổi/hủy lịch.')
+                                  : (item.isPastAppointmentDate
+                                      ? 'Appointment time has arrived or passed. Please contact hotline for assistance.'
+                                      : 'More than 24h since booking. Please contact hotline to reschedule or cancel.'),
                               style: TextStyle(fontSize: 12, color: context.textSecondary, height: 1.3),
                             ),
                           ),
@@ -734,8 +738,12 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
                                     ),
                                     content: Text(
                                       isVi
-                                          ? 'Đã quá 24 giờ kể từ thời điểm đặt lịch (hoặc đã đến giờ khám). Bạn không thể tự đổi lịch trên ứng dụng.\n\nVui lòng liên hệ hotline phòng khám để được nhân viên hỗ trợ trực tiếp.'
-                                          : 'It has been more than 24 hours since booking. Please contact clinic hotline for assistance.',
+                                          ? (item.isPastAppointmentDate
+                                              ? 'Lịch khám đã đến hoặc đã qua giờ hẹn. Bạn không thể tự đổi lịch trên ứng dụng.\n\nVui lòng liên hệ hotline phòng khám để được nhân viên hỗ trợ trực tiếp.'
+                                              : 'Đã quá 24 giờ kể từ thời điểm đặt lịch. Bạn không thể tự đổi lịch trên ứng dụng.\n\nVui lòng liên hệ hotline phòng khám để được nhân viên hỗ trợ trực tiếp.')
+                                          : (item.isPastAppointmentDate
+                                              ? 'Appointment time has arrived or passed. You cannot reschedule in the app.\n\nPlease contact the clinic hotline for assistance.'
+                                              : 'It has been more than 24 hours since booking. You cannot reschedule in the app.\n\nPlease contact clinic hotline for assistance.'),
                                       style: const TextStyle(fontSize: 14, height: 1.4),
                                     ),
                                     actions: [
@@ -785,11 +793,6 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
 
                               final parsedDate = item.parsedDate;
                               final date = DateTime(parsedDate.year, parsedDate.month, parsedDate.day);
-                              final startHour = parsedDate.hour.toString().padLeft(2, '0');
-                              final startMin = parsedDate.minute.toString().padLeft(2, '0');
-                              final endHour = (parsedDate.hour + 1).toString().padLeft(2, '0');
-                              final timeSlot = TimeSlot(range: '$startHour:$startMin - $endHour:$startMin');
-
                               final doctor = DoctorInfo(
                                 id: item.dentistId,
                                 name: item.dentistName,
@@ -814,19 +817,19 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
                                 service: item.serviceName == null
                                     ? null
                                     : ServiceInfo(
-                                        id: '',
+                                        id: item.serviceId ?? '',
                                         name: item.serviceName!,
                                         description: '',
                                         price: '',
+                                        durationMinutes: item.serviceDurationMinutes ?? 30,
                                       ),
                                 date: date,
-                                timeSlot: timeSlot,
                                 doctor: doctor,
                                 symptoms: item.symptoms,
                               );
 
                               if (context.mounted) {
-                                context.push(AppRoutes.bookingReview, extra: draft);
+                                context.push(AppRoutes.bookingSelectTimeSlot, extra: draft);
                               }
                             },
                             style: OutlinedButton.styleFrom(
@@ -863,8 +866,12 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
                                     ),
                                     content: Text(
                                       isVi
-                                          ? 'Đã quá 24 giờ kể từ thời điểm đặt lịch (hoặc đã đến giờ khám). Bạn không thể tự hủy lịch trên ứng dụng.\n\nVui lòng liên hệ hotline phòng khám để được nhân viên hỗ trợ trực tiếp.'
-                                          : 'It has been more than 24 hours since booking. Please contact clinic hotline for assistance.',
+                                          ? (item.isPastAppointmentDate
+                                              ? 'Lịch khám đã đến hoặc đã qua giờ hẹn. Bạn không thể tự hủy lịch trên ứng dụng.\n\nVui lòng liên hệ hotline phòng khám để được nhân viên hỗ trợ trực tiếp.'
+                                              : 'Đã quá 24 giờ kể từ thời điểm đặt lịch. Bạn không thể tự hủy lịch trên ứng dụng.\n\nVui lòng liên hệ hotline phòng khám để được nhân viên hỗ trợ trực tiếp.')
+                                          : (item.isPastAppointmentDate
+                                              ? 'Appointment time has arrived or passed. You cannot cancel in the app.\n\nPlease contact the clinic hotline for assistance.'
+                                              : 'It has been more than 24 hours since booking. You cannot cancel in the app.\n\nPlease contact clinic hotline for assistance.'),
                                       style: const TextStyle(fontSize: 14, height: 1.4),
                                     ),
                                     actions: [
