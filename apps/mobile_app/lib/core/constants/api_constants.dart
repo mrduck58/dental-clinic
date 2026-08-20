@@ -56,6 +56,7 @@ abstract class ApiConstants {
   static const String dentists = '/dentists';
   static const String dentistSlots = '/dentists/slots';
   static String dentistDetail(String id) => '/dentists/$id';
+  static String dentistWorkingDates(String id) => '/dentists/$id/working-dates';
   static String dentistReviews(String id) => '/dentists/$id/reviews';
   static String dentistReviewEligibility(String id) => '/dentists/$id/review-eligibility';
   static const String feedbacks = '/feedbacks';
@@ -65,6 +66,10 @@ abstract class ApiConstants {
   static const String posts = '/posts';
   static const String appointments = '/appointments';
   static const String myAppointments = '/appointments/my';
+  static const String bookingEligibility = '/appointments/booking-eligibility';
+  static const String holdSlot = '/appointments/hold-slot';
+  static const String releaseHold = '/appointments/release-hold';
+  static const String activeHold = '/appointments/active-hold';
   static const String patientQueue = '/appointments/queue/patient';
   static const String medicalHistory = '/patients/my-medical-history';
   static const String myMedicalHistoryRecords = '/appointments/my/medical-history';

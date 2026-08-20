@@ -12,6 +12,10 @@ public class MaterialRequestItem
     public string ItemName { get; private set; } = string.Empty;
     public int Quantity { get; private set; }
     public string Unit { get; private set; } = string.Empty;
+    // Số lượng THỰC NHẬN lúc nhập kho — có thể khác Quantity (số bác sĩ xin ban đầu), vd nhà cung cấp
+    // giao thiếu/thừa. Null cho tới khi được xác nhận; StockImportCommand dùng giá trị này (nếu có),
+    // không dùng Quantity gốc.
+    public int? ActualQuantity { get; private set; }
     public Guid? SupplyTransactionId { get; private set; }
 
     public Guid? SupplyItemId { get; private set; }
@@ -31,4 +35,7 @@ public class MaterialRequestItem
 
     public void LinkSupplyTransaction(Guid supplyTransactionId)
         => SupplyTransactionId = supplyTransactionId;
+
+    public void ConfirmReceived(int actualQuantity)
+        => ActualQuantity = actualQuantity;
 }

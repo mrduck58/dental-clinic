@@ -52,18 +52,18 @@ class _SelectDoctorPageState extends State<SelectDoctorPage> {
     try {
       final list = await _service.getDoctorsWithSlots(_currentDate);
       if (mounted) {
-        final selectedDocId = widget.draft.doctor?.id ?? widget.draft.preferredDentistId;
-        List<ApiDoctorWithSlots> resultList;
-        if (selectedDocId != null) {
-          // Khi đặt lịch từ bác sĩ cụ thể: Chỉ hiển thị lịch của đúng bác sĩ đó
-          resultList = list.where((d) => d.dentistId == selectedDocId).toList();
-        } else {
-          resultList = List.from(list);
-        }
-        setState(() { _doctors = resultList; _loading = false; });
+        setState(() {
+          _doctors = List.from(list);
+          _loading = false;
+        });
       }
     } catch (e) {
-      if (mounted) setState(() { _error = 'Không thể tải thông tin bác sĩ.'; _loading = false; });
+      if (mounted) {
+        setState(() {
+          _error = 'Không thể tải thông tin bác sĩ.';
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -97,7 +97,41 @@ class _SelectDoctorPageState extends State<SelectDoctorPage> {
 
   String _dayLabel(DateTime d, bool isVi) {
     final weekdays = isVi ? _weekdaysVi : _weekdaysEn;
-    return '${_fmtDate(d)} - ${weekdays[d.weekday]}';
+    return '${weekdays[d.weekday]}, ${_fmtDate(d)}';
+  }
+
+  static String _weekdayShort(DateTime d, bool isVi) {
+    final list = isVi ? _weekdaysShortVi : _weekdaysShortEn;
+    return list[d.weekday];
+  }
+
+  void _onSelectDoctor(ApiDoctorWithSlots doc, bool isVi) {
+    final availableCount = doc.slots.where((s) => !s.isBooked).length;
+    if (availableCount == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isVi
+                ? 'Bác sĩ ${doc.fullName} đã kín lịch vào ngày này. Vui lòng chọn bác sĩ khác hoặc đổi ngày khám.'
+                : 'Dr. ${doc.fullName} has no available slots on this date. Please choose another doctor or date.',
+          ),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: const Color(0xFFDC2626),
+        ),
+      );
+      return;
+    }
+
+    final doctorInfo = doc.toDoctorInfo();
+    final updatedDraft = widget.draft.copyWith(
+      date: _currentDate,
+      doctor: doctorInfo,
+      clearTimeSlot: true,
+      clearHold: true,
+    );
+    _service.setActiveDraft(updatedDraft);
+
+    context.pushReplacement(AppRoutes.bookingSelectTimeSlot, extra: updatedDraft);
   }
 
   @override
@@ -106,7 +140,7 @@ class _SelectDoctorPageState extends State<SelectDoctorPage> {
 
     return Scaffold(
       backgroundColor: context.bg,
-      appBar: BookingAppBar(title: isVi ? 'Chọn khung giờ khám' : 'Select Time Slot'),
+      appBar: BookingAppBar(title: isVi ? 'Chọn Nha sĩ' : 'Select Dentist'),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
@@ -115,7 +149,7 @@ class _SelectDoctorPageState extends State<SelectDoctorPage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        isVi ? 'Không thể tải thông tin bác sĩ.' : 'Unable to load doctor info.',
+                        isVi ? 'Không thể tải danh sách nha sĩ.' : 'Unable to load dentists.',
                         style: TextStyle(color: context.textSecondary),
                       ),
                       const SizedBox(height: 12),
@@ -128,90 +162,119 @@ class _SelectDoctorPageState extends State<SelectDoctorPage> {
                 )
               : CustomScrollView(
                   slivers: [
-                    // ── Header ────────────────────────────────────────────
+                    if (widget.draft.holdExpiresAt != null)
+                      SliverToBoxAdapter(
+                        child: HoldCountdownBanner(holdExpiresAt: widget.draft.holdExpiresAt),
+                      ),
+                    // ── Date Selector Strip ─────────────────────────────────
                     SliverToBoxAdapter(
-                      child: ColoredBox(
-                        color: context.card,
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      isVi ? 'Chọn khung giờ khám' : 'Select Time Slot',
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w700,
-                                        color: context.textPrimary,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    RichText(
-                                      text: TextSpan(
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          color: context.textSecondary,
-                                          fontStyle: FontStyle.italic,
-                                        ),
-                                        children: [
-                                          TextSpan(
-                                            text: isVi 
-                                                ? 'Bấm chọn ngày và giờ '
-                                                : 'Select date & slot in ',
-                                          ),
-                                          const TextSpan(
-                                            text: 'màu đỏ',
-                                            style: TextStyle(
-                                              color: AppColors.primary,
-                                              fontWeight: FontWeight.w600,
-                                              fontStyle: FontStyle.italic,
-                                            ),
-                                          ),
-                                          TextSpan(
-                                            text: isVi ? ' để đặt khám' : ' to book',
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              GestureDetector(
-                                onTap: _pickCustomDate,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primary.withValues(alpha: context.isDark ? 0.2 : 0.1),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
+                      child: Container(
+                        margin: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+                        decoration: BoxDecoration(
+                          color: context.card,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: context.divider),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
                                     children: [
-                                      const Icon(Iconsax.calendar_edit, size: 14, color: AppColors.primary),
-                                      const SizedBox(width: 4),
+                                      const Icon(Iconsax.calendar_1, size: 16, color: AppColors.primary),
+                                      const SizedBox(width: 6),
                                       Text(
-                                        isVi ? 'Đổi ngày' : 'Change date',
-                                        style: const TextStyle(
-                                          fontSize: 12,
+                                        _dayLabel(_currentDate, isVi),
+                                        style: TextStyle(
+                                          fontSize: 14,
                                           fontWeight: FontWeight.w700,
-                                          color: AppColors.primary,
+                                          color: context.textPrimary,
                                         ),
                                       ),
                                     ],
                                   ),
-                                ),
+                                  GestureDetector(
+                                    onTap: _pickCustomDate,
+                                    child: Text(
+                                      isVi ? 'Đổi ngày' : 'Change',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.primary,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
+                            ),
+                            Divider(color: context.divider, height: 1),
+                            SizedBox(
+                              height: 66,
+                              child: ListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                itemCount: 14,
+                                itemBuilder: (context, index) {
+                                  final d = DateTime.now().add(Duration(days: index));
+                                  final isSelected = d.year == _currentDate.year &&
+                                      d.month == _currentDate.month &&
+                                      d.day == _currentDate.day;
+                                  final isToday = index == 0;
+                                  final shortWeekday = _weekdayShort(d, isVi);
+
+                                  return GestureDetector(
+                                    onTap: () => _onDateSelected(d),
+                                    child: Container(
+                                      width: 60,
+                                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                                      decoration: BoxDecoration(
+                                        color: isSelected
+                                            ? AppColors.primary
+                                            : (context.isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC)),
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(
+                                          color: isSelected ? AppColors.primary : context.divider,
+                                        ),
+                                      ),
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Text(
+                                            isToday ? (isVi ? 'Hôm nay' : 'Today') : shortWeekday,
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                              color: isSelected
+                                                  ? Colors.white.withValues(alpha: 0.9)
+                                                  : context.textSecondary,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w800,
+                                              color: isSelected ? Colors.white : context.textPrimary,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
 
-                    // ── Doctor cards ──────────────────────────────────────
+                    // ── Doctor Cards List ───────────────────────────────────
                     if (_doctors.isEmpty)
                       SliverFillRemaining(
                         hasScrollBody: false,
@@ -233,11 +296,11 @@ class _SelectDoctorPageState extends State<SelectDoctorPage> {
                                 Text(
                                   widget.draft.doctor != null
                                       ? (isVi
-                                          ? 'Bác sĩ ${widget.draft.doctor!.fullName.replaceAll(RegExp(r"^(Bác sĩ|BS|Bs|Dr)\.?\s*", caseSensitive: false), "").trim()} không có lịch khám trống vào ngày này'
-                                          : 'Doctor ${widget.draft.doctor!.fullName.replaceAll(RegExp(r"^(Bác sĩ|BS|Bs|Dr)\.?\s*", caseSensitive: false), "").trim()} has no available slots on this date')
+                                          ? 'Bác sĩ không có lịch làm việc vào ngày này'
+                                          : 'Doctor has no schedule on this date')
                                       : (isVi
-                                          ? 'Không có bác sĩ nào có lịch khám trống vào ngày này'
-                                          : 'No doctors available on this date'),
+                                          ? 'Không có nha sĩ nào có lịch trực vào ngày này'
+                                          : 'No dentists available on this date'),
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
                                     fontSize: 15,
@@ -248,8 +311,8 @@ class _SelectDoctorPageState extends State<SelectDoctorPage> {
                                 const SizedBox(height: 8),
                                 Text(
                                   isVi
-                                      ? 'Vui lòng chọn ngày khác ở thanh ngày bên trên hoặc chọn ngày trong lịch để tiếp tục.'
-                                      : 'Please select another date from the bar above or open the calendar.',
+                                      ? 'Vui lòng chọn ngày khác ở thanh ngày bên trên để tiếp tục.'
+                                      : 'Please select another date from the bar above.',
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
                                     fontSize: 13,
@@ -273,100 +336,93 @@ class _SelectDoctorPageState extends State<SelectDoctorPage> {
                         ),
                       )
                     else
-                      SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (_, i) => _DoctorSlotCard(
-                            doctor: _doctors[i],
-                            date: _currentDate,
-                            dayLabel: _dayLabel(_currentDate, isVi),
-                            isPreferred: widget.draft.preferredDentistId != null &&
-                                _doctors[i].dentistId == widget.draft.preferredDentistId,
-                            onDateChange: _onDateSelected,
-                            onSlotSelected: (slot) {
-                              final doctorInfo = _doctors[i].toDoctorInfo();
-                              final draft2 = widget.draft.copyWith(
-                                date: _currentDate,
-                                doctor: doctorInfo,
-                                timeSlot: slot.toTimeSlot(),
+                      SliverPadding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                        sliver: SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                            (_, i) {
+                              final doc = _doctors[i];
+                              final isSelected = widget.draft.doctor?.id == doc.dentistId;
+                              final isPreferred = widget.draft.preferredDentistId != null &&
+                                  doc.dentistId == widget.draft.preferredDentistId;
+                              return _DoctorItemCard(
+                                doctor: doc,
+                                isSelected: isSelected,
+                                isPreferred: isPreferred,
+                                isVi: isVi,
+                                onTap: () => _onSelectDoctor(doc, isVi),
                               );
-                              context.push(AppRoutes.bookingReview, extra: draft2);
                             },
+                            childCount: _doctors.length,
                           ),
-                          childCount: _doctors.length,
                         ),
                       ),
-                    const SliverToBoxAdapter(child: SizedBox(height: 24)),
+
+                    const SliverToBoxAdapter(child: SizedBox(height: 40)),
                   ],
                 ),
     );
   }
 }
 
-// ─── Doctor + Slot Card ───────────────────────────────────────────────────────
+// ─── Doctor Item Card ─────────────────────────────────────────────────────────
 
-class _DoctorSlotCard extends StatelessWidget {
+class _DoctorItemCard extends StatelessWidget {
   final ApiDoctorWithSlots doctor;
-  final DateTime date;
-  final String dayLabel;
+  final bool isSelected;
   final bool isPreferred;
-  final void Function(DateTime) onDateChange;
-  final void Function(ApiTimeSlot) onSlotSelected;
+  final bool isVi;
+  final VoidCallback onTap;
 
-  const _DoctorSlotCard({
+  const _DoctorItemCard({
     required this.doctor,
-    required this.date,
-    required this.dayLabel,
-    this.isPreferred = false,
-    required this.onDateChange,
-    required this.onSlotSelected,
+    this.isSelected = false,
+    required this.isPreferred,
+    required this.isVi,
+    required this.onTap,
   });
-
-  static const _periodOrder = ['Buổi sáng', 'Buổi chiều', 'Buổi tối'];
-
-  static String _periodLabel(String period, bool isVi) {
-    if (isVi) return period.isEmpty ? 'Khác' : period;
-    return switch (period) {
-      'Buổi sáng' => 'Morning',
-      'Buổi chiều' => 'Afternoon',
-      'Buổi tối' => 'Evening',
-      _ => 'Other',
-    };
-  }
 
   @override
   Widget build(BuildContext context) {
-    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
-
-    final now = DateTime.now();
-    final isDateToday = date.year == now.year && date.month == now.month && date.day == now.day;
+    final availableSlots = doctor.slots.where((s) => !s.isBooked).length;
+    final totalSlots = doctor.slots.length;
+    final isFullyBooked = availableSlots == 0 && totalSlots > 0;
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: context.card,
-        borderRadius: BorderRadius.circular(14),
+        color: isSelected
+            ? (context.isDark ? const Color(0xFF1E293B) : const Color(0xFFFFF1F2))
+            : context.card,
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isPreferred ? AppColors.primary : context.divider,
-          width: isPreferred ? 1.6 : 1,
+          color: (isSelected || isPreferred)
+              ? AppColors.primary
+              : (context.isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+          width: (isSelected || isPreferred) ? 1.8 : 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
+            color: isSelected
+                ? AppColors.primary.withValues(alpha: 0.1)
+                : Colors.black.withValues(alpha: 0.04),
+            blurRadius: isSelected ? 10 : 8,
             offset: const Offset(0, 3),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Doctor header ──────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.all(14),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                _DoctorAvatar(avatarUrl: doctor.avatarUrl),
-                const SizedBox(width: 12),
+                _DoctorAvatar(avatarUrl: doctor.avatarUrl, size: 56),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -377,303 +433,183 @@ class _DoctorSlotCard extends StatelessWidget {
                             child: Text(
                               doctor.fullName,
                               style: TextStyle(
-                                fontSize: 14,
+                                fontSize: 15,
                                 fontWeight: FontWeight.w800,
-                                color: context.isDark ? Colors.white : AppColors.primary,
+                                color: isSelected
+                                    ? AppColors.primary
+                                    : (context.isDark ? Colors.white : AppColors.primary),
                               ),
+                            ),
+                          ),
+                          if (isSelected) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                isVi ? '✓ Đang chọn' : '✓ Selected',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ] else if (isPreferred) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                isVi ? 'Ưa thích' : 'Preferred',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        doctor.specialization,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: context.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: [
+                          if (doctor.experienceYears > 0)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFEF3C7),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Iconsax.award, size: 12, color: Color(0xFFD97706)),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    isVi ? '${doctor.experienceYears} năm KN' : '${doctor.experienceYears} yrs',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF92400E),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: isFullyBooked
+                                  ? const Color(0xFFFEE2E2)
+                                  : (context.isDark ? const Color(0xFF1E293B) : const Color(0xFFECFDF5)),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  isFullyBooked ? Iconsax.close_circle : Iconsax.clock,
+                                  size: 12,
+                                  color: isFullyBooked ? const Color(0xFFDC2626) : const Color(0xFF059669),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  isFullyBooked
+                                      ? (isVi ? 'Đã kín lịch' : 'Full')
+                                      : (isVi ? '$availableSlots ca khám trống' : '$availableSlots slots open'),
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: isFullyBooked ? const Color(0xFFB91C1C) : const Color(0xFF047857),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        doctor.specialization,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: context.textSecondary,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      GestureDetector(
-                        onTap: () {},
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: context.isDark ? const Color(0xFF451A1A) : AppColors.primaryLight.withValues(alpha: 0.6),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: AppColors.primary.withValues(alpha: 0.1)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                isVi ? 'Thông tin bác sĩ' : 'Dentist Info',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w500,
-                                  color: context.isDark ? Colors.white : AppColors.primary,
-                                ),
-                              ),
-                              const SizedBox(width: 3),
-                              Icon(Iconsax.arrow_right_2, size: 10, color: context.isDark ? Colors.white : AppColors.primary),
-                            ],
-                          ),
-                        ),
-                      ),
                     ],
                   ),
                 ),
-                Icon(Iconsax.arrow_down_2, color: context.textSecondary, size: 22),
+                const SizedBox(width: 8),
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: isFullyBooked
+                        ? (context.isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9))
+                        : AppColors.primary.withValues(alpha: context.isDark ? 0.2 : 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Iconsax.arrow_right_3,
+                    size: 16,
+                    color: isFullyBooked ? context.textMuted : AppColors.primary,
+                  ),
+                ),
               ],
             ),
           ),
-
-          Divider(color: context.divider, height: 1),
-
-          // ── Date chip (các ngày trong thẻ của dentist) ─────────────────
-          SizedBox(
-            height: 66,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              itemCount: 14,
-              itemBuilder: (context, index) {
-                final d = DateTime.now().add(Duration(days: index));
-                final isSelected = d.year == date.year && d.month == date.month && d.day == date.day;
-                final isToday = index == 0;
-                final shortWeekday = _weekdayShort(d, isVi);
-
-                return GestureDetector(
-                  onTap: () => onDateChange(d),
-                  child: Container(
-                    width: 62,
-                    margin: const EdgeInsets.only(right: 8),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? AppColors.primary
-                          : (context.isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: isSelected
-                            ? AppColors.primary
-                            : (isToday ? AppColors.primary.withValues(alpha: 0.5) : context.divider),
-                        width: isSelected || isToday ? 1.5 : 1,
-                      ),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          isToday ? (isVi ? 'Hôm nay' : 'Today') : shortWeekday,
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                            color: isSelected
-                                ? Colors.white
-                                : (isToday ? AppColors.primary : context.textSecondary),
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            color: isSelected ? Colors.white : context.textPrimary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-
-          // ── Date label ───────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
-            child: Text(
-              '${_fmtDateInline(date)} (${_weekdayShort(date, isVi)})',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                color: context.isDark ? Colors.white : AppColors.primary,
-              ),
-            ),
-          ),
-
-          if (doctor.slots.isEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 16, 14, 20),
-              child: Center(
-                child: Column(
-                  children: [
-                    Icon(Iconsax.calendar_remove, size: 28, color: context.textSecondary.withValues(alpha: 0.6)),
-                    const SizedBox(height: 6),
-                    Text(
-                      isVi
-                          ? 'Bác sĩ không có lịch khám trống vào ngày này.'
-                          : 'No available slots on this date.',
-                      style: TextStyle(fontSize: 12.5, color: context.textSecondary, fontWeight: FontWeight.w500),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      isVi
-                          ? 'Vui lòng chọn ngày khác ở trên.'
-                          : 'Please select another date above.',
-                      style: const TextStyle(fontSize: 11.5, color: AppColors.primary, fontWeight: FontWeight.w600),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-          // ── Time slot grid — nhóm theo buổi (sáng/chiều/tối) ──────────
-          // Phòng khi có period lạ/không xác định (dữ liệu cũ) — vẫn hiện ra thay vì ẩn mất.
-          ...[
-            ..._periodOrder,
-            ...doctor.slots.map((s) => s.period).toSet().where((p) => !_periodOrder.contains(p)),
-          ].expand((period) {
-            final periodSlots = doctor.slots.where((s) => s.period == period).toList();
-            if (periodSlots.isEmpty) return const <Widget>[];
-
-            return [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
-                child: Text(
-                  _periodLabel(period, isVi),
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    color: context.textSecondary,
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
-                child: GridView.count(
-                  crossAxisCount: 2,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  mainAxisSpacing: 8,
-                  crossAxisSpacing: 8,
-                  childAspectRatio: 4.2,
-                  children: periodSlots.map((slot) {
-                    final timePart = slot.range.split(' - ').first.trim();
-                    final timeParts = timePart.split(':');
-                    final slotHour = int.tryParse(timeParts[0]) ?? 0;
-                    final slotMinute = int.tryParse(timeParts[1]) ?? 0;
-
-                    final isPastSlot = isDateToday && (slotHour < now.hour || (slotHour == now.hour && slotMinute <= now.minute));
-                    final booked = slot.isBooked || isPastSlot;
-
-                    final cellBg = booked
-                        ? (context.isDark ? const Color(0xFF1E293B) : AppColors.background)
-                        : (context.isDark ? const Color(0xFF451A1A) : AppColors.primaryLight.withValues(alpha: 0.55));
-                    final cellText = booked
-                        ? context.textSecondary.withValues(alpha: 0.4)
-                        : (context.isDark ? Colors.white : AppColors.primary);
-
-                    return GestureDetector(
-                      onTap: booked ? null : () => onSlotSelected(slot),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        decoration: BoxDecoration(
-                          color: cellBg,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: context.divider),
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              slot.range,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: cellText,
-                              ),
-                            ),
-                            if (booked)
-                              Text(
-                                isPastSlot
-                                    ? (isVi ? 'Đã qua' : 'Passed')
-                                    : (isVi ? 'Hết số' : 'Booked'),
-                                style: TextStyle(fontSize: 9, color: context.textSecondary.withValues(alpha: 0.5)),
-                              ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-            ];
-          }),
-        ],
+        ),
       ),
     );
   }
-
-  String _fmtDateInline(DateTime d) =>
-      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
-
-  static const _wdShortVi = ['', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'CN'];
-  static const _wdShortEn = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  String _weekdayShort(DateTime d, bool isVi) =>
-      isVi ? _wdShortVi[d.weekday] : _wdShortEn[d.weekday];
 }
-
-// ─── Doctor Avatar ────────────────────────────────────────────────────────────
 
 class _DoctorAvatar extends StatelessWidget {
   final String? avatarUrl;
-  const _DoctorAvatar({this.avatarUrl});
+  final double size;
+  const _DoctorAvatar({this.avatarUrl, this.size = 46});
 
   @override
   Widget build(BuildContext context) {
-    final placeholder = Container(
-      width: 60,
-      height: 60,
-      decoration: BoxDecoration(
-        color: context.isDark ? const Color(0xFF451A1A) : AppColors.primaryLight,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Icon(Iconsax.profile_circle, color: context.isDark ? Colors.white : AppColors.primary, size: 30),
-    );
-
-    final resolved = ApiConstants.resolveAssetUrl(avatarUrl);
-    if (resolved == null) return placeholder;
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: Image.network(
-        resolved,
-        width: 60,
-        height: 60,
-        fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => placeholder,
-        loadingBuilder: (_, child, loadingProgress) {
-          if (loadingProgress == null) return child;
-          return Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              color: context.isDark ? const Color(0xFF1E293B) : AppColors.background,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Center(
-              child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            ),
-          );
-        },
-      ),
-    );
+    if (avatarUrl != null && avatarUrl!.isNotEmpty) {
+      if (avatarUrl!.startsWith('assets/')) {
+        return ClipOval(
+          child: Image.asset(avatarUrl!, width: size, height: size, fit: BoxFit.cover),
+        );
+      }
+      final resolved = ApiConstants.resolveAssetUrl(avatarUrl);
+      if (resolved != null) {
+        return ClipOval(
+          child: Image.network(
+            resolved,
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _fallback(),
+          ),
+        );
+      }
+    }
+    return _fallback();
   }
+
+  Widget _fallback() => Container(
+        width: size,
+        height: size,
+        decoration: const BoxDecoration(
+          color: AppColors.primaryLight,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(Iconsax.user, color: AppColors.primary, size: size * 0.55),
+      );
 }

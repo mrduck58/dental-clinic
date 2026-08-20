@@ -1,11 +1,18 @@
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Domain.Schedules;
 using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Dentists;
 
-public record TimeSlotDto(string Range, bool IsBooked, string Period);
+public record TimeSlotDto(
+    string Range,
+    bool IsBooked,
+    string Period,
+    bool IsHeld = false,
+    bool IsHeldByMe = false,
+    int HoldRemainingSeconds = 0);
 
 public record DentistWithSlotsDto(
     Guid DentistId,
@@ -21,12 +28,16 @@ public record GetDentistSlotsQuery(DateOnly Date) : IRequest<IEnumerable<Dentist
 public class GetDentistSlotsHandler(
     IWorkScheduleRepository workScheduleRepository,
     IDentistRepository dentistRepository,
-    IAppointmentRepository appointmentRepository)
+    IAppointmentRepository appointmentRepository,
+    ISlotHoldRepository? slotHoldRepository = null,
+    ICurrentUserService? currentUser = null)
     : IRequestHandler<GetDentistSlotsQuery, IEnumerable<DentistWithSlotsDto>>
 {
     public async Task<IEnumerable<DentistWithSlotsDto>> Handle(GetDentistSlotsQuery request, CancellationToken ct)
     {
         var date = request.Date;
+        var now = DateTimeOffset.UtcNow;
+        var currentUserId = currentUser?.UserId ?? Guid.Empty;
 
         // Kiểm tra WorkSchedule cho ngày này
         var daySchedules = await workScheduleRepository.GetByDateAsync(date, ct);
@@ -39,34 +50,56 @@ public class GetDentistSlotsHandler(
 
         // Lấy WorkSchedule liên quan đến bác sĩ
         var dentistSchedules = daySchedules
-            .Where(ws => ws.Type == "dentist" || ws.Role == "dentist" || string.Equals(ws.Type, "Khám", StringComparison.OrdinalIgnoreCase))
+            .Where(ws => (ws.Type == "dentist" || ws.Role == "dentist" || string.Equals(ws.Type, "Khám", StringComparison.OrdinalIgnoreCase))
+                         && !ws.IsHoliday)
             .ToList();
 
-        List<DentistProfile> dentists;
-        var shiftsByName = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        var allActiveDentists = await dentistRepository.GetAllActiveWithUserAsync(ct);
+        var dayAppointments = await appointmentRepository.GetByDateAsync(date, ct);
+
+        List<(DentistProfile Dentist, List<string> AssignedShifts)> targetDentists;
 
         if (dentistSchedules.Count > 0)
         {
-            shiftsByName = dentistSchedules
-                .GroupBy(ws => ws.StaffName)
-                .ToDictionary(g => g.Key, g => g.Select(ws => ws.Shift).ToHashSet(), StringComparer.OrdinalIgnoreCase);
+            targetDentists = [];
+            foreach (var d in allActiveDentists)
+            {
+                var matchingSchedules = dentistSchedules
+                    .Where(ws => (ws.EmployeeId.HasValue && ws.EmployeeId.Value == d.EmployeeId)
+                                 || StaffNameMatcher.IsSamePerson(ws.StaffName, d.FullName)
+                                 || StaffNameMatcher.IsSamePerson(ws.StaffName, d.Employee?.User?.FullName))
+                    .ToList();
 
-            var dentistNames = dentistSchedules
-                .Select(ws => ws.StaffName)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                if (matchingSchedules.Count > 0)
+                {
+                    var shifts = matchingSchedules
+                        .Select(ws => ws.Shift)
+                        .Where(s => !string.IsNullOrWhiteSpace(s) && !string.Equals(s, "Off", StringComparison.OrdinalIgnoreCase) && !string.Equals(s, "Nghỉ", StringComparison.OrdinalIgnoreCase))
+                        .Distinct()
+                        .ToList();
 
-            dentists = await dentistRepository.GetActiveByNamesAsync(dentistNames, ct);
+                    if (shifts.Count > 0)
+                    {
+                        targetDentists.Add((d, shifts));
+                    }
+                }
+            }
         }
         else
         {
-            // Chưa có WorkSchedule cụ thể cho bác sĩ ngày này -> Mặc định lấy tất cả bác sĩ đang hoạt động
-            dentists = await dentistRepository.GetAllActiveWithUserAsync(ct);
+            // Chưa có WorkSchedule cụ thể cho bác sĩ ngày này -> Dùng ca mặc định của từng bác sĩ
+            targetDentists = allActiveDentists
+                .Select(d => (d, new List<string> { d.Shift }))
+                .ToList();
         }
 
-        var dayAppointments = await appointmentRepository.GetByDateAsync(date, ct);
+        var result = new List<DentistWithSlotsDto>();
 
-        return dentists.Select(d =>
+        foreach (var item in targetDentists)
         {
+            var d = item.Dentist;
+            var assignedShifts = item.AssignedShifts;
+
             var occupiedRanges = dayAppointments
                 .Where(a => a.DentistId == d.Id)
                 .Select(a =>
@@ -76,10 +109,9 @@ public class GetDentistSlotsHandler(
                 })
                 .ToList();
 
-            // Khung giờ theo các ca THỰC TẾ được phân trong ngày; dự phòng dùng ca tĩnh của bác sĩ
-            var assignedShifts = shiftsByName.TryGetValue(d.FullName, out var s) && s.Count > 0
-                ? (IEnumerable<string>)s
-                : [d.Shift];
+            var activeHolds = slotHoldRepository != null
+                ? await slotHoldRepository.GetActiveHoldsForDentistAndDateAsync(d.Id, date, now, ct)
+                : (IReadOnlyList<AppointmentSlotHold>)[];
 
             var slots = SlotCalculator.AllTimes
                 .Where(t => WorkShifts.IsWorkingAt(assignedShifts, t.Hour, t.Minute))
@@ -88,19 +120,40 @@ public class GetDentistSlotsHandler(
                     var slotStart = t.Hour * 60 + t.Minute;
                     var slotEnd = slotStart + SlotCalculator.SlotMinutes;
                     var range = $"{t.Hour:D2}:{t.Minute:D2} - {slotEnd / 60:D2}:{slotEnd % 60:D2}";
-                    var isBooked = SlotCalculator.IsOccupied(slotStart, slotEnd, occupiedRanges);
+                    var isAppointmentOccupied = SlotCalculator.IsOccupied(slotStart, slotEnd, occupiedRanges);
+
+                    var matchingHold = activeHolds.FirstOrDefault(h =>
+                    {
+                        var localTime = h.AppointmentDate.UtcDateTime.AddHours(7);
+                        var holdRange = SlotCalculator.BuildOccupiedRange(localTime.Hour, localTime.Minute, h.DurationMinutes > 0 ? h.DurationMinutes : 30);
+                        return slotStart < holdRange.EndMinutes && slotEnd > holdRange.StartMinutes;
+                    });
+
+                    var isHeld = matchingHold != null;
+                    var isHeldByMe = isHeld && (currentUserId != Guid.Empty && matchingHold!.UserId == currentUserId);
+                    var isBooked = isAppointmentOccupied || (isHeld && !isHeldByMe);
                     var period = SlotCalculator.PeriodAt(t.Hour, t.Minute);
-                    return new TimeSlotDto(range, isBooked, period);
+                    var remaining = isHeld ? (int)Math.Max(0, (matchingHold!.ExpiresAt - now).TotalSeconds) : 0;
+
+                    return new TimeSlotDto(
+                        range,
+                        isBooked,
+                        period,
+                        IsHeld: isHeld,
+                        IsHeldByMe: isHeldByMe,
+                        HoldRemainingSeconds: remaining);
                 }).ToList();
 
-            return new DentistWithSlotsDto(
+            result.Add(new DentistWithSlotsDto(
                 d.Id,
                 d.FullName,
                 d.Specialization,
                 d.ProfilePictureUrl,
                 d.Shift,
                 d.ExperienceYears ?? 0,
-                slots);
-        });
+                slots));
+        }
+
+        return result;
     }
 }

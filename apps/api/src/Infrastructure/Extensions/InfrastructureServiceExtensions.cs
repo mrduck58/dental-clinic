@@ -66,6 +66,8 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IAiUsageLogRepository, AiUsageLogRepository>();
         services.AddScoped<IMaterialRequestRepository, MaterialRequestRepository>();
         services.AddScoped<ITreatmentProcedureRepository, TreatmentProcedureRepository>();
+        services.AddScoped<IServiceSupplyItemRepository, ServiceSupplyItemRepository>();
+        services.AddScoped<ITreatmentSupplyUsageRepository, TreatmentSupplyUsageRepository>();
         services.AddScoped<IDentistRepository, DentistRepository>();
         services.AddScoped<IDentistReviewRepository, DentistReviewRepository>();
         services.AddScoped<IDiagnosisRepository, DiagnosisRepository>();
@@ -78,6 +80,9 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IAppointmentSummaryReader, AppointmentSummaryReader>();
         services.AddScoped<IInvoiceRepository, InvoiceRepository>();
         services.AddScoped<IPaymentTransactionRepository, PaymentTransactionRepository>();
+        services.AddScoped<ISlotHoldRepository, SlotHoldRepository>();
+        services.AddScoped<IAppointmentChangeRequestRepository, AppointmentChangeRequestRepository>();
+        services.AddHostedService<SlotHoldCleanupService>();
         // AppDbContext đã implement IUnitOfWork — resolve về ĐÚNG instance scoped của request này
         // (không tạo DbContext mới) để các repository stage thay đổi và unit of work chốt lưu chung 1 lần.
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AppDbContext>());
@@ -97,6 +102,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IJwtService, JwtService>();
         services.AddScoped<IActivityLogService, ActivityLogService>();
         services.AddScoped<INotificationService, NotificationService>();
+        services.AddScoped<ISlotNotifier, SignalRSlotNotifier>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddHttpClient<IEmailService, EmailService>();
         // Kho lưu file: có cấu hình Supabase thì dùng, không thì lùi về đĩa cục bộ.
@@ -143,6 +149,9 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<DentalClinic.API.Application.UseCases.ClinicalRecords.ClinicalRecordWriteGuard>();
         services.AddScoped<DentalClinic.API.Application.UseCases.Booking.AppointmentChangeGuard>();
         services.AddScoped<DentalClinic.API.Application.UseCases.Booking.AppointmentSlotGuard>();
+        services.AddScoped<DentalClinic.API.Application.UseCases.Booking.HoldSlotHandler>();
+        services.AddScoped<DentalClinic.API.Application.UseCases.Booking.ReleaseSlotHoldHandler>();
+        services.AddScoped<DentalClinic.API.Application.UseCases.Booking.GetActiveSlotHoldHandler>();
 
         return services;
     }

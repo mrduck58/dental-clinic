@@ -8,8 +8,8 @@ public interface IMaterialRequestRepository
     Task<MaterialRequest?> GetByIdAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>
-    /// Lọc động theo Status?, PatientId?/CourseId?, PatientName?.
-    /// Nếu có cả PatientId và PatientName: khớp CourseId == PatientId HOẶC PatientName == PatientName.
+    /// Lọc động theo Status?, PatientId?, PatientName?.
+    /// Nếu có cả PatientId và PatientName: khớp PatientId == PatientId HOẶC PatientName == PatientName.
     /// Kết quả sắp xếp OrderByDescending(CreatedAt), AsNoTracking.
     /// </summary>
     Task<IEnumerable<MaterialRequest>> SearchAsync(

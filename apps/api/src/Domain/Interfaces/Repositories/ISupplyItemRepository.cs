@@ -8,6 +8,7 @@ public interface ISupplyItemRepository
     Task<SupplyItem?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task AddAsync(SupplyItem item, CancellationToken ct = default);
     Task UpdateAsync(SupplyItem item, CancellationToken ct = default);
+    Task DeleteAsync(SupplyItem item, CancellationToken ct = default);
 
     /// <summary>True nếu đã có vật tư với mã (Code) này — dùng để chặn tạo trùng mã.</summary>
     Task<bool> ExistsByCodeAsync(string code, CancellationToken ct = default);

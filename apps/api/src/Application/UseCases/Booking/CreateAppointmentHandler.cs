@@ -26,7 +26,9 @@ public class CreateAppointmentHandler(
     IPatientRepository patientRepository,
     IUserRepository userRepository,
     AppointmentSlotGuard slotGuard,
-    INotificationService notificationService) : IRequestHandler<CreateAppointmentCommand, CreateAppointmentResult>
+    INotificationService notificationService,
+    ISlotHoldRepository? slotHoldRepository = null,
+    ISlotNotifier? slotNotifier = null) : IRequestHandler<CreateAppointmentCommand, CreateAppointmentResult>
 {
     public async Task<CreateAppointmentResult> Handle(CreateAppointmentCommand cmd, CancellationToken ct)
     {
@@ -62,12 +64,29 @@ public class CreateAppointmentHandler(
         if (!dentistUserId.HasValue)
             throw new ValidationException($"Không tìm thấy bác sĩ với ID: '{cmd.DentistId}'.");
 
+        var now = DateTimeOffset.UtcNow;
+
+        // 1. Kiểm tra nếu bệnh nhân đang trong thời gian chờ (cooldown 30 phút)
+        var cooldownUntil = await appointmentRepository.GetPatientCooldownUntilAsync(targetPatientId, now, ct);
+        if (cooldownUntil.HasValue && cooldownUntil.Value > now)
+        {
+            var remaining = (int)Math.Ceiling((cooldownUntil.Value - now).TotalMinutes);
+            throw new ConflictException($"Bệnh nhân đang trong thời gian chờ sau khi đổi/hủy lịch. Vui lòng thử lại sau {remaining} phút.");
+        }
+
+        // 2. Kiểm tra giới hạn tối đa 2 lịch hẹn đang hoạt động của tài khoản
+        var activeCount = await appointmentRepository.CountActiveAppointmentsForUserAsync(cmd.UserId, excludeAppointmentId: null, ct);
+        if (activeCount >= 2)
+        {
+            throw new ConflictException("Tài khoản của bạn đã đạt giới hạn tối đa 2 lịch hẹn đang hoạt động. Vui lòng hoàn thành hoặc dời/hủy bớt lịch hẹn trước khi đặt thêm.");
+        }
+
         var localDate = DateOnly.FromDateTime(cmd.AppointmentDate.UtcDateTime.AddHours(7));
         var hasActiveAppointment = await appointmentRepository.HasActiveAppointmentOnDateAsync(
-            cmd.UserId, localDate, excludeAppointmentId: null, ct);
+            targetPatientId, localDate, excludeAppointmentId: null, ct);
         if (hasActiveAppointment)
         {
-            throw new ConflictException("Tài khoản của bạn đã có một lịch hẹn trong ngày này. Mỗi tài khoản chỉ được đặt tối đa 1 lịch hẹn mỗi ngày (nếu muốn đổi giờ, vui lòng dời hoặc hủy lịch cũ).");
+            throw new ConflictException("Bệnh nhân này đã có một lịch hẹn trong ngày này. Mỗi bệnh nhân chỉ được đặt tối đa 1 lịch hẹn mỗi ngày (nếu muốn đổi giờ, vui lòng dời hoặc hủy lịch cũ).");
         }
 
         await slotGuard.EnsureSlotAvailableAsync(
@@ -82,9 +101,28 @@ public class CreateAppointmentHandler(
 
         await appointmentRepository.AddAsync(appointment, ct);
 
+        // 3. Xác nhận Hold thành công (không tính vào 3 lần thất bại)
+        if (slotHoldRepository != null)
+        {
+            var hold = await slotHoldRepository.GetActiveHoldForSlotAsync(cmd.DentistId, utcAppointmentDate, now, ct);
+            if (hold != null && hold.PatientId == targetPatientId)
+            {
+                hold.Confirm();
+                await slotHoldRepository.UpdateAsync(hold, ct);
+            }
+        }
+
+        // 4. Phát sự kiện realtime SlotBooked
+        if (slotNotifier != null)
+        {
+            var vnTime = cmd.AppointmentDate.UtcDateTime.AddHours(7);
+            var slotRange = $"{vnTime.Hour:D2}:{vnTime.Minute:D2} - {(vnTime.Hour + 1):D2}:{vnTime.Minute:D2}";
+            await slotNotifier.NotifySlotBookedAsync(cmd.DentistId, localDate, slotRange, ct);
+        }
+
         var code = $"DK{cmd.AppointmentDate:yyyyMMdd}{appointment.Id.ToString("N")[..6].ToUpper()}";
 
-        var vnTime = cmd.AppointmentDate.UtcDateTime.AddHours(7);
+        var vnTimeNotify = cmd.AppointmentDate.UtcDateTime.AddHours(7);
 
         // Thông báo cho tài khoản bệnh nhân đặt lịch
         await notificationService.CreateAsync(new CreateNotificationRequest(
@@ -92,7 +130,7 @@ public class CreateAppointmentHandler(
             Type: NotificationType.Appointment,
             Priority: NotificationPriority.Medium,
             Title: "Đặt lịch hẹn thành công",
-            Body: $"Lịch khám của bạn vào {vnTime:HH:mm dd/MM/yyyy} đã được ghi nhận. Vui lòng chờ phòng khám xác nhận.",
+            Body: $"Lịch khám của bạn vào {vnTimeNotify:HH:mm dd/MM/yyyy} đã được ghi nhận. Vui lòng chờ phòng khám xác nhận.",
             RelatedEntityType: "Appointment",
             RelatedEntityId: appointment.Id.ToString()), ct);
 
@@ -103,7 +141,7 @@ public class CreateAppointmentHandler(
                 Type: NotificationType.Appointment,
                 Priority: NotificationPriority.High,
                 Title: "Lịch hẹn mới",
-                Body: $"Bạn có lịch hẹn mới vào {vnTime:HH:mm dd/MM/yyyy}.",
+                Body: $"Bạn có lịch hẹn mới vào {vnTimeNotify:HH:mm dd/MM/yyyy}.",
                 RelatedEntityType: "Appointment",
                 RelatedEntityId: appointment.Id.ToString()), ct);
         }
@@ -114,7 +152,7 @@ public class CreateAppointmentHandler(
             Type: NotificationType.Appointment,
             Priority: NotificationPriority.High,
             Title: "Đặt lịch mới",
-            Body: $"Có lịch hẹn mới vào {vnTime:HH:mm dd/MM/yyyy}. Vui lòng xác nhận.",
+            Body: $"Có lịch hẹn mới vào {vnTimeNotify:HH:mm dd/MM/yyyy}. Vui lòng xác nhận.",
             RelatedEntityType: "Appointment",
             RelatedEntityId: appointment.Id.ToString());
         await notificationService.CreateForMultipleUsersAsync(staffIds, staffTemplate, ct);

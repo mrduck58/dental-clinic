@@ -48,6 +48,80 @@ public class AppointmentBookingController(ISender sender) : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>GET api/appointments/booking-eligibility — Kiểm tra giới hạn 2 booking và cooldown của bệnh nhân</summary>
+    [HttpGet("api/appointments/booking-eligibility")]
+    [Authorize(Roles = "Patient")]
+    public async Task<IActionResult> GetBookingEligibility(
+        [FromQuery] Guid? patientId,
+        CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        var result = await sender.Send(new GetBookingEligibilityQuery(userId, patientId), cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>POST api/appointments/hold-slot — Giữ tạm thời một ca khám trong 5 phút</summary>
+    [HttpPost("api/appointments/hold-slot")]
+    [Authorize(Roles = "Patient")]
+    public async Task<IActionResult> HoldSlot(
+        [FromBody] HoldSlotRequest request,
+        [FromServices] HoldSlotHandler handler,
+        CancellationToken cancellationToken)
+    {
+        var cmd = new HoldSlotCommand(
+            request.PatientId,
+            request.DentistId,
+            request.Date,
+            request.TimeSlot,
+            request.ServiceId,
+            request.ReschedulingAppointmentId);
+
+        var result = await handler.Handle(cmd, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>POST api/appointments/release-hold — Giải phóng ca khám đang giữ tạm</summary>
+    [HttpPost("api/appointments/release-hold")]
+    [Authorize(Roles = "Patient")]
+    public async Task<IActionResult> ReleaseHold(
+        [FromBody] ReleaseHoldRequest request,
+        [FromServices] ReleaseSlotHoldHandler handler,
+        CancellationToken cancellationToken)
+    {
+        var cmd = new ReleaseSlotHoldCommand(
+            request.PatientId,
+            request.DentistId,
+            request.Date,
+            request.TimeSlot);
+
+        var result = await handler.Handle(cmd, cancellationToken);
+        return Ok(new { success = result });
+    }
+
+    /// <summary>GET api/appointments/active-hold — Lấy ca khám đang giữ tạm của bệnh nhân</summary>
+    [HttpGet("api/appointments/active-hold")]
+    [Authorize(Roles = "Patient")]
+    public async Task<IActionResult> GetActiveHold(
+        [FromQuery] Guid? patientId,
+        [FromServices] GetActiveSlotHoldHandler handler,
+        [FromServices] DentalClinic.API.Domain.Interfaces.Repositories.IPatientRepository patientRepository,
+        CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        var targetPatientId = patientId;
+        if (!targetPatientId.HasValue || targetPatientId.Value == Guid.Empty)
+        {
+            var myPatient = await patientRepository.GetByUserIdAsync(userId, cancellationToken);
+            targetPatientId = myPatient?.Id;
+        }
+
+        if (!targetPatientId.HasValue || targetPatientId.Value == Guid.Empty)
+            return Ok(null);
+
+        var result = await handler.Handle(targetPatientId.Value, userId, cancellationToken);
+        return Ok(result);
+    }
+
     /// <summary>GET api/appointments — Danh sách tất cả lịch hẹn (Staff/Admin)</summary>
     [HttpGet("api/appointments")]
     [Authorize(Roles = "Staff,Admin,Owner")]
@@ -206,6 +280,88 @@ public class AppointmentBookingController(ISender sender) : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>POST api/appointments/{id}/change-request — Bệnh nhân gửi yêu cầu thay đổi (hủy hoặc dời) sau 24h</summary>
+    [HttpPost("api/appointments/{id}/change-request")]
+    [Authorize(Roles = "Patient")]
+    public async Task<IActionResult> SubmitChangeRequest(
+        Guid id,
+        [FromBody] SubmitAppointmentChangeRequest request,
+        CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        var type = Enum.TryParse<AppointmentChangeType>(request.Type, true, out var parsedType)
+            ? parsedType
+            : AppointmentChangeType.Cancel;
+
+        var cmd = new CreateAppointmentChangeRequestCommand(
+            AppointmentId: id,
+            UserId: userId,
+            Type: type,
+            Reason: request.Reason,
+            DesiredDate: request.DesiredDate,
+            DesiredTimeSlot: request.DesiredTimeSlot,
+            DesiredDentistId: request.DesiredDentistId);
+
+        var result = await sender.Send(cmd, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>GET api/appointments/{id}/change-requests — Xem các yêu cầu thay đổi của lịch hẹn</summary>
+    [HttpGet("api/appointments/{id}/change-requests")]
+    [Authorize(Roles = "Patient,Staff,Admin,Owner")]
+    public async Task<IActionResult> GetAppointmentChangeRequests(
+        Guid id,
+        [FromServices] DentalClinic.API.Domain.Interfaces.Repositories.IAppointmentChangeRequestRepository repository,
+        CancellationToken cancellationToken)
+    {
+        var requests = await repository.GetByAppointmentIdAsync(id, cancellationToken);
+        return Ok(requests.Select(AppointmentChangeRequestDto.FromEntity));
+    }
+
+    /// <summary>GET api/staff/appointment-change-requests — Lễ tân lấy danh sách yêu cầu thay đổi lịch</summary>
+    [HttpGet("api/staff/appointment-change-requests")]
+    [Authorize(Roles = "Staff,Admin,Owner")]
+    public async Task<IActionResult> GetStaffChangeRequests(
+        [FromQuery] string? status,
+        [FromQuery] DateOnly? date,
+        CancellationToken cancellationToken)
+    {
+        AppointmentChangeRequestStatus? parsedStatus = null;
+        if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<AppointmentChangeRequestStatus>(status, true, out var s))
+        {
+            parsedStatus = s;
+        }
+
+        var result = await sender.Send(new GetStaffAppointmentChangeRequestsQuery(parsedStatus, date), cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>PUT api/staff/appointment-change-requests/{id}/approve — Lễ tân duyệt yêu cầu hủy/dời lịch</summary>
+    [HttpPut("api/staff/appointment-change-requests/{id}/approve")]
+    [Authorize(Roles = "Staff,Admin,Owner")]
+    public async Task<IActionResult> ApproveChangeRequest(
+        Guid id,
+        [FromBody] ApproveChangeRequestModel request,
+        CancellationToken cancellationToken)
+    {
+        var staffUserId = GetCurrentUserId();
+        await sender.Send(new ApproveAppointmentChangeRequestCommand(id, staffUserId, request?.StaffNote), cancellationToken);
+        return Ok(new { message = "Đã duyệt yêu cầu thay đổi lịch hẹn." });
+    }
+
+    /// <summary>PUT api/staff/appointment-change-requests/{id}/reject — Lễ tân từ chối yêu cầu hủy/dời lịch</summary>
+    [HttpPut("api/staff/appointment-change-requests/{id}/reject")]
+    [Authorize(Roles = "Staff,Admin,Owner")]
+    public async Task<IActionResult> RejectChangeRequest(
+        Guid id,
+        [FromBody] RejectChangeRequestModel request,
+        CancellationToken cancellationToken)
+    {
+        var staffUserId = GetCurrentUserId();
+        await sender.Send(new RejectAppointmentChangeRequestCommand(id, staffUserId, request.StaffNote), cancellationToken);
+        return Ok(new { message = "Đã từ chối yêu cầu thay đổi lịch hẹn." });
+    }
+
     private Guid GetCurrentUserId()
     {
         var sub = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
@@ -256,3 +412,29 @@ public record RescheduleAppointmentRequest(
     Guid? DentistId,
     Guid? ServiceId,
     string? Reason);
+
+public record HoldSlotRequest(
+    Guid? PatientId,
+    Guid DentistId,
+    DateOnly Date,
+    string TimeSlot,
+    Guid? ServiceId = null,
+    Guid? ReschedulingAppointmentId = null);
+
+public record ReleaseHoldRequest(
+    Guid? PatientId,
+    Guid DentistId,
+    DateOnly Date,
+    string TimeSlot);
+
+public record SubmitAppointmentChangeRequest(
+    string Type,
+    string Reason,
+    DateTimeOffset? DesiredDate = null,
+    string? DesiredTimeSlot = null,
+    Guid? DesiredDentistId = null);
+
+public record ApproveChangeRequestModel(string? StaffNote = null);
+
+public record RejectChangeRequestModel(string StaffNote);
+

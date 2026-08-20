@@ -30,11 +30,12 @@ public class ClinicalRecordsController(ISender sender, ClinicalRecordWriteGuard 
         return Ok(new { message = "Đã bắt đầu khám." });
     }
 
-    /// <summary>PUT api/appointments/{id}/complete — Hoàn thành khám (Staff/Admin/Owner)</summary>
+    /// <summary>PUT api/appointments/{id}/complete — Hoàn thành khám (Staff/Admin/Owner/Dentist)</summary>
     [HttpPut("api/appointments/{id}/complete")]
-    [Authorize(Roles = "Staff,Admin,Owner")]
+    [Authorize(Roles = "Staff,Admin,Owner,Dentist")]
     public async Task<IActionResult> CompleteTreatment(Guid id, CancellationToken cancellationToken)
     {
+        await writeGuard.EnsureCanWriteAppointmentAsync(id, cancellationToken);
         await sender.Send(new CompleteAppointmentCommand(id), cancellationToken);
         return Ok(new { message = "Đã hoàn thành khám." });
     }
@@ -200,6 +201,28 @@ public class ClinicalRecordsController(ISender sender, ClinicalRecordWriteGuard 
     {
         await writeGuard.EnsureCanWriteTreatmentPlanAsync(treatmentPlanId, cancellationToken);
         var result = await sender.Send(new DeleteStepProgressCommand(treatmentPlanId, entryIndex), cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>GET api/appointments/treatment-plan/{treatmentPlanId}/supply-usage — Vật tư đã ghi nhận tiêu hao cho liệu trình.</summary>
+    [HttpGet("api/appointments/treatment-plan/{treatmentPlanId}/supply-usage")]
+    [Authorize(Roles = "Staff,Admin,Dentist,Owner")]
+    public async Task<IActionResult> GetTreatmentSupplyUsage(Guid treatmentPlanId, CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new GetTreatmentSupplyUsageQuery(treatmentPlanId), cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>POST api/appointments/treatment-plan/{treatmentPlanId}/supply-usage — Ghi nhận vật tư đã dùng (tự trừ kho).</summary>
+    [HttpPost("api/appointments/treatment-plan/{treatmentPlanId}/supply-usage")]
+    [Authorize(Roles = "Staff,Admin,Dentist")]
+    public async Task<IActionResult> RecordTreatmentSupplyUsage(
+        Guid treatmentPlanId,
+        [FromBody] RecordTreatmentSupplyUsageRequest request,
+        CancellationToken cancellationToken)
+    {
+        await writeGuard.EnsureCanWriteTreatmentPlanAsync(treatmentPlanId, cancellationToken);
+        var result = await sender.Send(new RecordTreatmentSupplyUsageCommand(treatmentPlanId, request), cancellationToken);
         return Ok(result);
     }
 

@@ -1,4 +1,5 @@
 using DentalClinic.API.Application.UseCases.Inventory;
+using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Services;
@@ -36,7 +37,7 @@ public class StockImportHandlerTests
     public async Task TearDown() => await _db.DisposeAsync();
 
     private static StockImportCommand MakeRequest(string name = "Chỉ nha khoa") =>
-        new(name, "Cuộn", "Vật tư tiêu hao", 30, null, null, null, "staff1");
+        new(name, "Cuộn", InventoryConstants.CategoryConsumable, 30, null, null, "staff1");
 
     /// <summary>Tên vật tư để trống phải bị từ chối.</summary>
     [Test]
@@ -128,6 +129,34 @@ public class StockImportHandlerTests
         await act.Should().ThrowAsync<ValidationException>();
     }
 
+    /// <summary>Danh mục không nằm trong 3 danh mục cho phép (Vật tư chính/Tiêu hao/Kỹ thuật-labo) phải bị từ chối.</summary>
+    [Test]
+    public async Task HandleAsync_CategoryNotInAllowedList_ThrowsValidationException()
+    {
+        Func<Task> act = () => _handler.Handle(MakeRequest() with { Category = "Bảo hộ" }, CancellationToken.None);
+
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    /// <summary>Vật tư mới tạo với danh mục "Vật tư chính" phải tự suy ra OrderType "custom".</summary>
+    [Test]
+    public async Task HandleAsync_CategoryMain_DerivesCustomOrderType()
+    {
+        await _handler.Handle(MakeRequest("Mão Titan") with { Category = InventoryConstants.CategoryMain }, CancellationToken.None);
+
+        (await _db.SupplyItems.SingleAsync()).OrderType.Should().Be("custom");
+    }
+
+    /// <summary>Vật tư mới tạo với danh mục Tiêu hao/Kỹ thuật-labo phải tự suy ra OrderType "standard".</summary>
+    [TestCase(InventoryConstants.CategoryConsumable)]
+    [TestCase(InventoryConstants.CategoryTechnical)]
+    public async Task HandleAsync_NonMainCategory_DerivesStandardOrderType(string category)
+    {
+        await _handler.Handle(MakeRequest("Vật tư dùng chung") with { Category = category }, CancellationToken.None);
+
+        (await _db.SupplyItems.SingleAsync()).OrderType.Should().Be("standard");
+    }
+
     /// <summary>Số lượng âm phải bị từ chối.</summary>
     [Test]
     public async Task HandleAsync_NegativeQuantity_ThrowsValidationException()
@@ -170,7 +199,7 @@ public class StockImportHandlerTests
     [Test]
     public async Task HandleAsync_ExistingStandardItem_UpdatesReferencePriceToLatestImport()
     {
-        var existing = SupplyItem.Create("VT997", "Găng tay", "Bảo hộ", "Hộp", 10, 5, "standard", price: 10_000m);
+        var existing = SupplyItem.Create("VT997", "Găng tay", InventoryConstants.CategoryConsumable, "Hộp", 10, 5, price: 10_000m);
         _db.SupplyItems.Add(existing);
         await _db.SaveChangesAsync();
 
@@ -185,11 +214,11 @@ public class StockImportHandlerTests
     [Test]
     public async Task HandleAsync_ExistingCustomItem_KeepsOriginalReferencePrice()
     {
-        var existing = SupplyItem.Create("VT996", "Răng sứ Cercon", "Vật liệu", "Cái", 1, 0, "custom", price: 10_000m);
+        var existing = SupplyItem.Create("VT996", "Răng sứ Cercon", InventoryConstants.CategoryMain, "Cái", 1, 0, price: 10_000m);
         _db.SupplyItems.Add(existing);
         await _db.SaveChangesAsync();
 
-        await _handler.Handle(MakeRequest("Răng sứ Cercon") with { UnitPrice = 50_000m, OrderType = "custom" }, CancellationToken.None);
+        await _handler.Handle(MakeRequest("Răng sứ Cercon") with { UnitPrice = 50_000m }, CancellationToken.None);
 
         var item = await _db.SupplyItems.SingleAsync();
         item.Price.Should().Be(10_000m);

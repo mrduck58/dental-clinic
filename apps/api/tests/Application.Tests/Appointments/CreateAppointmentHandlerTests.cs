@@ -253,7 +253,7 @@ public class CreateAppointmentHandlerTests
         var existingPatient = Patient.Create(cmd.UserId, DateOnly.FromDateTime(DateTime.Today.AddYears(-20)), "Nam");
         _patientRepo.GetByUserIdAsync(cmd.UserId, Arg.Any<CancellationToken>()).Returns(existingPatient);
         _appointmentRepo.HasActiveAppointmentOnDateAsync(
-            cmd.UserId, Arg.Any<DateOnly>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
+            Arg.Any<Guid>(), Arg.Any<DateOnly>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
             .Returns(true);
 
         Func<Task> act = () => _handler.Handle(cmd, CancellationToken.None);
@@ -272,7 +272,7 @@ public class CreateAppointmentHandlerTests
         var existingPatient = Patient.Create(cmd.UserId, DateOnly.FromDateTime(DateTime.Today.AddYears(-20)), "Nam");
         _patientRepo.GetByUserIdAsync(cmd.UserId, Arg.Any<CancellationToken>()).Returns(existingPatient);
         _appointmentRepo.HasActiveAppointmentOnDateAsync(
-            cmd.UserId, Arg.Any<DateOnly>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
+            Arg.Any<Guid>(), Arg.Any<DateOnly>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
             .Returns(false);
 
         var result = await _handler.Handle(cmd, CancellationToken.None);

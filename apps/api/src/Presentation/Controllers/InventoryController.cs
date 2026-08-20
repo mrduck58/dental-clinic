@@ -42,10 +42,29 @@ public class InventoryController(ISender sender) : ControllerBase
                 request.Unit,
                 request.Quantity,
                 request.MinQuantity,
-                request.OrderType,
                 request.Price),
             ct);
         return Ok(result);
+    }
+
+    /// <summary>PUT api/inventory/items/{id} — Sửa thông tin vật tư (tên, danh mục, đơn vị, tồn tối thiểu, giá)</summary>
+    [HttpPut("items/{id:guid}")]
+    [Authorize(Roles = "Admin,Owner,Staff")]
+    public async Task<IActionResult> UpdateItem(Guid id, [FromBody] UpdateSupplyItemRequest request, CancellationToken ct)
+    {
+        var result = await sender.Send(
+            new UpdateSupplyItemCommand(id, request.Name, request.Category, request.Unit, request.MinQuantity, request.Price),
+            ct);
+        return Ok(result);
+    }
+
+    /// <summary>DELETE api/inventory/items/{id} — Xóa vật tư (chỉ khi chưa có giao dịch/định mức liên quan)</summary>
+    [HttpDelete("items/{id:guid}")]
+    [Authorize(Roles = "Admin,Owner,Staff")]
+    public async Task<IActionResult> DeleteItem(Guid id, CancellationToken ct)
+    {
+        await sender.Send(new DeleteSupplyItemCommand(id), ct);
+        return Ok(new { message = "Đã xóa vật tư." });
     }
 
     /// <summary>GET api/inventory/transactions — Lịch sử giao dịch</summary>
@@ -83,6 +102,30 @@ public class InventoryController(ISender sender) : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>POST api/inventory/material-requests/staff — Staff tự khởi tạo yêu cầu đặt vật tư riêng cho bệnh nhân</summary>
+    [HttpPost("material-requests/staff")]
+    [Authorize(Roles = "Admin,Owner,Staff")]
+    public async Task<IActionResult> CreateMaterialRequestByStaff(
+        [FromBody] CreateMaterialRequestByStaffRequest request,
+        CancellationToken ct)
+    {
+        var result = await sender.Send(request, ct);
+        return Ok(result);
+    }
+
+    /// <summary>PUT api/inventory/material-requests/{id}/ordered — Đánh dấu đã đặt hàng nhà cung cấp/lab (chưa nhập kho)</summary>
+    [HttpPut("material-requests/{id}/ordered")]
+    [Authorize(Roles = "Admin,Owner,Staff")]
+    public async Task<IActionResult> MarkMaterialRequestOrdered(Guid id, [FromBody] MarkMaterialRequestOrderedRequest request, CancellationToken ct)
+    {
+        var orderedBy = User.FindFirst("username")?.Value
+            ?? User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value
+            ?? "Nhân viên";
+
+        var result = await sender.Send(new MarkMaterialRequestOrderedCommand(id, orderedBy, request.SupplierNote), ct);
+        return Ok(result);
+    }
+
     /// <summary>POST api/inventory/stock-import — Nhập kho thông minh (tạo mới hoặc cộng vào vật tư đã có)</summary>
     [HttpPost("stock-import")]
     [Authorize(Roles = "Admin,Owner,Staff")]
@@ -101,7 +144,6 @@ public class InventoryController(ISender sender) : ControllerBase
                 request.Quantity,
                 request.Note,
                 request.UnitPrice,
-                request.OrderType,
                 createdBy),
             ct);
         return Ok(result);
@@ -122,3 +164,5 @@ public class InventoryController(ISender sender) : ControllerBase
 }
 
 public record MarkMaterialRequestDoneRequest(List<MaterialRequestItemPriceInput> ItemPrices);
+
+public record MarkMaterialRequestOrderedRequest(string? SupplierNote);

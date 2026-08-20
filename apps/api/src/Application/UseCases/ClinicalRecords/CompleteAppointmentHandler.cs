@@ -1,4 +1,5 @@
 using DentalClinic.API.Domain.Constants;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using MediatR;
@@ -14,6 +15,8 @@ public class CompleteAppointmentHandler(
     IAppointmentRepository appointmentRepository,
     IActivityLogService activityLogService,
     ICurrentUserService currentUser,
+    INotificationService? notificationService = null,
+    IPatientRepository? patientRepository = null,
     ILogger<CompleteAppointmentHandler>? logger = null) : IRequestHandler<CompleteAppointmentCommand>
 {
     public async Task Handle(CompleteAppointmentCommand command, CancellationToken ct)
@@ -29,6 +32,24 @@ public class CompleteAppointmentHandler(
 
         appointment.Complete();
         await appointmentRepository.UpdateAsync(appointment, ct);
+
+        // Bác sĩ có hẹn tái khám → báo cho bệnh nhân (nếu có tài khoản liên kết).
+        if (appointment.FollowUpDate is DateOnly followUpDate && patientRepository != null && notificationService != null)
+        {
+            var patient = await patientRepository.GetByIdAsync(appointment.PatientId, ct);
+            if (patient?.UserId is Guid patientUserId)
+            {
+                var noteSuffix = string.IsNullOrWhiteSpace(appointment.FollowUpNote) ? "" : $" Ghi chú: {appointment.FollowUpNote}";
+                await notificationService.CreateAsync(new CreateNotificationRequest(
+                    UserId: patientUserId,
+                    Type: NotificationType.Reminder,
+                    Priority: NotificationPriority.Medium,
+                    Title: "Lịch tái khám",
+                    Body: $"Bác sĩ hẹn bạn tái khám vào ngày {followUpDate:dd/MM/yyyy}. Vui lòng đặt lịch trước ngày hẹn.{noteSuffix}",
+                    RelatedEntityType: "Appointment",
+                    RelatedEntityId: appointmentId.ToString()), ct);
+            }
+        }
 
         await activityLogService.LogAsync(
             userId: currentUser.UserId,

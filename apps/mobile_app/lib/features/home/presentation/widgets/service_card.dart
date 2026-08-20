@@ -52,6 +52,8 @@ class ServiceCard extends StatelessWidget {
               note: '${service.durationText} - ${context.l10n('free_checkup')}',
               imageUrl: service.imageUrl,
               iconUrl: service.iconUrl,
+              durationMinutes: service.durationMinutes,
+              options: service.options,
             ),
           );
         },
@@ -110,24 +112,10 @@ class ServiceCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    service.formattedPrice,
-                    style: const TextStyle(
-                      color: AppColors.primary,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Icon(
-                    Iconsax.arrow_right_3,
-                    color: context.textMuted,
-                    size: 14,
-                  ),
-                ],
+              Icon(
+                Iconsax.arrow_right_3,
+                color: context.textMuted,
+                size: 18,
               ),
             ],
           ),

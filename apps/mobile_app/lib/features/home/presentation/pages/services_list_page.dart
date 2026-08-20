@@ -284,6 +284,8 @@ class _ServicesListPageState extends State<ServicesListPage> {
             note: '$quickInfo • ${isVi ? 'Khám sơ bộ miễn phí' : 'Free preliminary exam'}',
             imageUrl: service.imageUrl,
             iconUrl: service.iconUrl,
+            durationMinutes: service.durationMinutes,
+            options: service.options,
           ),
         );
       },
@@ -404,13 +406,10 @@ class _ServicesListPageState extends State<ServicesListPage> {
                           ),
                         ),
                       ),
-                      Text(
-                        service.formattedPrice,
-                        style: TextStyle(
-                          color: AppColors.primary,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                        ),
+                      Icon(
+                        Iconsax.arrow_right_3,
+                        color: AppColors.primary,
+                        size: 16,
                       ),
                     ],
                   ),

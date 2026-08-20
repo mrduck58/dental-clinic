@@ -16,6 +16,7 @@ import 'package:mobile_app/features/booking/presentation/pages/select_datetime_p
 import 'package:mobile_app/features/booking/presentation/pages/select_doctor_page.dart';
 import 'package:mobile_app/features/booking/presentation/pages/select_patient_page.dart';
 import 'package:mobile_app/features/booking/presentation/pages/select_service_page.dart';
+import 'package:mobile_app/features/booking/presentation/pages/select_time_slot_page.dart';
 import 'package:mobile_app/features/booking/presentation/pages/service_detail_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/home_page.dart';
 import 'package:mobile_app/features/home/presentation/pages/queue_page.dart';
@@ -356,6 +357,11 @@ final GoRouter appRouter = GoRouter(
           SelectDoctorPage(draft: state.extra as BookingDraft),
     ),
     GoRoute(
+      path: AppRoutes.bookingSelectTimeSlot,
+      builder: (context, state) =>
+          SelectTimeSlotPage(draft: state.extra as BookingDraft),
+    ),
+    GoRoute(
       path: AppRoutes.bookingSelectDatetime,
       builder: (context, state) =>
           SelectDatetimePage(draft: state.extra as BookingDraft),
@@ -427,6 +433,7 @@ abstract class AppRoutes {
   static const bookingSelectPatient = '/booking/patient';
   static const bookingSelectService = '/booking/service';
   static const bookingSelectDoctor = '/booking/doctor';
+  static const bookingSelectTimeSlot = '/booking/timeslot';
   static const bookingSelectDatetime = '/booking/datetime';
   static const bookingReview = '/booking/review';
   static const bookingSuccess = '/booking/success';

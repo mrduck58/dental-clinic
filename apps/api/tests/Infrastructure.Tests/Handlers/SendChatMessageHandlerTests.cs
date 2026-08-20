@@ -94,7 +94,7 @@ public class SendChatMessageHandlerTests
         var getDentistSlotsHandler = new GetDentistSlotsHandler(
             new WorkScheduleRepository(_db), new DentistRepository(_db), _appointmentRepo);
         var slotGuard = new AppointmentSlotGuard(_appointmentRepo, Substitute.For<IServiceRepository>());
-        var changeGuard = new AppointmentChangeGuard(currentUserService, _patientRepo);
+        var changeGuard = new AppointmentChangeGuard(currentUserService, _patientRepo, _appointmentRepo);
         var createAppointmentHandler = new CreateAppointmentHandler(
             _appointmentRepo, _patientRepo, _userRepo, slotGuard, Substitute.For<INotificationService>());
         var cancelAppointmentHandler = new CancelAppointmentHandler(

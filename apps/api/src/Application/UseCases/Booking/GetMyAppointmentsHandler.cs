@@ -13,10 +13,14 @@ public record MyAppointmentDto(
     string Status,
     string? Symptoms,
     string? ServiceName,
+    Guid? ServiceId,
+    int? ServiceDurationMinutes,
     string PatientName,
     string? PatientRelationship,
     Guid PatientId,
-    Guid DentistId);
+    Guid DentistId,
+    DateTimeOffset CreatedAt,
+    int RescheduledCount);
 
 public record GetMyAppointmentsQuery(Guid UserId) : IRequest<IEnumerable<MyAppointmentDto>>;
 
@@ -41,9 +45,13 @@ public class GetMyAppointmentsHandler(
             a.Status.ToString(),
             a.Symptoms,
             a.Service?.Name,
+            a.ServiceId,
+            a.Service?.DurationMinutes,
             a.Patient.FullName,
             a.Patient.Id == patient.Id ? "Tôi" : (a.Patient.Relationship ?? string.Empty),
             a.Patient.Id,
-            a.DentistId));
+            a.DentistId,
+            a.CreatedAt,
+            a.RescheduledCount));
     }
 }

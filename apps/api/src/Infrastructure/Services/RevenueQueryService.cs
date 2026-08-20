@@ -190,9 +190,22 @@ public class RevenueQueryService(AppDbContext db) : IRevenueQueryService
             .Select(it => new { it.Name, it.AmountCollected })
             .ToListAsync(ct);
 
+        // Giá vốn vật tư tiêu hao trong kỳ, gộp theo tên dịch vụ (qua TreatmentPlan.ServiceId — có FK thật)
+        // để khớp với ServiceName ở trên (chỉ là chuỗi InvoiceItem.Name, không có FK).
+        var usageRows = await db.TreatmentSupplyUsages
+            .AsNoTracking()
+            .Include(u => u.TreatmentPlan).ThenInclude(tp => tp.Service)
+            .Where(u => u.CreatedAt >= start && u.CreatedAt < end)
+            .Select(u => new { ServiceName = u.TreatmentPlan.Service.Name, Cost = u.Quantity * u.UnitCostAtUsage })
+            .ToListAsync(ct);
+
+        var costByServiceName = usageRows
+            .GroupBy(r => r.ServiceName)
+            .ToDictionary(g => g.Key, g => g.Sum(r => r.Cost));
+
         var byService = paidItems
             .GroupBy(it => it.Name)
-            .Select(g => new RevenueByServiceDto(g.Key, g.Sum(it => it.AmountCollected)))
+            .Select(g => new RevenueByServiceDto(g.Key, g.Sum(it => it.AmountCollected), costByServiceName.GetValueOrDefault(g.Key, 0m)))
             .OrderByDescending(x => x.Amount)
             .Take(10)
             .ToList();

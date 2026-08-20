@@ -488,15 +488,6 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
                             color: context.textSecondary,
                           ),
                         ),
-                        const SizedBox(width: 16),
-                        Text(
-                          service.formattedPrice,
-                          style: const TextStyle(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.primary,
-                          ),
-                        ),
                       ],
                     ),
                   ],
@@ -518,6 +509,8 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
                         note: '${service.durationText} • ${context.l10n('free_checkup')}',
                         imageUrl: service.imageUrl,
                         iconUrl: service.iconUrl,
+                        durationMinutes: service.durationMinutes,
+                        options: service.options,
                       ),
                     );
                   },

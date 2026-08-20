@@ -15,7 +15,6 @@ public record StockImportCommand(
     int Quantity,
     string? Note,
     decimal? UnitPrice,
-    string? OrderType,
     string CreatedBy) : IRequest<SupplyTransactionDto>;
 
 public class StockImportHandler(
@@ -33,18 +32,14 @@ public class StockImportHandler(
         if (string.IsNullOrWhiteSpace(command.Unit) || !InventoryConstants.AllowedUnits.Contains(command.Unit))
             throw new ValidationException("Đơn vị không hợp lệ. Vui lòng chọn từ danh sách.");
 
-        if (string.IsNullOrWhiteSpace(command.Category))
-            throw new ValidationException("Danh mục không được để trống.");
+        if (!InventoryConstants.AllowedCategories.Contains(command.Category))
+            throw new ValidationException("Danh mục không hợp lệ. Vui lòng chọn từ danh sách.");
 
         if (command.Quantity <= 0)
             throw new ValidationException("Số lượng phải lớn hơn 0.");
 
         if (command.UnitPrice is < 0)
             throw new ValidationException("Đơn giá không được âm.");
-
-        var orderType = string.IsNullOrWhiteSpace(command.OrderType) ? "standard" : command.OrderType.Trim();
-        if (!InventoryConstants.AllowedOrderTypes.Contains(orderType))
-            throw new ValidationException("Loại vật tư không hợp lệ. Chỉ chấp nhận: standard, custom.");
 
         var nameNorm = command.Name.Trim();
 
@@ -64,9 +59,9 @@ public class StockImportHandler(
         }
         else
         {
-            // Vật tư chưa tồn tại — tạo mới với đơn vị, loại vật tư, và giá được chọn.
+            // Vật tư chưa tồn tại — tạo mới với đơn vị, danh mục, và giá được chọn. OrderType suy ra từ Danh mục.
             var code = "VT" + Guid.NewGuid().ToString("N")[..6].ToUpper();
-            item = SupplyItem.Create(code, nameNorm, command.Category.Trim(), command.Unit, command.Quantity, 5, orderType, command.UnitPrice);
+            item = SupplyItem.Create(code, nameNorm, command.Category, command.Unit, command.Quantity, 5, command.UnitPrice);
             newItem = item;
         }
 

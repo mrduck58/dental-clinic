@@ -1,9 +1,10 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
+import 'package:mobile_app/features/booking/data/booking_service.dart';
 
 class MainShell extends StatelessWidget {
   final Widget child;
@@ -38,7 +39,14 @@ class MainShell extends StatelessWidget {
               context.go(AppRoutes.profile);
           }
         },
-        onFabTap: () => context.push(AppRoutes.bookingSelectPatient),
+        onFabTap: () {
+          final activeDraft = BookingService().activeDraft;
+          if (activeDraft != null && activeDraft.isHoldActive && activeDraft.isComplete) {
+            context.push(AppRoutes.bookingReview, extra: activeDraft);
+          } else {
+            context.push(AppRoutes.bookingSelectPatient, extra: activeDraft);
+          }
+        },
       ),
     );
   }

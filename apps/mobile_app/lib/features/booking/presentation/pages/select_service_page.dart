@@ -56,7 +56,7 @@ class _SelectServicePageState extends State<SelectServicePage> {
         .toList();
   }
 
-  void _onSelectService(ServiceModel s) {
+  Future<void> _onSelectService(ServiceModel s) async {
     final service = ServiceInfo(
       id: s.id,
       name: s.name,
@@ -64,12 +64,25 @@ class _SelectServicePageState extends State<SelectServicePage> {
       price: s.formattedPrice,
       imageUrl: s.imageUrl,
       iconUrl: s.iconUrl,
+      durationMinutes: s.durationMinutes,
+      options: s.options,
     );
-    final updatedDraft = widget.draft.copyWith(service: service);
-    if (updatedDraft.date != null && updatedDraft.timeSlot != null && updatedDraft.doctor != null) {
-      context.push(AppRoutes.bookingReview, extra: updatedDraft);
+    // Khi chọn/đổi dịch vụ (có thể khác thời lượng khám), xóa slot cũ để người dùng chọn lại ca khám phù hợp
+    final updatedDraft = widget.draft.copyWith(
+      service: service,
+      clearTimeSlot: true,
+      clearHold: true,
+    );
+    _bookingService.setActiveDraft(updatedDraft);
+
+    if (updatedDraft.doctor != null) {
+      if (updatedDraft.date != null) {
+        context.pushReplacement(AppRoutes.bookingSelectTimeSlot, extra: updatedDraft);
+      } else {
+        context.pushReplacement(AppRoutes.bookingSelectDatetime, extra: updatedDraft);
+      }
     } else {
-      context.push(AppRoutes.bookingSelectDatetime, extra: updatedDraft);
+      context.pushReplacement(AppRoutes.bookingSelectDoctor, extra: updatedDraft);
     }
   }
 
@@ -80,6 +93,8 @@ class _SelectServicePageState extends State<SelectServicePage> {
         price: s.formattedPrice,
         imageUrl: s.imageUrl,
         iconUrl: s.iconUrl,
+        durationMinutes: s.durationMinutes,
+        options: s.options,
       );
 
   @override
@@ -91,6 +106,8 @@ class _SelectServicePageState extends State<SelectServicePage> {
       appBar: BookingAppBar(title: isVi ? 'Chọn dịch vụ' : 'Select Service'),
       body: Column(
         children: [
+          if (widget.draft.holdExpiresAt != null)
+            HoldCountdownBanner(holdExpiresAt: widget.draft.holdExpiresAt),
           // ── Search bar ────────────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -145,8 +162,10 @@ class _SelectServicePageState extends State<SelectServicePage> {
                             itemCount: _filtered.length,
                             itemBuilder: (_, i) {
                               final s = _filtered[i];
+                              final isSelected = widget.draft.service?.id == s.id;
                               return _ServiceItem(
                                 service: s,
+                                isSelected: isSelected,
                                 onTap: () => _onSelectService(s),
                                 onViewDetail: () => context.push(
                                   AppRoutes.bookingServiceDetail,
@@ -166,11 +185,13 @@ class _SelectServicePageState extends State<SelectServicePage> {
 
 class _ServiceItem extends StatelessWidget {
   final ServiceModel service;
+  final bool isSelected;
   final VoidCallback onTap;
   final VoidCallback onViewDetail;
 
   const _ServiceItem({
     required this.service,
+    this.isSelected = false,
     required this.onTap,
     required this.onViewDetail,
   });
@@ -182,13 +203,20 @@ class _ServiceItem extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: context.card,
+        color: isSelected
+            ? (context.isDark ? const Color(0xFF1E293B) : const Color(0xFFFFF1F2))
+            : context.card,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: context.divider),
+        border: Border.all(
+          color: isSelected ? AppColors.primary : context.divider,
+          width: isSelected ? 1.8 : 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 6,
+            color: isSelected
+                ? AppColors.primary.withValues(alpha: 0.1)
+                : Colors.black.withValues(alpha: 0.03),
+            blurRadius: isSelected ? 8 : 6,
             offset: const Offset(0, 2),
           ),
         ],
@@ -203,7 +231,7 @@ class _ServiceItem extends StatelessWidget {
                 GestureDetector(
                   onTap: onTap,
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 14, 0, 0),
+                    padding: const EdgeInsets.fromLTRB(16, 14, 12, 0),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -218,9 +246,25 @@ class _ServiceItem extends StatelessWidget {
                                 style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w800,
-                                  color: context.textPrimary,
+                                  color: isSelected ? AppColors.primary : context.textPrimary,
                                 ),
                               ),
+                              if (isSelected)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary,
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    isVi ? '✓ Đang chọn' : '✓ Selected',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
                               if (service.durationMinutes > 0)
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -245,15 +289,6 @@ class _ServiceItem extends StatelessWidget {
                                   ),
                                 ),
                             ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          service.formattedPrice,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.primary,
                           ),
                         ),
                       ],
@@ -296,7 +331,11 @@ class _ServiceItem extends StatelessWidget {
             onTap: onTap,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Icon(Icons.arrow_forward_ios, color: context.textSecondary, size: 20),
+              child: Icon(
+                isSelected ? Iconsax.tick_circle : Icons.arrow_forward_ios,
+                color: isSelected ? AppColors.primary : context.textSecondary,
+                size: isSelected ? 22 : 20,
+              ),
             ),
           ),
         ],

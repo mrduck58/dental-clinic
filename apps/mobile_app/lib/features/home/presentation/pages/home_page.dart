@@ -342,7 +342,14 @@ class _NoAppointmentCard extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           GestureDetector(
-            onTap: () => context.push(AppRoutes.bookingSelectPatient),
+            onTap: () {
+              final activeDraft = BookingService().activeDraft;
+              if (activeDraft != null && activeDraft.isHoldActive && activeDraft.isComplete) {
+                context.push(AppRoutes.bookingReview, extra: activeDraft);
+              } else {
+                context.push(AppRoutes.bookingSelectPatient, extra: activeDraft);
+              }
+            },
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
@@ -787,7 +794,14 @@ class _QuickAccessPanelState extends State<_QuickAccessPanel> {
             Expanded(
               flex: 4,
               child: GestureDetector(
-                onTap: () => context.push(AppRoutes.bookingSelectPatient),
+                onTap: () {
+                  final activeDraft = BookingService().activeDraft;
+                  if (activeDraft != null && activeDraft.isHoldActive && activeDraft.isComplete) {
+                    context.push(AppRoutes.bookingReview, extra: activeDraft);
+                  } else {
+                    context.push(AppRoutes.bookingSelectPatient, extra: activeDraft);
+                  }
+                },
                 child: Container(
                   height: 140,
                   decoration: BoxDecoration(

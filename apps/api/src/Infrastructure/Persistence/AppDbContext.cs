@@ -34,6 +34,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<SupplyTransaction> SupplyTransactions => Set<SupplyTransaction>();
     public DbSet<MaterialRequest> MaterialRequests => Set<MaterialRequest>();
     public DbSet<MaterialRequestItem> MaterialRequestItems => Set<MaterialRequestItem>();
+    public DbSet<ServiceSupplyItem> ServiceSupplyItems => Set<ServiceSupplyItem>();
+    public DbSet<TreatmentSupplyUsage> TreatmentSupplyUsages => Set<TreatmentSupplyUsage>();
     public DbSet<Diagnosis> Diagnoses => Set<Diagnosis>();
     public DbSet<TreatmentPlan> TreatmentPlans => Set<TreatmentPlan>();
     public DbSet<TreatmentProcedure> TreatmentProcedures => Set<TreatmentProcedure>();
@@ -50,6 +52,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Expense> Expenses => Set<Expense>();
     public DbSet<CommissionRule> CommissionRules => Set<CommissionRule>();
     public DbSet<UserDeviceToken> UserDeviceTokens => Set<UserDeviceToken>();
+    public DbSet<AppointmentSlotHold> AppointmentSlotHolds => Set<AppointmentSlotHold>();
+    public DbSet<AppointmentChangeRequest> AppointmentChangeRequests => Set<AppointmentChangeRequest>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -63,6 +67,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             b.HasKey(e => e.Id);
             b.HasIndex(e => e.UserId);
             b.HasIndex(e => e.Token);
+        });
+
+        modelBuilder.Entity<AppointmentSlotHold>(b =>
+        {
+            b.ToTable("AppointmentSlotHolds");
+            b.HasKey(e => e.Id);
+            b.HasIndex(e => new { e.DentistId, e.AppointmentDate });
+            b.HasIndex(e => new { e.PatientId, e.CreatedAt });
         });
 
         base.OnModelCreating(modelBuilder);
