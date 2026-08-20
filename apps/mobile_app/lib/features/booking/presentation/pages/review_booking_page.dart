@@ -75,7 +75,11 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
           ElevatedButton(
             onPressed: () {
               Navigator.of(ctx).pop();
-              context.pushReplacement(AppRoutes.bookingSelectTimeSlot, extra: widget.draft);
+              final clearedDraft = widget.draft.copyWith(
+                holdExpiresAt: null,
+                timeSlot: null,
+              );
+              context.pushReplacement(AppRoutes.bookingSelectTimeSlot, extra: clearedDraft);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,

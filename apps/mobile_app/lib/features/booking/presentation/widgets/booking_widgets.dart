@@ -238,7 +238,7 @@ class _HoldCountdownBannerState extends State<HoldCountdownBanner> {
     }
 
     if (initialRemaining <= 0) {
-      widget.onExpired?.call();
+      if (mounted) setState(() => _remainingSeconds = 0);
       return;
     }
 

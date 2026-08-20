@@ -245,6 +245,16 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
   }
 
   void _showHoldExpiredDialog() {
+    if (!mounted) return;
+    setState(() {
+      _holdRemainingSeconds = 0;
+      _holdExpiresAt = null;
+      _selectedSlot = null;
+      _isHoldingSlot = false;
+    });
+    _service.clearActiveDraft();
+    _load(silent: true);
+
     final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     showDialog(
       context: context,
@@ -268,7 +278,10 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
         ),
         actions: [
           ElevatedButton(
-            onPressed: () => Navigator.of(ctx).pop(),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _load();
+            },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
