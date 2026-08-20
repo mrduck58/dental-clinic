@@ -12,6 +12,7 @@ public interface IAppointmentChangeRequestRepository
         AppointmentChangeRequestStatus? status = null,
         DateOnly? date = null,
         CancellationToken ct = default);
+    Task<bool> HasApprovedRescheduleAsync(Guid appointmentId, DateTimeOffset now, CancellationToken ct = default);
     Task AddAsync(AppointmentChangeRequest request, CancellationToken ct = default);
     Task UpdateAsync(AppointmentChangeRequest request, CancellationToken ct = default);
 }

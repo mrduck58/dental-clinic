@@ -66,12 +66,6 @@ public class Appointment
     public int RescheduledCount { get; private set; }
     public DateTimeOffset? LastRescheduledAt { get; private set; }
 
-    /// <summary>Thời hạn cho phép bệnh nhân tự dời lịch sau khi được phòng khám phê duyệt yêu cầu (null nếu chưa duyệt hoặc đã dùng).</summary>
-    public DateTimeOffset? SelfManagementUnlockedUntil { get; private set; }
-
-    public void UnlockSelfManagement(DateTimeOffset until) => SelfManagementUnlockedUntil = until;
-    public void ClearSelfManagementUnlock() => SelfManagementUnlockedUntil = null;
-
     private Appointment() { }
 
     public static Appointment Create(
@@ -222,7 +216,6 @@ public class Appointment
         ServiceId = newServiceId;
         RescheduledCount++;
         LastRescheduledAt = now;
-        SelfManagementUnlockedUntil = null;
 
         if (requiresReconfirmation)
             Status = AppointmentStatus.Pending;

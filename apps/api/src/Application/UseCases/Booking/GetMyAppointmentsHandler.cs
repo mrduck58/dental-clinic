@@ -20,8 +20,7 @@ public record MyAppointmentDto(
     Guid PatientId,
     Guid DentistId,
     DateTimeOffset CreatedAt,
-    int RescheduledCount,
-    DateTimeOffset? SelfManagementUnlockedUntil = null);
+    int RescheduledCount);
 
 public record GetMyAppointmentsQuery(Guid UserId) : IRequest<IEnumerable<MyAppointmentDto>>;
 
@@ -53,7 +52,6 @@ public class GetMyAppointmentsHandler(
             a.Patient.Id,
             a.DentistId,
             a.CreatedAt,
-            a.RescheduledCount,
-            a.SelfManagementUnlockedUntil));
+            a.RescheduledCount));
     }
 }
