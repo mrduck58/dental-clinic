@@ -20,7 +20,8 @@ public record CreateTreatmentPlanRequest(
     int Quantity,
     string? Teeth,
     string? Notes,
-    DateOnly? WarrantyUntil) : IRequest<TreatmentPlanDto>;
+    DateOnly? WarrantyUntil,
+    string? ServiceOptionName = null) : IRequest<TreatmentPlanDto>;
 
 public record UpdateTreatmentPlanRequest(
     Guid TreatmentPlanId,
@@ -91,7 +92,8 @@ public class CreateTreatmentPlanHandler(
             request.Quantity,
             NormalizeText(request.Teeth),
             NormalizeText(request.Notes),
-            request.WarrantyUntil);
+            request.WarrantyUntil,
+            NormalizeText(request.ServiceOptionName));
 
         await treatmentPlanRepository.AddAsync(treatmentPlan, ct);
 
@@ -224,6 +226,7 @@ public class AddStepProgressHandler(
         var entries = ParseStepProgress(treatmentPlan.StepProgressJson);
         entries.Add(new StepProgressEntryDto
         {
+            Id = Guid.NewGuid(),
             StepNumber = request.StepNumber,
             StepName = request.StepName.Trim(),
             Percent = Math.Clamp(request.Percent, 0, 100),
@@ -310,17 +313,22 @@ public class ReorderStepProgressHandler(
     }
 }
 
-/// <summary>Xóa một mục đã ghi trong nhật ký điều trị (theo vị trí trong danh sách).</summary>
+/// <summary>Xóa một mục đã ghi trong nhật ký điều trị (theo vị trí trong danh sách). Nếu mục này có vật tư
+/// đã ghi nhận tiêu hao gắn theo (StepEntryId) thì tự động hoàn lại đúng số lượng vào kho.</summary>
 public class DeleteStepProgressHandler(
     ITreatmentPlanRepository treatmentPlanRepository,
-    TreatmentPlanQueryHelper queryHelper) : IRequestHandler<DeleteStepProgressCommand, TreatmentPlanDto>
+    ITreatmentSupplyUsageRepository treatmentSupplyUsageRepository,
+    ISupplyItemRepository supplyItemRepository,
+    ISupplyTransactionRepository supplyTransactionRepository,
+    TreatmentPlanQueryHelper queryHelper,
+    IActivityLogService activityLogService) : IRequestHandler<DeleteStepProgressCommand, TreatmentPlanDto>
 {
     public async Task<TreatmentPlanDto> Handle(DeleteStepProgressCommand command, CancellationToken ct)
     {
         var treatmentPlanId = command.TreatmentPlanId;
         var entryIndex = command.EntryIndex;
 
-        var treatmentPlan = await treatmentPlanRepository.GetByIdAsync(treatmentPlanId, ct)
+        var treatmentPlan = await treatmentPlanRepository.GetByIdWithDentistAsync(treatmentPlanId, ct)
             ?? throw new NotFoundException("Không tìm thấy liệu trình điều trị.");
 
         if (!await queryHelper.HasActiveVisitAsync(treatmentPlan.PatientId, ct))
@@ -330,12 +338,52 @@ public class DeleteStepProgressHandler(
         if (entryIndex < 0 || entryIndex >= entries.Count)
             throw new ValidationException("Không tìm thấy bước điều trị cần xóa.");
 
+        var deletedEntryId = entries[entryIndex].Id;
         entries.RemoveAt(entryIndex);
         treatmentPlan.UpdateStepProgress(entries.Count == 0 ? null : SerializeStepProgress(entries));
         // Xóa bớt bước có thể kéo dịch vụ khỏi trạng thái hoàn thành → tính lại.
         await queryHelper.SyncStatusWithProgressAsync(treatmentPlan, entries, ct);
         await treatmentPlanRepository.UpdateAsync(treatmentPlan, ct);
 
+        // Hoàn kho vật tư đã ghi nhận cùng bước vừa xóa (nếu có) — dữ liệu cũ trước khi có StepEntryId sẽ
+        // có Id rỗng nên không khớp được dòng nào, bỏ qua an toàn.
+        if (deletedEntryId != Guid.Empty)
+            await ReverseSupplyUsageAsync(treatmentPlan, deletedEntryId, ct);
+
         return await queryHelper.LoadDtoAsync(treatmentPlan.Id, ct);
+    }
+
+    private async Task ReverseSupplyUsageAsync(TreatmentPlan treatmentPlan, Guid stepEntryId, CancellationToken ct)
+    {
+        var usagesToReverse = await treatmentSupplyUsageRepository.GetActiveByStepEntryIdAsync(treatmentPlan.Id, stepEntryId, ct);
+        if (usagesToReverse.Count == 0) return;
+
+        var dentistName = treatmentPlan.Dentist.FullName;
+
+        foreach (var usage in usagesToReverse)
+        {
+            var supplyItem = await supplyItemRepository.GetByIdAsync(usage.SupplyItemId, ct);
+            if (supplyItem is null) continue; // vật tư đã bị xóa khỏi kho — không còn gì để hoàn lại
+
+            supplyItem.AdjustQuantity(usage.Quantity);
+            usage.MarkReversed();
+
+            var tx = SupplyTransaction.Create(
+                supplyItem.Id, "import", usage.Quantity,
+                $"Hoàn kho (xóa quá trình điều trị) · BS {dentistName}", dentistName);
+            // AddAsync tự SaveChanges — flush luôn AdjustQuantity/MarkReversed đang pending ở trên cùng lượt.
+            await supplyTransactionRepository.AddAsync(tx, ct);
+
+            await activityLogService.LogAsync(
+                userId: null,
+                userName: dentistName,
+                userRole: "Dentist",
+                action: ActivityAction.Create,
+                module: ActivityModule.Inventory,
+                description: $"hoàn kho (xóa quá trình điều trị): {supplyItem.Name} x{usage.Quantity}",
+                status: ActivityStatus.Success,
+                targetId: usage.Id.ToString(),
+                ct: ct);
+        }
     }
 }

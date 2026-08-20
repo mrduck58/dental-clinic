@@ -15,6 +15,8 @@ public class MaterialRequestConfiguration : IEntityTypeConfiguration<MaterialReq
         builder.Property(m => m.CourseName).HasMaxLength(300);
         builder.Property(m => m.PatientName).HasMaxLength(200);
         builder.Property(m => m.DentistName).HasMaxLength(200);
+        builder.Property(m => m.OrderedBy).HasMaxLength(200);
+        builder.Property(m => m.SupplierNote).HasMaxLength(500);
         builder.Property(m => m.HandledBy).HasMaxLength(200);
 
         builder.Property(m => m.Status)

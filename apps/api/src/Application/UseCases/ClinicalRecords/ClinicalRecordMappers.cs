@@ -135,6 +135,7 @@ public static class ClinicalRecordMappers
             AppointmentId = tp.AppointmentId,
             ServiceId = tp.ServiceId,
             ServiceName = tp.Service?.Name ?? string.Empty,
+            ServiceOptionName = tp.ServiceOptionName,
             UnitPrice = tp.UnitPrice,
             Quantity = tp.Quantity,
             Teeth = tp.Teeth,

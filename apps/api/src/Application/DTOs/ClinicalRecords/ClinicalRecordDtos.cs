@@ -105,6 +105,11 @@ public class PrescriptionItemDto
 
 public class StepProgressEntryDto
 {
+    /// <summary>Id ổn định của mục này — sinh 1 lần lúc ghi nhận, không đổi khi sắp xếp lại thứ tự
+    /// (khác EntryIndex vốn là vị trí trong mảng, dịch chuyển khi thêm/xóa/sắp xếp). Dùng để gắn vật tư
+    /// tiêu hao (TreatmentSupplyUsage.StepEntryId) với đúng bước đã ghi. Guid.Empty với dữ liệu cũ trước
+    /// khi có trường này.</summary>
+    public Guid Id { get; set; }
     public int StepNumber { get; set; }
     public string StepName { get; set; } = string.Empty;
     public int Percent { get; set; }
@@ -122,6 +127,8 @@ public class TreatmentPlanDto
     public Guid? AppointmentId { get; set; }
     public Guid ServiceId { get; set; }
     public string ServiceName { get; set; } = string.Empty;
+    /// <summary>Tên option đã chọn lúc thêm dịch vụ (vd: "Titan", "Zirconia") — null nếu dùng giá gốc dịch vụ.</summary>
+    public string? ServiceOptionName { get; set; }
     public decimal UnitPrice { get; set; }
     public int Quantity { get; set; }
     public string? Teeth { get; set; }
