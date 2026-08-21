@@ -172,7 +172,7 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
     } else if (normStatus == 'rebooking') {
       statusColor = const Color(0xFFD97706);
       statusBg = const Color(0xFFFEF3C7);
-      statusLabel = isVi ? 'Rebooking (Chờ xác nhận lại)' : 'Rebooking';
+      statusLabel = isVi ? 'Tái đặt lịch (Chờ xác nhận)' : 'Rebooking';
       statusDesc = isVi
           ? 'Lịch hẹn đã được đổi ngày/giờ và đang chờ phòng khám xác nhận lại.'
           : 'Your rebooked visit is pending clinic confirmation.';
@@ -719,8 +719,8 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
                           Expanded(
                             child: Text(
                               isVi
-                                  ? 'Lịch khám này đã qua ngày/giờ hẹn. Bạn có thể bấm "Đổi lịch khám" bên dưới để chọn ca khám mới (Rebooking).'
-                                  : 'This appointment time has passed. Tap "Reschedule" below to pick a new slot (Rebooking).',
+                                  ? 'Lịch khám này đã qua ngày/giờ hẹn. Bạn có thể bấm "Đổi lịch khám" bên dưới để chọn ca khám mới.'
+                                  : 'This appointment time has passed. Tap "Reschedule" below to pick a new slot.',
                               style: const TextStyle(fontSize: 12, color: Color(0xFF92400E), height: 1.3, fontWeight: FontWeight.w600),
                             ),
                           ),
