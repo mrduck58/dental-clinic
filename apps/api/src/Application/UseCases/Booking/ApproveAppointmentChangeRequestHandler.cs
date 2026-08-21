@@ -66,7 +66,7 @@ public class ApproveAppointmentChangeRequestHandler(
                 var targetDentistId = request.DesiredDentistId ?? appointment.DentistId;
                 var targetDate = request.DesiredDate.Value;
 
-                appointment.Reschedule(targetDate, targetDentistId, appointment.ServiceId, requiresReconfirmation: false, now);
+                appointment.Reschedule(targetDate, targetDentistId, appointment.ServiceId, requiresReconfirmation: false, isRebooking: false, now);
                 await appointmentRepository.UpdateAsync(appointment, ct);
 
                 request.Approve(command.StaffUserId, command.StaffNote);

@@ -111,6 +111,33 @@ public class RescheduleAppointmentHandlerTests
         appointment.Status.Should().Be(AppointmentStatus.Pending);
     }
 
+    /// <summary>Bệnh nhân dời lịch đã qua ngày/giờ ⇒ chuyển sang trạng thái Rebooking.</summary>
+    [Test]
+    public async Task Handle_PatientReschedulesPastAppointment_SetsStatusToRebooking()
+    {
+        var appointment = SeedAppointment(daysAhead: -2);
+        appointment.Confirm();
+        ActAsOwningPatient(appointment);
+
+        await RescheduleTo(appointment, DateTimeOffset.UtcNow.AddDays(7));
+
+        appointment.Status.Should().Be(AppointmentStatus.Rebooking);
+    }
+
+    /// <summary>Bệnh nhân dời lịch đã bị ghi nhận NoShow ⇒ chuyển sang trạng thái Rebooking.</summary>
+    [Test]
+    public async Task Handle_PatientReschedulesNoShowAppointment_SetsStatusToRebooking()
+    {
+        var appointment = SeedAppointment(daysAhead: -1);
+        appointment.Confirm();
+        appointment.MarkNoShow();
+        ActAsOwningPatient(appointment);
+
+        await RescheduleTo(appointment, DateTimeOffset.UtcNow.AddDays(7));
+
+        appointment.Status.Should().Be(AppointmentStatus.Rebooking);
+    }
+
     /// <summary>Nhân viên dời ⇒ giữ nguyên trạng thái, vì chính họ đang là người sắp xếp.</summary>
     [Test]
     public async Task Handle_StaffReschedules_KeepsConfirmedStatus()
@@ -139,19 +166,18 @@ public class RescheduleAppointmentHandlerTests
 
     // ── Giới hạn dành riêng cho bệnh nhân ─────────────────────────────────────
 
-    /// <summary>Sau 24 giờ kể từ thời điểm đặt lịch, bệnh nhân phải gọi phòng khám thay vì tự dời.</summary>
+    /// <summary>Bệnh nhân tự dời lịch không bị giới hạn 24 giờ.</summary>
     [Test]
-    public async Task Handle_PatientWithinDeadline_ThrowsConflict()
+    public async Task Handle_Patient_IsAllowedWithout24HourLimit()
     {
         var appointment = SeedAppointment(daysAhead: 5);
         typeof(Appointment).GetProperty("CreatedAt")!
             .SetValue(appointment, DateTimeOffset.UtcNow.AddHours(-25));
         ActAsOwningPatient(appointment);
 
-        Func<Task> act = () => RescheduleTo(appointment, DateTimeOffset.UtcNow.AddDays(7));
+        await RescheduleTo(appointment, DateTimeOffset.UtcNow.AddDays(7));
 
-        await act.Should().ThrowAsync<ConflictException>().WithMessage("*24 giờ*");
-        await _repo.DidNotReceive().UpdateAsync(Arg.Any<Appointment>(), Arg.Any<CancellationToken>());
+        appointment.Status.Should().Be(AppointmentStatus.Pending);
     }
 
     /// <summary>Cùng tình huống nhưng người thao tác là nhân viên — không bị chặn, vì họ đang xử lý cuộc gọi phút chót.</summary>
@@ -168,27 +194,14 @@ public class RescheduleAppointmentHandlerTests
         await act.Should().NotThrowAsync();
     }
 
-    /// <summary>Quá số lần dời cho phép thì chặn — chống kiểu giữ chỗ rồi dời liên tục.</summary>
+    /// <summary>Bệnh nhân được phép đổi lịch thoải mái (không giới hạn số lần dời).</summary>
     [Test]
-    public async Task Handle_PatientExceedsRescheduleLimit_ThrowsConflict()
+    public async Task Handle_PatientReschedulesMultipleTimes_IsAllowed()
     {
         var appointment = SeedAppointment();
         typeof(Appointment).GetProperty("RescheduledCount")!
-            .SetValue(appointment, AppointmentChangeGuard.MaxPatientReschedules);
+            .SetValue(appointment, 5);
         ActAsOwningPatient(appointment);
-
-        Func<Task> act = () => RescheduleTo(appointment, DateTimeOffset.UtcNow.AddDays(7));
-
-        await act.Should().ThrowAsync<ConflictException>();
-    }
-
-    /// <summary>Nhân viên không bị giới hạn số lần dời.</summary>
-    [Test]
-    public async Task Handle_StaffBeyondRescheduleLimit_IsAllowed()
-    {
-        ActAsStaff();
-        var appointment = SeedAppointment();
-        typeof(Appointment).GetProperty("RescheduledCount")!.SetValue(appointment, 9);
 
         Func<Task> act = () => RescheduleTo(appointment, DateTimeOffset.UtcNow.AddDays(7));
 

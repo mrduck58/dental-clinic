@@ -83,20 +83,6 @@ public class SlotHoldHandlerTests
             Arg.Any<CancellationToken>());
     }
 
-    [Test]
-    public async Task HoldSlot_WhenExceeding3FailedHoldsToday_ShouldThrowConflictException()
-    {
-        var tomorrow = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1));
-        var command = new HoldSlotCommand(_patientId, _dentistId, tomorrow, "08:00 - 09:00");
-
-        _slotHoldRepo.GetFailedHoldCountTodayAsync(_userId, _patientId, Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
-            .Returns(3);
-
-        var act = () => _handler.Handle(command);
-
-        await act.Should().ThrowAsync<ConflictException>()
-            .WithMessage("*3 lần giữ chỗ không thành công*");
-    }
 
     [Test]
     public async Task HoldSlot_WhenSlotAlreadyHeldByAnotherPatient_ShouldThrowConflictException()

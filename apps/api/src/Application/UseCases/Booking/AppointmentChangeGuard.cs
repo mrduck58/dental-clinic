@@ -32,10 +32,10 @@ public class AppointmentChangeGuard(
 
         await EnsureOwnsAppointmentAsync(appointment, ct);
 
-        // 1. Kiểm tra nếu đã đến hoặc qua giờ khám
-        if (now >= appointment.AppointmentDate)
+        // 1. Kiểm tra nếu đã đến hoặc qua giờ khám: CHỈ chặn thao tác HỦY (thao tác ĐỔI LỊCH vẫn cho phép và sẽ chuyển sang Rebooking)
+        if (isCancelOperation && now >= appointment.AppointmentDate)
             throw new ConflictException(
-                "Lịch khám đã đến hoặc đã qua giờ hẹn, không thể tự hủy hoặc dời lịch. " +
+                "Lịch khám đã đến hoặc đã qua giờ hẹn, không thể tự hủy lịch. " +
                 "Vui lòng liên hệ phòng khám để được hỗ trợ.");
 
         // 2. Kiểm tra cooldown 30 phút CHỈ đối với thao tác HỦY (không áp dụng cho dời lịch)

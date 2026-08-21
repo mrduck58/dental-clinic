@@ -5,23 +5,24 @@ import { createPortal } from "react-dom";
 import type { StaffAppointmentDto } from "../../lib/apiClient";
 
 const STATUS_LABEL: Record<string, { label: string; badge: string }> = {
-  Pending:         { label: "Chờ xác nhận", badge: "bg-amber-50 text-amber-700 border border-amber-200" },
-  Confirmed:       { label: "Đã xác nhận",  badge: "bg-sky-50 text-sky-700 border border-sky-200" },
-  CheckedIn:       { label: "Check-in",     badge: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
-  InProgress:      { label: "Đang khám",    badge: "bg-violet-50 text-violet-700 border border-violet-200" },
-  PendingPayment:  { label: "Chờ thanh toán", badge: "bg-orange-50 text-orange-700 border border-orange-200" },
-  Completed:       { label: "Hoàn thành",   badge: "bg-green-50 text-green-700 border border-green-200" },
-  Cancelled:       { label: "Đã hủy",       badge: "bg-slate-100 text-slate-500 border border-slate-200" },
-  NoShow:          { label: "Vắng mặt",     badge: "bg-amber-50 text-amber-700 border border-amber-200" },
+  Pending: { label: "Chờ xác nhận", badge: "bg-amber-50 text-amber-700 border border-amber-200" },
+  Confirmed: { label: "Đã xác nhận", badge: "bg-sky-50 text-sky-700 border border-sky-200" },
+  CheckedIn: { label: "Check-in", badge: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
+  InProgress: { label: "Đang khám", badge: "bg-violet-50 text-violet-700 border border-violet-200" },
+  PendingPayment: { label: "Chờ thanh toán", badge: "bg-orange-50 text-orange-700 border border-orange-200" },
+  Completed: { label: "Hoàn thành", badge: "bg-green-50 text-green-700 border border-green-200" },
+  Cancelled: { label: "Đã hủy", badge: "bg-slate-100 text-slate-500 border border-slate-200" },
+  NoShow: { label: "Vắng mặt", badge: "bg-amber-50 text-amber-700 border border-amber-200" },
+  Rebooking: { label: "Đặt Lịch Lại", badge: "bg-amber-50 text-amber-800 border border-amber-300" },
 };
 
 const fmtDate = (iso: string) => {
   const d = new Date(iso);
-  return `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}`;
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 };
 const fmtTime = (iso: string) => {
   const d = new Date(iso);
-  return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 };
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
