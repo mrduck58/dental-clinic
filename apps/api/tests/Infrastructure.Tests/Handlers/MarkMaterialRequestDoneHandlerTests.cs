@@ -33,13 +33,34 @@ public class MarkMaterialRequestDoneHandlerTests
             .Options;
         _db = new AppDbContext(options);
         _sender = Substitute.For<ISender>();
+        // Mô phỏng lại đúng hành vi cốt lõi của StockImportHandler thật (tìm-hoặc-tạo SupplyItem theo tên,
+        // cộng dồn số lượng) — cần thiết để AutoConsumeForTreatmentPlanAsync (chạy sau lệnh này trong
+        // MarkMaterialRequestDoneHandler) tìm lại được đúng SupplyItem vừa "nhập" bằng SupplyItemId thật.
         _sender.Send(Arg.Any<StockImportCommand>(), Arg.Any<CancellationToken>())
             .Returns(ci =>
             {
                 var cmd = ci.Arg<StockImportCommand>();
-                return new SupplyTransactionDto(Guid.NewGuid(), Guid.NewGuid(), cmd.Name, "import", cmd.Quantity, cmd.UnitPrice, cmd.Note, cmd.CreatedBy, DateTimeOffset.UtcNow);
+                var supplyItem = _db.SupplyItems.Local.FirstOrDefault(s => s.Name == cmd.Name)
+                    ?? _db.SupplyItems.FirstOrDefault(s => s.Name == cmd.Name);
+                if (supplyItem is null)
+                {
+                    supplyItem = SupplyItem.Create(
+                        "VT" + Guid.NewGuid().ToString("N")[..6].ToUpper(), cmd.Name, cmd.Category, cmd.Unit, cmd.Quantity, 5, cmd.UnitPrice);
+                    _db.SupplyItems.Add(supplyItem);
+                }
+                else
+                {
+                    supplyItem.AdjustQuantity(cmd.Quantity);
+                }
+                _db.SaveChanges();
+                return new SupplyTransactionDto(Guid.NewGuid(), supplyItem.Id, cmd.Name, "import", cmd.Quantity, cmd.UnitPrice, cmd.Note, cmd.CreatedBy, DateTimeOffset.UtcNow);
             });
-        _handler = new MarkMaterialRequestDoneHandler(new MaterialRequestRepository(_db), _sender);
+        _handler = new MarkMaterialRequestDoneHandler(
+            new MaterialRequestRepository(_db),
+            new SupplyItemRepository(_db),
+            new SupplyTransactionRepository(_db),
+            new TreatmentSupplyUsageRepository(_db),
+            _sender);
     }
 
     [TearDown]
@@ -60,7 +81,7 @@ public class MarkMaterialRequestDoneHandlerTests
     public async Task HandleAsync_MissingPriceForAnItem_ThrowsValidationExceptionAndImportsNothing()
     {
         var request = MaterialRequest.Create("Niềng răng", "Bệnh nhân A", "BS X",
-            [("Khay niềng", 1, "Cái"), ("Chỉ khâu 4/0", 2, "Cuộn")]);
+            [("Khay niềng", null, 1, "Cái"), ("Chỉ khâu 4/0", null, 2, "Cuộn")]);
         _db.MaterialRequests.Add(request);
         await _db.SaveChangesAsync();
         var khayNiengId = request.Items.First(i => i.ItemName == "Khay niềng").Id;
@@ -79,7 +100,7 @@ public class MarkMaterialRequestDoneHandlerTests
     [Test]
     public async Task HandleAsync_NegativePrice_ThrowsValidationException()
     {
-        var request = MaterialRequest.Create("Niềng răng", "Bệnh nhân A", "BS X", [("Khay niềng", 1, "Cái")]);
+        var request = MaterialRequest.Create("Niềng răng", "Bệnh nhân A", "BS X", [("Khay niềng", null, 1, "Cái")]);
         _db.MaterialRequests.Add(request);
         await _db.SaveChangesAsync();
         var itemId = request.Items.First().Id;
@@ -98,7 +119,7 @@ public class MarkMaterialRequestDoneHandlerTests
     public async Task HandleAsync_ValidRequestWithAllPrices_MarksAsDoneAndImportsEachItemAsMainCategory()
     {
         var request = MaterialRequest.Create("Niềng răng", "Bệnh nhân A", "BS X",
-            [("Khay niềng", 1, "Cái"), ("Chỉ khâu 4/0", 2, "Cuộn")]);
+            [("Khay niềng", null, 1, "Cái"), ("Chỉ khâu 4/0", null, 2, "Cuộn")]);
         _db.MaterialRequests.Add(request);
         await _db.SaveChangesAsync();
         var khayNiengId = request.Items.First(i => i.ItemName == "Khay niềng").Id;
@@ -132,7 +153,7 @@ public class MarkMaterialRequestDoneHandlerTests
     [Test]
     public async Task HandleAsync_AlreadyDoneRequest_ThrowsValidationExceptionAndDoesNotReimport()
     {
-        var request = MaterialRequest.Create("Niềng răng", "Bệnh nhân A", "BS X", [("Khay niềng", 1, "Cái")]);
+        var request = MaterialRequest.Create("Niềng răng", "Bệnh nhân A", "BS X", [("Khay niềng", null, 1, "Cái")]);
         request.MarkDone("staff1");
         _db.MaterialRequests.Add(request);
         await _db.SaveChangesAsync();
@@ -151,7 +172,7 @@ public class MarkMaterialRequestDoneHandlerTests
     [Test]
     public async Task HandleAsync_OrderedRequest_MarksAsDoneNormally()
     {
-        var request = MaterialRequest.Create("Niềng răng", "Bệnh nhân A", "BS X", [("Khay niềng", 1, "Cái")]);
+        var request = MaterialRequest.Create("Niềng răng", "Bệnh nhân A", "BS X", [("Khay niềng", null, 1, "Cái")]);
         request.MarkOrdered("staff1", "Đặt lab ABC");
         _db.MaterialRequests.Add(request);
         await _db.SaveChangesAsync();
@@ -170,7 +191,7 @@ public class MarkMaterialRequestDoneHandlerTests
     [Test]
     public async Task HandleAsync_ActualQuantityDiffersFromRequested_ImportsActualQuantity()
     {
-        var request = MaterialRequest.Create("Niềng răng", "Bệnh nhân A", "BS X", [("Khay niềng", 5, "Cái")]);
+        var request = MaterialRequest.Create("Niềng răng", "Bệnh nhân A", "BS X", [("Khay niềng", null, 5, "Cái")]);
         _db.MaterialRequests.Add(request);
         await _db.SaveChangesAsync();
         var itemId = request.Items.First().Id;
@@ -192,7 +213,7 @@ public class MarkMaterialRequestDoneHandlerTests
     [Test]
     public async Task HandleAsync_NoActualQuantityProvided_DefaultsToRequestedQuantity()
     {
-        var request = MaterialRequest.Create("Niềng răng", "Bệnh nhân A", "BS X", [("Khay niềng", 4, "Cái")]);
+        var request = MaterialRequest.Create("Niềng răng", "Bệnh nhân A", "BS X", [("Khay niềng", null, 4, "Cái")]);
         _db.MaterialRequests.Add(request);
         await _db.SaveChangesAsync();
         var itemId = request.Items.First().Id;
@@ -204,5 +225,52 @@ public class MarkMaterialRequestDoneHandlerTests
         await _sender.Received(1).Send(
             Arg.Is<StockImportCommand>(c => c.Quantity == 4),
             Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Yêu cầu vật tư gắn TreatmentPlanId (đặt riêng cho đúng 1 dịch vụ) — nhập kho xong phải tự
+    /// động ghi nhận luôn phần vừa nhập là tiêu hao cho liệu trình đó, và net về 0 trong kho chung (mua vào
+    /// rồi dùng ngay cho đúng ca, không nằm lại tồn kho dùng chung chờ ghi nhận thủ công thêm lần nữa).</summary>
+    [Test]
+    public async Task HandleAsync_RequestLinkedToTreatmentPlan_AutoRecordsUsageAndNetsInventoryToZero()
+    {
+        var treatmentPlanId = Guid.NewGuid();
+        var request = MaterialRequest.Create("Bọc răng sứ", "Bệnh nhân A", "BS X",
+            [("Mão sứ", "Răng số 16", 1, "Cái")], treatmentPlanId: treatmentPlanId);
+        _db.MaterialRequests.Add(request);
+        await _db.SaveChangesAsync();
+        var itemId = request.Items.First().Id;
+
+        await _handler.Handle(
+            new MarkMaterialRequestDoneCommand(request.Id, "staff1", [new MaterialRequestItemPriceInput(itemId, 500_000m)]),
+            CancellationToken.None);
+
+        var supplyItem = await _db.SupplyItems.SingleAsync(s => s.Name == "Mão sứ");
+        supplyItem.Quantity.Should().Be(0);
+
+        var usages = await _db.TreatmentSupplyUsages.Where(u => u.TreatmentPlanId == treatmentPlanId).ToListAsync();
+        usages.Should().ContainSingle();
+        usages[0].SupplyItemId.Should().Be(supplyItem.Id);
+        usages[0].Quantity.Should().Be(1);
+        usages[0].UnitCostAtUsage.Should().Be(500_000m);
+        usages[0].CreatedBy.Should().Be("BS X");
+    }
+
+    /// <summary>Yêu cầu vật tư KHÔNG gắn dịch vụ nào (TreatmentPlanId null) — nhập kho xong không tự động
+    /// ghi nhận tiêu hao gì cả, vật tư nằm lại tồn kho chung đúng số lượng thực nhận.</summary>
+    [Test]
+    public async Task HandleAsync_RequestNotLinkedToTreatmentPlan_DoesNotAutoRecordUsage()
+    {
+        var request = MaterialRequest.Create("Niềng răng", "Bệnh nhân A", "BS X", [("Khay niềng", null, 1, "Cái")]);
+        _db.MaterialRequests.Add(request);
+        await _db.SaveChangesAsync();
+        var itemId = request.Items.First().Id;
+
+        await _handler.Handle(
+            new MarkMaterialRequestDoneCommand(request.Id, "staff1", [new MaterialRequestItemPriceInput(itemId, 10_000m)]),
+            CancellationToken.None);
+
+        var supplyItem = await _db.SupplyItems.SingleAsync(s => s.Name == "Khay niềng");
+        supplyItem.Quantity.Should().Be(1);
+        (await _db.TreatmentSupplyUsages.AnyAsync()).Should().BeFalse();
     }
 }

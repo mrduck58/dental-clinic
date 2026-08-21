@@ -17,6 +17,11 @@ interface MaterialWorkspaceProps {
   appointmentId: string;
   /** Cho phép gửi yêu cầu dù buổi hẹn đã kết thúc (chế độ chỉnh sửa đơn hoàn thành). */
   editMode?: boolean;
+  /** Nháp điền sẵn từ tab "Liệu trình" khi thêm dịch vụ có gắn Vật tư chính (xem TreatmentWorkspace) —
+   * gộp vào form bên dưới để bác sĩ bổ sung kích thước/dấu răng rồi gửi, không phải gõ lại từ đầu. */
+  draftItems?: { itemName: string; detail: string; quantity: string; unit: string; treatmentPlanId?: string }[];
+  /** Gọi lại sau khi đã gộp draftItems vào form, để cha xoá nháp (tránh gộp lại lần nữa khi re-render). */
+  onDraftConsumed?: () => void;
 }
 
 const fmtDateTime = (iso: string) => {
@@ -40,15 +45,47 @@ function CardHeader({ title, icon, color, action }: {
 
 const BOX_ICON = "M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z";
 
-export default function MaterialWorkspace({ appointmentId, editMode = false }: MaterialWorkspaceProps) {
+export default function MaterialWorkspace({ appointmentId, editMode = false, draftItems, onDraftConsumed }: MaterialWorkspaceProps) {
   const [examination, setExamination] = useState<ExaminationDto | null>(null);
   const [requests, setRequests] = useState<MaterialRequestDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const emptyRow = () => ({ itemName: "", quantity: "", unit: SUPPLY_UNITS[0] });
-  const [rows, setRows] = useState<{ itemName: string; quantity: string; unit: string }[]>([emptyRow()]);
+  const emptyRow = () => ({ itemName: "", detail: "", quantity: "", unit: SUPPLY_UNITS[0] });
+  // Lưu tạm form đang gõ (kể cả nháp tự động từ tab Liệu trình) vào localStorage theo từng buổi hẹn —
+  // để nếu bác sĩ thoát hẳn khỏi trang (không chỉ chuyển tab) trước khi bấm gửi, quay lại vẫn còn nguyên,
+  // không phải gõ/chọn lại từ đầu.
+  const draftStorageKey = `materialRequestDraft:${appointmentId}`;
+  const [rows, setRows] = useState<{ itemName: string; detail: string; quantity: string; unit: string; treatmentPlanId?: string }[]>(() => {
+    if (typeof window === "undefined") return [emptyRow()];
+    try {
+      const saved = window.localStorage.getItem(draftStorageKey);
+      const parsed = saved ? JSON.parse(saved) : null;
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    } catch {
+      // dữ liệu lưu hỏng/không đọc được — bỏ qua, dùng form trống mặc định
+    }
+    return [emptyRow()];
+  });
   const [saving, setSaving] = useState(false);
+
+  // Gộp nháp từ tab "Liệu trình" vào form — giữ lại các dòng bác sĩ đã tự gõ, chỉ bỏ dòng trống mặc định.
+  useEffect(() => {
+    if (!draftItems || draftItems.length === 0) return;
+    setRows(prev => [...prev.filter(r => r.itemName.trim() || r.quantity.trim()), ...draftItems.map(d => ({ ...d }))]);
+    onDraftConsumed?.();
+  }, [draftItems, onDraftConsumed]);
+
+  // Đồng bộ form vào localStorage mỗi khi đổi — xoá key khi form trống hẳn để không để rác lại.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const hasContent = rows.some(r => r.itemName.trim() || r.detail.trim() || r.quantity.trim());
+    if (hasContent) {
+      window.localStorage.setItem(draftStorageKey, JSON.stringify(rows));
+    } else {
+      window.localStorage.removeItem(draftStorageKey);
+    }
+  }, [rows, draftStorageKey]);
 
   // Vật tư "đặt riêng cho bệnh nhân" đã có sẵn trong kho — dùng để gợi ý tên + khoá đơn vị theo kho.
   const [customItems, setCustomItems] = useState<SupplyItemDto[]>([]);
@@ -65,7 +102,7 @@ export default function MaterialWorkspace({ appointmentId, editMode = false }: M
       ? customItems.filter(ci => ci.name.toLowerCase().includes(itemName.trim().toLowerCase())).slice(0, 6)
       : [];
 
-  const updateRow = (index: number, patch: Partial<{ itemName: string; quantity: string; unit: string }>) => {
+  const updateRow = (index: number, patch: Partial<{ itemName: string; detail: string; quantity: string; unit: string }>) => {
     setRows(prev => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)));
   };
   const addRow = () => setRows(prev => [...prev, emptyRow()]);
@@ -105,10 +142,25 @@ export default function MaterialWorkspace({ appointmentId, editMode = false }: M
     if (validRows.length === 0 || !examination) return;
     try {
       setSaving(true);
-      await createMaterialRequestApi({
-        appointmentId,
-        items: validRows.map(r => ({ itemName: r.itemName.trim(), quantity: Number(r.quantity), unit: effectiveUnit(r) })),
-      });
+      // Gộp theo dịch vụ (treatmentPlanId) — dòng nháp tự động từ 1 dịch vụ và dòng bác sĩ tự gõ thêm
+      // (không gắn dịch vụ nào) phải tách thành các MaterialRequest riêng để liên kết đúng dịch vụ.
+      const groups = new Map<string, typeof validRows>();
+      for (const r of validRows) {
+        const key = r.treatmentPlanId ?? "";
+        groups.set(key, [...(groups.get(key) ?? []), r]);
+      }
+      for (const [treatmentPlanId, groupRows] of groups) {
+        await createMaterialRequestApi({
+          appointmentId,
+          items: groupRows.map(r => ({
+            itemName: r.itemName.trim(),
+            detail: r.detail.trim() || undefined,
+            quantity: Number(r.quantity),
+            unit: effectiveUnit(r),
+          })),
+          treatmentPlanId: treatmentPlanId || undefined,
+        });
+      }
       showToast("Đã gửi yêu cầu vật tư sang kho");
       setRows([emptyRow()]);
       await loadRequests(examination.patient.id, examination.patient.fullName);
@@ -197,7 +249,7 @@ export default function MaterialWorkspace({ appointmentId, editMode = false }: M
                       <div className="flex flex-col gap-1 bg-slate-50 border border-slate-100 rounded-xl px-3.5 py-2.5">
                         {r.items.map(it => (
                           <div key={it.id} className="text-[13px] font-semibold text-slate-600">
-                            {it.itemName} — {it.quantity} {it.unit}
+                            {it.itemName}{it.detail ? ` — ${it.detail}` : ""} × {it.quantity} {it.unit}
                           </div>
                         ))}
                       </div>
@@ -276,6 +328,13 @@ export default function MaterialWorkspace({ appointmentId, editMode = false }: M
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                   </div>
+                  <input
+                    value={row.detail}
+                    onChange={e => updateRow(i, { detail: e.target.value })}
+                    placeholder="Chi tiết: răng số mấy, hàm nào, kích thước... (tuỳ chọn)"
+                    disabled={!canEdit}
+                    className="w-full px-3 py-1.5 text-[12px] bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-primary focus:outline-none font-semibold text-slate-600 disabled:opacity-60 disabled:cursor-not-allowed"
+                  />
                   {exactMatch ? (
                     <p className="text-[11px] font-semibold text-emerald-600 pl-0.5">✓ Vật tư đã có trong kho — đơn vị: {exactMatch.unit}</p>
                   ) : row.itemName.trim() && (

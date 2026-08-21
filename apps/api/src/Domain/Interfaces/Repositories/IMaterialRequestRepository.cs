@@ -20,6 +20,12 @@ public interface IMaterialRequestRepository
 
     Task UpdateAsync(MaterialRequest request, CancellationToken ct = default);
 
+    Task DeleteAsync(MaterialRequest request, CancellationToken ct = default);
+
+    /// <summary>Yêu cầu vật tư gắn với 1 dịch vụ cụ thể trong liệu trình — trả về entity đang được tracked
+    /// để caller có thể xóa (Pending) hoặc chỉ kiểm tra trạng thái (Ordered/Done) trước khi cho xóa liệu trình.</summary>
+    Task<List<MaterialRequest>> GetByTreatmentPlanIdAsync(Guid treatmentPlanId, CancellationToken ct = default);
+
     /// <summary>
     /// Mở transaction thủ công khi cần gộp nhiều lệnh ghi (ví dụ nhiều SupplyItem/SupplyTransaction phát sinh
     /// từ việc nhập kho từng dòng vật tư) với UpdateAsync(request) thành 1 khối atomic. Trả về null nếu

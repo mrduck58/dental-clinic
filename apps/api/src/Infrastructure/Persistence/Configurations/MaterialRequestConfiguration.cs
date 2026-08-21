@@ -24,6 +24,15 @@ public class MaterialRequestConfiguration : IEntityTypeConfiguration<MaterialReq
             .HasMaxLength(20);
 
         builder.HasIndex(m => m.Status);
+        builder.HasIndex(m => m.TreatmentPlanId);
+
+        // Restrict (không Cascade): xóa liệu trình phải tự dọn Pending liên quan trước ở tầng application
+        // (DeleteTreatmentPlanHandler) — nếu còn yêu cầu Ordered/Done (đã đặt hàng/đã nhập kho thật) thì phải
+        // chặn xóa hẳn, không được để DB tự xóa mất theo kiểu cascade.
+        builder.HasOne<TreatmentPlan>()
+            .WithMany()
+            .HasForeignKey(m => m.TreatmentPlanId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasMany(m => m.Items)
             .WithOne()

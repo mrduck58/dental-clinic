@@ -51,12 +51,13 @@ public class TreatmentPlanHandlerTests
         var treatmentSupplyUsageRepository = new TreatmentSupplyUsageRepository(_db);
         var supplyItemRepository = new SupplyItemRepository(_db);
         var supplyTransactionRepository = new SupplyTransactionRepository(_db);
+        var materialRequestRepository = new MaterialRequestRepository(_db);
         var queryHelper = new TreatmentPlanQueryHelper(treatmentPlanRepository, appointmentRepository, procedureRepository);
 
         _create = new CreateTreatmentPlanHandler(
             appointmentRepository, serviceRepository, treatmentPlanRepository, queryHelper, _patientRepo, _notificationService);
         _update = new UpdateTreatmentPlanHandler(treatmentPlanRepository, queryHelper);
-        _delete = new DeleteTreatmentPlanHandler(treatmentPlanRepository, queryHelper);
+        _delete = new DeleteTreatmentPlanHandler(treatmentPlanRepository, materialRequestRepository, queryHelper);
         _getByPatient = new GetPatientTreatmentPlansHandler(treatmentPlanRepository, queryHelper);
         _addStep = new AddStepProgressHandler(treatmentPlanRepository, queryHelper);
         _updateStep = new UpdateStepProgressHandler(treatmentPlanRepository, queryHelper);
@@ -405,6 +406,50 @@ public class TreatmentPlanHandlerTests
         await _delete.Handle(new DeleteTreatmentPlanCommand(plan.Id), CancellationToken.None);
 
         (await _db.TreatmentPlans.FindAsync(plan.Id)).Should().BeNull();
+    }
+
+    /// <summary>Liệu trình có yêu cầu vật tư đã Ordered/Done liên kết — phải chặn xóa, không được tự ý xóa mất.</summary>
+    [Test]
+    public async Task DeleteAsync_PlanHasOrderedMaterialRequest_ThrowsValidationException()
+    {
+        var (patient, dentist) = await SeedPatientAndDentistAsync("p15", "d15");
+        var (appointment, service) = await SeedInProgressAppointmentAsync(patient, dentist);
+        var plan = TreatmentPlan.Create(patient.Id, dentist.Id, appointment.Id, service.Id, 500_000m, 1);
+        _db.TreatmentPlans.Add(plan);
+        var materialRequest = MaterialRequest.Create(
+            service.Name, "Bệnh nhân A", "BS X",
+            [("Mão sứ", "Răng số 16", 1, "Cái")],
+            patient.Id, plan.Id);
+        materialRequest.MarkOrdered("staff1", null);
+        _db.MaterialRequests.Add(materialRequest);
+        await _db.SaveChangesAsync();
+
+        Func<Task> act = () => _delete.Handle(new DeleteTreatmentPlanCommand(plan.Id), CancellationToken.None);
+
+        await act.Should().ThrowAsync<ValidationException>();
+        (await _db.TreatmentPlans.FindAsync(plan.Id)).Should().NotBeNull();
+        (await _db.MaterialRequests.FindAsync(materialRequest.Id)).Should().NotBeNull();
+    }
+
+    /// <summary>Liệu trình có yêu cầu vật tư Pending liên kết — xóa liệu trình thì xóa luôn yêu cầu Pending đó.</summary>
+    [Test]
+    public async Task DeleteAsync_PlanHasPendingMaterialRequest_RemovesPlanAndRequest()
+    {
+        var (patient, dentist) = await SeedPatientAndDentistAsync("p16", "d16");
+        var (appointment, service) = await SeedInProgressAppointmentAsync(patient, dentist);
+        var plan = TreatmentPlan.Create(patient.Id, dentist.Id, appointment.Id, service.Id, 500_000m, 1);
+        _db.TreatmentPlans.Add(plan);
+        var materialRequest = MaterialRequest.Create(
+            service.Name, "Bệnh nhân A", "BS X",
+            [("Mão sứ", "Răng số 16", 1, "Cái")],
+            patient.Id, plan.Id);
+        _db.MaterialRequests.Add(materialRequest);
+        await _db.SaveChangesAsync();
+
+        await _delete.Handle(new DeleteTreatmentPlanCommand(plan.Id), CancellationToken.None);
+
+        (await _db.TreatmentPlans.FindAsync(plan.Id)).Should().BeNull();
+        (await _db.MaterialRequests.FindAsync(materialRequest.Id)).Should().BeNull();
     }
 
     // ── GetByPatientAsync ──────────────────────────────────────────────────────

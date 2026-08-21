@@ -11,6 +11,9 @@ namespace DentalClinic.API.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            // "UserDeviceTokens" đã bị scaffold trùng vào migration này lúc tạo (đã có sẵn từ migration
+            // RenameMaterialRequestCourseIdToPatientId trước đó) — bỏ để tránh lỗi "relation already
+            // exists" khi chạy database update từ đầu trên DB trống.
             migrationBuilder.CreateTable(
                 name: "AppointmentChangeRequests",
                 columns: table => new
@@ -87,21 +90,6 @@ namespace DentalClinic.API.Infrastructure.Persistence.Migrations
                     table.PrimaryKey("PK_AppointmentSlotHolds", x => x.Id);
                 });
 
-            migrationBuilder.CreateTable(
-                name: "UserDeviceTokens",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Token = table.Column<string>(type: "text", nullable: false),
-                    DeviceType = table.Column<string>(type: "text", nullable: true),
-                    UpdatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_UserDeviceTokens", x => x.Id);
-                });
-
             migrationBuilder.CreateIndex(
                 name: "IX_AppointmentChangeRequests_AppointmentId",
                 table: "AppointmentChangeRequests",
@@ -142,15 +130,6 @@ namespace DentalClinic.API.Infrastructure.Persistence.Migrations
                 table: "AppointmentSlotHolds",
                 columns: new[] { "PatientId", "CreatedAt" });
 
-            migrationBuilder.CreateIndex(
-                name: "IX_UserDeviceTokens_Token",
-                table: "UserDeviceTokens",
-                column: "Token");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_UserDeviceTokens_UserId",
-                table: "UserDeviceTokens",
-                column: "UserId");
         }
 
         /// <inheritdoc />
@@ -161,9 +140,6 @@ namespace DentalClinic.API.Infrastructure.Persistence.Migrations
 
             migrationBuilder.DropTable(
                 name: "AppointmentSlotHolds");
-
-            migrationBuilder.DropTable(
-                name: "UserDeviceTokens");
         }
     }
 }

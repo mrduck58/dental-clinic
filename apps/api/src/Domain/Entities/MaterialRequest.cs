@@ -29,6 +29,11 @@ public class MaterialRequest
     public Guid? DentistId { get; private set; }
     public DentistProfile? Dentist { get; private set; }
 
+    // Dịch vụ cụ thể trong liệu trình mà yêu cầu này phục vụ (vd đặt mão sứ cho đúng lần "Bọc Răng Sứ"
+    // này) — null nếu tạo tự do, không gắn dịch vụ nào cụ thể (vd staff tự đặt trước cho ca hẹn sắp tới).
+    // Dùng để: xóa dịch vụ khỏi liệu trình thì dọn theo yêu cầu Pending liên quan (xem DeleteTreatmentPlanHandler).
+    public Guid? TreatmentPlanId { get; private set; }
+
     private readonly List<MaterialRequestItem> _items = [];
     public IReadOnlyCollection<MaterialRequestItem> Items => _items;
 
@@ -36,7 +41,8 @@ public class MaterialRequest
 
     public static MaterialRequest Create(
         string courseName, string patientName, string dentistName,
-        IEnumerable<(string ItemName, int Quantity, string Unit)> items, Guid? patientId = null)
+        IEnumerable<(string ItemName, string? Detail, int Quantity, string Unit)> items,
+        Guid? patientId = null, Guid? treatmentPlanId = null)
     {
         var request = new MaterialRequest
         {
@@ -45,10 +51,11 @@ public class MaterialRequest
             CourseName = courseName,
             PatientName = patientName,
             DentistName = dentistName,
+            TreatmentPlanId = treatmentPlanId,
             Status = MaterialRequestStatus.Pending,
             CreatedAt = DateTimeOffset.UtcNow
         };
-        request._items.AddRange(items.Select(i => MaterialRequestItem.Create(request.Id, i.ItemName, i.Quantity, i.Unit)));
+        request._items.AddRange(items.Select(i => MaterialRequestItem.Create(request.Id, i.ItemName, i.Detail, i.Quantity, i.Unit)));
         return request;
     }
 
