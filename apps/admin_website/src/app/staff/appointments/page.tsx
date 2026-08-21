@@ -421,7 +421,7 @@ function OnlineTab() {
                         {appt.status?.toLowerCase() === "rebooking" && (
                           <span className="px-2.5 py-0.5 bg-amber-50 text-amber-800 border border-amber-300 rounded-full text-[11.5px] font-black flex items-center gap-1">
                             <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                            Rebooking
+                            Tái đặt lịch
                           </span>
                         )}
                         <span className="text-[11px] text-slate-400 font-mono">#{appt.appointmentCode}</span>
