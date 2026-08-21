@@ -306,38 +306,12 @@ class _DentistProfilePageState extends State<DentistProfilePage> {
                 child: ElevatedButton(
                   onPressed: () {
                     final doctorInfo = doc.toDoctorInfo();
-                    final activeDraft = BookingService().activeDraft;
-                    BookingDraft draft;
-                    if (activeDraft != null) {
-                      if (activeDraft.doctor?.id == doc.id) {
-                        // Cùng bác sĩ: giữ nguyên toàn bộ (bệnh nhân, dịch vụ, ngày, ca khám, hold 5p)
-                        draft = activeDraft.copyWith(doctor: doctorInfo, preferredDentistId: doc.id);
-                      } else {
-                        // Khác bác sĩ: giữ nguyên bệnh nhân và dịch vụ đã chọn, chọn lại ngày và slot khám của bác sĩ mới
-                        draft = activeDraft.copyWith(
-                          doctor: doctorInfo,
-                          preferredDentistId: doc.id,
-                          clearDate: true,
-                          clearTimeSlot: true,
-                          clearHold: true,
-                        );
-                      }
-                    } else {
-                      draft = BookingDraft(
-                        doctor: doctorInfo,
-                        preferredDentistId: doc.id,
-                      );
-                    }
-
-                    if (draft.isHoldActive && draft.isComplete) {
-                      context.push(AppRoutes.bookingReview, extra: draft);
-                    } else if (draft.patient != null && draft.service != null) {
-                      context.push(AppRoutes.bookingSelectDatetime, extra: draft);
-                    } else if (draft.patient != null) {
-                      context.push(AppRoutes.bookingSelectService, extra: draft);
-                    } else {
-                      context.push(AppRoutes.bookingSelectPatient, extra: draft);
-                    }
+                    BookingService().clearActiveDraft();
+                    final draft = BookingDraft(
+                      doctor: doctorInfo,
+                      preferredDentistId: doc.id,
+                    );
+                    context.push(AppRoutes.bookingSelectPatient, extra: draft);
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,

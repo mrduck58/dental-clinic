@@ -313,4 +313,32 @@ public class RevenueQueryServiceTests
         result.ByService.Should().ContainSingle(s => s.ServiceName == "Trám răng" && s.Amount == 1_000_000m);
         result.ByDentist.Should().ContainSingle(d => d.DentistId == dentist.Id && d.Amount == 1_000_000m);
     }
+
+    /// <summary>Giá vốn vật tư tiêu hao (TreatmentSupplyUsage) trong kỳ phải được cộng vào đúng dịch vụ —
+    /// khớp theo tên dịch vụ (TreatmentPlan.Service.Name so với InvoiceItem.Name).</summary>
+    [Test]
+    public async Task GetChartsAsync_IncludesSupplyCostForMatchingServiceName()
+    {
+        var (patient, dentist, appt) = await SeedAppointmentAsync();
+        var service = Service.Create("Trám răng", 500_000m, 30, "Trám răng thẩm mỹ");
+        _db.Services.Add(service);
+        var inv = IssuePaidInvoice(appt.Id, "Trám răng", 500_000m, new DateTimeOffset(2026, 8, 10, 3, 0, 0, TimeSpan.Zero));
+        _db.Invoices.Add(inv);
+
+        var plan = TreatmentPlan.Create(patient.Id, dentist.Id, appt.Id, service.Id, 500_000m, 1);
+        _db.TreatmentPlans.Add(plan);
+        var supplyItem = SupplyItem.Create("VT-001", "Chỉ khâu", "Vật dụng", "Cái", 100, 10, price: 20_000m);
+        _db.SupplyItems.Add(supplyItem);
+        var tx = SupplyTransaction.Create(supplyItem.Id, "export", 2, null, "BS Test");
+        _db.SupplyTransactions.Add(tx);
+        var usage = TreatmentSupplyUsage.Create(plan.Id, supplyItem.Id, 2, 20_000m, tx.Id, "BS Test");
+        _db.TreatmentSupplyUsages.Add(usage);
+        typeof(TreatmentSupplyUsage).GetProperty(nameof(TreatmentSupplyUsage.CreatedAt))!
+            .SetValue(usage, new DateTimeOffset(2026, 8, 11, 3, 0, 0, TimeSpan.Zero));
+        await _db.SaveChangesAsync();
+
+        var result = await _sut.GetChartsAsync(PeriodFrom, PeriodTo, CancellationToken.None);
+
+        result.ByService.Should().ContainSingle(s => s.ServiceName == "Trám răng" && s.SupplyCost == 40_000m);
+    }
 }

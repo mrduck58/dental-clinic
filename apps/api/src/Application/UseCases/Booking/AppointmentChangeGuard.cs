@@ -22,14 +22,8 @@ public class AppointmentChangeGuard(
     IPatientRepository patientRepository,
     IAppointmentRepository appointmentRepository)
 {
-    /// <summary>Bệnh nhân chỉ được tự hủy/dời lịch trong vòng 24 giờ kể từ thời điểm đặt lịch.</summary>
-    public static readonly TimeSpan PatientSelfManagementPeriod = TimeSpan.FromHours(24);
-
-    /// <summary>Số lần một bệnh nhân được tự dời cùng một lịch hẹn.</summary>
-    public const int MaxPatientReschedules = 2;
-
     public async Task<AppointmentChangeContext> AuthorizeAsync(
-        Appointment appointment, DateTimeOffset now, CancellationToken ct)
+        Appointment appointment, DateTimeOffset now, CancellationToken ct, bool isCancelOperation = false)
     {
         var isPatient = currentUser.IsAuthenticated && currentUser.UserRole == "Patient";
 
@@ -38,26 +32,23 @@ public class AppointmentChangeGuard(
 
         await EnsureOwnsAppointmentAsync(appointment, ct);
 
-        // 1. Kiểm tra nếu đã đến hoặc qua giờ khám
-        if (now >= appointment.AppointmentDate)
+        // 1. Kiểm tra nếu đã đến hoặc qua giờ khám: CHỈ chặn thao tác HỦY (thao tác ĐỔI LỊCH vẫn cho phép và sẽ chuyển sang Rebooking)
+        if (isCancelOperation && now >= appointment.AppointmentDate)
             throw new ConflictException(
-                "Lịch khám đã đến hoặc đã qua giờ hẹn, không thể tự hủy hoặc dời lịch. " +
+                "Lịch khám đã đến hoặc đã qua giờ hẹn, không thể tự hủy lịch. " +
                 "Vui lòng liên hệ phòng khám để được hỗ trợ.");
 
-        // 2. Kiểm tra nếu đã quá 24 giờ kể từ thời điểm tạo lịch
-        if (now - appointment.CreatedAt > PatientSelfManagementPeriod)
-            throw new ConflictException(
-                "Đã quá 24 giờ kể từ thời điểm đặt lịch, bạn không thể tự hủy hoặc dời lịch. " +
-                "Vui lòng liên hệ phòng khám để được hỗ trợ.");
-
-        // 3. Kiểm tra nếu bệnh nhân đang trong thời gian chờ (cooldown 30 phút sau khi hủy/dời từ lần 2)
-        var cooldownUntil = await appointmentRepository.GetPatientCooldownUntilAsync(appointment.PatientId, now, ct);
-        if (cooldownUntil.HasValue && cooldownUntil.Value > now)
+        // 2. Kiểm tra cooldown 30 phút CHỈ đối với thao tác HỦY (không áp dụng cho dời lịch)
+        if (isCancelOperation)
         {
-            var remaining = (int)Math.Ceiling((cooldownUntil.Value - now).TotalMinutes);
-            throw new ConflictException(
-                $"Bệnh nhân đang trong thời gian chờ sau khi đổi/hủy lịch. " +
-                $"Vui lòng thử lại sau {remaining} phút.");
+            var cooldownUntil = await appointmentRepository.GetPatientCooldownUntilAsync(appointment.PatientId, now, ct);
+            if (cooldownUntil.HasValue && cooldownUntil.Value > now)
+            {
+                var remaining = (int)Math.Ceiling((cooldownUntil.Value - now).TotalMinutes);
+                throw new ConflictException(
+                    $"Bệnh nhân đang trong thời gian chờ sau khi hủy lịch. " +
+                    $"Vui lòng thử lại sau {remaining} phút.");
+            }
         }
 
         return new AppointmentChangeContext(IsPatientCaller: true);

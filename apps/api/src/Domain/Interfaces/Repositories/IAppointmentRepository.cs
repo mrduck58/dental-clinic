@@ -119,8 +119,11 @@ public interface IAppointmentRepository
     /// <summary>Đếm số lịch hẹn đang hoạt động (Pending/Confirmed/CheckedIn/InProgress/PendingPayment) của một tài khoản User.</summary>
     Task<int> CountActiveAppointmentsForUserAsync(Guid userId, Guid? excludeAppointmentId = null, CancellationToken cancellationToken = default);
 
-    /// <summary>Số lần bệnh nhân cụ thể đã tự hủy lịch.</summary>
-    Task<int> GetPatientCancellationCountAsync(Guid patientId, CancellationToken cancellationToken = default);
+    /// <summary>Kiểm tra bệnh nhân cụ thể (PatientId) đã có lịch hẹn đang hoạt động nào chưa.</summary>
+    Task<bool> HasActiveAppointmentForPatientAsync(Guid patientId, Guid? excludeAppointmentId = null, CancellationToken cancellationToken = default);
+
+    /// <summary>Số lần bệnh nhân cụ thể đã tự hủy lịch (có thể lọc theo mốc thời gian, ví dụ trong ngày).</summary>
+    Task<int> GetPatientCancellationCountAsync(Guid patientId, DateTimeOffset? since = null, CancellationToken cancellationToken = default);
 
     /// <summary>Tổng số lần các lịch hẹn của bệnh nhân cụ thể đã được dời.</summary>
     Task<int> GetPatientRescheduleCountAsync(Guid patientId, CancellationToken cancellationToken = default);

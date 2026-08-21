@@ -97,4 +97,34 @@ public class ServicesController(ISender sender) : ControllerBase
         var result = await sender.Send(new ReplaceTreatmentProceduresCommand(id, steps), ct);
         return Ok(result);
     }
+
+    /// <summary>GET api/services/{id}/supply-items — Toàn bộ định mức vật tư của dịch vụ, mọi option (quản lý)</summary>
+    [HttpGet("{id:guid}/supply-items")]
+    [Authorize(Roles = "Admin,Dentist,Staff,Owner")]
+    public async Task<IActionResult> GetSupplyItems(Guid id, CancellationToken ct)
+    {
+        var result = await sender.Send(new GetServiceSupplyItemsQuery(id), ct);
+        return Ok(result);
+    }
+
+    /// <summary>GET api/services/{id}/supply-items/effective?option=X — Định mức hiệu lực (chung + theo option đã chọn)</summary>
+    [HttpGet("{id:guid}/supply-items/effective")]
+    [Authorize(Roles = "Admin,Dentist,Staff,Owner")]
+    public async Task<IActionResult> GetEffectiveSupplyItems(Guid id, [FromQuery] string? option, CancellationToken ct)
+    {
+        var result = await sender.Send(new GetEffectiveServiceSupplyItemsQuery(id, option), ct);
+        return Ok(result);
+    }
+
+    /// <summary>PUT api/services/{id}/supply-items — Thay toàn bộ định mức vật tư của dịch vụ (Admin)</summary>
+    [HttpPut("{id:guid}/supply-items")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> ReplaceSupplyItems(
+        Guid id,
+        [FromBody] List<ServiceSupplyItemStepRequest> items,
+        CancellationToken ct)
+    {
+        var result = await sender.Send(new ReplaceServiceSupplyItemsCommand(id, items), ct);
+        return Ok(result);
+    }
 }

@@ -32,7 +32,7 @@ public class CancelAppointmentHandler(
         var appointment = await appointmentRepository.GetByIdAsync(appointmentId, ct)
             ?? throw new NotFoundException("Không tìm thấy lịch hẹn.");
 
-        await changeGuard.AuthorizeAsync(appointment, now, ct);
+        await changeGuard.AuthorizeAsync(appointment, now, ct, isCancelOperation: true);
 
         // Entity tự chặn các trạng thái không hủy được (đang khám, đã hoàn thành...).
         appointment.Cancel(command.Reason, command.Note, currentUser.UserId, now);

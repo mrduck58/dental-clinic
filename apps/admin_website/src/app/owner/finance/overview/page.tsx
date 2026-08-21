@@ -190,6 +190,37 @@ export default function OwnerFinanceOverviewPage() {
             <BarPanel title="Top bác sĩ" data={(data?.topDentists ?? []).map((d) => ({ label: d.dentistName, amount: d.amount }))} />
           </div>
 
+          {/* Lợi nhuận theo dịch vụ (đã trừ giá vốn vật tư tiêu hao) */}
+          {(data?.topServices ?? []).some((s) => s.supplyCost > 0) && (
+            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-100">
+                <span className="text-[13.5px] font-extrabold text-slate-800">Lợi nhuận theo dịch vụ (sau giá vốn vật tư)</span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-[13.5px] text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-150 bg-slate-50/70 select-none">
+                      <th className="px-6 py-3 font-extrabold text-slate-400 text-[11px] uppercase tracking-wider">Dịch vụ</th>
+                      <th className="px-6 py-3 font-extrabold text-slate-400 text-[11px] uppercase tracking-wider text-right">Doanh thu</th>
+                      <th className="px-6 py-3 font-extrabold text-slate-400 text-[11px] uppercase tracking-wider text-right">Giá vốn vật tư</th>
+                      <th className="px-6 py-3 font-extrabold text-slate-400 text-[11px] uppercase tracking-wider text-right">Lợi nhuận</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {(data?.topServices ?? []).map((s) => (
+                      <tr key={s.serviceName}>
+                        <td className="px-6 py-3 font-semibold text-slate-700">{s.serviceName}</td>
+                        <td className="px-6 py-3 text-right text-slate-600">{fmt(s.amount)}</td>
+                        <td className="px-6 py-3 text-right text-amber-600">{fmt(s.supplyCost)}</td>
+                        <td className="px-6 py-3 text-right font-bold text-emerald-600">{fmt(s.amount - s.supplyCost)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           {/* Giao dịch gần đây */}
           <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100">

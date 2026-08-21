@@ -130,9 +130,9 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
     setState(() => _selected = date);
     final draft = widget.draft.copyWith(date: date);
     if (draft.doctor != null) {
-      context.push(AppRoutes.bookingSelectTimeSlot, extra: draft);
+      context.pushReplacement(AppRoutes.bookingSelectTimeSlot, extra: draft);
     } else {
-      context.push(AppRoutes.bookingSelectDoctor, extra: draft);
+      context.pushReplacement(AppRoutes.bookingSelectDoctor, extra: draft);
     }
   }
 

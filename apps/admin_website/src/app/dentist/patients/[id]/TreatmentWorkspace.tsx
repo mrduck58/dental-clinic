@@ -8,6 +8,9 @@ import {
   getPatientTreatmentPlansApi,
   getServicesApi,
   getServiceProceduresApi,
+  getEffectiveServiceSupplyItemsApi,
+  getSupplyItemsApi,
+  recordTreatmentSupplyUsageApi,
   createTreatmentPlanApi,
   deleteTreatmentPlanApi,
   addTreatmentPlanProgressApi,
@@ -20,6 +23,8 @@ import {
   type ServiceDto,
   type ServiceOptionDto,
   type TreatmentProcedureDto,
+  type SupplyItemDto,
+  type ServiceSupplyItemDto,
 } from "../../../../lib/apiClient";
 import { Toast, useToast } from "../../../../components/shared/Toast";
 import { ConfirmDialog, useConfirm } from "../../../../components/shared/ConfirmDialog";
@@ -89,6 +94,9 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
   const [addTeeth, setAddTeeth] = useState("");
   const [addNotes, setAddNotes] = useState("");
   const [savingService, setSavingService] = useState(false);
+  // Xem trước vật tư định mức của dịch vụ đang chọn — chỉ để bác sĩ biết trước, KHÔNG trừ kho ở đây.
+  // Tiêu hao thực tế vẫn ghi nhận ở modal "Ghi nhận quá trình điều trị" (usageRows bên dưới).
+  const [previewSupplyItems, setPreviewSupplyItems] = useState<ServiceSupplyItemDto[]>([]);
 
   // ── Modal: thêm quá trình ──────────────────────────────────────────────────
   const [showAddProgress, setShowAddProgress] = useState(false);
@@ -105,14 +113,19 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
   const [savingProgress, setSavingProgress] = useState(false);
   // Bước ngoài quy trình chuẩn — bác sĩ tự nhập tên
   const [progressCustom, setProgressCustom] = useState(false);
+  // Vật tư đã dùng — gợi ý từ định mức của dịch vụ, bác sĩ chỉnh trước khi ghi nhận cùng bước điều trị
+  const [supplyCatalog, setSupplyCatalog] = useState<SupplyItemDto[]>([]);
+  const [usageRows, setUsageRows] = useState<{ id: string; supplyItemId: string; quantity: string }[]>([]);
 
   // ── Modal: sửa mục đã ghi trong nhật ký ────────────────────────────────────
-  const [editEntry, setEditEntry] = useState<{ planId: string; entryIndex: number; stepName: string } | null>(null);
+  const [editEntry, setEditEntry] = useState<{ id: string; planId: string; entryIndex: number; stepName: string } | null>(null);
   const [editStepName, setEditStepName] = useState("");
   const [editPercent, setEditPercent] = useState<number>(0);
   const [editDate, setEditDate] = useState("");
   const [editNote, setEditNote] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
+  // Vật tư ghi nhận thêm khi sửa (cộng dồn tiêu hao — không ảnh hưởng vật tư đã ghi ở các lần trước)
+  const [editUsageRows, setEditUsageRows] = useState<{ id: string; supplyItemId: string; quantity: string }[]>([]);
 
   // ── Kéo-thả sắp xếp nhật ký điều trị (chỉ trong cùng một liệu trình) ────────
   const [dragKey, setDragKey] = useState<string | null>(null);      // `${planId}:${entryIndex}`
@@ -146,6 +159,7 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
         setMedicalHistory(history);
         setPlans(planList);
         setServices(serviceList);
+        getSupplyItemsApi().then(setSupplyCatalog).catch(() => {});
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : "Không thể tải thông tin bệnh nhân");
       } finally {
@@ -249,6 +263,14 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
   );
   const addUnitPrice = selOption?.price ?? selService?.price ?? 0;
 
+  // Xem trước vật tư định mức khi chọn dịch vụ (+ option) trong modal "Thêm dịch vụ" — chỉ hiển thị, không trừ kho.
+  useEffect(() => {
+    if (!selService) { setPreviewSupplyItems([]); return; }
+    let cancelled = false;
+    getEffectiveServiceSupplyItemsApi(selService.id, selOption?.name).then(items => { if (!cancelled) setPreviewSupplyItems(items); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [selService, selOption]);
+
   // Các bước sẽ được ghi nhận khi bấm "Ghi nhận": các bước quy trình đã chọn, hoặc một bước tự nhập
   const stepsToSave = useMemo(() => {
     if (progressCustom || progressSteps.length === 0) {
@@ -282,16 +304,13 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
     if (!selService || !examination) return;
     try {
       setSavingService(true);
-      // Chọn tùy chọn phân loại → dùng giá của tùy chọn và ghi tên nó vào ghi chú liệu trình
-      const notes = [selOption ? `Loại: ${selOption.name}` : "", addNotes.trim()]
-        .filter(Boolean)
-        .join(" · ");
       await createTreatmentPlanApi(appointmentId, {
         serviceId: selService.id,
         unitPrice: selOption?.price,
         quantity: Math.max(1, addQuantity),
         teeth: addTeeth.trim() || undefined,
-        notes: notes || undefined,
+        notes: addNotes.trim() || undefined,
+        serviceOptionName: selOption?.name,
       });
       showToast("Đã thêm dịch vụ vào liệu trình");
       setShowAddService(false);
@@ -329,6 +348,18 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
     }
   };
 
+  // Nạp gợi ý vật tư theo định mức HIỆU LỰC của dịch vụ + option đã chọn lúc thêm dịch vụ, nhân với
+  // số lượng (ĐVT) của liệu trình (vd: điều trị 3 Răng thì định mức 1 mão/răng -> gợi ý 3) — bác sĩ
+  // vẫn có thể chỉnh số lượng thực tế trước khi ghi nhận.
+  const loadUsageDefaults = async (serviceId: string, optionName: string | null, planQuantity: number) => {
+    const defaults = await getEffectiveServiceSupplyItemsApi(serviceId, optionName).catch(() => []);
+    setUsageRows(defaults.map((d, idx) => ({
+      id: `${idx}-${d.supplyItemId}`,
+      supplyItemId: d.supplyItemId,
+      quantity: String(d.defaultQuantity * Math.max(1, planQuantity)),
+    })));
+  };
+
   const handleOpenProgress = async (planId?: string) => {
     const target = planId ?? activePlans[0]?.id ?? "";
     setProgressPlanId(target);
@@ -344,8 +375,10 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
       setLoadingSteps(true);
       setProgressSteps(await loadProcedures(plan.serviceId));
       setLoadingSteps(false);
+      await loadUsageDefaults(plan.serviceId, plan.serviceOptionName, plan.quantity);
     } else {
       setProgressSteps([]);
+      setUsageRows([]);
     }
   };
 
@@ -360,25 +393,76 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
       setLoadingSteps(true);
       setProgressSteps(await loadProcedures(plan.serviceId));
       setLoadingSteps(false);
+      await loadUsageDefaults(plan.serviceId, plan.serviceOptionName, plan.quantity);
     } else {
       setProgressSteps([]);
+      setUsageRows([]);
     }
+  };
+
+  const handleAddUsageRow = () => {
+    setUsageRows(prev => [...prev, { id: Date.now().toString(), supplyItemId: "", quantity: "1" }]);
+  };
+
+  const handleRemoveUsageRow = async (rowId: string) => {
+    const row = usageRows.find(r => r.id === rowId);
+    // Dòng chưa chọn vật tư thì bỏ luôn, không cần hỏi — chỉ hỏi khi có dữ liệu thật sự sẽ mất.
+    if (row?.supplyItemId) {
+      const ok = await confirm({ title: "Bỏ vật tư này khỏi danh sách?", confirmLabel: "Bỏ vật tư" });
+      if (!ok) return;
+    }
+    setUsageRows(prev => prev.filter(r => r.id !== rowId));
+  };
+
+  const handleUsageRowChange = (rowId: string, field: "supplyItemId" | "quantity", val: string) => {
+    setUsageRows(prev => prev.map(r => (r.id === rowId ? { ...r, [field]: val } : r)));
+  };
+
+  const handleAddEditUsageRow = () => {
+    setEditUsageRows(prev => [...prev, { id: Date.now().toString(), supplyItemId: "", quantity: "1" }]);
+  };
+
+  const handleRemoveEditUsageRow = async (rowId: string) => {
+    const row = editUsageRows.find(r => r.id === rowId);
+    if (row?.supplyItemId) {
+      const ok = await confirm({ title: "Bỏ vật tư này khỏi danh sách?", confirmLabel: "Bỏ vật tư" });
+      if (!ok) return;
+    }
+    setEditUsageRows(prev => prev.filter(r => r.id !== rowId));
+  };
+
+  const handleEditUsageRowChange = (rowId: string, field: "supplyItemId" | "quantity", val: string) => {
+    setEditUsageRows(prev => prev.map(r => (r.id === rowId ? { ...r, [field]: val } : r)));
   };
 
   const handleAddProgress = async () => {
     if (!progressPlanId || stepsToSave.length === 0) return;
     try {
       setSavingProgress(true);
-      // Ghi lần lượt để nhật ký giữ đúng thứ tự các bước đã chọn
+      // Ghi lần lượt để nhật ký giữ đúng thứ tự các bước đã chọn — lấy id của mục cuối cùng vừa thêm để
+      // gắn với vật tư ghi nhận cùng lượt (hoàn kho đúng dòng nếu bước này sau này bị xóa).
+      let lastEntryId: string | undefined;
       for (const step of stepsToSave) {
-        await addTreatmentPlanProgressApi(progressPlanId, {
+        const updatedPlan = await addTreatmentPlanProgressApi(progressPlanId, {
           stepNumber: step.stepNumber,
           stepName: step.stepName,
           percent: progressPercent,
           date: progressDate || undefined,
           note: progressNote.trim() || undefined,
         });
+        lastEntryId = updatedPlan.stepProgress[updatedPlan.stepProgress.length - 1]?.id;
       }
+      const validUsage = usageRows
+        .filter(r => r.supplyItemId && (parseInt(r.quantity) || 0) > 0)
+        .map(r => ({ supplyItemId: r.supplyItemId, quantity: parseInt(r.quantity) || 0 }));
+      if (validUsage.length > 0) {
+        try {
+          await recordTreatmentSupplyUsageApi(progressPlanId, validUsage, lastEntryId);
+        } catch (err) {
+          showToast(err instanceof Error ? err.message : "Không thể ghi nhận vật tư đã dùng", "error");
+        }
+      }
+
       showToast(stepsToSave.length > 1
         ? `Đã ghi nhận ${stepsToSave.length} bước điều trị`
         : "Đã ghi nhận quá trình điều trị");
@@ -391,12 +475,13 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
     }
   };
 
-  const handleOpenEdit = (row: { planId: string; entryIndex: number; stepName: string; percent: number; note: string | null; date: string }) => {
-    setEditEntry({ planId: row.planId, entryIndex: row.entryIndex, stepName: row.stepName });
+  const handleOpenEdit = (row: { id: string; planId: string; entryIndex: number; stepName: string; percent: number; note: string | null; date: string }) => {
+    setEditEntry({ id: row.id, planId: row.planId, entryIndex: row.entryIndex, stepName: row.stepName });
     setEditStepName(row.stepName);
     setEditPercent(row.percent);
     setEditNote(row.note ?? "");
     setEditDate(row.date.slice(0, 10));
+    setEditUsageRows([]);
   };
 
   const handleSaveEdit = async () => {
@@ -414,6 +499,18 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
         stepName: editStepName.trim(),
         date: editDate || undefined,
       });
+
+      const validEditUsage = editUsageRows
+        .filter(r => r.supplyItemId && (parseInt(r.quantity) || 0) > 0)
+        .map(r => ({ supplyItemId: r.supplyItemId, quantity: parseInt(r.quantity) || 0 }));
+      if (validEditUsage.length > 0) {
+        try {
+          await recordTreatmentSupplyUsageApi(editEntry.planId, validEditUsage, editEntry.id);
+        } catch (err) {
+          showToast(err instanceof Error ? err.message : "Không thể ghi nhận vật tư đã dùng", "error");
+        }
+      }
+
       showToast("Đã cập nhật quá trình điều trị");
       setEditEntry(null);
       if (examination) await loadPlans(examination.patient.id);
@@ -846,7 +943,12 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                       <div key={plan.id} className="py-3">
                         <div className="grid gap-3 items-center" style={{ gridTemplateColumns: "28px 1fr 130px 110px 40px 110px 32px" }}>
                           <span className="text-[13px] font-bold text-slate-400">{idx + 1}</span>
-                          <span className="text-[14px] font-black text-slate-800">{plan.serviceName}</span>
+                          <span className="text-[14px] font-black text-slate-800">
+                            {plan.serviceName}
+                            {plan.serviceOptionName && (
+                              <span className="ml-1.5 text-[11.5px] font-bold text-violet-600">— {plan.serviceOptionName}</span>
+                            )}
+                          </span>
                           {/* Trạng thái do hệ thống tính từ tiến độ các bước — bác sĩ không tự chỉnh. */}
                           <span
                             title={`Hệ thống tự cập nhật theo tiến độ: hoàn thành khi đủ 100% các bước đã chọn (hiện ${planProgress[plan.id]?.completed ?? 0}/${planProgress[plan.id]?.total ?? 0} bước).`}
@@ -1018,6 +1120,26 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                     rows={2}
                     className="w-full px-3 py-2 text-[13px] bg-white border border-slate-200 rounded-lg focus:border-primary focus:outline-none font-semibold resize-none"
                   />
+
+                  {/* Xem trước vật tư định mức — chỉ để biết trước, ghi nhận/trừ kho thật ở bước "Ghi nhận quá trình điều trị" */}
+                  {previewSupplyItems.length > 0 && (
+                    <div className="border-t border-emerald-200 pt-2.5">
+                      <div className="text-[11px] font-extrabold text-amber-600 uppercase tracking-wider mb-1.5">
+                        Vật tư dự kiến cần dùng (định mức)
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        {previewSupplyItems.map((s, idx) => (
+                          <div key={s.id} className="flex items-center gap-1.5 text-[11.5px] font-semibold px-2 py-1 bg-amber-50 text-amber-700 rounded-lg border border-amber-200">
+                            <span className="w-4 h-4 rounded bg-amber-200/70 text-amber-800 text-[9.5px] font-black flex items-center justify-center shrink-0">
+                              {idx + 1}
+                            </span>
+                            <span>{s.supplyItemName} × {s.defaultQuantity * Math.max(1, addQuantity)} {s.unit}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-1.5">Chỉ để tham khảo — vật tư dùng thực tế sẽ ghi nhận khi cập nhật quá trình điều trị.</p>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1184,6 +1306,75 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                 </div>
               </div>
 
+              <div className="border-t border-slate-100 pt-4">
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-[11px] font-extrabold text-amber-600 uppercase tracking-wider">
+                    Vật tư đã dùng cho lần này
+                  </label>
+                  <button
+                    onClick={handleAddUsageRow}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 text-[11.5px] font-bold hover:bg-amber-100 transition-colors cursor-pointer"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                    </svg>
+                    Thêm vật tư
+                  </button>
+                </div>
+                {usageRows.length === 0 ? (
+                  <p className="text-[12px] font-semibold text-slate-400 mt-2">Không có vật tư nào (dịch vụ chưa khai định mức, hoặc không dùng vật tư).</p>
+                ) : (
+                  <div className="mt-2 flex flex-col gap-2">
+                    {usageRows.map((row, idx) => {
+                      const catalogItem = supplyCatalog.find(item => item.id === row.supplyItemId);
+                      const requestedQty = parseInt(row.quantity) || 0;
+                      const hasEnough = catalogItem && requestedQty > 0 ? catalogItem.quantity >= requestedQty : null;
+                      return (
+                        <div key={row.id} className="flex items-center gap-2">
+                          <span className="w-5 h-5 rounded bg-amber-100 text-amber-700 text-[10px] font-black flex items-center justify-center shrink-0">
+                            {idx + 1}
+                          </span>
+                          <select
+                            value={row.supplyItemId}
+                            onChange={e => handleUsageRowChange(row.id, "supplyItemId", e.target.value)}
+                            className="flex-1 px-2.5 py-2 text-[12.5px] bg-slate-50 border border-slate-200 rounded-lg focus:border-amber-500 focus:outline-none font-semibold text-slate-700 cursor-pointer"
+                          >
+                            <option value="">— Chọn vật tư —</option>
+                            {supplyCatalog.map(item => (
+                              <option key={item.id} value={item.id}>{item.name} ({item.unit})</option>
+                            ))}
+                          </select>
+                          <input
+                            type="number" min={1} placeholder="SL"
+                            value={row.quantity}
+                            onChange={e => handleUsageRowChange(row.id, "quantity", e.target.value)}
+                            className="w-16 px-2.5 py-2 text-[12.5px] bg-slate-50 border border-slate-200 rounded-lg focus:border-amber-500 focus:outline-none font-bold text-slate-700"
+                          />
+                          {hasEnough !== null && (
+                            <span
+                              className={`px-2 py-1 rounded-lg text-[10.5px] font-bold shrink-0 border whitespace-nowrap ${
+                                hasEnough ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-red-50 text-red-600 border-red-200"
+                              }`}
+                            >
+                              {hasEnough ? "Đủ" : "Không đủ"}
+                            </span>
+                          )}
+                          <button
+                            onClick={() => void handleRemoveUsageRow(row.id)}
+                            className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                            title="Bỏ vật tư này"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
               <button
                 onClick={() => void handleAddProgress()}
                 disabled={!progressPlanId || stepsToSave.length === 0 || savingProgress}
@@ -1202,7 +1393,7 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
       {/* ══════════ MODAL: SỬA TIẾN ĐỘ ĐÃ GHI ══════════ */}
       {editEntry && createPortal(
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-6" onClick={() => setEditEntry(null)}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
               <span className="text-[15px] font-black text-slate-900">Sửa tiến độ</span>
               <button onClick={() => setEditEntry(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
@@ -1251,6 +1442,76 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                   onChange={e => setEditNote(e.target.value)}
                   className="w-full mt-1.5 px-3 py-2.5 text-[13px] bg-slate-50 border border-slate-200 rounded-lg focus:border-primary focus:outline-none font-semibold"
                 />
+              </div>
+
+              <div className="border-t border-slate-100 pt-4">
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-[11px] font-extrabold text-amber-600 uppercase tracking-wider">
+                    Vật tư đã dùng cho lần này
+                  </label>
+                  <button
+                    onClick={handleAddEditUsageRow}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 text-[11.5px] font-bold hover:bg-amber-100 transition-colors cursor-pointer"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                    </svg>
+                    Thêm vật tư
+                  </button>
+                </div>
+                {editUsageRows.length === 0 ? (
+                  <p className="text-[12px] font-semibold text-slate-400 mt-2">Chưa thêm vật tư nào cho lần sửa này.</p>
+                ) : (
+                  <div className="mt-2 flex flex-col gap-2">
+                    {editUsageRows.map((row, idx) => {
+                      const catalogItem = supplyCatalog.find(item => item.id === row.supplyItemId);
+                      const requestedQty = parseInt(row.quantity) || 0;
+                      const hasEnough = catalogItem && requestedQty > 0 ? catalogItem.quantity >= requestedQty : null;
+                      return (
+                        <div key={row.id} className="flex items-center gap-2">
+                          <span className="w-5 h-5 rounded bg-amber-100 text-amber-700 text-[10px] font-black flex items-center justify-center shrink-0">
+                            {idx + 1}
+                          </span>
+                          <select
+                            value={row.supplyItemId}
+                            onChange={e => handleEditUsageRowChange(row.id, "supplyItemId", e.target.value)}
+                            className="flex-1 px-2.5 py-2 text-[12.5px] bg-slate-50 border border-slate-200 rounded-lg focus:border-amber-500 focus:outline-none font-semibold text-slate-700 cursor-pointer"
+                          >
+                            <option value="">— Chọn vật tư —</option>
+                            {supplyCatalog.map(item => (
+                              <option key={item.id} value={item.id}>{item.name} ({item.unit})</option>
+                            ))}
+                          </select>
+                          <input
+                            type="number" min={1} placeholder="SL"
+                            value={row.quantity}
+                            onChange={e => handleEditUsageRowChange(row.id, "quantity", e.target.value)}
+                            className="w-16 px-2.5 py-2 text-[12.5px] bg-slate-50 border border-slate-200 rounded-lg focus:border-amber-500 focus:outline-none font-bold text-slate-700"
+                          />
+                          {hasEnough !== null && (
+                            <span
+                              className={`px-2 py-1 rounded-lg text-[10.5px] font-bold shrink-0 border whitespace-nowrap ${
+                                hasEnough ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-red-50 text-red-600 border-red-200"
+                              }`}
+                            >
+                              {hasEnough ? "Đủ" : "Không đủ"}
+                            </span>
+                          )}
+                          <button
+                            onClick={() => void handleRemoveEditUsageRow(row.id)}
+                            className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                            title="Bỏ vật tư này"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                <p className="text-[11px] text-slate-400 mt-1.5">Chỉ ghi nhận thêm vật tư mới dùng — không thay đổi vật tư đã ghi ở các lần trước.</p>
               </div>
 
               <button

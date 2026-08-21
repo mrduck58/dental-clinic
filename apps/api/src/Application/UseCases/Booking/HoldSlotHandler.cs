@@ -74,30 +74,23 @@ public class HoldSlotHandler(
         var slotStartMinutes = time.Hour * 60 + time.Minute;
         var slotEndMinutes = slotStartMinutes + durationMinutes;
 
-        // 3. Kiểm tra số lần giữ không thành công trong ngày (tối đa 3 lần cho cả tài khoản/bệnh nhân)
-        var failedCount = await slotHoldRepository.GetFailedHoldCountTodayAsync(userId, targetPatientId, now, ct);
-        if (failedCount >= 3)
-            throw new ConflictException(
-                "Tài khoản của bạn đã đạt giới hạn 3 lần giữ chỗ không thành công trong ngày. " +
-                "Vui lòng quay lại vào ngày mai.");
-
-        // 3.1. Kiểm tra nếu bệnh nhân đang trong thời gian chờ (cooldown 30 phút sau khi hủy/dời từ lần 2)
-        var cooldownUntil = await appointmentRepository.GetPatientCooldownUntilAsync(targetPatientId, now, ct);
-        if (cooldownUntil.HasValue && cooldownUntil.Value > now)
+        // 3.1. Kiểm tra nếu bệnh nhân đang trong thời gian chờ (cooldown 30 phút sau khi hủy lịch, không chặn khi đang dời lịch)
+        if (command.ReschedulingAppointmentId == null)
         {
-            var remaining = (int)Math.Ceiling((cooldownUntil.Value - now).TotalMinutes);
-            throw new ConflictException($"Bệnh nhân đang trong thời gian chờ sau khi đổi/hủy lịch. Vui lòng thử lại sau {remaining} phút.");
+            var cooldownUntil = await appointmentRepository.GetPatientCooldownUntilAsync(targetPatientId, now, ct);
+            if (cooldownUntil.HasValue && cooldownUntil.Value > now)
+            {
+                var remaining = (int)Math.Ceiling((cooldownUntil.Value - now).TotalMinutes);
+                throw new ConflictException($"Bệnh nhân đang trong thời gian chờ sau khi hủy lịch. Vui lòng thử lại sau {remaining} phút.");
+            }
         }
 
-        // 3.2. Kiểm tra giới hạn tối đa 2 lịch hẹn đang hoạt động của tài khoản (loại trừ lịch đang được dời)
-        if (userId != Guid.Empty)
+        // 3.2. Kiểm tra mỗi bệnh nhân chỉ được có tối đa 1 lịch hẹn đang hoạt động (loại trừ lịch đang được dời)
+        var hasActiveAppointmentForPatient = await appointmentRepository.HasActiveAppointmentForPatientAsync(
+            targetPatientId, excludeAppointmentId: command.ReschedulingAppointmentId, ct);
+        if (hasActiveAppointmentForPatient)
         {
-            var activeCount = await appointmentRepository.CountActiveAppointmentsForUserAsync(
-                userId, excludeAppointmentId: command.ReschedulingAppointmentId, ct);
-            if (activeCount >= 2)
-            {
-                throw new ConflictException("Tài khoản của bạn đã đạt giới hạn tối đa 2 lịch hẹn đang hoạt động. Vui lòng hoàn thành hoặc dời/hủy bớt lịch hẹn trước khi đặt thêm.");
-            }
+            throw new ConflictException("Bệnh nhân này đã có một lịch hẹn đang hoạt động. Vui lòng hoàn thành hoặc dời/hủy lịch hẹn hiện tại trước khi đặt lịch mới.");
         }
 
         // 3.3. Kiểm tra mỗi bệnh nhân chỉ được đặt tối đa 1 lịch hẹn trong 1 ngày (loại trừ lịch đang được dời)
@@ -204,7 +197,7 @@ public class HoldSlotHandler(
                 sameSlotHold.Id,
                 sameSlotHold.ExpiresAt,
                 remaining,
-                failedCount,
+                0,
                 "Bạn đang giữ chỗ ca khám này.");
         }
 
@@ -242,7 +235,7 @@ public class HoldSlotHandler(
             newHold.Id,
             newHold.ExpiresAt,
             remainingSeconds,
-            failedCount,
+            0,
             "Giữ chỗ thành công.");
     }
 }

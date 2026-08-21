@@ -21,6 +21,7 @@ public class TreatmentPlanHandlerTests
     private AppDbContext _db = null!;
     private IPatientRepository _patientRepo = null!;
     private INotificationService _notificationService = null!;
+    private IActivityLogService _activityLogService = null!;
     // God-handler TreatmentPlanHandler (8 method) đã tách thành 8 handler MediatR.
     private CreateTreatmentPlanHandler _create = null!;
     private UpdateTreatmentPlanHandler _update = null!;
@@ -41,11 +42,15 @@ public class TreatmentPlanHandlerTests
 
         _patientRepo = Substitute.For<IPatientRepository>();
         _notificationService = Substitute.For<INotificationService>();
+        _activityLogService = Substitute.For<IActivityLogService>();
 
         var appointmentRepository = new AppointmentRepository(_db);
         var serviceRepository = new ServiceRepository(_db);
         var treatmentPlanRepository = new TreatmentPlanRepository(_db);
         var procedureRepository = new TreatmentProcedureRepository(_db);
+        var treatmentSupplyUsageRepository = new TreatmentSupplyUsageRepository(_db);
+        var supplyItemRepository = new SupplyItemRepository(_db);
+        var supplyTransactionRepository = new SupplyTransactionRepository(_db);
         var queryHelper = new TreatmentPlanQueryHelper(treatmentPlanRepository, appointmentRepository, procedureRepository);
 
         _create = new CreateTreatmentPlanHandler(
@@ -56,7 +61,9 @@ public class TreatmentPlanHandlerTests
         _addStep = new AddStepProgressHandler(treatmentPlanRepository, queryHelper);
         _updateStep = new UpdateStepProgressHandler(treatmentPlanRepository, queryHelper);
         _reorderStep = new ReorderStepProgressHandler(treatmentPlanRepository, queryHelper);
-        _deleteStep = new DeleteStepProgressHandler(treatmentPlanRepository, queryHelper);
+        _deleteStep = new DeleteStepProgressHandler(
+            treatmentPlanRepository, treatmentSupplyUsageRepository, supplyItemRepository, supplyTransactionRepository,
+            queryHelper, _activityLogService);
     }
 
     [TearDown]
@@ -134,6 +141,33 @@ public class TreatmentPlanHandlerTests
         dto.Should().NotBeNull();
         await _notificationService.DidNotReceive().CreateAsync(
             Arg.Any<CreateNotificationRequest>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Tên option đã chọn (vd: "Titan") phải được lưu lại trên liệu trình — SNAPSHOT theo tên,
+    /// dùng để sau này gợi ý đúng định mức vật tư riêng cho option đó (xem ServiceSupplyItem).</summary>
+    [Test]
+    public async Task CreateAsync_WithServiceOptionName_PersistsOptionNameOnPlan()
+    {
+        var dentistUser = User.Create("d4b", "d4b@test.com", "hash", UserRole.Dentist);
+        _db.Users.Add(dentistUser);
+        var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 3);
+        dentist.Employee = employee;
+        _db.Patients.Add(patient);
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
+        await _db.SaveChangesAsync();
+        _patientRepo.GetByIdAsync(patient.Id, Arg.Any<CancellationToken>()).Returns(patient);
+
+        var (appointment, service) = await SeedInProgressAppointmentAsync(patient, dentist);
+
+        var dto = await _create.Handle(
+            new CreateTreatmentPlanRequest(appointment.Id, service.Id, 5_000_000m, 1, null, null, null, "Titan"),
+            CancellationToken.None);
+
+        dto.ServiceOptionName.Should().Be("Titan");
     }
 
     private async Task<(Patient patient, DentistProfile dentist)> SeedPatientAndDentistAsync(string patientUsername, string dentistUsername)
@@ -566,6 +600,7 @@ public class TreatmentPlanHandlerTests
         {
             var entries = stepNames.Select((name, i) => new StepProgressEntryDto
             {
+                Id = Guid.NewGuid(),
                 StepNumber = i + 1,
                 StepName = name,
                 Percent = 50,
@@ -769,5 +804,66 @@ public class TreatmentPlanHandlerTests
         dto.StepProgress.Should().BeEmpty();
         var reloaded = await _db.TreatmentPlans.FindAsync(plan.Id);
         reloaded!.StepProgressJson.Should().BeNull();
+    }
+
+    /// <summary>Xóa một mục quá trình có vật tư tiêu hao gắn theo (StepEntryId khớp) phải hoàn lại đúng
+    /// số lượng vào kho, tạo giao dịch nhập "hoàn trả", và đánh dấu dòng tiêu hao đó là đã hoàn kho.</summary>
+    [Test]
+    public async Task DeleteStepProgressAsync_EntryHasLinkedSupplyUsage_RestocksAndMarksReversed()
+    {
+        var (patient, dentist) = await SeedPatientAndDentistAsync("p30", "d30");
+        var (appointment, service) = await SeedInProgressAppointmentAsync(patient, dentist);
+        var plan = await SeedPlanWithStepsAsync(patient, dentist, appointment, service, "Gắn mão");
+        var stepEntryId = ParseStepProgress(plan.StepProgressJson).Single().Id;
+
+        // Kho hiện còn 4 (giả lập đã bị trừ 1 khi ghi nhận tiêu hao cho bước "Gắn mão" ở trên).
+        var supplyItem = SupplyItem.Create("VT-TEST-30", "Mão Titan", "Vật tư chính", "Cái", 4, 1, 200_000m);
+        _db.SupplyItems.Add(supplyItem);
+        var exportTx = SupplyTransaction.Create(supplyItem.Id, "export", 1, "Tiêu hao điều trị", "BS. Test");
+        _db.SupplyTransactions.Add(exportTx);
+        var usage = TreatmentSupplyUsage.Create(plan.Id, supplyItem.Id, 1, 200_000m, exportTx.Id, "BS. Test", stepEntryId);
+        _db.TreatmentSupplyUsages.Add(usage);
+        await _db.SaveChangesAsync();
+
+        await _deleteStep.Handle(new DeleteStepProgressCommand(plan.Id, 0), CancellationToken.None);
+
+        var reloadedItem = await _db.SupplyItems.FindAsync(supplyItem.Id);
+        reloadedItem!.Quantity.Should().Be(5, "hoàn lại đúng 1 vào kho khi xóa bước đã tiêu hao nó");
+
+        var importTxs = await _db.SupplyTransactions
+            .Where(t => t.SupplyItemId == supplyItem.Id && t.Type == "import")
+            .ToListAsync();
+        importTxs.Should().ContainSingle(t => t.Quantity == 1);
+
+        var reloadedUsage = await _db.TreatmentSupplyUsages.FindAsync(usage.Id);
+        reloadedUsage!.IsReversed.Should().BeTrue();
+    }
+
+    /// <summary>Xóa một mục quá trình KHÔNG có vật tư nào gắn theo (StepEntryId của các usage khác không
+    /// khớp) không được đụng tới kho hay các dòng tiêu hao của mục khác.</summary>
+    [Test]
+    public async Task DeleteStepProgressAsync_EntryHasNoLinkedSupplyUsage_DoesNotTouchOtherUsage()
+    {
+        var (patient, dentist) = await SeedPatientAndDentistAsync("p31", "d31");
+        var (appointment, service) = await SeedInProgressAppointmentAsync(patient, dentist);
+        var plan = await SeedPlanWithStepsAsync(patient, dentist, appointment, service, "Chụp X-quang", "Gắn mão");
+        var entries = ParseStepProgress(plan.StepProgressJson);
+        var otherStepEntryId = entries[1].Id; // gắn với "Gắn mão", KHÔNG phải bước sẽ bị xóa (index 0)
+
+        var supplyItem = SupplyItem.Create("VT-TEST-31", "Mão Titan", "Vật tư chính", "Cái", 4, 1, 200_000m);
+        _db.SupplyItems.Add(supplyItem);
+        var exportTx = SupplyTransaction.Create(supplyItem.Id, "export", 1, "Tiêu hao điều trị", "BS. Test");
+        _db.SupplyTransactions.Add(exportTx);
+        var usage = TreatmentSupplyUsage.Create(plan.Id, supplyItem.Id, 1, 200_000m, exportTx.Id, "BS. Test", otherStepEntryId);
+        _db.TreatmentSupplyUsages.Add(usage);
+        await _db.SaveChangesAsync();
+
+        await _deleteStep.Handle(new DeleteStepProgressCommand(plan.Id, 0), CancellationToken.None);
+
+        var reloadedItem = await _db.SupplyItems.FindAsync(supplyItem.Id);
+        reloadedItem!.Quantity.Should().Be(4, "vật tư gắn với bước KHÁC không bị hoàn kho");
+
+        var reloadedUsage = await _db.TreatmentSupplyUsages.FindAsync(usage.Id);
+        reloadedUsage!.IsReversed.Should().BeFalse();
     }
 }

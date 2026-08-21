@@ -1,4 +1,5 @@
 using DentalClinic.API.Application.UseCases.Inventory;
+using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using FluentAssertions;
@@ -157,7 +158,7 @@ public class GetSupplyItemsHandlerTests
     public async Task HandleAsync_OrderTypeCustom_ReturnsOnlyCustomItems()
     {
         var items = SeedItems();
-        items.Add(SupplyItem.Create("VT004", "Răng sứ Cercon", "Vật liệu", "Cái", 1, 0, "custom"));
+        items.Add(SupplyItem.Create("VT004", "Răng sứ Cercon", InventoryConstants.CategoryMain, "Cái", 1, 0));
         _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(items);
 
         var result = (await _handler.Handle(new GetSupplyItemsQuery(OrderType: "custom"), CancellationToken.None)).ToList();

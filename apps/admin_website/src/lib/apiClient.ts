@@ -1151,8 +1151,15 @@ export interface CreateSupplyItemRequest {
   unit: string;
   quantity: number;
   minQuantity: number;
-  orderType?: "standard" | "custom";
   price?: number;
+}
+
+export interface UpdateSupplyItemRequest {
+  name: string;
+  category: string;
+  unit: string;
+  minQuantity: number;
+  price?: number | null;
 }
 
 export interface CreateSupplyTransactionRequest {
@@ -1176,6 +1183,32 @@ export async function createSupplyItemApi(data: CreateSupplyItemRequest): Promis
     throw new Error((err as { title?: string }).title ?? "Thêm vật tư thất bại");
   }
   return res.json() as Promise<SupplyItemDto>;
+}
+
+export async function updateSupplyItemApi(id: string, data: UpdateSupplyItemRequest): Promise<SupplyItemDto> {
+  const res = await fetch(`${API_URL}/api/inventory/items/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Cập nhật vật tư thất bại");
+  }
+  return res.json() as Promise<SupplyItemDto>;
+}
+
+export async function deleteSupplyItemApi(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/inventory/items/${id}`, {
+    method: "DELETE",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Xóa vật tư thất bại");
+  }
 }
 
 export async function getSupplyItemsApi(params?: {
@@ -1234,7 +1267,6 @@ export interface StockImportRequest {
   quantity: number;
   note?: string;
   unitPrice?: number;
-  orderType?: "standard" | "custom";
 }
 
 export async function stockImportApi(data: StockImportRequest): Promise<SupplyTransactionDto> {
@@ -1258,6 +1290,8 @@ export interface MaterialRequestItemDto {
   itemName: string;
   quantity: number;
   unit: string;
+  /** Số lượng thực nhận lúc nhập kho — null nếu chưa xử lý xong (Pending/Ordered). */
+  actualQuantity: number | null;
 }
 
 export interface MaterialRequestDto {
@@ -1266,8 +1300,11 @@ export interface MaterialRequestDto {
   patientName: string;
   dentistName: string;
   items: MaterialRequestItemDto[];
-  status: string;        // "Pending" | "Done"
+  status: string;        // "Pending" | "Ordered" | "Done"
   createdAt: string;
+  orderedAt: string | null;
+  orderedBy: string | null;
+  supplierNote: string | null;
   handledAt: string | null;
   handledBy: string | null;
 }
@@ -1287,7 +1324,7 @@ export async function getMaterialRequestsApi(status?: string): Promise<MaterialR
 
 export async function markMaterialRequestDoneApi(
   id: string,
-  itemPrices: { materialRequestItemId: string; unitPrice: number }[]
+  itemPrices: { materialRequestItemId: string; unitPrice: number; actualQuantity?: number }[]
 ): Promise<void> {
   const res = await fetch(`${API_URL}/api/inventory/material-requests/${id}/done`, {
     method: "PUT",
@@ -1299,6 +1336,41 @@ export async function markMaterialRequestDoneApi(
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { title?: string }).title ?? "Cập nhật yêu cầu vật tư thất bại");
   }
+}
+
+/** Staff đánh dấu đã đặt hàng nhà cung cấp/lab — chưa nhập kho, chỉ chuyển trạng thái sang "Đã đặt hàng". */
+export async function markMaterialRequestOrderedApi(id: string, supplierNote?: string): Promise<MaterialRequestDto> {
+  const res = await fetch(`${API_URL}/api/inventory/material-requests/${id}/ordered`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ supplierNote: supplierNote || null }),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể đánh dấu đã đặt hàng");
+  }
+  return res.json() as Promise<MaterialRequestDto>;
+}
+
+/** Staff tự khởi tạo yêu cầu đặt vật tư riêng cho bệnh nhân (không cần đi qua buổi khám của bác sĩ). */
+export async function createMaterialRequestByStaffApi(request: {
+  patientId: string;
+  patientName: string;
+  description: string;
+  items: { itemName: string; quantity: number; unit: string }[];
+}): Promise<MaterialRequestDto> {
+  const res = await fetch(`${API_URL}/api/inventory/material-requests/staff`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(request),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Tạo yêu cầu vật tư thất bại");
+  }
+  return res.json() as Promise<MaterialRequestDto>;
 }
 
 // ── Yêu cầu vật tư (bác sĩ tạo từ buổi khám) ─────────────────────────────────
@@ -1628,6 +1700,12 @@ export interface StaffAppointmentDto {
   checkedInAt: string | null; // ISO8601 — thời điểm check-in (null nếu chưa check-in)
   /** "Online" = bệnh nhân tự đặt trên app/web · "WalkIn" = lễ tân lập tại quầy. */
   origin: AppointmentOrigin;
+  /** Quan hệ với chủ tài khoản (VD: "Con", "Vợ"...) — null nếu bệnh nhân tự đặt cho chính mình. */
+  patientRelationship: string | null;
+  /** Tên chủ tài khoản đã đặt lịch — chính bệnh nhân nếu tự đặt, hoặc người thân nếu đặt hộ. */
+  accountHolderName: string;
+  /** Email đăng nhập của chủ tài khoản đã đặt lịch. */
+  accountHolderEmail: string | null;
 }
 
 /**
@@ -2393,6 +2471,8 @@ export interface DiagnosisDto {
 }
 
 export interface StepProgressEntryDto {
+  /** Id ổn định của mục này (không đổi khi sắp xếp lại) — dùng để gắn vật tư tiêu hao với đúng bước. */
+  id: string;
   stepNumber: number;
   stepName: string;
   percent: number;
@@ -2409,6 +2489,8 @@ export interface TreatmentPlanDto {
   appointmentId: string | null;
   serviceId: string;
   serviceName: string;
+  /** Tên option đã chọn lúc thêm dịch vụ (vd: "Titan", "Zirconia") — null nếu dùng giá gốc dịch vụ. */
+  serviceOptionName: string | null;
   unitPrice: number;
   quantity: number;
   teeth: string | null;
@@ -2659,6 +2741,7 @@ export interface CreateTreatmentPlanRequest {
   teeth?: string;
   notes?: string;
   warrantyUntil?: string;
+  serviceOptionName?: string;
 }
 
 export interface UpdateTreatmentPlanRequest {
@@ -2834,6 +2917,117 @@ export async function updateServiceProceduresApi(
     throw new Error((err as { title?: string }).title ?? "Không thể lưu quy trình điều trị");
   }
   return res.json() as Promise<TreatmentProcedureDto[]>;
+}
+
+// Định mức vật tư chuẩn theo dịch vụ (BOM) — gợi ý mặc định cho bác sĩ khi ghi nhận tiêu hao thực tế.
+export interface ServiceSupplyItemDto {
+  id: string;
+  serviceId: string;
+  /** Option riêng mà dòng này áp dụng (vd: "Titan") — null = dùng chung cho mọi option. */
+  serviceOptionName: string | null;
+  supplyItemId: string;
+  supplyItemName: string;
+  unit: string;
+  defaultQuantity: number;
+}
+
+export interface ServiceSupplyItemStepRequest {
+  supplyItemId: string;
+  defaultQuantity: number;
+  serviceOptionName?: string | null;
+}
+
+/** Toàn bộ định mức của dịch vụ (mọi option) — dùng cho màn quản lý (Admin). */
+export async function getServiceSupplyItemsApi(serviceId: string): Promise<ServiceSupplyItemDto[]> {
+  const res = await fetch(`${API_URL}/api/services/${serviceId}/supply-items`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải định mức vật tư");
+  }
+  return res.json() as Promise<ServiceSupplyItemDto[]>;
+}
+
+/** Định mức HIỆU LỰC khi đã biết option cụ thể (chung + theo option đã chọn) — dùng phía bác sĩ. */
+export async function getEffectiveServiceSupplyItemsApi(serviceId: string, optionName?: string | null): Promise<ServiceSupplyItemDto[]> {
+  const qs = optionName ? `?option=${encodeURIComponent(optionName)}` : "";
+  const res = await fetch(`${API_URL}/api/services/${serviceId}/supply-items/effective${qs}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải định mức vật tư");
+  }
+  return res.json() as Promise<ServiceSupplyItemDto[]>;
+}
+
+export async function updateServiceSupplyItemsApi(
+  serviceId: string,
+  items: ServiceSupplyItemStepRequest[]
+): Promise<ServiceSupplyItemDto[]> {
+  const res = await fetch(`${API_URL}/api/services/${serviceId}/supply-items`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(items),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể lưu định mức vật tư");
+  }
+  return res.json() as Promise<ServiceSupplyItemDto[]>;
+}
+
+// Vật tư đã ghi nhận tiêu hao thực tế cho một liệu trình điều trị (xem TreatmentSupplyUsage).
+export interface TreatmentSupplyUsageDto {
+  id: string;
+  supplyItemId: string;
+  supplyItemName: string;
+  unit: string;
+  quantity: number;
+  unitCostAtUsage: number;
+  totalCost: number;
+  createdAt: string;
+  /** True nếu đã được hoàn kho lại do bước điều trị gắn với lần dùng này bị xóa. */
+  isReversed: boolean;
+}
+
+export interface RecordSupplyUsageItemInput {
+  supplyItemId: string;
+  quantity: number;
+}
+
+export async function getTreatmentSupplyUsageApi(treatmentPlanId: string): Promise<TreatmentSupplyUsageDto[]> {
+  const res = await fetch(`${API_URL}/api/appointments/treatment-plan/${treatmentPlanId}/supply-usage`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải vật tư đã dùng");
+  }
+  return res.json() as Promise<TreatmentSupplyUsageDto[]>;
+}
+
+export async function recordTreatmentSupplyUsageApi(
+  treatmentPlanId: string,
+  items: RecordSupplyUsageItemInput[],
+  stepEntryId?: string | null
+): Promise<TreatmentSupplyUsageDto[]> {
+  const res = await fetch(`${API_URL}/api/appointments/treatment-plan/${treatmentPlanId}/supply-usage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ items, stepEntryId: stepEntryId ?? null }),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể ghi nhận vật tư đã dùng");
+  }
+  return res.json() as Promise<TreatmentSupplyUsageDto[]>;
 }
 
 export async function deleteTreatmentPlanApi(treatmentPlanId: string): Promise<void> {
@@ -4437,6 +4631,7 @@ export interface RevenueTransactionsPagedDto {
 export interface RevenueByServiceDto {
   serviceName: string;
   amount: number;
+  supplyCost: number;
 }
 
 export interface RevenueByDentistDto {

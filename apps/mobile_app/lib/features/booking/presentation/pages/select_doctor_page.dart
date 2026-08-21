@@ -126,9 +126,12 @@ class _SelectDoctorPageState extends State<SelectDoctorPage> {
     final updatedDraft = widget.draft.copyWith(
       date: _currentDate,
       doctor: doctorInfo,
+      clearTimeSlot: true,
+      clearHold: true,
     );
+    _service.setActiveDraft(updatedDraft);
 
-    context.push(AppRoutes.bookingSelectTimeSlot, extra: updatedDraft);
+    context.pushReplacement(AppRoutes.bookingSelectTimeSlot, extra: updatedDraft);
   }
 
   @override

@@ -66,6 +66,17 @@ public class AppointmentChangeRequestRepository(AppDbContext dbContext) : IAppoi
             .ToListAsync(ct);
     }
 
+    public async Task<bool> HasApprovedRescheduleAsync(Guid appointmentId, DateTimeOffset now, CancellationToken ct = default)
+    {
+        var threshold = now.AddHours(-48);
+        return await dbContext.AppointmentChangeRequests
+            .AnyAsync(r => r.AppointmentId == appointmentId
+                        && r.Type == AppointmentChangeType.Reschedule
+                        && r.Status == AppointmentChangeRequestStatus.Approved
+                        && r.ProcessedAt.HasValue
+                        && r.ProcessedAt.Value >= threshold, ct);
+    }
+
     public async Task AddAsync(AppointmentChangeRequest request, CancellationToken ct = default)
     {
         await dbContext.AppointmentChangeRequests.AddAsync(request, ct);

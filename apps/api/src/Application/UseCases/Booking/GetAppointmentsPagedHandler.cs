@@ -30,20 +30,27 @@ public class GetAppointmentsPagedHandler(IAppointmentRepository appointmentRepos
         var (items, total) = await appointmentRepository.GetAppointmentsPagedAsync(
             query.StartDate, query.EndDate, query.Status, query.Search, page, pageSize, query.SortDir, ct);
 
-        var dtos = items.Select(a => new StaffAppointmentDto(
-            a.Id,
-            $"DK{a.AppointmentDate:yyyyMMdd}{a.Id.ToString()[..6].ToUpper()}",
-            a.PatientId,
-            a.Patient.FullName,
-            a.Patient.User?.PhoneNumber,
-            a.Dentist.FullName,
-            a.Service?.Name,
-            a.AppointmentDate,
-            a.CreatedAt,
-            a.Status.ToString(),
-            a.Symptoms,
-            a.CheckedInAt,
-            a.Origin.ToString())).ToList();
+        var dtos = items.Select(a =>
+        {
+            var accountHolder = a.Patient.PrimaryPatient ?? a.Patient;
+            return new StaffAppointmentDto(
+                a.Id,
+                $"DK{a.AppointmentDate:yyyyMMdd}{a.Id.ToString()[..6].ToUpper()}",
+                a.PatientId,
+                a.Patient.FullName,
+                a.Patient.User?.PhoneNumber,
+                a.Dentist.FullName,
+                a.Service?.Name,
+                a.AppointmentDate,
+                a.CreatedAt,
+                a.Status.ToString(),
+                a.Symptoms,
+                a.CheckedInAt,
+                a.Origin.ToString(),
+                a.Patient.Relationship,
+                accountHolder.FullName,
+                accountHolder.User?.Email);
+        }).ToList();
 
         return new AppointmentsPagedDto(
             dtos,

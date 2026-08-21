@@ -39,6 +39,12 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
   void initState() {
     super.initState();
     _symptomCtrl.text = widget.draft.symptoms ?? '';
+    _symptomCtrl.addListener(() {
+      final current = _bookingService.activeDraft;
+      if (current != null) {
+        _bookingService.setActiveDraft(current.copyWith(symptoms: _symptomCtrl.text.trim()));
+      }
+    });
   }
 
   @override
@@ -160,6 +166,72 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
     }
   }
 
+  void _onBack() {
+    context.pushReplacement(AppRoutes.bookingSelectTimeSlot, extra: widget.draft);
+  }
+
+  Future<void> _cancelBookingSession(bool isVi) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Iconsax.trash, color: Color(0xFFDC2626), size: 22),
+            const SizedBox(width: 8),
+            Text(
+              isVi ? 'Hủy phiên đặt lịch?' : 'Cancel Booking Session?',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: Text(
+          isVi
+              ? 'Bạn có chắc chắn muốn hủy đặt lịch này? Ca khám đang giữ chỗ sẽ được giải phóng ngay lập tức cho người khác.'
+              : 'Are you sure you want to cancel? The held slot will be released immediately.',
+          style: const TextStyle(fontSize: 14, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(isVi ? 'Không' : 'No'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: Text(isVi ? 'Hủy đặt lịch' : 'Cancel Booking'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isLoading = true);
+    try {
+      final d = widget.draft;
+      if (d.doctor != null && d.date != null && d.timeSlot != null) {
+        await _bookingService.releaseHold(
+          dentistId: d.doctor!.id,
+          date: d.date!,
+          timeSlot: d.timeSlot!.range,
+          patientId: (d.patient != null && d.patient!.id != 'self') ? d.patient!.id : '',
+        );
+      }
+    } catch (_) {}
+    _bookingService.clearActiveDraft();
+    if (!mounted) return;
+    AppToast.showSuccess(
+      context,
+      isVi ? 'Đã hủy phiên đặt lịch và giải phóng ca khám.' : 'Booking session cancelled and slot released.',
+    );
+    context.go(AppRoutes.home);
+  }
+
   @override
   Widget build(BuildContext context) {
     final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
@@ -167,231 +239,240 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
     final bottomPad = MediaQuery.of(context).padding.bottom;
     final weekdays = isVi ? _weekdaysVi : _weekdaysEn;
 
-    return Scaffold(
-      backgroundColor: context.bg,
-      appBar: BookingAppBar(
-        title: d.isRescheduling
-            ? (isVi ? 'Xác nhận đổi lịch' : 'Confirm Reschedule')
-            : (isVi ? 'Xác nhận đặt khám' : 'Confirm Booking'),
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  if (widget.draft.holdExpiresAt != null)
-                    HoldCountdownBanner(
-                      holdExpiresAt: widget.draft.holdExpiresAt,
-                      onExpired: _showExpiredAndRedirect,
-                    ),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _cancelBookingSession(isVi);
+      },
+      child: Scaffold(
+        backgroundColor: context.bg,
+        appBar: BookingAppBar(
+          title: d.isRescheduling
+              ? (isVi ? 'Xác nhận đổi lịch' : 'Confirm Reschedule')
+              : (isVi ? 'Xác nhận đặt khám' : 'Confirm Booking'),
+          showBack: false,
+          showHome: true,
+          onHome: () => _cancelBookingSession(isVi),
+        ),
+        body: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    if (widget.draft.holdExpiresAt != null)
+                      HoldCountdownBanner(
+                        holdExpiresAt: widget.draft.holdExpiresAt,
+                        onExpired: _showExpiredAndRedirect,
+                      ),
 
-                  const SizedBox(height: 12),
+                    const SizedBox(height: 12),
 
-                  // ── Summary card ──────────────────────────────────────────
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: context.card,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: context.divider),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.04),
-                          blurRadius: 8,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        if (d.patient != null)
-                          _InfoRow(
-                            icon: Iconsax.user,
-                            label: isVi ? 'Bệnh nhân' : 'Patient',
-                            value: '${d.patient!.name} (${d.patient!.relationship})',
-                            onEdit: () => context.push(AppRoutes.bookingSelectPatient, extra: d),
-                          ),
-                        if (d.service != null)
-                          _InfoRow(
-                            icon: Iconsax.health,
-                            label: isVi ? 'Dịch vụ' : 'Service',
-                            value: d.service!.durationText.isNotEmpty
-                                ? '${d.service!.name} (${d.service!.durationText})'
-                                : (d.service?.name ?? (isVi ? 'Khám tổng quát' : 'General check-up')),
-                            onEdit: () => context.push(AppRoutes.bookingSelectService, extra: d),
-                          ),
-                        if (d.date != null)
-                          _InfoRow(
-                            icon: Iconsax.calendar,
-                            label: isVi ? 'Ngày khám' : 'Date',
-                            value: '${_fmtDate(d.date!)} - ${weekdays[d.date!.weekday]}',
-                            onEdit: () => context.push(AppRoutes.bookingSelectDatetime, extra: d),
-                          ),
-                        if (d.timeSlot != null)
-                          _InfoRow(
-                            icon: Iconsax.clock,
-                            label: isVi ? 'Giờ khám' : 'Time Slot',
-                            value: '${d.displayTimeRange}${d.service != null && d.service!.durationMinutes > 30 ? ' (${d.service!.durationTextLocalized(isVi)})' : ''}, ${d.doctor?.room ?? ''}',
-                            onEdit: () => context.push(AppRoutes.bookingSelectTimeSlot, extra: d),
-                          ),
-                        if (d.doctor != null)
-                          _InfoRow(
-                            icon: Iconsax.profile_circle,
-                            label: isVi ? 'Bác sĩ' : 'Dentist',
-                            value: d.doctor!.fullName,
-                            isLast: true,
-                            onEdit: () => context.push(AppRoutes.bookingSelectDoctor, extra: d),
-                          ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // ── Symptom input ─────────────────────────────────────────
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 16),
-                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-                    decoration: BoxDecoration(
-                      color: context.card,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: context.divider),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(Iconsax.note_text, size: 16, color: AppColors.primary),
-                            const SizedBox(width: 6),
-                            Text(
-                              isVi ? 'Triệu chứng / Ghi chú cho bác sĩ' : 'Symptoms / Notes',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: context.textPrimary,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _symptomCtrl,
-                          maxLines: 3,
-                          maxLength: 300,
-                          style: TextStyle(fontSize: 13, color: context.textPrimary),
-                          decoration: InputDecoration(
-                            hintText: isVi
-                                ? 'Mô tả triệu chứng hoặc lưu ý thêm (ví dụ: đau răng hàm dưới, nhạy cảm khi uống nước lạnh...)'
-                                : 'Describe symptoms or notes for the dentist...',
-                            hintStyle: TextStyle(fontSize: 12, color: context.textMuted),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide(color: context.divider),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide(color: context.divider),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
-                            ),
-                            contentPadding: const EdgeInsets.all(12),
-                            filled: true,
-                            fillColor: context.bg,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // ── Important Notice Box ──────────────────────────────────
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 16),
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEFF6FF),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFBFDBFE)),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(Iconsax.info_circle, color: Color(0xFF2563EB), size: 20),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            isVi
-                                ? 'Vui lòng đến trước 10-15 phút để làm thủ tục check-in. Bạn có thể hủy hoặc đổi lịch khám miễn phí trong 24 giờ kể từ khi đặt.'
-                                : 'Please arrive 10-15 minutes early for check-in. You can cancel or reschedule freely within 24 hours of booking.',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF1E40AF),
-                              height: 1.4,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-                ],
-              ),
-            ),
-          ),
-
-          // ── Bottom Action Bar ─────────────────────────────────────────────
-          Container(
-            padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPad > 0 ? bottomPad : 16),
-            decoration: BoxDecoration(
-              color: context.card,
-              border: Border(top: BorderSide(color: context.divider)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 8,
-                  offset: const Offset(0, -2),
-                ),
-              ],
-            ),
-            child: SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                    onPressed: _isLoading ? null : () => _confirm(isVi),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
+                    // ── Summary card ──────────────────────────────────────────
+                    Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: context.card,
                         borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: context.divider),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.04),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          if (d.patient != null)
+                            _InfoRow(
+                              icon: Iconsax.user,
+                              label: isVi ? 'Bệnh nhân' : 'Patient',
+                              value: '${d.patient!.name} (${d.patient!.relationship})',
+                              onEdit: () => context.push(AppRoutes.bookingSelectPatient, extra: d),
+                            ),
+                          if (d.service != null)
+                            _InfoRow(
+                              icon: Iconsax.health,
+                              label: isVi ? 'Dịch vụ' : 'Service',
+                              value: d.service!.durationText.isNotEmpty
+                                  ? '${d.service!.name} (${d.service!.durationText})'
+                                  : (d.service?.name ?? (isVi ? 'Khám tổng quát' : 'General check-up')),
+                              onEdit: () => context.push(AppRoutes.bookingSelectService, extra: d),
+                            ),
+                          if (d.date != null)
+                            _InfoRow(
+                              icon: Iconsax.calendar,
+                              label: isVi ? 'Ngày khám' : 'Date',
+                              value: '${_fmtDate(d.date!)} - ${weekdays[d.date!.weekday]}',
+                              onEdit: () => context.push(AppRoutes.bookingSelectDatetime, extra: d),
+                            ),
+                          if (d.timeSlot != null)
+                            _InfoRow(
+                              icon: Iconsax.clock,
+                              label: isVi ? 'Giờ khám' : 'Time Slot',
+                              value: '${d.displayTimeRange}${d.service != null && d.service!.durationMinutes > 30 ? ' (${d.service!.durationTextLocalized(isVi)})' : ''}, ${d.doctor?.room ?? ''}',
+                              onEdit: () => context.push(AppRoutes.bookingSelectTimeSlot, extra: d),
+                            ),
+                          if (d.doctor != null)
+                            _InfoRow(
+                              icon: Iconsax.profile_circle,
+                              label: isVi ? 'Bác sĩ' : 'Dentist',
+                              value: d.doctor!.fullName,
+                              isLast: true,
+                              onEdit: () => context.push(AppRoutes.bookingSelectDoctor, extra: d),
+                            ),
+                        ],
                       ),
                     ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                            ),
-                          )
-                        : Text(
-                            d.isRescheduling
-                                ? (isVi ? 'Xác nhận đổi lịch khám' : 'Confirm Reschedule')
-                                : (isVi ? 'Xác nhận đặt khám' : 'Confirm Appointment'),
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
+                    const SizedBox(height: 12),
+
+                    // ── Symptom input ─────────────────────────────────────────
+                    Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 16),
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                      decoration: BoxDecoration(
+                        color: context.card,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: context.divider),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Iconsax.note_text, size: 16, color: AppColors.primary),
+                              const SizedBox(width: 6),
+                              Text(
+                                isVi ? 'Triệu chứng / Ghi chú cho bác sĩ' : 'Symptoms / Notes',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: context.textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: _symptomCtrl,
+                            maxLines: 3,
+                            maxLength: 300,
+                            style: TextStyle(fontSize: 13, color: context.textPrimary),
+                            decoration: InputDecoration(
+                              hintText: isVi
+                                  ? 'Mô tả triệu chứng hoặc lưu ý thêm (ví dụ: đau răng hàm dưới, nhạy cảm khi uống nước lạnh...)'
+                                  : 'Describe symptoms or notes for the dentist...',
+                              hintStyle: TextStyle(fontSize: 12, color: context.textMuted),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(color: context.divider),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(color: context.divider),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                              ),
+                              contentPadding: const EdgeInsets.all(12),
+                              filled: true,
+                              fillColor: context.bg,
                             ),
                           ),
-                  ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // ── Important Notice Box ──────────────────────────────────
+                    Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 16),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFBFDBFE)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Iconsax.info_circle, color: Color(0xFF2563EB), size: 20),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              isVi
+                                  ? 'Vui lòng đến trước 10-15 phút để làm thủ tục check-in. Bạn có thể tự do hủy hoặc đổi lịch khám trước giờ hẹn.'
+                                  : 'Please arrive 10-15 minutes early for check-in. You can cancel or reschedule freely before the appointment time.',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF1E40AF),
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+                  ],
+                ),
+              ),
             ),
-          ),
-        ],
+
+            // ── Bottom Action Bar ─────────────────────────────────────────────
+            Container(
+              padding: EdgeInsets.fromLTRB(16, 12, 16, bottomPad > 0 ? bottomPad : 16),
+              decoration: BoxDecoration(
+                color: context.card,
+                border: Border(top: BorderSide(color: context.divider)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 8,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : () => _confirm(isVi),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : Text(
+                          d.isRescheduling
+                              ? (isVi ? 'Xác nhận đổi lịch khám' : 'Confirm Reschedule')
+                              : (isVi ? 'Xác nhận đặt khám' : 'Confirm Appointment'),
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
