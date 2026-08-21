@@ -306,7 +306,7 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
                               icon: Iconsax.calendar,
                               label: isVi ? 'Ngày khám' : 'Date',
                               value: '${_fmtDate(d.date!)} - ${weekdays[d.date!.weekday]}',
-                              onEdit: () => context.push(AppRoutes.bookingSelectTimeSlot, extra: d),
+                              onEdit: () => context.push(AppRoutes.bookingSelectDatetime, extra: d),
                             ),
                           if (d.timeSlot != null)
                             _InfoRow(

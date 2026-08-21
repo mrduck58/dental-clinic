@@ -5,6 +5,7 @@ import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
+import 'package:mobile_app/features/booking/data/booking_service.dart';
 
 // ─── AppBar ───────────────────────────────────────────────────────────────────
 
@@ -56,7 +57,14 @@ class BookingAppBar extends StatelessWidget implements PreferredSizeWidget {
       actions: showHome
           ? [
               GestureDetector(
-                onTap: onHome ?? () => context.go(AppRoutes.home),
+                onTap: () {
+                  BookingService().clearActiveDraft();
+                  if (onHome != null) {
+                    onHome!();
+                  } else {
+                    context.go(AppRoutes.home);
+                  }
+                },
                 child: Padding(
                   padding: const EdgeInsets.only(right: 16),
                   child: Icon(Iconsax.home_2, color: iconColor, size: 28),

@@ -75,12 +75,12 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
         rescheduleCount: 0,
       ));
 
-      final activeDraft = widget.initialDraft ?? _bookingService.activeDraft;
+      final activeDraft = widget.initialDraft;
       if (mounted) {
         setState(() {
           _patients = [me, ...family];
           _eligibility = eligibility;
-          _selectedId = activeDraft?.patient?.id ?? _selectedId;
+          _selectedId = activeDraft?.patient?.id;
           _loading = false;
         });
       }
@@ -107,8 +107,12 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
   Future<void> _select(int index) async {
     final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
 
-    // 1. Kiểm tra nếu tài khoản đã có 2 lịch hẹn đang hoạt động (không chặn nếu đang dời/sửa lịch)
-    if (widget.initialDraft?.isRescheduling != true && _eligibility != null && _eligibility!.activeBookingCount >= 2) {
+    // 1. Kiểm tra nếu bệnh nhân được chọn đang bị cooldown 30 phút hoặc đã có 1 lịch hẹn đang hoạt động
+    final patientId = _patients[index].id == 'self' ? null : _patients[index].id;
+    final patientEligibility = await _bookingService.getBookingEligibility(patientId: patientId);
+
+    if (widget.initialDraft?.isRescheduling != true && patientEligibility.activeBookingCount >= 1) {
+      if (!mounted) return;
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -117,13 +121,18 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
             children: [
               const Icon(Icons.error_outline_rounded, color: Color(0xFFDC2626)),
               const SizedBox(width: 8),
-              Text(isVi ? 'Đạt giới hạn đặt lịch' : 'Booking Limit Reached', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              Expanded(
+                child: Text(
+                  isVi ? 'Đã có lịch hẹn đang hoạt động' : 'Active Booking Exists',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
             ],
           ),
           content: Text(
             isVi
-                ? 'Tài khoản của bạn đã có 2 lịch hẹn đang hoạt động (tối đa 2 lịch cùng lúc).\n\nVui lòng hoàn thành hoặc dời/hủy bớt lịch hẹn cũ trước khi đặt lịch mới.'
-                : 'You already have 2 active appointments (maximum 2 allowed). Please complete or cancel existing appointments first.',
+                ? 'Bệnh nhân này đã có một lịch hẹn đang hoạt động.\n\nVui lòng hoàn thành hoặc dời/hủy lịch hẹn hiện tại trước khi đặt lịch mới.'
+                : 'This patient already has an active appointment. Please complete, reschedule or cancel the existing appointment first.',
             style: const TextStyle(fontSize: 14, height: 1.4),
           ),
           actions: [
@@ -134,9 +143,6 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
       return;
     }
 
-    // 2. Kiểm tra nếu bệnh nhân được chọn đang bị cooldown 30 phút
-    final patientId = _patients[index].id == 'self' ? null : _patients[index].id;
-    final patientEligibility = await _bookingService.getBookingEligibility(patientId: patientId);
     if (patientEligibility.isInCooldown) {
       if (!mounted) return;
       showDialog(
@@ -147,13 +153,18 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
             children: [
               const Icon(Icons.access_time_rounded, color: Color(0xFFD97706)),
               const SizedBox(width: 8),
-              Text(isVi ? 'Thời gian chờ (Cooldown)' : 'Cooldown Active', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              Expanded(
+                child: Text(
+                  isVi ? 'Thời gian chờ (Cooldown)' : 'Cooldown Active',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
             ],
           ),
           content: Text(
             isVi
-                ? 'Bệnh nhân này đang trong thời gian chờ sau khi đổi/hủy lịch (còn ${patientEligibility.cooldownRemainingMinutes} phút).\n\nVui lòng thử lại sau hoặc chọn bệnh nhân khác trong gia đình.'
-                : 'This patient is in a 30-minute cooldown period (${patientEligibility.cooldownRemainingMinutes} mins remaining). Please try again later or select another family member.',
+                ? 'Bệnh nhân này đang trong thời gian chờ sau khi hủy lịch (còn ${patientEligibility.cooldownRemainingMinutes} phút).\n\nVui lòng thử lại sau hoặc chọn bệnh nhân khác trong gia đình.'
+                : 'This patient is in a cooldown period (${patientEligibility.cooldownRemainingMinutes} mins remaining). Please try again later or select another family member.',
             style: const TextStyle(fontSize: 14, height: 1.4),
           ),
           actions: [
@@ -166,8 +177,7 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
 
     setState(() => _selectedId = _patients[index].id);
 
-    final activeDraft = _bookingService.activeDraft;
-    final initial = widget.initialDraft ?? activeDraft;
+    final initial = widget.initialDraft;
     var draft = initial != null
         ? initial.copyWith(patient: _patients[index])
         : BookingDraft(patient: _patients[index]);

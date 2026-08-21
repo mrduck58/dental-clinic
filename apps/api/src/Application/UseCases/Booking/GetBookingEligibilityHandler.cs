@@ -35,10 +35,13 @@ public class GetBookingEligibilityHandler(
 
         var targetPatientId = request.PatientId ?? primaryPatient.Id;
         var now = DateTimeOffset.UtcNow;
+        var vnOffset = TimeSpan.FromHours(7);
+        var nowVn = now.ToOffset(vnOffset);
+        var startOfTodayUtc = new DateTimeOffset(nowVn.Year, nowVn.Month, nowVn.Day, 0, 0, 0, vnOffset).ToUniversalTime();
 
         var hasActive = await appointmentRepository.HasActiveAppointmentForPatientAsync(targetPatientId, null, ct);
         var cooldownUntil = await appointmentRepository.GetPatientCooldownUntilAsync(targetPatientId, now, ct);
-        var cancelCount = await appointmentRepository.GetPatientCancellationCountAsync(targetPatientId, ct);
+        var cancelCountToday = await appointmentRepository.GetPatientCancellationCountAsync(targetPatientId, since: startOfTodayUtc, ct);
         var rescheduleCount = await appointmentRepository.GetPatientRescheduleCountAsync(targetPatientId, ct);
 
         var isInCooldown = cooldownUntil.HasValue && cooldownUntil.Value > now;
@@ -51,7 +54,7 @@ public class GetBookingEligibilityHandler(
             CanBookNew: canBookNew,
             IsInCooldown: isInCooldown,
             CooldownRemainingSeconds: cooldownRemaining,
-            CancellationCount: cancelCount,
+            CancellationCount: cancelCountToday,
             RescheduleCount: rescheduleCount);
     }
 }

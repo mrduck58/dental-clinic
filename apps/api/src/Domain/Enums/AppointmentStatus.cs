@@ -9,5 +9,6 @@ public enum AppointmentStatus
     PendingPayment, // Chờ thanh toán (kết thúc điều trị)
     Completed,      // Hoàn thành (đã thanh toán)
     Cancelled,      // Đã hủy
-    NoShow          // Vắng mặt (đã xác nhận nhưng bệnh nhân không đến khám)
+    NoShow,         // Vắng mặt (đã xác nhận nhưng bệnh nhân không đến khám)
+    Rebooking       // Tái đặt lịch (đổi lịch sau khi quá hạn / lỡ hẹn)
 }
