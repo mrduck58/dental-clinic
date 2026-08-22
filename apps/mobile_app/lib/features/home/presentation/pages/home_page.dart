@@ -1152,7 +1152,7 @@ class _UpcomingAppointmentCard extends StatelessWidget {
         );
       case 'rebooking':
         return (
-          isVi ? 'Rebooking' : 'Rebooking',
+          isVi ? 'Tái đặt lịch' : 'Rebooked',
           const Color(0xFFF59E0B),
           const Color(0xFFFEF3C7),
         );

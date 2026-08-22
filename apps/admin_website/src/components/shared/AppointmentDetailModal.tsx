@@ -13,7 +13,7 @@ const STATUS_LABEL: Record<string, { label: string; badge: string }> = {
   Completed: { label: "Hoàn thành", badge: "bg-green-50 text-green-700 border border-green-200" },
   Cancelled: { label: "Đã hủy", badge: "bg-slate-100 text-slate-500 border border-slate-200" },
   NoShow: { label: "Vắng mặt", badge: "bg-amber-50 text-amber-700 border border-amber-200" },
-  Rebooking: { label: "Đặt Lịch Lại", badge: "bg-amber-50 text-amber-800 border border-amber-300" },
+  Rebooking: { label: "Tái đặt lịch", badge: "bg-amber-50 text-amber-800 border border-amber-300" },
 };
 
 const fmtDate = (iso: string) => {
