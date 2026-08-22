@@ -12,6 +12,23 @@ import 'package:mobile_app/features/booking/data/booking_models.dart';
 import 'package:mobile_app/features/booking/data/booking_service.dart';
 import 'package:mobile_app/features/booking/presentation/widgets/booking_widgets.dart';
 
+enum SlotAvailabilityStatus {
+  available,
+  past,
+  booked,
+  held,
+  shiftEnding,
+  conflictNext,
+}
+
+class SlotValidationResult {
+  final SlotAvailabilityStatus status;
+  final String? conflictTime;
+
+  const SlotValidationResult(this.status, [this.conflictTime]);
+  bool get isValid => status == SlotAvailabilityStatus.available;
+}
+
 class SelectTimeSlotPage extends StatefulWidget {
   final BookingDraft draft;
   const SelectTimeSlotPage({super.key, required this.draft});
@@ -263,13 +280,41 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
     return true;
   }
 
-  bool _isStartingSlotValidForService(ApiTimeSlot startingSlot) {
-    if (_doctorWithSlots == null) return false;
+  SlotValidationResult _checkSlotValidity(ApiTimeSlot startingSlot) {
+    if (_doctorWithSlots == null) return const SlotValidationResult(SlotAvailabilityStatus.shiftEnding);
+    final now = DateTime.now();
+    final isToday = _currentDate.year == now.year &&
+        _currentDate.month == now.month &&
+        _currentDate.day == now.day;
+
+    final isOriginalSlot = _isSlotInOriginalAppointmentRange(startingSlot.range);
+
+    if (isToday) {
+      try {
+        final startPart = startingSlot.range.split(' - ').first.trim();
+        final parts = startPart.split(':');
+        final slotHour = int.parse(parts[0]);
+        final slotMin = int.parse(parts[1]);
+        if (now.hour > slotHour || (now.hour == slotHour && now.minute >= slotMin)) {
+          return const SlotValidationResult(SlotAvailabilityStatus.past);
+        }
+      } catch (_) {}
+    }
+
+    if (startingSlot.isBooked && !startingSlot.isHeldByMe && !isOriginalSlot) {
+      return const SlotValidationResult(SlotAvailabilityStatus.booked);
+    }
+    if (startingSlot.isHeld && !startingSlot.isHeldByMe) {
+      return const SlotValidationResult(SlotAvailabilityStatus.held);
+    }
+
     final duration = (widget.draft.service?.durationMinutes != null && widget.draft.service!.durationMinutes > 0)
         ? widget.draft.service!.durationMinutes
         : 30;
-    if (!_isSlotAvailableForUse(startingSlot)) return false;
-    if (duration <= 30) return true;
+
+    if (duration <= 30) {
+      return const SlotValidationResult(SlotAvailabilityStatus.available);
+    }
 
     try {
       final startPart = startingSlot.range.split(' - ').first.trim();
@@ -285,43 +330,97 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
         final endM = (curMin + 30) % 60;
 
         final targetRange = '${curH.toString().padLeft(2, '0')}:${curM.toString().padLeft(2, '0')} - ${endH.toString().padLeft(2, '0')}:${endM.toString().padLeft(2, '0')}';
+        final nextStartStr = '${curH.toString().padLeft(2, '0')}:${curM.toString().padLeft(2, '0')}';
 
         final match = _doctorWithSlots!.slots.where((s) => s.range == targetRange).firstOrNull;
-        if (match == null || !_isSlotAvailableForUse(match)) {
-          return false;
+        if (match == null) {
+          // Khung giờ tiếp theo không nằm trong ca trực của nha sĩ -> Gần hết ca / Nghỉ trưa
+          return SlotValidationResult(SlotAvailabilityStatus.shiftEnding, nextStartStr);
+        }
+
+        if (!_isSlotAvailableForUse(match)) {
+          // Khung giờ tiếp theo bị trùng với lịch đã đặt hoặc giữ chỗ -> Thiếu giờ do trùng lịch khác
+          return SlotValidationResult(SlotAvailabilityStatus.conflictNext, nextStartStr);
         }
       }
-      return true;
+
+      return const SlotValidationResult(SlotAvailabilityStatus.available);
     } catch (_) {
-      return _isSlotAvailableForUse(startingSlot);
+      return const SlotValidationResult(SlotAvailabilityStatus.available);
     }
+  }
+
+  bool _isStartingSlotValidForService(ApiTimeSlot startingSlot) {
+    return _checkSlotValidity(startingSlot).isValid;
   }
 
   void _onSlotTapped(ApiTimeSlot slot) {
     if (_isHoldingSlot) return;
-    if (!_isStartingSlotValidForService(slot)) {
+    final validation = _checkSlotValidity(slot);
+    if (!validation.isValid) {
       final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
       final duration = (widget.draft.service?.durationMinutes != null && widget.draft.service!.durationMinutes > 0)
           ? widget.draft.service!.durationMinutes
           : 30;
-      final isOriginalSlot = _isSlotInOriginalAppointmentRange(slot.range);
-      if (slot.isBooked && !isOriginalSlot && !slot.isHeldByMe) {
-        AppToast.showWarning(
-          context,
-          isVi ? 'Ca khám này đã có người đặt' : 'This time slot is already booked',
-        );
-      } else if (slot.isHeld && !slot.isHeldByMe) {
-        AppToast.showWarning(
-          context,
-          isVi ? 'Ca khám đang được người khác giữ chỗ' : 'This slot is currently held',
-        );
-      } else {
-        AppToast.showWarning(
-          context,
-          isVi
-              ? 'Khung giờ này không đủ thời lượng $duration phút cho dịch vụ'
-              : 'Not enough time ($duration mins) available starting from this slot',
-        );
+
+      switch (validation.status) {
+        case SlotAvailabilityStatus.booked:
+          AppToast.showWarning(
+            context,
+            isVi ? 'Ca khám này đã có người đặt' : 'This time slot is already booked',
+          );
+          break;
+        case SlotAvailabilityStatus.held:
+          AppToast.showWarning(
+            context,
+            isVi ? 'Ca khám đang được người khác giữ chỗ' : 'This slot is currently held',
+          );
+          break;
+        case SlotAvailabilityStatus.past:
+          AppToast.showWarning(
+            context,
+            isVi ? 'Khung giờ này đã trôi qua' : 'This time slot has already passed',
+          );
+          break;
+        case SlotAvailabilityStatus.shiftEnding:
+          final startPart = slot.range.split(' - ').first.trim();
+          final startH = int.tryParse(startPart.split(':')[0]) ?? 0;
+          if (startH < 12) {
+            AppToast.showWarning(
+              context,
+              isVi
+                  ? 'Khung giờ này không đủ $duration phút do nha sĩ nghỉ trưa lúc 12:00. Vui lòng chọn ca khám sớm hơn hoặc ca buổi chiều.'
+                  : 'Not enough time ($duration mins) before lunch break at 12:00. Please choose an earlier slot or an afternoon slot.',
+            );
+          } else if (startH < 18) {
+            AppToast.showWarning(
+              context,
+              isVi
+                  ? 'Khung giờ này không đủ $duration phút do phòng khám kết thúc ca làm việc lúc 17:30. Vui lòng chọn ca sớm hơn.'
+                  : 'Not enough time ($duration mins) before the shift ends at 17:30. Please choose an earlier slot.',
+            );
+          } else {
+            AppToast.showWarning(
+              context,
+              isVi
+                  ? 'Khung giờ này không đủ $duration phút trước khi kết thúc ca làm việc. Vui lòng chọn ca khám sớm hơn.'
+                  : 'Not enough time ($duration mins) before the end of the shift. Please choose an earlier slot.',
+            );
+          }
+          break;
+        case SlotAvailabilityStatus.conflictNext:
+          final conflictTime = validation.conflictTime ?? '';
+          AppToast.showWarning(
+            context,
+            isVi
+                ? (conflictTime.isNotEmpty
+                    ? 'Khung giờ này không đủ $duration phút do trùng với lịch hẹn khác lúc $conflictTime.'
+                    : 'Khung giờ này không đủ $duration phút do trùng với một lịch hẹn khác.')
+                : 'Not enough time ($duration mins) due to an existing appointment at $conflictTime.',
+          );
+          break;
+        case SlotAvailabilityStatus.available:
+          break;
       }
       return;
     }
@@ -967,22 +1066,9 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
                 final isBooked = slot.isBooked;
                 final isHeld = slot.isHeld;
 
-                // Kiểm tra xem slot trong quá khứ nếu là hôm nay
-                bool isPast = false;
-                if (isToday) {
-                  try {
-                    final startPart = slot.range.split(' - ').first.trim();
-                    final parts = startPart.split(':');
-                    final slotHour = int.parse(parts[0]);
-                    final slotMin = int.parse(parts[1]);
-                    if (now.hour > slotHour || (now.hour == slotHour && now.minute >= slotMin)) {
-                      isPast = true;
-                    }
-                  } catch (_) {}
-                }
-
                 final isOriginalRescheduleSlot = _isSlotInOriginalAppointmentRange(slot.range);
-                final isSlotStartValid = _isStartingSlotValidForService(slot);
+                final validation = _checkSlotValidity(slot);
+                final isSlotStartValid = validation.isValid;
                 final isSelected = _isSlotInSelectedRange(slot.range);
 
                 return GestureDetector(
@@ -1072,7 +1158,7 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
                               color: Color(0xFFEF4444),
                             ),
                           )
-                        else if (isPast)
+                        else if (validation.status == SlotAvailabilityStatus.past)
                           Text(
                             isVi ? 'Đã qua' : 'Passed',
                             style: TextStyle(
@@ -1081,13 +1167,22 @@ class _SelectTimeSlotPageState extends State<SelectTimeSlotPage> {
                               color: context.textMuted,
                             ),
                           )
-                        else if (!isSlotStartValid && !isSelected)
+                        else if (validation.status == SlotAvailabilityStatus.shiftEnding && !isSelected)
                           Text(
-                            isVi ? 'Không đủ giờ' : 'Short time',
+                            isVi ? 'Gần hết ca' : 'Shift ends',
                             style: const TextStyle(
                               fontSize: 9,
                               fontWeight: FontWeight.w600,
                               color: Color(0xFFF97316),
+                            ),
+                          )
+                        else if (validation.status == SlotAvailabilityStatus.conflictNext && !isSelected)
+                          Text(
+                            isVi ? 'Thiếu giờ' : 'Short time',
+                            style: const TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFFEA580C),
                             ),
                           ),
                       ],
