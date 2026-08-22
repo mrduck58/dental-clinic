@@ -3,6 +3,7 @@ using System;
 using DentalClinic.API.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DentalClinic.API.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260821041416_AddDetailToMaterialRequestItem")]
+    partial class AddDetailToMaterialRequestItem
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1201,16 +1204,11 @@ namespace DentalClinic.API.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
-                    b.Property<Guid?>("TreatmentPlanId")
-                        .HasColumnType("uuid");
-
                     b.HasKey("Id");
 
                     b.HasIndex("DentistId");
 
                     b.HasIndex("Status");
-
-                    b.HasIndex("TreatmentPlanId");
 
                     b.ToTable("MaterialRequests", (string)null);
                 });
@@ -2597,11 +2595,6 @@ namespace DentalClinic.API.Infrastructure.Persistence.Migrations
                     b.HasOne("DentalClinic.API.Domain.Entities.DentistProfile", "Dentist")
                         .WithMany()
                         .HasForeignKey("DentistId");
-
-                    b.HasOne("DentalClinic.API.Domain.Entities.TreatmentPlan", null)
-                        .WithMany()
-                        .HasForeignKey("TreatmentPlanId")
-                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Dentist");
                 });

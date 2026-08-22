@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import StaffSidebar from "../../../components/shared/StaffSidebar";
 import StaffPageHeader from "../../../components/shared/StaffPageHeader";
@@ -86,8 +86,8 @@ export default function InventoryPage() {
   const [newReqSearching, setNewReqSearching] = useState(false);
   const [newReqPatient,   setNewReqPatient]   = useState<PatientSearchResultDto | null>(null);
   const [newReqDescription, setNewReqDescription] = useState("");
-  const [newReqItems,     setNewReqItems]     = useState<{ id: string; itemName: string; quantity: string; unit: string }[]>([
-    { id: "0", itemName: "", quantity: "1", unit: SUPPLY_UNITS[0] },
+  const [newReqItems,     setNewReqItems]     = useState<{ id: string; itemName: string; detail: string; quantity: string; unit: string }[]>([
+    { id: "0", itemName: "", detail: "", quantity: "1", unit: SUPPLY_UNITS[0] },
   ]);
   const [newReqSubmitting, setNewReqSubmitting] = useState(false);
   const [newReqError,     setNewReqError]     = useState<string | null>(null);
@@ -135,6 +135,25 @@ export default function InventoryPage() {
   const [stockSortDir, setStockSortDir] = useState<SortDir>("asc");
   const [logSortKey,   setLogSortKey]   = useState<LogSortKey>("date");
   const [logSortDir,   setLogSortDir]   = useState<SortDir>("desc");
+
+  // Tab "+ Nhập kho": đo chiều cao thật của form bên trái để khung "Tồn kho hiện tại" bên phải
+  // cao đúng bằng nó rồi mới cuộn — tránh vừa hụt (khoảng trống) vừa tràn (danh sách dài hơn form).
+  const txFormPanelRef = useRef<HTMLDivElement>(null);
+  const [txFormPanelHeight, setTxFormPanelHeight] = useState<number | null>(null);
+  // Bấm 1 dòng trong "Tồn kho hiện tại" (bên phải) để điền sẵn form nhập kho bên trái — đỡ phải gõ tay
+  // tên/đơn vị/danh mục khi chỉ đơn giản là nhập thêm cho vật tư đã có sẵn.
+  const txQtyInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const el = txFormPanelRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      const height = entries[0]?.borderBoxSize?.[0]?.blockSize ?? entries[0]?.contentRect.height;
+      if (height) setTxFormPanelHeight(height);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const fetchItems = useCallback(async () => {
     setLoadingItems(true);
@@ -262,19 +281,19 @@ export default function InventoryPage() {
   const resetNewRequestForm = () => {
     setNewReqLookup(""); setNewReqResults([]); setNewReqPatient(null);
     setNewReqDescription("");
-    setNewReqItems([{ id: "0", itemName: "", quantity: "1", unit: SUPPLY_UNITS[0] }]);
+    setNewReqItems([{ id: "0", itemName: "", detail: "", quantity: "1", unit: SUPPLY_UNITS[0] }]);
     setNewReqError(null);
   };
 
   const handleAddNewReqRow = () => {
-    setNewReqItems(prev => [...prev, { id: Date.now().toString(), itemName: "", quantity: "1", unit: SUPPLY_UNITS[0] }]);
+    setNewReqItems(prev => [...prev, { id: Date.now().toString(), itemName: "", detail: "", quantity: "1", unit: SUPPLY_UNITS[0] }]);
   };
 
   const handleRemoveNewReqRow = (rowId: string) => {
     setNewReqItems(prev => (prev.length > 1 ? prev.filter(r => r.id !== rowId) : prev));
   };
 
-  const handleNewReqRowChange = (rowId: string, field: "itemName" | "quantity" | "unit", val: string) => {
+  const handleNewReqRowChange = (rowId: string, field: "itemName" | "detail" | "quantity" | "unit", val: string) => {
     setNewReqItems(prev => prev.map(r => (r.id === rowId ? { ...r, [field]: val } : r)));
   };
 
@@ -296,7 +315,12 @@ export default function InventoryPage() {
         patientId: newReqPatient.id,
         patientName: newReqPatient.fullName,
         description: newReqDescription.trim(),
-        items: validItems.map(it => ({ itemName: it.itemName.trim(), quantity: Number(it.quantity), unit: it.unit })),
+        items: validItems.map(it => ({
+          itemName: it.itemName.trim(),
+          detail: it.detail.trim() || undefined,
+          quantity: Number(it.quantity),
+          unit: it.unit,
+        })),
       });
       setShowNewRequestModal(false);
       resetNewRequestForm();
@@ -377,6 +401,18 @@ export default function InventoryPage() {
 
   const pagedStock = sortedStock.slice((stockPage - 1) * stockPageSize, stockPage * stockPageSize);
   const pagedLog   = sortedLog.slice((logPage - 1) * logPageSize, logPage * logPageSize);
+
+  // Bấm 1 dòng trong "Tồn kho hiện tại" → điền sẵn tên/đơn vị/danh mục vào form nhập kho rồi focus thẳng
+  // vào ô số lượng, khỏi phải gõ tay tên vật tư (vẫn có thể tự gõ nếu là vật tư mới, xem showTxItemSuggestions).
+  const selectItemForImport = (s: SupplyItemDto) => {
+    setTxItemSearch(s.name);
+    setTxSelectedItemId(s.id);
+    setTxUnit(s.unit);
+    setTxCategory(s.category);
+    setTxErrors(prev => ({ ...prev, name: undefined }));
+    setTxItemFocused(false);
+    txQtyInputRef.current?.focus();
+  };
 
   // Chỉ còn Nhập kho — KHÔNG còn Xuất kho thủ công ở đây. Xuất kho thật giờ luôn có truy vết rõ ràng:
   // qua "Ghi nhận vật tư đã dùng" lúc điều trị (tự trừ kho theo liệu trình) hoặc qua "Yêu cầu vật tư"
@@ -647,8 +683,8 @@ export default function InventoryPage() {
           {/* ── Tab: Nhập kho ── */}
           {tab === "transaction" && (
             <div className="flex flex-col gap-5">
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
-              <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200/60 shadow-sm p-7 flex flex-col gap-5">
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-5 items-start">
+              <div ref={txFormPanelRef} className="lg:col-span-2 bg-white rounded-2xl border border-slate-200/60 shadow-sm p-7 flex flex-col gap-5">
                 <div>
                   <h2 className="text-[15px] font-black text-slate-900">Tạo phiếu nhập kho</h2>
                   <p className="text-[12px] text-slate-400 font-semibold mt-1">
@@ -744,6 +780,7 @@ export default function InventoryPage() {
                     <div className="flex flex-col gap-1.5">
                       <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">Số lượng *</label>
                       <input type="number" min={0}
+                        ref={txQtyInputRef}
                         value={txQtyStr}
                         onChange={e => { setTxQtyStr(e.target.value); setTxErrors(prev => ({ ...prev, qty: undefined })); }}
                         onWheel={e => e.currentTarget.blur()}
@@ -788,28 +825,42 @@ export default function InventoryPage() {
                 )}
               </div>
 
-              {/* Current stock reference */}
-              <div className="lg:col-span-3 bg-white rounded-2xl border border-slate-200/60 shadow-sm flex flex-col overflow-hidden">
-                <div className="px-6 py-4 border-b border-slate-100">
+              {/* Current stock reference — cao đúng bằng cột form bên trái (đo qua txFormPanelHeight),
+                  danh sách chỉ cuộn nội bộ khi dài hơn, không kéo giãn cả hàng lưới. */}
+              <div
+                className="lg:col-span-3 bg-white rounded-2xl border border-slate-200/60 shadow-sm flex flex-col overflow-hidden"
+                style={txFormPanelHeight ? { height: txFormPanelHeight } : undefined}
+              >
+                <div className="px-6 py-4 border-b border-slate-100 shrink-0">
                   <h3 className="text-[15px] font-black text-slate-900">Tồn kho hiện tại</h3>
+                  <p className="text-[11.5px] text-slate-400 font-semibold mt-0.5">Bấm 1 dòng để nhập thêm cho vật tư đó — khỏi phải gõ tay.</p>
                 </div>
-                <ul className="flex-1 divide-y divide-slate-100 overflow-y-auto max-h-[500px]">
+                <ul className="flex-1 min-h-0 divide-y divide-slate-100 overflow-y-auto">
                   {loadingItems ? (
                     <li className="px-6 py-10 text-center text-[13px] text-slate-400 font-semibold">Đang tải...</li>
                   ) : items.length === 0 ? (
                     <li className="px-6 py-10 text-center text-[13px] text-slate-400 font-semibold">Chưa có vật tư nào.</li>
                   ) : items.map(s => (
-                    <li key={s.id} className="px-6 py-3.5 flex items-center justify-between gap-3 hover:bg-slate-50/50 transition-colors">
-                      <div>
-                        <div className="text-[13.5px] font-bold text-slate-900">{s.name}</div>
-                        <div className="text-[12px] text-slate-400 font-semibold">{s.category} · {s.unit}</div>
-                      </div>
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-black shrink-0 ${
-                        s.isLow ? "bg-amber-50 text-amber-700 border border-amber-100" : "bg-green-50 text-green-700 border border-green-100"
-                      }`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${s.isLow ? "bg-amber-500" : "bg-green-500"}`} />
-                        {s.quantity} {s.unit}
-                      </span>
+                    <li key={s.id}>
+                      <button
+                        type="button"
+                        onClick={() => selectItemForImport(s)}
+                        title={`Chọn "${s.name}" để nhập thêm`}
+                        className={`w-full px-6 py-3.5 flex items-center justify-between gap-3 text-left transition-colors cursor-pointer ${
+                          txSelectedItemId === s.id ? "bg-primary/5" : "hover:bg-slate-50/50"
+                        }`}
+                      >
+                        <div>
+                          <div className="text-[13.5px] font-bold text-slate-900">{s.name}</div>
+                          <div className="text-[12px] text-slate-400 font-semibold">{s.category} · {s.unit}</div>
+                        </div>
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-black shrink-0 ${
+                          s.isLow ? "bg-amber-50 text-amber-700 border border-amber-100" : "bg-green-50 text-green-700 border border-green-100"
+                        }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${s.isLow ? "bg-amber-500" : "bg-green-500"}`} />
+                          {s.quantity} {s.unit}
+                        </span>
+                      </button>
                     </li>
                   ))}
                 </ul>
@@ -950,7 +1001,9 @@ export default function InventoryPage() {
                         {r.items.map(it => (
                           <div key={it.id} className="flex items-center gap-3">
                             <div className="text-[13px] font-semibold text-slate-700 flex-1 min-w-0">
-                              {it.itemName} — xin {it.quantity} {it.unit}
+                              {it.itemName}
+                              {it.detail && <span className="text-slate-400"> — {it.detail}</span>}
+                              {" "}× {it.quantity} {it.unit}
                               {it.actualQuantity != null && it.actualQuantity !== it.quantity && (
                                 <span className="text-emerald-600"> (thực nhận {it.actualQuantity})</span>
                               )}
@@ -1359,21 +1412,26 @@ export default function InventoryPage() {
                     className="text-[11.5px] font-bold text-primary hover:underline cursor-pointer">+ Thêm dòng</button>
                 </div>
                 {newReqItems.map(row => (
-                  <div key={row.id} className="flex items-center gap-2">
-                    <input value={row.itemName} onChange={e => handleNewReqRowChange(row.id, "itemName", e.target.value)}
-                      placeholder="Tên vật tư..." className={`${inputCls} flex-1`} />
-                    <input type="number" min={1} value={row.quantity} onWheel={e => e.currentTarget.blur()}
-                      onChange={e => handleNewReqRowChange(row.id, "quantity", e.target.value)}
-                      className={`${inputCls} w-20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`} />
-                    <div className="relative w-28 shrink-0">
-                      <select value={row.unit} onChange={e => handleNewReqRowChange(row.id, "unit", e.target.value)} className={selectCls}>
-                        {SUPPLY_UNITS.map(u => <option key={u}>{u}</option>)}
-                      </select>
+                  <div key={row.id} className="flex flex-col gap-1.5 p-2.5 bg-slate-50/80 rounded-xl border border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <input value={row.itemName} onChange={e => handleNewReqRowChange(row.id, "itemName", e.target.value)}
+                        placeholder="Tên vật tư..." className={`${inputCls} flex-1`} />
+                      <input type="number" min={1} value={row.quantity} onWheel={e => e.currentTarget.blur()}
+                        onChange={e => handleNewReqRowChange(row.id, "quantity", e.target.value)}
+                        className={`${inputCls} w-20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`} />
+                      <div className="relative w-28 shrink-0">
+                        <select value={row.unit} onChange={e => handleNewReqRowChange(row.id, "unit", e.target.value)} className={selectCls}>
+                          {SUPPLY_UNITS.map(u => <option key={u}>{u}</option>)}
+                        </select>
+                      </div>
+                      <button type="button" onClick={() => handleRemoveNewReqRow(row.id)}
+                        className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer shrink-0">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
                     </div>
-                    <button type="button" onClick={() => handleRemoveNewReqRow(row.id)}
-                      className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer shrink-0">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
+                    <input value={row.detail} onChange={e => handleNewReqRowChange(row.id, "detail", e.target.value)}
+                      placeholder="Chi tiết: răng số mấy, hàm nào, kích thước... (tuỳ chọn)"
+                      className={`${inputCls} text-[12px]`} />
                   </div>
                 ))}
               </div>

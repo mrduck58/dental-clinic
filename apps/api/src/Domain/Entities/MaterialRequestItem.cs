@@ -10,6 +10,11 @@ public class MaterialRequestItem
     public Guid Id { get; private set; }
     public Guid MaterialRequestId { get; private set; }
     public string ItemName { get; private set; } = string.Empty;
+    // Chi tiết riêng của lần đặt này (răng số mấy, hàm nào, kích thước...) — CHỈ để đọc, KHÔNG gộp vào
+    // ItemName, vì StockImportHandler khớp vật tư trong kho theo đúng tên: nếu nhập chung vào ItemName,
+    // mỗi tổ hợp (vd "Mão Titan — Răng số 16") sẽ tạo hẳn 1 vật tư riêng trong kho, không bao giờ gộp lại
+    // được với chính vật tư đó của lần đặt khác — làm phình danh mục kho vô nghĩa.
+    public string? Detail { get; private set; }
     public int Quantity { get; private set; }
     public string Unit { get; private set; } = string.Empty;
     // Số lượng THỰC NHẬN lúc nhập kho — có thể khác Quantity (số bác sĩ xin ban đầu), vd nhà cung cấp
@@ -23,12 +28,13 @@ public class MaterialRequestItem
 
     private MaterialRequestItem() { }
 
-    public static MaterialRequestItem Create(Guid materialRequestId, string itemName, int quantity, string unit)
+    public static MaterialRequestItem Create(Guid materialRequestId, string itemName, string? detail, int quantity, string unit)
         => new()
         {
             Id = Guid.NewGuid(),
             MaterialRequestId = materialRequestId,
             ItemName = itemName,
+            Detail = detail,
             Quantity = quantity,
             Unit = unit,
         };

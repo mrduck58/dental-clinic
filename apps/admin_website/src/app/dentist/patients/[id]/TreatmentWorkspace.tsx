@@ -35,7 +35,27 @@ interface TreatmentWorkspaceProps {
   onBack?: () => void;
   /** Cho phép sửa dù buổi hẹn đã kết thúc (chế độ chỉnh sửa đơn hoàn thành). */
   editMode?: boolean;
+  /** Khi thêm dịch vụ có gắn "Vật tư chính" (hàng đặt riêng theo răng, vd mão sứ) — báo lên để tab
+   * "Vật tư" điền sẵn thành nháp, bác sĩ chỉ cần bổ sung kích thước rồi gửi, không phải gõ lại từ đầu.
+   * itemName giữ chung/generic (khớp đúng 1 mã hàng trong kho) — vị trí (răng/hàm) để riêng ở detail,
+   * không gộp vào itemName (xem ghi chú trên MaterialRequestItem.Detail ở backend). */
+  onDraftMaterialRequest?: (rows: { itemName: string; detail: string; quantity: string; unit: string; treatmentPlanId: string }[]) => void;
 }
+
+// Vật tư chính = hàng đặt riêng theo từng răng cụ thể (mão sứ, veneer...) — khác với vật tư tiêu hao/kỹ
+// thuật-labo dùng chung từ kho, nên chỉ loại này mới cần tự điền nháp sang "Yêu cầu vật tư" để đặt hàng.
+const CATEGORY_MAIN = "Vật tư chính";
+
+// Chọn vị trí điều trị bằng nút bấm (số răng FDI hoặc hàm) thay vì gõ tay — tránh lỗi chính tả/định dạng.
+// Mỗi hàm tách riêng 2 dòng x 8 răng (grid cố định, không dùng flex-wrap) để không bao giờ bị ngắt dòng
+// giữa 2 nửa hàm — tránh tình trạng khó nhìn khi bề rộng khung không chia hết 16 nút trên 1 dòng.
+const TOOTH_ROWS: { jawLabel?: string; teeth: number[] }[] = [
+  { jawLabel: "Hàm trên", teeth: [18, 17, 16, 15, 14, 13, 12, 11] },
+  { teeth: [21, 22, 23, 24, 25, 26, 27, 28] },
+  { jawLabel: "Hàm dưới", teeth: [48, 47, 46, 45, 44, 43, 42, 41] },
+  { teeth: [31, 32, 33, 34, 35, 36, 37, 38] },
+];
+const JAW_OPTIONS = ["Hàm trên", "Hàm dưới"];
 
 const fmtMoney = (n: number) => n.toLocaleString("vi-VN") + "đ";
 
@@ -70,7 +90,7 @@ function CardHeader({ title, icon, color, action }: {
   );
 }
 
-export default function TreatmentWorkspace({ appointmentId, onBack, editMode = false }: TreatmentWorkspaceProps) {
+export default function TreatmentWorkspace({ appointmentId, onBack, editMode = false, onDraftMaterialRequest }: TreatmentWorkspaceProps) {
   const [examination, setExamination] = useState<ExaminationDto | null>(null);
   const [medicalHistory, setMedicalHistory] = useState<PatientMedicalHistoryDto[]>([]);
   const [plans, setPlans] = useState<TreatmentPlanDto[]>([]);
@@ -263,6 +283,30 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
   );
   const addUnitPrice = selOption?.price ?? selService?.price ?? 0;
 
+  // Vị trí điều trị theo ĐVT của option: "Răng" (hoặc chưa chọn option) -> chọn từng răng theo số FDI;
+  // "Hàm" -> chọn hàm trên/dưới (chọn cả 2 nút = cả 2 hàm); các ĐVT khác (Liệu trình, Lần, Gói, Chiếc, Bộ)
+  // không gắn với vị trí răng/hàm cụ thể nên ẩn hẳn, bác sĩ dùng ô Ghi chú nếu cần.
+  const positionUnit = selOption?.unit;
+  const showToothPicker = !positionUnit || positionUnit === "Răng";
+  const showJawPicker = positionUnit === "Hàm";
+  const selectedPositions = useMemo(
+    () => (addTeeth ? addTeeth.split(",").map(t => t.trim()).filter(Boolean) : []),
+    [addTeeth]
+  );
+  const togglePosition = (pos: string) => {
+    setAddTeeth(
+      selectedPositions.includes(pos)
+        ? selectedPositions.filter(p => p !== pos).join(", ")
+        : [...selectedPositions, pos].join(", ")
+    );
+  };
+
+  // Số lượng = chính số răng/hàm đã chọn — chọn xong là ra số lượng, khỏi phải gõ tay theo tay 2 lần
+  // (vừa chọn vị trí vừa gõ số lượng dễ bị lệch nhau, vd chọn 3 răng nhưng để số lượng = 1).
+  useEffect(() => {
+    if (showToothPicker || showJawPicker) setAddQuantity(Math.max(1, selectedPositions.length));
+  }, [showToothPicker, showJawPicker, selectedPositions.length]);
+
   // Xem trước vật tư định mức khi chọn dịch vụ (+ option) trong modal "Thêm dịch vụ" — chỉ hiển thị, không trừ kho.
   useEffect(() => {
     if (!selService) { setPreviewSupplyItems([]); return; }
@@ -284,6 +328,12 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
 
   const allStepsSelected = progressSteps.length > 0 && selectedStepIds.length === progressSteps.length;
 
+  // Vật tư chọn tay ở "Ghi nhận vật tư đã dùng" — loại "Vật tư chính" ra khỏi danh sách vì loại này giờ
+  // luôn được tự động ghi nhận tiêu hao ngay khi staff xử lý xong "Yêu cầu vật tư" (xem
+  // MarkMaterialRequestDoneHandler.AutoConsumeForTreatmentPlanAsync) — cho chọn tay lại ở đây dễ bị ghi
+  // trùng (tính 2 lần chi phí, trừ kho sai vì lúc đó tồn kho của nó đã về 0).
+  const manualUsageCatalog = supplyCatalog.filter(item => item.category !== CATEGORY_MAIN);
+
   const toggleStep = (stepId: string) => {
     setProgressCustom(false);
     setProgressStepName("");
@@ -304,7 +354,7 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
     if (!selService || !examination) return;
     try {
       setSavingService(true);
-      await createTreatmentPlanApi(appointmentId, {
+      const createdPlan = await createTreatmentPlanApi(appointmentId, {
         serviceId: selService.id,
         unitPrice: selOption?.price,
         quantity: Math.max(1, addQuantity),
@@ -312,7 +362,33 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
         notes: addNotes.trim() || undefined,
         serviceOptionName: selOption?.name,
       });
-      showToast("Đã thêm dịch vụ vào liệu trình");
+
+      // Vật tư chính trong định mức (mão sứ, veneer...) — điền sẵn thành nháp sang tab "Vật tư" để bác sĩ
+      // chỉ cần bổ sung kích thước/dấu răng thực tế rồi gửi, không phải gõ lại tên + số lượng từ đầu.
+      const mainItems = previewSupplyItems.filter(
+        s => supplyCatalog.find(c => c.id === s.supplyItemId)?.category === CATEGORY_MAIN
+      );
+      if (mainItems.length > 0 && onDraftMaterialRequest) {
+        // Chỉ tách theo dấu phẩy — vị trí giờ chọn bằng nút bấm (xem TOOTH_ROWS/JAW_OPTIONS)
+        // nên có thể là số răng ("16") hoặc nhãn hàm nhiều từ ("Hàm trên"), không còn gõ tay tự do nữa.
+        const positions = addTeeth.split(",").map(t => t.trim()).filter(Boolean);
+        const draftRows = mainItems.flatMap(item =>
+          positions.length > 0
+            ? positions.map(pos => ({
+                itemName: item.supplyItemName,
+                detail: /^\d+$/.test(pos) ? `Răng số ${pos}` : pos,
+                quantity: String(item.defaultQuantity),
+                unit: item.unit,
+                treatmentPlanId: createdPlan.id,
+              }))
+            : [{ itemName: item.supplyItemName, detail: "", quantity: String(item.defaultQuantity), unit: item.unit, treatmentPlanId: createdPlan.id }]
+        );
+        onDraftMaterialRequest(draftRows);
+        showToast(`Đã tạo sẵn ${draftRows.length} dòng yêu cầu vật tư chính — vào tab "Vật tư" để bổ sung kích thước & gửi`);
+      } else {
+        showToast("Đã thêm dịch vụ vào liệu trình");
+      }
+
       setShowAddService(false);
       setSelService(null);
       setSelOption(null);
@@ -353,7 +429,12 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
   // vẫn có thể chỉnh số lượng thực tế trước khi ghi nhận.
   const loadUsageDefaults = async (serviceId: string, optionName: string | null, planQuantity: number) => {
     const defaults = await getEffectiveServiceSupplyItemsApi(serviceId, optionName).catch(() => []);
-    setUsageRows(defaults.map((d, idx) => ({
+    // Bỏ "Vật tư chính" khỏi gợi ý — loại này giờ luôn tự động ghi nhận tiêu hao khi staff xử lý xong
+    // "Yêu cầu vật tư" (xem manualUsageCatalog ở trên), gợi ý lại ở đây dễ khiến bác sĩ ghi nhận trùng.
+    const consumableDefaults = defaults.filter(
+      d => supplyCatalog.find(c => c.id === d.supplyItemId)?.category !== CATEGORY_MAIN
+    );
+    setUsageRows(consumableDefaults.map((d, idx) => ({
       id: `${idx}-${d.supplyItemId}`,
       supplyItemId: d.supplyItemId,
       quantity: String(d.defaultQuantity * Math.max(1, planQuantity)),
@@ -1035,7 +1116,7 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                   return (
                     <button
                       key={s.id}
-                      onClick={() => { setSelService(s); setSelOption(null); }}
+                      onClick={() => { setSelService(s); setSelOption(null); setAddTeeth(""); }}
                       className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors cursor-pointer ${selService?.id === s.id ? "bg-primary/5" : "hover:bg-slate-50"}`}
                     >
                       <div>
@@ -1073,7 +1154,10 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                       <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Tùy chọn / phân loại</label>
                       <select
                         value={selOption?.id ?? ""}
-                        onChange={e => setSelOption(selOptions.find(o => o.id === e.target.value) ?? null)}
+                        onChange={e => {
+                          setSelOption(selOptions.find(o => o.id === e.target.value) ?? null);
+                          setAddTeeth(""); // ĐVT đổi (Răng/Hàm/khác) -> lựa chọn cũ không còn khớp kiểu picker
+                        }}
                         className="w-full mt-1 px-3 py-2 text-[13px] bg-white border border-slate-200 rounded-lg focus:border-primary focus:outline-none font-bold cursor-pointer"
                       >
                         <option value="">Giá gốc dịch vụ — {fmtMoney(selService.price)}</option>
@@ -1086,7 +1170,71 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 gap-3">
+                  {/* Vị trí điều trị — chọn bằng nút bấm thay vì gõ tay, tránh lỗi chính tả/định dạng.
+                      Loại picker phụ thuộc ĐVT của option: Răng -> chọn từng răng, Hàm -> chọn hàm, còn lại -> ẩn. */}
+                  {(showToothPicker || showJawPicker) && (
+                    <div>
+                      <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Vị trí điều trị</label>
+                      {showJawPicker ? (
+                        <div className="flex gap-2 mt-1">
+                          {JAW_OPTIONS.map(jaw => {
+                            const active = selectedPositions.includes(jaw);
+                            return (
+                              <button
+                                key={jaw}
+                                type="button"
+                                onClick={() => togglePosition(jaw)}
+                                className={`flex-1 py-2 rounded-lg text-[12px] font-bold border transition-all cursor-pointer ${
+                                  active
+                                    ? "bg-primary text-white border-primary"
+                                    : "bg-white text-slate-600 border-slate-200 hover:border-primary/40"
+                                }`}
+                              >
+                                {jaw}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-2 mt-1">
+                          {TOOTH_ROWS.map((row, rowIdx) => (
+                            <div key={rowIdx}>
+                              {row.jawLabel && (
+                                <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">{row.jawLabel}</p>
+                              )}
+                              <div className="grid grid-cols-8 gap-1">
+                                {row.teeth.map(tooth => {
+                                  const active = selectedPositions.includes(String(tooth));
+                                  return (
+                                    <button
+                                      key={tooth}
+                                      type="button"
+                                      onClick={() => togglePosition(String(tooth))}
+                                      className={`h-8 rounded-md text-[11px] font-bold border transition-all cursor-pointer ${
+                                        active
+                                          ? "bg-primary text-white border-primary"
+                                          : "bg-white text-slate-600 border-slate-200 hover:border-primary/40"
+                                      }`}
+                                    >
+                                      {tooth}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {addTeeth && (
+                        <p className="text-[11.5px] font-semibold text-slate-500 mt-1.5">Đã chọn: {addTeeth}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Có picker (Răng/Hàm) -> số lượng suy ra thẳng từ số vị trí đã chọn, không cần hiện thêm ô
+                      này nữa (đã thấy rõ ở "Đã chọn: ..." bên trên) — chỉ còn hiện khi ĐVT khác, không có
+                      picker để suy ra số lượng, vẫn phải nhập tay. */}
+                  {!showToothPicker && !showJawPicker && (
                     <div>
                       <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
                         Số lượng{selOption ? ` (${selOption.unit})` : ""}
@@ -1095,18 +1243,10 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                         type="number" inputMode="numeric" min={1} value={addQuantity || ""}
                         onChange={e => setAddQuantity(e.target.value === "" ? 0 : Math.max(0, Math.floor(Number(e.target.value) || 0)))}
                         onBlur={() => setAddQuantity(q => (q < 1 ? 1 : q))}
-                        className="w-full mt-1 px-3 py-2 text-[13px] bg-white border border-slate-200 rounded-lg focus:border-primary focus:outline-none font-bold"
+                        className="w-full max-w-[140px] mt-1 px-3 py-2 text-[13px] bg-white border border-slate-200 rounded-lg focus:border-primary focus:outline-none font-bold"
                       />
                     </div>
-                    <div>
-                      <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">Răng</label>
-                      <input
-                        type="text" placeholder="VD: 21, 36" value={addTeeth}
-                        onChange={e => setAddTeeth(e.target.value)}
-                        className="w-full mt-1 px-3 py-2 text-[13px] bg-white border border-slate-200 rounded-lg focus:border-primary focus:outline-none font-bold"
-                      />
-                    </div>
-                  </div>
+                  )}
                   <div className="flex items-center justify-between border-t border-emerald-200 pt-2.5">
                     <span className="text-[11px] font-extrabold text-emerald-700 uppercase tracking-wider">Thành tiền</span>
                     <span className="text-[15px] font-black text-emerald-800 tabular-nums">
@@ -1340,7 +1480,7 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                             className="flex-1 px-2.5 py-2 text-[12.5px] bg-slate-50 border border-slate-200 rounded-lg focus:border-amber-500 focus:outline-none font-semibold text-slate-700 cursor-pointer"
                           >
                             <option value="">— Chọn vật tư —</option>
-                            {supplyCatalog.map(item => (
+                            {manualUsageCatalog.map(item => (
                               <option key={item.id} value={item.id}>{item.name} ({item.unit})</option>
                             ))}
                           </select>
@@ -1478,7 +1618,7 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                             className="flex-1 px-2.5 py-2 text-[12.5px] bg-slate-50 border border-slate-200 rounded-lg focus:border-amber-500 focus:outline-none font-semibold text-slate-700 cursor-pointer"
                           >
                             <option value="">— Chọn vật tư —</option>
-                            {supplyCatalog.map(item => (
+                            {manualUsageCatalog.map(item => (
                               <option key={item.id} value={item.id}>{item.name} ({item.unit})</option>
                             ))}
                           </select>

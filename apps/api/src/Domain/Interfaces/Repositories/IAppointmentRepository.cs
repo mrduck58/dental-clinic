@@ -125,11 +125,14 @@ public interface IAppointmentRepository
     /// <summary>Số lần bệnh nhân cụ thể đã tự hủy lịch (có thể lọc theo mốc thời gian, ví dụ trong ngày).</summary>
     Task<int> GetPatientCancellationCountAsync(Guid patientId, DateTimeOffset? since = null, CancellationToken cancellationToken = default);
 
-    /// <summary>Tổng số lần các lịch hẹn của bệnh nhân cụ thể đã được dời.</summary>
-    Task<int> GetPatientRescheduleCountAsync(Guid patientId, CancellationToken cancellationToken = default);
+    /// <summary>Tổng số lần các lịch hẹn của bệnh nhân cụ thể đã được dời (có thể lọc theo mốc thời gian, ví dụ trong ngày).</summary>
+    Task<int> GetPatientRescheduleCountAsync(Guid patientId, DateTimeOffset? since = null, CancellationToken cancellationToken = default);
 
-    /// <summary>Thời điểm kết thúc cooldown 30 phút của bệnh nhân (nếu đã hủy/dời >= 2 lần), hoặc null nếu không trong cooldown.</summary>
+    /// <summary>Thời điểm kết thúc cooldown 30 phút do hủy lịch của bệnh nhân (nếu đã hủy >= 2 lần trong ngày), hoặc null nếu không trong cooldown.</summary>
     Task<DateTimeOffset?> GetPatientCooldownUntilAsync(Guid patientId, DateTimeOffset now, CancellationToken cancellationToken = default);
+
+    /// <summary>Thời điểm kết thúc cooldown 30 phút do dời lịch của bệnh nhân (nếu đã dời >= 2 lần trong ngày), hoặc null nếu không trong cooldown.</summary>
+    Task<DateTimeOffset?> GetPatientRescheduleCooldownUntilAsync(Guid patientId, DateTimeOffset now, CancellationToken cancellationToken = default);
 
     /// <summary>Tài khoản/Bệnh nhân đã có lịch hẹn đang hoạt động (chưa hủy) trong ngày cụ thể hay chưa — dùng để chặn đặt nhiều lịch/ngày.</summary>
     Task<bool> HasActiveAppointmentOnDateAsync(Guid accountOrPatientId, DateOnly date, Guid? excludeAppointmentId = null, CancellationToken cancellationToken = default);
