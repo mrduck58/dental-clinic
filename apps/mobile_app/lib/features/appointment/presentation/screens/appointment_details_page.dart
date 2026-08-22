@@ -751,8 +751,8 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
                                         ),
                                         content: Text(
                                           isVi
-                                              ? 'Bạn vừa thực hiện dời lịch trong ngày hôm nay.\n\nVui lòng thử lại sau ${eligibility.rescheduleCooldownRemainingMinutes} phút nữa (thời gian chờ 30 phút giữa các lần dời).'
-                                              : 'You recently rescheduled today.\n\nPlease try again in ${eligibility.rescheduleCooldownRemainingMinutes} minutes (30-minute waiting period between reschedules).',
+                                              ? 'Bạn đã dời lịch từ 2 lần trở lên trong ngày hôm nay.\n\nVui lòng thử lại sau ${eligibility.rescheduleCooldownRemainingMinutes} phút nữa (thời gian chờ 30 phút giữa các lần dời).'
+                                              : 'You have rescheduled 2 or more times today.\n\nPlease try again in ${eligibility.rescheduleCooldownRemainingMinutes} minutes (30-minute waiting period between reschedules).',
                                           style: const TextStyle(fontSize: 14, height: 1.4),
                                         ),
                                         actions: [
