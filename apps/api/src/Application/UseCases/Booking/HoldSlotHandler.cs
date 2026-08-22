@@ -74,14 +74,23 @@ public class HoldSlotHandler(
         var slotStartMinutes = time.Hour * 60 + time.Minute;
         var slotEndMinutes = slotStartMinutes + durationMinutes;
 
-        // 3.1. Kiểm tra nếu bệnh nhân đang trong thời gian chờ (cooldown 30 phút sau khi hủy lịch, không chặn khi đang dời lịch)
+        // 3.1. Kiểm tra nếu bệnh nhân đang trong thời gian chờ (cooldown 30 phút sau khi hủy hoặc dời lịch >= 2 lần trong ngày)
         if (command.ReschedulingAppointmentId == null)
         {
             var cooldownUntil = await appointmentRepository.GetPatientCooldownUntilAsync(targetPatientId, now, ct);
             if (cooldownUntil.HasValue && cooldownUntil.Value > now)
             {
                 var remaining = (int)Math.Ceiling((cooldownUntil.Value - now).TotalMinutes);
-                throw new ConflictException($"Bệnh nhân đang trong thời gian chờ sau khi hủy lịch. Vui lòng thử lại sau {remaining} phút.");
+                throw new ConflictException($"Bệnh nhân đang trong thời gian chờ sau khi hủy lịch trong ngày hôm nay. Vui lòng thử lại sau {remaining} phút.");
+            }
+        }
+        else
+        {
+            var rescheduleCooldownUntil = await appointmentRepository.GetPatientRescheduleCooldownUntilAsync(targetPatientId, now, ct);
+            if (rescheduleCooldownUntil.HasValue && rescheduleCooldownUntil.Value > now)
+            {
+                var remaining = (int)Math.Ceiling((rescheduleCooldownUntil.Value - now).TotalMinutes);
+                throw new ConflictException($"Bệnh nhân đang trong thời gian chờ sau khi dời lịch trong ngày hôm nay. Vui lòng thử lại sau {remaining} phút.");
             }
         }
 

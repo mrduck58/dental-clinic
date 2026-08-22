@@ -734,6 +734,39 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
                             height: 50,
                             child: OutlinedButton.icon(
                               onPressed: () async {
+                                try {
+                                  final eligibility = await BookingService().getBookingEligibility(patientId: item.patientId);
+                                  if (eligibility.isInRescheduleCooldown) {
+                                    if (!context.mounted) return;
+                                    showDialog(
+                                      context: context,
+                                      builder: (ctx) => AlertDialog(
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                        title: Row(
+                                          children: [
+                                            const Icon(Icons.timer_outlined, color: AppColors.primary),
+                                            const SizedBox(width: 8),
+                                            Text(isVi ? 'Tạm thời chờ' : 'Cooldown Active', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                          ],
+                                        ),
+                                        content: Text(
+                                          isVi
+                                              ? 'Bạn đã dời lịch từ 2 lần trở lên trong ngày hôm nay.\n\nVui lòng thử lại sau ${eligibility.rescheduleCooldownRemainingMinutes} phút nữa (thời gian chờ 30 phút giữa các lần dời).'
+                                              : 'You have rescheduled 2 or more times today.\n\nPlease try again in ${eligibility.rescheduleCooldownRemainingMinutes} minutes.',
+                                          style: const TextStyle(fontSize: 14, height: 1.4),
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.pop(ctx),
+                                            child: Text(isVi ? 'Đã hiểu' : 'OK'),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                } catch (_) {}
+
                                 final parsedDate = item.parsedDate;
                                 final date = DateTime(parsedDate.year, parsedDate.month, parsedDate.day);
                                 final startHour = parsedDate.hour.toString().padLeft(2, '0');
