@@ -155,7 +155,7 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  isVi ? 'Thời gian chờ (Cooldown)' : 'Cooldown Active',
+                  isVi ? 'Thời gian chờ' : 'Cooldown Active',
                   style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
