@@ -165,6 +165,7 @@ public class UpdateTreatmentPlanHandler(
 
 public class DeleteTreatmentPlanHandler(
     ITreatmentPlanRepository treatmentPlanRepository,
+    IMaterialRequestRepository materialRequestRepository,
     TreatmentPlanQueryHelper queryHelper) : IRequestHandler<DeleteTreatmentPlanCommand>
 {
     public async Task Handle(DeleteTreatmentPlanCommand command, CancellationToken ct)
@@ -174,6 +175,17 @@ public class DeleteTreatmentPlanHandler(
 
         if (await queryHelper.IsInvoicedAsync(treatmentPlan.Id, ct))
             throw new ValidationException("Dịch vụ này đã được xuất hóa đơn nên không thể xóa khỏi liệu trình. Cần lễ tân hoàn/hủy hóa đơn trước.");
+
+        // Yêu cầu vật tư gắn với dịch vụ này: Ordered/Done nghĩa là đã đặt hàng nhà cung cấp hoặc đã nhập
+        // kho thật (đã tốn tiền/đã trừ kho) — không được tự ý xóa mất, phải chặn và để staff xử lý xong
+        // trước. Pending thì chưa có gì xảy ra thật nên xóa theo luôn, tránh để yêu cầu mồ côi vô nghĩa.
+        var linkedRequests = await materialRequestRepository.GetByTreatmentPlanIdAsync(treatmentPlan.Id, ct);
+        if (linkedRequests.Any(r => r.Status != MaterialRequestStatus.Pending))
+            throw new ValidationException(
+                "Dịch vụ này có yêu cầu vật tư đã đặt hàng hoặc đã nhập kho — cần xử lý xong yêu cầu vật tư đó trước khi xóa dịch vụ.");
+
+        foreach (var pendingRequest in linkedRequests)
+            await materialRequestRepository.DeleteAsync(pendingRequest, ct);
 
         await treatmentPlanRepository.DeleteAsync(treatmentPlan, ct);
     }

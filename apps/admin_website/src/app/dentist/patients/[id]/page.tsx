@@ -204,6 +204,10 @@ export default function PatientDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>("diagnosis");
 
+  // Nháp "Yêu cầu vật tư" tự điền khi thêm dịch vụ có gắn Vật tư chính (xem TreatmentWorkspace) — bác sĩ
+  // bổ sung kích thước/dấu răng trong tab "Vật tư" rồi gửi, chưa gửi API ngay lúc này.
+  const [materialDraftRows, setMaterialDraftRows] = useState<{ itemName: string; detail: string; quantity: string; unit: string; treatmentPlanId: string }[]>([]);
+
   // Phiếu khám răng miệng — gom các trường vào một object cho gọn
   const [form, setForm] = useState<ExamForm>(EMPTY_EXAM_FORM);
   const [diagSaved, setDiagSaved] = useState(false);
@@ -514,6 +518,11 @@ return (
                 <path strokeLinecap="round" strokeLinejoin="round" d={tab.icon} />
               </svg>
               {tab.label}
+              {tab.id === "materials" && materialDraftRows.length > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full text-[10.5px] font-black leading-none bg-orange-100 text-orange-700">
+                  {materialDraftRows.length}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -939,10 +948,16 @@ return (
                 </div>
               )}
 
-              {/* ─── TAB: LIỆU TRÌNH ─── */}
-              {activeTab === "treatment" && (
-                <TreatmentWorkspace appointmentId={id} editMode={editMode && isFinished} />
-              )}
+              {/* ─── TAB: LIỆU TRÌNH ───
+                  Luôn mount (chỉ ẩn/hiện bằng CSS) — không unmount khi chuyển tab, để không mất state
+                  đang nhập (nháp vật tư, form đang gõ...) như khi dùng "activeTab === ... &&" trước đây. */}
+              <div className={activeTab === "treatment" ? "" : "hidden"}>
+                <TreatmentWorkspace
+                  appointmentId={id}
+                  editMode={editMode && isFinished}
+                  onDraftMaterialRequest={rows => setMaterialDraftRows(prev => [...prev, ...rows])}
+                />
+              </div>
 
               {/* ─── TAB: ĐƠN THUỐC ─── */}
               {activeTab === "prescription" && (
@@ -954,10 +969,17 @@ return (
                 <FollowUpWorkspace appointmentId={id} editMode={editMode && isFinished} />
               )}
 
-              {/* ─── TAB: VẬT TƯ ─── */}
-              {activeTab === "materials" && (
-                <MaterialWorkspace appointmentId={id} editMode={editMode && isFinished} />
-              )}
+              {/* ─── TAB: VẬT TƯ ───
+                  Luôn mount (chỉ ẩn/hiện bằng CSS) — lý do xem ghi chú ở tab "Liệu trình" phía trên;
+                  quan trọng ở đây vì mất mount là mất luôn form/nháp đang gõ khi qua lại 2 tab này. */}
+              <div className={activeTab === "materials" ? "" : "hidden"}>
+                <MaterialWorkspace
+                  appointmentId={id}
+                  editMode={editMode && isFinished}
+                  draftItems={materialDraftRows}
+                  onDraftConsumed={() => setMaterialDraftRows([])}
+                />
+              </div>
 
             </div>{/* end left col */}
 

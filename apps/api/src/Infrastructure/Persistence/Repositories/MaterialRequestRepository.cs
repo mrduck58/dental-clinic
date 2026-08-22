@@ -48,6 +48,18 @@ public class MaterialRequestRepository(AppDbContext db) : IMaterialRequestReposi
         await db.SaveChangesAsync(ct);
     }
 
+    public async Task DeleteAsync(MaterialRequest request, CancellationToken ct = default)
+    {
+        db.MaterialRequests.Remove(request);
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task<List<MaterialRequest>> GetByTreatmentPlanIdAsync(Guid treatmentPlanId, CancellationToken ct = default)
+        => await db.MaterialRequests
+            .Include(m => m.Items)
+            .Where(m => m.TreatmentPlanId == treatmentPlanId)
+            .ToListAsync(ct);
+
     public async Task<IMaterialRequestTransaction?> BeginTransactionAsync(CancellationToken ct = default)
     {
         // InMemory provider (dùng trong unit test) không hỗ trợ transaction — chỉ bọc transaction thật khi

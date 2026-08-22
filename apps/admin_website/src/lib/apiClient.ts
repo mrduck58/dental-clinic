@@ -1288,6 +1288,9 @@ export async function stockImportApi(data: StockImportRequest): Promise<SupplyTr
 export interface MaterialRequestItemDto {
   id: string;
   itemName: string;
+  /** Chi tiết riêng của lần đặt này (răng số mấy, hàm nào, kích thước...) — chỉ để đọc, không dùng để
+   * khớp vật tư trong kho (itemName phải giữ chung/generic để cộng dồn đúng 1 mã hàng trong kho). */
+  detail: string | null;
   quantity: number;
   unit: string;
   /** Số lượng thực nhận lúc nhập kho — null nếu chưa xử lý xong (Pending/Ordered). */
@@ -1296,6 +1299,8 @@ export interface MaterialRequestItemDto {
 
 export interface MaterialRequestDto {
   id: string;
+  /** Dịch vụ cụ thể trong liệu trình mà yêu cầu này phục vụ — null nếu tạo tự do (không gắn dịch vụ nào). */
+  treatmentPlanId: string | null;
   courseName: string;
   patientName: string;
   dentistName: string;
@@ -1358,7 +1363,7 @@ export async function createMaterialRequestByStaffApi(request: {
   patientId: string;
   patientName: string;
   description: string;
-  items: { itemName: string; quantity: number; unit: string }[];
+  items: { itemName: string; quantity: number; unit: string; detail?: string | null }[];
 }): Promise<MaterialRequestDto> {
   const res = await fetch(`${API_URL}/api/inventory/material-requests/staff`, {
     method: "POST",
@@ -1376,7 +1381,9 @@ export async function createMaterialRequestByStaffApi(request: {
 // ── Yêu cầu vật tư (bác sĩ tạo từ buổi khám) ─────────────────────────────────
 export interface CreateMaterialRequestRequest {
   appointmentId: string;
-  items: { itemName: string; quantity: number; unit: string }[];
+  items: { itemName: string; quantity: number; unit: string; detail?: string | null }[];
+  /** Dịch vụ cụ thể trong liệu trình mà yêu cầu này phục vụ — bỏ trống nếu tạo tự do. */
+  treatmentPlanId?: string | null;
 }
 
 export async function createMaterialRequestApi(request: CreateMaterialRequestRequest): Promise<MaterialRequestDto> {

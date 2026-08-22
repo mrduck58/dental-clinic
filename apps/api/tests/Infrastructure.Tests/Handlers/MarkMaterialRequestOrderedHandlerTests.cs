@@ -39,7 +39,7 @@ public class MarkMaterialRequestOrderedHandlerTests
     [Test]
     public async Task HandleAsync_PendingRequest_TransitionsToOrderedWithNoteAndTimestamp()
     {
-        var request = MaterialRequest.Create("Niềng răng", "Bệnh nhân A", "BS X", [("Khay niềng", 1, "Cái")]);
+        var request = MaterialRequest.Create("Niềng răng", "Bệnh nhân A", "BS X", [("Khay niềng", null, 1, "Cái")]);
         _db.MaterialRequests.Add(request);
         await _db.SaveChangesAsync();
 
@@ -58,7 +58,7 @@ public class MarkMaterialRequestOrderedHandlerTests
     [Test]
     public async Task HandleAsync_AlreadyOrderedRequest_ThrowsValidationException()
     {
-        var request = MaterialRequest.Create("Niềng răng", "Bệnh nhân A", "BS X", [("Khay niềng", 1, "Cái")]);
+        var request = MaterialRequest.Create("Niềng răng", "Bệnh nhân A", "BS X", [("Khay niềng", null, 1, "Cái")]);
         request.MarkOrdered("staff1", null);
         _db.MaterialRequests.Add(request);
         await _db.SaveChangesAsync();
@@ -71,7 +71,7 @@ public class MarkMaterialRequestOrderedHandlerTests
     [Test]
     public async Task HandleAsync_DoneRequest_ThrowsValidationException()
     {
-        var request = MaterialRequest.Create("Niềng răng", "Bệnh nhân A", "BS X", [("Khay niềng", 1, "Cái")]);
+        var request = MaterialRequest.Create("Niềng răng", "Bệnh nhân A", "BS X", [("Khay niềng", null, 1, "Cái")]);
         request.MarkDone("staff1");
         _db.MaterialRequests.Add(request);
         await _db.SaveChangesAsync();
