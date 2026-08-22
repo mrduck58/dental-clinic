@@ -449,6 +449,8 @@ class BookingEligibility {
   final int cooldownRemainingSeconds;
   final int cancellationCount;
   final int rescheduleCount;
+  final bool isInRescheduleCooldown;
+  final int rescheduleCooldownRemainingSeconds;
 
   const BookingEligibility({
     required this.activeBookingCount,
@@ -458,20 +460,25 @@ class BookingEligibility {
     required this.cooldownRemainingSeconds,
     required this.cancellationCount,
     required this.rescheduleCount,
+    this.isInRescheduleCooldown = false,
+    this.rescheduleCooldownRemainingSeconds = 0,
   });
 
   factory BookingEligibility.fromJson(Map<String, dynamic> json) =>
       BookingEligibility(
         activeBookingCount: json['activeBookingCount'] as int? ?? 0,
-        maxActiveBookings: json['maxActiveBookings'] as int? ?? 2,
+        maxActiveBookings: json['maxActiveBookings'] as int? ?? 1,
         canBookNew: json['canBookNew'] as bool? ?? true,
         isInCooldown: json['isInCooldown'] as bool? ?? false,
         cooldownRemainingSeconds: json['cooldownRemainingSeconds'] as int? ?? 0,
         cancellationCount: json['cancellationCount'] as int? ?? 0,
         rescheduleCount: json['rescheduleCount'] as int? ?? 0,
+        isInRescheduleCooldown: json['isInRescheduleCooldown'] as bool? ?? false,
+        rescheduleCooldownRemainingSeconds: json['rescheduleCooldownRemainingSeconds'] as int? ?? 0,
       );
 
   int get cooldownRemainingMinutes => (cooldownRemainingSeconds / 60).ceil();
+  int get rescheduleCooldownRemainingMinutes => (rescheduleCooldownRemainingSeconds / 60).ceil();
 }
 
 class ApiAppointmentResult {

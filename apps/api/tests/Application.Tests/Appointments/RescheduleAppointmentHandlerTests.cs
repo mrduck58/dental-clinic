@@ -194,18 +194,34 @@ public class RescheduleAppointmentHandlerTests
         await act.Should().NotThrowAsync();
     }
 
-    /// <summary>Bệnh nhân được phép đổi lịch thoải mái (không giới hạn số lần dời).</summary>
+    /// <summary>Bệnh nhân được phép đổi lịch lần đầu trong ngày mà không bị cooldown.</summary>
     [Test]
-    public async Task Handle_PatientReschedulesMultipleTimes_IsAllowed()
+    public async Task Handle_PatientFirstRescheduleToday_IsAllowed()
     {
         var appointment = SeedAppointment();
-        typeof(Appointment).GetProperty("RescheduledCount")!
-            .SetValue(appointment, 5);
         ActAsOwningPatient(appointment);
+
+        _repo.GetPatientRescheduleCooldownUntilAsync(appointment.PatientId, Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+            .Returns((DateTimeOffset?)null);
 
         Func<Task> act = () => RescheduleTo(appointment, DateTimeOffset.UtcNow.AddDays(7));
 
         await act.Should().NotThrowAsync();
+    }
+
+    /// <summary>Bệnh nhân dời lịch lần 2 trở đi trong ngày và đang trong thời gian cooldown 30 phút sẽ bị chặn.</summary>
+    [Test]
+    public async Task Handle_PatientSecondRescheduleToday_WithinCooldown_ThrowsConflict()
+    {
+        var appointment = SeedAppointment();
+        ActAsOwningPatient(appointment);
+
+        _repo.GetPatientRescheduleCooldownUntilAsync(appointment.PatientId, Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+            .Returns(DateTimeOffset.UtcNow.AddMinutes(20));
+
+        Func<Task> act = () => RescheduleTo(appointment, DateTimeOffset.UtcNow.AddDays(7));
+
+        await act.Should().ThrowAsync<ConflictException>().WithMessage("*thời gian chờ*");
     }
 
     // ── Quyền sở hữu và trạng thái ────────────────────────────────────────────

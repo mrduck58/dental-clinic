@@ -10,7 +10,9 @@ public record BookingEligibilityDto(
     bool IsInCooldown,
     int CooldownRemainingSeconds,
     int CancellationCount,
-    int RescheduleCount);
+    int RescheduleCount,
+    bool IsInRescheduleCooldown = false,
+    int RescheduleCooldownRemainingSeconds = 0);
 
 public record GetBookingEligibilityQuery(Guid UserId, Guid? PatientId) : IRequest<BookingEligibilityDto>;
 
@@ -30,7 +32,9 @@ public class GetBookingEligibilityHandler(
                 IsInCooldown: false,
                 CooldownRemainingSeconds: 0,
                 CancellationCount: 0,
-                RescheduleCount: 0);
+                RescheduleCount: 0,
+                IsInRescheduleCooldown: false,
+                RescheduleCooldownRemainingSeconds: 0);
         }
 
         var targetPatientId = request.PatientId ?? primaryPatient.Id;
@@ -42,10 +46,13 @@ public class GetBookingEligibilityHandler(
         var hasActive = await appointmentRepository.HasActiveAppointmentForPatientAsync(targetPatientId, null, ct);
         var cooldownUntil = await appointmentRepository.GetPatientCooldownUntilAsync(targetPatientId, now, ct);
         var cancelCountToday = await appointmentRepository.GetPatientCancellationCountAsync(targetPatientId, since: startOfTodayUtc, ct);
-        var rescheduleCount = await appointmentRepository.GetPatientRescheduleCountAsync(targetPatientId, ct);
+        var rescheduleCountToday = await appointmentRepository.GetPatientRescheduleCountAsync(targetPatientId, since: startOfTodayUtc, ct);
+        var rescheduleCooldownUntil = await appointmentRepository.GetPatientRescheduleCooldownUntilAsync(targetPatientId, now, ct);
 
         var isInCooldown = cooldownUntil.HasValue && cooldownUntil.Value > now;
         var cooldownRemaining = isInCooldown ? (int)Math.Max(0, (cooldownUntil!.Value - now).TotalSeconds) : 0;
+        var isInRescheduleCooldown = rescheduleCooldownUntil.HasValue && rescheduleCooldownUntil.Value > now;
+        var rescheduleCooldownRemaining = isInRescheduleCooldown ? (int)Math.Max(0, (rescheduleCooldownUntil!.Value - now).TotalSeconds) : 0;
         var canBookNew = !hasActive && !isInCooldown;
 
         return new BookingEligibilityDto(
@@ -55,6 +62,8 @@ public class GetBookingEligibilityHandler(
             IsInCooldown: isInCooldown,
             CooldownRemainingSeconds: cooldownRemaining,
             CancellationCount: cancelCountToday,
-            RescheduleCount: rescheduleCount);
+            RescheduleCount: rescheduleCountToday,
+            IsInRescheduleCooldown: isInRescheduleCooldown,
+            RescheduleCooldownRemainingSeconds: rescheduleCooldownRemaining);
     }
 }
