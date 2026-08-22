@@ -746,13 +746,13 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
                                           children: [
                                             const Icon(Icons.timer_outlined, color: AppColors.primary),
                                             const SizedBox(width: 8),
-                                            Text(isVi ? 'Tạm thời chờ' : 'Cooldown Active', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                            Text(isVi ? 'Thời gian chờ' : 'Cooldown Active', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                                           ],
                                         ),
                                         content: Text(
                                           isVi
-                                              ? 'Bạn đã dời lịch từ 2 lần trở lên trong ngày hôm nay.\n\nVui lòng thử lại sau ${eligibility.rescheduleCooldownRemainingMinutes} phút nữa (thời gian chờ 30 phút giữa các lần dời).'
-                                              : 'You have rescheduled 2 or more times today.\n\nPlease try again in ${eligibility.rescheduleCooldownRemainingMinutes} minutes.',
+                                              ? 'Bạn vừa thực hiện dời lịch trong ngày hôm nay.\n\nVui lòng thử lại sau ${eligibility.rescheduleCooldownRemainingMinutes} phút nữa (thời gian chờ 30 phút giữa các lần dời).'
+                                              : 'You recently rescheduled today.\n\nPlease try again in ${eligibility.rescheduleCooldownRemainingMinutes} minutes (30-minute waiting period between reschedules).',
                                           style: const TextStyle(fontSize: 14, height: 1.4),
                                         ),
                                         actions: [

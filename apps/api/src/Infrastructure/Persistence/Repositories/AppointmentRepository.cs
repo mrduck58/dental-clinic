@@ -565,9 +565,9 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
         var nowVn = now.ToOffset(vnOffset);
         var startOfTodayUtc = new DateTimeOffset(nowVn.Year, nowVn.Month, nowVn.Day, 0, 0, 0, vnOffset).ToUniversalTime();
 
-        // 1. Kiểm tra cooldown 30 phút CHỈ khi bệnh nhân hủy lịch từ lần thứ 2 trở đi trong ngày hôm đó
+        // 1. Kiểm tra cooldown 30 phút khi bệnh nhân hủy lịch từ lần thứ 2 trở đi trong ngày hôm đó (đã có >= 1 lần hủy trước đó)
         var cancelCountToday = await GetPatientCancellationCountAsync(patientId, since: startOfTodayUtc, cancellationToken);
-        if (cancelCountToday >= 2)
+        if (cancelCountToday >= 1)
         {
             var latestCancel = await dbContext.Appointments
                 .Where(a => a.PatientId == patientId
@@ -600,9 +600,9 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
         var nowVn = now.ToOffset(vnOffset);
         var startOfTodayUtc = new DateTimeOffset(nowVn.Year, nowVn.Month, nowVn.Day, 0, 0, 0, vnOffset).ToUniversalTime();
 
-        // Kiểm tra cooldown 30 phút khi bệnh nhân dời lịch từ lần thứ 2 trở đi trong ngày hôm đó
+        // Kiểm tra cooldown 30 phút khi bệnh nhân dời lịch từ lần thứ 2 trở đi trong ngày hôm đó (đã có >= 1 lần dời trước đó)
         var rescheduleCountToday = await GetPatientRescheduleCountAsync(patientId, since: startOfTodayUtc, cancellationToken);
-        if (rescheduleCountToday >= 2)
+        if (rescheduleCountToday >= 1)
         {
             var latestReschedule = await dbContext.Appointments
                 .Where(a => a.PatientId == patientId
