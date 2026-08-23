@@ -28,7 +28,8 @@ public class GetPatientMedicalHistoryHandler(IAppointmentRepository appointmentR
             a.Symptoms,
             ClinicalRecordMappers.ToMedicalHistoryDiagnoses(a),
             ClinicalRecordMappers.ToMedicalHistoryTreatmentPlans(a),
-            ClinicalRecordMappers.ToMedicalHistoryPrescriptionItems(a)
+            ClinicalRecordMappers.ToMedicalHistoryPrescriptionItems(a),
+            ClinicalRecordMappers.ToMedicalHistoryPhotos(a)
         )).ToList();
     }
 }

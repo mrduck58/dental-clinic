@@ -29,7 +29,7 @@ public class CreateSupplyTransactionHandlerTests
         _activityLogService = Substitute.For<IActivityLogService>();
         _currentUser = Substitute.For<ICurrentUserService>();
         _handler = new CreateSupplyTransactionHandler(
-            new SupplyItemRepository(_db), new SupplyTransactionRepository(_db), _activityLogService, _currentUser);
+            new SupplyItemRepository(_db), new SupplyTransactionRepository(_db), new RoomRepository(_db), _activityLogService, _currentUser);
     }
 
     [TearDown]
@@ -159,5 +159,54 @@ public class CreateSupplyTransactionHandlerTests
             new CreateSupplyTransactionCommand(item.Id, "Import", 10, null, "staff1"), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    private async Task<Room> SeedRoomAsync(string code = "P01", string name = "Phòng khám 1")
+    {
+        var room = Room.Create(code, name, "1", "Khám tổng quát", "");
+        _db.Rooms.Add(room);
+        await _db.SaveChangesAsync();
+        return room;
+    }
+
+    /// <summary>Xuất kho gắn đúng phòng nhận phải trừ kho bình thường và trả về đúng tên phòng trong DTO.</summary>
+    [Test]
+    public async Task HandleAsync_ExportWithRoom_DecreasesStockAndReturnsRoomName()
+    {
+        var item = await SeedItemAsync(quantity: 50);
+        var room = await SeedRoomAsync();
+
+        var dto = await _handler.Handle(
+            new CreateSupplyTransactionCommand(item.Id, "export", 10, "Hết găng tay", "staff1", room.Id), CancellationToken.None);
+
+        dto.RoomName.Should().Be(room.Name);
+        (await _db.SupplyItems.SingleAsync(i => i.Id == item.Id)).Quantity.Should().Be(40);
+        (await _db.SupplyTransactions.SingleAsync(t => t.Id == dto.Id)).RoomId.Should().Be(room.Id);
+    }
+
+    /// <summary>Nhập kho không được phép gắn phòng nhận — chỉ xuất kho mới có ý nghĩa "cấp cho phòng".</summary>
+    [Test]
+    public async Task HandleAsync_ImportWithRoom_ThrowsValidationException()
+    {
+        var item = await SeedItemAsync();
+        var room = await SeedRoomAsync();
+
+        Func<Task> act = () => _handler.Handle(
+            new CreateSupplyTransactionCommand(item.Id, "import", 10, null, "staff1", room.Id), CancellationToken.None);
+
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    /// <summary>Phòng không tồn tại phải báo lỗi NotFoundException, không được trừ kho.</summary>
+    [Test]
+    public async Task HandleAsync_ExportWithNonExistentRoom_ThrowsNotFoundExceptionAndDoesNotAdjustStock()
+    {
+        var item = await SeedItemAsync(quantity: 50);
+
+        Func<Task> act = () => _handler.Handle(
+            new CreateSupplyTransactionCommand(item.Id, "export", 10, null, "staff1", Guid.NewGuid()), CancellationToken.None);
+
+        await act.Should().ThrowAsync<NotFoundException>();
+        (await _db.SupplyItems.SingleAsync(i => i.Id == item.Id)).Quantity.Should().Be(50);
     }
 }

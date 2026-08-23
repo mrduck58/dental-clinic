@@ -34,6 +34,10 @@ public class MaterialRequest
     // Dùng để: xóa dịch vụ khỏi liệu trình thì dọn theo yêu cầu Pending liên quan (xem DeleteTreatmentPlanHandler).
     public Guid? TreatmentPlanId { get; private set; }
 
+    // Buổi hẹn đã sinh ra yêu cầu này — null nếu staff tự khởi tạo (không qua buổi khám). Dùng để lấy
+    // đúng ảnh đính kèm (dấu răng, răng lợi...) bác sĩ đã chụp cho buổi đó, xem AppointmentPhoto.Section.
+    public Guid? AppointmentId { get; private set; }
+
     private readonly List<MaterialRequestItem> _items = [];
     public IReadOnlyCollection<MaterialRequestItem> Items => _items;
 
@@ -42,7 +46,7 @@ public class MaterialRequest
     public static MaterialRequest Create(
         string courseName, string patientName, string dentistName,
         IEnumerable<(string ItemName, string? Detail, int Quantity, string Unit)> items,
-        Guid? patientId = null, Guid? treatmentPlanId = null)
+        Guid? patientId = null, Guid? treatmentPlanId = null, Guid? appointmentId = null)
     {
         var request = new MaterialRequest
         {
@@ -52,6 +56,7 @@ public class MaterialRequest
             PatientName = patientName,
             DentistName = dentistName,
             TreatmentPlanId = treatmentPlanId,
+            AppointmentId = appointmentId,
             Status = MaterialRequestStatus.Pending,
             CreatedAt = DateTimeOffset.UtcNow
         };

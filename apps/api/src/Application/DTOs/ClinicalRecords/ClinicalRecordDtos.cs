@@ -81,6 +81,17 @@ public class DiagnosisDto
     public DateTimeOffset? UpdatedAt { get; set; }
 }
 
+public class AppointmentPhotoDto
+{
+    public Guid Id { get; set; }
+    public Guid AppointmentId { get; set; }
+    public string Section { get; set; } = string.Empty;
+    public string Url { get; set; } = string.Empty;
+    public string? Note { get; set; }
+    public string UploadedBy { get; set; } = string.Empty;
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
 public class PrescriptionDto
 {
     public Guid Id { get; set; }
@@ -197,6 +208,13 @@ public record MedicalHistoryPrescriptionItemDto(
     string Usage,
     string? Notes);
 
+/// <summary>Ảnh chụp chiếu lúc khám (section "exam") — chỉ ảnh, không kèm ảnh yêu cầu vật tư
+/// (section "material-request"), vì đó là artifact nội bộ gửi kho, không phải thứ bệnh nhân cần xem.</summary>
+public record MedicalHistoryPhotoDto(
+    string Url,
+    string? Note,
+    DateTimeOffset CreatedAt);
+
 public record PatientMedicalHistoryDto(
     Guid AppointmentId,
     string AppointmentCode,
@@ -206,7 +224,8 @@ public record PatientMedicalHistoryDto(
     string? Symptoms,
     List<MedicalHistoryDiagnosisDto> Diagnoses,
     List<MedicalHistoryTreatmentPlanDto> TreatmentPlans,
-    List<MedicalHistoryPrescriptionItemDto> PrescriptionItems);
+    List<MedicalHistoryPrescriptionItemDto> PrescriptionItems,
+    List<MedicalHistoryPhotoDto> Photos);
 
 public record MyMedicalHistoryDto(
     Guid AppointmentId,
@@ -226,4 +245,5 @@ public record MyMedicalHistoryDto(
     List<Guid> RelatedAppointmentIds,
     List<MedicalHistoryDiagnosisDto> Diagnoses,
     List<MedicalHistoryTreatmentPlanDto> TreatmentPlans,
-    List<MedicalHistoryPrescriptionItemDto> PrescriptionItems);
+    List<MedicalHistoryPrescriptionItemDto> PrescriptionItems,
+    List<MedicalHistoryPhotoDto> Photos);

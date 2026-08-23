@@ -103,6 +103,57 @@ public class ClinicalRecordsController(ISender sender, ClinicalRecordWriteGuard 
 
     #endregion
 
+    #region Appointment Photo
+
+    /// <summary>GET api/appointments/{id}/photos — Lấy ảnh gắn với buổi hẹn, lọc theo khu vực nếu có (Staff/Admin/Dentist)</summary>
+    [HttpGet("api/appointments/{id}/photos")]
+    [Authorize(Roles = "Staff,Admin,Dentist")]
+    public async Task<IActionResult> GetAppointmentPhotos(Guid id, [FromQuery] string? section, CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new GetAppointmentPhotosQuery(id, section), cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>POST api/appointments/{id}/photos — Thêm ảnh cho buổi hẹn (Staff/Admin/Dentist)</summary>
+    [HttpPost("api/appointments/{id}/photos")]
+    [Authorize(Roles = "Staff,Admin,Dentist")]
+    public async Task<IActionResult> AddAppointmentPhoto(
+        Guid id,
+        [FromBody] AddAppointmentPhotoRequest request,
+        CancellationToken cancellationToken)
+    {
+        await writeGuard.EnsureCanWriteAppointmentAsync(id, cancellationToken);
+        var photoRequest = request with { AppointmentId = id };
+        var result = await sender.Send(photoRequest, cancellationToken);
+        return CreatedAtAction(nameof(GetAppointmentPhotos), new { id }, result);
+    }
+
+    /// <summary>PUT api/appointments/photos/{photoId} — Sửa ghi chú ảnh (Staff/Admin/Dentist)</summary>
+    [HttpPut("api/appointments/photos/{photoId}")]
+    [Authorize(Roles = "Staff,Admin,Dentist")]
+    public async Task<IActionResult> UpdateAppointmentPhotoNote(
+        Guid photoId,
+        [FromBody] UpdateAppointmentPhotoNoteRequest request,
+        CancellationToken cancellationToken)
+    {
+        await writeGuard.EnsureCanWritePhotoAsync(photoId, cancellationToken);
+        var updateRequest = request with { PhotoId = photoId };
+        var result = await sender.Send(updateRequest, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>DELETE api/appointments/photos/{photoId} — Xóa ảnh (Staff/Admin/Dentist)</summary>
+    [HttpDelete("api/appointments/photos/{photoId}")]
+    [Authorize(Roles = "Staff,Admin,Dentist")]
+    public async Task<IActionResult> DeleteAppointmentPhoto(Guid photoId, CancellationToken cancellationToken)
+    {
+        await writeGuard.EnsureCanWritePhotoAsync(photoId, cancellationToken);
+        await sender.Send(new DeleteAppointmentPhotoCommand(photoId), cancellationToken);
+        return Ok(new { message = "Đã xóa ảnh." });
+    }
+
+    #endregion
+
     #region Treatment Plan
 
     /// <summary>POST api/appointments/{id}/treatment-plan — Thêm liệu trình điều trị (Staff/Admin/Dentist)</summary>

@@ -26,6 +26,9 @@ public class MaterialRequestDto
     /// <summary>Dịch vụ cụ thể trong liệu trình mà yêu cầu này phục vụ — null nếu tạo tự do, không gắn
     /// dịch vụ nào cụ thể. Xóa dịch vụ này khỏi liệu trình sẽ dọn theo yêu cầu Pending liên quan.</summary>
     public Guid? TreatmentPlanId { get; set; }
+    /// <summary>Buổi hẹn đã sinh ra yêu cầu này — dùng để tải ảnh đính kèm (dấu răng, răng lợi...) qua
+    /// GET api/appointments/{id}/photos?section=material-request. Null nếu staff tự khởi tạo.</summary>
+    public Guid? AppointmentId { get; set; }
     public string CourseName { get; set; } = string.Empty;
     public string PatientName { get; set; } = string.Empty;
     public string DentistName { get; set; } = string.Empty;
@@ -63,7 +66,8 @@ public class CreateMaterialRequestHandler(
             dentistName: appt.DentistName,
             items: request.Items.Select(i => (i.ItemName.Trim(), NormalizeDetail(i.Detail), i.Quantity, i.Unit)),
             patientId: appt.PatientId,
-            treatmentPlanId: request.TreatmentPlanId);
+            treatmentPlanId: request.TreatmentPlanId,
+            appointmentId: request.AppointmentId);
 
         await materialRequestRepository.AddAsync(mr, ct);
 
@@ -93,6 +97,7 @@ public class CreateMaterialRequestHandler(
     {
         Id = mr.Id,
         TreatmentPlanId = mr.TreatmentPlanId,
+        AppointmentId = mr.AppointmentId,
         CourseName = mr.CourseName,
         PatientName = mr.PatientName,
         DentistName = mr.DentistName,

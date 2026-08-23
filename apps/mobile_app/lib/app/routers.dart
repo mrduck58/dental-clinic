@@ -52,6 +52,7 @@ import 'package:mobile_app/features/appointment/presentation/screens/appointment
 import 'package:mobile_app/features/profile/presentation/pages/examine_history_page.dart';
 import 'package:mobile_app/features/profile/presentation/pages/examination_detail_page.dart';
 import 'package:mobile_app/features/profile/presentation/pages/diagnosis_detail_page.dart';
+import 'package:mobile_app/features/profile/presentation/pages/exam_photos_page.dart';
 import 'package:mobile_app/features/profile/presentation/pages/followup_detail_page.dart';
 import 'package:mobile_app/features/profile/presentation/pages/treatment_plan_page.dart';
 import 'package:mobile_app/features/profile/presentation/pages/phase_detail_page.dart';
@@ -320,6 +321,10 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) => DiagnosisDetailPage(event: state.extra as MedicalHistoryEvent),
     ),
     GoRoute(
+      path: AppRoutes.examPhotos,
+      builder: (context, state) => ExamPhotosPage(event: state.extra as MedicalHistoryEvent),
+    ),
+    GoRoute(
       path: AppRoutes.followUpDetail,
       builder: (context, state) => FollowUpDetailPage(event: state.extra as MedicalHistoryEvent),
     ),
@@ -428,6 +433,7 @@ abstract class AppRoutes {
   static const phaseDetail = '/medical-records/phase-detail';
   static const prescriptionDetail = '/medical-records/prescription-detail';
   static const medicineDetail = '/medical-records/medicine-detail';
+  static const examPhotos = '/medical-records/exam-photos';
 
   // ── Booking flow ────────────────────────────────────────────────────────────
   static const bookingSelectPatient = '/booking/patient';

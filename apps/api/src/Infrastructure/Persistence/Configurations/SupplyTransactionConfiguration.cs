@@ -23,5 +23,12 @@ public class SupplyTransactionConfiguration : IEntityTypeConfiguration<SupplyTra
         builder.Property(t => t.CreatedBy)
             .IsRequired()
             .HasMaxLength(200);
+
+        // SetNull (không Restrict): đây chỉ là nhãn tham khảo phòng nào đã nhận vật tư — xóa phòng không nên
+        // bị chặn lại chỉ vì còn lịch sử xuất kho cũ tham chiếu tới nó, cũng không nên xóa mất log giao dịch.
+        builder.HasOne(t => t.Room)
+            .WithMany()
+            .HasForeignKey(t => t.RoomId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }

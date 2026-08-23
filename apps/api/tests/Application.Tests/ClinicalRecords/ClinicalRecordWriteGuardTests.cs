@@ -16,6 +16,7 @@ public class ClinicalRecordWriteGuardTests
     private IDentistRepository _dentistRepo = null!;
     private IAppointmentRepository _appointmentRepo = null!;
     private IDiagnosisRepository _diagnosisRepo = null!;
+    private IAppointmentPhotoRepository _appointmentPhotoRepo = null!;
     private ITreatmentPlanRepository _treatmentPlanRepo = null!;
     private IPrescriptionRepository _prescriptionRepo = null!;
     private IPrescriptionItemRepository _prescriptionItemRepo = null!;
@@ -29,13 +30,14 @@ public class ClinicalRecordWriteGuardTests
         _dentistRepo = Substitute.For<IDentistRepository>();
         _appointmentRepo = Substitute.For<IAppointmentRepository>();
         _diagnosisRepo = Substitute.For<IDiagnosisRepository>();
+        _appointmentPhotoRepo = Substitute.For<IAppointmentPhotoRepository>();
         _treatmentPlanRepo = Substitute.For<ITreatmentPlanRepository>();
         _prescriptionRepo = Substitute.For<IPrescriptionRepository>();
         _prescriptionItemRepo = Substitute.For<IPrescriptionItemRepository>();
     }
 
     private ClinicalRecordWriteGuard CreateGuard() => new(
-        _currentUser, _dentistRepo, _appointmentRepo, _diagnosisRepo,
+        _currentUser, _dentistRepo, _appointmentRepo, _diagnosisRepo, _appointmentPhotoRepo,
         _treatmentPlanRepo, _prescriptionRepo, _prescriptionItemRepo);
 
     /// <summary>Đóng vai một bác sĩ đã có hồ sơ DentistProfile; trả về id hồ sơ đó.</summary>
@@ -131,6 +133,21 @@ public class ClinicalRecordWriteGuardTests
         var guard = CreateGuard();
 
         Func<Task> act = () => guard.EnsureCanWriteDiagnosisAsync(diagnosis.Id, CancellationToken.None);
+
+        await act.Should().ThrowAsync<ForbiddenException>();
+    }
+
+    /// <summary>Ảnh được truy ngược về ca khám của nó để xét quyền ghi, giống chẩn đoán.</summary>
+    [Test]
+    public async Task EnsureCanWritePhoto_BelongsToOtherDentist_ThrowsForbidden()
+    {
+        ActAsDentist();
+        var appointment = SeedAppointment(dentistId: Guid.NewGuid());
+        var photo = AppointmentPhoto.Create(appointment.Id, AppointmentPhoto.SectionExam, "/uploads/x.jpg", null, "Y tá A");
+        _appointmentPhotoRepo.GetByIdAsync(photo.Id, Arg.Any<CancellationToken>()).Returns(photo);
+        var guard = CreateGuard();
+
+        Func<Task> act = () => guard.EnsureCanWritePhotoAsync(photo.Id, CancellationToken.None);
 
         await act.Should().ThrowAsync<ForbiddenException>();
     }

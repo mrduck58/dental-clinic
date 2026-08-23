@@ -16,10 +16,16 @@ public class SupplyTransaction
     public Guid? EmployeeId { get; private set; }
     public Employee? Employee { get; private set; }
 
+    // Phòng nhận hàng khi Type="export" theo yêu cầu miệng của bác sĩ (vd hết găng tay giữa ca khám) —
+    // null nếu không phải xuất theo phòng (import, hoặc export khác như tiêu hao điều trị/theo yêu cầu vật tư).
+    public Guid? RoomId { get; private set; }
+    public Room? Room { get; private set; }
+
     private SupplyTransaction() { }
 
     public static SupplyTransaction Create(
-        Guid supplyItemId, string type, int quantity, string? note, string createdBy, decimal? unitPrice = null)
+        Guid supplyItemId, string type, int quantity, string? note, string createdBy, decimal? unitPrice = null,
+        Guid? roomId = null)
         => new()
         {
             Id = Guid.NewGuid(),
@@ -30,5 +36,6 @@ public class SupplyTransaction
             Note = note,
             CreatedBy = createdBy,
             CreatedAt = DateTimeOffset.UtcNow,
+            RoomId = roomId,
         };
 }

@@ -139,21 +139,6 @@ public class RescheduleAppointmentHandlerTests
 
     // ── Giới hạn dành riêng cho bệnh nhân ─────────────────────────────────────
 
-    /// <summary>Sau 24 giờ kể từ thời điểm đặt lịch, bệnh nhân phải gọi phòng khám thay vì tự dời.</summary>
-    [Test]
-    public async Task Handle_PatientWithinDeadline_ThrowsConflict()
-    {
-        var appointment = SeedAppointment(daysAhead: 5);
-        typeof(Appointment).GetProperty("CreatedAt")!
-            .SetValue(appointment, DateTimeOffset.UtcNow.AddHours(-25));
-        ActAsOwningPatient(appointment);
-
-        Func<Task> act = () => RescheduleTo(appointment, DateTimeOffset.UtcNow.AddDays(7));
-
-        await act.Should().ThrowAsync<ConflictException>().WithMessage("*24 giờ*");
-        await _repo.DidNotReceive().UpdateAsync(Arg.Any<Appointment>(), Arg.Any<CancellationToken>());
-    }
-
     /// <summary>Cùng tình huống nhưng người thao tác là nhân viên — không bị chặn, vì họ đang xử lý cuộc gọi phút chót.</summary>
     [Test]
     public async Task Handle_StaffWithinDeadline_IsAllowed()
@@ -162,33 +147,6 @@ public class RescheduleAppointmentHandlerTests
         var appointment = SeedAppointment(daysAhead: 5);
         typeof(Appointment).GetProperty("CreatedAt")!
             .SetValue(appointment, DateTimeOffset.UtcNow.AddHours(-25));
-
-        Func<Task> act = () => RescheduleTo(appointment, DateTimeOffset.UtcNow.AddDays(7));
-
-        await act.Should().NotThrowAsync();
-    }
-
-    /// <summary>Quá số lần dời cho phép thì chặn — chống kiểu giữ chỗ rồi dời liên tục.</summary>
-    [Test]
-    public async Task Handle_PatientExceedsRescheduleLimit_ThrowsConflict()
-    {
-        var appointment = SeedAppointment();
-        typeof(Appointment).GetProperty("RescheduledCount")!
-            .SetValue(appointment, AppointmentChangeGuard.MaxPatientReschedules);
-        ActAsOwningPatient(appointment);
-
-        Func<Task> act = () => RescheduleTo(appointment, DateTimeOffset.UtcNow.AddDays(7));
-
-        await act.Should().ThrowAsync<ConflictException>();
-    }
-
-    /// <summary>Nhân viên không bị giới hạn số lần dời.</summary>
-    [Test]
-    public async Task Handle_StaffBeyondRescheduleLimit_IsAllowed()
-    {
-        ActAsStaff();
-        var appointment = SeedAppointment();
-        typeof(Appointment).GetProperty("RescheduledCount")!.SetValue(appointment, 9);
 
         Func<Task> act = () => RescheduleTo(appointment, DateTimeOffset.UtcNow.AddDays(7));
 

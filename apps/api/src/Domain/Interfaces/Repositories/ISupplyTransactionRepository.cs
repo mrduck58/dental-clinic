@@ -4,7 +4,8 @@ namespace DentalClinic.API.Domain.Interfaces.Repositories;
 
 public interface ISupplyTransactionRepository
 {
-    Task<IEnumerable<SupplyTransaction>> GetAllAsync(CancellationToken ct = default);
+    /// <summary>roomId khác null → chỉ trả về giao dịch xuất theo phòng đó (xem SupplyTransaction.RoomId).</summary>
+    Task<IEnumerable<SupplyTransaction>> GetAllAsync(Guid? roomId = null, CancellationToken ct = default);
     Task AddAsync(SupplyTransaction transaction, CancellationToken ct = default);
 
     /// <summary>

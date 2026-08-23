@@ -309,6 +309,7 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
             .Include(a => a.Diagnoses)
             .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Service)
             .Include(a => a.Prescriptions).ThenInclude(p => p.Items)
+            .Include(a => a.Photos)
             .Where(a => a.PatientId == patientId &&
                         (a.Status == AppointmentStatus.Completed || a.Status == AppointmentStatus.PendingPayment))
             .OrderByDescending(a => a.AppointmentDate)
@@ -326,6 +327,7 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
             .Include(a => a.Diagnoses)
             .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Service)
             .Include(a => a.Prescriptions).ThenInclude(p => p.Items)
+            .Include(a => a.Photos)
             .Where(a => (a.PatientId == primaryPatientId || a.Patient.PrimaryPatientId == primaryPatientId) &&
                         (filterPatientId == null || a.PatientId == filterPatientId) &&
                         (a.Status == AppointmentStatus.Completed || a.Status == AppointmentStatus.PendingPayment))
@@ -442,14 +444,6 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
             .Include(a => a.Diagnoses)
             .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Service)
             .Include(a => a.Prescriptions).ThenInclude(p => p.Items)
-            .FirstOrDefaultAsync(a => a.Id == appointmentId, cancellationToken);
-    }
-
-    public async Task<Appointment?> GetForTreatmentSuggestionAsync(Guid appointmentId, CancellationToken cancellationToken = default)
-    {
-        return await dbContext.Appointments
-            .Include(a => a.Service)
-            .Include(a => a.Diagnoses)
             .FirstOrDefaultAsync(a => a.Id == appointmentId, cancellationToken);
     }
 

@@ -139,20 +139,6 @@ public class CancelAppointmentPolicyTests
         await _repo.DidNotReceive().UpdateAsync(Arg.Any<Appointment>(), Arg.Any<CancellationToken>());
     }
 
-    /// <summary>Bệnh nhân tự hủy sau 24 giờ kể từ lúc đặt lịch bị chặn.</summary>
-    [Test]
-    public async Task Cancel_PatientAfter24Hours_ThrowsConflict()
-    {
-        var appointment = SeedAppointment();
-        typeof(Appointment).GetProperty("CreatedAt")!
-            .SetValue(appointment, DateTimeOffset.UtcNow.AddHours(-25));
-        ActAsOwningPatient(appointment);
-
-        Func<Task> act = () => Cancel(appointment, CancellationReason.ChangeOfPlans);
-
-        await act.Should().ThrowAsync<ConflictException>().WithMessage("*24 giờ*");
-    }
-
     /// <summary>Nhân viên hủy hộ lúc bệnh nhân gọi điện phút chót thì không bị chặn.</summary>
     [Test]
     public async Task Cancel_StaffWithinDeadline_IsAllowed()

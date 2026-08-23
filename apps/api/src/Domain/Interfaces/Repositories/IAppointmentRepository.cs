@@ -101,9 +101,6 @@ public interface IAppointmentRepository
     /// <summary>Buổi khám kèm chẩn đoán/liệu trình/đơn thuốc — dữ liệu nguồn cho AI gợi ý đơn thuốc.</summary>
     Task<Appointment?> GetForPrescriptionSuggestionAsync(Guid appointmentId, CancellationToken cancellationToken = default);
 
-    /// <summary>Buổi khám kèm chẩn đoán — dữ liệu nguồn cho AI gợi ý hướng điều trị.</summary>
-    Task<Appointment?> GetForTreatmentSuggestionAsync(Guid appointmentId, CancellationToken cancellationToken = default);
-
     /// <summary>Lịch sử khám (mọi trạng thái) của một bệnh nhân, không gồm một buổi hẹn cụ thể — dùng cho AI tóm tắt/gợi ý điều trị.</summary>
     Task<IReadOnlyList<Appointment>> GetPatientHistoryExcludingAsync(Guid patientId, Guid excludeAppointmentId, CancellationToken cancellationToken = default);
 

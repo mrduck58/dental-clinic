@@ -261,6 +261,9 @@ public class ClinicalRecordsQueryHandlerTests
         _db.TreatmentPlans.Add(plan);
         var prescription = Prescription.Create(appointment.Id, "Uống sau ăn");
         _db.Prescriptions.Add(prescription);
+        var examPhoto = AppointmentPhoto.Create(appointment.Id, AppointmentPhoto.SectionExam, "/uploads/xray1.jpg", "Răng 16", "BS test");
+        var materialPhoto = AppointmentPhoto.Create(appointment.Id, AppointmentPhoto.SectionMaterialRequest, "/uploads/dau-rang.jpg", null, "BS test");
+        _db.AppointmentPhotos.AddRange(examPhoto, materialPhoto);
         await _db.SaveChangesAsync();
 
         var result = await _patientHistoryHandler.Handle(
@@ -274,6 +277,8 @@ public class ClinicalRecordsQueryHandlerTests
         dto.Diagnoses.Should().ContainSingle(d => d.Description == "K02.1");
         dto.TreatmentPlans.Should().ContainSingle(t => t.Description.Contains("Răng 16"));
         dto.PrescriptionItems.Should().BeEmpty(); // Prescription chưa có Item nào
+        // Chỉ ảnh section "exam" — ảnh yêu cầu vật tư (material-request) không phải thứ bệnh nhân cần xem.
+        dto.Photos.Should().ContainSingle(p => p.Url == "/uploads/xray1.jpg" && p.Note == "Răng 16");
     }
 
     /// <summary>Buổi khám PendingPayment (đã điều trị xong, chờ thu tiền) phải được tính vào lịch sử
