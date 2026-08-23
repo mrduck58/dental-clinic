@@ -8,9 +8,6 @@ import {
   getPatientTreatmentPlansApi,
   getServicesApi,
   getServiceProceduresApi,
-  getEffectiveServiceSupplyItemsApi,
-  getSupplyItemsApi,
-  recordTreatmentSupplyUsageApi,
   createTreatmentPlanApi,
   deleteTreatmentPlanApi,
   addTreatmentPlanProgressApi,
@@ -23,8 +20,6 @@ import {
   type ServiceDto,
   type ServiceOptionDto,
   type TreatmentProcedureDto,
-  type SupplyItemDto,
-  type ServiceSupplyItemDto,
 } from "../../../../lib/apiClient";
 import { Toast, useToast } from "../../../../components/shared/Toast";
 import { ConfirmDialog, useConfirm } from "../../../../components/shared/ConfirmDialog";
@@ -35,16 +30,11 @@ interface TreatmentWorkspaceProps {
   onBack?: () => void;
   /** Cho phép sửa dù buổi hẹn đã kết thúc (chế độ chỉnh sửa đơn hoàn thành). */
   editMode?: boolean;
-  /** Khi thêm dịch vụ có gắn "Vật tư chính" (hàng đặt riêng theo răng, vd mão sứ) — báo lên để tab
-   * "Vật tư" điền sẵn thành nháp, bác sĩ chỉ cần bổ sung kích thước rồi gửi, không phải gõ lại từ đầu.
-   * itemName giữ chung/generic (khớp đúng 1 mã hàng trong kho) — vị trí (răng/hàm) để riêng ở detail,
-   * không gộp vào itemName (xem ghi chú trên MaterialRequestItem.Detail ở backend). */
-  onDraftMaterialRequest?: (rows: { itemName: string; detail: string; quantity: string; unit: string; treatmentPlanId: string }[]) => void;
+  /** Báo lên sau khi thêm dịch vụ thành công — dịch vụ có "Vật tư chính" trong định mức sẽ được backend
+   * tự động tạo kèm yêu cầu vật tư (xem CreateTreatmentPlanHandler); cha dùng tín hiệu này để tải lại
+   * danh sách yêu cầu ở tab "Vật tư". */
+  onServiceAdded?: () => void;
 }
-
-// Vật tư chính = hàng đặt riêng theo từng răng cụ thể (mão sứ, veneer...) — khác với vật tư tiêu hao/kỹ
-// thuật-labo dùng chung từ kho, nên chỉ loại này mới cần tự điền nháp sang "Yêu cầu vật tư" để đặt hàng.
-const CATEGORY_MAIN = "Vật tư chính";
 
 // Chọn vị trí điều trị bằng nút bấm (số răng FDI hoặc hàm) thay vì gõ tay — tránh lỗi chính tả/định dạng.
 // Mỗi hàm tách riêng 2 dòng x 8 răng (grid cố định, không dùng flex-wrap) để không bao giờ bị ngắt dòng
@@ -90,7 +80,7 @@ function CardHeader({ title, icon, color, action }: {
   );
 }
 
-export default function TreatmentWorkspace({ appointmentId, onBack, editMode = false, onDraftMaterialRequest }: TreatmentWorkspaceProps) {
+export default function TreatmentWorkspace({ appointmentId, onBack, editMode = false, onServiceAdded }: TreatmentWorkspaceProps) {
   const [examination, setExamination] = useState<ExaminationDto | null>(null);
   const [medicalHistory, setMedicalHistory] = useState<PatientMedicalHistoryDto[]>([]);
   const [plans, setPlans] = useState<TreatmentPlanDto[]>([]);
@@ -114,9 +104,6 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
   const [addTeeth, setAddTeeth] = useState("");
   const [addNotes, setAddNotes] = useState("");
   const [savingService, setSavingService] = useState(false);
-  // Xem trước vật tư định mức của dịch vụ đang chọn — chỉ để bác sĩ biết trước, KHÔNG trừ kho ở đây.
-  // Tiêu hao thực tế vẫn ghi nhận ở modal "Ghi nhận quá trình điều trị" (usageRows bên dưới).
-  const [previewSupplyItems, setPreviewSupplyItems] = useState<ServiceSupplyItemDto[]>([]);
 
   // ── Modal: thêm quá trình ──────────────────────────────────────────────────
   const [showAddProgress, setShowAddProgress] = useState(false);
@@ -133,9 +120,6 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
   const [savingProgress, setSavingProgress] = useState(false);
   // Bước ngoài quy trình chuẩn — bác sĩ tự nhập tên
   const [progressCustom, setProgressCustom] = useState(false);
-  // Vật tư đã dùng — gợi ý từ định mức của dịch vụ, bác sĩ chỉnh trước khi ghi nhận cùng bước điều trị
-  const [supplyCatalog, setSupplyCatalog] = useState<SupplyItemDto[]>([]);
-  const [usageRows, setUsageRows] = useState<{ id: string; supplyItemId: string; quantity: string }[]>([]);
 
   // ── Modal: sửa mục đã ghi trong nhật ký ────────────────────────────────────
   const [editEntry, setEditEntry] = useState<{ id: string; planId: string; entryIndex: number; stepName: string } | null>(null);
@@ -144,8 +128,6 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
   const [editDate, setEditDate] = useState("");
   const [editNote, setEditNote] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
-  // Vật tư ghi nhận thêm khi sửa (cộng dồn tiêu hao — không ảnh hưởng vật tư đã ghi ở các lần trước)
-  const [editUsageRows, setEditUsageRows] = useState<{ id: string; supplyItemId: string; quantity: string }[]>([]);
 
   // ── Kéo-thả sắp xếp nhật ký điều trị (chỉ trong cùng một liệu trình) ────────
   const [dragKey, setDragKey] = useState<string | null>(null);      // `${planId}:${entryIndex}`
@@ -179,7 +161,6 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
         setMedicalHistory(history);
         setPlans(planList);
         setServices(serviceList);
-        getSupplyItemsApi().then(setSupplyCatalog).catch(() => {});
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : "Không thể tải thông tin bệnh nhân");
       } finally {
@@ -307,14 +288,6 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
     if (showToothPicker || showJawPicker) setAddQuantity(Math.max(1, selectedPositions.length));
   }, [showToothPicker, showJawPicker, selectedPositions.length]);
 
-  // Xem trước vật tư định mức khi chọn dịch vụ (+ option) trong modal "Thêm dịch vụ" — chỉ hiển thị, không trừ kho.
-  useEffect(() => {
-    if (!selService) { setPreviewSupplyItems([]); return; }
-    let cancelled = false;
-    getEffectiveServiceSupplyItemsApi(selService.id, selOption?.name).then(items => { if (!cancelled) setPreviewSupplyItems(items); }).catch(() => {});
-    return () => { cancelled = true; };
-  }, [selService, selOption]);
-
   // Các bước sẽ được ghi nhận khi bấm "Ghi nhận": các bước quy trình đã chọn, hoặc một bước tự nhập
   const stepsToSave = useMemo(() => {
     if (progressCustom || progressSteps.length === 0) {
@@ -327,12 +300,6 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
   }, [progressCustom, progressSteps, progressStepName, selectedStepIds]);
 
   const allStepsSelected = progressSteps.length > 0 && selectedStepIds.length === progressSteps.length;
-
-  // Vật tư chọn tay ở "Ghi nhận vật tư đã dùng" — loại "Vật tư chính" ra khỏi danh sách vì loại này giờ
-  // luôn được tự động ghi nhận tiêu hao ngay khi staff xử lý xong "Yêu cầu vật tư" (xem
-  // MarkMaterialRequestDoneHandler.AutoConsumeForTreatmentPlanAsync) — cho chọn tay lại ở đây dễ bị ghi
-  // trùng (tính 2 lần chi phí, trừ kho sai vì lúc đó tồn kho của nó đã về 0).
-  const manualUsageCatalog = supplyCatalog.filter(item => item.category !== CATEGORY_MAIN);
 
   const toggleStep = (stepId: string) => {
     setProgressCustom(false);
@@ -354,7 +321,7 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
     if (!selService || !examination) return;
     try {
       setSavingService(true);
-      const createdPlan = await createTreatmentPlanApi(appointmentId, {
+      await createTreatmentPlanApi(appointmentId, {
         serviceId: selService.id,
         unitPrice: selOption?.price,
         quantity: Math.max(1, addQuantity),
@@ -363,31 +330,10 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
         serviceOptionName: selOption?.name,
       });
 
-      // Vật tư chính trong định mức (mão sứ, veneer...) — điền sẵn thành nháp sang tab "Vật tư" để bác sĩ
-      // chỉ cần bổ sung kích thước/dấu răng thực tế rồi gửi, không phải gõ lại tên + số lượng từ đầu.
-      const mainItems = previewSupplyItems.filter(
-        s => supplyCatalog.find(c => c.id === s.supplyItemId)?.category === CATEGORY_MAIN
-      );
-      if (mainItems.length > 0 && onDraftMaterialRequest) {
-        // Chỉ tách theo dấu phẩy — vị trí giờ chọn bằng nút bấm (xem TOOTH_ROWS/JAW_OPTIONS)
-        // nên có thể là số răng ("16") hoặc nhãn hàm nhiều từ ("Hàm trên"), không còn gõ tay tự do nữa.
-        const positions = addTeeth.split(",").map(t => t.trim()).filter(Boolean);
-        const draftRows = mainItems.flatMap(item =>
-          positions.length > 0
-            ? positions.map(pos => ({
-                itemName: item.supplyItemName,
-                detail: /^\d+$/.test(pos) ? `Răng số ${pos}` : pos,
-                quantity: String(item.defaultQuantity),
-                unit: item.unit,
-                treatmentPlanId: createdPlan.id,
-              }))
-            : [{ itemName: item.supplyItemName, detail: "", quantity: String(item.defaultQuantity), unit: item.unit, treatmentPlanId: createdPlan.id }]
-        );
-        onDraftMaterialRequest(draftRows);
-        showToast(`Đã tạo sẵn ${draftRows.length} dòng yêu cầu vật tư chính — vào tab "Vật tư" để bổ sung kích thước & gửi`);
-      } else {
-        showToast("Đã thêm dịch vụ vào liệu trình");
-      }
+      // Vật tư chính trong định mức (mão sứ, veneer...) được backend tự động tạo yêu cầu vật tư gắn với
+      // liệu trình này ngay khi thêm dịch vụ (xem CreateTreatmentPlanHandler) — không cần bác sĩ tự nhập/
+      // chỉnh số liệu ở đây nữa.
+      showToast("Đã thêm dịch vụ vào liệu trình");
 
       setShowAddService(false);
       setSelService(null);
@@ -397,6 +343,7 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
       setAddTeeth("");
       setAddNotes("");
       await loadPlans(examination.patient.id);
+      onServiceAdded?.();
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Không thể thêm dịch vụ", "error");
     } finally {
@@ -424,23 +371,6 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
     }
   };
 
-  // Nạp gợi ý vật tư theo định mức HIỆU LỰC của dịch vụ + option đã chọn lúc thêm dịch vụ, nhân với
-  // số lượng (ĐVT) của liệu trình (vd: điều trị 3 Răng thì định mức 1 mão/răng -> gợi ý 3) — bác sĩ
-  // vẫn có thể chỉnh số lượng thực tế trước khi ghi nhận.
-  const loadUsageDefaults = async (serviceId: string, optionName: string | null, planQuantity: number) => {
-    const defaults = await getEffectiveServiceSupplyItemsApi(serviceId, optionName).catch(() => []);
-    // Bỏ "Vật tư chính" khỏi gợi ý — loại này giờ luôn tự động ghi nhận tiêu hao khi staff xử lý xong
-    // "Yêu cầu vật tư" (xem manualUsageCatalog ở trên), gợi ý lại ở đây dễ khiến bác sĩ ghi nhận trùng.
-    const consumableDefaults = defaults.filter(
-      d => supplyCatalog.find(c => c.id === d.supplyItemId)?.category !== CATEGORY_MAIN
-    );
-    setUsageRows(consumableDefaults.map((d, idx) => ({
-      id: `${idx}-${d.supplyItemId}`,
-      supplyItemId: d.supplyItemId,
-      quantity: String(d.defaultQuantity * Math.max(1, planQuantity)),
-    })));
-  };
-
   const handleOpenProgress = async (planId?: string) => {
     const target = planId ?? activePlans[0]?.id ?? "";
     setProgressPlanId(target);
@@ -456,10 +386,8 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
       setLoadingSteps(true);
       setProgressSteps(await loadProcedures(plan.serviceId));
       setLoadingSteps(false);
-      await loadUsageDefaults(plan.serviceId, plan.serviceOptionName, plan.quantity);
     } else {
       setProgressSteps([]);
-      setUsageRows([]);
     }
   };
 
@@ -474,74 +402,24 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
       setLoadingSteps(true);
       setProgressSteps(await loadProcedures(plan.serviceId));
       setLoadingSteps(false);
-      await loadUsageDefaults(plan.serviceId, plan.serviceOptionName, plan.quantity);
     } else {
       setProgressSteps([]);
-      setUsageRows([]);
     }
-  };
-
-  const handleAddUsageRow = () => {
-    setUsageRows(prev => [...prev, { id: Date.now().toString(), supplyItemId: "", quantity: "1" }]);
-  };
-
-  const handleRemoveUsageRow = async (rowId: string) => {
-    const row = usageRows.find(r => r.id === rowId);
-    // Dòng chưa chọn vật tư thì bỏ luôn, không cần hỏi — chỉ hỏi khi có dữ liệu thật sự sẽ mất.
-    if (row?.supplyItemId) {
-      const ok = await confirm({ title: "Bỏ vật tư này khỏi danh sách?", confirmLabel: "Bỏ vật tư" });
-      if (!ok) return;
-    }
-    setUsageRows(prev => prev.filter(r => r.id !== rowId));
-  };
-
-  const handleUsageRowChange = (rowId: string, field: "supplyItemId" | "quantity", val: string) => {
-    setUsageRows(prev => prev.map(r => (r.id === rowId ? { ...r, [field]: val } : r)));
-  };
-
-  const handleAddEditUsageRow = () => {
-    setEditUsageRows(prev => [...prev, { id: Date.now().toString(), supplyItemId: "", quantity: "1" }]);
-  };
-
-  const handleRemoveEditUsageRow = async (rowId: string) => {
-    const row = editUsageRows.find(r => r.id === rowId);
-    if (row?.supplyItemId) {
-      const ok = await confirm({ title: "Bỏ vật tư này khỏi danh sách?", confirmLabel: "Bỏ vật tư" });
-      if (!ok) return;
-    }
-    setEditUsageRows(prev => prev.filter(r => r.id !== rowId));
-  };
-
-  const handleEditUsageRowChange = (rowId: string, field: "supplyItemId" | "quantity", val: string) => {
-    setEditUsageRows(prev => prev.map(r => (r.id === rowId ? { ...r, [field]: val } : r)));
   };
 
   const handleAddProgress = async () => {
     if (!progressPlanId || stepsToSave.length === 0) return;
     try {
       setSavingProgress(true);
-      // Ghi lần lượt để nhật ký giữ đúng thứ tự các bước đã chọn — lấy id của mục cuối cùng vừa thêm để
-      // gắn với vật tư ghi nhận cùng lượt (hoàn kho đúng dòng nếu bước này sau này bị xóa).
-      let lastEntryId: string | undefined;
+      // Ghi lần lượt để nhật ký giữ đúng thứ tự các bước đã chọn.
       for (const step of stepsToSave) {
-        const updatedPlan = await addTreatmentPlanProgressApi(progressPlanId, {
+        await addTreatmentPlanProgressApi(progressPlanId, {
           stepNumber: step.stepNumber,
           stepName: step.stepName,
           percent: progressPercent,
           date: progressDate || undefined,
           note: progressNote.trim() || undefined,
         });
-        lastEntryId = updatedPlan.stepProgress[updatedPlan.stepProgress.length - 1]?.id;
-      }
-      const validUsage = usageRows
-        .filter(r => r.supplyItemId && (parseInt(r.quantity) || 0) > 0)
-        .map(r => ({ supplyItemId: r.supplyItemId, quantity: parseInt(r.quantity) || 0 }));
-      if (validUsage.length > 0) {
-        try {
-          await recordTreatmentSupplyUsageApi(progressPlanId, validUsage, lastEntryId);
-        } catch (err) {
-          showToast(err instanceof Error ? err.message : "Không thể ghi nhận vật tư đã dùng", "error");
-        }
       }
 
       showToast(stepsToSave.length > 1
@@ -562,39 +440,39 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
     setEditPercent(row.percent);
     setEditNote(row.note ?? "");
     setEditDate(row.date.slice(0, 10));
-    setEditUsageRows([]);
   };
 
   const handleSaveEdit = async () => {
-    if (!editEntry) return;
+    if (!editEntry || !examination) return;
     if (!editStepName.trim()) {
       showToast("Vui lòng nhập tên bước điều trị", "error");
       return;
     }
     try {
       setSavingEdit(true);
+      // editEntry.entryIndex chụp lúc mở modal — modal có thể mở khá lâu trong lúc bác sĩ sửa, nếu bước khác
+      // bị thêm/xóa/sắp xếp lại trong lúc đó thì vị trí này lệch. Tra lại theo Id ổn định trước khi gửi,
+      // giống hệt lý do đã sửa ở handleDeleteProgress.
+      const freshPlans = await getPatientTreatmentPlansApi(examination.patient.id);
+      const freshPlan = freshPlans.find(p => p.id === editEntry.planId);
+      const freshIndex = freshPlan?.stepProgress.findIndex(sp => sp.id === editEntry.id) ?? -1;
+      if (freshIndex < 0) {
+        showToast("Bước điều trị này đã bị thay đổi — danh sách vừa được tải lại.", "error");
+        setPlans(freshPlans);
+        setEditEntry(null);
+        return;
+      }
       await updateTreatmentPlanProgressApi(editEntry.planId, {
-        entryIndex: editEntry.entryIndex,
+        entryIndex: freshIndex,
         percent: editPercent,
         note: editNote.trim() || undefined,
         stepName: editStepName.trim(),
         date: editDate || undefined,
       });
 
-      const validEditUsage = editUsageRows
-        .filter(r => r.supplyItemId && (parseInt(r.quantity) || 0) > 0)
-        .map(r => ({ supplyItemId: r.supplyItemId, quantity: parseInt(r.quantity) || 0 }));
-      if (validEditUsage.length > 0) {
-        try {
-          await recordTreatmentSupplyUsageApi(editEntry.planId, validEditUsage, editEntry.id);
-        } catch (err) {
-          showToast(err instanceof Error ? err.message : "Không thể ghi nhận vật tư đã dùng", "error");
-        }
-      }
-
       showToast("Đã cập nhật quá trình điều trị");
       setEditEntry(null);
-      if (examination) await loadPlans(examination.patient.id);
+      await loadPlans(examination.patient.id);
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Không thể sửa quá trình", "error");
     } finally {
@@ -625,17 +503,29 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
     }
   };
 
-  const handleDeleteProgress = async (row: { planId: string; entryIndex: number; stepName: string }) => {
+  const handleDeleteProgress = async (row: { id: string; planId: string; entryIndex: number; stepName: string }) => {
     const ok = await confirm({
       title: "Xóa mục khỏi quá trình điều trị?",
       message: `Bước "${row.stepName}" sẽ bị xóa khỏi nhật ký điều trị của bệnh nhân.`,
       confirmLabel: "Xóa mục",
     });
-    if (!ok) return;
+    if (!ok || !examination) return;
     try {
-      await deleteTreatmentPlanProgressApi(row.planId, row.entryIndex);
+      // row.entryIndex chụp lúc mở popup xác nhận — nếu trong lúc chờ xác nhận, danh sách bước đã đổi (thêm/
+      // xóa/sắp xếp bước khác, kể cả từ tab/thiết bị khác), vị trí đó có thể không còn đúng nữa và API sẽ báo
+      // "Không tìm thấy bước điều trị cần xóa". Tải lại danh sách mới nhất rồi tra lại vị trí theo Id ổn định
+      // (không đổi khi sắp xếp lại) ngay trước khi gửi, thay vì tin vào entryIndex đã chụp từ trước.
+      const freshPlans = await getPatientTreatmentPlansApi(examination.patient.id);
+      const freshPlan = freshPlans.find(p => p.id === row.planId);
+      const freshIndex = freshPlan?.stepProgress.findIndex(sp => sp.id === row.id) ?? -1;
+      if (freshIndex < 0) {
+        showToast("Bước điều trị này đã bị thay đổi — danh sách vừa được tải lại, thử xóa lại.", "error");
+        setPlans(freshPlans);
+        return;
+      }
+      await deleteTreatmentPlanProgressApi(row.planId, freshIndex);
       showToast("Đã xóa mục quá trình điều trị");
-      if (examination) await loadPlans(examination.patient.id);
+      await loadPlans(examination.patient.id);
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Không thể xóa quá trình", "error");
     }
@@ -1260,26 +1150,6 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                     rows={2}
                     className="w-full px-3 py-2 text-[13px] bg-white border border-slate-200 rounded-lg focus:border-primary focus:outline-none font-semibold resize-none"
                   />
-
-                  {/* Xem trước vật tư định mức — chỉ để biết trước, ghi nhận/trừ kho thật ở bước "Ghi nhận quá trình điều trị" */}
-                  {previewSupplyItems.length > 0 && (
-                    <div className="border-t border-emerald-200 pt-2.5">
-                      <div className="text-[11px] font-extrabold text-amber-600 uppercase tracking-wider mb-1.5">
-                        Vật tư dự kiến cần dùng (định mức)
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        {previewSupplyItems.map((s, idx) => (
-                          <div key={s.id} className="flex items-center gap-1.5 text-[11.5px] font-semibold px-2 py-1 bg-amber-50 text-amber-700 rounded-lg border border-amber-200">
-                            <span className="w-4 h-4 rounded bg-amber-200/70 text-amber-800 text-[9.5px] font-black flex items-center justify-center shrink-0">
-                              {idx + 1}
-                            </span>
-                            <span>{s.supplyItemName} × {s.defaultQuantity * Math.max(1, addQuantity)} {s.unit}</span>
-                          </div>
-                        ))}
-                      </div>
-                      <p className="text-[11px] text-slate-400 mt-1.5">Chỉ để tham khảo — vật tư dùng thực tế sẽ ghi nhận khi cập nhật quá trình điều trị.</p>
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -1446,75 +1316,6 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                 </div>
               </div>
 
-              <div className="border-t border-slate-100 pt-4">
-                <div className="flex items-center justify-between gap-2">
-                  <label className="text-[11px] font-extrabold text-amber-600 uppercase tracking-wider">
-                    Vật tư đã dùng cho lần này
-                  </label>
-                  <button
-                    onClick={handleAddUsageRow}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 text-[11.5px] font-bold hover:bg-amber-100 transition-colors cursor-pointer"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                    </svg>
-                    Thêm vật tư
-                  </button>
-                </div>
-                {usageRows.length === 0 ? (
-                  <p className="text-[12px] font-semibold text-slate-400 mt-2">Không có vật tư nào (dịch vụ chưa khai định mức, hoặc không dùng vật tư).</p>
-                ) : (
-                  <div className="mt-2 flex flex-col gap-2">
-                    {usageRows.map((row, idx) => {
-                      const catalogItem = supplyCatalog.find(item => item.id === row.supplyItemId);
-                      const requestedQty = parseInt(row.quantity) || 0;
-                      const hasEnough = catalogItem && requestedQty > 0 ? catalogItem.quantity >= requestedQty : null;
-                      return (
-                        <div key={row.id} className="flex items-center gap-2">
-                          <span className="w-5 h-5 rounded bg-amber-100 text-amber-700 text-[10px] font-black flex items-center justify-center shrink-0">
-                            {idx + 1}
-                          </span>
-                          <select
-                            value={row.supplyItemId}
-                            onChange={e => handleUsageRowChange(row.id, "supplyItemId", e.target.value)}
-                            className="flex-1 px-2.5 py-2 text-[12.5px] bg-slate-50 border border-slate-200 rounded-lg focus:border-amber-500 focus:outline-none font-semibold text-slate-700 cursor-pointer"
-                          >
-                            <option value="">— Chọn vật tư —</option>
-                            {manualUsageCatalog.map(item => (
-                              <option key={item.id} value={item.id}>{item.name} ({item.unit})</option>
-                            ))}
-                          </select>
-                          <input
-                            type="number" min={1} placeholder="SL"
-                            value={row.quantity}
-                            onChange={e => handleUsageRowChange(row.id, "quantity", e.target.value)}
-                            className="w-16 px-2.5 py-2 text-[12.5px] bg-slate-50 border border-slate-200 rounded-lg focus:border-amber-500 focus:outline-none font-bold text-slate-700"
-                          />
-                          {hasEnough !== null && (
-                            <span
-                              className={`px-2 py-1 rounded-lg text-[10.5px] font-bold shrink-0 border whitespace-nowrap ${
-                                hasEnough ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-red-50 text-red-600 border-red-200"
-                              }`}
-                            >
-                              {hasEnough ? "Đủ" : "Không đủ"}
-                            </span>
-                          )}
-                          <button
-                            onClick={() => void handleRemoveUsageRow(row.id)}
-                            className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                            title="Bỏ vật tư này"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
               <button
                 onClick={() => void handleAddProgress()}
                 disabled={!progressPlanId || stepsToSave.length === 0 || savingProgress}
@@ -1584,75 +1385,6 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                 />
               </div>
 
-              <div className="border-t border-slate-100 pt-4">
-                <div className="flex items-center justify-between gap-2">
-                  <label className="text-[11px] font-extrabold text-amber-600 uppercase tracking-wider">
-                    Vật tư đã dùng cho lần này
-                  </label>
-                  <button
-                    onClick={handleAddEditUsageRow}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 text-[11.5px] font-bold hover:bg-amber-100 transition-colors cursor-pointer"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                    </svg>
-                    Thêm vật tư
-                  </button>
-                </div>
-                {editUsageRows.length === 0 ? (
-                  <p className="text-[12px] font-semibold text-slate-400 mt-2">Chưa thêm vật tư nào cho lần sửa này.</p>
-                ) : (
-                  <div className="mt-2 flex flex-col gap-2">
-                    {editUsageRows.map((row, idx) => {
-                      const catalogItem = supplyCatalog.find(item => item.id === row.supplyItemId);
-                      const requestedQty = parseInt(row.quantity) || 0;
-                      const hasEnough = catalogItem && requestedQty > 0 ? catalogItem.quantity >= requestedQty : null;
-                      return (
-                        <div key={row.id} className="flex items-center gap-2">
-                          <span className="w-5 h-5 rounded bg-amber-100 text-amber-700 text-[10px] font-black flex items-center justify-center shrink-0">
-                            {idx + 1}
-                          </span>
-                          <select
-                            value={row.supplyItemId}
-                            onChange={e => handleEditUsageRowChange(row.id, "supplyItemId", e.target.value)}
-                            className="flex-1 px-2.5 py-2 text-[12.5px] bg-slate-50 border border-slate-200 rounded-lg focus:border-amber-500 focus:outline-none font-semibold text-slate-700 cursor-pointer"
-                          >
-                            <option value="">— Chọn vật tư —</option>
-                            {manualUsageCatalog.map(item => (
-                              <option key={item.id} value={item.id}>{item.name} ({item.unit})</option>
-                            ))}
-                          </select>
-                          <input
-                            type="number" min={1} placeholder="SL"
-                            value={row.quantity}
-                            onChange={e => handleEditUsageRowChange(row.id, "quantity", e.target.value)}
-                            className="w-16 px-2.5 py-2 text-[12.5px] bg-slate-50 border border-slate-200 rounded-lg focus:border-amber-500 focus:outline-none font-bold text-slate-700"
-                          />
-                          {hasEnough !== null && (
-                            <span
-                              className={`px-2 py-1 rounded-lg text-[10.5px] font-bold shrink-0 border whitespace-nowrap ${
-                                hasEnough ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-red-50 text-red-600 border-red-200"
-                              }`}
-                            >
-                              {hasEnough ? "Đủ" : "Không đủ"}
-                            </span>
-                          )}
-                          <button
-                            onClick={() => void handleRemoveEditUsageRow(row.id)}
-                            className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                            title="Bỏ vật tư này"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-                <p className="text-[11px] text-slate-400 mt-1.5">Chỉ ghi nhận thêm vật tư mới dùng — không thay đổi vật tư đã ghi ở các lần trước.</p>
-              </div>
 
               <button
                 onClick={() => void handleSaveEdit()}

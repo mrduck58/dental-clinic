@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import DentistSidebar from "../../../../components/shared/DentistSidebar";
 import DentistPageHeader from "../../../../components/shared/DentistPageHeader";
-import AiSummaryText from "../../../../components/shared/AiSummaryText";
+import PhotoGallery from "../../../../components/shared/PhotoGallery";
 import TreatmentWorkspace from "./TreatmentWorkspace";
 import PrescriptionWorkspace from "./PrescriptionWorkspace";
 import FollowUpWorkspace from "./FollowUpWorkspace";
@@ -19,11 +19,7 @@ import {
   updateDiagnosisApi,
   deleteDiagnosisApi,
   getPatientMedicalHistoryApi,
-  getPatientAiSummaryApi,
-  getTreatmentSuggestionApi,
   type ExaminationDto,
-  type PatientHistorySummaryDto,
-  type TreatmentSuggestionDto,
   type DiagnosisDto,
   type PatientMedicalHistoryDto,
 } from "../../../../lib/apiClient";
@@ -79,10 +75,23 @@ const OPT_OCCLUSION = ["Khớp cắn chuẩn", "Cắn chéo", "Cắn hở", "C�
 const OTHER_VALUE = "__other__";
 
 function ExamSection({ title, children }: { title: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
   return (
-    <div>
-      <div className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mb-2.5">{title}</div>
-      {children}
+    <div className="border border-slate-200 rounded-xl overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-left cursor-pointer hover:bg-slate-50/70 transition-colors"
+      >
+        <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">{title}</span>
+        <svg
+          className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+          fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+        </svg>
+      </button>
+      {open && <div className="px-3.5 pb-3.5 pt-1">{children}</div>}
     </div>
   );
 }
@@ -204,9 +213,9 @@ export default function PatientDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>("diagnosis");
 
-  // Nháp "Yêu cầu vật tư" tự điền khi thêm dịch vụ có gắn Vật tư chính (xem TreatmentWorkspace) — bác sĩ
-  // bổ sung kích thước/dấu răng trong tab "Vật tư" rồi gửi, chưa gửi API ngay lúc này.
-  const [materialDraftRows, setMaterialDraftRows] = useState<{ itemName: string; detail: string; quantity: string; unit: string; treatmentPlanId: string }[]>([]);
+  // Tăng lên mỗi khi tab "Liệu trình" thêm 1 dịch vụ mới — dịch vụ có Vật tư chính trong định mức sẽ được
+  // backend tự động tạo kèm yêu cầu vật tư, tín hiệu này báo cho tab "Vật tư" tải lại danh sách ngay.
+  const [materialRefreshSignal, setMaterialRefreshSignal] = useState(0);
 
   // Phiếu khám răng miệng — gom các trường vào một object cho gọn
   const [form, setForm] = useState<ExamForm>(EMPTY_EXAM_FORM);
@@ -215,43 +224,6 @@ export default function PatientDetailPage() {
 
   // Patient medical history
   const [medicalHistory, setMedicalHistory] = useState<PatientMedicalHistoryDto[]>([]);
-
-  // Tóm tắt hồ sơ bằng AI — tạo theo yêu cầu (không tự động gọi khi vào trang)
-  const [aiSummary, setAiSummary] = useState<PatientHistorySummaryDto | null>(null);
-  const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
-  const [aiSummaryError, setAiSummaryError] = useState<string | null>(null);
-
-  const loadAiSummary = useCallback(async (force = false) => {
-    setAiSummaryLoading(true);
-    setAiSummaryError(null);
-    try {
-      const data = await getPatientAiSummaryApi(id, force);
-      setAiSummary(data);
-    } catch (err) {
-      setAiSummaryError(err instanceof Error ? err.message : "Không thể tạo tóm tắt AI");
-    } finally {
-      setAiSummaryLoading(false);
-    }
-  }, [id]);
-
-  // Gợi ý điều trị bằng AI — dựa trên phiếu khám ĐÃ LƯU của buổi khám này + lịch sử khám trước đây.
-  // Không cache: chẩn đoán có thể được bác sĩ sửa nhiều lần, mỗi lần bấm tạo lại theo dữ liệu mới nhất.
-  const [treatmentSuggestion, setTreatmentSuggestion] = useState<TreatmentSuggestionDto | null>(null);
-  const [treatmentSuggestionLoading, setTreatmentSuggestionLoading] = useState(false);
-  const [treatmentSuggestionError, setTreatmentSuggestionError] = useState<string | null>(null);
-
-  const loadTreatmentSuggestion = useCallback(async () => {
-    setTreatmentSuggestionLoading(true);
-    setTreatmentSuggestionError(null);
-    try {
-      const data = await getTreatmentSuggestionApi(id);
-      setTreatmentSuggestion(data);
-    } catch (err) {
-      setTreatmentSuggestionError(err instanceof Error ? err.message : "Không thể tạo gợi ý điều trị");
-    } finally {
-      setTreatmentSuggestionLoading(false);
-    }
-  }, [id]);
 
   const { toast, showToast } = useToast();
 
@@ -387,9 +359,6 @@ export default function PatientDetailPage() {
       }
 
       setDiagSaved(true);
-      // Phiếu khám vừa đổi — gợi ý cũ (nếu có) không còn khớp dữ liệu mới, xoá để bác sĩ tạo lại.
-      setTreatmentSuggestion(null);
-      setTreatmentSuggestionError(null);
       showToast("Đã lưu phiếu khám!", "success");
 
       // Tải lại để đồng bộ với dữ liệu server
@@ -518,11 +487,6 @@ return (
                 <path strokeLinecap="round" strokeLinejoin="round" d={tab.icon} />
               </svg>
               {tab.label}
-              {tab.id === "materials" && materialDraftRows.length > 0 && (
-                <span className="px-1.5 py-0.5 rounded-full text-[10.5px] font-black leading-none bg-orange-100 text-orange-700">
-                  {materialDraftRows.length}
-                </span>
-              )}
             </button>
           ))}
         </div>
@@ -695,141 +659,8 @@ return (
                       </div>
                     </div>
 
-                    {/* Tóm tắt AI cho bác sĩ */}
-                    <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
-                      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <svg className="w-5 h-5 text-violet-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                          </svg>
-                          <span className="text-[14px] font-black text-slate-900">Tóm tắt AI cho bác sĩ</span>
-                        </div>
-                        {!aiSummary && (
-                          <button
-                            onClick={() => void loadAiSummary()}
-                            disabled={aiSummaryLoading}
-                            className="px-3 py-1.5 rounded-lg bg-primary text-white text-[11.5px] font-bold hover:opacity-90 disabled:opacity-50 transition-all cursor-pointer"
-                          >
-                            {aiSummaryLoading ? "Đang tạo..." : "Tạo tóm tắt"}
-                          </button>
-                        )}
-                        {aiSummary && (
-                          <button
-                            onClick={() => void loadAiSummary(true)}
-                            disabled={aiSummaryLoading}
-                            className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-[11.5px] font-bold hover:bg-slate-50 disabled:opacity-50 transition-all cursor-pointer"
-                          >
-                            {aiSummaryLoading ? "Đang tạo..." : "Làm mới"}
-                          </button>
-                        )}
-                      </div>
-                      <div className="px-5 py-4 max-h-[300px] overflow-y-auto">
-                        {aiSummaryLoading && (
-                          <div className="flex items-center justify-center py-6">
-                            <div className="w-5 h-5 border-2 border-slate-200 border-t-primary rounded-full animate-spin" />
-                          </div>
-                        )}
-                        {!aiSummaryLoading && aiSummaryError && (
-                          <div className="flex flex-col gap-2">
-                            <span className="text-[12.5px] font-semibold text-red-600">{aiSummaryError}</span>
-                            <button
-                              onClick={() => void loadAiSummary()}
-                              className="self-start text-[12px] font-bold text-primary hover:underline cursor-pointer"
-                            >
-                              Thử lại
-                            </button>
-                          </div>
-                        )}
-                        {!aiSummaryLoading && !aiSummaryError && !aiSummary && (
-                          <span className="text-[12.5px] text-slate-400">
-                            Tổng hợp nhanh lịch sử khám trước đây của bệnh nhân để hỗ trợ bác sĩ.
-                          </span>
-                        )}
-                        {!aiSummaryLoading && aiSummary && (
-                          <div className="flex flex-col gap-3">
-                            {aiSummary.fromCache && (
-                              <span className="text-[10.5px] font-semibold text-slate-400">
-                                Tóm tắt từ lần tạo trước — bấm &quot;Làm mới&quot; nếu bệnh nhân vừa có lịch khám mới cần cập nhật.
-                              </span>
-                            )}
-                            <AiSummaryText text={aiSummary.summary} />
-                            <div className="px-3 py-2 rounded-lg bg-amber-50 border border-amber-200">
-                              <span className="text-[11px] font-semibold text-amber-700 leading-snug">{aiSummary.disclaimer}</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Gợi ý điều trị bằng AI */}
-                    <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
-                      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
-                          </svg>
-                          <span className="text-[14px] font-black text-slate-900">Gợi ý điều trị</span>
-                        </div>
-                        {examination.diagnoses[0]?.id && (
-                          <>
-                            {!treatmentSuggestion && (
-                              <button
-                                onClick={() => void loadTreatmentSuggestion()}
-                                disabled={treatmentSuggestionLoading}
-                                className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-[11.5px] font-bold hover:opacity-90 disabled:opacity-50 transition-all cursor-pointer"
-                              >
-                                {treatmentSuggestionLoading ? "Đang tạo..." : "Tạo gợi ý"}
-                              </button>
-                            )}
-                            {treatmentSuggestion && (
-                              <button
-                                onClick={() => void loadTreatmentSuggestion()}
-                                disabled={treatmentSuggestionLoading}
-                                className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-[11.5px] font-bold hover:bg-slate-50 disabled:opacity-50 transition-all cursor-pointer"
-                              >
-                                {treatmentSuggestionLoading ? "Đang tạo..." : "Làm mới"}
-                              </button>
-                            )}
-                          </>
-                        )}
-                      </div>
-                      <div className="px-5 py-4 max-h-[300px] overflow-y-auto">
-                        {!examination.diagnoses[0]?.id && (
-                          <span className="text-[12.5px] text-slate-400">
-                            Lưu phiếu khám (bên phải) trước để tạo gợi ý điều trị dựa trên chẩn đoán vừa nhập.
-                          </span>
-                        )}
-                        {examination.diagnoses[0]?.id && treatmentSuggestionLoading && (
-                          <div className="flex items-center justify-center py-6">
-                            <div className="w-5 h-5 border-2 border-slate-200 border-t-emerald-600 rounded-full animate-spin" />
-                          </div>
-                        )}
-                        {examination.diagnoses[0]?.id && !treatmentSuggestionLoading && treatmentSuggestionError && (
-                          <div className="flex flex-col gap-2">
-                            <span className="text-[12.5px] font-semibold text-red-600">{treatmentSuggestionError}</span>
-                            <button
-                              onClick={() => void loadTreatmentSuggestion()}
-                              className="self-start text-[12px] font-bold text-primary hover:underline cursor-pointer"
-                            >
-                              Thử lại
-                            </button>
-                          </div>
-                        )}
-                        {examination.diagnoses[0]?.id && !treatmentSuggestionLoading && !treatmentSuggestionError && !treatmentSuggestion && (
-                          <span className="text-[12.5px] text-slate-400">
-                            Dựa trên chẩn đoán vừa lưu và lịch sử điều trị của bệnh nhân để gợi ý hướng xử lý, hỗ trợ bác sĩ tham khảo thêm.
-                          </span>
-                        )}
-                        {!treatmentSuggestionLoading && treatmentSuggestion && (
-                          <div className="flex flex-col gap-3">
-                            <AiSummaryText text={treatmentSuggestion.suggestion} />
-                            <div className="px-3 py-2 rounded-lg bg-amber-50 border border-amber-200">
-                              <span className="text-[11px] font-semibold text-amber-700 leading-snug">{treatmentSuggestion.disclaimer}</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                    {/* Ảnh chụp chiếu — chỉ up ảnh thường (không có máy tích hợp) + ghi chú mỗi ảnh */}
+                    <PhotoGallery appointmentId={id} section="exam" title="Ảnh chụp chiếu" />
                   </div>
 
                   {/* RIGHT: Phiếu khám răng miệng */}
@@ -937,9 +768,6 @@ return (
                           disabled={!canEdit}
                           className="ml-auto flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-[13px] font-black rounded-xl hover:bg-red-600 transition-all shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                          </svg>
                           Lưu phiếu khám
                         </button>
                       </div>
@@ -955,7 +783,7 @@ return (
                 <TreatmentWorkspace
                   appointmentId={id}
                   editMode={editMode && isFinished}
-                  onDraftMaterialRequest={rows => setMaterialDraftRows(prev => [...prev, ...rows])}
+                  onServiceAdded={() => setMaterialRefreshSignal(n => n + 1)}
                 />
               </div>
 
@@ -976,8 +804,7 @@ return (
                 <MaterialWorkspace
                   appointmentId={id}
                   editMode={editMode && isFinished}
-                  draftItems={materialDraftRows}
-                  onDraftConsumed={() => setMaterialDraftRows([])}
+                  refreshSignal={materialRefreshSignal}
                 />
               </div>
 

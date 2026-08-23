@@ -41,6 +41,9 @@ public class Appointment
     public ICollection<Diagnosis> Diagnoses { get; private set; } = new List<Diagnosis>();
     public ICollection<TreatmentPlan> TreatmentPlans { get; private set; } = new List<TreatmentPlan>();
     public ICollection<Prescription> Prescriptions { get; private set; } = new List<Prescription>();
+    // Ảnh chụp chiếu lúc khám + ảnh đính kèm yêu cầu vật tư (dấu răng, răng lợi...) — tách theo
+    // AppointmentPhoto.Section, xem ghi chú trên entity đó.
+    public ICollection<AppointmentPhoto> Photos { get; private set; } = new List<AppointmentPhoto>();
 
     // Follow-up appointments (dữ liệu lịch sử — luồng tạo lịch tái khám cũ đã bỏ)
     public Guid? FollowUpFromAppointmentId { get; private set; }

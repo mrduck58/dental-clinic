@@ -1142,6 +1142,9 @@ export interface SupplyTransactionDto {
   note: string | null;
   createdBy: string;
   createdAt: string;
+  /** Phòng nhận hàng nếu đây là 1 lần xuất theo phòng — null với các giao dịch khác (nhập kho, tiêu hao
+   * điều trị, yêu cầu vật tư...). */
+  roomName: string | null;
 }
 
 export interface CreateSupplyItemRequest {
@@ -1167,6 +1170,8 @@ export interface CreateSupplyTransactionRequest {
   type: "import" | "export";
   quantity: number;
   note?: string;
+  /** Phòng nhận hàng — chỉ áp dụng khi type = "export" (xuất theo phòng). */
+  roomId?: string;
 }
 
 // ── Inventory endpoints ────────────────────────────────────────────────────
@@ -1232,8 +1237,9 @@ export async function getSupplyItemsApi(params?: {
   return res.json() as Promise<SupplyItemDto[]>;
 }
 
-export async function getSupplyTransactionsApi(): Promise<SupplyTransactionDto[]> {
-  const res = await fetch(`${API_URL}/api/inventory/transactions`, {
+export async function getSupplyTransactionsApi(roomId?: string): Promise<SupplyTransactionDto[]> {
+  const qs = roomId ? `?roomId=${encodeURIComponent(roomId)}` : "";
+  const res = await fetch(`${API_URL}/api/inventory/transactions${qs}`, {
     headers: { ...authHeaders() },
   });
   await checkAuth(res);
@@ -1266,7 +1272,8 @@ export interface StockImportRequest {
   category: string;
   quantity: number;
   note?: string;
-  unitPrice?: number;
+  /** Bắt buộc — nhập kho không có giá sẽ bị bỏ sót khỏi báo cáo chi phí vật tư. */
+  unitPrice: number;
 }
 
 export async function stockImportApi(data: StockImportRequest): Promise<SupplyTransactionDto> {
@@ -1301,6 +1308,9 @@ export interface MaterialRequestDto {
   id: string;
   /** Dịch vụ cụ thể trong liệu trình mà yêu cầu này phục vụ — null nếu tạo tự do (không gắn dịch vụ nào). */
   treatmentPlanId: string | null;
+  /** Buổi hẹn đã sinh ra yêu cầu này — dùng để tải ảnh đính kèm (dấu răng, răng lợi...) qua
+   * getAppointmentPhotosApi(appointmentId, "material-request"). Null nếu staff tự khởi tạo. */
+  appointmentId: string | null;
   courseName: string;
   patientName: string;
   dentistName: string;
@@ -2737,6 +2747,71 @@ export async function deleteDiagnosisApi(diagnosisId: string): Promise<void> {
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { title?: string }).title ?? "Không thể xóa chuẩn đoán");
+  }
+}
+
+// Appointment Photo APIs — ảnh chụp tay (X-quang/dấu răng/răng lợi...) gắn với buổi hẹn, không qua
+// máy tích hợp. section: "exam" (tab Khám) | "material-request" (tab Vật tư).
+export interface AppointmentPhotoDto {
+  id: string;
+  appointmentId: string;
+  section: string;
+  url: string;
+  note: string | null;
+  uploadedBy: string;
+  createdAt: string;
+}
+
+export async function getAppointmentPhotosApi(appointmentId: string, section?: string): Promise<AppointmentPhotoDto[]> {
+  const qs = section ? `?section=${encodeURIComponent(section)}` : "";
+  const res = await fetch(`${API_URL}/api/appointments/${appointmentId}/photos${qs}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải ảnh");
+  }
+  return res.json() as Promise<AppointmentPhotoDto[]>;
+}
+
+export async function addAppointmentPhotoApi(appointmentId: string, request: { section: string; url: string; note?: string }): Promise<AppointmentPhotoDto> {
+  const res = await fetch(`${API_URL}/api/appointments/${appointmentId}/photos`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(request),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể thêm ảnh");
+  }
+  return res.json() as Promise<AppointmentPhotoDto>;
+}
+
+export async function updateAppointmentPhotoNoteApi(photoId: string, note?: string): Promise<AppointmentPhotoDto> {
+  const res = await fetch(`${API_URL}/api/appointments/photos/${photoId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ note }),
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể cập nhật ghi chú");
+  }
+  return res.json() as Promise<AppointmentPhotoDto>;
+}
+
+export async function deleteAppointmentPhotoApi(photoId: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/appointments/photos/${photoId}`, {
+    method: "DELETE",
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể xóa ảnh");
   }
 }
 

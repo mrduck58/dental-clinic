@@ -4,13 +4,15 @@ using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Inventory;
 
-public record GetSupplyTransactionsQuery : IRequest<IEnumerable<SupplyTransactionDto>>;
+/// <summary>RoomId khác null → chỉ trả về giao dịch xuất theo đúng phòng đó (dùng cho màn chi tiết phòng
+/// bên Admin, xem `admin/rooms/[id]`).</summary>
+public record GetSupplyTransactionsQuery(Guid? RoomId = null) : IRequest<IEnumerable<SupplyTransactionDto>>;
 
 public class GetSupplyTransactionsHandler(ISupplyTransactionRepository repository) : IRequestHandler<GetSupplyTransactionsQuery, IEnumerable<SupplyTransactionDto>>
 {
     public async Task<IEnumerable<SupplyTransactionDto>> Handle(GetSupplyTransactionsQuery request, CancellationToken ct)
     {
-        var txs = await repository.GetAllAsync(ct);
+        var txs = await repository.GetAllAsync(request.RoomId, ct);
 
         return txs.Select(t => new SupplyTransactionDto(
             t.Id,
@@ -21,6 +23,7 @@ public class GetSupplyTransactionsHandler(ISupplyTransactionRepository repositor
             t.UnitPrice,
             t.Note,
             t.CreatedBy,
-            t.CreatedAt));
+            t.CreatedAt,
+            t.Room?.Name));
     }
 }

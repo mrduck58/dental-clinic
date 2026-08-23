@@ -23,13 +23,15 @@ public record SupplyTransactionDto(
     decimal? UnitPrice,
     string? Note,
     string CreatedBy,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    string? RoomName = null);
 
 public record CreateSupplyTransactionRequest(
     Guid SupplyItemId,
     string Type,
     int Quantity,
-    string? Note);
+    string? Note,
+    Guid? RoomId = null);
 
 public record CreateSupplyItemRequest(
     string Code,

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import StaffSidebar from "../../../components/shared/StaffSidebar";
 import StaffPageHeader from "../../../components/shared/StaffPageHeader";
+import MaterialRequestPhotoStrip from "../../../components/shared/MaterialRequestPhotoStrip";
 import Pagination from "../../../components/shared/Pagination";
 import { SortableTh, Th, toggleSortState, type SortDir } from "../../../components/shared/TableHeader";
 import { useRequireStaff } from "../../../hooks/useRequireStaff";
@@ -14,15 +15,18 @@ import {
   updateSupplyItemApi,
   deleteSupplyItemApi,
   stockImportApi,
+  createSupplyTransactionApi,
   getMaterialRequestsApi,
   markMaterialRequestDoneApi,
   markMaterialRequestOrderedApi,
   createMaterialRequestByStaffApi,
   searchPatientsApi,
+  getRoomsApi,
   type SupplyItemDto,
   type SupplyTransactionDto,
   type MaterialRequestDto,
   type PatientSearchResultDto,
+  type RoomDto,
 } from "../../../lib/apiClient";
 import { SUPPLY_UNITS } from "../../../lib/inventoryConstants";
 
@@ -53,6 +57,73 @@ function Portal({ children }: { children: React.ReactNode }) {
   return createPortal(children, document.body);
 }
 
+/**
+ * Danh sách "Tồn kho hiện tại" dùng chung cho tab "+ Nhập kho" và "Xuất kho theo phòng" — bấm 1 dòng để
+ * chọn thẳng vật tư đó vào form bên cạnh, khỏi phải gõ tay/dùng dropdown riêng. Chỉ 2 tab Vật tư tiêu
+ * hao/Vật tư kỹ thuật (không có Vật tư chính — loại đó đặt riêng theo bệnh nhân qua "Yêu cầu vật tư",
+ * không nhập/xuất nhanh ở đây). Chiều cao giới hạn theo viewport (không đo theo cột form bên cạnh bằng
+ * ResizeObserver như cũ — cách đó không cuộn được ổn định khi danh sách dài) nên luôn cuộn nội bộ được.
+ */
+function StockPickerPanel({ items, loading, selectedId, onSelect, hint }: {
+  items: SupplyItemDto[];
+  loading: boolean;
+  selectedId: string;
+  onSelect: (item: SupplyItemDto) => void;
+  hint: string;
+}) {
+  const [pickerCategory, setPickerCategory] = useState(QUICK_IMPORT_CATEGORIES[0]);
+  const filtered = items.filter(it => it.category === pickerCategory);
+
+  return (
+    <div className="lg:col-span-3 bg-white rounded-2xl border border-slate-200/60 shadow-sm flex flex-col overflow-hidden max-h-[calc(100vh-260px)]">
+      <div className="px-6 py-4 border-b border-slate-100 shrink-0">
+        <h3 className="text-[15px] font-black text-slate-900">Tồn kho hiện tại</h3>
+        <p className="text-[11.5px] text-slate-400 font-semibold mt-0.5">{hint}</p>
+      </div>
+      <div className="px-6 pt-3 flex gap-2 shrink-0">
+        {QUICK_IMPORT_CATEGORIES.map(cat => (
+          <button
+            key={cat}
+            type="button"
+            onClick={() => setPickerCategory(cat)}
+            className={`px-3 py-1.5 rounded-lg text-[12px] font-bold transition-colors cursor-pointer border ${
+              pickerCategory === cat ? "bg-primary text-white border-primary" : "bg-white text-slate-500 border-slate-200 hover:border-primary/40"
+            }`}
+          >
+            {cat}
+          </button>
+        ))}
+      </div>
+      <ul className="flex-1 min-h-0 mt-2 divide-y divide-slate-100 overflow-y-auto">
+        {loading ? (
+          <li className="px-6 py-10 text-center text-[13px] text-slate-400 font-semibold">Đang tải...</li>
+        ) : filtered.length === 0 ? (
+          <li className="px-6 py-10 text-center text-[13px] text-slate-400 font-semibold">Chưa có vật tư nào.</li>
+        ) : filtered.map(s => (
+          <li key={s.id}>
+            <button
+              type="button"
+              onClick={() => onSelect(s)}
+              title={`Chọn "${s.name}"`}
+              className={`w-full px-6 py-3.5 flex items-center justify-between gap-3 text-left transition-colors cursor-pointer ${
+                selectedId === s.id ? "bg-primary/5" : "hover:bg-slate-50/50"
+              }`}
+            >
+              <div className="text-[13.5px] font-bold text-slate-900">{s.name}</div>
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-black shrink-0 ${
+                s.isLow ? "bg-amber-50 text-amber-700 border border-amber-100" : "bg-green-50 text-green-700 border border-green-100"
+              }`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${s.isLow ? "bg-amber-500" : "bg-green-500"}`} />
+                {s.quantity} {s.unit}
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 // ── Styles ─────────────────────────────────────────────────────────────────
 
 const filterSelectCls = "px-4 py-2.5 text-[13px] bg-white border border-slate-200 rounded-xl focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-semibold text-slate-600 appearance-none cursor-pointer pr-8";
@@ -64,7 +135,7 @@ const inputCls  = "w-full px-4 py-2.5 text-[13.5px] bg-slate-50 border border-sl
 export default function InventoryPage() {
   useRequireStaff();
 
-  const [tab,           setTab]           = useState<"stock" | "transaction" | "log" | "requests">("stock");
+  const [tab,           setTab]           = useState<"stock" | "transaction" | "room-export" | "log" | "requests">("stock");
   const [requests,      setRequests]      = useState<MaterialRequestDto[]>([]);
   const [loadingReqs,   setLoadingReqs]   = useState(false);
   const [processingId,  setProcessingId]  = useState<string | null>(null);
@@ -99,7 +170,7 @@ export default function InventoryPage() {
   const [loadingLog,    setLoadingLog]    = useState(false);
   const [error,         setError]         = useState<string | null>(null);
 
-  // form state — nhập kho (không còn xuất kho thủ công, xem lý do ở phần "+ Nhập kho")
+  // form state — nhập kho
   const [txItemSearch,   setTxItemSearch]   = useState("");
   const [txItemFocused,  setTxItemFocused]  = useState(false); // dropdown gợi ý tên vật tư khi nhập kho
   const [txSelectedItemId, setTxSelectedItemId] = useState("");
@@ -111,6 +182,18 @@ export default function InventoryPage() {
   const [txErrors,       setTxErrors]       = useState<{ name?: string; unit?: string; qty?: string; price?: string }>({});
   const [submitting,     setSubmitting]     = useState(false);
   const [saved,          setSaved]          = useState(false);
+
+  // form state — xuất kho theo phòng (bác sĩ báo miệng hết đồ giữa ca khám, staff cấp bù trực tiếp cho
+  // phòng đó — không cần đi qua "Yêu cầu vật tư" vì đây là hàng dùng chung có sẵn trong kho, không phải
+  // đặt riêng theo bệnh nhân).
+  const [rooms,          setRooms]          = useState<RoomDto[]>([]);
+  const [exportItemId,   setExportItemId]   = useState("");
+  const [exportRoomId,   setExportRoomId]   = useState("");
+  const [exportQtyStr,   setExportQtyStr]   = useState("");
+  const [exportNote,     setExportNote]     = useState("");
+  const [exportErrors,   setExportErrors]   = useState<{ item?: string; room?: string; qty?: string }>({});
+  const [exportSubmitting, setExportSubmitting] = useState(false);
+  const [exportSaved,    setExportSaved]    = useState(false);
 
   // modal thêm/sửa vật tư — dùng chung 1 form cho cả 2 chế độ
   const [itemModal,      setItemModal]      = useState<{ mode: "add" | "edit"; id?: string } | null>(null);
@@ -136,24 +219,10 @@ export default function InventoryPage() {
   const [logSortKey,   setLogSortKey]   = useState<LogSortKey>("date");
   const [logSortDir,   setLogSortDir]   = useState<SortDir>("desc");
 
-  // Tab "+ Nhập kho": đo chiều cao thật của form bên trái để khung "Tồn kho hiện tại" bên phải
-  // cao đúng bằng nó rồi mới cuộn — tránh vừa hụt (khoảng trống) vừa tràn (danh sách dài hơn form).
-  const txFormPanelRef = useRef<HTMLDivElement>(null);
-  const [txFormPanelHeight, setTxFormPanelHeight] = useState<number | null>(null);
-  // Bấm 1 dòng trong "Tồn kho hiện tại" (bên phải) để điền sẵn form nhập kho bên trái — đỡ phải gõ tay
-  // tên/đơn vị/danh mục khi chỉ đơn giản là nhập thêm cho vật tư đã có sẵn.
+  // Bấm 1 dòng trong "Tồn kho hiện tại" (StockPickerPanel) để điền sẵn form nhập/xuất kho bên cạnh — đỡ
+  // phải gõ tay/dùng dropdown riêng khi chỉ đơn giản là chọn 1 vật tư đã có sẵn.
   const txQtyInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const el = txFormPanelRef.current;
-    if (!el) return;
-    const observer = new ResizeObserver((entries) => {
-      const height = entries[0]?.borderBoxSize?.[0]?.blockSize ?? entries[0]?.contentRect.height;
-      if (height) setTxFormPanelHeight(height);
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
+  const exportQtyInputRef = useRef<HTMLInputElement>(null);
 
   const fetchItems = useCallback(async () => {
     setLoadingItems(true);
@@ -332,7 +401,7 @@ export default function InventoryPage() {
     }
   };
 
-  useEffect(() => { fetchItems(); fetchLog(); fetchRequests(); }, []);
+  useEffect(() => { fetchItems(); fetchLog(); fetchRequests(); getRoomsApi().then(setRooms).catch(() => {}); }, []);
 
   // Filter stock
   const filteredStock = items.filter(s => {
@@ -414,9 +483,18 @@ export default function InventoryPage() {
     txQtyInputRef.current?.focus();
   };
 
-  // Chỉ còn Nhập kho — KHÔNG còn Xuất kho thủ công ở đây. Xuất kho thật giờ luôn có truy vết rõ ràng:
-  // qua "Ghi nhận vật tư đã dùng" lúc điều trị (tự trừ kho theo liệu trình) hoặc qua "Yêu cầu vật tư"
-  // (Vật tư chính, đặt riêng theo bệnh nhân) — xuất tay tự do rất khó kiểm soát nên bỏ hẳn.
+  // Bấm 1 dòng trong "Tồn kho hiện tại" của tab Xuất kho theo phòng → chọn thẳng vật tư đó rồi focus vào
+  // ô số lượng, khỏi phải dùng dropdown riêng.
+  const selectItemForExport = (s: SupplyItemDto) => {
+    setExportItemId(s.id);
+    setExportErrors(prev => ({ ...prev, item: undefined, qty: undefined }));
+    exportQtyInputRef.current?.focus();
+  };
+
+  // Form này chỉ còn dùng để Nhập kho — không có xuất kho tự do ở đây. Xuất kho thật luôn có truy vết rõ
+  // ràng: qua "Ghi nhận vật tư đã dùng" lúc điều trị (tự trừ kho theo liệu trình), qua "Yêu cầu vật tư"
+  // (Vật tư chính, tự động theo dịch vụ), hoặc qua tab "Xuất kho theo phòng" (cấp bù cho phòng khi bác sĩ
+  // báo miệng hết đồ giữa ca khám — xem handleExportToRoom).
   const handleTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -427,7 +505,8 @@ export default function InventoryPage() {
     if (!txItemSearch.trim()) errors.name = "Vui lòng nhập tên vật tư.";
     if (!txUnit) errors.unit = "Vui lòng chọn đơn vị.";
     if (!txQtyStr || txQty <= 0) errors.qty = "Số lượng phải lớn hơn 0.";
-    if (txPriceStr && (Number.isNaN(txPrice) || (txPrice ?? 0) < 0)) errors.price = "Đơn giá không hợp lệ.";
+    if (!txPriceStr) errors.price = "Vui lòng nhập đơn giá.";
+    else if (Number.isNaN(txPrice) || (txPrice ?? 0) < 0) errors.price = "Đơn giá không hợp lệ.";
 
     if (Object.keys(errors).length > 0) {
       setTxErrors(errors);
@@ -443,7 +522,7 @@ export default function InventoryPage() {
         category: txCategory,
         quantity: txQty,
         note: txNote || undefined,
-        unitPrice: txPrice,
+        unitPrice: Number(txPriceStr),
       });
       // Nếu vật tư đã có → cập nhật local state; nếu mới → refetch
       const existingItem = items.find(it => it.id === tx.supplyItemId);
@@ -467,6 +546,54 @@ export default function InventoryPage() {
       setError(e instanceof Error ? e.message : "Nhập kho thất bại");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // Cấp bù vật tư dùng chung (găng tay, khẩu trang...) trực tiếp cho 1 phòng — dùng khi bác sĩ báo miệng
+  // hết đồ giữa ca khám, không cần lập yêu cầu vật tư (đó là dành riêng cho Vật tư chính theo bệnh nhân).
+  const handleExportToRoom = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const exportQty = Number(exportQtyStr);
+    const selectedItem = items.find(it => it.id === exportItemId);
+
+    const errors: { item?: string; room?: string; qty?: string } = {};
+    if (!exportItemId) errors.item = "Vui lòng chọn vật tư.";
+    if (!exportRoomId) errors.room = "Vui lòng chọn phòng.";
+    if (!exportQtyStr || exportQty <= 0) errors.qty = "Số lượng phải lớn hơn 0.";
+    else if (selectedItem && exportQty > selectedItem.quantity) errors.qty = `Vượt quá tồn kho hiện tại (${selectedItem.quantity}).`;
+
+    if (Object.keys(errors).length > 0) {
+      setExportErrors(errors);
+      return;
+    }
+    setExportErrors({});
+    setExportSubmitting(true);
+    setError(null);
+    try {
+      const tx = await createSupplyTransactionApi({
+        supplyItemId: exportItemId,
+        type: "export",
+        quantity: exportQty,
+        note: exportNote || undefined,
+        roomId: exportRoomId,
+      });
+      setItems(prev => prev.map(it => {
+        if (it.id !== exportItemId) return it;
+        const newQty = it.quantity - exportQty;
+        return { ...it, quantity: newQty, isLow: newQty <= it.minQuantity };
+      }));
+      setLog(prev => [tx, ...prev]);
+      setLogPage(1);
+      setExportSaved(true);
+      setTimeout(() => {
+        setExportSaved(false);
+        setExportItemId(""); setExportRoomId(""); setExportQtyStr(""); setExportNote("");
+      }, 2000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Xuất kho thất bại");
+    } finally {
+      setExportSubmitting(false);
     }
   };
 
@@ -559,6 +686,7 @@ export default function InventoryPage() {
             {([
               { key: "stock",       label: "Tồn kho",           count: 0 },
               { key: "transaction", label: "+ Nhập kho",        count: 0 },
+              { key: "room-export", label: "Xuất kho theo phòng", count: 0 },
               { key: "requests",    label: "Yêu cầu vật tư",     count: requests.filter(r => r.status !== "Done").length },
               { key: "log",         label: "Lịch sử giao dịch", count: 0 },
             ] as const).map(t => (
@@ -684,7 +812,7 @@ export default function InventoryPage() {
           {tab === "transaction" && (
             <div className="flex flex-col gap-5">
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-5 items-start">
-              <div ref={txFormPanelRef} className="lg:col-span-2 bg-white rounded-2xl border border-slate-200/60 shadow-sm p-7 flex flex-col gap-5">
+              <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200/60 shadow-sm p-7 flex flex-col gap-5">
                 <div>
                   <h2 className="text-[15px] font-black text-slate-900">Tạo phiếu nhập kho</h2>
                   <p className="text-[12px] text-slate-400 font-semibold mt-1">
@@ -790,12 +918,12 @@ export default function InventoryPage() {
                     </div>
 
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">Đơn giá (₫)</label>
+                      <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">Đơn giá (₫) *</label>
                       <input type="number" min={0}
                         value={txPriceStr}
                         onChange={e => { setTxPriceStr(e.target.value); setTxErrors(prev => ({ ...prev, price: undefined })); }}
                         onWheel={e => e.currentTarget.blur()}
-                        placeholder="Giá nhập / 1 đơn vị — bỏ trống nếu không rõ"
+                        placeholder="Giá nhập / 1 đơn vị"
                         className={`${inputCls} [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${txErrors.price ? "!border-red-300 focus:!border-red-400 focus:!ring-red-200" : ""}`} />
                       {txErrors.price && <p className="text-[12px] text-red-500 font-semibold">{txErrors.price}</p>}
                       {txPriceStr && txQtyStr && !Number.isNaN(Number(txPriceStr)) && !Number.isNaN(Number(txQtyStr)) && (
@@ -825,47 +953,111 @@ export default function InventoryPage() {
                 )}
               </div>
 
-              {/* Current stock reference — cao đúng bằng cột form bên trái (đo qua txFormPanelHeight),
-                  danh sách chỉ cuộn nội bộ khi dài hơn, không kéo giãn cả hàng lưới. */}
-              <div
-                className="lg:col-span-3 bg-white rounded-2xl border border-slate-200/60 shadow-sm flex flex-col overflow-hidden"
-                style={txFormPanelHeight ? { height: txFormPanelHeight } : undefined}
-              >
-                <div className="px-6 py-4 border-b border-slate-100 shrink-0">
-                  <h3 className="text-[15px] font-black text-slate-900">Tồn kho hiện tại</h3>
-                  <p className="text-[11.5px] text-slate-400 font-semibold mt-0.5">Bấm 1 dòng để nhập thêm cho vật tư đó — khỏi phải gõ tay.</p>
-                </div>
-                <ul className="flex-1 min-h-0 divide-y divide-slate-100 overflow-y-auto">
-                  {loadingItems ? (
-                    <li className="px-6 py-10 text-center text-[13px] text-slate-400 font-semibold">Đang tải...</li>
-                  ) : items.length === 0 ? (
-                    <li className="px-6 py-10 text-center text-[13px] text-slate-400 font-semibold">Chưa có vật tư nào.</li>
-                  ) : items.map(s => (
-                    <li key={s.id}>
-                      <button
-                        type="button"
-                        onClick={() => selectItemForImport(s)}
-                        title={`Chọn "${s.name}" để nhập thêm`}
-                        className={`w-full px-6 py-3.5 flex items-center justify-between gap-3 text-left transition-colors cursor-pointer ${
-                          txSelectedItemId === s.id ? "bg-primary/5" : "hover:bg-slate-50/50"
-                        }`}
-                      >
-                        <div>
-                          <div className="text-[13.5px] font-bold text-slate-900">{s.name}</div>
-                          <div className="text-[12px] text-slate-400 font-semibold">{s.category} · {s.unit}</div>
-                        </div>
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-black shrink-0 ${
-                          s.isLow ? "bg-amber-50 text-amber-700 border border-amber-100" : "bg-green-50 text-green-700 border border-green-100"
-                        }`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${s.isLow ? "bg-amber-500" : "bg-green-500"}`} />
-                          {s.quantity} {s.unit}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              <StockPickerPanel
+                items={items}
+                loading={loadingItems}
+                selectedId={txSelectedItemId}
+                onSelect={selectItemForImport}
+                hint="Bấm 1 dòng để nhập thêm cho vật tư đó — khỏi phải gõ tay."
+              />
             </div>
+            </div>
+          )}
+
+          {/* ── Tab: Xuất kho theo phòng ── */}
+          {tab === "room-export" && (
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-5 items-start">
+              <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200/60 shadow-sm p-7 flex flex-col gap-5">
+                <div>
+                  <h2 className="text-[15px] font-black text-slate-900">Xuất kho cho phòng</h2>
+                  <p className="text-[12px] text-slate-400 font-semibold mt-1">
+                    Dùng khi bác sĩ báo miệng hết vật tư dùng chung (găng tay, khẩu trang...) giữa ca khám —
+                    cấp bù trực tiếp cho đúng phòng đó, không cần lập yêu cầu vật tư.
+                  </p>
+                </div>
+                {exportSaved ? (
+                  <div className="flex items-center gap-3 bg-green-50 border border-green-100 text-green-700 px-4 py-3 rounded-xl text-[13px] font-bold">
+                    <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    Đã xuất kho cho phòng thành công!
+                  </div>
+                ) : (
+                  <form onSubmit={handleExportToRoom} className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">Vật tư *</label>
+                      <div className="relative">
+                        <select
+                          value={exportItemId}
+                          onChange={e => { setExportItemId(e.target.value); setExportErrors(prev => ({ ...prev, item: undefined, qty: undefined })); }}
+                          className={`${selectCls} ${exportErrors.item ? "!border-red-300" : ""}`}
+                        >
+                          <option value="">— Chọn vật tư —</option>
+                          {items.filter(it => it.category !== CATEGORY_MAIN).sort((a, b) => a.name.localeCompare(b.name)).map(it => (
+                            <option key={it.id} value={it.id}>{it.name} (tồn: {it.quantity} {it.unit})</option>
+                          ))}
+                        </select>
+                        <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400"><svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg></span>
+                      </div>
+                      {exportErrors.item && <p className="text-[12px] text-red-500 font-semibold">{exportErrors.item}</p>}
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">Phòng nhận *</label>
+                      <div className="relative">
+                        <select
+                          value={exportRoomId}
+                          onChange={e => { setExportRoomId(e.target.value); setExportErrors(prev => ({ ...prev, room: undefined })); }}
+                          className={`${selectCls} ${exportErrors.room ? "!border-red-300" : ""}`}
+                        >
+                          <option value="">— Chọn phòng —</option>
+                          {[...rooms].sort((a, b) => a.name.localeCompare(b.name)).map(r => (
+                            <option key={r.id} value={r.id}>{r.name} (tầng {r.floor})</option>
+                          ))}
+                        </select>
+                        <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400"><svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg></span>
+                      </div>
+                      {exportErrors.room && <p className="text-[12px] text-red-500 font-semibold">{exportErrors.room}</p>}
+                      {rooms.length === 0 && <p className="text-[11.5px] text-slate-400 font-semibold">Chưa có phòng nào — thêm phòng ở trang Quản lý phòng.</p>}
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">Số lượng *</label>
+                      <input type="number" min={0}
+                        ref={exportQtyInputRef}
+                        value={exportQtyStr}
+                        onChange={e => { setExportQtyStr(e.target.value); setExportErrors(prev => ({ ...prev, qty: undefined })); }}
+                        onWheel={e => e.currentTarget.blur()}
+                        placeholder="Nhập số lượng..."
+                        className={`${inputCls} [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${exportErrors.qty ? "!border-red-300 focus:!border-red-400 focus:!ring-red-200" : ""}`} />
+                      {exportErrors.qty && <p className="text-[12px] text-red-500 font-semibold">{exportErrors.qty}</p>}
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[12.5px] font-extrabold text-slate-500 uppercase tracking-wider">Ghi chú</label>
+                      <input value={exportNote} onChange={e => setExportNote(e.target.value)}
+                        placeholder="Vd: BS Thảo báo hết găng tay size M..."
+                        className={inputCls} />
+                    </div>
+
+                    <button type="submit" disabled={exportSubmitting}
+                      className="flex items-center justify-center gap-2 w-full py-3 rounded-xl text-[14px] font-black transition-all cursor-pointer shadow-sm mt-1 disabled:opacity-60 disabled:cursor-not-allowed bg-primary hover:bg-red-600 text-white shadow-red-200">
+                      {exportSubmitting ? (
+                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" /></svg>
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                      )}
+                      Xuất kho cho phòng
+                    </button>
+                  </form>
+                )}
+              </div>
+
+              <StockPickerPanel
+                items={items}
+                loading={loadingItems}
+                selectedId={exportItemId}
+                onSelect={selectItemForExport}
+                hint="Bấm 1 dòng để chọn vật tư đó cho lần xuất này."
+              />
             </div>
           )}
 
@@ -923,7 +1115,9 @@ export default function InventoryPage() {
                         <td className="px-5 py-3.5 text-right font-semibold text-slate-600">
                           {tx.unitPrice != null ? fmt(tx.unitPrice * tx.quantity) : "—"}
                         </td>
-                        <td className="px-5 py-3.5 text-slate-500 font-semibold max-w-xs truncate">{tx.note || "—"}</td>
+                        <td className="px-5 py-3.5 text-slate-500 font-semibold max-w-xs truncate">
+                          {tx.roomName ? `Phòng ${tx.roomName}${tx.note ? ` · ${tx.note}` : ""}` : (tx.note || "—")}
+                        </td>
                         <td className="px-5 py-3.5">
                           <div className="text-slate-600 font-semibold">{formatDate(tx.createdAt)}</div>
                           <div className="text-[11.5px] text-slate-400 font-medium">{tx.createdBy}</div>
@@ -1044,6 +1238,7 @@ export default function InventoryPage() {
                           </div>
                         ))}
                       </div>
+                      <MaterialRequestPhotoStrip appointmentId={r.appointmentId} />
                     </div>
                     {needsAction && (
                       <div className="shrink-0 flex flex-col items-stretch gap-2">

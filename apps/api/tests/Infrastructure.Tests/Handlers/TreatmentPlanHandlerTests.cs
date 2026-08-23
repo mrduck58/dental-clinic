@@ -52,10 +52,13 @@ public class TreatmentPlanHandlerTests
         var supplyItemRepository = new SupplyItemRepository(_db);
         var supplyTransactionRepository = new SupplyTransactionRepository(_db);
         var materialRequestRepository = new MaterialRequestRepository(_db);
+        var serviceSupplyItemRepository = new ServiceSupplyItemRepository(_db);
+        var appointmentSummaryReader = new AppointmentSummaryReader(_db);
         var queryHelper = new TreatmentPlanQueryHelper(treatmentPlanRepository, appointmentRepository, procedureRepository);
 
         _create = new CreateTreatmentPlanHandler(
-            appointmentRepository, serviceRepository, treatmentPlanRepository, queryHelper, _patientRepo, _notificationService);
+            appointmentRepository, serviceRepository, treatmentPlanRepository, queryHelper, _patientRepo, _notificationService,
+            serviceSupplyItemRepository, appointmentSummaryReader, materialRequestRepository);
         _update = new UpdateTreatmentPlanHandler(treatmentPlanRepository, queryHelper);
         _delete = new DeleteTreatmentPlanHandler(treatmentPlanRepository, materialRequestRepository, queryHelper);
         _getByPatient = new GetPatientTreatmentPlansHandler(treatmentPlanRepository, queryHelper);
@@ -169,6 +172,53 @@ public class TreatmentPlanHandlerTests
             CancellationToken.None);
 
         dto.ServiceOptionName.Should().Be("Titan");
+    }
+
+    /// <summary>Dịch vụ có khai "Vật tư chính" trong định mức — thêm dịch vụ vào liệu trình phải tự động tạo
+    /// kèm 1 MaterialRequest gắn đúng TreatmentPlanId, chỉ gồm đúng dòng Vật tư chính (bỏ vật tư tiêu hao),
+    /// số lượng = định mức nhân Quantity của liệu trình, Detail giữ nguyên vị trí răng đã chọn.</summary>
+    [Test]
+    public async Task CreateAsync_ServiceHasMainSupplyItems_AutoCreatesLinkedMaterialRequest()
+    {
+        var (patient, dentist) = await SeedPatientAndDentistAsync("p20", "d20");
+        var (appointment, service) = await SeedInProgressAppointmentAsync(patient, dentist);
+        var crown = SupplyItem.Create("VT200", "Mão sứ Titan", "Vật tư chính", "Cái", 0, 5);
+        var gloves = SupplyItem.Create("VT201", "Găng tay y tế", "Vật tư tiêu hao", "Hộp", 0, 5);
+        _db.SupplyItems.AddRange(crown, gloves);
+        _db.ServiceSupplyItems.AddRange(
+            ServiceSupplyItem.Create(service.Id, crown.Id, 1),
+            ServiceSupplyItem.Create(service.Id, gloves.Id, 2));
+        await _db.SaveChangesAsync();
+
+        var dto = await _create.Handle(
+            new CreateTreatmentPlanRequest(appointment.Id, service.Id, null, 2, "16, 15", null, null),
+            CancellationToken.None);
+
+        var materialRequest = await _db.MaterialRequests.Include(m => m.Items).SingleAsync(m => m.TreatmentPlanId == dto.Id);
+        materialRequest.Items.Should().ContainSingle();
+        var item = materialRequest.Items.Single();
+        item.ItemName.Should().Be("Mão sứ Titan");
+        item.Quantity.Should().Be(2);
+        item.Detail.Should().Be("16, 15");
+    }
+
+    /// <summary>Dịch vụ không có "Vật tư chính" nào trong định mức (chỉ vật tư tiêu hao, hoặc không khai gì)
+    /// thì không tự tạo yêu cầu vật tư nào — tránh phát sinh yêu cầu rỗng/vô nghĩa.</summary>
+    [Test]
+    public async Task CreateAsync_ServiceHasNoMainSupplyItems_DoesNotCreateMaterialRequest()
+    {
+        var (patient, dentist) = await SeedPatientAndDentistAsync("p21", "d21");
+        var (appointment, service) = await SeedInProgressAppointmentAsync(patient, dentist);
+        var gloves = SupplyItem.Create("VT202", "Găng tay y tế 2", "Vật tư tiêu hao", "Hộp", 0, 5);
+        _db.SupplyItems.Add(gloves);
+        _db.ServiceSupplyItems.Add(ServiceSupplyItem.Create(service.Id, gloves.Id, 2));
+        await _db.SaveChangesAsync();
+
+        var dto = await _create.Handle(
+            new CreateTreatmentPlanRequest(appointment.Id, service.Id, null, 1, null, null, null),
+            CancellationToken.None);
+
+        (await _db.MaterialRequests.AnyAsync(m => m.TreatmentPlanId == dto.Id)).Should().BeFalse();
     }
 
     private async Task<(Patient patient, DentistProfile dentist)> SeedPatientAndDentistAsync(string patientUsername, string dentistUsername)

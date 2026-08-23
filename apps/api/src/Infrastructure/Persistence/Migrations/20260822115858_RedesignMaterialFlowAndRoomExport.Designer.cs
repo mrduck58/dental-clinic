@@ -3,6 +3,7 @@ using System;
 using DentalClinic.API.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DentalClinic.API.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260822115858_RedesignMaterialFlowAndRoomExport")]
+    partial class RedesignMaterialFlowAndRoomExport
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -286,44 +289,6 @@ namespace DentalClinic.API.Infrastructure.Persistence.Migrations
                     b.HasIndex("Status");
 
                     b.ToTable("AppointmentChangeRequests");
-                });
-
-            modelBuilder.Entity("DentalClinic.API.Domain.Entities.AppointmentPhoto", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("AppointmentId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Note")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<string>("Section")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<string>("UploadedBy")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("Url")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AppointmentId", "Section");
-
-                    b.ToTable("AppointmentPhotos", (string)null);
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.AppointmentSlotHold", b =>
@@ -1192,9 +1157,6 @@ namespace DentalClinic.API.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("AppointmentId")
-                        .HasColumnType("uuid");
-
                     b.Property<string>("CourseName")
                         .IsRequired()
                         .HasMaxLength(300)
@@ -1246,8 +1208,6 @@ namespace DentalClinic.API.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("AppointmentId");
 
                     b.HasIndex("DentistId");
 
@@ -2500,17 +2460,6 @@ namespace DentalClinic.API.Infrastructure.Persistence.Migrations
                     b.Navigation("RequestedByUser");
                 });
 
-            modelBuilder.Entity("DentalClinic.API.Domain.Entities.AppointmentPhoto", b =>
-                {
-                    b.HasOne("DentalClinic.API.Domain.Entities.Appointment", "Appointment")
-                        .WithMany("Photos")
-                        .HasForeignKey("AppointmentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Appointment");
-                });
-
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.ChatConversation", b =>
                 {
                     b.HasOne("DentalClinic.API.Domain.Entities.Patient", "Patient")
@@ -2653,11 +2602,6 @@ namespace DentalClinic.API.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.MaterialRequest", b =>
                 {
-                    b.HasOne("DentalClinic.API.Domain.Entities.Appointment", null)
-                        .WithMany()
-                        .HasForeignKey("AppointmentId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("DentalClinic.API.Domain.Entities.DentistProfile", "Dentist")
                         .WithMany()
                         .HasForeignKey("DentistId");
@@ -2940,8 +2884,6 @@ namespace DentalClinic.API.Infrastructure.Persistence.Migrations
                     b.Navigation("FollowUpAppointments");
 
                     b.Navigation("Invoices");
-
-                    b.Navigation("Photos");
 
                     b.Navigation("Prescriptions");
 

@@ -115,6 +115,26 @@ class MedicalHistoryPrescriptionItem {
       );
 }
 
+/// Ảnh chụp chiếu lúc khám (X-quang...) — không có máy tích hợp nên chỉ là ảnh chụp tay kèm ghi chú.
+class MedicalHistoryPhotoItem {
+  final String url;
+  final String? note;
+  final DateTime createdAt;
+
+  const MedicalHistoryPhotoItem({
+    required this.url,
+    this.note,
+    required this.createdAt,
+  });
+
+  factory MedicalHistoryPhotoItem.fromJson(Map<String, dynamic> json) =>
+      MedicalHistoryPhotoItem(
+        url: json['url'] as String? ?? '',
+        note: json['note'] as String?,
+        createdAt: DateTime.parse(json['createdAt'] as String),
+      );
+}
+
 /// Một buổi khám đã hoàn tất — dữ liệu thật từ `GET /appointments/my/medical-history`.
 class MedicalHistoryEvent {
   final String appointmentId;
@@ -133,6 +153,7 @@ class MedicalHistoryEvent {
   final List<MedicalHistoryDiagnosisItem> diagnoses;
   final List<MedicalHistoryPlanSummary> treatmentPlans;
   final List<MedicalHistoryPrescriptionItem> prescriptionItems;
+  final List<MedicalHistoryPhotoItem> photos;
 
   const MedicalHistoryEvent({
     required this.appointmentId,
@@ -151,6 +172,7 @@ class MedicalHistoryEvent {
     required this.diagnoses,
     required this.treatmentPlans,
     required this.prescriptionItems,
+    this.photos = const [],
   });
 
   bool get isJourney => treatmentPlans.any((p) => p.status == 'InProgress');
@@ -182,6 +204,9 @@ class MedicalHistoryEvent {
             .toList(),
         prescriptionItems: (json['prescriptionItems'] as List<dynamic>? ?? [])
             .map((e) => MedicalHistoryPrescriptionItem.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        photos: (json['photos'] as List<dynamic>? ?? [])
+            .map((e) => MedicalHistoryPhotoItem.fromJson(e as Map<String, dynamic>))
             .toList(),
       );
 }

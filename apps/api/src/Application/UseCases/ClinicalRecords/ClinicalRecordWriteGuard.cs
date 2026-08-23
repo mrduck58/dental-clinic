@@ -20,6 +20,7 @@ public class ClinicalRecordWriteGuard(
     IDentistRepository dentistRepository,
     IAppointmentRepository appointmentRepository,
     IDiagnosisRepository diagnosisRepository,
+    IAppointmentPhotoRepository appointmentPhotoRepository,
     ITreatmentPlanRepository treatmentPlanRepository,
     IPrescriptionRepository prescriptionRepository,
     IPrescriptionItemRepository prescriptionItemRepository)
@@ -44,6 +45,16 @@ public class ClinicalRecordWriteGuard(
             ?? throw new NotFoundException("Không tìm thấy chẩn đoán.");
 
         await EnsureCanWriteAppointmentAsync(diagnosis.AppointmentId, ct);
+    }
+
+    public async Task EnsureCanWritePhotoAsync(Guid photoId, CancellationToken ct)
+    {
+        if (await CurrentDentistIdAsync(ct) is null) return;
+
+        var photo = await appointmentPhotoRepository.GetByIdAsync(photoId, ct)
+            ?? throw new NotFoundException("Không tìm thấy ảnh.");
+
+        await EnsureCanWriteAppointmentAsync(photo.AppointmentId, ct);
     }
 
     public async Task EnsureCanWriteTreatmentPlanAsync(Guid treatmentPlanId, CancellationToken ct)
