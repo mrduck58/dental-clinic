@@ -25,6 +25,7 @@ public class MaterialRequestConfiguration : IEntityTypeConfiguration<MaterialReq
 
         builder.HasIndex(m => m.Status);
         builder.HasIndex(m => m.TreatmentPlanId);
+        builder.HasIndex(m => m.AppointmentId);
 
         // Restrict (không Cascade): xóa liệu trình phải tự dọn Pending liên quan trước ở tầng application
         // (DeleteTreatmentPlanHandler) — nếu còn yêu cầu Ordered/Done (đã đặt hàng/đã nhập kho thật) thì phải
@@ -33,6 +34,12 @@ public class MaterialRequestConfiguration : IEntityTypeConfiguration<MaterialReq
             .WithMany()
             .HasForeignKey(m => m.TreatmentPlanId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // SetNull: xóa buổi hẹn không nên kéo xóa lịch sử yêu cầu vật tư đã đặt/đã nhập kho.
+        builder.HasOne<Appointment>()
+            .WithMany()
+            .HasForeignKey(m => m.AppointmentId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         builder.HasMany(m => m.Items)
             .WithOne()

@@ -11,17 +11,17 @@ import {
   type SupplyItemDto,
 } from "../../../../lib/apiClient";
 import { Toast, useToast } from "../../../../components/shared/Toast";
+import PhotoGallery from "../../../../components/shared/PhotoGallery";
 import { SUPPLY_UNITS } from "../../../../lib/inventoryConstants";
 
 interface MaterialWorkspaceProps {
   appointmentId: string;
   /** Cho phép gửi yêu cầu dù buổi hẹn đã kết thúc (chế độ chỉnh sửa đơn hoàn thành). */
   editMode?: boolean;
-  /** Nháp điền sẵn từ tab "Liệu trình" khi thêm dịch vụ có gắn Vật tư chính (xem TreatmentWorkspace) —
-   * gộp vào form bên dưới để bác sĩ bổ sung kích thước/dấu răng rồi gửi, không phải gõ lại từ đầu. */
-  draftItems?: { itemName: string; detail: string; quantity: string; unit: string; treatmentPlanId?: string }[];
-  /** Gọi lại sau khi đã gộp draftItems vào form, để cha xoá nháp (tránh gộp lại lần nữa khi re-render). */
-  onDraftConsumed?: () => void;
+  /** Tăng lên mỗi khi tab "Liệu trình" vừa thêm 1 dịch vụ mới — dịch vụ có Vật tư chính trong định mức
+   * được backend tự động tạo kèm yêu cầu vật tư (xem CreateTreatmentPlanHandler), tín hiệu này báo cho
+   * danh sách "Yêu cầu vật tư đã gửi" ở đây tải lại ngay, khỏi phải rời tab rồi quay lại mới thấy. */
+  refreshSignal?: number;
 }
 
 const fmtDateTime = (iso: string) => {
@@ -45,16 +45,15 @@ function CardHeader({ title, icon, color, action }: {
 
 const BOX_ICON = "M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z";
 
-export default function MaterialWorkspace({ appointmentId, editMode = false, draftItems, onDraftConsumed }: MaterialWorkspaceProps) {
+export default function MaterialWorkspace({ appointmentId, editMode = false, refreshSignal }: MaterialWorkspaceProps) {
   const [examination, setExamination] = useState<ExaminationDto | null>(null);
   const [requests, setRequests] = useState<MaterialRequestDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const emptyRow = () => ({ itemName: "", detail: "", quantity: "", unit: SUPPLY_UNITS[0] });
-  // Lưu tạm form đang gõ (kể cả nháp tự động từ tab Liệu trình) vào localStorage theo từng buổi hẹn —
-  // để nếu bác sĩ thoát hẳn khỏi trang (không chỉ chuyển tab) trước khi bấm gửi, quay lại vẫn còn nguyên,
-  // không phải gõ/chọn lại từ đầu.
+  // Lưu tạm form đang gõ vào localStorage theo từng buổi hẹn — để nếu bác sĩ thoát hẳn khỏi trang (không
+  // chỉ chuyển tab) trước khi bấm gửi, quay lại vẫn còn nguyên, không phải gõ/chọn lại từ đầu.
   const draftStorageKey = `materialRequestDraft:${appointmentId}`;
   const [rows, setRows] = useState<{ itemName: string; detail: string; quantity: string; unit: string; treatmentPlanId?: string }[]>(() => {
     if (typeof window === "undefined") return [emptyRow()];
@@ -68,13 +67,6 @@ export default function MaterialWorkspace({ appointmentId, editMode = false, dra
     return [emptyRow()];
   });
   const [saving, setSaving] = useState(false);
-
-  // Gộp nháp từ tab "Liệu trình" vào form — giữ lại các dòng bác sĩ đã tự gõ, chỉ bỏ dòng trống mặc định.
-  useEffect(() => {
-    if (!draftItems || draftItems.length === 0) return;
-    setRows(prev => [...prev.filter(r => r.itemName.trim() || r.quantity.trim()), ...draftItems.map(d => ({ ...d }))]);
-    onDraftConsumed?.();
-  }, [draftItems, onDraftConsumed]);
 
   // Đồng bộ form vào localStorage mỗi khi đổi — xoá key khi form trống hẳn để không để rác lại.
   useEffect(() => {
@@ -138,12 +130,20 @@ export default function MaterialWorkspace({ appointmentId, editMode = false, dra
     return () => { cancelled = true; };
   }, [appointmentId, loadRequests]);
 
+  // refreshSignal đổi (khác 0, tức không phải lần mount đầu) → tab "Liệu trình" vừa thêm dịch vụ, có thể
+  // đã tự động phát sinh yêu cầu vật tư chính — tải lại danh sách ngay.
+  useEffect(() => {
+    if (!refreshSignal || !examination) return;
+    void loadRequests(examination.patient.id, examination.patient.fullName);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshSignal]);
+
   const handleSubmit = async () => {
     if (validRows.length === 0 || !examination) return;
     try {
       setSaving(true);
-      // Gộp theo dịch vụ (treatmentPlanId) — dòng nháp tự động từ 1 dịch vụ và dòng bác sĩ tự gõ thêm
-      // (không gắn dịch vụ nào) phải tách thành các MaterialRequest riêng để liên kết đúng dịch vụ.
+      // Gộp theo dịch vụ (treatmentPlanId) — nếu có dòng gắn dịch vụ và dòng không gắn dịch vụ nào lẫn
+      // trong cùng lượt gửi thì tách thành các MaterialRequest riêng để liên kết đúng dịch vụ.
       const groups = new Map<string, typeof validRows>();
       for (const r of validRows) {
         const key = r.treatmentPlanId ?? "";
@@ -242,7 +242,7 @@ export default function MaterialWorkspace({ appointmentId, editMode = false, dra
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-[13px] font-black text-slate-800">{r.courseName || "Yêu cầu vật tư"}</span>
                         <span className={`text-[10.5px] font-black px-2 py-0.5 rounded-md uppercase tracking-wide ${r.status === "Done" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-amber-50 text-amber-700 border border-amber-200"}`}>
-                          {r.status === "Done" ? "Đã xử lý" : "Chờ kho xử lý"}
+                          {r.status === "Done" ? "Đã xử lý" : r.status === "Ordered" ? "Đã đặt hàng" : "Chờ kho xử lý"}
                         </span>
                         <span className="ml-auto text-[11.5px] font-semibold text-slate-400 font-mono">{fmtDateTime(r.createdAt)}</span>
                       </div>
@@ -259,6 +259,9 @@ export default function MaterialWorkspace({ appointmentId, editMode = false, dra
               )}
             </div>
           </div>
+
+          {/* Ảnh đính kèm — dấu răng, răng lợi... phục vụ yêu cầu vật tư */}
+          <PhotoGallery appointmentId={appointmentId} section="material-request" title="Ảnh đính kèm (dấu răng, răng lợi...)" />
         </div>
 
         {/* ══════════ RIGHT 1/3: NEW REQUEST FORM ══════════ */}
@@ -363,7 +366,8 @@ export default function MaterialWorkspace({ appointmentId, editMode = false, dra
             </button>
 
             <p className="text-[11.5px] font-semibold text-slate-400 leading-relaxed">
-              Yêu cầu sẽ hiện ở tab <span className="font-black text-slate-500">&quot;Yêu cầu vật tư&quot;</span> trong trang Nhập–xuất vật tư của nhân viên để xử lý.
+              Vật tư chính đã tự động gửi yêu cầu khi thêm dịch vụ ở tab &quot;Liệu trình&quot; — form này chỉ
+              dùng để gửi thêm vật tư ngoài định mức nếu phát sinh giữa ca khám.
             </p>
             {!canEdit && (
               <p className="text-[11.5px] font-semibold text-amber-600 text-center">

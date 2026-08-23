@@ -37,7 +37,7 @@ public class StockImportHandlerTests
     public async Task TearDown() => await _db.DisposeAsync();
 
     private static StockImportCommand MakeRequest(string name = "Chỉ nha khoa") =>
-        new(name, "Cuộn", InventoryConstants.CategoryConsumable, 30, null, null, "staff1");
+        new(name, "Cuộn", InventoryConstants.CategoryConsumable, 30, null, 50_000m, "staff1");
 
     /// <summary>Tên vật tư để trống phải bị từ chối.</summary>
     [Test]
@@ -64,6 +64,27 @@ public class StockImportHandlerTests
         Func<Task> act = () => _handler.Handle(MakeRequest() with { Quantity = 0 }, CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    /// <summary>Bỏ trống đơn giá phải bị từ chối — nhập kho giờ bắt buộc phải có giá, tránh lọt khỏi báo
+    /// cáo chi phí vật tư mà không ai biết (xem ExpenseQueryService.GetSummaryAsync).</summary>
+    [Test]
+    public async Task HandleAsync_NullUnitPrice_ThrowsValidationException()
+    {
+        Func<Task> act = () => _handler.Handle(MakeRequest() with { UnitPrice = null }, CancellationToken.None);
+
+        await act.Should().ThrowAsync<ValidationException>();
+        (await _db.SupplyTransactions.CountAsync()).Should().Be(0);
+    }
+
+    /// <summary>Đơn giá bằng 0 vẫn phải được chấp nhận (vd hàng biếu/mẫu miễn phí) — chỉ bắt buộc PHẢI
+    /// nhập, không bắt buộc phải lớn hơn 0.</summary>
+    [Test]
+    public async Task HandleAsync_ZeroUnitPrice_IsAccepted()
+    {
+        var result = await _handler.Handle(MakeRequest() with { UnitPrice = 0m }, CancellationToken.None);
+
+        result.UnitPrice.Should().Be(0m);
     }
 
     /// <summary>Vật tư chưa tồn tại (theo tên) phải được tạo mới với mã tự sinh.</summary>

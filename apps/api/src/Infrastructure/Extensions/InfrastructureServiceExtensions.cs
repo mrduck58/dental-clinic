@@ -71,6 +71,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IDentistRepository, DentistRepository>();
         services.AddScoped<IDentistReviewRepository, DentistReviewRepository>();
         services.AddScoped<IDiagnosisRepository, DiagnosisRepository>();
+        services.AddScoped<IAppointmentPhotoRepository, AppointmentPhotoRepository>();
         services.AddScoped<IPrescriptionRepository, PrescriptionRepository>();
         services.AddScoped<IPrescriptionItemRepository, PrescriptionItemRepository>();
         services.AddScoped<ITreatmentPlanRepository, TreatmentPlanRepository>();

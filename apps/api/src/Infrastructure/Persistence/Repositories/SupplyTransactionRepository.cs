@@ -6,9 +6,11 @@ namespace DentalClinic.API.Infrastructure.Persistence.Repositories;
 
 public class SupplyTransactionRepository(AppDbContext db) : ISupplyTransactionRepository
 {
-    public async Task<IEnumerable<SupplyTransaction>> GetAllAsync(CancellationToken ct = default)
+    public async Task<IEnumerable<SupplyTransaction>> GetAllAsync(Guid? roomId = null, CancellationToken ct = default)
         => await db.SupplyTransactions
             .Include(t => t.SupplyItem)
+            .Include(t => t.Room)
+            .Where(t => roomId == null || t.RoomId == roomId)
             .OrderByDescending(t => t.CreatedAt)
             .ToListAsync(ct);
 

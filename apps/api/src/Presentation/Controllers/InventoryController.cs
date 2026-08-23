@@ -67,12 +67,13 @@ public class InventoryController(ISender sender) : ControllerBase
         return Ok(new { message = "Đã xóa vật tư." });
     }
 
-    /// <summary>GET api/inventory/transactions — Lịch sử giao dịch</summary>
+    /// <summary>GET api/inventory/transactions — Lịch sử giao dịch (roomId → chỉ lấy giao dịch xuất cho
+    /// đúng phòng đó, dùng ở màn chi tiết phòng bên Admin)</summary>
     [HttpGet("transactions")]
     [Authorize(Roles = "Admin,Owner,Staff")]
-    public async Task<IActionResult> GetTransactions(CancellationToken ct)
+    public async Task<IActionResult> GetTransactions([FromQuery] Guid? roomId, CancellationToken ct)
     {
-        var result = await sender.Send(new GetSupplyTransactionsQuery(), ct);
+        var result = await sender.Send(new GetSupplyTransactionsQuery(roomId), ct);
         return Ok(result);
     }
 
@@ -88,7 +89,7 @@ public class InventoryController(ISender sender) : ControllerBase
             ?? "Nhân viên";
 
         var result = await sender.Send(
-            new CreateSupplyTransactionCommand(request.SupplyItemId, request.Type, request.Quantity, request.Note, createdBy),
+            new CreateSupplyTransactionCommand(request.SupplyItemId, request.Type, request.Quantity, request.Note, createdBy, request.RoomId),
             ct);
         return Ok(result);
     }

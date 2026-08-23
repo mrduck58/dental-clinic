@@ -52,7 +52,8 @@ public class GetMyExaminationHistoryHandler(
             chainByAppointment[a.Id],
             ClinicalRecordMappers.ToMedicalHistoryDiagnoses(a),
             ClinicalRecordMappers.ToMedicalHistoryTreatmentPlans(a),
-            ClinicalRecordMappers.ToMedicalHistoryPrescriptionItems(a)
+            ClinicalRecordMappers.ToMedicalHistoryPrescriptionItems(a),
+            ClinicalRecordMappers.ToMedicalHistoryPhotos(a)
         )).ToList();
     }
 }

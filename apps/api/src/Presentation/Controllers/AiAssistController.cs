@@ -23,16 +23,6 @@ public class AiAssistController(ISender sender) : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>GET api/appointments/{id}/treatment-suggestion — Gợi ý hướng điều trị bằng AI dựa trên
-    /// phiếu khám đã lưu của buổi khám này + lịch sử khám trước đây (Dentist). Cần lưu phiếu khám trước.</summary>
-    [HttpGet("api/appointments/{id}/treatment-suggestion")]
-    [Authorize(Roles = "Dentist")]
-    public async Task<IActionResult> GetTreatmentSuggestion(Guid id, CancellationToken cancellationToken)
-    {
-        var result = await sender.Send(new SuggestTreatmentQuery(id), cancellationToken);
-        return Ok(result);
-    }
-
     /// <summary>GET api/appointments/{id}/prescription-suggestion — Gợi ý đơn thuốc bằng AI dựa trên
     /// chẩn đoán + liệu trình điều trị của buổi khám này (Dentist). Cần lưu phiếu khám trước.</summary>
     [HttpGet("api/appointments/{id}/prescription-suggestion")]

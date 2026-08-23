@@ -24,7 +24,7 @@ public class GetSupplyTransactionsHandlerTests
     [Test]
     public async Task HandleAsync_NoTransactions_ReturnsEmptyList()
     {
-        _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<SupplyTransaction>());
+        _repo.GetAllAsync(Arg.Any<Guid?>(), Arg.Any<CancellationToken>()).Returns(new List<SupplyTransaction>());
 
         var result = await _handler.Handle(new GetSupplyTransactionsQuery(), CancellationToken.None);
 
@@ -38,7 +38,7 @@ public class GetSupplyTransactionsHandlerTests
         var item = SupplyItem.Create("VT001", "Bông gòn y tế", "Vật tư tiêu hao", "Gói", 50, 5);
         var tx = SupplyTransaction.Create(item.Id, "import", 20, "Nhập đầu tháng", "staff1");
         typeof(SupplyTransaction).GetProperty(nameof(SupplyTransaction.SupplyItem))!.SetValue(tx, item);
-        _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<SupplyTransaction> { tx });
+        _repo.GetAllAsync(Arg.Any<Guid?>(), Arg.Any<CancellationToken>()).Returns(new List<SupplyTransaction> { tx });
 
         var result = (await _handler.Handle(new GetSupplyTransactionsQuery(), CancellationToken.None)).ToList();
 
@@ -57,7 +57,7 @@ public class GetSupplyTransactionsHandlerTests
         var tx2 = SupplyTransaction.Create(item2.Id, "export", 5, null, "staff2");
         typeof(SupplyTransaction).GetProperty(nameof(SupplyTransaction.SupplyItem))!.SetValue(tx1, item1);
         typeof(SupplyTransaction).GetProperty(nameof(SupplyTransaction.SupplyItem))!.SetValue(tx2, item2);
-        _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<SupplyTransaction> { tx1, tx2 });
+        _repo.GetAllAsync(Arg.Any<Guid?>(), Arg.Any<CancellationToken>()).Returns(new List<SupplyTransaction> { tx1, tx2 });
 
         var result = (await _handler.Handle(new GetSupplyTransactionsQuery(), CancellationToken.None)).ToList();
 
@@ -73,7 +73,7 @@ public class GetSupplyTransactionsHandlerTests
         var item = SupplyItem.Create("VT001", "Bông gòn y tế", "Vật tư tiêu hao", "Gói", 50, 5);
         var tx = SupplyTransaction.Create(item.Id, "export", 15, "Xuất cho phòng khám 2", "staff9");
         typeof(SupplyTransaction).GetProperty(nameof(SupplyTransaction.SupplyItem))!.SetValue(tx, item);
-        _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<SupplyTransaction> { tx });
+        _repo.GetAllAsync(Arg.Any<Guid?>(), Arg.Any<CancellationToken>()).Returns(new List<SupplyTransaction> { tx });
 
         var result = (await _handler.Handle(new GetSupplyTransactionsQuery(), CancellationToken.None)).ToList();
 
@@ -83,5 +83,18 @@ public class GetSupplyTransactionsHandlerTests
         result[0].Quantity.Should().Be(15);
         result[0].Note.Should().Be("Xuất cho phòng khám 2");
         result[0].CreatedBy.Should().Be("staff9");
+    }
+
+    /// <summary>RoomId trong query phải được chuyển thẳng xuống repository — dùng cho màn chi tiết phòng
+    /// bên Admin để chỉ lấy đúng giao dịch xuất cho phòng đó.</summary>
+    [Test]
+    public async Task HandleAsync_WithRoomId_PassesRoomIdToRepository()
+    {
+        var roomId = Guid.NewGuid();
+        _repo.GetAllAsync(roomId, Arg.Any<CancellationToken>()).Returns(new List<SupplyTransaction>());
+
+        await _handler.Handle(new GetSupplyTransactionsQuery(roomId), CancellationToken.None);
+
+        await _repo.Received(1).GetAllAsync(roomId, Arg.Any<CancellationToken>());
     }
 }

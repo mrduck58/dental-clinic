@@ -38,7 +38,10 @@ public class StockImportHandler(
         if (command.Quantity <= 0)
             throw new ValidationException("Số lượng phải lớn hơn 0.");
 
-        if (command.UnitPrice is < 0)
+        if (command.UnitPrice is null)
+            throw new ValidationException("Vui lòng nhập đơn giá.");
+
+        if (command.UnitPrice < 0)
             throw new ValidationException("Đơn giá không được âm.");
 
         var nameNorm = command.Name.Trim();

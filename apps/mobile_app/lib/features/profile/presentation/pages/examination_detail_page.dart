@@ -215,6 +215,20 @@ class _ExaminationDetailPageState extends State<ExaminationDetailPage> {
                 ],
               ),
             ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: _optionCard(
+                context,
+                icon: Iconsax.gallery,
+                color: AppColors.primaryDark,
+                title: isVi ? 'Ảnh chụp chiếu' : 'Exam Photos',
+                subtitle: event.photos.isEmpty
+                    ? (isVi ? 'Chưa có ảnh' : 'No photos yet')
+                    : (isVi ? '${event.photos.length} ảnh' : '${event.photos.length} photos'),
+                onTap: () => context.push(AppRoutes.examPhotos, extra: event),
+              ),
+            ),
           ],
         ),
       ),

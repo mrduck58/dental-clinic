@@ -47,6 +47,19 @@ public static class ClinicalRecordMappers
         UpdatedAt = d.UpdatedAt
     };
 
+    // ── Appointment photo ────────────────────────────────────────────────────
+
+    public static AppointmentPhotoDto ToDto(AppointmentPhoto p) => new()
+    {
+        Id = p.Id,
+        AppointmentId = p.AppointmentId,
+        Section = p.Section,
+        Url = p.Url,
+        Note = p.Note,
+        UploadedBy = p.UploadedBy,
+        CreatedAt = p.CreatedAt
+    };
+
     // ── Prescription ─────────────────────────────────────────────────────────
 
     public static PrescriptionDto ToDto(Prescription prescription) => new()
@@ -253,4 +266,13 @@ public static class ClinicalRecordMappers
                 i.Notes
             )).ToList()
             : new List<MedicalHistoryPrescriptionItemDto>();
+
+    /// <summary>Chỉ lấy ảnh section "exam" — ảnh yêu cầu vật tư (dấu răng gửi kho) không phải thứ
+    /// bệnh nhân cần xem trong lịch sử khám của mình.</summary>
+    public static List<MedicalHistoryPhotoDto> ToMedicalHistoryPhotos(Appointment a) =>
+        a.Photos
+            .Where(p => p.Section == AppointmentPhoto.SectionExam)
+            .OrderByDescending(p => p.CreatedAt)
+            .Select(p => new MedicalHistoryPhotoDto(p.Url, p.Note, p.CreatedAt))
+            .ToList();
 }

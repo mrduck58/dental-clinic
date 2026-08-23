@@ -3,6 +3,7 @@ using System;
 using DentalClinic.API.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DentalClinic.API.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260823054344_AddAppointmentPhotos")]
+    partial class AddAppointmentPhotos
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1192,9 +1195,6 @@ namespace DentalClinic.API.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("AppointmentId")
-                        .HasColumnType("uuid");
-
                     b.Property<string>("CourseName")
                         .IsRequired()
                         .HasMaxLength(300)
@@ -1246,8 +1246,6 @@ namespace DentalClinic.API.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("AppointmentId");
 
                     b.HasIndex("DentistId");
 
@@ -2653,11 +2651,6 @@ namespace DentalClinic.API.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.MaterialRequest", b =>
                 {
-                    b.HasOne("DentalClinic.API.Domain.Entities.Appointment", null)
-                        .WithMany()
-                        .HasForeignKey("AppointmentId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("DentalClinic.API.Domain.Entities.DentistProfile", "Dentist")
                         .WithMany()
                         .HasForeignKey("DentistId");

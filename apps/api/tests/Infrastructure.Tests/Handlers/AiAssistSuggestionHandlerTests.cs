@@ -13,8 +13,8 @@ using NUnit.Framework;
 namespace DentalClinic.API.Infrastructure.Tests.Handlers;
 
 /// <summary>
-/// Bao phủ SuggestPrescriptionHandler và SuggestTreatmentHandler — 2 handler AI Assist chưa có
-/// test, cùng thư mục với SummarizePatientHistoryHandler (đã có test tham khảo phong cách).
+/// Bao phủ SuggestPrescriptionHandler — handler AI Assist chưa có test, cùng thư mục với
+/// SummarizePatientHistoryHandler (đã có test tham khảo phong cách).
 /// </summary>
 [TestFixture]
 public class AiAssistSuggestionHandlerTests
@@ -22,7 +22,6 @@ public class AiAssistSuggestionHandlerTests
     private AppDbContext _db = null!;
     private IAiChatService _aiChatService = null!;
     private SuggestPrescriptionHandler _prescriptionHandler = null!;
-    private SuggestTreatmentHandler _treatmentHandler = null!;
 
     [SetUp]
     public void SetUp()
@@ -39,7 +38,6 @@ public class AiAssistSuggestionHandlerTests
         var appointmentRepository = new AppointmentRepository(_db);
         var medicineRepository = new MedicineRepository(_db);
         _prescriptionHandler = new SuggestPrescriptionHandler(_aiChatService, appointmentRepository, medicineRepository);
-        _treatmentHandler = new SuggestTreatmentHandler(_aiChatService, appointmentRepository);
     }
 
     [TearDown]
@@ -183,138 +181,4 @@ public class AiAssistSuggestionHandlerTests
             Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
-    // ===================== SuggestTreatmentHandler =====================
-
-    /// <summary>
-    /// Có lịch sử khám trước đây: chẩn đoán buổi hiện tại VÀ tóm tắt lịch sử (chẩn đoán, liệu
-    /// trình, đơn thuốc của buổi trước) phải xuất hiện trong nội dung gửi AI.
-    /// </summary>
-    [Test]
-    public async Task SuggestTreatment_PatientHasPastVisit_IncludesCurrentAndPastContextInPrompt()
-    {
-        var (patient, dentist, service) = await SeedPatientDentistServiceAsync("pt1", "td1");
-
-        var pastAppointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddMonths(-2), serviceId: service.Id);
-        _db.Appointments.Add(pastAppointment);
-        await _db.SaveChangesAsync();
-
-        _db.Diagnoses.Add(Diagnosis.Create(pastAppointment.Id, "Sâu răng cửa", EmptyDetails(allergyHistory: "Không rõ")));
-        var pastPlan = TreatmentPlan.Create(patient.Id, dentist.Id, pastAppointment.Id, service.Id, 300000m, 1, notes: "Đã trám");
-        _db.Set<TreatmentPlan>().Add(pastPlan);
-        await _db.SaveChangesAsync();
-
-        var prescription = Prescription.Create(pastAppointment.Id);
-        _db.Prescriptions.Add(prescription);
-        await _db.SaveChangesAsync();
-        _db.Set<PrescriptionItem>().Add(PrescriptionItem.Create(
-            prescription.Id, "Amoxicillin", "500mg", 10, "viên", "Uống sau ăn, ngày 2 lần"));
-        await _db.SaveChangesAsync();
-
-        var currentAppointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow, serviceId: service.Id);
-        _db.Appointments.Add(currentAppointment);
-        await _db.SaveChangesAsync();
-        _db.Diagnoses.Add(Diagnosis.Create(currentAppointment.Id, "Đau răng hàm dưới", EmptyDetails(allergyHistory: "Dị ứng Penicillin")));
-        await _db.SaveChangesAsync();
-
-        var result = await _treatmentHandler.Handle(new SuggestTreatmentQuery(currentAppointment.Id), CancellationToken.None);
-
-        result.Suggestion.Should().Be("Gợi ý test");
-        result.Disclaimer.Should().Contain("không thay thế chỉ định chuyên môn");
-
-        await _aiChatService.Received(1).SummarizeAsync(
-            Arg.Any<string>(),
-            Arg.Is<string>(content =>
-                content.Contains("Đau răng hàm dưới") &&
-                content.Contains("Dị ứng Penicillin") &&
-                content.Contains("Sâu răng cửa") &&
-                content.Contains("Amoxicillin")),
-            "TreatmentSuggestion",
-            Arg.Any<CancellationToken>());
-    }
-
-    /// <summary>Bệnh nhân chưa có lịch sử khám nào trước đây vẫn phải gọi AI với ghi chú rõ ràng.</summary>
-    [Test]
-    public async Task SuggestTreatment_PatientHasNoPastVisit_PromptStatesNoHistoryAndStillCallsAi()
-    {
-        var (patient, dentist, _) = await SeedPatientDentistServiceAsync("pt2", "td2");
-        var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
-        _db.Appointments.Add(appointment);
-        await _db.SaveChangesAsync();
-
-        _db.Diagnoses.Add(Diagnosis.Create(appointment.Id, "Viêm lợi", EmptyDetails()));
-        await _db.SaveChangesAsync();
-
-        var result = await _treatmentHandler.Handle(new SuggestTreatmentQuery(appointment.Id), CancellationToken.None);
-
-        result.Suggestion.Should().Be("Gợi ý test");
-        await _aiChatService.Received(1).SummarizeAsync(
-            Arg.Any<string>(),
-            Arg.Is<string>(content => content.Contains("chưa có lịch sử khám nào trước đây")),
-            "TreatmentSuggestion",
-            Arg.Any<CancellationToken>());
-    }
-
-    /// <summary>Không tìm thấy lịch hẹn phải ném NotFoundException, không NullReferenceException.</summary>
-    [Test]
-    public async Task SuggestTreatment_NonExistentAppointment_ThrowsNotFoundException()
-    {
-        var nonExistentId = Guid.NewGuid();
-
-        Func<Task> act = () => _treatmentHandler.Handle(new SuggestTreatmentQuery(nonExistentId), CancellationToken.None);
-
-        await act.Should().ThrowAsync<NotFoundException>();
-        await _aiChatService.DidNotReceive().SummarizeAsync(
-            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
-    }
-
-    /// <summary>
-    /// Lịch hẹn tồn tại nhưng chưa lưu phiếu khám (chưa có Diagnosis) phải ném ValidationException,
-    /// không gọi AI.
-    /// </summary>
-    [Test]
-    public async Task SuggestTreatment_AppointmentWithoutDiagnosis_ThrowsValidationException()
-    {
-        var (patient, dentist, _) = await SeedPatientDentistServiceAsync("pt3", "td3");
-        var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow);
-        _db.Appointments.Add(appointment);
-        await _db.SaveChangesAsync();
-
-        Func<Task> act = () => _treatmentHandler.Handle(new SuggestTreatmentQuery(appointment.Id), CancellationToken.None);
-
-        await act.Should().ThrowAsync<ValidationException>();
-        await _aiChatService.DidNotReceive().SummarizeAsync(
-            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
-    }
-
-    /// <summary>
-    /// Lịch hẹn của bệnh nhân khác không được xem là "lịch sử khám trước đây" — chỉ những buổi
-    /// khám của ĐÚNG bệnh nhân đó mới được đưa vào prompt.
-    /// </summary>
-    [Test]
-    public async Task SuggestTreatment_OtherPatientAppointment_NotIncludedAsPastHistory()
-    {
-        var (patient, dentist, service) = await SeedPatientDentistServiceAsync("pt4", "td4");
-        var (otherPatient, _, _) = await SeedPatientDentistServiceAsync("pt5", "td5");
-
-        var otherPatientAppointment = Appointment.Create(otherPatient.Id, dentist.Id, DateTimeOffset.UtcNow.AddMonths(-1));
-        _db.Appointments.Add(otherPatientAppointment);
-        await _db.SaveChangesAsync();
-        _db.Diagnoses.Add(Diagnosis.Create(otherPatientAppointment.Id, "Chẩn đoán của người khác - không liên quan", EmptyDetails()));
-        await _db.SaveChangesAsync();
-
-        var currentAppointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow, serviceId: service.Id);
-        _db.Appointments.Add(currentAppointment);
-        await _db.SaveChangesAsync();
-        _db.Diagnoses.Add(Diagnosis.Create(currentAppointment.Id, "Chẩn đoán hiện tại", EmptyDetails()));
-        await _db.SaveChangesAsync();
-
-        await _treatmentHandler.Handle(new SuggestTreatmentQuery(currentAppointment.Id), CancellationToken.None);
-
-        await _aiChatService.Received(1).SummarizeAsync(
-            Arg.Any<string>(),
-            Arg.Is<string>(content =>
-                !content.Contains("Chẩn đoán của người khác") &&
-                content.Contains("chưa có lịch sử khám nào trước đây")),
-            Arg.Any<string>(), Arg.Any<CancellationToken>());
-    }
 }
