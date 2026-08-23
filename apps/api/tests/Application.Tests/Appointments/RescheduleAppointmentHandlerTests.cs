@@ -111,6 +111,33 @@ public class RescheduleAppointmentHandlerTests
         appointment.Status.Should().Be(AppointmentStatus.Pending);
     }
 
+    /// <summary>Bệnh nhân dời lịch đã qua ngày/giờ ⇒ chuyển sang trạng thái Rebooking.</summary>
+    [Test]
+    public async Task Handle_PatientReschedulesPastAppointment_SetsStatusToRebooking()
+    {
+        var appointment = SeedAppointment(daysAhead: -2);
+        appointment.Confirm();
+        ActAsOwningPatient(appointment);
+
+        await RescheduleTo(appointment, DateTimeOffset.UtcNow.AddDays(7));
+
+        appointment.Status.Should().Be(AppointmentStatus.Rebooking);
+    }
+
+    /// <summary>Bệnh nhân dời lịch đã bị ghi nhận NoShow ⇒ chuyển sang trạng thái Rebooking.</summary>
+    [Test]
+    public async Task Handle_PatientReschedulesNoShowAppointment_SetsStatusToRebooking()
+    {
+        var appointment = SeedAppointment(daysAhead: -1);
+        appointment.Confirm();
+        appointment.MarkNoShow();
+        ActAsOwningPatient(appointment);
+
+        await RescheduleTo(appointment, DateTimeOffset.UtcNow.AddDays(7));
+
+        appointment.Status.Should().Be(AppointmentStatus.Rebooking);
+    }
+
     /// <summary>Nhân viên dời ⇒ giữ nguyên trạng thái, vì chính họ đang là người sắp xếp.</summary>
     [Test]
     public async Task Handle_StaffReschedules_KeepsConfirmedStatus()
@@ -139,6 +166,20 @@ public class RescheduleAppointmentHandlerTests
 
     // ── Giới hạn dành riêng cho bệnh nhân ─────────────────────────────────────
 
+    /// <summary>Bệnh nhân tự dời lịch không bị giới hạn 24 giờ.</summary>
+    [Test]
+    public async Task Handle_Patient_IsAllowedWithout24HourLimit()
+    {
+        var appointment = SeedAppointment(daysAhead: 5);
+        typeof(Appointment).GetProperty("CreatedAt")!
+            .SetValue(appointment, DateTimeOffset.UtcNow.AddHours(-25));
+        ActAsOwningPatient(appointment);
+
+        await RescheduleTo(appointment, DateTimeOffset.UtcNow.AddDays(7));
+
+        appointment.Status.Should().Be(AppointmentStatus.Pending);
+    }
+
     /// <summary>Cùng tình huống nhưng người thao tác là nhân viên — không bị chặn, vì họ đang xử lý cuộc gọi phút chót.</summary>
     [Test]
     public async Task Handle_StaffWithinDeadline_IsAllowed()
@@ -151,6 +192,36 @@ public class RescheduleAppointmentHandlerTests
         Func<Task> act = () => RescheduleTo(appointment, DateTimeOffset.UtcNow.AddDays(7));
 
         await act.Should().NotThrowAsync();
+    }
+
+    /// <summary>Bệnh nhân được phép đổi lịch lần đầu trong ngày mà không bị cooldown.</summary>
+    [Test]
+    public async Task Handle_PatientFirstRescheduleToday_IsAllowed()
+    {
+        var appointment = SeedAppointment();
+        ActAsOwningPatient(appointment);
+
+        _repo.GetPatientRescheduleCooldownUntilAsync(appointment.PatientId, Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+            .Returns((DateTimeOffset?)null);
+
+        Func<Task> act = () => RescheduleTo(appointment, DateTimeOffset.UtcNow.AddDays(7));
+
+        await act.Should().NotThrowAsync();
+    }
+
+    /// <summary>Bệnh nhân dời lịch lần 2 trở đi trong ngày và đang trong thời gian cooldown 30 phút sẽ bị chặn.</summary>
+    [Test]
+    public async Task Handle_PatientSecondRescheduleToday_WithinCooldown_ThrowsConflict()
+    {
+        var appointment = SeedAppointment();
+        ActAsOwningPatient(appointment);
+
+        _repo.GetPatientRescheduleCooldownUntilAsync(appointment.PatientId, Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+            .Returns(DateTimeOffset.UtcNow.AddMinutes(20));
+
+        Func<Task> act = () => RescheduleTo(appointment, DateTimeOffset.UtcNow.AddDays(7));
+
+        await act.Should().ThrowAsync<ConflictException>().WithMessage("*thời gian chờ*");
     }
 
     // ── Quyền sở hữu và trạng thái ────────────────────────────────────────────

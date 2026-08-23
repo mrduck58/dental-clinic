@@ -82,7 +82,11 @@ class _SelectServicePageState extends State<SelectServicePage> {
         context.pushReplacement(AppRoutes.bookingSelectDatetime, extra: updatedDraft);
       }
     } else {
-      context.pushReplacement(AppRoutes.bookingSelectDoctor, extra: updatedDraft);
+      if (updatedDraft.date != null) {
+        context.pushReplacement(AppRoutes.bookingSelectDoctor, extra: updatedDraft);
+      } else {
+        context.pushReplacement(AppRoutes.bookingSelectDatetime, extra: updatedDraft);
+      }
     }
   }
 

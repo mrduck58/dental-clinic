@@ -32,13 +32,13 @@ public class AppointmentChangeGuard(
 
         await EnsureOwnsAppointmentAsync(appointment, ct);
 
-        // 1. Kiểm tra nếu đã đến hoặc qua giờ khám
-        if (now >= appointment.AppointmentDate)
+        // 1. Kiểm tra nếu đã đến hoặc qua giờ khám: CHỈ chặn thao tác HỦY (thao tác ĐỔI LỊCH vẫn cho phép và sẽ chuyển sang Rebooking)
+        if (isCancelOperation && now >= appointment.AppointmentDate)
             throw new ConflictException(
-                "Lịch khám đã đến hoặc đã qua giờ hẹn, không thể tự hủy hoặc dời lịch. " +
+                "Lịch khám đã đến hoặc đã qua giờ hẹn, không thể tự hủy lịch. " +
                 "Vui lòng liên hệ phòng khám để được hỗ trợ.");
 
-        // 2. Kiểm tra cooldown 30 phút CHỈ đối với thao tác HỦY (không áp dụng cho dời lịch)
+        // 2. Kiểm tra cooldown 30 phút (từ lần thứ 2 trở đi trong ngày hôm đó)
         if (isCancelOperation)
         {
             var cooldownUntil = await appointmentRepository.GetPatientCooldownUntilAsync(appointment.PatientId, now, ct);
@@ -47,6 +47,17 @@ public class AppointmentChangeGuard(
                 var remaining = (int)Math.Ceiling((cooldownUntil.Value - now).TotalMinutes);
                 throw new ConflictException(
                     $"Bệnh nhân đang trong thời gian chờ sau khi hủy lịch. " +
+                    $"Vui lòng thử lại sau {remaining} phút.");
+            }
+        }
+        else
+        {
+            var rescheduleCooldownUntil = await appointmentRepository.GetPatientRescheduleCooldownUntilAsync(appointment.PatientId, now, ct);
+            if (rescheduleCooldownUntil.HasValue && rescheduleCooldownUntil.Value > now)
+            {
+                var remaining = (int)Math.Ceiling((rescheduleCooldownUntil.Value - now).TotalMinutes);
+                throw new ConflictException(
+                    $"Bệnh nhân đang trong thời gian chờ sau khi dời lịch trong ngày hôm nay. " +
                     $"Vui lòng thử lại sau {remaining} phút.");
             }
         }

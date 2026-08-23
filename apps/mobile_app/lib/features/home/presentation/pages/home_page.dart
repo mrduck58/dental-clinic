@@ -343,12 +343,8 @@ class _NoAppointmentCard extends StatelessWidget {
           const SizedBox(width: 12),
           GestureDetector(
             onTap: () {
-              final activeDraft = BookingService().activeDraft;
-              if (activeDraft != null && activeDraft.isHoldActive && activeDraft.isComplete) {
-                context.push(AppRoutes.bookingReview, extra: activeDraft);
-              } else {
-                context.push(AppRoutes.bookingSelectPatient, extra: activeDraft);
-              }
+              BookingService().clearActiveDraft();
+              context.push(AppRoutes.bookingSelectPatient);
             },
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -795,12 +791,8 @@ class _QuickAccessPanelState extends State<_QuickAccessPanel> {
               flex: 4,
               child: GestureDetector(
                 onTap: () {
-                  final activeDraft = BookingService().activeDraft;
-                  if (activeDraft != null && activeDraft.isHoldActive && activeDraft.isComplete) {
-                    context.push(AppRoutes.bookingReview, extra: activeDraft);
-                  } else {
-                    context.push(AppRoutes.bookingSelectPatient, extra: activeDraft);
-                  }
+                  BookingService().clearActiveDraft();
+                  context.push(AppRoutes.bookingSelectPatient);
                 },
                 child: Container(
                   height: 140,
@@ -1157,6 +1149,18 @@ class _UpcomingAppointmentCard extends StatelessWidget {
           isVi ? 'Đang khám' : 'In Progress',
           const Color(0xFF3B82F6),
           const Color(0xFFDBEAFE),
+        );
+      case 'rebooking':
+        return (
+          isVi ? 'Tái đặt lịch' : 'Rebooked',
+          const Color(0xFFF59E0B),
+          const Color(0xFFFEF3C7),
+        );
+      case 'noshow':
+        return (
+          isVi ? 'Vắng mặt' : 'No Show',
+          const Color(0xFFEF4444),
+          const Color(0xFFFEE2E2),
         );
       default:
         return (

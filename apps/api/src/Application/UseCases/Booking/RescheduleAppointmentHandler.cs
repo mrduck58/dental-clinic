@@ -53,6 +53,8 @@ public class RescheduleAppointmentHandler(
 
         var previousDentistId = appointment.DentistId;
         var previousDate = appointment.AppointmentDate;
+        var previousStatus = appointment.Status;
+        var isRebooking = previousDate <= now || previousStatus == Domain.Enums.AppointmentStatus.NoShow;
 
         var newDentistId = command.DentistId ?? appointment.DentistId;
         var newServiceId = command.ServiceId ?? appointment.ServiceId;
@@ -69,11 +71,14 @@ public class RescheduleAppointmentHandler(
             newDentistId, command.AppointmentDate, newServiceId,
             excludeAppointmentId: appointment.Id, ct);
 
-        // Bệnh nhân tự dời thì lịch quay về Pending để phòng khám sắp xếp lại; nhân viên dời thì
-        // giữ nguyên trạng thái vì chính họ đang là người sắp xếp.
+        // Bệnh nhân dời lịch đã qua ngày/giờ hoặc NoShow -> Chuyển sang trạng thái Rebooking.
+        // Bệnh nhân tự dời lịch sắp tới -> Pending.
+        // Nhân viên dời -> giữ nguyên trạng thái.
         appointment.Reschedule(
             command.AppointmentDate, newDentistId, newServiceId,
-            requiresReconfirmation: context.IsPatientCaller, now);
+            requiresReconfirmation: context.IsPatientCaller,
+            isRebooking: isRebooking,
+            now);
 
         await appointmentRepository.UpdateAsync(appointment, ct);
 

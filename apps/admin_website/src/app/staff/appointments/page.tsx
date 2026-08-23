@@ -417,8 +417,13 @@ function OnlineTab() {
                         {appt.patientRelationship && (
                           <span className="px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10.5px] font-black">{appt.patientRelationship}</span>
                         )}
-                        {appt.patientPhone && <span className="text-[12px] font-medium text-slate-400 font-mono">{appt.patientPhone}</span>}
                         <span className="px-2 py-0.5 bg-sky-50 text-sky-700 border border-sky-100 rounded-full text-[11.5px] font-black">{appt.serviceName ?? "Khám tổng quát"}</span>
+                        {appt.status?.toLowerCase() === "rebooking" && (
+                          <span className="px-2.5 py-0.5 bg-amber-50 text-amber-800 border border-amber-300 rounded-full text-[11.5px] font-black flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                            Tái đặt lịch
+                          </span>
+                        )}
                         <span className="text-[11px] text-slate-400 font-mono">#{appt.appointmentCode}</span>
                       </div>
                       <div className="flex items-center gap-2 mt-1.5 text-[12.5px] sm:text-[13px] text-slate-500 font-semibold flex-wrap">

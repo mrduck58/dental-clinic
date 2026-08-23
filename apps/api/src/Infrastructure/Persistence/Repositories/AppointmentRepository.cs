@@ -184,7 +184,14 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
 
         if (status.HasValue)
         {
-            query = query.Where(a => a.Status == status.Value);
+            if (status.Value == AppointmentStatus.Pending)
+            {
+                query = query.Where(a => a.Status == AppointmentStatus.Pending || a.Status == AppointmentStatus.Rebooking);
+            }
+            else
+            {
+                query = query.Where(a => a.Status == status.Value);
+            }
         }
 
         return await query.OrderByDescending(a => a.CreatedAt).ToListAsync(cancellationToken);
@@ -516,33 +523,51 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
                         && a.Status != AppointmentStatus.NoShow, cancellationToken);
     }
 
-    public async Task<int> GetPatientCancellationCountAsync(Guid patientId, CancellationToken cancellationToken = default)
+    public async Task<int> GetPatientCancellationCountAsync(Guid patientId, DateTimeOffset? since = null, CancellationToken cancellationToken = default)
     {
-        return await dbContext.Appointments
+        var query = dbContext.Appointments
             .Where(a => a.PatientId == patientId
                      && a.Status == AppointmentStatus.Cancelled
                      && a.CancelledByUserId != null
-                     && (a.CancelledByUserId == a.Patient.UserId || (a.Patient.PrimaryPatient != null && a.CancelledByUserId == a.Patient.PrimaryPatient.UserId)))
-            .CountAsync(cancellationToken);
+                     && (a.CancelledByUserId == a.Patient.UserId || (a.Patient.PrimaryPatient != null && a.CancelledByUserId == a.Patient.PrimaryPatient.UserId)));
+
+        if (since.HasValue)
+        {
+            query = query.Where(a => a.CancelledAt >= since.Value);
+        }
+
+        return await query.CountAsync(cancellationToken);
     }
 
-    public async Task<int> GetPatientRescheduleCountAsync(Guid patientId, CancellationToken cancellationToken = default)
+    public async Task<int> GetPatientRescheduleCountAsync(Guid patientId, DateTimeOffset? since = null, CancellationToken cancellationToken = default)
     {
-        return await dbContext.Appointments
-            .Where(a => a.PatientId == patientId)
-            .SumAsync(a => a.RescheduledCount, cancellationToken);
+        var query = dbContext.Appointments
+            .Where(a => a.PatientId == patientId);
+
+        if (since.HasValue)
+        {
+            query = query.Where(a => a.LastRescheduledAt != null && a.LastRescheduledAt >= since.Value);
+        }
+
+        return await query.SumAsync(a => (int?)a.RescheduledCount ?? 0, cancellationToken);
     }
 
     public async Task<DateTimeOffset?> GetPatientCooldownUntilAsync(Guid patientId, DateTimeOffset now, CancellationToken cancellationToken = default)
     {
-        // 1. Kiểm tra cooldown 30 phút CHỈ khi bệnh nhân hủy lịch (từ lần 2 trở đi)
-        var cancelCount = await GetPatientCancellationCountAsync(patientId, cancellationToken);
-        if (cancelCount >= 2)
+        // Tính mốc 00:00:00 của ngày hôm nay theo giờ Việt Nam (+7)
+        var vnOffset = TimeSpan.FromHours(7);
+        var nowVn = now.ToOffset(vnOffset);
+        var startOfTodayUtc = new DateTimeOffset(nowVn.Year, nowVn.Month, nowVn.Day, 0, 0, 0, vnOffset).ToUniversalTime();
+
+        // 1. Kiểm tra cooldown 30 phút CHỈ khi bệnh nhân hủy lịch từ lần thứ 2 trở đi trong ngày hôm đó (đã có >= 2 lần hủy)
+        var cancelCountToday = await GetPatientCancellationCountAsync(patientId, since: startOfTodayUtc, cancellationToken);
+        if (cancelCountToday >= 2)
         {
             var latestCancel = await dbContext.Appointments
                 .Where(a => a.PatientId == patientId
                          && a.Status == AppointmentStatus.Cancelled
                          && a.CancelledAt != null
+                         && a.CancelledAt >= startOfTodayUtc
                          && a.CancelledByUserId != null
                          && (a.CancelledByUserId == a.Patient.UserId || (a.Patient.PrimaryPatient != null && a.CancelledByUserId == a.Patient.PrimaryPatient.UserId)))
                 .OrderByDescending(a => a.CancelledAt)
@@ -552,6 +577,38 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
             if (latestCancel.HasValue)
             {
                 var candidate = latestCancel.Value.AddMinutes(30);
+                if (candidate > now)
+                {
+                    return candidate;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    public async Task<DateTimeOffset?> GetPatientRescheduleCooldownUntilAsync(Guid patientId, DateTimeOffset now, CancellationToken cancellationToken = default)
+    {
+        // Tính mốc 00:00:00 của ngày hôm nay theo giờ Việt Nam (+7)
+        var vnOffset = TimeSpan.FromHours(7);
+        var nowVn = now.ToOffset(vnOffset);
+        var startOfTodayUtc = new DateTimeOffset(nowVn.Year, nowVn.Month, nowVn.Day, 0, 0, 0, vnOffset).ToUniversalTime();
+
+        // Kiểm tra cooldown 30 phút khi bệnh nhân dời lịch từ lần thứ 2 trở đi trong ngày hôm đó (đã có >= 2 lần dời)
+        var rescheduleCountToday = await GetPatientRescheduleCountAsync(patientId, since: startOfTodayUtc, cancellationToken);
+        if (rescheduleCountToday >= 2)
+        {
+            var latestReschedule = await dbContext.Appointments
+                .Where(a => a.PatientId == patientId
+                         && a.LastRescheduledAt != null
+                         && a.LastRescheduledAt >= startOfTodayUtc)
+                .OrderByDescending(a => a.LastRescheduledAt)
+                .Select(a => a.LastRescheduledAt)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (latestReschedule.HasValue)
+            {
+                var candidate = latestReschedule.Value.AddMinutes(30);
                 if (candidate > now)
                 {
                     return candidate;

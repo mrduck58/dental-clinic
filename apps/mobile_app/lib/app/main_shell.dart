@@ -40,12 +40,8 @@ class MainShell extends StatelessWidget {
           }
         },
         onFabTap: () {
-          final activeDraft = BookingService().activeDraft;
-          if (activeDraft != null && activeDraft.isHoldActive && activeDraft.isComplete) {
-            context.push(AppRoutes.bookingReview, extra: activeDraft);
-          } else {
-            context.push(AppRoutes.bookingSelectPatient, extra: activeDraft);
-          }
+          BookingService().clearActiveDraft();
+          context.push(AppRoutes.bookingSelectPatient);
         },
       ),
     );

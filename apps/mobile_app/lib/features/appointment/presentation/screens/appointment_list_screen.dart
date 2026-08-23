@@ -643,6 +643,10 @@ class _AppointmentCard extends StatelessWidget {
         return (isVi ? 'Hoàn thành' : 'Completed', const Color(0xFF16A34A), const Color(0xFFDCFCE7));
       case 'cancelled':
         return (isVi ? 'Đã hủy' : 'Cancelled', const Color(0xFFEF4444), const Color(0xFFFEE2E2));
+      case 'rebooking':
+        return (isVi ? 'Tái đặt lịch' : 'Rebooked', const Color(0xFFD97706), const Color(0xFFFEF3C7));
+      case 'noshow':
+        return (isVi ? 'Vắng mặt' : 'No Show', const Color(0xFFEF4444), const Color(0xFFFEE2E2));
       default:
         return (isVi ? 'Chờ xác nhận' : 'Pending', const Color(0xFFD97706), const Color(0xFFFEF3C7));
     }
