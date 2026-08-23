@@ -96,7 +96,7 @@ function PatientRow({ p, idx }: { p: DentistPatientDto; idx: number }) {
 
           {/* Action button */}
           <Link
-            href={`/dentist/patients/${p.appointmentId}`}
+            href={`/dentist/patients/${p.appointmentId}?from=past`}
             className="flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-[12.5px] sm:text-[13px] font-bold transition-all shrink-0 bg-slate-100 text-slate-500 hover:bg-slate-200 whitespace-nowrap"
           >
             Xem hồ sơ
