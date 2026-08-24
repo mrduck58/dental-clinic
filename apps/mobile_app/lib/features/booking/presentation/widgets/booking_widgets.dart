@@ -5,7 +5,88 @@ import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
+import 'package:mobile_app/core/utils/app_toast.dart';
+import 'package:mobile_app/features/booking/data/booking_models.dart';
 import 'package:mobile_app/features/booking/data/booking_service.dart';
+
+// ─── Booking Helper ──────────────────────────────────────────────────────────
+
+class BookingHelper {
+  /// Hiển thị hộp thoại xác nhận hủy phiên đặt lịch và giải phóng ca khám đang giữ chỗ (nếu có),
+  /// sau đó điều hướng về trang chủ.
+  static Future<bool> cancelBookingSessionAndGoHome(
+    BuildContext context, {
+    BookingDraft? draft,
+  }) async {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
+    final d = draft ?? BookingService().activeDraft;
+
+    if (d != null && d.isHoldActive && d.doctor != null && d.date != null && d.timeSlot != null) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              const Icon(Iconsax.trash, color: Color(0xFFDC2626), size: 22),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  isVi ? 'Hủy phiên đặt lịch?' : 'Cancel Booking Session?',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            isVi
+                ? 'Bạn có chắc chắn muốn hủy đặt lịch này? Ca khám đang giữ chỗ sẽ được giải phóng ngay lập tức cho người khác.'
+                : 'Are you sure you want to cancel? The held slot will be released immediately.',
+            style: const TextStyle(fontSize: 14, height: 1.4),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(isVi ? 'Không' : 'No'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFDC2626),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: Text(isVi ? 'Hủy đặt lịch' : 'Cancel Booking'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed != true) return false;
+
+      try {
+        await BookingService().releaseHold(
+          dentistId: d.doctor!.id,
+          date: d.date!,
+          timeSlot: d.timeSlot!.range,
+          patientId: (d.patient != null && d.patient!.id != 'self') ? d.patient!.id : '',
+        );
+      } catch (_) {}
+      BookingService().clearActiveDraft();
+      if (!context.mounted) return true;
+      AppToast.showSuccess(
+        context,
+        isVi ? 'Đã hủy phiên đặt lịch và giải phóng ca khám.' : 'Booking session cancelled and slot released.',
+      );
+      context.go(AppRoutes.home);
+      return true;
+    }
+
+    BookingService().clearActiveDraft();
+    context.go(AppRoutes.home);
+    return true;
+  }
+}
 
 // ─── AppBar ───────────────────────────────────────────────────────────────────
 
@@ -15,6 +96,7 @@ class BookingAppBar extends StatelessWidget implements PreferredSizeWidget {
   final bool showHome;
   final bool showBack;
   final VoidCallback? onHome;
+  final BookingDraft? draft;
 
   const BookingAppBar({
     super.key,
@@ -23,6 +105,7 @@ class BookingAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.showHome = true,
     this.showBack = true,
     this.onHome,
+    this.draft,
   });
 
   @override
@@ -58,11 +141,10 @@ class BookingAppBar extends StatelessWidget implements PreferredSizeWidget {
           ? [
               GestureDetector(
                 onTap: () {
-                  BookingService().clearActiveDraft();
                   if (onHome != null) {
                     onHome!();
                   } else {
-                    context.go(AppRoutes.home);
+                    BookingHelper.cancelBookingSessionAndGoHome(context, draft: draft);
                   }
                 },
                 child: Padding(

@@ -140,7 +140,10 @@ class _SelectDoctorPageState extends State<SelectDoctorPage> {
 
     return Scaffold(
       backgroundColor: context.bg,
-      appBar: BookingAppBar(title: isVi ? 'Chọn Nha sĩ' : 'Select Dentist'),
+      appBar: BookingAppBar(
+        title: isVi ? 'Chọn Nha sĩ' : 'Select Dentist',
+        draft: widget.draft,
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
