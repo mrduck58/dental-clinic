@@ -1,4 +1,5 @@
 using DentalClinic.API.Application.DTOs.LeaveRequests;
+using DentalClinic.API.Application.UseCases.Booking;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
@@ -40,6 +41,20 @@ public class CreateLeaveRequestHandler(
         var invalidShift = request.Shifts.FirstOrDefault(s => !WorkShifts.AllValidCodes.Contains(s.ShiftId, StringComparer.OrdinalIgnoreCase));
         if (invalidShift != null)
             throw new ValidationException($"Mã ca không hợp lệ: '{invalidShift.ShiftId}'.");
+
+        // Chặn xin nghỉ cho ca đã bắt đầu/đã qua — kể cả khi UI đã khoá, request vẫn có thể tới
+        // thẳng qua API. Mã ca cũ ("morning"/"afternoon") không xác định được giờ bắt đầu cụ thể
+        // nên bỏ qua kiểm tra này, chỉ áp dụng cho 6 ca chuẩn.
+        var nowVn = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, AppointmentStatusHelper.VietnamTz);
+        var pastShift = request.Shifts.FirstOrDefault(s =>
+        {
+            var startMinutes = WorkShifts.SortKey(s.ShiftId);
+            if (startMinutes == int.MaxValue) return false;
+            var shiftStart = new DateTimeOffset(s.Date.Year, s.Date.Month, s.Date.Day, startMinutes / 60, startMinutes % 60, 0, nowVn.Offset);
+            return shiftStart <= nowVn;
+        });
+        if (pastShift != null)
+            throw new ValidationException($"Không thể xin nghỉ cho ca đã qua: {pastShift.Date:dd/MM/yyyy} {pastShift.ShiftId}.");
 
         var shiftTuples = request.Shifts.Select(s => (s.Date, s.ShiftId)).ToList();
         var leaveRequest = LeaveRequest.Create(command.UserId, leaveType, shiftTuples, request.Reason);

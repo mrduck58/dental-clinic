@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { getMyScheduleApi, type ScheduleEntryDto } from "../../lib/apiClient";
-import { SHIFTS, shiftLabel, periodOfShift, type ShiftPeriod } from "../../lib/shifts";
+import { SHIFTS, shiftLabel, periodOfShift, isShiftPast, type ShiftPeriod } from "../../lib/shifts";
 
 const DAY_LABELS = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "CN"];
 
@@ -141,25 +141,29 @@ export default function ShiftWeekPicker({ selected, onToggle }: ShiftWeekPickerP
                         const period = periodOfShift(e.shift);
                         const st = PERIOD_STYLE[period];
                         const isSelected = selected.has(selectionKey(key, e.shift));
+                        const isPast = isShiftPast(key, e.shift);
                         return (
                           <button
                             type="button"
                             key={e.id}
+                            disabled={isPast}
                             onClick={() => onToggle(key, e.shift)}
-                            className={`rounded-lg px-2 py-1.5 border flex flex-col gap-0.5 text-left transition-all cursor-pointer ${
-                              isSelected ? `${st.chipSelected} shadow-sm` : `${st.chip} hover:brightness-95`
+                            className={`rounded-lg px-2 py-1.5 border flex flex-col gap-0.5 text-left transition-all ${
+                              isPast
+                                ? "bg-slate-50 border-slate-100 opacity-60 cursor-not-allowed"
+                                : `cursor-pointer ${isSelected ? `${st.chipSelected} shadow-sm` : `${st.chip} hover:brightness-95`}`
                             }`}
                           >
                             <div className="flex items-center gap-1">
-                              <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? "bg-white" : st.dot}`} />
-                              <span className={`text-[9px] font-black uppercase tracking-wide ${isSelected ? "text-white" : st.text}`}>{period}</span>
-                              {isSelected && (
+                              <span className={`w-1.5 h-1.5 rounded-full ${isPast ? "bg-slate-300" : isSelected ? "bg-white" : st.dot}`} />
+                              <span className={`text-[9px] font-black uppercase tracking-wide ${isPast ? "text-slate-400" : isSelected ? "text-white" : st.text}`}>{period}</span>
+                              {isSelected && !isPast && (
                                 <svg className="w-3 h-3 ml-auto text-white" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                                 </svg>
                               )}
                             </div>
-                            <span className={`text-[11px] font-black font-mono ${isSelected ? "text-white" : "text-slate-800"}`}>{shiftLabel(e.shift)}</span>
+                            <span className={`text-[11px] font-black font-mono ${isPast ? "text-slate-400" : isSelected ? "text-white" : "text-slate-800"}`}>{shiftLabel(e.shift)}</span>
                           </button>
                         );
                       })}

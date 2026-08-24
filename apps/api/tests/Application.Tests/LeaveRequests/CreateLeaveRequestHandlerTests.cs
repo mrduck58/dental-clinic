@@ -222,10 +222,10 @@ public class CreateLeaveRequestHandlerTests
             .Do(call => typeof(LeaveRequest).GetProperty("User")!.SetValue(call.Arg<LeaveRequest>(), user));
         _userRepo.GetUserIdsByRoleAsync("Owner", Arg.Any<CancellationToken>()).Returns([]);
         var handler = new CreateLeaveRequestHandler(_repo, _activityLog, _notification, _userRepo, _currentUser);
-        var sameDay = DateOnly.FromDateTime(DateTime.Today);
+        var futureDay = DateOnly.FromDateTime(DateTime.Today.AddDays(3));
         var req = new CreateLeaveRequestRequest(
             "Annual",
-            [new LeaveRequestShiftInput(sameDay, "08:00-10:00")],
+            [new LeaveRequestShiftInput(futureDay, "08:00-10:00")],
             "Lý do hợp lệ");
 
         var result = await handler.Handle(new CreateLeaveRequestCommand(Guid.NewGuid(), req), CancellationToken.None);
@@ -233,11 +233,13 @@ public class CreateLeaveRequestHandlerTests
         result.DaysCount.Should().Be(1);
     }
 
+    // Ngày trong tương lai (không phải "Today") để tránh test bị flaky theo giờ chạy — handler giờ
+    // chặn xin nghỉ cho ca đã qua, và "hôm nay" với ca 08:00-10:00 có thể đã trôi qua lúc test chạy.
     private static CreateLeaveRequestRequest BuildRequest(string leaveType, string reason)
         => new(leaveType,
             [
-                new LeaveRequestShiftInput(DateOnly.FromDateTime(DateTime.Today), "08:00-10:00"),
-                new LeaveRequestShiftInput(DateOnly.FromDateTime(DateTime.Today.AddDays(2)), "10:00-12:00"),
+                new LeaveRequestShiftInput(DateOnly.FromDateTime(DateTime.Today.AddDays(3)), "08:00-10:00"),
+                new LeaveRequestShiftInput(DateOnly.FromDateTime(DateTime.Today.AddDays(5)), "10:00-12:00"),
             ],
             reason);
 }
