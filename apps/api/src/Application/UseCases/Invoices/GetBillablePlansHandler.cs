@@ -103,7 +103,9 @@ public class GetBillablePlansHandler(IInvoiceRepository invoiceRepository, Invoi
                 PatientPhone = a.Patient.User?.PhoneNumber,
                 Gender = a.Patient.Gender,
                 DentistName = a.Dentist.FullName,
-                AppointmentDate = a.AppointmentDate,
+                // Hiển thị ở ngày hôm nay (ngày yêu cầu thu phần còn lại), KHÔNG dùng ngày hẹn gốc —
+                // nếu không, mục này sẽ nằm ở ngày quá khứ và biến mất khỏi bộ lọc mặc định "hôm nay".
+                AppointmentDate = DateTimeOffset.UtcNow,
                 Diagnosis = $"Thu phần còn lại của hóa đơn {parent.InvoiceNumber}",
                 Items = new List<InvoiceItemDto> { new($"Phần còn lại - HĐ {parent.InvoiceNumber}", 1, remaining) },
                 SuggestedTotal = remaining,
