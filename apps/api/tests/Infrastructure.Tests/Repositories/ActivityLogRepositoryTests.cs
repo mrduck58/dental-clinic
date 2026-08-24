@@ -104,6 +104,23 @@ public class ActivityLogRepositoryTests
         items[0].Id.Should().Be(inRange.Id);
     }
 
+    /// <summary>excludeAction phải loại bỏ đúng loại thao tác đó, giữ nguyên các loại khác — dùng để
+    /// Audit Log không hiển thị log đăng nhập nữa (đã có màn hình Lịch sử đăng nhập riêng).</summary>
+    [Test]
+    public async Task GetPagedAsync_ExcludeAction_RemovesOnlyThatAction()
+    {
+        _db.ActivityLogs.AddRange(
+            MakeLog(action: "login"),
+            MakeLog(action: "Create"));
+        await _db.SaveChangesAsync();
+
+        var (items, total) = await _sut.GetPagedAsync(
+            null, null, null, null, null, null, null, page: 1, pageSize: 10, excludeAction: "login");
+
+        total.Should().Be(1);
+        items[0].Action.Should().Be("Create");
+    }
+
     /// <summary>Phân trang phải cắt đúng số lượng theo page/pageSize, tổng đếm không đổi.</summary>
     [Test]
     public async Task GetPagedAsync_Pagination_ReturnsCorrectSlice()

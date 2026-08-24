@@ -13,13 +13,9 @@ type ActionType = "login" | "create" | "edit" | "delete" | "export" | "view" | "
 type ModuleType = "account" | "service" | "post" | "schedule" | "system" | "appointment" | "room" | "medicine" | "inventory" | "leave" | "invoice" | "feedback" | "promotion";
 type StatusType = "success" | "failed" | "warning";
 
+// Không có entry "login" — Audit Log không hiển thị log đăng nhập nữa (đã có màn hình Lịch sử đăng nhập
+// riêng ở admin/activity-logs/login-history), luôn loại action="login" khỏi kết quả (xem excludeAction).
 const ACTION_CONFIG: Record<string, { label: string; badgeClass: string; dot: string; iconPath: string }> = {
-  login: {
-    label: "Đăng nhập",
-    badgeClass: "bg-green-50 text-green-700 border border-green-100",
-    dot: "bg-green-500",
-    iconPath: "M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9",
-  },
   create: {
     label: "Tạo mới",
     badgeClass: "bg-sky-50 text-sky-700 border border-sky-100",
@@ -179,16 +175,17 @@ export default function ActivityLogsPage() {
     setError(null);
     try {
       const data = await getActivityLogsApi({
-        action:    actionFilter !== "all" ? actionFilter : undefined,
-        module:    moduleFilter !== "all" ? moduleFilter : undefined,
-        status:    statusFilter !== "all" ? statusFilter : undefined,
-        search:    searchQuery || undefined,
+        action:        actionFilter !== "all" ? actionFilter : undefined,
+        module:        moduleFilter !== "all" ? moduleFilter : undefined,
+        status:        statusFilter !== "all" ? statusFilter : undefined,
+        search:        searchQuery || undefined,
         // Mốc nửa đêm giờ VN — API tự mở rộng endDate đến hết ngày đó
-        startDate: dateFrom ? `${dateFrom}T00:00:00+07:00` : undefined,
-        endDate:   dateTo ? `${dateTo}T00:00:00+07:00` : undefined,
-        page:      currentPage,
+        startDate:     dateFrom ? `${dateFrom}T00:00:00+07:00` : undefined,
+        endDate:       dateTo ? `${dateTo}T00:00:00+07:00` : undefined,
+        page:          currentPage,
         pageSize,
         sortDir,
+        excludeAction: "login",
       });
       setLogs(data.items);
       setTotalCount(data.totalCount);
@@ -204,11 +201,11 @@ export default function ActivityLogsPage() {
     const today = getTodayIso();
     try {
       const [todayData, warningData] = await Promise.all([
-        getActivityLogsApi({ startDate: `${today}T00:00:00+07:00`, endDate: `${today}T00:00:00+07:00`, pageSize: 100 }),
-        getActivityLogsApi({ status: "failed", pageSize: 1, page: 1 }),
+        getActivityLogsApi({ startDate: `${today}T00:00:00+07:00`, endDate: `${today}T00:00:00+07:00`, pageSize: 100, excludeAction: "login" }),
+        getActivityLogsApi({ status: "failed", pageSize: 1, page: 1, excludeAction: "login" }),
       ]);
       const warningCount1 = warningData.totalCount;
-      const warningData2 = await getActivityLogsApi({ status: "warning", pageSize: 1, page: 1 });
+      const warningData2 = await getActivityLogsApi({ status: "warning", pageSize: 1, page: 1, excludeAction: "login" });
       const todayItems = todayData.items;
       const activeUsers = new Set(todayItems.map((l) => l.userId ?? l.userName)).size;
       setStats({
@@ -275,14 +272,15 @@ export default function ActivityLogsPage() {
   const handleExport = async () => {
     try {
       const all = await getActivityLogsApi({
-        action:    actionFilter !== "all" ? actionFilter : undefined,
-        module:    moduleFilter !== "all" ? moduleFilter : undefined,
-        status:    statusFilter !== "all" ? statusFilter : undefined,
-        search:    searchQuery || undefined,
-        startDate: dateFrom ? `${dateFrom}T00:00:00+07:00` : undefined,
-        endDate:   dateTo ? `${dateTo}T00:00:00+07:00` : undefined,
+        action:        actionFilter !== "all" ? actionFilter : undefined,
+        module:        moduleFilter !== "all" ? moduleFilter : undefined,
+        status:        statusFilter !== "all" ? statusFilter : undefined,
+        search:        searchQuery || undefined,
+        startDate:     dateFrom ? `${dateFrom}T00:00:00+07:00` : undefined,
+        endDate:       dateTo ? `${dateTo}T00:00:00+07:00` : undefined,
         pageSize: 100,
         page: 1,
+        excludeAction: "login",
       });
       const headers = "ID,Thoi gian,Nguoi dung,Vai tro,Hanh dong,Phan he,Mo ta,Dia chi IP,Trang thai\n";
       const rows = all.items
@@ -438,7 +436,6 @@ export default function ActivityLogsPage() {
               <div className="relative sm:w-44">
                 <select value={actionFilter} onChange={(e) => { setActionFilter(e.target.value); resetPage(); }} className={selectClass}>
                   <option value="all">Tất cả thao tác</option>
-                  <option value="login">Đăng nhập</option>
                   <option value="create">Tạo mới</option>
                   <option value="edit">Chỉnh sửa</option>
                   <option value="delete">Xóa</option>

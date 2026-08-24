@@ -41,18 +41,6 @@ export default function RoomDetailPage({ params }: RoomDetailPageProps) {
       .finally(() => setIsLoading(false));
   }, [id]);
 
-  // Vật tư đã cấp cho phòng này, cộng dồn theo từng vật tư — đây KHÔNG phải tồn kho còn lại thật của
-  // phòng (hệ thống chưa theo dõi phòng đã tiêu thụ bao nhiêu), chỉ là tổng đã cấp từ trước đến giờ.
-  const byItem = React.useMemo(() => {
-    const map = new Map<string, { itemName: string; totalQuantity: number }>();
-    for (const t of transactions) {
-      const existing = map.get(t.itemName);
-      if (existing) existing.totalQuantity += t.quantity;
-      else map.set(t.itemName, { itemName: t.itemName, totalQuantity: t.quantity });
-    }
-    return [...map.values()].sort((a, b) => b.totalQuantity - a.totalQuantity);
-  }, [transactions]);
-
   const backButton = (
     <Link
       href="/admin/rooms"
@@ -69,7 +57,7 @@ export default function RoomDetailPage({ params }: RoomDetailPageProps) {
       <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
         <AdminSidebar activeMenu="rooms" />
         <main className="flex-1 flex flex-col min-w-0">
-          <AdminPageHeader title="Vật tư của phòng" subtitle="Đang tải thông tin..." left={backButton} />
+          <AdminPageHeader title="Lịch sử cấp phát vật tư" subtitle="Đang tải thông tin..." left={backButton} />
           <div className="p-8 flex-1 flex items-center justify-center">
             <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
@@ -83,7 +71,7 @@ export default function RoomDetailPage({ params }: RoomDetailPageProps) {
       <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
         <AdminSidebar activeMenu="rooms" />
         <main className="flex-1 flex flex-col min-w-0">
-          <AdminPageHeader title="Vật tư của phòng" subtitle="Không tìm thấy phòng" left={backButton} />
+          <AdminPageHeader title="Lịch sử cấp phát vật tư" subtitle="Không tìm thấy phòng" left={backButton} />
           <div className="p-8 flex-1 flex items-center justify-center">
             <p className="text-slate-500 font-semibold">{error || "Phòng không tồn tại."}</p>
           </div>
@@ -98,8 +86,8 @@ export default function RoomDetailPage({ params }: RoomDetailPageProps) {
 
       <main className="flex-1 flex flex-col min-w-0">
         <AdminPageHeader
-          title={`Vật tư của ${room.name}`}
-          subtitle="Vật tư đã cấp và lịch sử xuất kho cho phòng này"
+          title={`Lịch sử cấp phát vật tư — ${room.name}`}
+          subtitle="Các lần xuất kho cấp vật tư cho phòng này, không phải tồn kho hiện có của phòng"
           left={backButton}
         />
 
@@ -122,29 +110,6 @@ export default function RoomDetailPage({ params }: RoomDetailPageProps) {
               <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Trạng thái</span>
               <span className="text-[14px] font-bold text-slate-700">{room.status}</span>
             </div>
-          </div>
-
-          {/* Vật tư đã cấp cho phòng (cộng dồn) */}
-          <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-100">
-              <h3 className="text-[15px] font-black text-slate-900">Vật tư đã cấp cho phòng này</h3>
-              <p className="text-[11.5px] text-slate-400 font-semibold mt-0.5">
-                Tổng cộng dồn từ trước đến giờ theo từng vật tư — không phải tồn kho còn lại thật của phòng
-                (hệ thống chưa theo dõi phòng đã dùng hết bao nhiêu).
-              </p>
-            </div>
-            {byItem.length === 0 ? (
-              <p className="text-[13px] font-semibold text-slate-400 text-center py-8">Chưa có lần xuất kho nào cho phòng này.</p>
-            ) : (
-              <div className="divide-y divide-slate-100">
-                {byItem.map(it => (
-                  <div key={it.itemName} className="px-6 py-3 flex items-center justify-between">
-                    <span className="text-[13.5px] font-bold text-slate-800">{it.itemName}</span>
-                    <span className="text-[13px] font-black text-slate-700 tabular-nums">{it.totalQuantity}</span>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
 
           {/* Lịch sử xuất kho cho phòng */}

@@ -181,7 +181,7 @@ export default function CreatePostPage() {
               />
             </div>
 
-            <NotificationBell />
+            <NotificationBell href="/staff/notifications" />
           </div>
         </header>
 

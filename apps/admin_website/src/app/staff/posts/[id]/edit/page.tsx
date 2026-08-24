@@ -158,7 +158,7 @@ export default function EditPostPage({ params }: EditPostPageProps) {
               />
             </div>
 
-            <NotificationBell />
+            <NotificationBell href="/staff/notifications" />
           </div>
         </header>
 

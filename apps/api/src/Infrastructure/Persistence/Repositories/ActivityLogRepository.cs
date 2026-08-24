@@ -23,6 +23,7 @@ public class ActivityLogRepository(AppDbContext db) : IActivityLogRepository
         int page,
         int pageSize,
         string? sortDir = null,
+        string? excludeAction = null,
         CancellationToken ct = default)
     {
         var query = db.ActivityLogs.AsQueryable();
@@ -32,6 +33,9 @@ public class ActivityLogRepository(AppDbContext db) : IActivityLogRepository
 
         if (!string.IsNullOrWhiteSpace(action))
             query = query.Where(a => a.Action == action);
+
+        if (!string.IsNullOrWhiteSpace(excludeAction))
+            query = query.Where(a => a.Action != excludeAction);
 
         if (!string.IsNullOrWhiteSpace(module))
             query = query.Where(a => a.Module == module);

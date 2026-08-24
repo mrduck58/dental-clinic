@@ -3518,6 +3518,7 @@ export interface InvoiceItemDto {
   unitPrice: number;
   lineTotal: number;
   treatmentPlanId?: string | null; // liệu trình mà dòng này thu tiền cho
+  serviceId?: string | null; // dùng để tự khớp khuyến mãi theo đúng dịch vụ, không so tên chuỗi
 }
 
 export interface BillablePlanDto {
@@ -3895,18 +3896,21 @@ export async function getActivityLogsApi(params?: {
   pageSize?: number;
   /** "asc" | "desc" theo thời gian ghi nhận — mặc định "desc" (mới nhất trước) */
   sortDir?: "asc" | "desc";
+  /** Loại thao tác cần loại khỏi kết quả (vd "login" — Audit Log không hiển thị log đăng nhập nữa vì đã có màn hình Lịch sử đăng nhập riêng) */
+  excludeAction?: string;
 }): Promise<ActivityLogPagedDto> {
   const qs = new URLSearchParams();
-  if (params?.userId)    qs.set("userId",    params.userId);
-  if (params?.action)    qs.set("action",    params.action);
-  if (params?.module)    qs.set("module",    params.module);
-  if (params?.status)    qs.set("status",    params.status);
-  if (params?.search)    qs.set("search",    params.search);
-  if (params?.startDate) qs.set("startDate", params.startDate);
-  if (params?.endDate)   qs.set("endDate",   params.endDate);
-  if (params?.page)      qs.set("page",      String(params.page));
-  if (params?.pageSize)  qs.set("pageSize",  String(params.pageSize));
-  if (params?.sortDir)   qs.set("sortDir",   params.sortDir);
+  if (params?.userId)        qs.set("userId",        params.userId);
+  if (params?.action)        qs.set("action",        params.action);
+  if (params?.module)        qs.set("module",        params.module);
+  if (params?.status)        qs.set("status",        params.status);
+  if (params?.search)        qs.set("search",        params.search);
+  if (params?.startDate)     qs.set("startDate",     params.startDate);
+  if (params?.endDate)       qs.set("endDate",       params.endDate);
+  if (params?.page)          qs.set("page",          String(params.page));
+  if (params?.pageSize)      qs.set("pageSize",      String(params.pageSize));
+  if (params?.sortDir)       qs.set("sortDir",       params.sortDir);
+  if (params?.excludeAction) qs.set("excludeAction", params.excludeAction);
   const query = qs.toString() ? `?${qs.toString()}` : "";
 
   const res = await fetch(`${API_URL}/api/activity-logs${query}`, {
@@ -4154,47 +4158,6 @@ export async function getStaffDashboardPendingInvoicesApi(
     throw new Error((err as { title?: string }).title ?? "Không thể tải hóa đơn chờ thanh toán");
   }
   return res.json() as Promise<StaffDashboardPendingInvoiceDto[]>;
-}
-
-// ── AI Analytics (thống kê vận hành các tính năng AI) ────────────────────────
-
-export interface AiFeatureUsageDto {
-  feature: string;
-  totalCalls: number;
-  successCount: number;
-  failureCount: number;
-  avgDurationMs: number;
-}
-
-export interface AiDailyUsageDto {
-  date: string;
-  calls: number;
-  failures: number;
-}
-
-export interface AiAnalyticsDto {
-  rangeDays: number | null;
-  totalConversations: number;
-  totalMessages: number;
-  totalUserMessages: number;
-  suggestBookingCount: number;
-  bookingActionCount: number;
-  usageByFeature: AiFeatureUsageDto[];
-  dailyUsage: AiDailyUsageDto[];
-}
-
-/** rangeDays = undefined/null → lấy TẤT CẢ dữ liệu từ trước tới nay (tùy chọn "Tất cả" trên UI). */
-export async function getAiAnalyticsApi(rangeDays?: number): Promise<AiAnalyticsDto> {
-  const qs = rangeDays != null ? `?rangeDays=${rangeDays}` : "";
-  const res = await fetch(`${API_URL}/api/ai-analytics${qs}`, {
-    headers: { ...authHeaders() },
-  });
-  await checkAuth(res);
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { title?: string }).title ?? "Không thể tải thống kê AI");
-  }
-  return res.json() as Promise<AiAnalyticsDto>;
 }
 
 // ── AI Marketing Content Assistant (soạn nội dung bài viết/ưu đãi bằng AI) ───

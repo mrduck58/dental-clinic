@@ -56,7 +56,7 @@ const formatTimestamp = (tsStr: string | null | undefined) => {
   }
 };
 
-export default function ProfilePageContent({ sidebar, notificationHref = "/admin/notifications" }: ProfilePageContentProps) {
+export default function ProfilePageContent({ sidebar, notificationHref }: ProfilePageContentProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -403,7 +403,7 @@ export default function ProfilePageContent({ sidebar, notificationHref = "/admin
               {activeTab === "activities" && "Nhật Ký Hoạt Động"}
             </h1>
           </div>
-          <NotificationBell href={notificationHref} />
+          {notificationHref && <NotificationBell href={notificationHref} />}
         </header>
 
         {/* Container */}

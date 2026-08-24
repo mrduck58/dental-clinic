@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import AdminSidebar from "../../../components/shared/AdminSidebar";
 import AdminPageHeader from "../../../components/shared/AdminPageHeader";
 import Pagination from "../../../components/shared/Pagination";
@@ -12,32 +13,16 @@ import {
   updateRoomApi,
   deleteRoomApi,
   changeRoomStatusApi,
-  getWeekScheduleApi,
   type RoomDto,
-  type ScheduleEntryDto,
 } from "../../../lib/apiClient";
-import { SHIFTS } from "../../../lib/shifts";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
 type RoomStatus = "Trống" | "Đang khám" | "Đang vệ sinh" | "Bảo trì" | "Ngừng hoạt động";
 
-const getTodayStr = (): string => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-};
-
-const getMondayStr = (): string => {
-  const today = new Date();
-  const day = today.getDay();
-  const diff = today.getDate() - day + (day === 0 ? -6 : 1);
-  const monday = new Date(today);
-  monday.setDate(diff);
-  return `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
-};
-
 export default function RoomsPage() {
   useRequireAdmin();
+  const router = useRouter();
 
   // ── States ─────────────────────────────────────────────────────────────────
   const [rooms, setRooms] = useState<RoomDto[]>([]);
@@ -55,7 +40,6 @@ export default function RoomsPage() {
 
   const [showStatusFilterDropdown, setShowStatusFilterDropdown] = useState(false);
 
-  const [showDetailModal, setShowDetailModal] = useState(false);
   const [showEditRoomModal, setShowEditRoomModal] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -73,9 +57,6 @@ export default function RoomsPage() {
   const [statusValue, setStatusValue] = useState<RoomStatus>("Trống");
 
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
-
-  const [todaySchedule, setTodaySchedule] = useState<ScheduleEntryDto[]>([]);
-  const [isLoadingSchedule, setIsLoadingSchedule] = useState(false);
 
   const statusFilterRef = useRef<HTMLDivElement>(null);
 
@@ -216,20 +197,6 @@ export default function RoomsPage() {
     }
   };
 
-  const openDetailModal = (room: RoomDto) => {
-    setSelectedRoom(room);
-    setShowDetailModal(true);
-    setIsLoadingSchedule(true);
-    getWeekScheduleApi(getMondayStr())
-      .then(entries => {
-        const today = getTodayStr();
-        setTodaySchedule(entries.filter(e => e.date === today && e.room === room.name && !e.isHoliday));
-      })
-      .catch(() => setTodaySchedule([]))
-      .finally(() => setIsLoadingSchedule(false));
-  };
-  const closeDetailModal = () => { setShowDetailModal(false); setSelectedRoom(null); setTodaySchedule([]); };
-
   const openEditModal = (room: RoomDto) => {
     setSelectedRoom(room);
     setEditRoomName(room.name);
@@ -256,7 +223,7 @@ export default function RoomsPage() {
   }, []);
 
   // Khóa scroll nền khi có modal mở
-  const isAnyModalOpen = showDetailModal || showEditRoomModal || showStatusModal || showDeleteModal;
+  const isAnyModalOpen = showEditRoomModal || showStatusModal || showDeleteModal;
   useEffect(() => {
     document.body.style.overflow = isAnyModalOpen ? "hidden" : "";
     return () => { document.body.style.overflow = ""; };
@@ -505,7 +472,11 @@ export default function RoomsPage() {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {paginatedRooms.map((room) => (
-                      <tr key={room.id} className="hover:bg-slate-50/40 transition-colors group">
+                      <tr
+                        key={room.id}
+                        onClick={() => router.push(`/admin/rooms/${room.id}`)}
+                        className="hover:bg-slate-50/40 transition-colors group cursor-pointer"
+                      >
                         <td className="py-4.5 px-6">
                           <div className="inline-flex flex-col">
                             <span className="flex items-center gap-1.5 font-extrabold text-slate-900">
@@ -519,7 +490,7 @@ export default function RoomsPage() {
                         </td>
                         <td className="py-4.5 px-6 font-semibold text-slate-700">{room.type}</td>
                         <td className="py-4.5 px-6 font-semibold text-slate-600">Tầng {room.floor}</td>
-                        <td className="py-4.5 px-6 text-center">
+                        <td className="py-4.5 px-6 text-center" onClick={(e) => e.stopPropagation()}>
                           <button onClick={() => openStatusModal(room)}
                             className="hover:opacity-85 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer focus:outline-none block w-full text-center"
                             title="Click để đổi trạng thái">
@@ -527,15 +498,8 @@ export default function RoomsPage() {
                           </button>
                         </td>
                         <td className="py-4.5 px-6 text-[13px] font-semibold text-slate-500">{formatDate(room.createdAt)}</td>
-                        <td className="py-4.5 px-6 text-right">
+                        <td className="py-4.5 px-6 text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-2.5">
-                            <button onClick={() => openDetailModal(room)}
-                              className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all cursor-pointer" title="Xem chi tiết">
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                              </svg>
-                            </button>
                             <Link href={`/admin/rooms/${room.id}`}
                               className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all cursor-pointer" title="Vật tư đã cấp cho phòng này">
                               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
@@ -591,125 +555,6 @@ export default function RoomsPage() {
         }`}>
           <span className="text-lg">{toast.type === "success" ? "✓" : toast.type === "error" ? "⚠" : "ℹ"}</span>
           <span>{toast.message}</span>
-        </div>
-      )}
-
-      {/* ── MODAL: VIEW DETAIL ──────────────────────────────────────────────── */}
-      {showDetailModal && selectedRoom && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="bg-white w-full max-w-lg rounded-2xl shadow-xl overflow-hidden border border-slate-200 border-t-4 border-t-primary">
-            <div className="px-6 py-4.5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-              <div>
-                <h3 className="text-[17px] font-black text-slate-900">{selectedRoom.name} ({selectedRoom.code})</h3>
-                <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider block mt-0.5">Chi tiết phòng khám</span>
-              </div>
-              <button onClick={closeDetailModal} className="text-slate-400 hover:text-slate-600 text-lg cursor-pointer">✕</button>
-            </div>
-            <div className="p-6 flex flex-col gap-5 text-[13px] max-h-[75vh] overflow-y-auto">
-              <div>
-                <h4 className="font-extrabold text-[12px] text-slate-400 uppercase tracking-wider mb-2.5">Thông tin cơ bản</h4>
-                <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-150">
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[11px] text-slate-400 font-semibold">Tên phòng</span>
-                    <span className="font-bold text-slate-800">{selectedRoom.name}</span>
-                  </div>
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[11px] text-slate-400 font-semibold">Mã phòng</span>
-                    <span className="font-bold text-slate-800">{selectedRoom.code}</span>
-                  </div>
-                  <div className="flex flex-col gap-0.5 mt-2">
-                    <span className="text-[11px] text-slate-400 font-semibold">Loại phòng</span>
-                    <span className="font-bold text-slate-800">{selectedRoom.type}</span>
-                  </div>
-                  <div className="flex flex-col gap-0.5 mt-2">
-                    <span className="text-[11px] text-slate-400 font-semibold">Tầng</span>
-                    <span className="font-bold text-slate-800">Tầng {selectedRoom.floor}</span>
-                  </div>
-                  <div className="flex flex-col gap-0.5 mt-2">
-                    <span className="text-[11px] text-slate-400 font-semibold">Trạng thái hoạt động</span>
-                    <span className={`font-bold ${selectedRoom.activeStatus === "Hoạt động" ? "text-emerald-600" : "text-slate-500"}`}>
-                      ● {selectedRoom.activeStatus}
-                    </span>
-                  </div>
-                  <div className="flex flex-col gap-0.5 mt-2">
-                    <span className="text-[11px] text-slate-400 font-semibold">Trạng thái hiện tại</span>
-                    <span className="font-bold text-slate-800">{selectedRoom.status}</span>
-                  </div>
-                  <div className="flex flex-col gap-0.5 mt-2">
-                    <span className="text-[11px] text-slate-400 font-semibold">Ngày tạo</span>
-                    <span className="font-bold text-slate-800">{formatDate(selectedRoom.createdAt)}</span>
-                  </div>
-                  {selectedRoom.updatedAt && (
-                    <div className="flex flex-col gap-0.5 mt-2">
-                      <span className="text-[11px] text-slate-400 font-semibold">Cập nhật lần cuối</span>
-                      <span className="font-bold text-slate-800">{formatDate(selectedRoom.updatedAt)}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {selectedRoom.description && (
-                <div>
-                  <h4 className="font-extrabold text-[12px] text-slate-400 uppercase tracking-wider mb-2">Mô tả trang thiết bị</h4>
-                  <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-150 font-semibold italic text-slate-700 leading-relaxed">
-                    {selectedRoom.description}
-                  </div>
-                </div>
-              )}
-
-              {/* Nhân sự làm việc hôm nay */}
-              <div>
-                <h4 className="font-extrabold text-[12px] text-slate-400 uppercase tracking-wider mb-2.5">
-                  Nhân sự làm việc hôm nay ({getTodayStr().split("-").reverse().join("/")})
-                </h4>
-                {isLoadingSchedule ? (
-                  <div className="flex items-center gap-2 py-4 text-[13px] text-slate-400 font-semibold">
-                    <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                    Đang tải lịch...
-                  </div>
-                ) : todaySchedule.length === 0 ? (
-                  <div className="bg-slate-50 border border-slate-150 rounded-xl px-4 py-3 text-[13px] text-slate-400 font-semibold">
-                    Chưa có phân công nhân sự cho phòng này hôm nay.
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-2.5">
-                    {SHIFTS.map(shift => {
-                      const entries = todaySchedule.filter(e => e.shift === shift.id);
-                      if (entries.length === 0) return null;
-                      return (
-                        <div key={shift.id} className="bg-slate-50 border border-slate-150 rounded-xl p-3.5">
-                          <p className="text-[11px] font-extrabold text-primary uppercase tracking-wider mb-2">
-                            Ca {shift.label} · {shift.period}
-                          </p>
-                          <div className="flex flex-col gap-1.5">
-                            {entries.map(e => (
-                              <div key={e.id} className="flex items-center justify-between">
-                                <span className="font-bold text-slate-800 text-[13px]">{e.name}</span>
-                                <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                                  e.role === "dentist"   ? "bg-red-50 text-primary border border-red-200" :
-                                  e.role === "assistant" ? "bg-teal-50 text-teal-700 border border-teal-200" :
-                                                           "bg-slate-100 text-slate-600 border border-slate-200"
-                                }`}>
-                                  {e.role === "dentist" ? "Bác sĩ" : e.role === "assistant" ? "Phụ tá" : "Nhân viên"}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex justify-end gap-3 mt-1 border-t border-slate-100 pt-4">
-                <button onClick={closeDetailModal}
-                  className="px-5 py-2 bg-slate-150 hover:bg-slate-200 text-slate-700 rounded-lg font-bold cursor-pointer transition-colors">
-                  Đóng
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
       )}
 

@@ -293,6 +293,7 @@ export default function AddServicePage() {
         await updateServiceSupplyItemsApi(createdService.id, validSupplyItems);
       }
 
+      sessionStorage.setItem("serviceSuccessMsg", "Đã thêm dịch vụ thành công!");
       router.push("/admin/services");
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Thêm dịch vụ thất bại.");

@@ -82,7 +82,7 @@ export default function PreviewPostPage({ params }: PreviewPostPageProps) {
                 Chỉnh sửa
               </Link>
             )}
-            <NotificationBell />
+            <NotificationBell href="/staff/notifications" />
           </div>
         </header>
 

@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import AdminSidebar from "../../../components/shared/AdminSidebar";
 import AdminPageHeader from "../../../components/shared/AdminPageHeader";
 import Pagination from "../../../components/shared/Pagination";
@@ -16,6 +17,7 @@ const SORT_DESC_BY_DEFAULT = (_column: SortKey) => false;
 
 export default function MedicinesPage() {
   useRequireAdmin();
+  const router = useRouter();
 
   const [medicines, setMedicines] = useState<MedicineDto[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -227,7 +229,11 @@ export default function MedicinesPage() {
                     </tr>
                   ) : paginatedMedicines.length > 0 ? (
                     paginatedMedicines.map((medicine) => (
-                      <tr key={medicine.id} className="hover:bg-slate-50/40 transition-colors">
+                      <tr
+                        key={medicine.id}
+                        onClick={() => router.push(`/admin/medicines/edit/${medicine.id}`)}
+                        className="hover:bg-slate-50/40 transition-colors cursor-pointer"
+                      >
                         <td className="px-6 py-4.5">
                           <div className="w-12 h-12 rounded-xl overflow-hidden bg-slate-100 flex items-center justify-center">
                             <svg className="w-6 h-6 text-slate-300" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
@@ -255,7 +261,7 @@ export default function MedicinesPage() {
                             {medicine.description}
                           </span>
                         </td>
-                        <td className="px-6 py-4.5">
+                        <td className="px-6 py-4.5" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-center gap-1">
                             <Link
                               href={`/admin/medicines/edit/${medicine.id}`}

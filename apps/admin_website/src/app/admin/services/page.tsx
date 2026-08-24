@@ -6,6 +6,7 @@ import AdminSidebar from "../../../components/shared/AdminSidebar";
 import AdminPageHeader from "../../../components/shared/AdminPageHeader";
 import Pagination from "../../../components/shared/Pagination";
 import { SortableTh, Th, toggleSortState, type SortDir } from "../../../components/shared/TableHeader";
+import { Toast, useToast } from "../../../components/shared/Toast";
 import { useRequireAdmin } from "../../../hooks/useRequireAdmin";
 import { useRouter } from "next/navigation";
 import {
@@ -23,31 +24,31 @@ import {
 interface Service {
   id: string;
   name: string;
-  price: number;
   duration: number;
   status: "Active" | "Inactive";
   description: string;
-  popular: number;
   iconUrl: string | null;
+  optionsCount: number;
+  createdAt: string;
 }
 
 function toService(dto: ServiceDto): Service {
   return {
     id: dto.id,
     name: dto.name,
-    price: dto.price,
     duration: dto.durationMinutes,
     status: dto.isActive ? "Active" : "Inactive",
     description: dto.description,
-    popular: dto.viewCount,
     iconUrl: dto.iconUrl,
+    optionsCount: dto.options.length,
+    createdAt: dto.createdAt,
   };
 }
 
 const ITEMS_PER_PAGE_DEFAULT = 5;
 
-type ServiceSortKey = "name" | "price" | "duration" | "status";
-const SERVICE_SORT_DESC_BY_DEFAULT = (column: ServiceSortKey) => column === "price";
+type ServiceSortKey = "name" | "duration" | "status" | "createdAt";
+const SERVICE_SORT_DESC_BY_DEFAULT = (column: ServiceSortKey) => column === "createdAt";
 
 type PromoSortKey = "code" | "name" | "discount" | "startDate" | "status";
 const PROMO_SORT_DESC_BY_DEFAULT = (column: PromoSortKey) => column === "discount" || column === "startDate";
@@ -55,6 +56,7 @@ const PROMO_SORT_DESC_BY_DEFAULT = (column: PromoSortKey) => column === "discoun
 export default function ServicesPage() {
   useRequireAdmin();
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState<"services" | "promotions">("services");
   const [services, setServices] = useState<Service[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -78,6 +80,8 @@ export default function ServicesPage() {
   const [isDeletePromoOpen, setIsDeletePromoOpen] = useState(false);
   const [selectedPromo, setSelectedPromo] = useState<PromotionDto | null>(null);
 
+  const { toast, showToast } = useToast();
+
   useEffect(() => {
     getServicesApi()
       .then((data) => setServices(data.map(toService)))
@@ -86,6 +90,11 @@ export default function ServicesPage() {
       .then(setPromotions)
       .finally(() => setIsPromosLoading(false));
   }, []);
+
+  useEffect(() => {
+    const msg = sessionStorage.getItem("serviceSuccessMsg");
+    if (msg) { showToast(msg); sessionStorage.removeItem("serviceSuccessMsg"); }
+  }, [showToast]);
 
   const handleTogglePromo = async (id: string) => {
     try {
@@ -109,11 +118,21 @@ export default function ServicesPage() {
     const total = services.length;
     const active = services.filter((s) => s.status === "Active").length;
     const inactive = services.filter((s) => s.status === "Inactive").length;
-    const mostPopular = services.length > 0
-      ? services.reduce((max, s) => (s.popular > max.popular ? s : max), services[0])
-      : null;
-    return { total, active, inactive, mostPopular };
+    return { total, active, inactive };
   }, [services]);
+
+  // Dịch vụ nào đang có khuyến mãi thật sự áp dụng ngay bây giờ (đã bật + trong khoảng ngày) —
+  // dùng lại data khuyến mãi đã tải sẵn trên trang này, khỏi gọi thêm API.
+  const promotedServiceIds = useMemo(() => {
+    const todayStr = new Date().toISOString().split("T")[0];
+    const ids = new Set<string>();
+    promotions.forEach((p) => {
+      if (p.isActive && p.startDate <= todayStr && p.endDate >= todayStr) {
+        p.serviceIds.forEach((sid) => ids.add(sid));
+      }
+    });
+    return ids;
+  }, [promotions]);
 
   const promoStats = useMemo(() => {
     const now = new Date();
@@ -143,9 +162,9 @@ export default function ServicesPage() {
     const value = (s: Service): string | number => {
       switch (sortKey) {
         case "name": return s.name.toLowerCase();
-        case "price": return s.price;
         case "duration": return s.duration;
         case "status": return s.status.toLowerCase();
+        case "createdAt": return new Date(s.createdAt).getTime();
       }
     };
     return [...filteredServices].sort((a, b) => {
@@ -201,13 +220,8 @@ export default function ServicesPage() {
     setPromoCurrentPage(1);
   };
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat("vi-VN", {
-      style: "currency",
-      currency: "VND",
-      minimumFractionDigits: 0,
-    }).format(price);
-  };
+  const formatDate = (iso: string) =>
+    new Date(iso).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
 
   const handleToggleStatus = async (id: string) => {
     try {
@@ -247,6 +261,7 @@ export default function ServicesPage() {
 
   return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
+      <Toast toast={toast} />
       <AdminSidebar activeMenu="services" />
 
       <main className="flex-1 flex flex-col min-w-0">
@@ -313,7 +328,7 @@ export default function ServicesPage() {
 
             {/* Khuyến mãi trong tháng */}
             <div
-              onClick={() => document.getElementById("promotions-section")?.scrollIntoView({ behavior: "smooth" })}
+              onClick={() => setActiveTab("promotions")}
               className="bg-gradient-to-br from-primary to-primary-hover p-5 rounded-2xl border border-primary/20 shadow-lg shadow-primary/15 hover:shadow-xl hover:shadow-primary/25 transition-all duration-200 cursor-pointer"
             >
               <div>
@@ -346,6 +361,29 @@ export default function ServicesPage() {
               </div>
             </div>
           </div>
+
+          {/* TABS */}
+          <div className="flex gap-2">
+            {([
+              { key: "services", label: "Danh sách dịch vụ" },
+              { key: "promotions", label: "Danh sách khuyến mãi" },
+            ] as const).map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setActiveTab(t.key)}
+                className={`px-5 py-2 rounded-xl text-[13.5px] font-bold transition-all cursor-pointer border ${
+                  activeTab === t.key
+                    ? "bg-primary text-white border-primary shadow-sm shadow-primary/20"
+                    : "bg-white text-slate-500 border-slate-200 hover:border-primary/40 hover:text-primary"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {activeTab === "services" && (
+          <>
 
           {/* TOOLBAR */}
           <div className="bg-white px-5 py-4 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col gap-3">
@@ -442,8 +480,9 @@ export default function ServicesPage() {
                   <tr className="bg-slate-50/50 font-extrabold text-slate-400 uppercase tracking-wider border-b border-slate-150">
                     <Th className="px-6">Icon</Th>
                     <SortableTh column="name" label="Dịch vụ" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-6" />
-                    <SortableTh column="price" label="Giá dịch vụ" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-6" />
+                    <SortableTh column="createdAt" label="Ngày tạo" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-6" />
                     <SortableTh column="duration" label="Thời gian" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-6" />
+                    <Th className="px-6" align="center">Khuyến mãi</Th>
                     <SortableTh column="status" label="Trạng thái" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="center" className="px-6" />
                     <Th className="px-6" align="center">Hành động</Th>
                   </tr>
@@ -451,13 +490,17 @@ export default function ServicesPage() {
                 <tbody className="divide-y divide-slate-100 font-semibold text-slate-600">
                   {isLoading ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-10 text-center text-slate-400 font-bold">
+                      <td colSpan={7} className="px-6 py-10 text-center text-slate-400 font-bold">
                         Đang tải dữ liệu...
                       </td>
                     </tr>
                   ) : paginatedServices.length > 0 ? (
                     paginatedServices.map((service) => (
-                      <tr key={service.id} className="hover:bg-slate-50/40 transition-colors">
+                      <tr
+                        key={service.id}
+                        onClick={() => router.push(`/admin/services/edit/${service.id}`)}
+                        className="hover:bg-slate-50/40 transition-colors cursor-pointer"
+                      >
                         {/* Icon */}
                         <td className="px-6 py-4.5">
                           <div className="w-10 h-10 rounded-xl border border-slate-200 bg-slate-50/50 flex items-center justify-center overflow-hidden shrink-0">
@@ -475,7 +518,14 @@ export default function ServicesPage() {
                         {/* Service name & description */}
                         <td className="px-6 py-4.5">
                           <div className="min-w-0">
-                            <div className="font-extrabold text-slate-900 truncate max-w-[280px]">{service.name}</div>
+                            <div className="flex items-center gap-2">
+                              <div className="font-extrabold text-slate-900 truncate max-w-[240px]">{service.name}</div>
+                              {service.optionsCount > 0 && (
+                                <span className="shrink-0 px-1.5 py-0.5 rounded-md bg-violet-50 text-violet-600 border border-violet-100 text-[10.5px] font-black whitespace-nowrap">
+                                  {service.optionsCount} tùy chọn
+                                </span>
+                              )}
+                            </div>
                             <div className="text-[12px] text-slate-400 font-medium truncate mt-0.5 max-w-[280px]">
                               {service.description.length > 60
                                 ? `${service.description.substring(0, 60)}...`
@@ -484,9 +534,9 @@ export default function ServicesPage() {
                           </div>
                         </td>
 
-                        {/* Price */}
-                        <td className="px-6 py-4.5 font-bold text-slate-800 whitespace-nowrap">
-                          {formatPrice(service.price)}
+                        {/* Created date */}
+                        <td className="px-6 py-4.5 text-slate-500 text-[13px] font-bold whitespace-nowrap">
+                          {formatDate(service.createdAt)}
                         </td>
 
                         {/* Duration */}
@@ -499,8 +549,22 @@ export default function ServicesPage() {
                           </div>
                         </td>
 
-                        {/* Toggle switch */}
+                        {/* Promotion badge */}
                         <td className="px-6 py-4.5 text-center">
+                          {promotedServiceIds.has(service.id) ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 text-[11.5px] font-black">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
+                              </svg>
+                              Đang KM
+                            </span>
+                          ) : (
+                            <span className="text-slate-300 text-[13px] font-semibold">—</span>
+                          )}
+                        </td>
+
+                        {/* Toggle switch */}
+                        <td className="px-6 py-4.5 text-center" onClick={(e) => e.stopPropagation()}>
                           <div className="inline-flex items-center justify-center">
                             <button
                               onClick={() => handleToggleStatus(service.id)}
@@ -518,19 +582,8 @@ export default function ServicesPage() {
                         </td>
 
                         {/* Action buttons */}
-                        <td className="px-6 py-4.5">
+                        <td className="px-6 py-4.5" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-center gap-4">
-                            <Link
-                              href={`/admin/services/${service.id}`}
-                              title="Xem chi tiết"
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all cursor-pointer"
-                            >
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                              </svg>
-                            </Link>
-
                             <Link
                               href={`/admin/services/edit/${service.id}`}
                               title="Sửa thông tin"
@@ -556,7 +609,7 @@ export default function ServicesPage() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={6} className="px-6 py-10 text-center text-slate-400 font-bold">
+                      <td colSpan={7} className="px-6 py-10 text-center text-slate-400 font-bold">
                         Không tìm thấy dịch vụ nào khớp với bộ lọc.
                       </td>
                     </tr>
@@ -578,9 +631,12 @@ export default function ServicesPage() {
               </div>
             )}
           </div>
+          </>
+          )}
 
           {/* THIẾT LẬP KHUYẾN MÃI */}
-          <div id="promotions-section" className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
+          {activeTab === "promotions" && (
+          <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-100 flex flex-col gap-3">
               {/* Row 1: Title + Create button */}
               <div className="flex items-center justify-between">
@@ -651,7 +707,11 @@ export default function ServicesPage() {
                       ? `-${promo.discountValue}%`
                       : `-${Number(promo.discountValue).toLocaleString("vi-VN")}đ`;
                     return (
-                      <tr key={promo.id} className="hover:bg-slate-50/40 transition-colors">
+                      <tr
+                        key={promo.id}
+                        onClick={() => router.push(`/admin/services/promotions/edit/${promo.id}`)}
+                        className="hover:bg-slate-50/40 transition-colors cursor-pointer"
+                      >
                         <td className="px-6 py-4">
                           <span className={`inline-flex items-center px-3 py-1.5 rounded-lg font-black text-[13px] border ${promo.isActive ? "bg-primary/10 text-primary border-primary/20" : "bg-slate-100 text-slate-500 border-slate-200"}`}>
                             {promo.code}
@@ -671,7 +731,7 @@ export default function ServicesPage() {
                         <td className="px-6 py-4 text-slate-500 text-[13px]">
                           {fmt(promo.startDate)} - {fmt(promo.endDate)}
                         </td>
-                        <td className="px-6 py-4.5 text-center">
+                        <td className="px-6 py-4.5 text-center" onClick={(e) => e.stopPropagation()}>
                           <div className="inline-flex items-center justify-center">
                             <button
                               onClick={() => handleTogglePromo(promo.id)}
@@ -687,19 +747,8 @@ export default function ServicesPage() {
                             </button>
                           </div>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-center gap-4">
-                            <Link
-                              href={`/admin/services/promotions/${promo.id}`}
-                              title="Xem chi tiết"
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all cursor-pointer"
-                            >
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                              </svg>
-                            </Link>
-
                             <button
                               title="Chỉnh sửa"
                               onClick={() => router.push(`/admin/services/promotions/edit/${promo.id}`)}
@@ -740,6 +789,7 @@ export default function ServicesPage() {
               </div>
             )}
           </div>
+          )}
         </div>
       </main>
 

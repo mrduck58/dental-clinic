@@ -71,6 +71,21 @@ export default function EditPromotionPage() {
     : Number(discountValue);
   const finalPrice = Math.max(0, originalPrice - discountAmount);
 
+  // Khuyến mãi áp dụng cho ĐÚNG giá của từng option đã chọn khi thu tiền (không phải giá khởi điểm),
+  // nên khi dịch vụ có option, hiển thị giá sau giảm cho từng option để đúng với thực tế lúc xuất hóa đơn.
+  const discountForPrice = (price: number) =>
+    promotionType === "Percentage"
+      ? Math.round(price * (Number(discountValue) / 100))
+      : Math.min(price, Number(discountValue) || 0);
+  const optionPriceRows = selectedServiceData && selectedServiceData.options.length > 0
+    ? selectedServiceData.options.map((o) => ({
+        id: o.id,
+        label: o.name,
+        price: o.price,
+        finalPrice: Math.max(0, o.price - discountForPrice(o.price)),
+      }))
+    : [];
+
   const daysRemaining = useMemo(() => {
     if (!endDate) return 0;
     const end = new Date(endDate);
@@ -432,28 +447,47 @@ export default function EditPromotionPage() {
 
                   <div className="border-t border-slate-100 my-5" />
 
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[13px] font-medium text-slate-500">Giá gốc:</span>
-                      <span className="text-[14px] font-bold text-slate-700">
-                        {selectedServiceData ? formatCurrency(selectedServiceData.price) : "—"}
+                  {optionPriceRows.length > 0 ? (
+                    <div className="space-y-3">
+                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">
+                        Giá sau khuyến mãi theo từng lựa chọn
                       </span>
+                      {optionPriceRows.map((row) => (
+                        <div key={row.id} className="flex items-center justify-between gap-2">
+                          <span className="text-[13px] font-semibold text-slate-600 truncate">{row.label}</span>
+                          <span className="flex items-center gap-2 shrink-0">
+                            <span className="text-[12px] text-slate-400 line-through">{formatCurrency(row.price)}</span>
+                            <span className="text-[14px] font-extrabold text-red-500">
+                              {row.finalPrice < row.price ? formatCurrency(row.finalPrice) : "—"}
+                            </span>
+                          </span>
+                        </div>
+                      ))}
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-[13px] font-medium text-slate-500">
-                        Giảm giá{discountValue && promotionType === "Percentage" ? ` (-${discountValue}%)` : ""}:
-                      </span>
-                      <span className="text-[14px] font-bold text-red-500">
-                        {discountAmount > 0 ? `-${formatCurrency(discountAmount)}` : "—"}
-                      </span>
-                    </div>
-                    <div className="pt-3 border-t border-slate-100">
-                      <span className="text-[12px] font-bold text-slate-400 uppercase tracking-wide">Giá sau khuyến mãi</span>
-                      <div className="mt-1 text-[24px] font-extrabold text-red-500">
-                        {selectedServiceData && discountAmount > 0 ? formatCurrency(finalPrice) : "—"}
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[13px] font-medium text-slate-500">Giá gốc:</span>
+                        <span className="text-[14px] font-bold text-slate-700">
+                          {selectedServiceData ? formatCurrency(selectedServiceData.price) : "—"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[13px] font-medium text-slate-500">
+                          Giảm giá{discountValue && promotionType === "Percentage" ? ` (-${discountValue}%)` : ""}:
+                        </span>
+                        <span className="text-[14px] font-bold text-red-500">
+                          {discountAmount > 0 ? `-${formatCurrency(discountAmount)}` : "—"}
+                        </span>
+                      </div>
+                      <div className="pt-3 border-t border-slate-100">
+                        <span className="text-[12px] font-bold text-slate-400 uppercase tracking-wide">Giá sau khuyến mãi</span>
+                        <div className="mt-1 text-[24px] font-extrabold text-red-500">
+                          {selectedServiceData && discountAmount > 0 ? formatCurrency(finalPrice) : "—"}
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 {daysRemaining > 0 && (

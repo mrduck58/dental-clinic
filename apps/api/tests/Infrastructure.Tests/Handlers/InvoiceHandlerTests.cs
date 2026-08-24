@@ -22,6 +22,7 @@ public class InvoiceHandlerTests
     private IUserRepository _userRepo = null!;
     private InvoiceQueryHelper _invoiceQuery = null!;
     private IPaymentConfirmationService _confirmationService = null!;
+    private IPromotionRepository _promotionRepo = null!;
 
     private GetBillablePlansHandler _getBillablePlansHandler = null!;
     private IssueInvoiceHandler _issueHandler = null!;
@@ -48,8 +49,9 @@ public class InvoiceHandlerTests
         _confirmationService = new PaymentConfirmationService(
             invoiceRepository, paymentTransactionRepository, _db, _notificationService, _userRepo, _invoiceQuery);
 
+        _promotionRepo = Substitute.For<IPromotionRepository>();
         _getBillablePlansHandler = new GetBillablePlansHandler(invoiceRepository, _invoiceQuery);
-        _issueHandler = new IssueInvoiceHandler(invoiceRepository, Substitute.For<IPromotionRepository>(), _db, _notificationService, _invoiceQuery);
+        _issueHandler = new IssueInvoiceHandler(invoiceRepository, _promotionRepo, _db, _notificationService, _invoiceQuery);
         _getPendingHandler = new GetPendingInvoicesHandler(invoiceRepository);
         _getOutstandingHandler = new GetOutstandingInvoicesHandler(invoiceRepository);
         _getOutstandingPlansHandler = new GetOutstandingPlansHandler(invoiceRepository, _invoiceQuery);
@@ -554,5 +556,118 @@ public class InvoiceHandlerTests
         await _confirmPaymentHandler.Handle(new ConfirmInvoicePaymentCommand(invoice.Id, null), CancellationToken.None);
 
         (await _db.TreatmentPlans.SingleAsync(p => p.Id == plan.Id)).Status.Should().Be(TreatmentPlanStatus.InProgress);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // Khuyến mãi — khớp theo ServiceId của liệu trình từng dòng, không phải so
+    // tên chuỗi hay giá gốc dịch vụ (Service.Price). Đây là chỗ trước đây bị lỗi:
+    // giảm giá bị áp lên TOÀN BỘ hóa đơn hễ có promotionId, không xét dòng nào
+    // thực sự thuộc dịch vụ được khuyến mãi.
+    // ══════════════════════════════════════════════════════════════════════
+
+    /// <summary>Chỉ dòng thuộc ĐÚNG dịch vụ được khuyến mãi mới bị giảm giá — dòng dịch vụ khác trong
+    /// cùng hóa đơn không liên quan không được giảm theo (lỗi cũ: giảm cả hóa đơn).</summary>
+    [Test]
+    public async Task IssueAsync_PromotionMatchesOneService_DiscountsOnlyThatLine()
+    {
+        var (appointment, patient, _) = await SeedPendingPaymentAppointmentAsync();
+        var dentist = await _db.DentistProfiles.FirstAsync();
+
+        // Giá gốc dịch vụ (5tr) KHÁC với giá option thực tế dùng trên liệu trình (2tr, vd option
+        // "Titan") — để khẳng định khuyến mãi bám theo UnitPrice của dòng (giá option đã chọn),
+        // không phải Service.Price.
+        var promotedService = Service.Create("Bọc răng sứ", 5_000_000m, 60, "Bọc răng sứ thẩm mỹ");
+        var otherService = Service.Create("Khám tổng quát", 300_000m, 30, "Khám tổng quát");
+        _db.Services.AddRange(promotedService, otherService);
+        var promotedPlan = TreatmentPlan.Create(patient.Id, dentist.Id, appointment.Id, promotedService.Id, 2_000_000m, 1);
+        var otherPlan = TreatmentPlan.Create(patient.Id, dentist.Id, appointment.Id, otherService.Id, otherService.Price, 1);
+        _db.TreatmentPlans.AddRange(promotedPlan, otherPlan);
+        await _db.SaveChangesAsync();
+
+        var promotion = Promotion.Create(
+            "GIAM20", "Giảm 20% bọc răng sứ", null, "Percentage", 20m,
+            new List<Guid> { promotedService.Id },
+            DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1)), DateOnly.FromDateTime(DateTime.UtcNow.AddDays(30)), true);
+        _promotionRepo.GetByIdAsync(promotion.Id, Arg.Any<CancellationToken>()).Returns(promotion);
+
+        var command = new IssueInvoiceCommand(
+            appointment.Id,
+            new List<IssueInvoiceItemRequest>
+            {
+                // AmountCollected khớp đúng phần đã trừ khuyến mãi của từng dòng — nếu không, "thu ngay"
+                // mặc định = thành tiền gốc sẽ vượt tổng hóa đơn đã giảm giá và bị chặn ở bước khác.
+                new("Bọc răng sứ - Titan", 1, 2_000_000m, promotedPlan.Id, AmountCollected: 1_600_000m),
+                new("Khám tổng quát", 1, 300_000m, otherPlan.Id, AmountCollected: 300_000m),
+            },
+            Discount: 0, PaymentMethod: "cash", PaymentType: null, DepositAmount: 0,
+            Notes: null, ParentInvoiceId: null, TreatmentPlanId: null, PromotionId: promotion.Id);
+
+        var result = await _issueHandler.Handle(command, CancellationToken.None);
+
+        result.Subtotal.Should().Be(2_300_000m);
+        result.Discount.Should().Be(400_000m); // 20% của 2.000.000 (dòng được khuyến mãi), KHÔNG PHẢI 20% của 2.300.000
+        result.TotalAmount.Should().Be(1_900_000m);
+    }
+
+    /// <summary>Khuyến mãi có ServiceIds rỗng nghĩa là áp dụng cho TẤT CẢ dịch vụ — vẫn phải giảm trên
+    /// toàn bộ hóa đơn như quy ước cũ.</summary>
+    [Test]
+    public async Task IssueAsync_PromotionWithEmptyServiceIds_AppliesToWholeSubtotal()
+    {
+        var (appointment, patient, _) = await SeedPendingPaymentAppointmentAsync();
+        var dentist = await _db.DentistProfiles.FirstAsync();
+        var service = Service.Create("Trám răng", 500_000m, 30, "Trám răng thẩm mỹ");
+        _db.Services.Add(service);
+        var plan = TreatmentPlan.Create(patient.Id, dentist.Id, appointment.Id, service.Id, service.Price, 1);
+        _db.TreatmentPlans.Add(plan);
+        await _db.SaveChangesAsync();
+
+        var promotion = Promotion.Create(
+            "GIAMTATCA", "Giảm cho tất cả dịch vụ", null, "Percentage", 10m,
+            new List<Guid>(),
+            DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1)), DateOnly.FromDateTime(DateTime.UtcNow.AddDays(30)), true);
+        _promotionRepo.GetByIdAsync(promotion.Id, Arg.Any<CancellationToken>()).Returns(promotion);
+
+        var command = new IssueInvoiceCommand(
+            appointment.Id,
+            new List<IssueInvoiceItemRequest> { new("Trám răng", 1, 500_000m, plan.Id, AmountCollected: 450_000m) },
+            Discount: 0, PaymentMethod: "cash", PaymentType: null, DepositAmount: 0,
+            Notes: null, ParentInvoiceId: null, TreatmentPlanId: null, PromotionId: promotion.Id);
+
+        var result = await _issueHandler.Handle(command, CancellationToken.None);
+
+        result.Discount.Should().Be(50_000m);
+        result.TotalAmount.Should().Be(450_000m);
+    }
+
+    /// <summary>Khuyến mãi không khớp dịch vụ nào trong hóa đơn phải bị từ chối thay vì âm thầm giảm 0đ
+    /// hoặc (lỗi cũ) giảm nhầm cả hóa đơn.</summary>
+    [Test]
+    public async Task IssueAsync_PromotionMatchesNoLine_ThrowsValidationException()
+    {
+        var (appointment, patient, _) = await SeedPendingPaymentAppointmentAsync();
+        var dentist = await _db.DentistProfiles.FirstAsync();
+        var service = Service.Create("Trám răng", 500_000m, 30, "Trám răng thẩm mỹ");
+        var unrelatedService = Service.Create("Niềng răng", 20_000_000m, 60, "Chỉnh nha");
+        _db.Services.AddRange(service, unrelatedService);
+        var plan = TreatmentPlan.Create(patient.Id, dentist.Id, appointment.Id, service.Id, service.Price, 1);
+        _db.TreatmentPlans.Add(plan);
+        await _db.SaveChangesAsync();
+
+        var promotion = Promotion.Create(
+            "GIAMNIENG", "Giảm niềng răng", null, "Percentage", 10m,
+            new List<Guid> { unrelatedService.Id },
+            DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1)), DateOnly.FromDateTime(DateTime.UtcNow.AddDays(30)), true);
+        _promotionRepo.GetByIdAsync(promotion.Id, Arg.Any<CancellationToken>()).Returns(promotion);
+
+        var command = new IssueInvoiceCommand(
+            appointment.Id,
+            new List<IssueInvoiceItemRequest> { new("Trám răng", 1, 500_000m, plan.Id) },
+            Discount: 0, PaymentMethod: "cash", PaymentType: null, DepositAmount: 0,
+            Notes: null, ParentInvoiceId: null, TreatmentPlanId: null, PromotionId: promotion.Id);
+
+        Func<Task> act = () => _issueHandler.Handle(command, CancellationToken.None);
+
+        await act.Should().ThrowAsync<ValidationException>();
     }
 }

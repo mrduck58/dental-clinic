@@ -28,6 +28,7 @@ import {
 
 interface Procedure {
   name: string; qty: number; price: number; treatmentPlanId?: string | null;
+  serviceId?: string | null; // dùng để tự khớp khuyến mãi theo đúng dịch vụ, không so tên chuỗi
   // Thanh toán theo từng dòng: "full" = thu toàn bộ dòng; "deposit" = đặt cọc theo % (`depositPct`).
   payType?: "full" | "deposit";
   depositPct?: number;
@@ -99,7 +100,7 @@ function mapPlan(b: BillablePlanDto): TreatmentPlan {
     dentist: b.dentistName,
     date: fmtDate(b.appointmentDate),
     diagnosis: b.diagnosis || "Chưa có chẩn đoán",
-    procedures: b.items.map(i => ({ name: i.name, qty: i.quantity, price: i.unitPrice, treatmentPlanId: i.treatmentPlanId })),
+    procedures: b.items.map(i => ({ name: i.name, qty: i.quantity, price: i.unitPrice, treatmentPlanId: i.treatmentPlanId, serviceId: i.serviceId })),
     outstandingInvoiceId: b.outstandingInvoiceId,
     sourceInvoiceNumber: b.sourceInvoiceNumber,
     treatmentPlanId: b.treatmentPlanId,
@@ -123,7 +124,7 @@ function mapInvoice(inv: InvoiceDto): Invoice {
     dentist: inv.dentistName,
     date: fmtDate(inv.appointmentDate),
     paidDate: inv.paymentDate ? fmtDate(inv.paymentDate) : null,
-    items: inv.items.map(i => ({ name: i.name, qty: i.quantity, price: i.unitPrice, treatmentPlanId: i.treatmentPlanId })),
+    items: inv.items.map(i => ({ name: i.name, qty: i.quantity, price: i.unitPrice, treatmentPlanId: i.treatmentPlanId, serviceId: i.serviceId })),
     subtotal: inv.subtotal,
     discount: inv.discount,
     finalTotal: inv.totalAmount,
@@ -229,22 +230,23 @@ function PlansTab({ plans, promotions, onIssued }: {
   const subtotal   = sum(items);
 
   // Khuyến mãi chỉ áp dụng cho hóa đơn xuất mới (không áp dụng cho "thu phần còn lại" / "đợt thu liệu
-  // trình"), và TỰ ĐỘNG khớp theo dịch vụ: "Tất cả dịch vụ" (serviceIds rỗng) luôn khớp; còn lại thì
-  // so tên dịch vụ trong hóa đơn với danh sách dịch vụ áp dụng của khuyến mãi (serviceNames đã resolve
-  // sẵn từ server) — tên dòng hóa đơn luôn bắt đầu bằng đúng tên dịch vụ (có thể kèm hậu tố "- Răng
-  // X"/"(còn lại)") nên so khớp theo startsWith là đủ, không cần ServiceId trên từng dòng hóa đơn.
+  // trình"), và TỰ ĐỘNG khớp theo ServiceId của từng dòng — hệt logic tính lại ở server
+  // (IssueInvoiceHandler): "Tất cả dịch vụ" (serviceIds rỗng) luôn khớp toàn bộ subtotal; còn lại thì
+  // chỉ tính trên các dòng có ServiceId nằm trong danh sách áp dụng của khuyến mãi. Vì UnitPrice của
+  // từng dòng là giá của ĐÚNG option đã chọn (không phải giá gốc dịch vụ), khuyến mãi tự động áp dụng
+  // đúng cho mọi option chứ không chỉ giá khởi điểm.
+  const eligibleSubtotal = (promo: PromotionDto) =>
+    promo.serviceIds.length === 0
+      ? subtotal
+      : items.reduce((s, it) => s + (it.serviceId && promo.serviceIds.includes(it.serviceId) ? it.price * it.qty : 0), 0);
   const matchingPromotions = !isRemaining && !isInstallment
-    ? activePromotions.filter(promo => {
-        if (promo.serviceIds.length === 0) return true;
-        const svcNames = promo.serviceNames.map(n => n.trim().toLowerCase());
-        return items.some(it => {
-          const name = it.name.trim().toLowerCase();
-          return svcNames.some(sn => name === sn || name.startsWith(sn));
-        });
-      })
+    ? activePromotions.filter(promo => eligibleSubtotal(promo) > 0)
     : [];
-  const promoDiscount = (p: PromotionDto) => Math.min(subtotal,
-    p.discountType === "Percentage" ? Math.round(subtotal * p.discountValue / 100) : p.discountValue);
+  const promoDiscount = (p: PromotionDto) => {
+    const eligible = eligibleSubtotal(p);
+    return Math.min(eligible,
+      p.discountType === "Percentage" ? Math.round(eligible * p.discountValue / 100) : p.discountValue);
+  };
   // Nếu có nhiều khuyến mãi cùng khớp, tự chọn khuyến mãi giảm nhiều nhất cho khách.
   const selectedPromotion = matchingPromotions.length > 0
     ? matchingPromotions.reduce((best, p) => promoDiscount(p) > promoDiscount(best) ? p : best)

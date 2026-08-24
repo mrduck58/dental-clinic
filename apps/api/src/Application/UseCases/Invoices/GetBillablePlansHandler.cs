@@ -69,8 +69,8 @@ public class GetBillablePlansHandler(IInvoiceRepository invoiceRepository, Invoi
                 var billed = billedByPlan.GetValueOrDefault(p.Id, 0m);
                 var toBill = p.TotalCost - billed;
                 return billed <= 0
-                    ? new InvoiceItemDto(BuildPlanName(p), p.Quantity, p.UnitPrice, p.Id)
-                    : new InvoiceItemDto($"{BuildPlanName(p)} (còn lại)", 1, toBill, p.Id);
+                    ? new InvoiceItemDto(BuildPlanName(p), p.Quantity, p.UnitPrice, p.Id, p.ServiceId)
+                    : new InvoiceItemDto($"{BuildPlanName(p)} (còn lại)", 1, toBill, p.Id, p.ServiceId);
             }).ToList();
 
             result.Add(new BillablePlanDto

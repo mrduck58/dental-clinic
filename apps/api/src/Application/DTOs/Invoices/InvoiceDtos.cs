@@ -1,7 +1,8 @@
 namespace DentalClinic.API.Application.DTOs.Invoices;
 
-/// <summary>Một dòng dịch vụ trên hóa đơn (hoặc gợi ý từ liệu trình).</summary>
-public record InvoiceItemDto(string Name, int Quantity, decimal UnitPrice, Guid? TreatmentPlanId = null)
+/// <summary>Một dòng dịch vụ trên hóa đơn (hoặc gợi ý từ liệu trình). ServiceId để frontend tự khớp
+/// khuyến mãi theo đúng dịch vụ (không phải so tên chuỗi) khi xem trước trước khi xuất hóa đơn thật.</summary>
+public record InvoiceItemDto(string Name, int Quantity, decimal UnitPrice, Guid? TreatmentPlanId = null, Guid? ServiceId = null)
 {
     public decimal LineTotal => Quantity * UnitPrice;
 }

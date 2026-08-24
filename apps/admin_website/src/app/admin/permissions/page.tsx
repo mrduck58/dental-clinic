@@ -12,10 +12,23 @@ import { getAccountsApi, getStaffApi, toggleAccountStatusApi, resolveAssetUrl, t
 import { useRequireAdmin } from "../../../hooks/useRequireAdmin";
 import {
   normalizeRole,
-  ROLE_LABELS as ROLE_LABEL,
-  ROLE_BADGE_CLASSES as ROLE_BADGE,
+  ROLE_LABELS,
+  ROLE_BADGE_CLASSES,
   type UiRole,
 } from "../../../lib/roles";
+
+// Trang này liệt kê TẤT CẢ tài khoản trong hệ thống (kể cả bệnh nhân), khác với lib/roles.ts
+// vốn cố tình chỉ dành cho các màn hình chỉ liệt kê nhân sự (staff/dentist/owner/admin) — nên mở
+// rộng cục bộ ở đây thay vì đổi UiRole dùng chung, tránh bắt các màn hình khác phải xử lý thêm
+// trường hợp "Patient" không bao giờ xảy ra với chúng.
+type PageRole = UiRole | "Patient";
+
+const ROLE_LABEL: Record<PageRole, string> = { ...ROLE_LABELS, Patient: "Bệnh nhân" };
+const ROLE_BADGE: Record<PageRole, string> = { ...ROLE_BADGE_CLASSES, Patient: "bg-slate-100 text-slate-600 border border-slate-200" };
+
+function normalizePageRole(raw: string): PageRole {
+  return raw === "Patient" ? "Patient" : normalizeRole(raw);
+}
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/);
@@ -32,7 +45,7 @@ interface Row {
   name: string;
   email: string;
   phone: string;
-  role: UiRole;
+  role: PageRole;
   isActive: boolean;
   createdAt: string;
 }
@@ -68,17 +81,15 @@ function UsersPageContent() {
   };
 
   const mapToRows = (data: AccountDto[]): Row[] =>
-    data
-      .filter((u) => u.role !== "Patient")
-      .map((u) => ({
-        id: u.id,
-        name: u.fullName ?? u.username,
-        email: u.email,
-        phone: u.phoneNumber ?? "",
-        role: normalizeRole(u.role),
-        isActive: u.isActive,
-        createdAt: u.createdAt,
-      }));
+    data.map((u) => ({
+      id: u.id,
+      name: u.fullName ?? u.username,
+      email: u.email,
+      phone: u.phoneNumber ?? "",
+      role: normalizePageRole(u.role),
+      isActive: u.isActive,
+      createdAt: u.createdAt,
+    }));
 
   useEffect(() => {
     getAccountsApi()
@@ -111,11 +122,11 @@ function UsersPageContent() {
   };
 
   const stats = useMemo(() => {
-    const total = accounts.length;
-    const active = accounts.filter((a) => a.isActive).length;
+    const total = accounts.filter((a) => a.role !== "Patient").length;
     const doctors = accounts.filter((a) => a.role === "Dentist").length;
     const staff = accounts.filter((a) => a.role === "Staff").length;
-    return { total, active, doctors, staff };
+    const patients = accounts.filter((a) => a.role === "Patient").length;
+    return { total, doctors, staff, patients };
   }, [accounts]);
 
   const filteredAccounts = useMemo(() => {
@@ -185,7 +196,7 @@ function UsersPageContent() {
       <main className="flex-1 flex flex-col min-w-0">
         <AdminPageHeader
           title="Người Dùng"
-          subtitle="Danh sách tài khoản nhân sự trong hệ thống."
+          subtitle="Danh sách toàn bộ tài khoản trong hệ thống, gồm cả nhân sự và bệnh nhân."
         />
 
         <div className="p-8 flex-1 overflow-y-auto flex flex-col gap-8">
@@ -255,19 +266,13 @@ function UsersPageContent() {
 
             <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm hover-lift flex items-center justify-between hover:border-primary/40 transition-all duration-200">
               <div>
-                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Đang hoạt động</span>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-3xl font-black text-slate-900 leading-none">{stats.active}</span>
-                  <span className="relative flex h-3.5 w-3.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-green-500"></span>
-                  </span>
-                </div>
-                <span className="text-[12px] text-slate-400 font-semibold block mt-0.5">Có quyền đăng nhập</span>
+                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Bệnh nhân</span>
+                <span className="text-3xl font-black text-slate-900 block mt-1">{stats.patients}</span>
+                <span className="text-[12px] text-slate-400 font-semibold block mt-0.5">Tài khoản bệnh nhân</span>
               </div>
-              <div className="w-12 h-12 rounded-xl bg-green-50 text-green-600 flex items-center justify-center shrink-0">
+              <div className="w-12 h-12 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center shrink-0">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.57-.598-3.751A11.956 11.956 0 0112 2.714z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
                 </svg>
               </div>
             </div>
@@ -389,6 +394,7 @@ function UsersPageContent() {
                   <option value="Owner">{ROLE_LABEL.Owner}</option>
                   <option value="Dentist">{ROLE_LABEL.Dentist}</option>
                   <option value="Staff">{ROLE_LABEL.Staff}</option>
+                  <option value="Patient">{ROLE_LABEL.Patient}</option>
                 </select>
                 <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -442,7 +448,7 @@ function UsersPageContent() {
               <table className="w-full text-left border-collapse text-[14px]">
                 <thead>
                   <tr className="bg-slate-50/50 font-extrabold text-slate-400 uppercase tracking-wider border-b border-slate-150">
-                    <SortableTh column="name" label="Nhân viên" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-6" />
+                    <SortableTh column="name" label="Tài khoản" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-6" />
                     <SortableTh column="contact" label="Liên hệ" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-6" />
                     <SortableTh column="createdAt" label="Ngày tạo tài khoản" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-6" />
                     <SortableTh column="role" label="Vai trò" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-6" />
@@ -464,14 +470,20 @@ function UsersPageContent() {
                     </tr>
                   ) : pagedAccounts.length > 0 ? (
                     pagedAccounts.map((account) => (
-                      <tr key={account.id} className="hover:bg-slate-50/40 transition-colors">
+                      <tr
+                        key={account.id}
+                        onClick={() => router.push(`/admin/permissions/${account.id}`)}
+                        className="hover:bg-slate-50/40 transition-colors cursor-pointer"
+                      >
                         <td className="px-6 py-4.5">
                           <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-full bg-red-50 text-primary font-black flex items-center justify-center shrink-0 border border-red-100">
                               {initials(account.name)}
                             </div>
                             <div className="min-w-0">
-                              <div className="font-extrabold text-slate-900 truncate">{account.name}</div>
+                              <div className={`font-extrabold truncate ${account.name ? "text-slate-900" : "text-slate-400 italic font-semibold"}`}>
+                                {account.name || "Chưa cập nhật tên"}
+                              </div>
                             </div>
                           </div>
                         </td>
@@ -494,7 +506,7 @@ function UsersPageContent() {
                         <td className="px-6 py-4.5 text-center">
                           <div className="inline-flex items-center justify-center">
                             <button
-                              onClick={() => void handleToggleStatus(account.id)}
+                              onClick={(e) => { e.stopPropagation(); void handleToggleStatus(account.id); }}
                               className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                                 account.isActive ? "bg-green-500" : "bg-slate-400"
                               }`}
@@ -514,7 +526,7 @@ function UsersPageContent() {
                       <td colSpan={5} className="px-6 py-10 text-center text-slate-400 font-bold">
                         {accounts.length === 0
                           ? "Chưa có tài khoản nào. Hãy thêm tài khoản đầu tiên."
-                          : "Không tìm thấy tài khoản nhân viên nào khớp với bộ lọc."}
+                          : "Không tìm thấy tài khoản nào khớp với bộ lọc."}
                       </td>
                     </tr>
                   )}
