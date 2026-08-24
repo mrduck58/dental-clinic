@@ -113,6 +113,9 @@ export default function ProfilePageContent({ sidebar, notificationHref = "/admin
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Real activity logs states
   const [activityLogs, setActivityLogs] = useState<ActivityLogItemDto[]>([]);
@@ -415,7 +418,7 @@ export default function ProfilePageContent({ sidebar, notificationHref = "/admin
             </div>
           )}
           {activeTab === "personal" ? (
-            /* Tab 1: Personal Profile - Split Layout (Avatar/Salary on left, Form on right) */
+            /* Tab 1: Personal Profile - Split Layout (Avatar on left, Form on right) */
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
               {/* Left Box - Avatar and Quick Read Only metadata */}
               <div className="lg:col-span-1 flex flex-col gap-6">
@@ -453,54 +456,6 @@ export default function ProfilePageContent({ sidebar, notificationHref = "/admin
                     {profile?.role === "Admin" ? "Quản trị viên" : profile?.role === "Dentist" ? "Bác sĩ Nha khoa" : profile?.role === "Owner" ? "Chủ phòng khám" : "Nhân viên"}
                   </span>
                 </div>
-
-                {/* Compensation Premium Glass Card (Read-only) */}
-                {profile?.role !== "Owner" && (
-                  <div className="bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-950 text-white rounded-2xl p-6 shadow-md border border-slate-800 flex flex-col gap-4 relative overflow-hidden">
-                    <div className="absolute right-0 top-0 translate-x-1/3 -translate-y-1/3 w-32 h-32 bg-primary/20 rounded-full blur-xl pointer-events-none" />
-                    <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                      <h3 className="text-[15px] font-extrabold text-amber-400 uppercase tracking-wider flex items-center gap-2">
-                        <svg className="w-5 h-5 text-amber-400 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm6 3.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
-                        </svg>
-                        Lương & Chi trả
-                      </h3>
-                      <span className="text-[10px] bg-white/15 px-2 py-0.5 rounded-full font-bold text-white/80">Chỉ đọc</span>
-                    </div>
-
-                    <div className="flex flex-col gap-3">
-                      <div className="flex justify-between items-baseline">
-                        <span className="text-[13px] font-medium text-white/60">
-                          {profile?.role === "Dentist" && "Lương cơ bản cao:"}
-                          {profile?.role === "Staff" && "Lương cơ bản hành chính:"}
-                          {profile?.role === "Admin" && "Lương cơ bản quản lý:"}
-                        </span>
-                        <span className="text-[16px] font-bold">{formatCurrency(profile?.baseSalary || 0)}</span>
-                      </div>
-                      <div className="flex justify-between items-baseline">
-                        <span className="text-[13px] font-medium text-white/60">
-                          {profile?.role === "Dentist" && "Phụ cấp chuyên môn (ca điều trị):"}
-                          {profile?.role === "Staff" && "Phụ cấp tăng ca/trách nhiệm:"}
-                          {profile?.role === "Admin" && "Phụ cấp thâm niên:"}
-                        </span>
-                        <span className="text-[16px] font-bold text-emerald-400">+{formatCurrency(profile?.allowance || 0)}</span>
-                      </div>
-                      <div className="border-t border-white/5 my-1" />
-                      <div className="flex justify-between items-baseline">
-                        <span className="text-[14px] font-bold text-white/80">Tổng thu nhập tạm tính:</span>
-                        <span className="text-[20px] font-black text-amber-300">
-                          {formatCurrency((profile?.baseSalary || 0) + (profile?.allowance || 0))}
-                        </span>
-                      </div>
-                    </div>
-
-                    {profile?.salaryNote && (
-                      <p className="text-[11.5px] italic text-white/50 leading-relaxed border-t border-white/10 pt-3">
-                        * {profile.salaryNote}
-                      </p>
-                    )}
-                  </div>
-                )}
               </div>
 
               {/* Right Column - Detailed Form */}
@@ -580,66 +535,62 @@ export default function ProfilePageContent({ sidebar, notificationHref = "/admin
                       )}
                     </div>
 
-                    {profile?.role !== "Admin" && (
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-[13px] font-extrabold text-slate-500 uppercase tracking-wide">
-                            Ngày sinh
-                          </label>
-                          <input
-                            type="date"
-                            value={dateOfBirth}
-                            onChange={(e) => {
-                              setDateOfBirth(e.target.value);
-                              if (fieldErrors.dateOfBirth) {
-                                setFieldErrors(prev => {
-                                  const updated = { ...prev };
-                                  delete updated.dateOfBirth;
-                                  return updated;
-                                });
-                              }
-                            }}
-                            className={`w-full px-4 py-2.5 rounded-xl border ${
-                              fieldErrors.dateOfBirth ? "border-red-400 focus:border-red-500 focus:ring-red-500" : "border-slate-200 focus:border-primary focus:ring-primary"
-                            } focus:ring-1 focus:outline-none transition-all font-semibold`}
-                          />
-                          {fieldErrors.dateOfBirth && (
-                            <span className="text-red-500 text-[12px] font-bold mt-1 block">
-                              {fieldErrors.dateOfBirth}
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-[13px] font-extrabold text-slate-500 uppercase tracking-wide">
-                            Giới tính
-                          </label>
-                          <select
-                            value={gender}
-                            onChange={(e) => setGender(e.target.value)}
-                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-primary focus:outline-none transition-all font-semibold"
-                          >
-                            <option value="Nam">Nam</option>
-                            <option value="Nữ">Nữ</option>
-                            <option value="Khác">Khác</option>
-                          </select>
-                        </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[13px] font-extrabold text-slate-500 uppercase tracking-wide">
+                          Ngày sinh
+                        </label>
+                        <input
+                          type="date"
+                          value={dateOfBirth}
+                          onChange={(e) => {
+                            setDateOfBirth(e.target.value);
+                            if (fieldErrors.dateOfBirth) {
+                              setFieldErrors(prev => {
+                                const updated = { ...prev };
+                                delete updated.dateOfBirth;
+                                return updated;
+                              });
+                            }
+                          }}
+                          className={`w-full px-4 py-2.5 rounded-xl border ${
+                            fieldErrors.dateOfBirth ? "border-red-400 focus:border-red-500 focus:ring-red-500" : "border-slate-200 focus:border-primary focus:ring-primary"
+                          } focus:ring-1 focus:outline-none transition-all font-semibold`}
+                        />
+                        {fieldErrors.dateOfBirth && (
+                          <span className="text-red-500 text-[12px] font-bold mt-1 block">
+                            {fieldErrors.dateOfBirth}
+                          </span>
+                        )}
                       </div>
-                    )}
+
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[13px] font-extrabold text-slate-500 uppercase tracking-wide">
+                          Giới tính
+                        </label>
+                        <select
+                          value={gender}
+                          onChange={(e) => setGender(e.target.value)}
+                          className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-primary focus:outline-none transition-all font-semibold"
+                        >
+                          <option value="Nam">Nam</option>
+                          <option value="Nữ">Nữ</option>
+                          <option value="Khác">Khác</option>
+                        </select>
+                      </div>
+                    </div>
                   </div>
 
-                  {profile?.role !== "Admin" && (
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[13px] font-extrabold text-slate-500 uppercase tracking-wide">Địa chỉ</label>
-                      <input
-                        type="text"
-                        value={address}
-                        onChange={(e) => setAddress(e.target.value)}
-                        placeholder="Địa chỉ thường trú..."
-                        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-semibold"
-                      />
-                    </div>
-                  )}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[13px] font-extrabold text-slate-500 uppercase tracking-wide">Địa chỉ</label>
+                    <input
+                      type="text"
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      placeholder="Địa chỉ thường trú..."
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-semibold"
+                    />
+                  </div>
 
                   {profile?.role === "Dentist" && (
                     <div className="flex flex-col gap-1.5">
@@ -720,26 +671,6 @@ export default function ProfilePageContent({ sidebar, notificationHref = "/admin
 
                         <div className="flex flex-col gap-1.5">
                           <label className="text-[13px] font-extrabold text-slate-400 uppercase tracking-wide">
-                            Phòng ban
-                          </label>
-                          <div className="w-full px-4 py-2.5 rounded-xl border border-slate-100 bg-slate-50 text-slate-500 font-bold select-none flex justify-between items-center cursor-not-allowed">
-                            <span>{profile?.department || "N/A"}</span>
-                            <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-[13px] font-extrabold text-slate-400 uppercase tracking-wide">
-                            Chức danh / Vị trí
-                          </label>
-                          <div className="w-full px-4 py-2.5 rounded-xl border border-slate-100 bg-slate-50 text-slate-500 font-bold select-none flex justify-between items-center cursor-not-allowed">
-                            <span>{profile?.position || "N/A"}</span>
-                            <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-[13px] font-extrabold text-slate-400 uppercase tracking-wide">
                             Ngày vào làm
                           </label>
                           <div className="w-full px-4 py-2.5 rounded-xl border border-slate-100 bg-slate-50 text-slate-500 font-bold select-none flex justify-between items-center cursor-not-allowed">
@@ -756,46 +687,6 @@ export default function ProfilePageContent({ sidebar, notificationHref = "/admin
                             <span className="text-emerald-600 font-extrabold">{profile?.employmentStatus || "Hoạt động"}</span>
                             <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
                           </div>
-                        </div>
-
-                        <div className="flex flex-col md:col-span-2 gap-1.5">
-                          <label className="text-[13px] font-extrabold text-slate-400 uppercase tracking-wide">
-                            Các dịch vụ / liệu trình phụ trách
-                          </label>
-                          <div className="w-full px-4 py-2.5 rounded-xl border border-slate-100 bg-slate-50 text-slate-500 font-bold select-none flex justify-between items-center cursor-not-allowed min-h-[44px]">
-                            <span>{profile?.servicesHandled || "Chưa phân công"}</span>
-                            <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
-                          </div>
-                        </div>
-
-                        {/* Specialty for Dentist (Editable) */}
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-[13px] font-extrabold text-slate-500 uppercase tracking-wide">
-                            Chuyên khoa chính
-                          </label>
-                          <input
-                            type="text"
-                            value={specialty}
-                            onChange={(e) => {
-                              setSpecialty(e.target.value);
-                              if (fieldErrors.specialty) {
-                                setFieldErrors(prev => {
-                                  const updated = { ...prev };
-                                  delete updated.specialty;
-                                  return updated;
-                                });
-                              }
-                            }}
-                            placeholder="Ví dụ: Chỉnh nha, Bọc sứ..."
-                            className={`w-full px-4 py-2.5 rounded-xl border ${
-                              fieldErrors.specialty ? "border-red-400 focus:border-red-500 focus:ring-red-500" : "border-slate-200 focus:border-primary focus:ring-primary"
-                            } focus:ring-1 focus:outline-none transition-all font-semibold`}
-                          />
-                          {fieldErrors.specialty && (
-                            <span className="text-red-500 text-[12px] font-bold mt-1 block">
-                              {fieldErrors.specialty}
-                            </span>
-                          )}
                         </div>
 
                         {/* Years of Experience for Dentist (Editable) */}
@@ -845,26 +736,6 @@ export default function ProfilePageContent({ sidebar, notificationHref = "/admin
                           </label>
                           <div className="w-full px-4 py-2.5 rounded-xl border border-slate-100 bg-slate-50 text-slate-500 font-bold select-all flex justify-between items-center cursor-not-allowed">
                             <span>{profile?.employeeId || "Chưa cấp"}</span>
-                            <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-[13px] font-extrabold text-slate-400 uppercase tracking-wide">
-                            Phòng ban
-                          </label>
-                          <div className="w-full px-4 py-2.5 rounded-xl border border-slate-100 bg-slate-50 text-slate-500 font-bold select-none flex justify-between items-center cursor-not-allowed">
-                            <span>{profile?.department || "N/A"}</span>
-                            <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-[13px] font-extrabold text-slate-400 uppercase tracking-wide">
-                            Chức vụ / Vị trí
-                          </label>
-                          <div className="w-full px-4 py-2.5 rounded-xl border border-slate-100 bg-slate-50 text-slate-500 font-bold select-none flex justify-between items-center cursor-not-allowed">
-                            <span>{profile?.position || "N/A"}</span>
                             <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
                           </div>
                         </div>
@@ -949,38 +820,19 @@ export default function ProfilePageContent({ sidebar, notificationHref = "/admin
                             <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
                           </div>
                         </div>
-
-                        <div className="flex flex-col md:col-span-2 gap-1.5">
-                          <label className="text-[13px] font-extrabold text-slate-400 uppercase tracking-wide">
-                            Đăng nhập gần nhất (Last Login)
-                          </label>
-                          <div className="w-full px-4 py-2.5 rounded-xl border border-slate-100 bg-slate-50 text-slate-500 font-bold select-none flex justify-between items-center cursor-not-allowed">
-                            <span>
-                              {(() => {
-                                const loginLog = activityLogs.find(log => log.action === "login");
-                                return loginLog 
-                                  ? `${formatTimestamp(loginLog.createdAt)} (IP: ${loginLog.ipAddress || "N/A"})`
-                                  : "Chưa ghi nhận đăng nhập gần đây";
-                              })()}
-                            </span>
-                            <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>
-                          </div>
-                        </div>
                       </div>
                     </div>
                   )}
 
-                  {profile?.role !== "Admin" && profile?.role !== "Owner" && (
+                  {profile?.role === "Dentist" && (
                     <div className="flex flex-col gap-1.5">
                       <label className="text-[13px] font-extrabold text-slate-500 uppercase tracking-wide">
-                        {profile?.role === "Dentist"
-                          ? "Tiểu sử giới thiệu chuyên môn (Hiển thị trực tiếp trên website)"
-                          : "Tiểu sử ngắn"}
+                        Tiểu sử giới thiệu chuyên môn
                       </label>
                       <textarea
                         value={bio}
                         onChange={(e) => setBio(e.target.value)}
-                        placeholder={profile?.role === "Dentist" ? "Giới thiệu chuyên môn, bằng cấp, thế mạnh của bác sĩ..." : "Giới thiệu bản thân ngắn gọn..."}
+                        placeholder="Giới thiệu chuyên môn, bằng cấp, thế mạnh của bác sĩ..."
                         rows={4}
                         className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-semibold resize-none"
                       />
@@ -1019,24 +871,43 @@ export default function ProfilePageContent({ sidebar, notificationHref = "/admin
                   <label className="text-[13px] font-extrabold text-slate-500 uppercase tracking-wide">
                     Mật khẩu hiện tại <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="password"
-                    value={currentPassword}
-                    onChange={(e) => {
-                      setCurrentPassword(e.target.value);
-                      if (fieldErrors.currentPassword) {
-                        setFieldErrors(prev => {
-                          const updated = { ...prev };
-                          delete updated.currentPassword;
-                          return updated;
-                        });
-                      }
-                    }}
-                    placeholder="Nhập mật khẩu hiện tại..."
-                    className={`w-full px-4 py-2.5 rounded-xl border ${
-                      fieldErrors.currentPassword ? "border-red-400 focus:border-red-500 focus:ring-red-500" : "border-slate-200 focus:border-primary focus:ring-primary"
-                    } focus:ring-1 focus:outline-none transition-all font-semibold`}
-                  />
+                  <div className="relative">
+                    <input
+                      type={showCurrentPassword ? "text" : "password"}
+                      value={currentPassword}
+                      onChange={(e) => {
+                        setCurrentPassword(e.target.value);
+                        if (fieldErrors.currentPassword) {
+                          setFieldErrors(prev => {
+                            const updated = { ...prev };
+                            delete updated.currentPassword;
+                            return updated;
+                          });
+                        }
+                      }}
+                      placeholder="Nhập mật khẩu hiện tại..."
+                      className={`w-full pl-4 pr-11 py-2.5 rounded-xl border ${
+                        fieldErrors.currentPassword ? "border-red-400 focus:border-red-500 focus:ring-red-500" : "border-slate-200 focus:border-primary focus:ring-primary"
+                      } focus:ring-1 focus:outline-none transition-all font-semibold`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                      aria-label={showCurrentPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                    >
+                      {showCurrentPassword ? (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
                   {fieldErrors.currentPassword && (
                     <span className="text-red-500 text-[12px] font-bold mt-1 block">
                       {fieldErrors.currentPassword}
@@ -1048,24 +919,43 @@ export default function ProfilePageContent({ sidebar, notificationHref = "/admin
                   <label className="text-[13px] font-extrabold text-slate-500 uppercase tracking-wide">
                     Mật khẩu mới <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => {
-                      setNewPassword(e.target.value);
-                      if (fieldErrors.newPassword) {
-                        setFieldErrors(prev => {
-                          const updated = { ...prev };
-                          delete updated.newPassword;
-                          return updated;
-                        });
-                      }
-                    }}
-                    placeholder="Mật khẩu mới (ít nhất 8 ký tự)..."
-                    className={`w-full px-4 py-2.5 rounded-xl border ${
-                      fieldErrors.newPassword ? "border-red-400 focus:border-red-500 focus:ring-red-500" : "border-slate-200 focus:border-primary focus:ring-primary"
-                    } focus:ring-1 focus:outline-none transition-all font-semibold`}
-                  />
+                  <div className="relative">
+                    <input
+                      type={showNewPassword ? "text" : "password"}
+                      value={newPassword}
+                      onChange={(e) => {
+                        setNewPassword(e.target.value);
+                        if (fieldErrors.newPassword) {
+                          setFieldErrors(prev => {
+                            const updated = { ...prev };
+                            delete updated.newPassword;
+                            return updated;
+                          });
+                        }
+                      }}
+                      placeholder="Mật khẩu mới (ít nhất 8 ký tự)..."
+                      className={`w-full pl-4 pr-11 py-2.5 rounded-xl border ${
+                        fieldErrors.newPassword ? "border-red-400 focus:border-red-500 focus:ring-red-500" : "border-slate-200 focus:border-primary focus:ring-primary"
+                      } focus:ring-1 focus:outline-none transition-all font-semibold`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                      aria-label={showNewPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                    >
+                      {showNewPassword ? (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
                   {fieldErrors.newPassword && (
                     <span className="text-red-500 text-[12px] font-bold mt-1 block">
                       {fieldErrors.newPassword}
@@ -1077,24 +967,43 @@ export default function ProfilePageContent({ sidebar, notificationHref = "/admin
                   <label className="text-[13px] font-extrabold text-slate-500 uppercase tracking-wide">
                     Xác nhận mật khẩu mới <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => {
-                      setConfirmPassword(e.target.value);
-                      if (fieldErrors.confirmPassword) {
-                        setFieldErrors(prev => {
-                          const updated = { ...prev };
-                          delete updated.confirmPassword;
-                          return updated;
-                        });
-                      }
-                    }}
-                    placeholder="Nhập lại mật khẩu mới..."
-                    className={`w-full px-4 py-2.5 rounded-xl border ${
-                      fieldErrors.confirmPassword ? "border-red-400 focus:border-red-500 focus:ring-red-500" : "border-slate-200 focus:border-primary focus:ring-primary"
-                    } focus:ring-1 focus:outline-none transition-all font-semibold`}
-                  />
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? "text" : "password"}
+                      value={confirmPassword}
+                      onChange={(e) => {
+                        setConfirmPassword(e.target.value);
+                        if (fieldErrors.confirmPassword) {
+                          setFieldErrors(prev => {
+                            const updated = { ...prev };
+                            delete updated.confirmPassword;
+                            return updated;
+                          });
+                        }
+                      }}
+                      placeholder="Nhập lại mật khẩu mới..."
+                      className={`w-full pl-4 pr-11 py-2.5 rounded-xl border ${
+                        fieldErrors.confirmPassword ? "border-red-400 focus:border-red-500 focus:ring-red-500" : "border-slate-200 focus:border-primary focus:ring-primary"
+                      } focus:ring-1 focus:outline-none transition-all font-semibold`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                      aria-label={showConfirmPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                    >
+                      {showConfirmPassword ? (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
                   {fieldErrors.confirmPassword && (
                     <span className="text-red-500 text-[12px] font-bold mt-1 block">
                       {fieldErrors.confirmPassword}
