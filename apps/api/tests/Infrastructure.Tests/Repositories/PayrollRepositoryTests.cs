@@ -113,5 +113,11 @@ public class PayrollRepositoryTests
     }
 
     private static LeaveRequest MakeLeave(DateOnly from, DateOnly to)
-        => LeaveRequest.Create(Guid.NewGuid(), LeaveType.Annual, from, to, "Test");
+    {
+        var shifts = new List<(DateOnly Date, string ShiftId)>();
+        for (var d = from; d <= to; d = d.AddDays(1))
+            shifts.Add((d, "08:00-10:00"));
+
+        return LeaveRequest.Create(Guid.NewGuid(), LeaveType.Annual, shifts, "Test");
+    }
 }

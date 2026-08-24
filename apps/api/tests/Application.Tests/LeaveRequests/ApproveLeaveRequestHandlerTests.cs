@@ -232,11 +232,18 @@ public class ApproveLeaveRequestHandlerTests
     private static WorkSchedule MakeShift(DateOnly date, bool isHoliday = false) =>
         WorkSchedule.Create(date, "08:00-10:00", "dentist", "dentist", StaffName, "Phòng 1", "border-primary", isHoliday);
 
+    /// <summary>Sinh 1 ca "08:00-10:00" cho mỗi ngày trong [from, to] — khớp mã ca mặc định của
+    /// <see cref="MakeShift"/>, để giữ nguyên hành vi các test viết trước khi đơn nghỉ lưu ca cụ thể
+    /// (khi đó chỉ cần khớp NGÀY, còn giờ phải khớp cả ngày lẫn mã ca).</summary>
     private static LeaveRequest MakeRequest(DateOnly? start = null, DateOnly? end = null)
     {
         var from = start ?? DateOnly.FromDateTime(DateTime.Today);
         var to = end ?? from.AddDays(2);
-        var lr = LeaveRequest.Create(Guid.NewGuid(), LeaveType.Annual, from, to, "Lý do test");
+        var shifts = new List<(DateOnly Date, string ShiftId)>();
+        for (var d = from; d <= to; d = d.AddDays(1))
+            shifts.Add((d, "08:00-10:00"));
+
+        var lr = LeaveRequest.Create(Guid.NewGuid(), LeaveType.Annual, shifts, "Lý do test");
         var user = User.Create("emp", "emp@test.com", "hash", UserRole.Staff, null, StaffName);
         typeof(LeaveRequest).GetProperty("User")!.SetValue(lr, user);
         return lr;

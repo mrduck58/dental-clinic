@@ -5,6 +5,7 @@ using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Domain.Constants;
+using DentalClinic.API.Domain.Schedules;
 using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.LeaveRequests;
@@ -33,7 +34,15 @@ public class CreateLeaveRequestHandler(
                 $"Loại nghỉ phép không hợp lệ: '{request.LeaveType}'. " +
                 "Hợp lệ: Annual, Sick, Maternity, Unpaid, Training.");
 
-        var leaveRequest = LeaveRequest.Create(command.UserId, leaveType, request.StartDate, request.EndDate, request.Reason);
+        if (request.Shifts == null || request.Shifts.Count == 0)
+            throw new ValidationException("Vui lòng chọn ít nhất một ca muốn nghỉ.");
+
+        var invalidShift = request.Shifts.FirstOrDefault(s => !WorkShifts.AllValidCodes.Contains(s.ShiftId, StringComparer.OrdinalIgnoreCase));
+        if (invalidShift != null)
+            throw new ValidationException($"Mã ca không hợp lệ: '{invalidShift.ShiftId}'.");
+
+        var shiftTuples = request.Shifts.Select(s => (s.Date, s.ShiftId)).ToList();
+        var leaveRequest = LeaveRequest.Create(command.UserId, leaveType, shiftTuples, request.Reason);
         await leaveRequestRepository.AddAsync(leaveRequest, ct);
 
         await activityLogService.LogAsync(
@@ -42,7 +51,7 @@ public class CreateLeaveRequestHandler(
             userRole: currentUser.UserRole,
             action: ActivityAction.Create,
             module: ActivityModule.Leave,
-            description: $"Tạo đơn xin nghỉ: {leaveType} từ {request.StartDate:dd/MM/yyyy} đến {request.EndDate:dd/MM/yyyy}",
+            description: $"Tạo đơn xin nghỉ: {leaveType} — {leaveRequest.Shifts.Count} ca ({leaveRequest.DaysCount} ngày, {leaveRequest.StartDate:dd/MM/yyyy} – {leaveRequest.EndDate:dd/MM/yyyy})",
             status: ActivityStatus.Success,
             ipAddress: currentUser.IpAddress,
             targetId: leaveRequest.Id.ToString(),
@@ -54,7 +63,7 @@ public class CreateLeaveRequestHandler(
             Type: NotificationType.Schedule,
             Priority: NotificationPriority.Medium,
             Title: "Đơn xin nghỉ mới",
-            Body: $"{currentUser.UserName} đã nộp đơn xin nghỉ từ {request.StartDate:dd/MM/yyyy} đến {request.EndDate:dd/MM/yyyy}.",
+            Body: $"{currentUser.UserName} đã nộp đơn xin nghỉ {leaveRequest.Shifts.Count} ca từ {leaveRequest.StartDate:dd/MM/yyyy} đến {leaveRequest.EndDate:dd/MM/yyyy}.",
             RelatedEntityType: "LeaveRequest",
             RelatedEntityId: leaveRequest.Id.ToString());
         await notificationService.CreateForMultipleUsersAsync(adminIds, template, ct);

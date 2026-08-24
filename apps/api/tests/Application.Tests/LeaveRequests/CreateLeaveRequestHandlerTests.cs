@@ -88,16 +88,29 @@ public class CreateLeaveRequestHandlerTests
     }
 
     /// <summary>
-    /// Ngày kết thúc trước ngày bắt đầu phải ném ValidationException từ entity.
+    /// Không chọn ca nào phải ném ValidationException — không còn khoảng ngày để suy ra ca.
     /// </summary>
     [Test]
-    public async Task HandleAsync_EndDateBeforeStartDate_ThrowsValidationException()
+    public async Task HandleAsync_NoShiftsSelected_ThrowsValidationException()
+    {
+        var handler = new CreateLeaveRequestHandler(_repo, _activityLog, _notification, _userRepo, _currentUser);
+        var req = new CreateLeaveRequestRequest("Annual", [], "Lý do hợp lệ");
+
+        Func<Task> act = () => handler.Handle(new CreateLeaveRequestCommand(Guid.NewGuid(), req), CancellationToken.None);
+
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    /// <summary>
+    /// Mã ca không nằm trong danh sách ca hợp lệ của phòng khám phải ném ValidationException.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_InvalidShiftId_ThrowsValidationException()
     {
         var handler = new CreateLeaveRequestHandler(_repo, _activityLog, _notification, _userRepo, _currentUser);
         var req = new CreateLeaveRequestRequest(
             "Annual",
-            DateOnly.FromDateTime(DateTime.Today.AddDays(3)),
-            DateOnly.FromDateTime(DateTime.Today),
+            [new LeaveRequestShiftInput(DateOnly.FromDateTime(DateTime.Today), "not-a-real-shift")],
             "Lý do hợp lệ");
 
         Func<Task> act = () => handler.Handle(new CreateLeaveRequestCommand(Guid.NewGuid(), req), CancellationToken.None);
@@ -198,11 +211,11 @@ public class CreateLeaveRequestHandlerTests
     }
 
     /// <summary>
-    /// StartDate và EndDate trùng nhau (nghỉ nửa ngày/1 ngày) là boundary hợp lệ,
-    /// phải tạo được đơn với DaysCount = 1, không ném ValidationException.
+    /// Chỉ chọn 1 ca duy nhất (1 ngày) là boundary hợp lệ, phải tạo được đơn với
+    /// DaysCount = 1, không ném ValidationException.
     /// </summary>
     [Test]
-    public async Task HandleAsync_StartDateEqualsEndDate_CreatesSingleDayRequest()
+    public async Task HandleAsync_SingleShift_CreatesSingleDayRequest()
     {
         var user = User.Create("emp", "emp@test.com", "hash", UserRole.Staff, null, "Nhân Viên Test");
         _repo.When(r => r.AddAsync(Arg.Any<LeaveRequest>(), Arg.Any<CancellationToken>()))
@@ -210,7 +223,10 @@ public class CreateLeaveRequestHandlerTests
         _userRepo.GetUserIdsByRoleAsync("Owner", Arg.Any<CancellationToken>()).Returns([]);
         var handler = new CreateLeaveRequestHandler(_repo, _activityLog, _notification, _userRepo, _currentUser);
         var sameDay = DateOnly.FromDateTime(DateTime.Today);
-        var req = new CreateLeaveRequestRequest("Annual", sameDay, sameDay, "Lý do hợp lệ");
+        var req = new CreateLeaveRequestRequest(
+            "Annual",
+            [new LeaveRequestShiftInput(sameDay, "08:00-10:00")],
+            "Lý do hợp lệ");
 
         var result = await handler.Handle(new CreateLeaveRequestCommand(Guid.NewGuid(), req), CancellationToken.None);
 
@@ -219,7 +235,9 @@ public class CreateLeaveRequestHandlerTests
 
     private static CreateLeaveRequestRequest BuildRequest(string leaveType, string reason)
         => new(leaveType,
-            DateOnly.FromDateTime(DateTime.Today),
-            DateOnly.FromDateTime(DateTime.Today.AddDays(2)),
+            [
+                new LeaveRequestShiftInput(DateOnly.FromDateTime(DateTime.Today), "08:00-10:00"),
+                new LeaveRequestShiftInput(DateOnly.FromDateTime(DateTime.Today.AddDays(2)), "10:00-12:00"),
+            ],
             reason);
 }

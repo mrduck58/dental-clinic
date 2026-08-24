@@ -3,6 +3,7 @@ using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
+using DentalClinic.API.Domain.Schedules;
 using FluentAssertions;
 using NSubstitute;
 using NUnit.Framework;
@@ -150,9 +151,17 @@ public class GetLeaveRequestImpactHandlerTests
     private static WorkSchedule MakeShift(DateOnly date, string shift, bool isHoliday = false, string? staffName = null) =>
         WorkSchedule.Create(date, shift, "dentist", "dentist", staffName ?? StaffName, "Phòng 1", "border-primary", isHoliday);
 
+    /// <summary>Sinh đủ 6 mã ca hợp lệ cho mỗi ngày trong [start, end] — các test dưới đây stub
+    /// nhiều mã ca khác nhau (08:00-10:00, 10:00-12:00, ...) trên cùng một ngày, và giờ đây một ca
+    /// chỉ được tính là "ảnh hưởng" khi khớp đúng cả ngày lẫn mã ca đã chọn khi tạo đơn.</summary>
     private static LeaveRequest MakeRequest(DateOnly start, DateOnly end, string? fullName = null)
     {
-        var lr = LeaveRequest.Create(Guid.NewGuid(), LeaveType.Annual, start, end, "Lý do test");
+        var shifts = new List<(DateOnly Date, string ShiftId)>();
+        for (var d = start; d <= end; d = d.AddDays(1))
+            foreach (var s in WorkShifts.All)
+                shifts.Add((d, s.Code));
+
+        var lr = LeaveRequest.Create(Guid.NewGuid(), LeaveType.Annual, shifts, "Lý do test");
         var user = User.Create("emp", "emp@test.com", "hash", UserRole.Dentist, null, fullName ?? StaffName);
         typeof(LeaveRequest).GetProperty("User")!.SetValue(lr, user);
         return lr;

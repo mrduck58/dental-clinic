@@ -28,6 +28,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<WorkSchedule> WorkSchedules => Set<WorkSchedule>();
     public DbSet<Promotion> Promotions => Set<Promotion>();
     public DbSet<LeaveRequest> LeaveRequests => Set<LeaveRequest>();
+    public DbSet<LeaveRequestShift> LeaveRequestShifts => Set<LeaveRequestShift>();
     public DbSet<Room> Rooms => Set<Room>();
     public DbSet<Medicine> Medicines => Set<Medicine>();
     public DbSet<SupplyItem> SupplyItems => Set<SupplyItem>();

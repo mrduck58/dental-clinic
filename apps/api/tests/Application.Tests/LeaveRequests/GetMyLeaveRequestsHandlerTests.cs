@@ -127,7 +127,12 @@ public class GetMyLeaveRequestsHandlerTests
         var userId = Guid.NewGuid();
         var previousYear = DateTimeOffset.UtcNow.Year - 1;
         var lastYearStart = new DateOnly(previousYear, 12, 1);
-        var lastYearApproved = LeaveRequest.Create(userId, LeaveType.Annual, lastYearStart, lastYearStart.AddDays(2), "Lý do test");
+        var lastYearApproved = LeaveRequest.Create(userId, LeaveType.Annual,
+            [
+                (lastYearStart, "08:00-10:00"),
+                (lastYearStart.AddDays(1), "08:00-10:00"),
+                (lastYearStart.AddDays(2), "08:00-10:00"),
+            ], "Lý do test");
         lastYearApproved.Approve();
         var thisYearApproved = MakeRequest(userId, LeaveType.Annual, daysCount: 4);
         thisYearApproved.Approve();
@@ -184,7 +189,10 @@ public class GetMyLeaveRequestsHandlerTests
     private static LeaveRequest MakeRequest(Guid userId, LeaveType type = LeaveType.Annual, int daysCount = 3)
     {
         var today = DateOnly.FromDateTime(DateTime.Today);
-        var lr = LeaveRequest.Create(userId, type, today, today.AddDays(daysCount - 1), "Lý do test");
+        var shifts = Enumerable.Range(0, daysCount)
+            .Select(i => (Date: today.AddDays(i), ShiftId: "08:00-10:00"))
+            .ToList();
+        var lr = LeaveRequest.Create(userId, type, shifts, "Lý do test");
         var user = User.Create("emp", "emp@test.com", "hash", UserRole.Staff, null, "Test");
         typeof(LeaveRequest).GetProperty("User")!.SetValue(lr, user);
         return lr;

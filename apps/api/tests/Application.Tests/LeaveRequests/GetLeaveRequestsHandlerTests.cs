@@ -151,7 +151,13 @@ public class GetLeaveRequestsHandlerTests
     private static LeaveRequest MakeRequest(string? fullName = "Test", string reason = "Lý do test")
     {
         var today = DateOnly.FromDateTime(DateTime.Today);
-        var lr = LeaveRequest.Create(Guid.NewGuid(), LeaveType.Annual, today, today.AddDays(2), reason);
+        var shifts = new List<(DateOnly Date, string ShiftId)>
+        {
+            (today, "08:00-10:00"),
+            (today.AddDays(1), "08:00-10:00"),
+            (today.AddDays(2), "08:00-10:00"),
+        };
+        var lr = LeaveRequest.Create(Guid.NewGuid(), LeaveType.Annual, shifts, reason);
         var user = User.Create("emp", "emp@test.com", "hash", UserRole.Staff, null, fullName);
         typeof(LeaveRequest).GetProperty("User")!.SetValue(lr, user);
         return lr;
