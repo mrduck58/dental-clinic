@@ -27,6 +27,10 @@ public class LeaveRequestRepositoryTests
     [TearDown]
     public void TearDown() => _db.Dispose();
 
+    /// <summary>1 ca "08:00-10:00" cho mỗi ngày trong <paramref name="days"/> ngày kể từ <paramref name="from"/>.</summary>
+    private static List<(DateOnly Date, string ShiftId)> Shifts(DateOnly from, int days) =>
+        Enumerable.Range(0, days).Select(i => (from.AddDays(i), "08:00-10:00")).ToList();
+
     // ── GetAllAsync ───────────────────────────────────────────────────────────
 
     /// <summary>
@@ -54,8 +58,8 @@ public class LeaveRequestRepositoryTests
         var user = User.Create("emp1", "emp1@clinic.com", "hash", UserRole.Staff);
         await _db.Users.AddAsync(user);
         var today = DateOnly.FromDateTime(DateTime.Today);
-        var older = LeaveRequest.Create(user.Id, LeaveType.Annual, today, today.AddDays(1), "Cũ");
-        var newer = LeaveRequest.Create(user.Id, LeaveType.Annual, today, today.AddDays(1), "Mới");
+        var older = LeaveRequest.Create(user.Id, LeaveType.Annual, Shifts(today, 2), "Cũ");
+        var newer = LeaveRequest.Create(user.Id, LeaveType.Annual, Shifts(today, 2), "Mới");
         typeof(LeaveRequest).GetProperty("CreatedAt")!.SetValue(older, DateTimeOffset.UtcNow.AddHours(-2));
         typeof(LeaveRequest).GetProperty("CreatedAt")!.SetValue(newer, DateTimeOffset.UtcNow);
         await _db.LeaveRequests.AddRangeAsync(older, newer);
@@ -79,9 +83,9 @@ public class LeaveRequestRepositoryTests
         await _db.Users.AddRangeAsync(user1, user2);
         var today = DateOnly.FromDateTime(DateTime.Today);
         await _db.LeaveRequests.AddRangeAsync(
-            LeaveRequest.Create(user1.Id, LeaveType.Annual, today, today.AddDays(1), "U1 - 1"),
-            LeaveRequest.Create(user1.Id, LeaveType.Annual, today, today.AddDays(2), "U1 - 2"),
-            LeaveRequest.Create(user2.Id, LeaveType.Annual, today, today.AddDays(1), "U2 - 1")
+            LeaveRequest.Create(user1.Id, LeaveType.Annual, Shifts(today, 2), "U1 - 1"),
+            LeaveRequest.Create(user1.Id, LeaveType.Annual, Shifts(today, 3), "U1 - 2"),
+            LeaveRequest.Create(user2.Id, LeaveType.Annual, Shifts(today, 2), "U2 - 1")
         );
         await _db.SaveChangesAsync();
 
@@ -132,7 +136,7 @@ public class LeaveRequestRepositoryTests
         await _db.Users.AddAsync(user);
         await _db.SaveChangesAsync();
         var today = DateOnly.FromDateTime(DateTime.Today);
-        var lr = LeaveRequest.Create(user.Id, LeaveType.Annual, today, today.AddDays(2), "Test");
+        var lr = LeaveRequest.Create(user.Id, LeaveType.Annual, Shifts(today, 3), "Test");
 
         await _sut.AddAsync(lr);
 
@@ -145,7 +149,7 @@ public class LeaveRequestRepositoryTests
         var user = User.Create("emp1", "emp1@clinic.com", "hash", UserRole.Staff);
         await _db.Users.AddAsync(user);
         var today = DateOnly.FromDateTime(DateTime.Today);
-        var lr = LeaveRequest.Create(user.Id, LeaveType.Annual, today, today.AddDays(2), "Lý do test");
+        var lr = LeaveRequest.Create(user.Id, LeaveType.Annual, Shifts(today, 3), "Lý do test");
         await _db.LeaveRequests.AddAsync(lr);
         await _db.SaveChangesAsync();
         return (user, lr);

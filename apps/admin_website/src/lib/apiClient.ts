@@ -1548,6 +1548,11 @@ export async function changeRoomStatusApi(id: string, status: string): Promise<R
 }
 // ── Leave Request types & endpoints ───────────────────────────────────────────
 
+export interface LeaveRequestShiftDto {
+  date: string;    // "YYYY-MM-DD"
+  shiftId: string; // mã ca, ví dụ "08:00-10:00" (xem lib/shifts.ts)
+}
+
 export interface LeaveRequestDto {
   id: string;
   userId: string;
@@ -1562,6 +1567,7 @@ export interface LeaveRequestDto {
   reviewerNote: string | null;
   createdAt: string;
   reviewedAt: string | null;
+  shifts: LeaveRequestShiftDto[];
 }
 
 export interface MyLeaveStatsDto {
@@ -1579,8 +1585,7 @@ export interface MyLeaveRequestsResponse {
 
 export interface CreateLeaveRequestRequest {
   leaveType: string;
-  startDate: string; // "YYYY-MM-DD"
-  endDate: string;   // "YYYY-MM-DD"
+  shifts: LeaveRequestShiftDto[];
   reason: string;
 }
 

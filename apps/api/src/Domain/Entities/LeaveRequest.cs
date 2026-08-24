@@ -5,6 +5,8 @@ namespace DentalClinic.API.Domain.Entities;
 
 public class LeaveRequest
 {
+    private readonly List<LeaveRequestShift> _shifts = [];
+
     public Guid Id { get; private set; }
     public Guid UserId { get; private set; }
     public User User { get; private set; } = null!;
@@ -18,30 +20,43 @@ public class LeaveRequest
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset? ReviewedAt { get; private set; }
 
+    /// <summary>Các ca cụ thể (ngày + mã ca) người nộp đơn muốn nghỉ. StartDate/EndDate/DaysCount
+    /// đều suy ra từ tập này — xem <see cref="Create"/>.</summary>
+    public IReadOnlyList<LeaveRequestShift> Shifts => _shifts;
+
     private LeaveRequest() { }
 
     public static LeaveRequest Create(
         Guid userId,
         LeaveType leaveType,
-        DateOnly startDate,
-        DateOnly endDate,
+        IReadOnlyList<(DateOnly Date, string ShiftId)> shifts,
         string reason)
     {
-        if (endDate < startDate)
-            throw new ValidationException("Ngày kết thúc phải sau hoặc bằng ngày bắt đầu.");
+        var distinctShifts = shifts
+            .Distinct()
+            .OrderBy(s => s.Date)
+            .ThenBy(s => s.ShiftId)
+            .ToList();
 
-        return new LeaveRequest
+        if (distinctShifts.Count == 0)
+            throw new ValidationException("Vui lòng chọn ít nhất một ca muốn nghỉ.");
+
+        var request = new LeaveRequest
         {
             Id = Guid.NewGuid(),
             UserId = userId,
             LeaveType = leaveType,
-            StartDate = startDate,
-            EndDate = endDate,
-            DaysCount = endDate.DayNumber - startDate.DayNumber + 1,
+            StartDate = distinctShifts[0].Date,
+            EndDate = distinctShifts[^1].Date,
+            DaysCount = distinctShifts.Select(s => s.Date).Distinct().Count(),
             Reason = reason,
             Status = LeaveStatus.Pending,
             CreatedAt = DateTimeOffset.UtcNow,
         };
+
+        request._shifts.AddRange(distinctShifts.Select(s => LeaveRequestShift.Create(s.Date, s.ShiftId)));
+
+        return request;
     }
 
     public void Approve()

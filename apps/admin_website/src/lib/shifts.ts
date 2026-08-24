@@ -53,3 +53,21 @@ export const periodOfTime = (date: Date): ShiftPeriod => {
   if (minutes < 17 * 60 + 30) return "Buổi chiều";
   return "Buổi tối";
 };
+
+// Thời điểm bắt đầu (giờ địa phương của trình duyệt) của một ca vào một ngày cụ thể —
+// dùng để khoá không cho chọn ca đã bắt đầu/đã qua khi xin nghỉ. Trả về null nếu id không
+// đúng định dạng "HH:MM-HH:MM" (dữ liệu cũ "morning"/"afternoon" không xác định được giờ).
+export const shiftStartDate = (dateKey: string, shiftId: string): Date | null => {
+  const match = /^(\d{2}):(\d{2})-\d{2}:\d{2}$/.exec(shiftId);
+  if (!match) return null;
+  const [, hh, mm] = match;
+  const [y, mo, d] = dateKey.split("-").map(Number);
+  return new Date(y, mo - 1, d, Number(hh), Number(mm), 0, 0);
+};
+
+// Ca đã bắt đầu (hoặc cả ngày đã qua) tính đến thời điểm `now` chưa? Ca không xác định được
+// giờ bắt đầu (mã cũ) không bao giờ bị khoá theo cách này.
+export const isShiftPast = (dateKey: string, shiftId: string, now: Date = new Date()): boolean => {
+  const start = shiftStartDate(dateKey, shiftId);
+  return start !== null && start.getTime() <= now.getTime();
+};

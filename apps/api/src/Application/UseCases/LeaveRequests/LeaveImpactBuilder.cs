@@ -32,10 +32,12 @@ public static class LeaveImpactBuilder
     /// </summary>
     public static string NormalizeStaffName(string? raw) => StaffNameMatcher.Key(raw);
 
-    /// <summary>Các ca sẽ bị gỡ nếu duyệt đơn: mọi ca của người này trong khoảng nghỉ, trừ dấu nghỉ lễ
-    /// (IsHoliday là bản ghi đánh dấu cả phòng khám đóng cửa, không thuộc về ai).
-    /// Lọc theo tên ở bộ nhớ chứ không ở SQL vì phép chuẩn hoá tên trên không viết được thành truy vấn;
-    /// một đơn nghỉ chỉ trải vài ngày nên số dòng đọc lên là nhỏ.</summary>
+    /// <summary>Các ca sẽ bị gỡ nếu duyệt đơn: đúng những ca (ngày + mã ca) người nộp đơn đã chọn khi
+    /// tạo đơn (<see cref="LeaveRequest.Shifts"/>) VÀ hiện đang thật sự được xếp cho họ trong lịch làm
+    /// việc — một ca đã chọn nhưng bị Owner xếp lại/gỡ trước khi duyệt thì đơn giản là không còn gì để
+    /// gỡ nữa, không báo lỗi. Trừ dấu nghỉ lễ (IsHoliday là bản ghi đánh dấu cả phòng khám đóng cửa,
+    /// không thuộc về ai). Lọc theo tên ở bộ nhớ chứ không ở SQL vì phép chuẩn hoá tên trên không viết
+    /// được thành truy vấn; một đơn nghỉ chỉ trải vài ngày nên số dòng đọc lên là nhỏ.</summary>
     public static async Task<IReadOnlyList<WorkSchedule>> GetAffectedShiftsAsync(
         LeaveRequest request,
         IWorkScheduleRepository workScheduleRepository,
@@ -44,10 +46,17 @@ public static class LeaveImpactBuilder
         var target = NormalizeStaffName(ResolveStaffName(request));
         if (target.Length == 0) return [];
 
+        var requestedShifts = request.Shifts
+            .Select(s => (s.Date, ShiftId: s.ShiftId.Trim().Replace(" ", "").Replace("–", "-")))
+            .ToHashSet();
+        if (requestedShifts.Count == 0) return [];
+
         var shifts = await workScheduleRepository.GetByDateRangeAsync(request.StartDate, request.EndDate, ct);
 
         return shifts
-            .Where(s => !s.IsHoliday && NormalizeStaffName(s.StaffName) == target)
+            .Where(s => !s.IsHoliday
+                && NormalizeStaffName(s.StaffName) == target
+                && requestedShifts.Contains((s.Date, s.Shift.Trim().Replace(" ", "").Replace("–", "-"))))
             .OrderBy(s => s.Date)
             .ThenBy(s => s.Shift)
             .ToList();

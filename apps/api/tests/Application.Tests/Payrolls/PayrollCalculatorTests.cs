@@ -135,7 +135,11 @@ public class PayrollCalculatorTests
 
     private static LeaveRequest MakeApprovedLeave(Guid userId, DateOnly from, DateOnly to)
     {
-        var leave = LeaveRequest.Create(userId, LeaveType.Annual, from, to, "Test");
+        var shifts = new List<(DateOnly Date, string ShiftId)>();
+        for (var d = from; d <= to; d = d.AddDays(1))
+            shifts.Add((d, "08:00-10:00"));
+
+        var leave = LeaveRequest.Create(userId, LeaveType.Annual, shifts, "Test");
         leave.Approve();
         return leave;
     }
