@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import OwnerSidebar from "../../../../components/shared/OwnerSidebar";
 import OwnerPageHeader from "../../../../components/shared/OwnerPageHeader";
+import RichTextEditor from "../../../../components/shared/RichTextEditor";
 import { useRequireOwner } from "../../../../hooks/useRequireOwner";
 import { createStaffApi, getStaffApi, uploadFileApi, resolveAssetUrl, ApiValidationError, type CreateStaffCommand } from "../../../../lib/apiClient";
 
@@ -35,6 +36,7 @@ export default function AddDentistPage() {
   const [dentistCode, setDentistCode] = useState<string>("");
   const [isLoadingCode, setIsLoadingCode] = useState(true);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [formContent, setFormContent] = useState("");
 
   const [formData, setFormData] = useState<DentistForm>({
     fullName: "",
@@ -63,7 +65,7 @@ export default function AddDentistPage() {
   const [formEmploymentType, setFormEmploymentType] = useState("Full-time");
   const [formBaseSalary, setFormBaseSalary] = useState(25000000);
   const [formSalaryUnit, setFormSalaryUnit] = useState("Theo tháng");
-  const [formLeaveAccrued, setFormLeaveAccrued] = useState(1.5);
+  const [formLeaveAccrued, setFormLeaveAccrued] = useState(24);
   const [formAllowance, setFormAllowance] = useState(2500000);
 
   useEffect(() => {
@@ -156,6 +158,7 @@ export default function AddDentistPage() {
         salaryUnit: formSalaryUnit,
         leaveAccrued: formLeaveAccrued,
         allowance: formAllowance,
+        content: formContent,
       };
       await createStaffApi(payload);
       sessionStorage.setItem("staffSuccessMsg", `Thêm nha sĩ ${formData.fullName.trim()} (${dentistCode}) thành công!`);
@@ -551,6 +554,29 @@ export default function AddDentistPage() {
                 </div>
               </div>
 
+              {/* CARD: BÀI VIẾT CHI TIẾT VỀ NHA SĨ */}
+              <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+                  <h3 className="text-[15px] font-extrabold text-slate-700 flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                    Bài viết chi tiết về nha sĩ
+                  </h3>
+                  <p className="text-[12px] text-slate-400 mt-0.5">
+                    Soạn bài viết giới thiệu quá trình đào tạo, kinh nghiệm, thành tích & hình ảnh cho bệnh nhân xem trên website.
+                  </p>
+                </div>
+
+                <div className="p-6">
+                  <RichTextEditor
+                    value={formContent}
+                    onChange={setFormContent}
+                    placeholder="Nhập bài viết giới thiệu chi tiết về nha sĩ (Quá trình đào tạo, kinh nghiệm, thành tích, hình ảnh minh họa...)..."
+                    minHeight="450px"
+                    maxHeight="700px"
+                  />
+                </div>
+              </div>
+
               {/* CARD 3: CẤU HÌNH LƯƠNG & NGHỈ PHÉP */}
               <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
                 <h4 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider mb-6 pb-2 border-b border-slate-100 flex items-center gap-2">
@@ -622,18 +648,15 @@ export default function AddDentistPage() {
                   </div>
 
                   <div>
-                    <label className={lbl}>Số ngày phép / tháng</label>
+                    <label className={lbl}>Số ca / tháng</label>
                     <input
                       type="number"
                       required
                       min="0"
-                      step="0.5"
+                      step="1"
                       value={formLeaveAccrued}
                       onChange={(e) => setFormLeaveAccrued(Number(e.target.value))}
-                      disabled={formEmploymentType !== "Full-time"}
-                      className={`${inp("leaveAccrued")} ${
-                        formEmploymentType !== "Full-time" ? "opacity-60 cursor-not-allowed bg-slate-100 font-semibold text-[14px]" : ""
-                      }`}
+                      className={inp("leaveAccrued")}
                     />
                     {errMsg("leaveAccrued")}
                   </div>

@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import PageHeader from "@/components/shared/PageHeader";
 import FeaturedPost from "@/components/sections/FeaturedPost";
 import NewsSection from "@/components/sections/NewsSection";
 import FilterBar from "@/components/shared/FilterBar";
@@ -74,18 +73,11 @@ export default async function TinTucPage({ searchParams }: Props) {
 
   return (
     <div className="animate-fade-in">
-      <PageHeader
-        eyebrow="Tin Tức & Sự Kiện"
-        title="Tin tức"
-        description="Cập nhật những tin tức, kiến thức và sự kiện mới nhất từ Sơn Giang Dental."
-      />
-
       {featured && paged.currentPage === 1 && <FeaturedPost post={featured} />}
 
       <NewsSection
         posts={paged.items}
-        heading={isFiltering ? "Kết quả tìm kiếm" : "Cập Nhật Mới Nhất"}
-        showBanner={!isFiltering}
+        heading={isFiltering ? "Kết quả tìm kiếm" : ""}
         toolbar={
           <FilterBar
             searchPlaceholder="Tìm bài viết..."

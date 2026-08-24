@@ -34,7 +34,8 @@ public record CreateStaffCommand(
     decimal? BaseSalary,
     string? SalaryUnit,
     decimal? LeaveAccrued,
-    decimal? Allowance) : IRequest<StaffItemDto>;
+    decimal? Allowance,
+    string? Content = null) : IRequest<StaffItemDto>;
 
 public class CreateStaffHandler(
     IUserRepository userRepository,
@@ -92,7 +93,8 @@ public class CreateStaffHandler(
                 command.Education,
                 command.Bio,
                 command.CertificateIssuedDate,
-                command.CertificateIssuedBy);
+                command.CertificateIssuedBy,
+                content: command.Content);
             await dentistRepository.AddAsync(dentistProfile, ct);
         }
 

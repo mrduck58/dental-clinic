@@ -3,6 +3,7 @@ using System;
 using DentalClinic.API.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DentalClinic.API.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260824065245_AddDentistProfileContent")]
+    partial class AddDentistProfileContent
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1190,31 +1193,6 @@ namespace DentalClinic.API.Infrastructure.Persistence.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("LeaveRequests");
-                });
-
-            modelBuilder.Entity("DentalClinic.API.Domain.Entities.LeaveRequestShift", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateOnly>("Date")
-                        .HasColumnType("date");
-
-                    b.Property<Guid>("LeaveRequestId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ShiftId")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("LeaveRequestId", "Date", "ShiftId")
-                        .IsUnique();
-
-                    b.ToTable("LeaveRequestShifts", (string)null);
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.MaterialRequest", b =>
@@ -2682,15 +2660,6 @@ namespace DentalClinic.API.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("DentalClinic.API.Domain.Entities.LeaveRequestShift", b =>
-                {
-                    b.HasOne("DentalClinic.API.Domain.Entities.LeaveRequest", null)
-                        .WithMany("Shifts")
-                        .HasForeignKey("LeaveRequestId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.MaterialRequest", b =>
                 {
                     b.HasOne("DentalClinic.API.Domain.Entities.Appointment", null)
@@ -3008,11 +2977,6 @@ namespace DentalClinic.API.Infrastructure.Persistence.Migrations
                     b.Navigation("Items");
 
                     b.Navigation("PaymentTransactions");
-                });
-
-            modelBuilder.Entity("DentalClinic.API.Domain.Entities.LeaveRequest", b =>
-                {
-                    b.Navigation("Shifts");
                 });
 
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.MaterialRequest", b =>

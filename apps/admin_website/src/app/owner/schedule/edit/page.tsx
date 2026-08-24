@@ -41,12 +41,7 @@ interface RoomRow {
 }
 
 const ROOM_COLORS_DENTIST = ["border-primary", "border-secondary", "border-purple-600", "border-orange-500", "border-pink-600"];
-const ROOM_COLORS_STAFF   = ["border-green-600", "border-teal-600", "border-indigo-600", "border-yellow-600"];
 const DISABLED_ROOM_STATUSES = ["Bảo trì", "Ngừng hoạt động"];
-const STAFF_ROOM_KEYWORDS    = ["lễ tân", "cskh", "chăm sóc", "kế toán", "hành chính", "reception"];
-
-const isStaffRoomType = (room: RoomDto) =>
-  STAFF_ROOM_KEYWORDS.some(k => (room.type ?? "").toLowerCase().includes(k));
 
 
 // Generates dates for a week starting on a given Monday date
@@ -257,21 +252,18 @@ function EditScheduleContent() {
   // "chưa có phòng". Tuyệt đối không dựng phòng mặc định: tên phòng ở đây được ghi thẳng vào
   // WorkSchedules.Room khi lưu, và chính chuỗi đó là thứ hàng đợi lễ tân dùng để gom bệnh nhân
   // theo phòng — xếp lịch vào một phòng không tồn tại sẽ tạo ra hàng đợi ma.
-  const computeRoomRows = useCallback((type: "dentist" | "staff"): RoomRow[] => {
-    const colors = type === "dentist" ? ROOM_COLORS_DENTIST : ROOM_COLORS_STAFF;
-
-    return allRooms
-      .filter(r => type === "dentist" ? !isStaffRoomType(r) : isStaffRoomType(r))
-      .map((room, idx) => ({
-        label: room.name.toUpperCase(),
-        key: room.name,
-        color: colors[idx % colors.length],
-        isDisabled: DISABLED_ROOM_STATUSES.includes(room.status),
-        disabledReason: DISABLED_ROOM_STATUSES.includes(room.status) ? room.status : null,
-      }));
+  // Phòng khám dùng cho tab Nha sĩ (Bác sĩ & Phụ tá)
+  const computeRoomRows = useCallback((): RoomRow[] => {
+    return allRooms.map((room, idx) => ({
+      label: room.name.toUpperCase(),
+      key: room.name,
+      color: ROOM_COLORS_DENTIST[idx % ROOM_COLORS_DENTIST.length],
+      isDisabled: DISABLED_ROOM_STATUSES.includes(room.status),
+      disabledReason: DISABLED_ROOM_STATUSES.includes(room.status) ? room.status : null,
+    }));
   }, [allRooms]);
 
-  const roomRows = useMemo(() => computeRoomRows(staffType), [computeRoomRows, staffType]);
+  const roomRows = useMemo(() => computeRoomRows(), [computeRoomRows]);
 
   // Map dentist/assistant entries by Room+Date+Shift+Role for single-slot lookup
   const editLookup = useMemo(() => {
@@ -285,12 +277,12 @@ function EditScheduleContent() {
     return map;
   }, [activeWeekSchedules]);
 
-  // Group staff entries by Date+Shift+Room — supports multiple people per slot
-  const staffMultiLookup = useMemo(() => {
+  // Group staff entries by Date+Shift — supports multiple people per shift without rooms
+  const staffShiftLookup = useMemo(() => {
     const map: Record<string, ScheduleEntry[]> = {};
     activeWeekSchedules.forEach(item => {
       if (item.role === "staff" && !item.isHoliday) {
-        const key = `${item.date}_${item.shift}_${item.room}`;
+        const key = `${item.date}_${item.shift}`;
         if (!map[key]) map[key] = [];
         map[key].push(item);
       }
@@ -407,9 +399,9 @@ function EditScheduleContent() {
     role: "dentist" | "assistant" | "staff"
   ): boolean => {
     if (role === "staff") {
-      // Staff slots support multiple people — tránh trùng cùng người trong cùng ô
+      // Staff slots support multiple people — tránh trùng cùng người trong cùng ca
       const dup = activeWeekSchedules.some(i =>
-        i.date === date && i.shift === shift && i.room === room && i.role === "staff" && i.name === staff.name
+        i.date === date && i.shift === shift && i.role === "staff" && i.name === staff.name
       );
       if (dup) return false;
       const newEntry: ScheduleEntry = {
@@ -418,7 +410,8 @@ function EditScheduleContent() {
         type: "staff",
         role: "staff",
         name: staff.name,
-        room, roomColor,
+        room: "",
+        roomColor: "border-green-600",
         isDraft: true,
       };
       setActiveWeekSchedules(prev => [...prev, newEntry]);
@@ -486,18 +479,27 @@ function EditScheduleContent() {
       showToast("Vui lòng thêm bác sĩ trước khi phân bổ phụ tá.", "error");
       return;
     }
-    // Người này đã bận ở phòng/vai trò khác trong cùng ca
-    const busy = activeWeekSchedules.some(i =>
-      i.date === date && i.shift === shift && i.name === staff.name && (i.room !== room || i.role !== role)
-    );
+    // Người này đã bận trong cùng ca
+    const busy = activeWeekSchedules.some(i => {
+      if (i.date !== date || i.shift !== shift || i.name !== staff.name) return false;
+      if (role === "staff") return i.role === "staff";
+      return i.room !== room || i.role !== role;
+    });
     if (busy) {
-      showToast(`"${staff.name}" đã có ca khác trong khung giờ này.`, "error");
+      showToast(`"${staff.name}" đã có ca trực trong khung giờ này.`, "error");
       return;
     }
 
     const ok = assignStaffToSlot(staff, date, shift, room, roomColor, role);
-    if (ok) showToast(`Đã thêm "${staff.name}" vào ${room}.`, "success");
-    else showToast(`"${staff.name}" đã có trong vị trí này.`, "info");
+    if (ok) {
+      if (role === "staff") {
+        showToast(`Đã thêm "${staff.name}" vào ca ${shiftLabel(shift)}.`, "success");
+      } else {
+        showToast(`Đã thêm "${staff.name}" vào ${room}.`, "success");
+      }
+    } else {
+      showToast(`"${staff.name}" đã có trong ca trực này.`, "info");
+    }
   };
 
   const handleDragOverSlot = (e: React.DragEvent, key: string) => {
@@ -507,11 +509,11 @@ function EditScheduleContent() {
     if (dragOverKey !== key) setDragOverKey(key);
   };
 
-  // ── Bulk assign (chọn phòng + nhiều ngày + nhiều ca) ─────────────────────
+  // ── Bulk assign (chọn nhiều ngày + nhiều ca) ─────────────────────
   const openBulkAssign = (staff: StaffMember) => {
-    const rows = computeRoomRows(staff.type === "staff" ? "staff" : "dentist");
+    const rows = computeRoomRows();
     const firstEnabled = rows.find(r => !r.isDisabled);
-    setBulkRoom(firstEnabled?.key ?? "");
+    setBulkRoom(staff.type === "staff" ? "" : (firstEnabled?.key ?? ""));
     setBulkDays([]);
     setBulkShifts([]);
     setBulkStaff(staff);
@@ -524,16 +526,17 @@ function EditScheduleContent() {
 
   const handleBulkConfirm = () => {
     if (!bulkStaff) return;
-    if (!bulkRoom || bulkDays.length === 0 || bulkShifts.length === 0) {
-      showToast("Vui lòng chọn phòng, ít nhất 1 ngày và 1 ca.", "error");
+    const isStaffRole = bulkStaff.type === "staff";
+
+    if ((!isStaffRole && !bulkRoom) || bulkDays.length === 0 || bulkShifts.length === 0) {
+      showToast(isStaffRole ? "Vui lòng chọn ít nhất 1 ngày và 1 ca." : "Vui lòng chọn phòng, ít nhất 1 ngày và 1 ca.", "error");
       return;
     }
 
     const role: "dentist" | "assistant" | "staff" = bulkStaff.type;
-    const rows = computeRoomRows(bulkStaff.type === "staff" ? "staff" : "dentist");
+    const rows = computeRoomRows();
     const roomRow = rows.find(r => r.key === bulkRoom);
-    if (!roomRow) return;
-    const roomColor = roomRow.color;
+    const roomColor = roomRow?.color ?? "border-green-600";
 
     const next = [...activeWeekSchedules];
     let added = 0;
@@ -544,51 +547,53 @@ function EditScheduleContent() {
     for (const date of bulkDays) {
       if (isClosed(date)) { skipped += bulkShifts.length; continue; }
       for (const shift of bulkShifts) {
-        // Người này đã bận ở phòng/vai trò khác trong cùng ca
-        const busy = next.some(i =>
-          i.date === date && i.shift === shift && i.name === bulkStaff.name && (i.room !== bulkRoom || i.role !== role)
-        );
-        if (busy) { skipped++; continue; }
-
         if (role === "staff") {
           const dup = next.some(i =>
-            i.date === date && i.shift === shift && i.room === bulkRoom && i.role === "staff" && i.name === bulkStaff.name
+            i.date === date && i.shift === shift && i.role === "staff" && i.name === bulkStaff.name
           );
           if (dup) { skipped++; continue; }
           next.push({
             id: makeDraftId(),
             date, shift, type: "staff", role: "staff",
-            name: bulkStaff.name, room: bulkRoom, roomColor, isDraft: true,
+            name: bulkStaff.name, room: "", roomColor: "border-green-600", isDraft: true,
           });
           added++;
-        } else if (role === "assistant") {
-          // Phụ tá cần có bác sĩ trong ô
-          const hasDoctor = next.some(i =>
-            i.date === date && i.shift === shift && i.room === bulkRoom && i.role === "dentist"
-          );
-          if (!hasDoctor) { skipped++; continue; }
-          const idx = next.findIndex(i =>
-            i.role === "assistant" && i.date === date && i.shift === shift && i.room === bulkRoom
-          );
-          const entry: ScheduleEntry = {
-            id: idx >= 0 ? next[idx].id : makeDraftId(),
-            date, shift, type: "dentist", role: "assistant",
-            name: bulkStaff.name, room: bulkRoom, roomColor, isDraft: true,
-          };
-          if (idx >= 0) next[idx] = entry; else next.push(entry);
-          added++;
         } else {
-          // dentist — ghi đè ô nếu đã có
-          const idx = next.findIndex(i =>
-            i.role === "dentist" && i.date === date && i.shift === shift && i.room === bulkRoom
+          // Người này đã bận ở phòng/vai trò khác trong cùng ca
+          const busy = next.some(i =>
+            i.date === date && i.shift === shift && i.name === bulkStaff.name && (i.room !== bulkRoom || i.role !== role)
           );
-          const entry: ScheduleEntry = {
-            id: idx >= 0 ? next[idx].id : makeDraftId(),
-            date, shift, type: "dentist", role: "dentist",
-            name: bulkStaff.name, room: bulkRoom, roomColor, isDraft: true,
-          };
-          if (idx >= 0) next[idx] = entry; else next.push(entry);
-          added++;
+          if (busy) { skipped++; continue; }
+
+          if (role === "assistant") {
+            // Phụ tá cần có bác sĩ trong ô
+            const hasDoctor = next.some(i =>
+              i.date === date && i.shift === shift && i.room === bulkRoom && i.role === "dentist"
+            );
+            if (!hasDoctor) { skipped++; continue; }
+            const idx = next.findIndex(i =>
+              i.role === "assistant" && i.date === date && i.shift === shift && i.room === bulkRoom
+            );
+            const entry: ScheduleEntry = {
+              id: idx >= 0 ? next[idx].id : makeDraftId(),
+              date, shift, type: "dentist", role: "assistant",
+              name: bulkStaff.name, room: bulkRoom, roomColor, isDraft: true,
+            };
+            if (idx >= 0) next[idx] = entry; else next.push(entry);
+            added++;
+          } else {
+            // dentist — ghi đè ô nếu đã có
+            const idx = next.findIndex(i =>
+              i.role === "dentist" && i.date === date && i.shift === shift && i.room === bulkRoom
+            );
+            const entry: ScheduleEntry = {
+              id: idx >= 0 ? next[idx].id : makeDraftId(),
+              date, shift, type: "dentist", role: "dentist",
+              name: bulkStaff.name, room: bulkRoom, roomColor, isDraft: true,
+            };
+            if (idx >= 0) next[idx] = entry; else next.push(entry);
+            added++;
+          }
         }
       }
     }
@@ -701,24 +706,34 @@ function EditScheduleContent() {
           if (!positionLabel) continue;
 
           const label = positionLabel.toLowerCase();
+          const isStaffRow = ["lễ tân", "cskh", "chăm sóc", "kế toán", "hành chính", "bảo vệ", "nhân viên", "staff", "reception", "thu ngân", "tư vấn"].some(k => label.includes(k));
 
-          // Phòng lấy từ bảng Rooms, không dò theo tên phòng viết cứng: nhãn cột nào không khớp
-          // phòng có thật thì bỏ qua, tránh import ra lịch trỏ vào phòng không tồn tại.
-          // Xét tên dài trước để "Phòng 10" không bị "Phòng 1" nuốt mất.
-          const matchedRoom = [...allRooms]
-            .sort((a, b) => b.name.length - a.name.length)
-            .find(r => label.includes(r.name.toLowerCase()));
+          let type: "dentist" | "staff" = "dentist";
+          let role: "dentist" | "assistant" | "staff" = "dentist";
+          let room = "";
+          let roomColor = "border-green-600";
 
-          if (!matchedRoom) {
-            unmatchedLabels.add(positionLabel);
-            continue;
+          if (isStaffRow) {
+            type = "staff";
+            role = "staff";
+            room = "";
+            roomColor = "border-green-600";
+          } else {
+            // Phòng lấy từ bảng Rooms cho khối Nha sĩ
+            const matchedRoom = [...allRooms]
+              .sort((a, b) => b.name.length - a.name.length)
+              .find(r => label.includes(r.name.toLowerCase()));
+
+            if (!matchedRoom) {
+              unmatchedLabels.add(positionLabel);
+              continue;
+            }
+
+            type = "dentist";
+            role = label.includes("phụ tá") ? "assistant" : "dentist";
+            room = matchedRoom.name;
+            roomColor = computeRoomRows().find(r => r.key === room)?.color ?? "border-primary";
           }
-
-          const type: "dentist" | "staff" = isStaffRoomType(matchedRoom) ? "staff" : "dentist";
-          const role: "dentist" | "assistant" | "staff" =
-            type === "staff" ? "staff" : label.includes("phụ tá") ? "assistant" : "dentist";
-          const room = matchedRoom.name;
-          const roomColor = computeRoomRows(type).find(r => r.key === room)?.color ?? "border-primary";
 
           // Parse columns Monday (C/2) to Sunday (I/8)
           for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
@@ -865,7 +880,7 @@ function EditScheduleContent() {
   const collectValidationErrors = (list: ScheduleEntry[]): string[] => {
     const errors: string[] = [];
 
-    // 1) Trùng lịch: cùng một người, cùng ngày + ca nhưng xếp ở phòng/vai trò khác nhau
+    // 1) Trùng lịch: cùng một người, cùng ngày + ca
     const reported = new Set<string>();
     for (let i = 0; i < list.length; i++) {
       const cur = list[i];
@@ -876,16 +891,21 @@ function EditScheduleContent() {
         if (
           cur.date === other.date &&
           cur.shift === other.shift &&
-          cur.name === other.name &&
-          (cur.room !== other.room || cur.role !== other.role)
+          cur.name === other.name
         ) {
           const key = `${cur.name}|${cur.date}|${cur.shift}`;
           if (!reported.has(key)) {
             reported.add(key);
-            errors.push(
-              `Trùng lịch: "${cur.name}" bị xếp 2 nơi trong ca ${shiftLabel(cur.shift)} ngày ${cur.date} — ` +
-              `${cur.room} (${roleLabelOf(cur.role)}) và ${other.room} (${roleLabelOf(other.role)}).`
-            );
+            if (cur.role === "staff" && other.role === "staff") {
+              errors.push(
+                `Trùng lịch: Nhân viên "${cur.name}" bị phân công trùng 2 lần trong ca ${shiftLabel(cur.shift)} ngày ${cur.date}.`
+              );
+            } else {
+              errors.push(
+                `Trùng lịch: "${cur.name}" bị xếp 2 nơi trong ca ${shiftLabel(cur.shift)} ngày ${cur.date} — ` +
+                `${cur.room || "Ca trực"} (${roleLabelOf(cur.role)}) và ${other.room || "Ca trực"} (${roleLabelOf(other.role)}).`
+              );
+            }
           }
         }
       }
@@ -910,7 +930,7 @@ function EditScheduleContent() {
       .filter(e => !e.isHoliday && (!e.name || e.name.trim() === ""))
       .forEach(e => {
         errors.push(
-          `Chưa chọn nhân sự: ${e.room} ca ${shiftLabel(e.shift)} ngày ${e.date} (${roleLabelOf(e.role)}) đang để trống tên.`
+          `Chưa chọn nhân sự: ${e.room ? e.room + " " : ""}ca ${shiftLabel(e.shift)} ngày ${e.date} (${roleLabelOf(e.role)}) đang để trống tên.`
         );
       });
 
@@ -966,30 +986,15 @@ function EditScheduleContent() {
     const { date, shift, room, role } = modalCell;
 
     let dbType: "dentist" | "assistant" | "staff" = "staff";
-    let filterSpecialization = "";
 
     if (staffType === "dentist") {
       dbType = role === "dentist" ? "dentist" : "assistant";
     } else {
       dbType = "staff";
-      // Khớp không phân biệt hoa/thường và theo chuỗi con: tên phòng nay lấy từ bảng Rooms
-      // (vd "Lễ tân", "Phòng CSKH") nên so sánh bằng với hằng viết hoa sẽ không bao giờ trúng.
-      const roomLower = room.toLowerCase();
-      if (roomLower.includes("lễ tân")) filterSpecialization = "Lễ tân";
-      else if (roomLower.includes("cskh") || roomLower.includes("chăm sóc")) filterSpecialization = "Chăm sóc khách hàng";
-      else if (roomLower.includes("kế toán")) filterSpecialization = "Kế toán";
     }
 
-    // Filter BR-SCH-EDIT-008: Only show active staff matching type and specialization
-    let activeStaff = staffDatabase.filter(s => {
-      const isCorrectType = s.status === "ACTIVE" && s.type === dbType;
-      // Staff without specific position (default "Nhân viên") can be assigned to any slot
-      const hasNoSpecificPosition = s.specialization === "Nhân viên";
-      const matchesSpecialization = !filterSpecialization ||
-        hasNoSpecificPosition ||
-        s.specialization.toLowerCase().includes(filterSpecialization.toLowerCase());
-      return isCorrectType && matchesSpecialization;
-    });
+    // Filter BR-SCH-EDIT-008: Only show active staff matching type
+    let activeStaff = staffDatabase.filter(s => s.status === "ACTIVE" && s.type === dbType);
 
     // Apply modal search query filter
     if (modalSearchQuery.trim() !== "") {
@@ -1002,32 +1007,39 @@ function EditScheduleContent() {
 
     // Add info on whether staff is busy
     return activeStaff.map(staff => {
-      // Already assigned to a DIFFERENT room/role in same shift
+      // For staff: check if already assigned to THIS date+shift
+      if (role === "staff") {
+        const alreadyInShift = activeWeekSchedules.some(item =>
+          item.date === date &&
+          item.shift === shift &&
+          item.role === "staff" &&
+          item.name === staff.name
+        );
+        return {
+          ...staff,
+          isBusy: alreadyInShift,
+          busyRoom: alreadyInShift ? "Ca này" : null,
+          busyRole: alreadyInShift ? "Đã trong ca này" : null,
+        };
+      }
+
+      // For dentist/assistant:
       const busyElsewhere = activeWeekSchedules.find(item =>
         item.date === date &&
         item.shift === shift &&
         item.name === staff.name &&
         (item.room !== room || item.role !== role)
       );
-      // For staff multi-slots: already added to THIS slot
-      const alreadyInSlot = role === "staff" && activeWeekSchedules.some(item =>
-        item.date === date &&
-        item.shift === shift &&
-        item.room === room &&
-        item.role === "staff" &&
-        item.name === staff.name
-      );
 
-      const isBusy = !!busyElsewhere || alreadyInSlot;
-      const busySource = busyElsewhere ?? null;
+      const isBusy = !!busyElsewhere;
       return {
         ...staff,
         isBusy,
-        busyRoom: alreadyInSlot ? room : (busySource ? busySource.room : null),
-        busyRole: alreadyInSlot ? "Đã trong ca này" : (busySource ? (busySource.role === "dentist" ? "Bác sĩ" : busySource.role === "assistant" ? "Phụ tá" : "Nhân viên") : null),
+        busyRoom: busyElsewhere ? busyElsewhere.room : null,
+        busyRole: busyElsewhere ? (busyElsewhere.role === "dentist" ? "Bác sĩ" : busyElsewhere.role === "assistant" ? "Phụ tá" : "Nhân viên") : null,
       };
     });
-  }, [modalCell, activeWeekSchedules, staffType, modalSearchQuery]);
+  }, [modalCell, activeWeekSchedules, staffType, modalSearchQuery, staffDatabase]);
 
   // Danh sách nhân sự hiển thị ở cột palette bên phải
   const panelStaffList = useMemo(() => {
@@ -1040,13 +1052,8 @@ function EditScheduleContent() {
     return list;
   }, [staffDatabase, panelRole, panelSearch]);
 
-  // ── Lưới rỗng: không có phòng nào để xếp ──────────────────────────────────
-  // Thay cho danh sách phòng mặc định cũ. Nói rõ đang ở tình huống nào để chủ phòng khám biết
-  // phải làm gì, thay vì thấy một lưới trông như bình thường rồi xếp lịch vào phòng không có thật.
+  // ── Lưới rỗng: không có phòng khám nào để xếp ──────────────────────────────
   const renderNoRoomsRow = () => {
-    const isDentistTab = staffType === "dentist";
-    const hasOtherTypeRooms = allRooms.length > 0;
-
     return (
       <tr>
         <td colSpan={weekDates.length + 1} className="px-6 py-16">
@@ -1082,15 +1089,10 @@ function EditScheduleContent() {
                   </svg>
                 </div>
                 <p className="text-[14px] font-black text-slate-700">
-                  {isDentistTab ? "Chưa có phòng khám nào" : "Chưa có phòng chức năng nào"}
+                  Chưa có phòng khám nào
                 </p>
                 <p className="text-[12.5px] font-semibold text-slate-400 max-w-md leading-relaxed">
-                  {hasOtherTypeRooms
-                    ? `Hệ thống có ${allRooms.length} phòng nhưng không phòng nào thuộc nhóm này — phòng được phân nhóm theo trường "Loại phòng" (lễ tân, CSKH, chăm sóc, kế toán, hành chính thuộc khối nhân viên, còn lại là phòng khám).`
-                    : isDentistTab
-                      ? "Hệ thống chưa có phòng nào để xếp bác sĩ và phụ tá."
-                      : "Hệ thống chưa có phòng nào cho khối nhân viên (lễ tân, CSKH, kế toán...)."}
-                  {" "}Nhờ Admin thêm phòng ở mục Quản lý phòng, sau đó tải lại danh sách.
+                  Hệ thống chưa có phòng khám nào để xếp bác sĩ và phụ tá. Nhờ Admin thêm phòng ở mục Quản lý phòng, sau đó tải lại danh sách.
                 </p>
                 <button
                   onClick={retryLoadRooms}
@@ -1106,7 +1108,7 @@ function EditScheduleContent() {
     );
   };
 
-  // ── Render một ô ngày (giao của 1 ca + 1 phòng + 1 ngày) ──────────────────
+  // ── Render một ô ngày cho khối Nha sĩ (Bác sĩ / Phụ tá theo phòng) ──────
   const renderDayCell = (shift: string, room: RoomRow, date: Date, dayIdx: number) => {
     const dateStr = formatDateKey(date);
     const isToday = isWednesday(date);
@@ -1164,149 +1166,189 @@ function EditScheduleContent() {
       >
         <div className="flex flex-col gap-1.5 min-h-[56px] justify-start h-full">
 
-          {staffType === "dentist" ? (
-            <>
-              {/* DENTIST SLOT SECTION */}
-              <div
-                onDragOver={(e) => handleDragOverSlot(e, docKey)}
-                onDragLeave={() => setDragOverKey(prev => prev === docKey ? null : prev)}
-                onDrop={(e) => handleDropOnSlot(e, dateStr, shift, room.key, room.color, "dentist")}
-                className={dragOverKey === docKey ? "rounded-xl ring-2 ring-primary/70 ring-offset-1" : ""}
-              >
-              {doctorEntry && matchesDocSearch ? (
-                <div
-                  className={`relative group bg-white border-l-4 border-primary p-1.5 rounded-lg transition-all shadow-sm border border-slate-200/70 hover:border-slate-350 hover:shadow flex flex-col justify-between ${doctorEntry.isDraft ? "border-2 border-red-500 shadow-red-50/50" : ""}`}
-                >
-                  <div className="absolute top-1 right-1 flex gap-0.5 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={(e) => handleOpenAssignModal(e, dateStr, shift, room.key, room.color, "dentist")}
-                      className="px-1 py-0.5 bg-slate-50 hover:bg-slate-100 rounded border border-slate-200 text-slate-500 hover:text-primary transition-all cursor-pointer text-[9px] leading-none"
-                      title="Sửa bác sĩ"
-                    >
-                      Sửa
-                    </button>
-                    <button
-                      onClick={(e) => handleRemoveAssignment(e, doctorEntry.id)}
-                      className="px-1 py-0.5 bg-slate-50 hover:bg-red-50 rounded border border-slate-200 hover:border-red-200 text-slate-500 hover:text-primary transition-all cursor-pointer text-[9px] leading-none"
-                      title="Xóa bác sĩ"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                  <div className="pr-2">
-                    <div className={`text-[11px] font-black leading-tight break-words ${doctorEntry.isDraft ? "text-primary" : "text-slate-800"}`}>
-                      {doctorEntry.name}
-                    </div>
-                    <div className="text-[9px] font-bold text-slate-400 mt-0.5 break-words">
-                      {staffDatabase.find(s => s.name === doctorEntry.name)?.specialization || "Bác sĩ"}
-                    </div>
-                  </div>
-                </div>
-              ) : (
+          {/* DENTIST SLOT SECTION */}
+          <div
+            onDragOver={(e) => handleDragOverSlot(e, docKey)}
+            onDragLeave={() => setDragOverKey(prev => prev === docKey ? null : prev)}
+            onDrop={(e) => handleDropOnSlot(e, dateStr, shift, room.key, room.color, "dentist")}
+            className={dragOverKey === docKey ? "rounded-xl ring-2 ring-primary/70 ring-offset-1" : ""}
+          >
+          {doctorEntry && matchesDocSearch ? (
+            <div
+              className={`relative group bg-white border-l-4 border-primary p-1.5 rounded-lg transition-all shadow-sm border border-slate-200/70 hover:border-slate-350 hover:shadow flex flex-col justify-between ${doctorEntry.isDraft ? "border-2 border-red-500 shadow-red-50/50" : ""}`}
+            >
+              <div className="absolute top-1 right-1 flex gap-0.5 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
                   onClick={(e) => handleOpenAssignModal(e, dateStr, shift, room.key, room.color, "dentist")}
-                  className="py-1.5 px-1.5 border border-dashed border-slate-250 rounded-lg hover:border-primary text-slate-400 hover:text-primary transition-all hover:bg-slate-50/80 bg-white text-[10px] font-extrabold flex items-center justify-center gap-1 cursor-pointer"
+                  className="px-1 py-0.5 bg-slate-50 hover:bg-slate-100 rounded border border-slate-200 text-slate-500 hover:text-primary transition-all cursor-pointer text-[9px] leading-none"
+                  title="Sửa bác sĩ"
                 >
-                  <span>+ Bác sĩ</span>
+                  Sửa
                 </button>
-              )}
-              </div>
-
-              {/* ASSISTANT SLOT SECTION */}
-              <div
-                onDragOver={(e) => handleDragOverSlot(e, astKey)}
-                onDragLeave={() => setDragOverKey(prev => prev === astKey ? null : prev)}
-                onDrop={(e) => handleDropOnSlot(e, dateStr, shift, room.key, room.color, "assistant")}
-                className={dragOverKey === astKey ? "rounded-xl ring-2 ring-teal-500/70 ring-offset-1" : ""}
-              >
-              {assistantEntry && matchesAstSearch ? (
-                <div
-                  className={`relative group bg-slate-50 border-l-4 border-teal-500 p-1.5 rounded-lg transition-all shadow-sm border border-slate-200/70 hover:border-slate-350 hover:shadow flex flex-col justify-between ${assistantEntry.isDraft ? "border-2 border-red-500 shadow-red-50/50" : ""}`}
-                >
-                  <div className="absolute top-1 right-1 flex gap-0.5 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={(e) => handleOpenAssignModal(e, dateStr, shift, room.key, room.color, "assistant")}
-                      className="px-1 py-0.5 bg-slate-50 hover:bg-slate-100 rounded border border-slate-200 text-slate-500 hover:text-primary transition-all cursor-pointer text-[9px] leading-none"
-                      title="Sửa phụ tá"
-                    >
-                      Sửa
-                    </button>
-                    <button
-                      onClick={(e) => handleRemoveAssignment(e, assistantEntry.id)}
-                      className="px-1 py-0.5 bg-slate-50 hover:bg-red-50 rounded border border-slate-200 hover:border-red-200 text-slate-500 hover:text-primary transition-all cursor-pointer text-[9px] leading-none"
-                      title="Xóa phụ tá"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                  <div className="pr-2">
-                    <div className={`text-[11px] font-black leading-tight break-words ${assistantEntry.isDraft ? "text-primary font-black" : "text-slate-755"}`}>
-                      {assistantEntry.name}
-                    </div>
-                    <div className="text-[9px] font-bold text-slate-450 mt-0.5 uppercase tracking-wider">
-                      Phụ Tá
-                    </div>
-                  </div>
-                </div>
-              ) : (
                 <button
-                  disabled={!hasDoctor}
-                  onClick={(e) => handleOpenAssignModal(e, dateStr, shift, room.key, room.color, "assistant")}
-                  className={`py-1.5 px-1.5 border border-dashed rounded-lg transition-all bg-white text-[10px] font-extrabold flex items-center justify-center gap-1 ${hasDoctor
-                      ? "border-slate-250 hover:border-teal-500 text-slate-400 hover:text-teal-650 cursor-pointer hover:bg-slate-50/80"
-                      : "border-slate-200 text-slate-300 opacity-60 cursor-not-allowed bg-slate-50/30"}`}
-                  title={!hasDoctor ? "Vui lòng thêm bác sĩ trước khi phân bổ phụ tá" : "Thêm phụ tá"}
+                  onClick={(e) => handleRemoveAssignment(e, doctorEntry.id)}
+                  className="px-1 py-0.5 bg-slate-50 hover:bg-red-50 rounded border border-slate-200 hover:border-red-200 text-slate-500 hover:text-primary transition-all cursor-pointer text-[9px] leading-none"
+                  title="Xóa bác sĩ"
                 >
-                  <span>+ Phụ tá {!hasDoctor && "(Khóa)"}</span>
+                  ✕
                 </button>
-              )}
               </div>
-            </>
-          ) : (
-            /* STAFF SLOT — multiple people allowed */
-            <div
-              className={`flex flex-col gap-1.5 rounded-lg ${dragOverKey === `${dateStr}_${shift}_${room.key}_staff` ? "ring-2 ring-primary/70 ring-offset-1" : ""}`}
-              onDragOver={(e) => handleDragOverSlot(e, `${dateStr}_${shift}_${room.key}_staff`)}
-              onDragLeave={() => setDragOverKey(prev => prev === `${dateStr}_${shift}_${room.key}_staff` ? null : prev)}
-              onDrop={(e) => handleDropOnSlot(e, dateStr, shift, room.key, room.color, "staff")}
-            >
-              {(staffMultiLookup[`${dateStr}_${shift}_${room.key}`] ?? [])
-                .filter(e => !searchQuery || e.name.toLowerCase().includes(searchQuery.toLowerCase()))
-                .map(entry => (
-                  <div
-                    key={entry.id}
-                    className={`group relative bg-white border-l-4 ${room.color} px-2 py-1.5 rounded-lg shadow-sm border border-slate-200/70 flex items-center justify-between gap-1.5 ${entry.isDraft ? "border-red-400/60" : ""}`}
-                  >
-                    <div className="min-w-0">
-                      <div className={`text-[11px] font-black leading-tight break-words ${entry.isDraft ? "text-primary" : "text-slate-800"}`}>
-                        {entry.name}
-                      </div>
-                      <div className="text-[9px] font-bold text-slate-400 break-words">
-                        {staffDatabase.find(s => s.name === entry.name)?.specialization || "Nhân viên"}
-                      </div>
-                    </div>
-                    <button
-                      onClick={(e) => handleRemoveAssignment(e, entry.id)}
-                      className="shrink-0 px-1 py-0.5 bg-slate-50 hover:bg-red-50 rounded border border-slate-200 hover:border-red-200 text-slate-400 hover:text-red-500 transition-all cursor-pointer text-[9px] leading-none opacity-0 group-hover:opacity-100"
-                      title="Xóa"
-                    >✕</button>
-                  </div>
-                ))}
-              <button
-                onClick={(e) => handleOpenAssignModal(e, dateStr, shift, room.key, room.color, "staff")}
-                className="py-1.5 px-1.5 border border-dashed border-slate-250 rounded-lg hover:border-primary text-slate-400 hover:text-primary transition-all hover:bg-slate-50/80 bg-white text-[10px] font-extrabold flex items-center justify-center gap-1 cursor-pointer"
-              >
-                <span>+ Nhân viên</span>
-              </button>
+              <div className="pr-2">
+                <div className={`text-[11px] font-black leading-tight break-words ${doctorEntry.isDraft ? "text-primary" : "text-slate-800"}`}>
+                  {doctorEntry.name}
+                </div>
+                <div className="text-[9px] font-bold text-slate-400 mt-0.5 break-words">
+                  {staffDatabase.find(s => s.name === doctorEntry.name)?.specialization || "Bác sĩ"}
+                </div>
+              </div>
             </div>
+          ) : (
+            <button
+              onClick={(e) => handleOpenAssignModal(e, dateStr, shift, room.key, room.color, "dentist")}
+              className="py-1.5 px-1.5 border border-dashed border-slate-250 rounded-lg hover:border-primary text-slate-400 hover:text-primary transition-all hover:bg-slate-50/80 bg-white text-[10px] font-extrabold flex items-center justify-center gap-1 cursor-pointer"
+            >
+              <span>+ Bác sĩ</span>
+            </button>
           )}
+          </div>
+
+          {/* ASSISTANT SLOT SECTION */}
+          <div
+            onDragOver={(e) => handleDragOverSlot(e, astKey)}
+            onDragLeave={() => setDragOverKey(prev => prev === astKey ? null : prev)}
+            onDrop={(e) => handleDropOnSlot(e, dateStr, shift, room.key, room.color, "assistant")}
+            className={dragOverKey === astKey ? "rounded-xl ring-2 ring-teal-500/70 ring-offset-1" : ""}
+          >
+          {assistantEntry && matchesAstSearch ? (
+            <div
+              className={`relative group bg-slate-50 border-l-4 border-teal-500 p-1.5 rounded-lg transition-all shadow-sm border border-slate-200/70 hover:border-slate-350 hover:shadow flex flex-col justify-between ${assistantEntry.isDraft ? "border-2 border-red-500 shadow-red-50/50" : ""}`}
+            >
+              <div className="absolute top-1 right-1 flex gap-0.5 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  onClick={(e) => handleOpenAssignModal(e, dateStr, shift, room.key, room.color, "assistant")}
+                  className="px-1 py-0.5 bg-slate-50 hover:bg-slate-100 rounded border border-slate-200 text-slate-500 hover:text-primary transition-all cursor-pointer text-[9px] leading-none"
+                  title="Sửa phụ tá"
+                >
+                  Sửa
+                </button>
+                <button
+                  onClick={(e) => handleRemoveAssignment(e, assistantEntry.id)}
+                  className="px-1 py-0.5 bg-slate-50 hover:bg-red-50 rounded border border-slate-200 hover:border-red-200 text-slate-500 hover:text-primary transition-all cursor-pointer text-[9px] leading-none"
+                  title="Xóa phụ tá"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="pr-2">
+                <div className={`text-[11px] font-black leading-tight break-words ${assistantEntry.isDraft ? "text-primary font-black" : "text-slate-755"}`}>
+                  {assistantEntry.name}
+                </div>
+                <div className="text-[9px] font-bold text-slate-450 mt-0.5 uppercase tracking-wider">
+                  Phụ Tá
+                </div>
+              </div>
+            </div>
+          ) : (
+            <button
+              disabled={!hasDoctor}
+              onClick={(e) => handleOpenAssignModal(e, dateStr, shift, room.key, room.color, "assistant")}
+              className={`py-1.5 px-1.5 border border-dashed rounded-lg transition-all bg-white text-[10px] font-extrabold flex items-center justify-center gap-1 ${hasDoctor
+                  ? "border-slate-250 hover:border-teal-500 text-slate-400 hover:text-teal-650 cursor-pointer hover:bg-slate-50/80"
+                  : "border-slate-200 text-slate-300 opacity-60 cursor-not-allowed bg-slate-50/30"}`}
+              title={!hasDoctor ? "Vui lòng thêm bác sĩ trước khi phân bổ phụ tá" : "Thêm phụ tá"}
+            >
+              <span>+ Phụ tá {!hasDoctor && "(Khóa)"}</span>
+            </button>
+          )}
+          </div>
 
         </div>
       </td>
     );
   };
 
-  // ── Render một hàng phòng cho một ca ─────────────────────────────────────
+  // ── Render một ô ca trực cho khối Nhân viên (không cần phòng) ────────────
+  const renderStaffDayCell = (shift: string, date: Date, dayIdx: number) => {
+    const dateStr = formatDateKey(date);
+    const isToday = isWednesday(date);
+    const isClosed = isDayClosed(dateStr);
+    const cellKey = `${dateStr}_${shift}_staff`;
+
+    if (isClosed) {
+      return (
+        <td
+          key={dayIdx}
+          onClick={() => setDayActionDate(dateStr)}
+          className="px-1.5 py-2 text-center align-middle border-r border-slate-200/80 last:border-r-0 bg-slate-100/50 cursor-pointer transition-all hover:bg-slate-200/35"
+          title="Bấm để mở lại cửa phòng khám"
+        >
+          <div className="flex flex-col items-center justify-center gap-1.5 text-[10px] font-black text-slate-400 tracking-wider">
+            <span>ĐÓNG CỬA</span>
+          </div>
+        </td>
+      );
+    }
+
+    const assignedStaff = (staffShiftLookup[`${dateStr}_${shift}`] ?? [])
+      .filter(e => !searchQuery || e.name.toLowerCase().includes(searchQuery.toLowerCase()));
+
+    return (
+      <td
+        key={dayIdx}
+        className={`px-2 py-2.5 align-top border-r border-slate-200/80 last:border-r-0 transition-colors ${isToday ? "bg-red-50/10" : ""}`}
+      >
+        <div
+          onDragOver={(e) => handleDragOverSlot(e, cellKey)}
+          onDragLeave={() => setDragOverKey(prev => prev === cellKey ? null : prev)}
+          onDrop={(e) => handleDropOnSlot(e, dateStr, shift, "", "border-green-600", "staff")}
+          className={`flex flex-col gap-1.5 min-h-[64px] justify-start h-full p-1 rounded-xl transition-all ${dragOverKey === cellKey ? "ring-2 ring-emerald-500 bg-emerald-50/20" : ""}`}
+        >
+          {assignedStaff.map(entry => (
+            <div
+              key={entry.id}
+              className={`group relative bg-white border-l-4 border-emerald-600 px-2.5 py-2 rounded-xl shadow-sm border border-slate-200/70 flex items-center justify-between gap-1.5 hover:border-slate-350 transition-all ${entry.isDraft ? "border-emerald-400/60 ring-1 ring-emerald-500/20 shadow-emerald-50" : ""}`}
+            >
+              <div className="min-w-0">
+                <div className={`text-[12px] font-black leading-tight break-words ${entry.isDraft ? "text-primary font-black" : "text-slate-800"}`}>
+                  {entry.name}
+                </div>
+                <div className="text-[10px] font-bold text-slate-400 break-words mt-0.5">
+                  {staffDatabase.find(s => s.name === entry.name)?.specialization || "Nhân viên"}
+                </div>
+              </div>
+              <button
+                onClick={(e) => handleRemoveAssignment(e, entry.id)}
+                className="shrink-0 w-5 h-5 flex items-center justify-center bg-slate-50 hover:bg-red-50 rounded-lg border border-slate-200 hover:border-red-200 text-slate-400 hover:text-red-500 transition-all cursor-pointer text-[10px] font-black opacity-0 group-hover:opacity-100"
+                title="Xóa nhân viên khỏi ca"
+              >✕</button>
+            </div>
+          ))}
+
+          <button
+            onClick={(e) => handleOpenAssignModal(e, dateStr, shift, "", "border-green-600", "staff")}
+            className="py-1.5 px-2 border border-dashed border-slate-250 rounded-xl hover:border-emerald-600 text-slate-400 hover:text-emerald-700 transition-all hover:bg-emerald-50/30 bg-white text-[10.5px] font-extrabold flex items-center justify-center gap-1 cursor-pointer mt-auto"
+          >
+            <span>+ Nhân viên</span>
+          </button>
+        </div>
+      </td>
+    );
+  };
+
+  // ── Render một hàng ca trực cho khối Nhân viên ───────────────────────────
+  const renderStaffShiftRow = (shift: ShiftDef) => (
+    <tr key={`staff_${shift.id}`}>
+      <td className="px-3 py-3 text-center border-r border-slate-200/80 font-black bg-slate-50/40 text-[12px] text-slate-700">
+        <div className="flex flex-col items-center gap-0.5">
+          <span className="text-[12px] font-black text-slate-800">{shift.label}</span>
+          <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider">{shift.id}</span>
+        </div>
+      </td>
+      {weekDates.map((date, dayIdx) => renderStaffDayCell(shift.id, date, dayIdx))}
+    </tr>
+  );
+
+  // ── Render một hàng phòng cho một ca (khối Nha sĩ) ────────────────────────
   const renderRoomRow = (shift: ShiftDef, room: RoomRow) => (
     <tr key={`${shift.id}_${room.key}`}>
       {/* Room code column */}
@@ -1469,9 +1511,11 @@ function EditScheduleContent() {
                 <thead>
                   <tr className="bg-slate-50/60 font-bold border-b border-slate-200 select-none">
                     {/* First column: Room / Shift */}
-                    <th className="px-2 py-3 text-slate-500 font-extrabold text-[12px] w-[76px] text-center border-r border-slate-200/80">
+                    <th className="px-2 py-3 text-slate-500 font-extrabold text-[12px] w-[86px] text-center border-r border-slate-200/80">
                       <div className="flex flex-col items-center justify-center gap-1">
-                        <span className="text-[10.5px] text-slate-400 font-black leading-tight">Phòng / Thứ</span>
+                        <span className="text-[11px] text-slate-500 font-black leading-tight">
+                          {staffType === "dentist" ? "Phòng / Thứ" : "Ca trực / Thứ"}
+                        </span>
                       </div>
                     </th>
 
@@ -1512,34 +1556,52 @@ function EditScheduleContent() {
 
                 <tbody className="divide-y divide-slate-250/70">
 
-                  {roomRows.length === 0 ? renderNoRoomsRow() : SHIFT_PERIODS.map((period) => (
-                    <React.Fragment key={period}>
-                      {/* Nhóm buổi: Sáng / Chiều / Tối */}
-                      <tr>
-                        <td
-                          colSpan={weekDates.length + 1}
-                          className="px-3 py-1.5 font-black text-[12px] tracking-wider text-slate-700 uppercase border-y border-slate-200/70 bg-slate-100/60"
-                        >
-                          {period}
-                        </td>
-                      </tr>
+                  {staffType === "dentist" ? (
+                    roomRows.length === 0 ? renderNoRoomsRow() : SHIFT_PERIODS.map((period) => (
+                      <React.Fragment key={period}>
+                        {/* Nhóm buổi: Sáng / Chiều / Tối */}
+                        <tr>
+                          <td
+                            colSpan={weekDates.length + 1}
+                            className="px-3 py-1.5 font-black text-[12px] tracking-wider text-slate-700 uppercase border-y border-slate-200/70 bg-slate-100/60"
+                          >
+                            {period}
+                          </td>
+                        </tr>
 
-                      {shiftsByPeriod(period).map((shift) => (
-                        <React.Fragment key={shift.id}>
-                          {/* Một ca 2 tiếng độc lập (ngang hàng) */}
-                          <tr className="bg-slate-50/20">
-                            <td
-                              colSpan={weekDates.length + 1}
-                              className="px-3 py-1 font-black text-[11px] tracking-wide text-primary uppercase border-b border-slate-200/50 bg-red-50/10"
-                            >
-                              Ca {shift.label}
-                            </td>
-                          </tr>
-                          {roomRows.map((room) => renderRoomRow(shift, room))}
-                        </React.Fragment>
-                      ))}
-                    </React.Fragment>
-                  ))}
+                        {shiftsByPeriod(period).map((shift) => (
+                          <React.Fragment key={shift.id}>
+                            {/* Một ca 2 tiếng độc lập (ngang hàng) */}
+                            <tr className="bg-slate-50/20">
+                              <td
+                                colSpan={weekDates.length + 1}
+                                className="px-3 py-1 font-black text-[11px] tracking-wide text-primary uppercase border-b border-slate-200/50 bg-red-50/10"
+                              >
+                                Ca {shift.label}
+                              </td>
+                            </tr>
+                            {roomRows.map((room) => renderRoomRow(shift, room))}
+                          </React.Fragment>
+                        ))}
+                      </React.Fragment>
+                    ))
+                  ) : (
+                    SHIFT_PERIODS.map((period) => (
+                      <React.Fragment key={period}>
+                        {/* Nhóm buổi: Sáng / Chiều / Tối */}
+                        <tr>
+                          <td
+                            colSpan={weekDates.length + 1}
+                            className="px-3 py-1.5 font-black text-[12px] tracking-wider text-slate-700 uppercase border-y border-slate-200/70 bg-slate-100/60"
+                          >
+                            {period}
+                          </td>
+                        </tr>
+
+                        {shiftsByPeriod(period).map((shift) => renderStaffShiftRow(shift))}
+                      </React.Fragment>
+                    ))
+                  )}
 
                 </tbody>
               </table>
@@ -1668,10 +1730,10 @@ function EditScheduleContent() {
             <div className="bg-slate-50 border-b border-slate-100 px-6 py-4.5 flex justify-between items-center">
               <div>
                 <h3 className="font-black text-[16px] text-slate-900 tracking-tight">
-                  Phân bổ {modalCell.role === "dentist" ? "Bác sĩ" : modalCell.role === "assistant" ? "Phụ tá" : "Nhân sự"}
+                  Phân bổ {modalCell.role === "dentist" ? "Bác sĩ" : modalCell.role === "assistant" ? "Phụ tá" : "Nhân viên"}
                 </h3>
                 <p className="text-[12px] text-slate-455 font-bold mt-0.5">
-                  {modalCell.room} | Ca {shiftLabel(modalCell.shift)} (Ngày {modalCell.date})
+                  {modalCell.role === "staff" ? "" : `${modalCell.room} | `}Ca {shiftLabel(modalCell.shift)} (Ngày {modalCell.date})
                 </p>
               </div>
               <button
@@ -1754,7 +1816,7 @@ function EditScheduleContent() {
 
       {/* ── BULK ASSIGN POPUP (phòng + nhiều ngày + nhiều ca) ─────────────── */}
       {bulkStaff && (() => {
-        const bulkRoomRows = computeRoomRows(bulkStaff.type === "staff" ? "staff" : "dentist");
+        const bulkRoomRows = computeRoomRows();
         const roleLabel = bulkStaff.type === "dentist" ? "Bác sĩ" : bulkStaff.type === "assistant" ? "Phụ tá" : "Nhân viên";
         const daysVN = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ Nhật"];
         const pad = (n: number) => String(n).padStart(2, "0");
@@ -1780,31 +1842,38 @@ function EditScheduleContent() {
               </div>
 
               <div className="p-6 overflow-y-auto flex flex-col gap-5">
-                {/* Chọn phòng */}
-                <div>
-                  <label className="block text-[12.5px] font-black text-slate-700 mb-2 uppercase tracking-wide">Chọn phòng</label>
-                  {bulkRoomRows.length === 0 && (
-                    <div className="px-3.5 py-3 rounded-lg bg-slate-50 border border-dashed border-slate-250 text-[12.5px] font-bold text-slate-400">
-                      Chưa có phòng nào để phân bổ — nhờ Admin thêm phòng ở mục Quản lý phòng.
-                    </div>
-                  )}
-                  <div className="flex flex-wrap gap-2">
-                    {bulkRoomRows.map((room) => (
-                      <button
-                        key={room.key}
-                        disabled={room.isDisabled}
-                        onClick={() => setBulkRoom(room.key)}
-                        className={`px-3.5 py-2 rounded-lg text-[12.5px] font-black border transition-all ${room.isDisabled
-                          ? "bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed line-through"
-                          : bulkRoom === room.key
-                            ? "bg-primary text-white border-primary shadow-sm cursor-pointer"
-                            : "bg-white text-slate-600 border-slate-250 hover:border-primary cursor-pointer"}`}
-                      >
-                        {room.label}{room.isDisabled ? ` (${room.disabledReason})` : ""}
-                      </button>
-                    ))}
+                {/* Chọn phòng (chỉ hiện cho khối Nha sĩ) */}
+                {bulkStaff.type === "staff" ? (
+                  <div className="px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200/80 text-[12.5px] font-bold text-emerald-800 flex items-center gap-2">
+                    <span className="text-emerald-600 text-base">ℹ</span>
+                    <span>Phân bổ khối Nhân viên trực tiếp theo ca trực (không cần chọn phòng).</span>
                   </div>
-                </div>
+                ) : (
+                  <div>
+                    <label className="block text-[12.5px] font-black text-slate-700 mb-2 uppercase tracking-wide">Chọn phòng</label>
+                    {bulkRoomRows.length === 0 && (
+                      <div className="px-3.5 py-3 rounded-lg bg-slate-50 border border-dashed border-slate-250 text-[12.5px] font-bold text-slate-400">
+                        Chưa có phòng nào để phân bổ — nhờ Admin thêm phòng ở mục Quản lý phòng.
+                      </div>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      {bulkRoomRows.map((room) => (
+                        <button
+                          key={room.key}
+                          disabled={room.isDisabled}
+                          onClick={() => setBulkRoom(room.key)}
+                          className={`px-3.5 py-2 rounded-lg text-[12.5px] font-black border transition-all ${room.isDisabled
+                            ? "bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed line-through"
+                            : bulkRoom === room.key
+                              ? "bg-primary text-white border-primary shadow-sm cursor-pointer"
+                              : "bg-white text-slate-600 border-slate-250 hover:border-primary cursor-pointer"}`}
+                        >
+                          {room.label}{room.isDisabled ? ` (${room.disabledReason})` : ""}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Chọn nhiều ngày */}
                 <div>
@@ -1892,7 +1961,7 @@ function EditScheduleContent() {
                   </button>
                   <button
                     onClick={handleBulkConfirm}
-                    disabled={!bulkRoom || bulkDays.length === 0 || bulkShifts.length === 0}
+                    disabled={(bulkStaff.type !== "staff" && !bulkRoom) || bulkDays.length === 0 || bulkShifts.length === 0}
                     className="px-5 py-2.5 bg-primary hover:bg-primary-hover text-white text-[13px] font-black rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                   >
                     Phân bổ

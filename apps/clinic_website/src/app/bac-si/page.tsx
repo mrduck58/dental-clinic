@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import PageHeader from "@/components/shared/PageHeader";
 import DentistsSection from "@/components/sections/DentistsSection";
 import TestimonialsSection from "@/components/sections/TestimonialsSection";
 import FilterBar from "@/components/shared/FilterBar";
@@ -62,14 +61,10 @@ export default async function BacSiPage({ searchParams }: Props) {
 
   return (
     <div className="animate-fade-in">
-      <PageHeader
-        eyebrow="Đội Ngũ"
-        title="Bác sĩ"
-        description="Đội ngũ bác sĩ tâm huyết, giàu kinh nghiệm lâm sàng và liên tục tu nghiệp quốc tế."
-      />
       <DentistsSection
         dentists={paged.items}
         showIntro={false}
+        articlesOnly
         toolbar={
           <FilterBar
             searchPlaceholder="Tìm bác sĩ theo tên..."

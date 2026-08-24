@@ -5,25 +5,32 @@ namespace DentalClinic.API.Application.UseCases.Payrolls;
 public record PayrollComputation(
     decimal BaseSalary,
     decimal Allowance,
-    int LeaveDays,
-    decimal AllowedLeaveDays,
-    decimal ExceededDays,
+    int LeaveShifts,
+    decimal AllowedLeaveShifts,
+    decimal ExceededShifts,
     decimal Deduction,
     decimal NetSalary,
     bool HasSalaryConfigured);
 
 /// <summary>
 /// Quy tắc tính lương một kỳ:
-///   - Lương cơ bản / phụ cấp / định mức phép lấy từ hồ sơ nhân sự (Staff hoặc Dentist).
+///   - Lương cơ bản / phụ cấp / định mức phép (số ca) lấy từ hồ sơ nhân sự (Staff hoặc Dentist).
 ///     Chưa thiết lập thì coi như 0 — KHÔNG suy đoán một con số thay thế.
-///   - Số ngày nghỉ = số ngày của các đơn nghỉ ĐÃ DUYỆT rơi vào trong kỳ.
-///   - Vượt định mức bao nhiêu ngày thì trừ bấy nhiêu ngày công (lương cơ bản / 26).
+///   - Số ca nghỉ = số ngày của các đơn nghỉ ĐÃ DUYỆT rơi vào trong kỳ, quy đổi sang ca
+///     theo <see cref="ShiftsPerDay"/> (đơn xin nghỉ vẫn khai theo khoảng ngày, chỉ quy đổi để so định mức).
+///   - Vượt định mức bao nhiêu ca thì trừ bấy nhiêu ca công (lương cơ bản / <see cref="WorkingShiftsPerMonth"/>).
 ///   - Thực nhận = lương cơ bản + phụ cấp − khấu trừ.
 /// </summary>
 public static class PayrollCalculator
 {
-    /// <summary>Số ngày công quy ước trong tháng, dùng để quy đổi lương một ngày.</summary>
+    /// <summary>Số ngày công quy ước trong tháng.</summary>
     public const int WorkingDaysPerMonth = 26;
+
+    /// <summary>Số ca cố định trong một ngày (theo danh mục 6 ca của WorkShifts).</summary>
+    public const int ShiftsPerDay = 6;
+
+    /// <summary>Số ca công quy ước trong tháng (26 ngày × 6 ca/ngày), dùng để quy đổi lương một ca.</summary>
+    public const int WorkingShiftsPerMonth = WorkingDaysPerMonth * ShiftsPerDay;
 
     public static (decimal? BaseSalary, decimal? Allowance, decimal? LeaveAccrued) ReadSalaryProfile(User user)
         => (user.Employee?.BaseSalary, user.Employee?.Allowance, user.Employee?.LeaveAccrued);
@@ -46,15 +53,16 @@ public static class PayrollCalculator
 
         var baseSalary = profileBase ?? 0m;
         var allowance = profileAllowance ?? 0m;
-        var allowedLeaveDays = profileLeaveAccrued ?? 0m;
+        var allowedLeaveShifts = profileLeaveAccrued ?? 0m;
 
         var leaveDays = approvedLeaves
             .Where(l => l.UserId == user.Id)
             .Sum(l => CountLeaveDaysInPeriod(l, year, month));
+        var leaveShifts = leaveDays * ShiftsPerDay;
 
-        var exceededDays = Math.Max(0m, leaveDays - allowedLeaveDays);
-        var deduction = exceededDays > 0
-            ? Math.Round(exceededDays * (baseSalary / WorkingDaysPerMonth), 0, MidpointRounding.AwayFromZero)
+        var exceededShifts = Math.Max(0m, leaveShifts - allowedLeaveShifts);
+        var deduction = exceededShifts > 0
+            ? Math.Round(exceededShifts * (baseSalary / WorkingShiftsPerMonth), 0, MidpointRounding.AwayFromZero)
             : 0m;
 
         // Khấu trừ không bao giờ vượt quá tổng thu nhập của kỳ (thực nhận không âm)
@@ -64,9 +72,9 @@ public static class PayrollCalculator
         return new PayrollComputation(
             baseSalary,
             allowance,
-            leaveDays,
-            allowedLeaveDays,
-            exceededDays,
+            leaveShifts,
+            allowedLeaveShifts,
+            exceededShifts,
             deduction,
             netSalary,
             HasSalaryConfigured: profileBase.HasValue);

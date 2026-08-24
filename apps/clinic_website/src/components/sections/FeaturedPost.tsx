@@ -11,7 +11,7 @@ export default function FeaturedPost({ post }: { post: PostDto }) {
       <div className="max-w-7xl mx-auto px-6">
         <div className="flex items-center gap-2.5 mb-6">
           <span className="w-6 h-px bg-primary" />
-          <span className="text-[12px] font-black tracking-widest text-primary uppercase">Bài viết nổi bật</span>
+          <span className="text-[12px] font-black tracking-widest text-primary uppercase">Bài viết mới nhất</span>
         </div>
 
         <Link

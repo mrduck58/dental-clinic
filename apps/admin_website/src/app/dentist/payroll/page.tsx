@@ -54,7 +54,7 @@ function formatDate(iso: string | null): string {
   return iso ? new Date(iso).toLocaleDateString("vi-VN") : "—";
 }
 
-function formatDays(val: number): string {
+function formatShifts(val: number): string {
   return Number.isInteger(val) ? String(val) : val.toFixed(1);
 }
 
@@ -175,10 +175,10 @@ export default function DentistPayrollPage() {
                   <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Khấu trừ</span>
                   <span className="text-2xl font-black text-rose-500 mt-1 block">-{formatCurrency(item.deduction)}</span>
                   <span className="text-[11px] text-slate-400 font-semibold block mt-0.5">
-                    {item.leaveDays > 0 ? (
-                      <>Nghỉ {formatDays(item.leaveDays)}/{formatDays(item.allowedLeaveDays)} ngày phép{" "}
-                        {item.exceededDays > 0 && (
-                          <span className="text-rose-400 font-extrabold">(vượt {formatDays(item.exceededDays)})</span>
+                    {item.leaveShifts > 0 ? (
+                      <>Nghỉ {formatShifts(item.leaveShifts)}/{formatShifts(item.allowedLeaveShifts)} ca phép{" "}
+                        {item.exceededShifts > 0 && (
+                          <span className="text-rose-400 font-extrabold">(vượt {formatShifts(item.exceededShifts)})</span>
                         )}
                       </>
                     ) : "Chưa nghỉ phép"}

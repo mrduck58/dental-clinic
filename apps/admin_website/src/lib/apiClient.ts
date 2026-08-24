@@ -249,6 +249,8 @@ export interface StaffDto {
   allowance: number | null;
   /** Id hồ sơ nha sĩ — null nếu nhân viên không phải bác sĩ. Đánh giá của bệnh nhân khóa theo id này. */
   dentistProfileId: string | null;
+  /** Bài viết chi tiết (HTML) giới thiệu về nha sĩ — null nếu không phải bác sĩ. */
+  content: string | null;
 }
 
 
@@ -294,6 +296,7 @@ export interface CreateStaffCommand {
   salaryUnit?: string | null;
   leaveAccrued?: number | null;
   allowance?: number | null;
+  content?: string | null;
 }
 
 export interface UpdateStaffCommand {
@@ -325,6 +328,7 @@ export interface UpdateStaffCommand {
   salaryUnit?: string | null;
   leaveAccrued?: number | null;
   allowance?: number | null;
+  content?: string | null;
 }
 
 export interface ResetPasswordResponse {
@@ -2669,23 +2673,6 @@ export async function getTreatmentSuggestionApi(appointmentId: string): Promise<
   return res.json() as Promise<TreatmentSuggestionDto>;
 }
 
-export interface PrescriptionSuggestionDto {
-  suggestion: string;
-  disclaimer: string;
-}
-
-export async function getPrescriptionSuggestionApi(appointmentId: string): Promise<PrescriptionSuggestionDto> {
-  const res = await fetch(`${API_URL}/api/appointments/${appointmentId}/prescription-suggestion`, {
-    headers: { ...authHeaders() },
-  });
-  await checkAuth(res);
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { title?: string }).title ?? "Không thể tạo gợi ý đơn thuốc");
-  }
-  return res.json() as Promise<PrescriptionSuggestionDto>;
-}
-
 // Diagnosis APIs
 /** Các trường của phiếu khám răng miệng — dùng chung cho tạo mới và cập nhật. */
 export interface DiagnosisFields {
@@ -4246,9 +4233,9 @@ export interface PayrollItemDto {
   phoneNumber: string | null;
   baseSalary: number;
   allowance: number;
-  leaveDays: number;
-  allowedLeaveDays: number;
-  exceededDays: number;
+  leaveShifts: number;
+  allowedLeaveShifts: number;
+  exceededShifts: number;
   deduction: number;
   bonus: number;
   netSalary: number;
@@ -4278,7 +4265,7 @@ export interface PayrollSummaryDto {
 export interface PayrollPeriodDto {
   year: number;
   month: number;
-  workingDaysPerMonth: number;
+  workingShiftsPerMonth: number;
   summary: PayrollSummaryDto;
   items: PayrollItemDto[];
 }
@@ -4489,7 +4476,7 @@ export async function setPayrollBonusApi(data: {
 export interface MyPayrollPeriodDto {
   year: number;
   month: number;
-  workingDaysPerMonth: number;
+  workingShiftsPerMonth: number;
   item: PayrollItemDto | null;
 }
 

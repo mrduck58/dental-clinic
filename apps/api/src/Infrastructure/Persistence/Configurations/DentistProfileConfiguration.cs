@@ -16,6 +16,7 @@ public class DentistProfileConfiguration : IEntityTypeConfiguration<DentistProfi
         builder.Property(d => d.Biography).HasMaxLength(2000);
         builder.Property(d => d.CertificateIssuedBy).HasMaxLength(200);
         builder.Property(d => d.Shift).IsRequired().HasMaxLength(50);
+        builder.Property(d => d.Content).HasDefaultValue("");
 
         // Required 1-to-1 relationship with Employee (không trỏ thẳng User nữa)
         builder.HasOne(d => d.Employee)

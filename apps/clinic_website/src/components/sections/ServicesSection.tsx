@@ -1,8 +1,9 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { ServiceDto } from "@/types/api";
-import { serviceIcon, serviceColor } from "@/lib/serviceIcons";
+import { serviceColor } from "@/lib/serviceIcons";
 import { formatPrice } from "@/lib/format";
+import MediaPlaceholder from "@/components/shared/MediaPlaceholder";
 
 export default function ServicesSection({
   services,
@@ -48,23 +49,34 @@ export default function ServicesSection({
                 <Link
                   key={service.id}
                   href={`/dich-vu/${service.id}`}
-                  className="glass-card hover-lift bg-white rounded-2xl p-7 border border-slate-200/60 flex flex-col shadow-sm hover:shadow-lg"
+                  className="glass-card hover-lift bg-white rounded-2xl overflow-hidden border border-slate-200/60 flex flex-col shadow-sm hover:shadow-lg"
                 >
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-5 ${color === "primary" ? "bg-primary/10 text-primary" : "bg-secondary/10 text-secondary"}`}>
-                    {serviceIcon(i)}
+                  <div className="h-44 overflow-hidden bg-slate-100">
+                    {service.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={service.imageUrl}
+                        alt={service.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <MediaPlaceholder />
+                    )}
                   </div>
-                  <h3 className="text-[17px] font-bold text-slate-900 mb-2">{service.name}</h3>
-                  <p className="text-slate-500 text-[13px] leading-relaxed flex-1 line-clamp-3">{service.description}</p>
-                  <div className="mt-5 flex items-center justify-between">
-                    <span className={`text-[15px] font-black ${color === "primary" ? "text-primary" : "text-secondary"}`}>
-                      {formatPrice(service.price)}
-                    </span>
-                    <span className={`inline-flex items-center gap-1.5 text-[13px] font-bold transition-all ${color === "primary" ? "text-primary" : "text-secondary"}`}>
-                      Tìm hiểu thêm
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                      </svg>
-                    </span>
+                  <div className="p-7 flex flex-col flex-1">
+                    <h3 className="text-[17px] font-bold text-slate-900 mb-2">{service.name}</h3>
+                    <p className="text-slate-500 text-[13px] leading-relaxed flex-1 line-clamp-3">{service.description}</p>
+                    <div className="mt-5 flex items-center justify-between">
+                      <span className={`text-[15px] font-black ${color === "primary" ? "text-primary" : "text-secondary"}`}>
+                        {formatPrice(service.price)}
+                      </span>
+                      <span className={`inline-flex items-center gap-1.5 text-[13px] font-bold transition-all ${color === "primary" ? "text-primary" : "text-secondary"}`}>
+                        Tìm hiểu thêm
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                        </svg>
+                      </span>
+                    </div>
                   </div>
                 </Link>
               );

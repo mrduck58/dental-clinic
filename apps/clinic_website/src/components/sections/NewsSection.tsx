@@ -11,14 +11,12 @@ export default function NewsSection({
   heading = "Cập Nhật Mới Nhất",
   toolbar,
   footer,
-  showBanner = true,
 }: {
   posts: PostDto[];
   preview?: boolean;
   heading?: string;
   toolbar?: ReactNode;
   footer?: ReactNode;
-  showBanner?: boolean;
 }) {
   const items = preview ? posts.slice(0, 3) : posts;
 
@@ -28,9 +26,11 @@ export default function NewsSection({
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
           <div>
             <span className="text-[12px] font-black tracking-widest text-primary uppercase">Tin Tức & Sự Kiện</span>
-            <h2 className="text-3xl md:text-4xl font-black text-slate-900 mt-2">
-              {heading}
-            </h2>
+            {heading && (
+              <h2 className="text-3xl md:text-4xl font-black text-slate-900 mt-2">
+                {heading}
+              </h2>
+            )}
           </div>
           {preview && posts.length > 3 && (
             <Link href="/tin-tuc" className="inline-flex items-center gap-1.5 text-[13px] font-bold text-primary hover:gap-3 transition-all shrink-0">
@@ -88,41 +88,6 @@ export default function NewsSection({
         )}
 
         {footer}
-
-        {/* Events banner — chỉ hiển thị trên trang Tin tức (nội dung marketing tĩnh) */}
-        {!preview && showBanner && (
-          <div className="mt-12 rounded-3xl bg-slate-900 overflow-hidden relative">
-            <div className="absolute inset-0 pointer-events-none">
-              <div className="absolute top-0 right-1/4 w-64 h-64 bg-primary/20 rounded-full blur-3xl" />
-              <div className="absolute bottom-0 left-1/4 w-48 h-48 bg-secondary/20 rounded-full blur-3xl" />
-            </div>
-            <div className="relative flex flex-col md:flex-row items-center gap-8 p-8 md:p-10">
-              <div className="flex-1">
-                <span className="inline-flex items-center gap-2 text-[11px] font-black tracking-widest text-primary uppercase bg-primary/15 rounded-full px-3 py-1.5 mb-4">
-                  <span className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />{"Sự kiện sắp tới"}
-                </span>
-                <h3 className="text-2xl md:text-3xl font-black text-white mb-2">
-                  Ngày Hội Chăm Sóc Răng Miệng 2026
-                </h3>
-                <p className="text-slate-400 text-[14px] leading-relaxed max-w-lg">
-                  Khám răng miễn phí, tư vấn chỉnh nha, triển lãm công nghệ nha khoa tiên tiến và nhiều ưu đãi đặc biệt dành cho 500 khách đầu tiên đăng ký.
-                </p>
-              </div>
-              <div className="flex flex-col items-center sm:items-end gap-3 shrink-0">
-                <div className="flex items-center gap-4">
-                  <div className="text-center bg-white/10 rounded-2xl px-5 py-3">
-                    <div className="text-3xl font-black text-white leading-none">20</div>
-                    <div className="text-[10px] font-bold text-slate-400 mt-1">THÁNG 7</div>
-                  </div>
-                  <div className="text-center bg-white/10 rounded-2xl px-5 py-3">
-                    <div className="text-3xl font-black text-white leading-none">2026</div>
-                    <div className="text-[10px] font-bold text-slate-400 mt-1">NĂM</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </section>
   );

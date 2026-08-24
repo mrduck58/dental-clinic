@@ -16,8 +16,11 @@ public class PayrollRecordConfiguration : IEntityTypeConfiguration<PayrollRecord
         builder.Property(p => p.Deduction).HasPrecision(18, 2);
         builder.Property(p => p.Bonus).HasPrecision(18, 2);
         builder.Property(p => p.NetSalary).HasPrecision(18, 2);
-        builder.Property(p => p.AllowedLeaveDays).HasPrecision(5, 2);
-        builder.Property(p => p.ExceededDays).HasPrecision(5, 2);
+        // Cột DB giữ nguyên tên cũ (LeaveDays/AllowedLeaveDays/ExceededDays) để không cần migration —
+        // ý nghĩa dữ liệu đã đổi từ "ngày" sang "ca" (xem PayrollCalculator).
+        builder.Property(p => p.LeaveShifts).HasColumnName("LeaveDays");
+        builder.Property(p => p.AllowedLeaveShifts).HasColumnName("AllowedLeaveDays").HasPrecision(5, 2);
+        builder.Property(p => p.ExceededShifts).HasColumnName("ExceededDays").HasPrecision(5, 2);
         builder.Property(p => p.Note).HasMaxLength(500);
 
         builder.Property(p => p.Status)

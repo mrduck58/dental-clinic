@@ -44,6 +44,16 @@ export function parsePage(raw?: string): number {
   return Number.isFinite(n) && n > 0 ? n : 1;
 }
 
+/** Xáo trộn ngẫu nhiên mảng (Fisher–Yates), không sửa mảng gốc. */
+export function shuffle<T>(items: T[]): T[] {
+  const result = items.slice();
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
 /** Tạo query-string giữ lại các filter (bỏ qua giá trị rỗng / "all" / "default") để truyền cho Pagination. */
 export function buildPreserve(params: Record<string, string>): string {
   const ps = new URLSearchParams();

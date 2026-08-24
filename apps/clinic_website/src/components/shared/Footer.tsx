@@ -46,7 +46,6 @@ export default function Footer() {
                 { label: "Về chúng tôi", href: "/gioi-thieu" },
                 { label: "Đội ngũ bác sĩ", href: "/bac-si" },
                 { label: "Bảng giá dịch vụ", href: "/bang-gia" },
-                { label: "Khuyến mãi", href: "/khuyen-mai" },
                 { label: "Tin tức & sự kiện", href: "/tin-tuc" },
               ].map(({ label, href }) => (
                 <Link key={label} href={href} className="hover:text-white transition-colors">{label}</Link>

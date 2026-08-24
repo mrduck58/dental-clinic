@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import PageHeader from "@/components/shared/PageHeader";
 import FilterBar from "@/components/shared/FilterBar";
 import Pagination from "@/components/shared/Pagination";
+import PriceListTable from "@/components/sections/PriceListTable";
 import { getServices } from "@/lib/api";
-import { formatPrice, formatDuration } from "@/lib/format";
 import { matchesSearch, paginate, parsePage, buildPreserve } from "@/lib/listing";
 
 export const dynamic = "force-dynamic";
@@ -63,14 +61,8 @@ export default async function BangGiaPage({ searchParams }: Props) {
 
   return (
     <div className="animate-fade-in">
-      <PageHeader
-        eyebrow="Bảng Giá"
-        title="Bảng giá dịch vụ"
-        description="Chi phí minh bạch, công khai — báo giá rõ ràng trước điều trị, không phát sinh chi phí ẩn."
-      />
-
       <section className="py-16 bg-slate-50">
-        <div className="max-w-5xl mx-auto px-6">
+        <div className="max-w-7xl mx-auto px-6">
           <FilterBar
             searchPlaceholder="Tìm dịch vụ theo tên..."
             initialSearch={q}
@@ -89,38 +81,7 @@ export default async function BangGiaPage({ searchParams }: Props) {
                 : "Chưa có dịch vụ nào."}
             </p>
           ) : (
-            <div className="bg-white rounded-3xl border border-slate-200/60 shadow-sm overflow-hidden">
-              {/* Header bảng */}
-              <div className="hidden sm:grid grid-cols-12 gap-4 px-6 py-4 bg-slate-900 text-white text-[12px] font-black uppercase tracking-wider">
-                <div className="col-span-6">Dịch vụ</div>
-                <div className="col-span-3 text-center">Thời lượng</div>
-                <div className="col-span-3 text-right">Giá tham khảo</div>
-              </div>
-
-              {/* Hàng */}
-              <div className="divide-y divide-slate-100">
-                {paged.items.map((s) => (
-                  <Link
-                    key={s.id}
-                    href={`/dich-vu/${s.id}`}
-                    className="grid grid-cols-1 sm:grid-cols-12 gap-1 sm:gap-4 px-6 py-5 items-center hover:bg-slate-50 transition-colors group"
-                  >
-                    <div className="sm:col-span-6">
-                      <div className="text-[15px] font-bold text-slate-900 group-hover:text-primary transition-colors">{s.name}</div>
-                      {s.description && (
-                        <div className="text-[12px] text-slate-400 line-clamp-1 mt-0.5">{s.description}</div>
-                      )}
-                    </div>
-                    <div className="sm:col-span-3 sm:text-center text-[13px] text-slate-500 font-medium">
-                      {formatDuration(s.durationMinutes)}
-                    </div>
-                    <div className="sm:col-span-3 sm:text-right text-[16px] font-black text-primary">
-                      {formatPrice(s.price)}
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </div>
+            <PriceListTable services={paged.items} />
           )}
 
           <Pagination

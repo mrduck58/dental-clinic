@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import PageHeader from "@/components/shared/PageHeader";
 import { getServiceById, getPostsByService, ApiError } from "@/lib/api";
 import { formatPrice, formatDuration, formatDate, excerpt, categoryColor } from "@/lib/format";
+import MediaPlaceholder from "@/components/shared/MediaPlaceholder";
 
 export const dynamic = "force-dynamic";
 
@@ -37,26 +37,30 @@ export default async function ServiceDetailPage({ params }: Props) {
 
   return (
     <div className="animate-fade-in bg-slate-50/50">
-      <PageHeader eyebrow="Chi Tiết Dịch Vụ" title={service.name} />
-
-      {/* Main Info Section */}
+      {/* Banner */}
       <section className="py-16 bg-white border-b border-slate-200/60">
-        <div className="max-w-5xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
+        <div className="max-w-7xl mx-auto px-6">
           {/* Ảnh bìa */}
-          <div className="rounded-3xl overflow-hidden shadow-xl border border-slate-200/60 bg-slate-100">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={service.imageUrl || `https://picsum.photos/seed/svc${service.id}/800/600`}
-              alt={service.name}
-              className="w-full h-full object-cover max-h-[420px]"
-            />
+          <div className="max-w-4xl mx-auto">
+            <div className="rounded-3xl overflow-hidden shadow-xl border border-slate-200/60 bg-slate-100 aspect-[21/9] max-h-[380px]">
+              {service.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={service.imageUrl}
+                  alt={service.name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <MediaPlaceholder />
+              )}
+            </div>
           </div>
 
           {/* Thông tin chính */}
-          <div className="flex flex-col">
+          <div className="flex flex-col max-w-4xl mx-auto mt-10">
             <h1 className="text-3xl font-black text-slate-900 mb-4">{service.name}</h1>
 
-            <div className="flex flex-wrap items-center gap-3 mb-6">
+            <div className="flex flex-wrap items-center gap-3 mb-8">
               <span className="inline-flex items-center gap-1.5 bg-primary/10 text-primary font-black text-[20px] px-5 py-2.5 rounded-2xl">
                 {hasOptions ? `Từ ${formatPrice(service.price)}` : formatPrice(service.price)}
               </span>
@@ -67,10 +71,6 @@ export default async function ServiceDetailPage({ params }: Props) {
                 {formatDuration(service.durationMinutes)}
               </span>
             </div>
-
-            <p className="text-slate-600 text-[15px] leading-relaxed whitespace-pre-line mb-8">
-              {service.description}
-            </p>
 
             {/* Bảng giá Options nếu có */}
             {hasOptions && (
@@ -92,6 +92,10 @@ export default async function ServiceDetailPage({ params }: Props) {
               </div>
             )}
 
+            <p className="text-slate-600 text-[15px] leading-relaxed whitespace-pre-line mb-8">
+              {service.description}
+            </p>
+
             <div className="flex items-center gap-4">
               <Link
                 href="/huong-dan-su-dung"
@@ -110,20 +114,22 @@ export default async function ServiceDetailPage({ params }: Props) {
       {/* Bài viết mô tả chi tiết (Nha Khoa Kim style) */}
       {service.content && service.content.trim().length > 0 && (
         <section className="py-16 bg-white border-b border-slate-200/60">
-          <div className="max-w-4xl mx-auto px-6">
-            <div className="text-center mb-10">
-              <span className="text-[12px] font-black tracking-widest text-primary uppercase">Thông Tin Chi Tiết</span>
-              <h2 className="text-2xl md:text-3xl font-black text-slate-900 mt-2">
-                Tìm hiểu thêm về dịch vụ {service.name}
-              </h2>
-              <div className="w-12 h-1 bg-primary rounded-full mx-auto mt-4" />
-            </div>
+          <div className="max-w-7xl mx-auto px-6">
+            <div className="max-w-4xl mx-auto">
+              <div className="text-center mb-10">
+                <span className="text-[12px] font-black tracking-widest text-primary uppercase">Thông Tin Chi Tiết</span>
+                <h2 className="text-2xl md:text-3xl font-black text-slate-900 mt-2">
+                  Tìm hiểu thêm về dịch vụ {service.name}
+                </h2>
+                <div className="w-12 h-1 bg-primary rounded-full mx-auto mt-4" />
+              </div>
 
-            {/* Render HTML content safely */}
-            <div
-              className="prose prose-slate max-w-none text-slate-700 leading-relaxed text-[15px] prose-headings:font-black prose-headings:text-slate-900 prose-h2:text-2xl prose-h3:text-xl prose-img:rounded-2xl prose-img:shadow-md prose-img:mx-auto prose-a:text-primary prose-a:font-bold"
-              dangerouslySetInnerHTML={{ __html: service.content }}
-            />
+              {/* Render HTML content safely */}
+              <div
+                className="prose prose-slate max-w-none text-slate-700 leading-relaxed text-[15px] prose-headings:font-black prose-headings:text-slate-900 prose-h2:text-2xl prose-h3:text-xl prose-img:rounded-2xl prose-img:shadow-md prose-img:mx-auto prose-a:text-primary prose-a:font-bold"
+                dangerouslySetInnerHTML={{ __html: service.content }}
+              />
+            </div>
           </div>
         </section>
       )}
@@ -131,7 +137,7 @@ export default async function ServiceDetailPage({ params }: Props) {
       {/* Bài viết liên quan đến dịch vụ */}
       {relatedPosts.length > 0 && (
         <section className="py-16 bg-slate-50">
-          <div className="max-w-5xl mx-auto px-6">
+          <div className="max-w-7xl mx-auto px-6">
             <div className="mb-10">
               <span className="text-[12px] font-black tracking-widest text-primary uppercase">Tìm hiểu thêm</span>
               <h2 className="text-2xl md:text-3xl font-black text-slate-900 mt-2">
