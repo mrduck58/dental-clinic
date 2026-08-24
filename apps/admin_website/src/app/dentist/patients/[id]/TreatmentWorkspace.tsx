@@ -262,7 +262,10 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
     () => [...(selService?.options ?? [])].sort((a, b) => a.sortOrder - b.sortOrder),
     [selService]
   );
-  const addUnitPrice = selOption?.price ?? selService?.price ?? 0;
+  // Dịch vụ có khai báo tùy chọn thì bắt buộc chọn một tùy chọn — không dùng giá gốc của dịch vụ cha.
+  const requireOption = selOptions.length > 0;
+  const optionMissing = requireOption && !selOption;
+  const addUnitPrice = selOption?.price ?? (requireOption ? 0 : selService?.price ?? 0);
 
   // Vị trí điều trị theo ĐVT của option: "Răng" (hoặc chưa chọn option) -> chọn từng răng theo số FDI;
   // "Hàm" -> chọn hàm trên/dưới (chọn cả 2 nút = cả 2 hàm); các ĐVT khác (Liệu trình, Lần, Gói, Chiếc, Bộ)
@@ -319,6 +322,7 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
 
   const handleAddService = async () => {
     if (!selService || !examination) return;
+    if (selOptions.length > 0 && !selOption) return;
     try {
       setSavingService(true);
       await createTreatmentPlanApi(appointmentId, {
@@ -1016,11 +1020,11 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                           {opts.length > 0 && ` · ${opts.length} tùy chọn`}
                         </div>
                       </div>
-                      <span className="text-[13.5px] font-black text-slate-900 tabular-nums">
-                        {opts.length > 0
-                          ? `từ ${fmtMoney(Math.min(s.price, ...opts.map(o => o.price)))}`
-                          : fmtMoney(s.price)}
-                      </span>
+                      {opts.length === 0 && (
+                        <span className="text-[13.5px] font-black text-slate-900 tabular-nums">
+                          {fmtMoney(s.price)}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -1034,7 +1038,7 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                       {selOption && <span className="font-bold text-emerald-600"> — {selOption.name}</span>}
                     </span>
                     <span className="text-[13.5px] font-black text-emerald-700 tabular-nums">
-                      {fmtMoney(addUnitPrice)}{selOption ? ` / ${selOption.unit}` : ""}
+                      {optionMissing ? "—" : `${fmtMoney(addUnitPrice)}${selOption ? ` / ${selOption.unit}` : ""}`}
                     </span>
                   </div>
 
@@ -1050,7 +1054,7 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                         }}
                         className="w-full mt-1 px-3 py-2 text-[13px] bg-white border border-slate-200 rounded-lg focus:border-primary focus:outline-none font-bold cursor-pointer"
                       >
-                        <option value="">Giá gốc dịch vụ — {fmtMoney(selService.price)}</option>
+                        <option value="" disabled>— Chọn tùy chọn —</option>
                         {selOptions.map(o => (
                           <option key={o.id} value={o.id}>
                             {o.name} — {fmtMoney(o.price)} / {o.unit}
@@ -1140,7 +1144,7 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                   <div className="flex items-center justify-between border-t border-emerald-200 pt-2.5">
                     <span className="text-[11px] font-extrabold text-emerald-700 uppercase tracking-wider">Thành tiền</span>
                     <span className="text-[15px] font-black text-emerald-800 tabular-nums">
-                      {fmtMoney(addUnitPrice * Math.max(1, addQuantity))}
+                      {optionMissing ? "—" : fmtMoney(addUnitPrice * Math.max(1, addQuantity))}
                     </span>
                   </div>
                   <textarea
@@ -1155,10 +1159,10 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
 
               <button
                 onClick={() => void handleAddService()}
-                disabled={!selService || savingService}
+                disabled={!selService || optionMissing || savingService}
                 className="w-full py-3 bg-primary text-white text-[14px] font-black rounded-xl hover:bg-red-600 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed cursor-pointer"
               >
-                {savingService ? "Đang lưu..." : "Thêm vào liệu trình"}
+                {savingService ? "Đang lưu..." : optionMissing ? "Chọn tùy chọn dịch vụ" : "Thêm vào liệu trình"}
               </button>
             </div>
           </div>

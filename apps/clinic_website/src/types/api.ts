@@ -45,6 +45,8 @@ export interface DentistDto {
   profilePictureUrl?: string | null;
   yearsOfExperience?: number | null;
   bio?: string | null;
+  /** Bài viết chi tiết (HTML) giới thiệu về bác sĩ — hiển thị dạng bài viết trên clinic_website. */
+  content?: string | null;
 }
 
 /** Hồ sơ đầy đủ của bác sĩ — trả về từ GET /dentists/{id}. */

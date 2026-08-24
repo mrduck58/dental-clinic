@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import PageHeader from "@/components/shared/PageHeader";
 import FilterBar from "@/components/shared/FilterBar";
 import Pagination from "@/components/shared/Pagination";
 import { getPromotions } from "@/lib/api";
@@ -71,12 +70,6 @@ export default async function KhuyenMaiPage({ searchParams }: Props) {
 
   return (
     <div className="animate-fade-in">
-      <PageHeader
-        eyebrow="Ưu Đãi"
-        title="Khuyến mãi"
-        description="Đừng bỏ lỡ những chương trình ưu đãi hấp dẫn đang diễn ra tại Sơn Giang Dental."
-      />
-
       <section className="py-16 bg-slate-50">
         <div className="max-w-7xl mx-auto px-6">
           <FilterBar

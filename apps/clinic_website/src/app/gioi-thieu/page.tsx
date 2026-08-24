@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import PageHeader from "@/components/shared/PageHeader";
 import AboutSection from "@/components/sections/AboutSection";
 import WhyChooseUs from "@/components/sections/WhyChooseUs";
 import ProcessSection from "@/components/sections/ProcessSection";
@@ -18,11 +17,6 @@ export default async function GioiThieuPage() {
 
   return (
     <div className="animate-fade-in">
-      <PageHeader
-        eyebrow="Về Chúng Tôi"
-        title="Giới thiệu"
-        description="Hơn 15 năm kiến tạo nụ cười Việt Nam với dịch vụ chăm sóc răng miệng tiệm cận chuẩn quốc tế."
-      />
       <AboutSection />
       <WhyChooseUs />
       <ProcessSection />

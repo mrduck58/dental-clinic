@@ -63,7 +63,7 @@ public class GetPayrollPeriodHandler(IPayrollRepository payrollRepository)
         return new PayrollPeriodDto(
             query.Year,
             query.Month,
-            PayrollCalculator.WorkingDaysPerMonth,
+            PayrollCalculator.WorkingShiftsPerMonth,
             summary,
             items);
     }
@@ -104,7 +104,7 @@ public class GetPayrollPeriodHandler(IPayrollRepository payrollRepository)
                 user.Id, user.FullName, user.Email ?? string.Empty, user.Role.ToString(),
                 employeeId, department, position, user.PhoneNumber,
                 record.BaseSalary, record.Allowance,
-                record.LeaveDays, record.AllowedLeaveDays, record.ExceededDays,
+                record.LeaveShifts, record.AllowedLeaveShifts, record.ExceededShifts,
                 record.Deduction, record.Bonus, record.NetSalary,
                 record.Status.ToString(), record.PaidAt, record.Note,
                 HasSalaryConfigured: record.BaseSalary > 0,
@@ -118,7 +118,7 @@ public class GetPayrollPeriodHandler(IPayrollRepository payrollRepository)
             user.Id, user.FullName, user.Email ?? string.Empty, user.Role.ToString(),
             employeeId, department, position, user.PhoneNumber,
             c.BaseSalary, c.Allowance,
-            c.LeaveDays, c.AllowedLeaveDays, c.ExceededDays,
+            c.LeaveShifts, c.AllowedLeaveShifts, c.ExceededShifts,
             c.Deduction, 0m, c.NetSalary,
             "NotCreated", null, null,
             c.HasSalaryConfigured,
