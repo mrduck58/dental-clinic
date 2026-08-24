@@ -1,9 +1,12 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { SHIFTS, isShiftPast, type ShiftPeriod } from "../../lib/shifts";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { getMyScheduleApi, type ScheduleEntryDto } from "../../lib/apiClient";
+import { SHIFTS, shiftLabel, periodOfShift, isShiftPast, type ShiftPeriod } from "../../lib/shifts";
 
 const DAY_LABELS = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "CN"];
+
+const SHIFT_ORDER: Record<string, number> = Object.fromEntries(SHIFTS.map((s, i) => [s.id, i]));
 
 const PERIOD_STYLE: Record<ShiftPeriod, { chip: string; dot: string; text: string; chipSelected: string }> = {
   "Buổi sáng":  { chip: "bg-amber-50 border-amber-100",   dot: "bg-amber-400",  text: "text-amber-700", chipSelected: "bg-amber-500 border-amber-500" },
@@ -38,14 +41,41 @@ interface StaffLeaveShiftPickerProps {
   onToggle: (date: string, shiftId: string) => void;
 }
 
-/// Lưới chọn ca theo tuần cho đơn xin nghỉ của Staff. Khác với ShiftWeekPicker (dentist) — Staff
-/// không có lịch làm việc theo ca nào để tra cứu, nên ở đây luôn hiện đủ 6 ca cho mọi ngày để chọn,
-/// không gọi API lấy lịch thật.
+/// Lưới chọn ca theo tuần cho đơn xin nghỉ của Staff — chỉ hiển thị các ca có trong lịch làm việc
+/// thật của nhân viên đang đăng nhập (GET /api/schedules/my), không hiện mock 6 ca cố định mỗi ngày.
+/// Cùng pattern với ShiftWeekPicker (dentist/leave).
 export default function StaffLeaveShiftPicker({ selected, onToggle }: StaffLeaveShiftPickerProps) {
   const [monday, setMonday] = useState<Date>(getThisWeekMonday);
+  const [entries, setEntries] = useState<ScheduleEntryDto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const weekDates = useMemo(() => getWeekDates(monday), [monday]);
   const todayKey = formatDateKey(new Date());
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await getMyScheduleApi(formatDateKey(monday));
+      setEntries(data);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Không thể tải lịch làm việc");
+    } finally {
+      setLoading(false);
+    }
+  }, [monday]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  // Group entries by date, sort by shift order
+  const byDate = useMemo(() => {
+    const m: Record<string, ScheduleEntryDto[]> = {};
+    for (const e of entries) (m[e.date] ??= []).push(e);
+    for (const k in m) m[k].sort((a, b) => (SHIFT_ORDER[a.shift] ?? 99) - (SHIFT_ORDER[b.shift] ?? 99));
+    return m;
+  }, [entries]);
+
   const weekLabel = `${fmtDayMonth(weekDates[0])} – ${fmtDayMonth(weekDates[6])}/${weekDates[6].getFullYear()}`;
   const isThisWeek = formatDateKey(monday) === formatDateKey(getThisWeekMonday());
 
@@ -77,55 +107,80 @@ export default function StaffLeaveShiftPicker({ selected, onToggle }: StaffLeave
       </div>
 
       {/* WEEK GRID */}
-      <div className="rounded-xl border border-slate-200/70 overflow-hidden">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 divide-y lg:divide-y-0 lg:divide-x divide-slate-100">
-          {weekDates.map((d, i) => {
-            const key = formatDateKey(d);
-            const isToday = key === todayKey;
-
-            return (
-              <div key={key} className={`p-2.5 flex flex-col gap-2 ${isToday ? "bg-red-50/40" : ""}`}>
-                <div className="flex flex-col items-center gap-0.5">
-                  <span className={`text-[10px] font-extrabold uppercase tracking-wider ${isToday ? "text-primary" : "text-slate-400"}`}>{DAY_LABELS[i]}</span>
-                  <span className={`text-[13.5px] font-black ${isToday ? "text-primary" : "text-slate-700"}`}>{pad(d.getDate())}</span>
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  {SHIFTS.map((shift) => {
-                    const st = PERIOD_STYLE[shift.period];
-                    const isSelected = selected.has(selectionKey(key, shift.id));
-                    const isPast = isShiftPast(key, shift.id);
-                    return (
-                      <button
-                        type="button"
-                        key={shift.id}
-                        disabled={isPast}
-                        onClick={() => onToggle(key, shift.id)}
-                        className={`rounded-lg px-2 py-1.5 border flex flex-col gap-0.5 text-left transition-all ${
-                          isPast
-                            ? "bg-slate-50 border-slate-100 opacity-60 cursor-not-allowed"
-                            : `cursor-pointer ${isSelected ? `${st.chipSelected} shadow-sm` : `${st.chip} hover:brightness-95`}`
-                        }`}
-                      >
-                        <div className="flex items-center gap-1">
-                          <span className={`w-1.5 h-1.5 rounded-full ${isPast ? "bg-slate-300" : isSelected ? "bg-white" : st.dot}`} />
-                          <span className={`text-[9px] font-black uppercase tracking-wide ${isPast ? "text-slate-400" : isSelected ? "text-white" : st.text}`}>{shift.period}</span>
-                          {isSelected && !isPast && (
-                            <svg className="w-3 h-3 ml-auto text-white" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                            </svg>
-                          )}
-                        </div>
-                        <span className={`text-[11px] font-black font-mono ${isPast ? "text-slate-400" : isSelected ? "text-white" : "text-slate-800"}`}>{shift.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
+      {loading ? (
+        <div className="flex items-center justify-center py-10">
+          <div className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
         </div>
-      </div>
+      ) : error ? (
+        <div className="bg-slate-50 rounded-xl border border-slate-200/70 flex flex-col items-center gap-2 py-8">
+          <p className="text-[12.5px] font-semibold text-red-500">{error}</p>
+          <button type="button" onClick={() => void load()} className="px-3 py-1.5 text-[12px] font-bold bg-primary text-white rounded-lg cursor-pointer">Thử lại</button>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-slate-200/70 overflow-hidden">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 divide-y lg:divide-y-0 lg:divide-x divide-slate-100">
+            {weekDates.map((d, i) => {
+              const key = formatDateKey(d);
+              const dayEntries = byDate[key] ?? [];
+              const isToday = key === todayKey;
+              const isHoliday = dayEntries.some(e => e.isHoliday);
+              const shifts = dayEntries.filter(e => !e.isHoliday);
+
+              return (
+                <div key={key} className={`p-2.5 flex flex-col gap-2 min-h-[120px] ${isToday ? "bg-red-50/40" : ""}`}>
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span className={`text-[10px] font-extrabold uppercase tracking-wider ${isToday ? "text-primary" : "text-slate-400"}`}>{DAY_LABELS[i]}</span>
+                    <span className={`text-[13.5px] font-black ${isToday ? "text-primary" : "text-slate-700"}`}>{pad(d.getDate())}</span>
+                  </div>
+
+                  {isHoliday ? (
+                    <div className="rounded-lg px-2 py-2 bg-rose-50 border border-rose-100 flex items-center justify-center">
+                      <span className="text-[10px] font-black text-rose-600">Nghỉ lễ</span>
+                    </div>
+                  ) : shifts.length > 0 ? (
+                    <div className="flex flex-col gap-1">
+                      {shifts.map(e => {
+                        const period = periodOfShift(e.shift);
+                        const st = PERIOD_STYLE[period];
+                        const isSelected = selected.has(selectionKey(key, e.shift));
+                        const isPast = isShiftPast(key, e.shift);
+                        return (
+                          <button
+                            type="button"
+                            key={e.id}
+                            disabled={isPast}
+                            onClick={() => onToggle(key, e.shift)}
+                            className={`rounded-lg px-2 py-1.5 border flex flex-col gap-0.5 text-left transition-all ${
+                              isPast
+                                ? "bg-slate-50 border-slate-100 opacity-60 cursor-not-allowed"
+                                : `cursor-pointer ${isSelected ? `${st.chipSelected} shadow-sm` : `${st.chip} hover:brightness-95`}`
+                            }`}
+                          >
+                            <div className="flex items-center gap-1">
+                              <span className={`w-1.5 h-1.5 rounded-full ${isPast ? "bg-slate-300" : isSelected ? "bg-white" : st.dot}`} />
+                              <span className={`text-[9px] font-black uppercase tracking-wide ${isPast ? "text-slate-400" : isSelected ? "text-white" : st.text}`}>{period}</span>
+                              {isSelected && !isPast && (
+                                <svg className="w-3 h-3 ml-auto text-white" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                                </svg>
+                              )}
+                            </div>
+                            <span className={`text-[11px] font-black font-mono ${isPast ? "text-slate-400" : isSelected ? "text-white" : "text-slate-800"}`}>{shiftLabel(e.shift)}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="rounded-lg px-2 py-2 bg-slate-50 border border-slate-100 flex items-center justify-center mt-auto">
+                      <span className="text-[10px] font-semibold text-slate-400">Không có ca</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
