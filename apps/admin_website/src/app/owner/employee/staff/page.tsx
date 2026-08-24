@@ -405,9 +405,9 @@ export default function OwnerStaffManagementPage() {
                           </td>
                           <td className="px-6 py-4.5 text-center font-bold text-slate-500">
                             {(() => {
-                              if (item.leaveAccrued != null) return `${item.leaveAccrued} ngày`;
+                              if (item.leaveAccrued != null) return `${item.leaveAccrued} ca`;
                               const isShift = item.position?.toLowerCase().includes("lễ tân") || item.position?.toLowerCase().includes("tiếp đón");
-                              return !isShift ? "1 ngày" : "—";
+                              return !isShift ? "24 ca" : "—";
                             })()}
                           </td>
                           <td className="px-6 py-4.5 text-center" onClick={(e) => e.stopPropagation()}>

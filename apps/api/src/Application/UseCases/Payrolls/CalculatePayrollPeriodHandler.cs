@@ -39,7 +39,7 @@ public class CalculatePayrollPeriodHandler(
             }
 
             var c = PayrollCalculator.Compute(user, leaves, command.Year, command.Month);
-            record.RefreshDraftFigures(c.BaseSalary, c.Allowance, c.LeaveDays, c.AllowedLeaveDays, c.ExceededDays, c.Deduction);
+            record.RefreshDraftFigures(c.BaseSalary, c.Allowance, c.LeaveShifts, c.AllowedLeaveShifts, c.ExceededShifts, c.Deduction);
             record.MarkCalculated();
             calculated++;
         }

@@ -28,7 +28,8 @@ public static partial class StaffValidator
     public const int MaxAge = 100;
     public const int MaxYearsOfExperience = 70;
     public const decimal MaxBaseSalary = 999_999_999m;
-    public const decimal MaxLeaveAccrued = 30m;
+    /// <summary>Định mức phép tối đa/tháng, tính theo ca (không vượt quá tổng ca công một tháng: 26 ngày × 6 ca/ngày = 156).</summary>
+    public const decimal MaxLeaveAccrued = 156m;
 
     /// <summary>
     /// Validates all staff fields for Create operation. Throws ValidationException if invalid.
@@ -331,9 +332,9 @@ public static partial class StaffValidator
     {
         if (leaveAccrued is null) return;
         if (leaveAccrued < 0)
-            AddError(errors, "leaveAccrued", "Ngày phép tích luỹ không được âm.");
+            AddError(errors, "leaveAccrued", "Số ca phép tích luỹ không được âm.");
         else if (leaveAccrued > MaxLeaveAccrued)
-            AddError(errors, "leaveAccrued", $"Ngày phép tích luỹ không được vượt quá {MaxLeaveAccrued}.");
+            AddError(errors, "leaveAccrued", $"Số ca phép tích luỹ không được vượt quá {MaxLeaveAccrued}.");
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

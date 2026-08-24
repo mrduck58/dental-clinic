@@ -408,10 +408,10 @@ export default function OwnerDentistManagementPage() {
                           </td>
                           <td className="px-6 py-4.5 text-center font-bold text-slate-500">
                             {(() => {
-                              if (item.leaveAccrued != null) return `${item.leaveAccrued} ngày`;
+                              if (item.leaveAccrued != null) return `${item.leaveAccrued} ca`;
                               const exp = item.yearsOfExperience ?? 5;
                               const isPartTime = exp % 2 === 0;
-                              return !isPartTime ? "1.5 ngày" : "—";
+                              return !isPartTime ? "24 ca" : "—";
                             })()}
                           </td>
                           <td className="px-6 py-4.5 text-center" onClick={(e) => e.stopPropagation()}>
