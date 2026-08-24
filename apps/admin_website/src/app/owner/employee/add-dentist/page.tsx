@@ -648,7 +648,7 @@ export default function AddDentistPage() {
                   </div>
 
                   <div>
-                    <label className={lbl}>Số ca / tháng</label>
+                    <label className={lbl}>Số ca nghỉ / tháng</label>
                     <input
                       type="number"
                       required
@@ -660,6 +660,15 @@ export default function AddDentistPage() {
                     />
                     {errMsg("leaveAccrued")}
                   </div>
+
+                  {formEmploymentType === "Full-time" && (
+                    <div>
+                      <label className={lbl}>Lượng ca tối thiểu</label>
+                      <div className="w-full px-4 py-3 text-[14px] bg-slate-100 border border-slate-200 rounded-xl font-semibold text-slate-500 cursor-not-allowed">
+                        156 ca
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 

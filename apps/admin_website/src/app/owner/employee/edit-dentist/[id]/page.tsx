@@ -682,7 +682,7 @@ export default function EditDentistPage() {
                   </div>
 
                   <div>
-                    <label className={lbl}>Số ca / tháng</label>
+                    <label className={lbl}>Số ca nghỉ / tháng</label>
                     <input
                       type="number"
                       required
