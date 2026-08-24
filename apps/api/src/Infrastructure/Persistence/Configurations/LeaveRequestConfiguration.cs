@@ -36,5 +36,13 @@ public class LeaveRequestConfiguration : IEntityTypeConfiguration<LeaveRequest>
             .WithMany()
             .HasForeignKey(l => l.UserId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasMany(l => l.Shifts)
+            .WithOne()
+            .HasForeignKey(s => s.LeaveRequestId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Metadata.FindNavigation(nameof(LeaveRequest.Shifts))!
+            .SetPropertyAccessMode(PropertyAccessMode.Field);
     }
 }

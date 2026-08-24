@@ -1,14 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import PageHeader from "@/components/shared/PageHeader";
-import { getDentistById, getDentistReviews } from "@/lib/api";
+import { getDentistById, getDentistReviews, getDentists } from "@/lib/api";
 import { formatDate } from "@/lib/format";
+import { shuffle } from "@/lib/listing";
+import MediaPlaceholder from "@/components/shared/MediaPlaceholder";
+import DentistsSection from "@/components/sections/DentistsSection";
 import type { DentistReviewsResultDto } from "@/types/api";
 
-export const dynamic = "force-dynamic";
+const OTHER_DENTISTS_COUNT = 3;
 
-const FALLBACK_PHOTO = "https://picsum.photos/seed/dentistdetail/600/700";
+export const dynamic = "force-dynamic";
 
 const SHIFT_LABEL: Record<string, string> = {
   morning: "Ca sáng",
@@ -89,6 +91,13 @@ export default async function DentistDetailPage({ params }: Props) {
   const averageRating = reviewsResult?.averageRating ?? dentist.averageRating;
   const reviewCount = reviewsResult?.reviewCount ?? dentist.reviewCount;
 
+  // Bác sĩ khác — chọn ngẫu nhiên để gợi ý xem thêm, loại bác sĩ đang xem.
+  const allDentists = await getDentists().catch(() => []);
+  const otherDentists = shuffle(allDentists.filter((d) => d.id !== dentist.id)).slice(
+    0,
+    OTHER_DENTISTS_COUNT
+  );
+
   const tenure = yearsAtClinic(dentist.startDate);
 
   // Chỉ hiển thị dòng có dữ liệu — tránh khoảng trống "Chưa cập nhật".
@@ -113,19 +122,21 @@ export default async function DentistDetailPage({ params }: Props) {
 
   return (
     <div className="animate-fade-in">
-      <PageHeader eyebrow="Đội Ngũ" title={dentist.fullName ?? "Bác sĩ"} />
-
       <section className="py-16 bg-white">
-        <div className="max-w-5xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-5 gap-12 items-start">
+        <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-5 gap-12 items-start">
           {/* Ảnh */}
           <div className="lg:col-span-2 lg:sticky lg:top-24">
-            <div className="rounded-3xl overflow-hidden shadow-xl border border-slate-200/60">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={dentist.profilePictureUrl || FALLBACK_PHOTO}
-                alt={dentist.fullName ?? "Bác sĩ"}
-                className="w-full h-full object-cover object-top"
-              />
+            <div className="rounded-3xl overflow-hidden shadow-xl border border-slate-200/60 aspect-[6/7]">
+              {dentist.profilePictureUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={dentist.profilePictureUrl}
+                  alt={dentist.fullName ?? "Bác sĩ"}
+                  className="w-full h-full object-cover object-top"
+                />
+              ) : (
+                <MediaPlaceholder variant="person" />
+              )}
             </div>
 
             {/* Số liệu hoạt động */}
@@ -170,16 +181,6 @@ export default async function DentistDetailPage({ params }: Props) {
                 <span className="text-[14px] font-bold text-slate-700">{averageRating.toFixed(1)}</span>
                 <span className="text-[13px] text-slate-400">({reviewCount} đánh giá)</span>
               </div>
-            )}
-
-            {/* Giới thiệu */}
-            <h2 className="text-[13px] font-black uppercase tracking-wider text-slate-400 mb-3">
-              Giới thiệu
-            </h2>
-            {dentist.bio ? (
-              <p className="text-slate-600 text-[15px] leading-relaxed whitespace-pre-line mb-10">{dentist.bio}</p>
-            ) : (
-              <p className="text-slate-400 text-[15px] italic mb-10">Chưa có thông tin giới thiệu.</p>
             )}
 
             {/* Hồ sơ chuyên môn */}
@@ -259,6 +260,40 @@ export default async function DentistDetailPage({ params }: Props) {
           </div>
         </div>
       </section>
+
+      {/* Bài viết chi tiết về nha sĩ */}
+      {dentist.content && dentist.content.trim().length > 0 && (
+        <section className="py-16 bg-white border-t border-slate-200/60">
+          <div className="max-w-7xl mx-auto px-6">
+            <div className="max-w-4xl mx-auto">
+              <div className="text-center mb-10">
+                <span className="text-[12px] font-black tracking-widest text-primary uppercase">Bài Viết Chi Tiết</span>
+                <h2 className="text-2xl md:text-3xl font-black text-slate-900 mt-2">
+                  Tìm hiểu thêm về {dentist.fullName ?? "bác sĩ"}
+                </h2>
+                <div className="w-12 h-1 bg-primary rounded-full mx-auto mt-4" />
+              </div>
+
+              {/* Render HTML content safely */}
+              <div
+                className="prose prose-slate max-w-none text-slate-700 leading-relaxed text-[15px] prose-headings:font-black prose-headings:text-slate-900 prose-h2:text-2xl prose-h3:text-xl prose-img:rounded-2xl prose-img:shadow-md prose-img:mx-auto prose-a:text-primary prose-a:font-bold"
+                dangerouslySetInnerHTML={{ __html: dentist.content }}
+              />
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Bác sĩ khác — gợi ý ngẫu nhiên */}
+      {otherDentists.length > 0 && (
+        <DentistsSection
+          dentists={otherDentists}
+          eyebrow="Đội Ngũ"
+          title="Bác Sĩ Khác"
+          description="Có thể bạn cũng muốn tìm hiểu thêm về các bác sĩ khác tại phòng khám."
+          bgClassName="bg-slate-50 border-t border-slate-200/60"
+        />
+      )}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import OwnerSidebar from "../../../../../components/shared/OwnerSidebar";
 import OwnerPageHeader from "../../../../../components/shared/OwnerPageHeader";
+import RichTextEditor from "../../../../../components/shared/RichTextEditor";
 import { useRequireOwner } from "../../../../../hooks/useRequireOwner";
 import { updateStaffApi, getStaffByIdApi, uploadFileApi, resolveAssetUrl, ApiValidationError, type StaffDto, type UpdateStaffCommand } from "../../../../../lib/apiClient";
 
@@ -39,6 +40,7 @@ export default function EditDentistPage() {
 
   const [staff, setStaff] = useState<StaffDto | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [formContent, setFormContent] = useState("");
   const [formData, setFormData] = useState<DentistEditForm>({
     fullName: "", gender: "", dateOfBirth: "", phoneNumber: "", email: "",
     address: "", profilePictureUrl: "", specialty: "", licenseNumber: "",
@@ -53,7 +55,7 @@ export default function EditDentistPage() {
   const [formEmploymentType, setFormEmploymentType] = useState("Full-time");
   const [formBaseSalary, setFormBaseSalary] = useState(25000000);
   const [formSalaryUnit, setFormSalaryUnit] = useState("Theo tháng");
-  const [formLeaveAccrued, setFormLeaveAccrued] = useState(1.5);
+  const [formLeaveAccrued, setFormLeaveAccrued] = useState(24);
   const [formAllowance, setFormAllowance] = useState(2500000);
 
   useEffect(() => {
@@ -64,6 +66,7 @@ export default function EditDentistPage() {
 
   const populateData = (data: StaffDto) => {
     setStaff(data);
+    setFormContent(data.content || "");
 
     const exp = data.yearsOfExperience ?? 5;
     const isDentist = data.role === "Dentist";
@@ -72,7 +75,7 @@ export default function EditDentistPage() {
     const calculatedType = isPartTime ? "Part-time" : isShift ? "Shift-based" : "Full-time";
     const calculatedSalary = isDentist ? (25000000 + exp * 1500000) : (10000000 + (data.fullName?.length || 5) * 200000);
     const calculatedUnit = isPartTime ? "Theo ngày" : isShift ? "Theo ca" : "Theo tháng";
-    const calculatedLeave = isDentist ? 1.5 : 1;
+    const calculatedLeave = 24;
 
     setFormEmploymentType(data.employmentType || calculatedType);
     setFormBaseSalary(data.baseSalary ?? calculatedSalary);
@@ -154,9 +157,7 @@ export default function EditDentistPage() {
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       e.email = "Email không đúng định dạng";
     }
-    if (!formData.specialty.trim()) e.specialty = "Chuyên khoa không được để trống";
     if (!formData.licenseNumber.trim()) e.licenseNumber = "Số CCHN không được để trống";
-    if (!formData.servicesHandled.trim()) e.servicesHandled = "Dịch vụ phụ trách không được để trống";
     if (!formData.startDate) e.startDate = "Ngày bắt đầu làm việc không được để trống";
     setErrors(e);
     if (Object.keys(e).length > 0) {
@@ -220,6 +221,7 @@ export default function EditDentistPage() {
         salaryUnit: formSalaryUnit,
         leaveAccrued: formLeaveAccrued,
         allowance: formAllowance,
+        content: formContent,
       };
       await updateStaffApi(id, payload);
       sessionStorage.setItem("staffSuccessMsg", `Cập nhật thông tin nha sĩ ${formData.fullName.trim()} thành công!`);
@@ -490,24 +492,6 @@ export default function EditDentistPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className={lbl}>Chuyên khoa *</label>
-                    <select
-                      name="specialty"
-                      value={formData.specialty}
-                      onChange={handleChange}
-                      className={inp("specialty")}
-                    >
-                      <option value="">-- Chọn chuyên khoa --</option>
-                      <option value="Răng Hàm Mặt">Răng Hàm Mặt</option>
-                      <option value="Nha chu">Nha chu</option>
-                      <option value="Chỉnh nha / Niềng răng">Chỉnh nha / Niềng răng</option>
-                      <option value="Phục hình răng / Implant">Phục hình răng / Implant</option>
-                      <option value="Nha khoa thẩm mỹ">Nha khoa thẩm mỹ</option>
-                    </select>
-                    {errMsg("specialty")}
-                  </div>
-
-                  <div>
                     <label className={lbl}>Số chứng chỉ hành nghề (CCHN) *</label>
                     <input
                       type="text"
@@ -544,49 +528,6 @@ export default function EditDentistPage() {
                       className={inp("certificateIssuedBy")}
                     />
                     {errMsg("certificateIssuedBy")}
-                  </div>
-
-                  <div className="sm:col-span-2" id="field-servicesHandled">
-                    <label className={lbl}>Dịch vụ phụ trách *</label>
-                    <div className="flex flex-wrap gap-2.5">
-                      {["Nhổ răng", "Lấy cao răng", "Cấy Implant", "Niềng răng mắc cài", "Niềng răng trong suốt Invisalign"].map((srv) => {
-                        const currentServices = (formData.servicesHandled || "").split(",").map(s => s.trim()).filter(Boolean);
-                        const isSelected = currentServices.includes(srv);
-                        return (
-                          <button
-                            key={srv}
-                            type="button"
-                            onClick={() => {
-                              let newVal = "";
-                              if (isSelected) {
-                                newVal = currentServices.filter(x => x !== srv).join(", ");
-                              } else {
-                                newVal = [...currentServices, srv].join(", ");
-                              }
-                              setFormData(prev => ({ ...prev, servicesHandled: newVal }));
-                              if (errors.servicesHandled) setErrors(prev => ({ ...prev, servicesHandled: "" }));
-                            }}
-                            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                              isSelected 
-                                ? "bg-red-50 border-primary text-primary shadow-sm"
-                                : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
-                            }`}
-                          >
-                            <span className={`w-4.5 h-4.5 rounded border flex items-center justify-center shrink-0 transition-colors ${
-                              isSelected ? "bg-primary border-primary text-white" : "border-slate-300 bg-white"
-                            }`}>
-                              {isSelected && (
-                                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                                </svg>
-                              )}
-                            </span>
-                            {srv}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {errMsg("servicesHandled")}
                   </div>
 
                   <div>
@@ -644,6 +585,29 @@ export default function EditDentistPage() {
                     />
                     {errMsg("bio")}
                   </div>
+                </div>
+              </div>
+
+              {/* CARD: BÀI VIẾT CHI TIẾT VỀ NHA SĨ */}
+              <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+                  <h3 className="text-[15px] font-extrabold text-slate-700 flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                    Bài viết chi tiết về nha sĩ
+                  </h3>
+                  <p className="text-[12px] text-slate-400 mt-0.5">
+                    Soạn bài viết giới thiệu quá trình đào tạo, kinh nghiệm, thành tích & hình ảnh cho bệnh nhân xem trên website.
+                  </p>
+                </div>
+
+                <div className="p-6">
+                  <RichTextEditor
+                    value={formContent}
+                    onChange={setFormContent}
+                    placeholder="Nhập bài viết giới thiệu chi tiết về nha sĩ (Quá trình đào tạo, kinh nghiệm, thành tích, hình ảnh minh họa...)..."
+                    minHeight="450px"
+                    maxHeight="700px"
+                  />
                 </div>
               </div>
 
@@ -718,65 +682,27 @@ export default function EditDentistPage() {
                   </div>
 
                   <div>
-                    <label className={lbl}>Số ngày phép / tháng</label>
+                    <label className={lbl}>Số ca nghỉ / tháng</label>
                     <input
                       type="number"
                       required
                       min="0"
-                      step="0.5"
+                      step="1"
                       value={formLeaveAccrued}
                       onChange={(e) => setFormLeaveAccrued(Number(e.target.value))}
-                      disabled={formEmploymentType !== "Full-time"}
-                      className={`${inp("leaveAccrued")} ${
-                        formEmploymentType !== "Full-time" ? "opacity-60 cursor-not-allowed bg-slate-100 font-semibold text-[14px]" : ""
-                      }`}
+                      className={inp("leaveAccrued")}
                     />
                     {errMsg("leaveAccrued")}
                   </div>
-                </div>
-              </div>
 
-              {/* CARD 4: TRẠNG THÁI TÀI KHOẢN & CÔNG TÁC */}
-              <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
-                <h4 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider mb-6 pb-2 border-b border-slate-100 flex items-center gap-2">
-                  <span className="w-1.5 h-3.5 bg-primary rounded-full inline-block" />
-                  Vai trò & Trạng thái hoạt động
-                </h4>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
-                  <div>
-                    <label className={lbl}>Vai trò</label>
-                    <div className="flex items-center gap-2.5 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl">
-                      <span className="text-[14px] font-bold text-slate-600">Nha sĩ</span>
-                      <span className="text-[10px] bg-slate-200/70 text-slate-500 px-2 py-0.5 rounded font-bold uppercase tracking-wide">Cố định</span>
+                  {formEmploymentType === "Full-time" && (
+                    <div>
+                      <label className={lbl}>Lượng ca tối thiểu</label>
+                      <div className="w-full px-4 py-3 text-[14px] bg-slate-100 border border-slate-200 rounded-xl font-semibold text-slate-500 cursor-not-allowed">
+                        156 ca
+                      </div>
                     </div>
-                  </div>
-
-                  <div>
-                    <label className={lbl}>Trạng thái làm việc</label>
-                    <select
-                      name="employmentStatus"
-                      value={formData.employmentStatus}
-                      onChange={handleChange}
-                      className={inp("employmentStatus")}
-                    >
-                      <option value="Active">Đang làm việc (Active)</option>
-                      <option value="On Leave">Nghỉ phép (On Leave)</option>
-                      <option value="Inactive">Đã nghỉ việc (Inactive)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="flex items-center gap-3 cursor-pointer select-none p-3.5 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors">
-                      <input
-                        type="checkbox"
-                        checked={formData.isActive}
-                        onChange={(e) => setFormData(prev => ({ ...prev, isActive: e.target.checked }))}
-                        className="w-5 h-5 rounded text-primary border-slate-355 focus:ring-primary"
-                      />
-                      <span className="text-[13px] font-bold text-slate-700">Tài khoản hoạt động</span>
-                    </label>
-                  </div>
+                  )}
                 </div>
               </div>
 

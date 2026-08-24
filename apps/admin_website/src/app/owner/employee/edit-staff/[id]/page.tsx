@@ -46,7 +46,7 @@ export default function EditStaffPage() {
   const [formEmploymentType, setFormEmploymentType] = useState("Full-time");
   const [formBaseSalary, setFormBaseSalary] = useState(12000000);
   const [formSalaryUnit, setFormSalaryUnit] = useState("Theo tháng");
-  const [formLeaveAccrued, setFormLeaveAccrued] = useState(1);
+  const [formLeaveAccrued, setFormLeaveAccrued] = useState(24);
   const [formAllowance, setFormAllowance] = useState(1200000);
 
   useEffect(() => {
@@ -65,7 +65,7 @@ export default function EditStaffPage() {
     const calculatedType = isPartTime ? "Part-time" : isShift ? "Shift-based" : "Full-time";
     const calculatedSalary = isDentist ? (25000000 + exp * 1500000) : (10000000 + (data.fullName?.length || 5) * 200000);
     const calculatedUnit = isPartTime ? "Theo ngày" : isShift ? "Theo ca" : "Theo tháng";
-    const calculatedLeave = isDentist ? 1.5 : 1;
+    const calculatedLeave = 24;
 
     setFormEmploymentType(data.employmentType || calculatedType);
     setFormBaseSalary(data.baseSalary ?? calculatedSalary);
@@ -641,70 +641,27 @@ export default function EditStaffPage() {
                   </div>
 
                   <div>
-                    <label className={lbl}>Số ngày phép / tháng</label>
+                    <label className={lbl}>Số ca nghỉ / tháng</label>
                     <input
                       type="number"
                       required
                       min="0"
-                      step="0.5"
+                      step="1"
                       value={formLeaveAccrued}
                       onChange={(e) => setFormLeaveAccrued(Number(e.target.value))}
-                      disabled={formEmploymentType !== "Full-time"}
-                      className={`${inp("leaveAccrued")} ${
-                        formEmploymentType !== "Full-time" ? "opacity-60 cursor-not-allowed bg-slate-100 font-semibold text-[14px]" : ""
-                      }`}
+                      className={inp("leaveAccrued")}
                     />
                     {errMsg("leaveAccrued")}
                   </div>
-                </div>
-              </div>
 
-              {/* CARD 4: TRẠNG THÁI TÀI KHOẢN & CÔNG TÁC */}
-              <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
-                <h4 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider mb-6 pb-2 border-b border-slate-100 flex items-center gap-2">
-                  <span className="w-1.5 h-3.5 bg-primary rounded-full inline-block" />
-                  Vai trò & Trạng thái hoạt động
-                </h4>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
-                  <div>
-                    <label className={lbl}>Vai trò</label>
-                    <select
-                      name="role"
-                      value={formData.role}
-                      onChange={handleChange}
-                      className={inp("role")}
-                    >
-                      <option value="Staff">Nhân viên / Trợ lý</option>
-                      <option value="Admin">Quản trị viên</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className={lbl}>Trạng thái làm việc</label>
-                    <select
-                      name="employmentStatus"
-                      value={formData.employmentStatus}
-                      onChange={handleChange}
-                      className={inp("employmentStatus")}
-                    >
-                      <option value="Active">Đang làm việc (Active)</option>
-                      <option value="On Leave">Nghỉ phép (On Leave)</option>
-                      <option value="Inactive">Đã nghỉ việc (Inactive)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="flex items-center gap-3 cursor-pointer select-none p-3.5 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors">
-                      <input
-                        type="checkbox"
-                        checked={formData.isActive}
-                        onChange={(e) => setFormData(prev => ({ ...prev, isActive: e.target.checked }))}
-                        className="w-5 h-5 rounded text-primary border-slate-355 focus:ring-primary"
-                      />
-                      <span className="text-[13px] font-bold text-slate-700">Tài khoản hoạt động</span>
-                    </label>
-                  </div>
+                  {formEmploymentType === "Full-time" && (
+                    <div>
+                      <label className={lbl}>Lượng ca tối thiểu</label>
+                      <div className="w-full px-4 py-3 text-[14px] bg-slate-100 border border-slate-200 rounded-xl font-semibold text-slate-500 cursor-not-allowed">
+                        156 ca
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 

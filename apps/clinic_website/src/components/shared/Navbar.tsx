@@ -10,7 +10,6 @@ const NAV_LINKS = [
   { label: "Dịch vụ", href: "/dich-vu" },
   { label: "Bảng giá", href: "/bang-gia" },
   { label: "Bác sĩ", href: "/bac-si" },
-  { label: "Khuyến mãi", href: "/khuyen-mai" },
   { label: "Tin tức", href: "/tin-tuc" },
   { label: "Hướng dẫn sử dụng", href: "/huong-dan-su-dung" },
 ];

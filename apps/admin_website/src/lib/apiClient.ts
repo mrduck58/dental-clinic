@@ -249,6 +249,8 @@ export interface StaffDto {
   allowance: number | null;
   /** Id hồ sơ nha sĩ — null nếu nhân viên không phải bác sĩ. Đánh giá của bệnh nhân khóa theo id này. */
   dentistProfileId: string | null;
+  /** Bài viết chi tiết (HTML) giới thiệu về nha sĩ — null nếu không phải bác sĩ. */
+  content: string | null;
 }
 
 
@@ -294,6 +296,7 @@ export interface CreateStaffCommand {
   salaryUnit?: string | null;
   leaveAccrued?: number | null;
   allowance?: number | null;
+  content?: string | null;
 }
 
 export interface UpdateStaffCommand {
@@ -325,6 +328,7 @@ export interface UpdateStaffCommand {
   salaryUnit?: string | null;
   leaveAccrued?: number | null;
   allowance?: number | null;
+  content?: string | null;
 }
 
 export interface ResetPasswordResponse {
@@ -1544,6 +1548,11 @@ export async function changeRoomStatusApi(id: string, status: string): Promise<R
 }
 // ── Leave Request types & endpoints ───────────────────────────────────────────
 
+export interface LeaveRequestShiftDto {
+  date: string;    // "YYYY-MM-DD"
+  shiftId: string; // mã ca, ví dụ "08:00-10:00" (xem lib/shifts.ts)
+}
+
 export interface LeaveRequestDto {
   id: string;
   userId: string;
@@ -1558,6 +1567,7 @@ export interface LeaveRequestDto {
   reviewerNote: string | null;
   createdAt: string;
   reviewedAt: string | null;
+  shifts: LeaveRequestShiftDto[];
 }
 
 export interface MyLeaveStatsDto {
@@ -1575,8 +1585,7 @@ export interface MyLeaveRequestsResponse {
 
 export interface CreateLeaveRequestRequest {
   leaveType: string;
-  startDate: string; // "YYYY-MM-DD"
-  endDate: string;   // "YYYY-MM-DD"
+  shifts: LeaveRequestShiftDto[];
   reason: string;
 }
 
@@ -2662,23 +2671,6 @@ export async function getTreatmentSuggestionApi(appointmentId: string): Promise<
     throw new Error((err as { title?: string }).title ?? "Không thể tạo gợi ý điều trị");
   }
   return res.json() as Promise<TreatmentSuggestionDto>;
-}
-
-export interface PrescriptionSuggestionDto {
-  suggestion: string;
-  disclaimer: string;
-}
-
-export async function getPrescriptionSuggestionApi(appointmentId: string): Promise<PrescriptionSuggestionDto> {
-  const res = await fetch(`${API_URL}/api/appointments/${appointmentId}/prescription-suggestion`, {
-    headers: { ...authHeaders() },
-  });
-  await checkAuth(res);
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { title?: string }).title ?? "Không thể tạo gợi ý đơn thuốc");
-  }
-  return res.json() as Promise<PrescriptionSuggestionDto>;
 }
 
 // Diagnosis APIs
@@ -4204,9 +4196,9 @@ export interface PayrollItemDto {
   phoneNumber: string | null;
   baseSalary: number;
   allowance: number;
-  leaveDays: number;
-  allowedLeaveDays: number;
-  exceededDays: number;
+  leaveShifts: number;
+  allowedLeaveShifts: number;
+  exceededShifts: number;
   deduction: number;
   bonus: number;
   netSalary: number;
@@ -4236,7 +4228,7 @@ export interface PayrollSummaryDto {
 export interface PayrollPeriodDto {
   year: number;
   month: number;
-  workingDaysPerMonth: number;
+  workingShiftsPerMonth: number;
   summary: PayrollSummaryDto;
   items: PayrollItemDto[];
 }
@@ -4447,7 +4439,7 @@ export async function setPayrollBonusApi(data: {
 export interface MyPayrollPeriodDto {
   year: number;
   month: number;
-  workingDaysPerMonth: number;
+  workingShiftsPerMonth: number;
   item: PayrollItemDto | null;
 }
 

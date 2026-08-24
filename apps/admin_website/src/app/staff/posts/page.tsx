@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { getPostsApi, deletePostApi, resolveAssetUrl, type PostDto } from "../../../lib/apiClient";
 import StaffSidebar from "../../../components/shared/StaffSidebar";
 import { useRequireStaff } from "../../../hooks/useRequireStaff";
@@ -80,6 +81,7 @@ function getPageList(current: number, total: number): (number | "…")[] {
 
 export default function PostsListPage() {
   useRequireStaff();
+  const router = useRouter();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -424,7 +426,11 @@ export default function PostsListPage() {
                       </tr>
                     ) : paginatedPosts.length > 0 ? (
                       paginatedPosts.map((post) => (
-                        <tr key={post.id} className="hover:bg-slate-50/50 transition-colors group">
+                        <tr
+                          key={post.id}
+                          onClick={() => router.push(`/staff/posts/${post.id}/preview`)}
+                          className="hover:bg-slate-50/80 transition-colors group cursor-pointer"
+                        >
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3.5 min-w-[220px] max-w-md">
                               {post.thumbnailUrl ? (
@@ -471,20 +477,10 @@ export default function PostsListPage() {
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center justify-center gap-1.5">
-                              {/* Preview Button */}
-                              <Link
-                                href={`/staff/posts/${post.id}/preview`}
-                                className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all"
-                                title="Xem trước bài viết"
-                              >
-                                <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                </svg>
-                              </Link>
                               {/* Edit Button */}
                               <Link
                                 href={`/staff/posts/${post.id}/edit`}
+                                onClick={(e) => e.stopPropagation()}
                                 className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
                                 title="Chỉnh sửa bài viết"
                               >
@@ -494,7 +490,10 @@ export default function PostsListPage() {
                               </Link>
                               {/* Delete Button */}
                               <button
-                                onClick={() => handleDeleteClick(post)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteClick(post);
+                                }}
                                 className="p-2 rounded-lg text-red-400 hover:text-primary hover:bg-red-50 transition-all cursor-pointer"
                                 title="Xóa bài viết"
                               >

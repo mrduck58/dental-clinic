@@ -74,8 +74,8 @@ const OPT_OCCLUSION = ["Khớp cắn chuẩn", "Cắn chéo", "Cắn hở", "C�
 
 const OTHER_VALUE = "__other__";
 
-function ExamSection({ title, children }: { title: string; children: React.ReactNode }) {
-  const [open, setOpen] = useState(false);
+function ExamSection({ title, children, defaultOpen = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
     <div className="border border-slate-200 rounded-xl overflow-hidden">
       <button
@@ -207,6 +207,11 @@ export default function PatientDetailPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const editMode = searchParams.get("edit") === "1";
+  // Hồ sơ mở từ trang "Bệnh nhân đã khám" phải ở lại ngữ cảnh đó — sidebar và nút quay lại
+  // không được kéo bác sĩ về danh sách "Bệnh nhân hôm nay".
+  const fromPast = searchParams.get("from") === "past";
+  const listHref = fromPast ? "/dentist/patients/past" : "/dentist/patients";
+  const listMenu = fromPast ? "past-patients" : "patients";
 
   const [examination, setExamination] = useState<ExaminationDto | null>(null);
   const [loading, setLoading] = useState(true);
@@ -309,7 +314,7 @@ export default function PatientDetailPage() {
         showToast("Đã hoàn tất ca khám!", "success");
       }
       await loadExamination();
-      setTimeout(() => router.push("/dentist/patients"), 1500);
+      setTimeout(() => router.push(listHref), 1500);
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Kết thúc điều trị thất bại", "error");
     }
@@ -372,7 +377,7 @@ export default function PatientDetailPage() {
   if (loading) {
     return (
       <div className="flex min-h-screen bg-slate-50 font-sans text-slate-800">
-        <DentistSidebar activeMenu="patients" />
+        <DentistSidebar activeMenu={listMenu} />
         <main className="flex-1 flex items-center justify-center">
           <div className="w-8 h-8 border-3 border-primary/20 border-t-primary rounded-full animate-spin" />
         </main>
@@ -383,11 +388,11 @@ export default function PatientDetailPage() {
   if (error || !examination) {
     return (
       <div className="flex min-h-screen bg-slate-50 font-sans text-slate-800">
-        <DentistSidebar activeMenu="patients" />
+        <DentistSidebar activeMenu={listMenu} />
         <main className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <p className="text-[14px] font-semibold text-red-500">{error ?? "Không tìm thấy lịch hẹn"}</p>
-            <Link href="/dentist/patients" className="mt-4 inline-block px-4 py-2 bg-primary text-white text-[13px] font-bold rounded-xl">
+            <Link href={listHref} className="mt-4 inline-block px-4 py-2 bg-primary text-white text-[13px] font-bold rounded-xl">
               Quay lại danh sách
             </Link>
           </div>
@@ -407,7 +412,7 @@ export default function PatientDetailPage() {
 
 return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
-      <DentistSidebar activeMenu="patients" />
+      <DentistSidebar activeMenu={listMenu} />
 
       <main className="flex-1 flex flex-col min-w-0">
         <DentistPageHeader
@@ -415,7 +420,7 @@ return (
           subtitle={`${patient.dateOfBirth ? `${new Date().getFullYear() - new Date(patient.dateOfBirth).getFullYear()} tuổi` : "—"} · ${patient.gender ?? "—"} · ${patient.phoneNumber ?? "—"}`}
           left={
             <div className="flex items-center gap-2.5">
-              <Link href="/dentist/patients" className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-all shrink-0">
+              <Link href={listHref} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-all shrink-0">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
               </Link>
               <div className={`w-9 h-9 rounded-full flex items-center justify-center font-black text-[12px] border shrink-0 ${patient.gender === "Nữ" ? "bg-rose-50 text-rose-600 border-rose-100" : "bg-sky-50 text-sky-700 border-sky-100"}`}>
@@ -725,7 +730,7 @@ return (
                           </div>
                         </ExamSection>
 
-                        <ExamSection title="Chẩn đoán">
+                        <ExamSection title="Chẩn đoán" defaultOpen>
                           <textarea
                             value={form.description}
                             onChange={e => setField("description", e.target.value)}
@@ -736,7 +741,7 @@ return (
                           />
                         </ExamSection>
 
-                        <ExamSection title="Kết quả & kế hoạch điều trị">
+                        <ExamSection title="Kết quả & kế hoạch điều trị" defaultOpen>
                           <textarea
                             value={form.conclusion}
                             onChange={e => setField("conclusion", e.target.value)}

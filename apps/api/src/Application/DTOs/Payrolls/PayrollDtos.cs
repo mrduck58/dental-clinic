@@ -11,9 +11,9 @@ public record PayrollItemDto(
     string? PhoneNumber,
     decimal BaseSalary,
     decimal Allowance,
-    int LeaveDays,
-    decimal AllowedLeaveDays,
-    decimal ExceededDays,
+    int LeaveShifts,
+    decimal AllowedLeaveShifts,
+    decimal ExceededShifts,
     decimal Deduction,
     decimal Bonus,
     decimal NetSalary,
@@ -44,7 +44,7 @@ public record PayrollSummaryDto(
 public record PayrollPeriodDto(
     int Year,
     int Month,
-    int WorkingDaysPerMonth,
+    int WorkingShiftsPerMonth,
     PayrollSummaryDto Summary,
     IReadOnlyList<PayrollItemDto> Items);
 
@@ -72,7 +72,7 @@ public record PayrollYearlyDto(
 public record MyPayrollPeriodDto(
     int Year,
     int Month,
-    int WorkingDaysPerMonth,
+    int WorkingShiftsPerMonth,
     PayrollItemDto? Item);
 
 public record MyPayrollMonthDto(

@@ -35,7 +35,8 @@ public record UpdateStaffCommand(
     decimal? BaseSalary,
     string? SalaryUnit,
     decimal? LeaveAccrued,
-    decimal? Allowance) : IRequest<StaffItemDto>;
+    decimal? Allowance,
+    string? Content = null) : IRequest<StaffItemDto>;
 
 public class UpdateStaffHandler(
     IUserRepository userRepository,
@@ -96,7 +97,8 @@ public class UpdateStaffHandler(
                     command.LicenseNumber ?? string.Empty,
                     command.YearsOfExperience,
                     command.Education, command.Bio,
-                    command.CertificateIssuedDate, command.CertificateIssuedBy);
+                    command.CertificateIssuedDate, command.CertificateIssuedBy,
+                    content: command.Content);
                 await dentistRepository.AddAsync(dentistProfile, ct);
             }
             else
@@ -107,7 +109,8 @@ public class UpdateStaffHandler(
                     command.YearsOfExperience,
                     command.Education, command.Bio,
                     command.CertificateIssuedDate, command.CertificateIssuedBy,
-                    dentistProfile.Shift);
+                    dentistProfile.Shift,
+                    command.Content);
                 await dentistRepository.UpdateAsync(dentistProfile, ct);
             }
         }

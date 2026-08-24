@@ -16,31 +16,31 @@ public class PayrollCalculatorTests
     [Test]
     public void Compute_LeaveWithinAllowance_NoDeduction()
     {
-        var user = MakeStaffUser(baseSalary: 10_000_000m, allowance: 1_000_000m, leaveAccrued: 2m);
+        var user = MakeStaffUser(baseSalary: 10_000_000m, allowance: 1_000_000m, leaveAccrued: 12m);
         var leave = MakeApprovedLeave(user.Id, new DateOnly(2026, 8, 3), new DateOnly(2026, 8, 4));
 
         var result = PayrollCalculator.Compute(user, [leave], 2026, 8);
 
-        result.LeaveDays.Should().Be(2);
-        result.ExceededDays.Should().Be(0);
+        result.LeaveShifts.Should().Be(12); // 2 ngày × 6 ca/ngày
+        result.ExceededShifts.Should().Be(0);
         result.Deduction.Should().Be(0);
         result.NetSalary.Should().Be(11_000_000m);
     }
 
     /// <summary>
-    /// Vượt định mức phép bị trừ theo số ngày công vượt (lương cơ bản / 26 ngày công).
+    /// Vượt định mức phép bị trừ theo số ca công vượt (lương cơ bản / 156 ca công).
     /// </summary>
     [Test]
     public void Compute_LeaveExceedsAllowance_DeductsPerExceededDay()
     {
-        var user = MakeStaffUser(baseSalary: 13_000_000m, allowance: 1_000_000m, leaveAccrued: 1m);
+        var user = MakeStaffUser(baseSalary: 13_000_000m, allowance: 1_000_000m, leaveAccrued: 6m);
         var leave = MakeApprovedLeave(user.Id, new DateOnly(2026, 8, 10), new DateOnly(2026, 8, 12));
 
         var result = PayrollCalculator.Compute(user, [leave], 2026, 8);
 
-        result.LeaveDays.Should().Be(3);
-        result.ExceededDays.Should().Be(2);
-        result.Deduction.Should().Be(1_000_000m); // 2 ngày × (13.000.000 / 26)
+        result.LeaveShifts.Should().Be(18); // 3 ngày × 6 ca/ngày
+        result.ExceededShifts.Should().Be(12);
+        result.Deduction.Should().Be(1_000_000m); // 12 ca × (13.000.000 / 156)
         result.NetSalary.Should().Be(13_000_000m);
     }
 
@@ -53,8 +53,8 @@ public class PayrollCalculatorTests
         var user = MakeStaffUser(baseSalary: 10_000_000m, allowance: 0m, leaveAccrued: 0m);
         var leave = MakeApprovedLeave(user.Id, new DateOnly(2026, 7, 30), new DateOnly(2026, 8, 2));
 
-        PayrollCalculator.Compute(user, [leave], 2026, 8).LeaveDays.Should().Be(2);
-        PayrollCalculator.Compute(user, [leave], 2026, 7).LeaveDays.Should().Be(2);
+        PayrollCalculator.Compute(user, [leave], 2026, 8).LeaveShifts.Should().Be(12);
+        PayrollCalculator.Compute(user, [leave], 2026, 7).LeaveShifts.Should().Be(12);
     }
 
     /// <summary>
@@ -68,7 +68,7 @@ public class PayrollCalculatorTests
 
         var result = PayrollCalculator.Compute(user, [otherLeave], 2026, 8);
 
-        result.LeaveDays.Should().Be(0);
+        result.LeaveShifts.Should().Be(0);
         result.NetSalary.Should().Be(10_000_000m);
     }
 
@@ -135,7 +135,11 @@ public class PayrollCalculatorTests
 
     private static LeaveRequest MakeApprovedLeave(Guid userId, DateOnly from, DateOnly to)
     {
-        var leave = LeaveRequest.Create(userId, LeaveType.Annual, from, to, "Test");
+        var shifts = new List<(DateOnly Date, string ShiftId)>();
+        for (var d = from; d <= to; d = d.AddDays(1))
+            shifts.Add((d, "08:00-10:00"));
+
+        var leave = LeaveRequest.Create(userId, LeaveType.Annual, shifts, "Test");
         leave.Approve();
         return leave;
     }

@@ -138,13 +138,11 @@ export default function OwnerSchedulePage() {
     const activeDates = weekDates.map(d => formatDateKey(d));
     const weekEntries = scheduleData.filter(item => activeDates.includes(item.date) && !item.isHoliday);
     const dentists = new Set(weekEntries.filter(i => i.role === "dentist").map(i => i.name));
-    const assistants = new Set(weekEntries.filter(i => i.role === "assistant").map(i => i.name));
     const staff = new Set(weekEntries.filter(i => i.role === "staff").map(i => i.name));
     const holidays = new Set(scheduleData.filter(i => activeDates.includes(i.date) && i.isHoliday).map(i => i.date));
     return {
       totalShifts: weekEntries.length,
       dentists: dentists.size,
-      assistants: assistants.size,
       staff: staff.size,
       holidays: holidays.size,
     };
@@ -158,7 +156,7 @@ export default function OwnerSchedulePage() {
       const isInWeek = activeDates.includes(item.date);
       const matchesSearch = searchQuery === "" ||
         item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.room.toLowerCase().includes(searchQuery.toLowerCase());
+        (item.room && item.room.toLowerCase().includes(searchQuery.toLowerCase()));
 
       return isCorrectType && isInWeek && matchesSearch;
     });
@@ -196,7 +194,7 @@ export default function OwnerSchedulePage() {
     // Generate simple CSV content
     const headers = "Ngay,Ca,Loai,Nhan Vien,Phong Ban\n";
     const rows = filteredSchedule.map(item => {
-      return `"${item.date}","${shiftLabel(item.shift)}","${item.type === "dentist" ? "Nha si" : "Nhan vien"}","${item.name}","${item.room}"`;
+      return `"${item.date}","${shiftLabel(item.shift)}","${item.type === "dentist" ? "Nha si" : "Nhan vien"}","${item.name}","${item.room || "Ca trực"}"`;
     }).join("\n");
     
     const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + encodeURIComponent(headers + rows);
@@ -266,8 +264,8 @@ export default function OwnerSchedulePage() {
 
             <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex items-center justify-between">
               <div>
-                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Phụ tá / Nhân viên</span>
-                <span className="text-3xl font-black text-slate-900 block mt-1">{weekStats.assistants + weekStats.staff}</span>
+                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Nhân viên</span>
+                <span className="text-3xl font-black text-slate-900 block mt-1">{weekStats.staff}</span>
               </div>
               <div className="w-12 h-12 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -452,22 +450,25 @@ export default function OwnerSchedulePage() {
                                     </div>
                                   ) : (
                                     <>
-                                      {cellItems.map((item) => (
-                                        <div
-                                          key={item.id}
-                                          className={`bg-slate-50 border-l-4 ${item.roomColor} p-2.5 rounded-lg shadow-sm hover-lift flex flex-col gap-1 transition-all border border-slate-200/70`}
-                                        >
-                                          <div className="text-[10px] font-black text-slate-450 uppercase tracking-wide flex items-center justify-between">
-                                            <span>{item.room}</span>
-                                            {item.role === "assistant" && (
-                                              <span className="text-teal-600 font-extrabold text-[8px] bg-teal-50 px-1 rounded">PHỤ TÁ</span>
-                                            )}
+                                      {cellItems.map((item) => {
+                                        const borderCol = item.roomColor || (item.role === "staff" ? "border-green-600" : "border-primary");
+                                        return (
+                                          <div
+                                            key={item.id}
+                                            className={`bg-slate-50 border-l-4 ${borderCol} p-2.5 rounded-lg shadow-sm hover-lift flex flex-col gap-1 transition-all border border-slate-200/70`}
+                                          >
+                                            <div className="text-[10px] font-black text-slate-450 uppercase tracking-wide flex items-center justify-between">
+                                              <span>{item.room || (item.role === "staff" ? "Nhân viên" : "")}</span>
+                                              {item.role === "assistant" && (
+                                                <span className="text-teal-600 font-extrabold text-[8px] bg-teal-50 px-1 rounded">PHỤ TÁ</span>
+                                              )}
+                                            </div>
+                                            <div className="text-[13.5px] font-extrabold text-slate-800">
+                                              {item.name}
+                                            </div>
                                           </div>
-                                          <div className="text-[13.5px] font-extrabold text-slate-800">
-                                            {item.name}
-                                          </div>
-                                        </div>
-                                      ))}
+                                        );
+                                      })}
 
                                       {/* Empty state */}
                                       {cellItems.length === 0 && (

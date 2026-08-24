@@ -41,5 +41,10 @@ public class GetLeaveRequestsHandler(ILeaveRequestRepository leaveRequestReposit
         r.Status.ToString(),
         r.ReviewerNote,
         r.CreatedAt,
-        r.ReviewedAt);
+        r.ReviewedAt,
+        r.Shifts
+            .OrderBy(s => s.Date)
+            .ThenBy(s => s.ShiftId)
+            .Select(s => new LeaveRequestShiftDto(s.Date, s.ShiftId))
+            .ToList());
 }
