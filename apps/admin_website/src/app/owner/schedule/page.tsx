@@ -138,13 +138,11 @@ export default function OwnerSchedulePage() {
     const activeDates = weekDates.map(d => formatDateKey(d));
     const weekEntries = scheduleData.filter(item => activeDates.includes(item.date) && !item.isHoliday);
     const dentists = new Set(weekEntries.filter(i => i.role === "dentist").map(i => i.name));
-    const assistants = new Set(weekEntries.filter(i => i.role === "assistant").map(i => i.name));
     const staff = new Set(weekEntries.filter(i => i.role === "staff").map(i => i.name));
     const holidays = new Set(scheduleData.filter(i => activeDates.includes(i.date) && i.isHoliday).map(i => i.date));
     return {
       totalShifts: weekEntries.length,
       dentists: dentists.size,
-      assistants: assistants.size,
       staff: staff.size,
       holidays: holidays.size,
     };
@@ -266,8 +264,8 @@ export default function OwnerSchedulePage() {
 
             <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex items-center justify-between">
               <div>
-                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Phụ tá / Nhân viên</span>
-                <span className="text-3xl font-black text-slate-900 block mt-1">{weekStats.assistants + weekStats.staff}</span>
+                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Nhân viên</span>
+                <span className="text-3xl font-black text-slate-900 block mt-1">{weekStats.staff}</span>
               </div>
               <div className="w-12 h-12 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
