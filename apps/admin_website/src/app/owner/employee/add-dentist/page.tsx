@@ -65,7 +65,7 @@ export default function AddDentistPage() {
   const [formEmploymentType, setFormEmploymentType] = useState("Full-time");
   const [formBaseSalary, setFormBaseSalary] = useState(25000000);
   const [formSalaryUnit, setFormSalaryUnit] = useState("Theo tháng");
-  const [formLeaveAccrued, setFormLeaveAccrued] = useState(1.5);
+  const [formLeaveAccrued, setFormLeaveAccrued] = useState(24);
   const [formAllowance, setFormAllowance] = useState(2500000);
 
   useEffect(() => {
@@ -648,18 +648,15 @@ export default function AddDentistPage() {
                   </div>
 
                   <div>
-                    <label className={lbl}>Số ngày phép / tháng</label>
+                    <label className={lbl}>Số ca / tháng</label>
                     <input
                       type="number"
                       required
                       min="0"
-                      step="0.5"
+                      step="1"
                       value={formLeaveAccrued}
                       onChange={(e) => setFormLeaveAccrued(Number(e.target.value))}
-                      disabled={formEmploymentType !== "Full-time"}
-                      className={`${inp("leaveAccrued")} ${
-                        formEmploymentType !== "Full-time" ? "opacity-60 cursor-not-allowed bg-slate-100 font-semibold text-[14px]" : ""
-                      }`}
+                      className={inp("leaveAccrued")}
                     />
                     {errMsg("leaveAccrued")}
                   </div>

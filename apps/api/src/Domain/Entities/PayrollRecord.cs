@@ -19,9 +19,9 @@ public class PayrollRecord
 
     public decimal BaseSalary { get; private set; }
     public decimal Allowance { get; private set; }
-    public int LeaveDays { get; private set; }
-    public decimal AllowedLeaveDays { get; private set; }
-    public decimal ExceededDays { get; private set; }
+    public int LeaveShifts { get; private set; }
+    public decimal AllowedLeaveShifts { get; private set; }
+    public decimal ExceededShifts { get; private set; }
     public decimal Deduction { get; private set; }
     public decimal Bonus { get; private set; }
     public decimal NetSalary { get; private set; }
@@ -41,9 +41,9 @@ public class PayrollRecord
         int month,
         decimal baseSalary,
         decimal allowance,
-        int leaveDays,
-        decimal allowedLeaveDays,
-        decimal exceededDays,
+        int leaveShifts,
+        decimal allowedLeaveShifts,
+        decimal exceededShifts,
         decimal deduction)
     {
         if (month is < 1 or > 12)
@@ -60,9 +60,9 @@ public class PayrollRecord
             Month = month,
             BaseSalary = baseSalary,
             Allowance = allowance,
-            LeaveDays = leaveDays,
-            AllowedLeaveDays = allowedLeaveDays,
-            ExceededDays = exceededDays,
+            LeaveShifts = leaveShifts,
+            AllowedLeaveShifts = allowedLeaveShifts,
+            ExceededShifts = exceededShifts,
             Deduction = deduction,
             Bonus = 0m,
             NetSalary = baseSalary + allowance - deduction,
@@ -87,9 +87,9 @@ public class PayrollRecord
     public void RefreshDraftFigures(
         decimal baseSalary,
         decimal allowance,
-        int leaveDays,
-        decimal allowedLeaveDays,
-        decimal exceededDays,
+        int leaveShifts,
+        decimal allowedLeaveShifts,
+        decimal exceededShifts,
         decimal deduction)
     {
         if (Status != PayrollStatus.Draft)
@@ -97,9 +97,9 @@ public class PayrollRecord
 
         BaseSalary = baseSalary;
         Allowance = allowance;
-        LeaveDays = leaveDays;
-        AllowedLeaveDays = allowedLeaveDays;
-        ExceededDays = exceededDays;
+        LeaveShifts = leaveShifts;
+        AllowedLeaveShifts = allowedLeaveShifts;
+        ExceededShifts = exceededShifts;
         Deduction = deduction;
         NetSalary = baseSalary + allowance + Bonus - deduction;
         UpdatedAt = DateTimeOffset.UtcNow;

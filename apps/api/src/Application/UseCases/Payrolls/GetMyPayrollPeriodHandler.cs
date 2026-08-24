@@ -18,7 +18,7 @@ public class GetMyPayrollPeriodHandler(IPayrollRepository payrollRepository)
 
         var user = await payrollRepository.GetPayableUserByIdAsync(query.UserId, ct);
         if (user is null)
-            return new MyPayrollPeriodDto(query.Year, query.Month, PayrollCalculator.WorkingDaysPerMonth, null);
+            return new MyPayrollPeriodDto(query.Year, query.Month, PayrollCalculator.WorkingShiftsPerMonth, null);
 
         var (prevYear, prevMonth) = GetPayrollPeriodHandler.PreviousPeriod(query.Year, query.Month);
         var (prevFrom, _) = GetPayrollPeriodHandler.PeriodRange(prevYear, prevMonth);
@@ -32,6 +32,6 @@ public class GetMyPayrollPeriodHandler(IPayrollRepository payrollRepository)
         var previousNetSalary = GetPayrollPeriodHandler.NetSalaryOf(user, prevRecord, leaves, prevYear, prevMonth);
         var item = GetPayrollPeriodHandler.BuildItem(user, record, leaves, query.Year, query.Month, previousNetSalary);
 
-        return new MyPayrollPeriodDto(query.Year, query.Month, PayrollCalculator.WorkingDaysPerMonth, item);
+        return new MyPayrollPeriodDto(query.Year, query.Month, PayrollCalculator.WorkingShiftsPerMonth, item);
     }
 }

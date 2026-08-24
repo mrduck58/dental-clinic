@@ -549,9 +549,9 @@ export default function StaffDetailPage() {
                     {employmentType === "Full-time" && (
                       <div className="sm:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-slate-100 pt-4">
                         <div className="flex justify-between items-center bg-teal-50/40 rounded-xl p-3 border border-teal-100/40">
-                          <span className="text-slate-500 font-bold">Phép tích lũy thêm hàng tháng:</span>
+                          <span className="text-slate-500 font-bold">Số ca phép / tháng:</span>
                           <span className={`font-extrabold text-[14.5px] ${leaveAccrued == null ? "text-slate-400" : "text-teal-800"}`}>
-                            {leaveAccrued == null ? "Chưa có dữ liệu" : `${leaveAccrued} ngày`}
+                            {leaveAccrued == null ? "Chưa có dữ liệu" : `${leaveAccrued} ca`}
                           </span>
                         </div>
                         <div className="flex justify-between items-center bg-teal-50/40 rounded-xl p-3 border border-teal-100/40">

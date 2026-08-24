@@ -172,7 +172,7 @@ export default function OwnerPayrollDentistsPage() {
 
   const formatDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("vi-VN") : "—");
 
-  const formatDays = (val: number) => (Number.isInteger(val) ? String(val) : val.toFixed(1));
+  const formatShifts = (val: number) => (Number.isInteger(val) ? String(val) : val.toFixed(1));
 
   const showMessage = (msg: string) => {
     setErrorMsg(null);
@@ -372,9 +372,9 @@ export default function OwnerPayrollDentistsPage() {
       "Số điện thoại": item.phoneNumber ?? "—",
       "Lương cơ bản": item.baseSalary,
       "Phụ cấp": item.allowance,
-      "Nghỉ thực tế (ngày)": item.leaveDays,
-      "Định mức phép (ngày)": item.allowedLeaveDays,
-      "Vượt phép (ngày)": item.exceededDays,
+      "Nghỉ thực tế (ca)": item.leaveShifts,
+      "Định mức phép (ca)": item.allowedLeaveShifts,
+      "Vượt phép (ca)": item.exceededShifts,
       "Khấu trừ": item.deduction,
       "Thưởng": item.bonus,
       "Thực nhận (Net)": item.netSalary,
@@ -827,11 +827,11 @@ export default function OwnerPayrollDentistsPage() {
                           <td className="px-4 py-4 text-right">
                             <div className="text-rose-500 font-bold tabular-nums">-{formatCurrency(item.deduction)}</div>
                             <div className="text-[10px] text-slate-400 font-bold mt-0.5 block whitespace-nowrap">
-                              {item.leaveDays > 0 ? (
+                              {item.leaveShifts > 0 ? (
                                 <span>
-                                  Nghỉ {formatDays(item.leaveDays)}n/{formatDays(item.allowedLeaveDays)}n phép{" "}
-                                  {item.exceededDays > 0 && (
-                                    <span className="text-rose-400 font-extrabold">(vượt {formatDays(item.exceededDays)})</span>
+                                  Nghỉ {formatShifts(item.leaveShifts)}c/{formatShifts(item.allowedLeaveShifts)}c phép{" "}
+                                  {item.exceededShifts > 0 && (
+                                    <span className="text-rose-400 font-extrabold">(vượt {formatShifts(item.exceededShifts)})</span>
                                   )}
                                 </span>
                               ) : (

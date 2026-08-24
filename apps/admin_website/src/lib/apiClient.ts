@@ -4228,9 +4228,9 @@ export interface PayrollItemDto {
   phoneNumber: string | null;
   baseSalary: number;
   allowance: number;
-  leaveDays: number;
-  allowedLeaveDays: number;
-  exceededDays: number;
+  leaveShifts: number;
+  allowedLeaveShifts: number;
+  exceededShifts: number;
   deduction: number;
   bonus: number;
   netSalary: number;
@@ -4260,7 +4260,7 @@ export interface PayrollSummaryDto {
 export interface PayrollPeriodDto {
   year: number;
   month: number;
-  workingDaysPerMonth: number;
+  workingShiftsPerMonth: number;
   summary: PayrollSummaryDto;
   items: PayrollItemDto[];
 }
@@ -4471,7 +4471,7 @@ export async function setPayrollBonusApi(data: {
 export interface MyPayrollPeriodDto {
   year: number;
   month: number;
-  workingDaysPerMonth: number;
+  workingShiftsPerMonth: number;
   item: PayrollItemDto | null;
 }
 

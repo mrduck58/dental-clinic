@@ -36,7 +36,7 @@ public class CreatePayrollPeriodHandler(
             var c = PayrollCalculator.Compute(user, leaves, command.Year, command.Month);
             newRecords.Add(PayrollRecord.CreateDraft(
                 user.Id, command.Year, command.Month,
-                c.BaseSalary, c.Allowance, c.LeaveDays, c.AllowedLeaveDays, c.ExceededDays, c.Deduction));
+                c.BaseSalary, c.Allowance, c.LeaveShifts, c.AllowedLeaveShifts, c.ExceededShifts, c.Deduction));
         }
 
         if (newRecords.Count > 0)
