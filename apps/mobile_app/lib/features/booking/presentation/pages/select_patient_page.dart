@@ -110,8 +110,10 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
     // 1. Kiểm tra nếu bệnh nhân được chọn đang bị cooldown 30 phút hoặc đã có 1 lịch hẹn đang hoạt động
     final patientId = _patients[index].id == 'self' ? null : _patients[index].id;
     final patientEligibility = await _bookingService.getBookingEligibility(patientId: patientId);
+    final isSamePatientInDraft = widget.initialDraft?.isRescheduling == true &&
+        widget.initialDraft?.patient?.id == _patients[index].id;
 
-    if (widget.initialDraft?.isRescheduling != true && patientEligibility.activeBookingCount >= 1) {
+    if (!isSamePatientInDraft && patientEligibility.activeBookingCount >= 1) {
       if (!mounted) return;
       showDialog(
         context: context,
@@ -251,7 +253,11 @@ class _SelectPatientPageState extends State<SelectPatientPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.bg,
-      appBar: BookingAppBar(title: context.l10n('book_appointment'), onBack: () => context.pop()),
+      appBar: BookingAppBar(
+        title: context.l10n('book_appointment'),
+        draft: widget.initialDraft,
+        onBack: () => context.pop(),
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : CustomScrollView(
