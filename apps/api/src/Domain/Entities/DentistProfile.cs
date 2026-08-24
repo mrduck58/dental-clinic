@@ -21,6 +21,9 @@ public class DentistProfile
     public string? CertificateIssuedBy { get; private set; }
     public string Shift { get; private set; } = "morning"; // "morning" | "afternoon"
 
+    /// <summary>Nội dung bài viết HTML giới thiệu chi tiết về nha sĩ (hiển thị trên clinic_website).</summary>
+    public string Content { get; private set; } = string.Empty;
+
     // Read-only delegated properties
     public string FullName => Employee?.User?.FullName ?? string.Empty;
     public string? ProfilePictureUrl => Employee?.ProfilePictureUrl;
@@ -40,7 +43,8 @@ public class DentistProfile
         string? biography = null,
         DateOnly? certificateIssuedDate = null,
         string? certificateIssuedBy = null,
-        string shift = "morning")
+        string shift = "morning",
+        string? content = null)
     {
         return new DentistProfile
         {
@@ -53,7 +57,8 @@ public class DentistProfile
             Biography = biography,
             CertificateIssuedDate = certificateIssuedDate,
             CertificateIssuedBy = certificateIssuedBy,
-            Shift = shift
+            Shift = shift,
+            Content = content ?? string.Empty
         };
     }
 
@@ -65,7 +70,8 @@ public class DentistProfile
         string? biography,
         DateOnly? certificateIssuedDate,
         string? certificateIssuedBy,
-        string shift)
+        string shift,
+        string? content = null)
     {
         Specialization = specialization;
         LicenseNumber = licenseNumber;
@@ -75,5 +81,6 @@ public class DentistProfile
         CertificateIssuedDate = certificateIssuedDate;
         CertificateIssuedBy = certificateIssuedBy;
         Shift = shift;
+        Content = content ?? string.Empty;
     }
 }

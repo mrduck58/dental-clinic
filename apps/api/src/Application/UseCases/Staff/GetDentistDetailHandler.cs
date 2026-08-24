@@ -13,6 +13,8 @@ public record DentistDetailDto(
     string? Education,
     string? CertificateIssuedBy,
     int PatientCount,
+    /// <summary>Bài viết chi tiết (HTML) giới thiệu về nha sĩ — hiển thị trên clinic_website.</summary>
+    string? Content,
     // ── Hồ sơ chuyên môn mở rộng ────────────────────────────────────────────
     string? Gender,
     string? Department,
@@ -63,6 +65,7 @@ public class GetDentistDetailHandler(
             dentist.Education,
             dentist.CertificateIssuedBy,
             patientCount,
+            dentist.Content,
             dentist.Employee.User?.Gender,
             dentist.Employee.Department,
             dentist.Employee.Position,

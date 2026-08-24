@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import PageHeader from "@/components/shared/PageHeader";
 
 export const metadata: Metadata = {
   title: "Hướng dẫn sử dụng app | Sơn Giang Dental Clinic",
@@ -25,28 +24,33 @@ const BOOKING_STEPS: Step[] = [
   },
   {
     title: "Chọn dịch vụ",
-    description: "Gõ tìm nhanh chuyên khoa hoặc lướt danh sách dịch vụ kèm giá niêm yết. Bấm \"Xem thêm\" trên mỗi dịch vụ để xem mô tả chi tiết trước khi chọn.",
-    image: "/guide/step-2-chon-dich-vu.png",
+    description: "Gõ tìm nhanh chuyên khoa hoặc lướt danh sách dịch vụ kèm thời lượng dự kiến. Bấm \"Xem thêm\" trên mỗi dịch vụ để xem mô tả chi tiết trước khi chọn.",
+    image: "/guide/step-2-chon-dich-vu.jpg",
   },
   {
     title: "Chọn ngày khám",
-    description: "Lịch hiển thị dạng calendar theo tháng — ngày còn giờ trống được tô màu rõ ràng, ngày đã qua bị khoá. Chọn ngày phù hợp để sang bước kế tiếp.",
-    image: "/guide/step-3-chon-ngay.png",
+    description: "Lịch hiển thị dạng calendar theo tháng — ngày có thể đặt khám được tô đỏ, hôm nay khoanh viền, ngày đã qua bị khoá. Chọn ngày phù hợp để sang bước kế tiếp.",
+    image: "/guide/step-3-chon-ngay.jpg",
   },
   {
-    title: "Chọn bác sĩ & khung giờ",
-    description: "Xem danh sách bác sĩ còn khung giờ trống theo buổi sáng/chiều/tối. App có gắn nhãn \"Gợi ý AI\" cho bác sĩ phù hợp nhất với nhu cầu của bạn.",
-    image: "/guide/step-4-chon-bac-si.png",
+    title: "Chọn bác sĩ",
+    description: "Xem danh sách nha sĩ còn ca khám trống trong ngày đã chọn, kèm chuyên khoa và số năm kinh nghiệm. Bấm \"Đổi ngày\" ngay tại đây nếu muốn xem ngày khác.",
+    image: "/guide/step-4-chon-bac-si.jpg",
+  },
+  {
+    title: "Chọn ca khám",
+    description: "Chọn khung giờ cụ thể theo \"Buổi sáng\" hoặc \"Buổi chiều\" — khung đã kín hiển thị \"Đã kín\" và bị khoá. Bấm \"Tiếp tục\" ở cuối màn hình để sang bước xác nhận.",
+    image: "/guide/step-5-chon-ca-kham.jpg",
   },
   {
     title: "Xác nhận thông tin đặt khám",
-    description: "Kiểm tra lại dịch vụ, ngày, giờ, bác sĩ đã chọn — bấm \"Sửa\" nếu cần đổi mục nào. Nhập thêm triệu chứng (nếu có) rồi bấm \"Xác nhận đặt khám\".",
-    image: "/guide/step-5-xac-nhan.png",
+    description: "Kiểm tra lại bệnh nhân, dịch vụ, ngày giờ và bác sĩ đã chọn — bấm \"Sửa\" nếu cần đổi mục nào (lưu ý đồng hồ đếm ngược giữ chỗ). Nhập thêm triệu chứng (nếu có) rồi bấm \"Xác nhận đặt khám\".",
+    image: "/guide/step-6-xac-nhan.jpg",
   },
   {
     title: "Đặt lịch thành công",
     description: "Nhận ngay mã lịch hẹn với trạng thái \"Đã xác nhận\" — app sẽ gửi thông báo nhắc trước giờ khám. Có thể xem lại lịch hẹn bất kỳ lúc nào ở mục \"Xem lịch hẹn\".",
-    image: "/guide/step-6-thanh-cong.png",
+    image: "/guide/step-7-thanh-cong.png",
   },
 ];
 
@@ -101,15 +105,9 @@ function PhoneFrame({ src, alt }: { src: string; alt: string }) {
 export default function HuongDanSuDungPage() {
   return (
     <div className="animate-fade-in">
-      <PageHeader
-        eyebrow="Ứng Dụng Di Động"
-        title="Hướng dẫn sử dụng app"
-        description="Đặt lịch khám và quản lý sức khoẻ răng miệng cho cả gia đình, tất cả trong ứng dụng Sơn Giang Dental."
-      />
-
       {/* Các bước đặt lịch */}
       <section className="py-16 bg-white">
-        <div className="max-w-5xl mx-auto px-6">
+        <div className="max-w-7xl mx-auto px-6">
           <div className="text-center max-w-2xl mx-auto mb-14">
             <span className="text-[12px] font-black tracking-widest text-primary uppercase">Đặt Lịch Qua App</span>
             <h2 className="text-3xl md:text-4xl font-black text-slate-900 mt-2 mb-4">

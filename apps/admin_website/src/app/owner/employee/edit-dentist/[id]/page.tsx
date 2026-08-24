@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import OwnerSidebar from "../../../../../components/shared/OwnerSidebar";
 import OwnerPageHeader from "../../../../../components/shared/OwnerPageHeader";
+import RichTextEditor from "../../../../../components/shared/RichTextEditor";
 import { useRequireOwner } from "../../../../../hooks/useRequireOwner";
 import { updateStaffApi, getStaffByIdApi, uploadFileApi, resolveAssetUrl, ApiValidationError, type StaffDto, type UpdateStaffCommand } from "../../../../../lib/apiClient";
 
@@ -39,6 +40,7 @@ export default function EditDentistPage() {
 
   const [staff, setStaff] = useState<StaffDto | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [formContent, setFormContent] = useState("");
   const [formData, setFormData] = useState<DentistEditForm>({
     fullName: "", gender: "", dateOfBirth: "", phoneNumber: "", email: "",
     address: "", profilePictureUrl: "", specialty: "", licenseNumber: "",
@@ -64,6 +66,7 @@ export default function EditDentistPage() {
 
   const populateData = (data: StaffDto) => {
     setStaff(data);
+    setFormContent(data.content || "");
 
     const exp = data.yearsOfExperience ?? 5;
     const isDentist = data.role === "Dentist";
@@ -220,6 +223,7 @@ export default function EditDentistPage() {
         salaryUnit: formSalaryUnit,
         leaveAccrued: formLeaveAccrued,
         allowance: formAllowance,
+        content: formContent,
       };
       await updateStaffApi(id, payload);
       sessionStorage.setItem("staffSuccessMsg", `Cập nhật thông tin nha sĩ ${formData.fullName.trim()} thành công!`);
@@ -644,6 +648,29 @@ export default function EditDentistPage() {
                     />
                     {errMsg("bio")}
                   </div>
+                </div>
+              </div>
+
+              {/* CARD: BÀI VIẾT CHI TIẾT VỀ NHA SĨ */}
+              <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+                  <h3 className="text-[15px] font-extrabold text-slate-700 flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                    Bài viết chi tiết về nha sĩ
+                  </h3>
+                  <p className="text-[12px] text-slate-400 mt-0.5">
+                    Soạn bài viết giới thiệu quá trình đào tạo, kinh nghiệm, thành tích & hình ảnh cho bệnh nhân xem trên website.
+                  </p>
+                </div>
+
+                <div className="p-6">
+                  <RichTextEditor
+                    value={formContent}
+                    onChange={setFormContent}
+                    placeholder="Nhập bài viết giới thiệu chi tiết về nha sĩ (Quá trình đào tạo, kinh nghiệm, thành tích, hình ảnh minh họa...)..."
+                    minHeight="450px"
+                    maxHeight="700px"
+                  />
                 </div>
               </div>
 

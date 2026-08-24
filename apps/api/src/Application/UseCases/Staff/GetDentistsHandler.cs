@@ -10,7 +10,9 @@ public record DentistSummaryDto(
     string? Specialty,
     string? ProfilePictureUrl,
     int? YearsOfExperience,
-    string? Bio);
+    string? Bio,
+    /// <summary>Bài viết chi tiết (HTML) giới thiệu về nha sĩ — hiển thị trên clinic_website.</summary>
+    string? Content);
 
 public record GetDentistsQuery : IRequest<IEnumerable<DentistSummaryDto>>;
 
@@ -29,7 +31,8 @@ public class GetDentistsHandler(IUserRepository userRepository, IDentistReposito
                 d.Specialization,
                 d.ProfilePictureUrl,
                 d.ExperienceYears,
-                d.Biography));
+                d.Biography,
+                d.Content));
         }
 
         var (items, _) = await userRepository.GetStaffPagedAsync(
@@ -43,6 +46,7 @@ public class GetDentistsHandler(IUserRepository userRepository, IDentistReposito
                 u.Employee?.DentistProfile?.Specialization ?? "Nha khoa tổng quát",
                 u.Employee?.ProfilePictureUrl,
                 u.Employee?.DentistProfile?.ExperienceYears ?? 5,
-                u.Employee?.DentistProfile?.Biography));
+                u.Employee?.DentistProfile?.Biography,
+                u.Employee?.DentistProfile?.Content));
     }
 }
