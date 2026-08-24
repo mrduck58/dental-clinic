@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import PageHeader from "@/components/shared/PageHeader";
 import ServicesSection from "@/components/sections/ServicesSection";
 import ProcessSection from "@/components/sections/ProcessSection";
 import FilterBar from "@/components/shared/FilterBar";
@@ -63,11 +62,6 @@ export default async function DichVuPage({ searchParams }: Props) {
 
   return (
     <div className="animate-fade-in">
-      <PageHeader
-        eyebrow="Dịch Vụ"
-        title="Dịch vụ"
-        description="Đa dạng dịch vụ điều trị và thẩm mỹ răng miệng cao cấp giúp bạn tự tin với nụ cười toả sáng."
-      />
       <ServicesSection
         services={paged.items}
         showIntro={false}

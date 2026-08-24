@@ -249,6 +249,8 @@ export interface StaffDto {
   allowance: number | null;
   /** Id hồ sơ nha sĩ — null nếu nhân viên không phải bác sĩ. Đánh giá của bệnh nhân khóa theo id này. */
   dentistProfileId: string | null;
+  /** Bài viết chi tiết (HTML) giới thiệu về nha sĩ — null nếu không phải bác sĩ. */
+  content: string | null;
 }
 
 
@@ -294,6 +296,7 @@ export interface CreateStaffCommand {
   salaryUnit?: string | null;
   leaveAccrued?: number | null;
   allowance?: number | null;
+  content?: string | null;
 }
 
 export interface UpdateStaffCommand {
@@ -325,6 +328,7 @@ export interface UpdateStaffCommand {
   salaryUnit?: string | null;
   leaveAccrued?: number | null;
   allowance?: number | null;
+  content?: string | null;
 }
 
 export interface ResetPasswordResponse {

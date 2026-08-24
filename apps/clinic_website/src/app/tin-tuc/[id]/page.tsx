@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import PageHeader from "@/components/shared/PageHeader";
 import RelatedPosts from "@/components/sections/RelatedPosts";
 import { getPostById, getPosts, ApiError } from "@/lib/api";
 import { formatDate, categoryColor, excerpt } from "@/lib/format";
+import { shuffle } from "@/lib/listing";
 import type { PostDto } from "@/types/api";
 
 export const dynamic = "force-dynamic";
@@ -36,13 +36,11 @@ export default async function PostDetailPage({ params }: Props) {
   ]);
   if (!post) notFound();
 
-  // Các bài viết khác (loại bài hiện tại), tối đa 5 bài cho sidebar.
-  const otherPosts = allPosts.filter((p) => p.id !== post.id).slice(0, 5);
+  // Các bài viết khác (loại bài hiện tại), random tối đa 5 bài cho sidebar.
+  const otherPosts = shuffle(allPosts.filter((p) => p.id !== post.id)).slice(0, 5);
 
   return (
     <div className="animate-fade-in">
-      <PageHeader eyebrow="Tin Tức & Sự Kiện" title={post.title} />
-
       <article className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-12 lg:gap-16">
@@ -50,11 +48,14 @@ export default async function PostDetailPage({ params }: Props) {
             {/* Nội dung chính */}
             <div className="min-w-0 max-w-3xl">
               {/* Meta */}
-              <div className="flex flex-wrap items-center gap-3 mb-6">
+              <div className="flex flex-wrap items-center gap-3 mb-4">
                 <span className={`text-[11px] font-black px-2.5 py-1 rounded-full ${categoryColor(post.category)}`}>{post.category}</span>
                 <span className="text-[13px] text-slate-400 font-medium">{formatDate(post.publishedAt ?? post.createdAt)}</span>
                 <span className="text-[13px] text-slate-400 font-medium">• {post.author}</span>
               </div>
+
+              {/* Tiêu đề */}
+              <h1 className="text-3xl md:text-4xl font-black text-slate-900 leading-tight mb-6">{post.title}</h1>
 
               {/* Ảnh bìa */}
               <div className="rounded-3xl overflow-hidden shadow-xl border border-slate-200/60 mb-10">
