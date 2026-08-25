@@ -389,6 +389,18 @@ export default function OwnerStaffManagementPage() {
                           <td className="px-6 py-4.5 text-slate-900 font-bold">
                             {(() => {
                               const isShift = item.position?.toLowerCase().includes("lễ tân") || item.position?.toLowerCase().includes("tiếp đón");
+
+                              if (item.employmentType === "Part-time") {
+                                const rate = item.ratePerShift ?? 150000;
+                                const formatted = new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(rate);
+                                return (
+                                  <>
+                                    {formatted}
+                                    <span className="text-[11px] text-slate-400 font-semibold ml-0.5">/ca</span>
+                                  </>
+                                );
+                              }
+
                               const baseSalary = item.baseSalary ?? (10000000 + (item.fullName?.length || 5) * 200000);
                               const rawUnit = item.salaryUnit || (isShift ? "Theo ca" : "Theo tháng");
                               const unit = rawUnit.toLowerCase().includes("tháng") ? "tháng" : rawUnit.toLowerCase().includes("ngày") ? "ngày" : rawUnit.toLowerCase().includes("ca") ? "ca" : "giờ";

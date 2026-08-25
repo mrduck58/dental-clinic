@@ -313,7 +313,6 @@ export default function OwnerDentistManagementPage() {
                   <tr className="border-b border-slate-150 bg-slate-50/70 select-none">
                     <SortableTh column="name" label="Nhân viên" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-6" />
                     <Th className="px-6">Liên hệ</Th>
-                    <SortableTh column="specialty" label="Chuyên khoa" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-6" />
                     <Th className="px-6">Hình thức</Th>
                     <SortableTh column="salary" label="Lương cơ bản" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-6" />
                     <SortableTh column="leaveAccrued" label="Nghỉ phép/tháng" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} align="center" className="px-6" />
@@ -324,7 +323,7 @@ export default function OwnerDentistManagementPage() {
                 <tbody className="divide-y divide-slate-100">
                   {isLoading ? (
                     <tr>
-                      <td colSpan={8} className="px-6 py-16 text-center font-bold text-slate-400 animate-pulse">
+                      <td colSpan={7} className="px-6 py-16 text-center font-bold text-slate-400 animate-pulse">
                         Đang tải danh sách hồ sơ nha sĩ...
                       </td>
                     </tr>
@@ -363,9 +362,6 @@ export default function OwnerDentistManagementPage() {
                             <span className="text-[12px] text-slate-400 font-bold block mt-0.5">{item.phoneNumber || "—"}</span>
                           </td>
                           <td className="px-6 py-4.5">
-                            <span className="font-bold text-slate-700 block">{item.specialty || "—"}</span>
-                          </td>
-                          <td className="px-6 py-4.5">
                             {(() => {
                               const exp = item.yearsOfExperience ?? 5;
                               const isPartTime = exp % 2 === 0;
@@ -392,8 +388,21 @@ export default function OwnerDentistManagementPage() {
                             {(() => {
                               const exp = item.yearsOfExperience ?? 5;
                               const isPartTime = exp % 2 === 0;
+                              const type = item.employmentType || (isPartTime ? "Part-time" : "Full-time");
+
+                              if (type === "Part-time") {
+                                const rate = item.ratePerShift ?? 150000;
+                                const formatted = new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(rate);
+                                return (
+                                  <>
+                                    {formatted}
+                                    <span className="text-[11px] text-slate-400 font-semibold ml-0.5">/ca</span>
+                                  </>
+                                );
+                              }
+
                               const baseSalary = item.baseSalary ?? (25000000 + exp * 1500000);
-                              const rawUnit = item.salaryUnit || (isPartTime ? "Theo ngày" : "Theo tháng");
+                              const rawUnit = item.salaryUnit || "Theo tháng";
                               const unit = rawUnit.toLowerCase().includes("tháng") ? "tháng" : rawUnit.toLowerCase().includes("ngày") ? "ngày" : rawUnit.toLowerCase().includes("ca") ? "ca" : "giờ";
                               const formatted = new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(baseSalary);
                               return (
@@ -463,7 +472,7 @@ export default function OwnerDentistManagementPage() {
                     })
                   ) : (
                     <tr>
-                      <td colSpan={8} className="px-6 py-16 text-center">
+                      <td colSpan={7} className="px-6 py-16 text-center">
                         <div className="flex flex-col items-center gap-2">
                           <svg className="w-9 h-9 text-slate-355" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
