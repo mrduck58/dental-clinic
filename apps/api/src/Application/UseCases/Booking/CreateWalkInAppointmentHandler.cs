@@ -27,7 +27,12 @@ public record CreateWalkInCommand(
     /// <summary>Có email thì bệnh nhân mới được lập tài khoản thật để lần sau tự đặt lịch trên app.</summary>
     string? PatientEmail = null,
     /// <summary>Mã bệnh nhân đọc từ hộp thư — thiếu nó thì chỉ tạo hồ sơ, không cấp tài khoản.</summary>
-    string? EmailVerificationCode = null) : IRequest<CreateWalkInResult>;
+    string? EmailVerificationCode = null,
+    /// <summary>
+    /// Có giá trị khi đây là staff check-in một buổi tái khám từ tab Tái khám (thay vì lịch vãng lai
+    /// thường) — buổi hẹn mới sẽ gắn về buổi gốc này để bác sĩ thấy cờ tái khám và liệu trình cũ.
+    /// </summary>
+    Guid? FollowUpFromAppointmentId = null) : IRequest<CreateWalkInResult>;
 
 public record CreateWalkInResult(
     Guid AppointmentId,
@@ -55,6 +60,22 @@ public class CreateWalkInAppointmentHandler(
         var dentistUserId = await appointmentRepository.GetDentistUserIdAsync(cmd.DentistId, ct);
         if (!dentistUserId.HasValue)
             throw new ValidationException($"Không tìm thấy bác sĩ với ID: '{cmd.DentistId}'.");
+
+        // 1c. Check-in tái khám (có FollowUpFromAppointmentId): buổi gốc phải tồn tại, đã được bác sĩ
+        // hẹn ngày tái khám, và chưa từng được check-in tái khám lần nào khác (tránh tạo trùng nếu
+        // staff bấm lại hoặc mở 2 tab).
+        if (cmd.FollowUpFromAppointmentId is { } originalAppointmentId)
+        {
+            var original = await appointmentRepository.GetByIdAsync(originalAppointmentId, ct)
+                ?? throw new NotFoundException("Không tìm thấy buổi hẹn gốc.");
+
+            if (original.FollowUpDate == null)
+                throw new ValidationException("Buổi hẹn này chưa được bác sĩ hẹn tái khám.");
+
+            var alreadyCheckedIn = await appointmentRepository.HasActiveFollowUpCheckInAsync(originalAppointmentId, ct);
+            if (alreadyCheckedIn)
+                throw new ConflictException("Buổi hẹn này đã được check-in tái khám.");
+        }
 
         // 2. Kiểm tra slot còn trống
         var isBooked = await appointmentRepository.IsSlotBookedAsync(cmd.DentistId, utcAppointmentDate, ct);
@@ -121,7 +142,8 @@ public class CreateWalkInAppointmentHandler(
         //    lịch hẹn vào thẳng CheckedIn để xuất hiện ngay ở hàng đợi, không phải check-in lại.
         var appointment = Appointment.CreateWalkIn(
             patient.Id, cmd.DentistId, utcAppointmentDate,
-            symptoms: cmd.Symptoms, serviceId: cmd.ServiceId);
+            symptoms: cmd.Symptoms, serviceId: cmd.ServiceId,
+            followUpFromAppointmentId: cmd.FollowUpFromAppointmentId);
 
         await appointmentRepository.AddAsync(appointment, ct);
 

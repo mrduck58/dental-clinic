@@ -61,18 +61,27 @@ public class PatientRepository(AppDbContext dbContext) : IPatientRepository
             .FirstOrDefaultAsync(p => p.User != null && p.User.PhoneNumber == phoneNumber, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<Patient>> SearchAsync(string term, int limit, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<Patient>> SearchAsync(string term, int limit, bool onlyWithoutAccount = false, CancellationToken cancellationToken = default)
     {
         var needle = term.Trim().ToLower();
-        if (needle.Length == 0) return [];
+        if (needle.Length == 0 && !onlyWithoutAccount) return [];
 
-        return await dbContext.Patients
-            .Include(p => p.User)
-            .Where(p =>
+        var query = dbContext.Patients.Include(p => p.User).AsQueryable();
+
+        if (needle.Length > 0)
+            query = query.Where(p =>
                 (p.User.FullName != null && p.User.FullName.ToLower().Contains(needle)) ||
-                (p.User.PhoneNumber != null && p.User.PhoneNumber.Contains(needle)))
-            .OrderBy(p => p.User.FullName)
-            .Take(limit)
-            .ToListAsync(cancellationToken);
+                (p.User.PhoneNumber != null && p.User.PhoneNumber.Contains(needle)));
+
+        if (onlyWithoutAccount)
+            query = query.Where(p => p.User.PasswordHash == null);
+
+        // Duyệt danh sách (không gõ từ khóa) thì ưu tiên bệnh nhân mới thêm gần đây — sát nhu cầu
+        // thực tế của staff hơn là sắp theo tên; có từ khóa thì vẫn giữ sắp theo tên như cũ.
+        query = needle.Length == 0
+            ? query.OrderByDescending(p => p.CreatedAt)
+            : query.OrderBy(p => p.User.FullName);
+
+        return await query.Take(limit).ToListAsync(cancellationToken);
     }
 }

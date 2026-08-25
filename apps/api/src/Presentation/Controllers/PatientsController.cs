@@ -50,16 +50,18 @@ public class PatientsController(ISender sender, ICurrentUserService currentUser)
 
     /// <summary>
     /// GET api/patients/search?q= — Tra cứu bệnh nhân đã có hồ sơ, dùng cho staff điền nhanh
-    /// form đặt lịch tại quầy. Cần tối thiểu 2 ký tự để tránh quét toàn bảng.
+    /// form đặt lịch tại quầy. Cần tối thiểu 2 ký tự để tránh quét toàn bảng — trừ khi
+    /// onlyWithoutAccount=true (duyệt danh sách bệnh nhân chưa có tài khoản, không cần từ khóa).
     /// </summary>
     [HttpGet("search")]
     [Authorize(Roles = "Staff,Admin")]
     public async Task<IActionResult> SearchPatients(
         [FromQuery] string? q,
         [FromQuery] int limit,
+        [FromQuery] bool onlyWithoutAccount,
         CancellationToken ct)
     {
-        var result = await sender.Send(new SearchPatientsQuery(q, limit), ct);
+        var result = await sender.Send(new SearchPatientsQuery(q, limit, onlyWithoutAccount), ct);
         return Ok(result);
     }
 

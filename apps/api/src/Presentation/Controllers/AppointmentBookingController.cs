@@ -275,7 +275,8 @@ public class AppointmentBookingController(ISender sender) : ControllerBase
             request.Symptoms,
             request.PatientId,
             request.PatientEmail,
-            request.EmailVerificationCode);
+            request.EmailVerificationCode,
+            request.FollowUpFromAppointmentId);
         var result = await sender.Send(cmd, cancellationToken);
         return Ok(result);
     }
@@ -394,7 +395,12 @@ public record CreateWalkInRequest(
     /// </summary>
     string? PatientEmail = null,
     /// <summary>Mã bệnh nhân đọc từ hộp thư — thiếu nó thì chỉ tạo hồ sơ, không cấp tài khoản.</summary>
-    string? EmailVerificationCode = null);
+    string? EmailVerificationCode = null,
+    /// <summary>
+    /// Có giá trị khi đây là staff check-in một buổi tái khám từ tab Tái khám (thay vì lịch vãng lai
+    /// thường) — buổi hẹn mới sẽ gắn về buổi gốc này để bác sĩ thấy cờ tái khám và liệu trình cũ.
+    /// </summary>
+    Guid? FollowUpFromAppointmentId = null);
 
 /// <param name="Reason">
 /// Mã lý do lấy từ GET api/appointments/cancellation-reasons, ví dụ "PatientRequested".

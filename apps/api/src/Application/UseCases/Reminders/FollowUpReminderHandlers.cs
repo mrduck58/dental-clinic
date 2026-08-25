@@ -15,8 +15,6 @@ public record ClearFollowUpReminderCommand(Guid AppointmentId) : IRequest<Follow
 
 public record GetFollowUpDueQuery : IRequest<List<FollowUpDueDto>>;
 
-public record CheckInFollowUpCommand(Guid OriginalAppointmentId) : IRequest<Guid>;
-
 // ── Handlers ─────────────────────────────────────────────────────────────────
 // Nhắc tái khám: bác sĩ chỉ hẹn ngày khám lại (không đặt lịch mới). Khi bác sĩ kết thúc điều trị,
 // hệ thống gửi thông báo cho bệnh nhân (xem ClinicalRecords/EndTreatmentHandler).
@@ -121,8 +119,11 @@ public class GetFollowUpDueHandler(
                 PatientId = a.PatientId,
                 PatientName = a.Patient.FullName,
                 PatientPhone = a.Patient.PhoneNumber ?? a.Patient.User?.PhoneNumber,
+                PatientDateOfBirth = a.Patient.DateOfBirth,
                 Gender = a.Patient.Gender,
+                DentistId = a.DentistId,
                 DentistName = a.Dentist.FullName,
+                ServiceId = a.ServiceId,
                 ServiceName = a.Service?.Name,
                 OriginalAppointmentDate = a.AppointmentDate,
                 FollowUpDate = a.FollowUpDate,
@@ -132,41 +133,5 @@ public class GetFollowUpDueHandler(
         }
 
         return result.OrderBy(x => x.FollowUpDate ?? DateOnly.MaxValue).ToList();
-    }
-}
-
-/// <summary>
-/// Staff check-in bệnh nhân đến tái khám: tạo buổi hẹn mới đã check-in ngay,
-/// gắn về buổi gốc — bác sĩ sẽ thấy cờ tái khám và liệu trình cũ của bệnh nhân.
-/// </summary>
-public class CheckInFollowUpHandler(IAppointmentRepository appointmentRepository) : IRequestHandler<CheckInFollowUpCommand, Guid>
-{
-    public async Task<Guid> Handle(CheckInFollowUpCommand command, CancellationToken ct)
-    {
-        var originalAppointmentId = command.OriginalAppointmentId;
-
-        var original = await appointmentRepository.GetByIdAsync(originalAppointmentId, ct)
-            ?? throw new NotFoundException("Không tìm thấy buổi hẹn gốc.");
-
-        // Chỉ check-in tái khám được khi bác sĩ đã hẹn ngày tái khám cho buổi này.
-        if (original.FollowUpDate == null)
-            throw new ValidationException("Buổi hẹn này chưa được bác sĩ hẹn tái khám.");
-
-        // Chặn check-in tái khám lặp cho cùng một buổi gốc (buổi hủy không tính).
-        // Các lịch hẹn/lượt khám khác của bệnh nhân là lần khám riêng — không ảnh hưởng.
-        var alreadyCheckedIn = await appointmentRepository.HasActiveFollowUpCheckInAsync(originalAppointmentId, ct);
-        if (alreadyCheckedIn)
-            throw new ConflictException("Buổi hẹn này đã được check-in tái khám.");
-
-        var followUpVisit = Appointment.CheckInFollowUp(
-            original.Id,
-            original.PatientId,
-            original.DentistId,
-            original.ServiceId,
-            string.IsNullOrWhiteSpace(original.FollowUpNote) ? "Tái khám theo hẹn" : $"Tái khám: {original.FollowUpNote}");
-
-        await appointmentRepository.AddAsync(followUpVisit, ct);
-
-        return followUpVisit.Id;
     }
 }

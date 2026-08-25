@@ -296,4 +296,79 @@ public class CreateWalkInAppointmentHandlerTests
         await _emailService.DidNotReceive().SendStaffCredentialsAsync(
             Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
+
+    // ── Check-in tái khám (FollowUpFromAppointmentId) ─────────────────────────
+    // Thay cho CheckInFollowUpHandler cũ: staff giờ đặt lịch tại quầy bình thường (chọn giờ/bác sĩ
+    // còn ca trên lưới) kèm FollowUpFromAppointmentId, thay vì tự động gán thẳng vào bác sĩ cũ dù
+    // có ca hay không.
+
+    /// <summary>Buổi hẹn gốc không tồn tại phải báo lỗi thay vì âm thầm bỏ qua liên kết.</summary>
+    [Test]
+    public async Task HandleAsync_FollowUpFromAppointmentNotFound_ThrowsNotFoundException()
+    {
+        var cmd = MakeCommand(DateTimeOffset.UtcNow.AddHours(1)) with { FollowUpFromAppointmentId = Guid.NewGuid() };
+
+        Func<Task> act = async () => await _handler.Handle(cmd, CancellationToken.None);
+
+        await act.Should().ThrowAsync<NotFoundException>();
+    }
+
+    /// <summary>Buổi hẹn gốc chưa được bác sĩ hẹn tái khám (FollowUpDate null) thì không cho check-in.</summary>
+    [Test]
+    public async Task HandleAsync_FollowUpFromAppointmentWithoutFollowUpDate_ThrowsValidationException()
+    {
+        var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam", phoneNumber: "0900000005");
+        _db.Patients.Add(patient);
+        var original = Appointment.Create(patient.Id, _dentistId, DateTimeOffset.UtcNow.AddDays(-10));
+        original.Complete();
+        _db.Appointments.Add(original);
+        await _db.SaveChangesAsync();
+
+        var cmd = MakeCommand(DateTimeOffset.UtcNow.AddHours(1)) with { FollowUpFromAppointmentId = original.Id };
+        Func<Task> act = async () => await _handler.Handle(cmd, CancellationToken.None);
+
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    /// <summary>Buổi gốc đã có buổi tái khám check-in rồi (chưa hủy) thì không cho check-in lần 2.</summary>
+    [Test]
+    public async Task HandleAsync_FollowUpAlreadyCheckedIn_ThrowsConflictException()
+    {
+        var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam", phoneNumber: "0900000006");
+        _db.Patients.Add(patient);
+        var original = Appointment.Create(patient.Id, _dentistId, DateTimeOffset.UtcNow.AddDays(-10));
+        original.Complete();
+        original.SetFollowUpReminder(DateOnly.FromDateTime(DateTime.Today.AddDays(1)), null);
+        _db.Appointments.Add(original);
+        await _db.SaveChangesAsync();
+        var alreadyCheckedIn = Appointment.CreateWalkIn(patient.Id, _dentistId, DateTimeOffset.UtcNow, followUpFromAppointmentId: original.Id);
+        _db.Appointments.Add(alreadyCheckedIn);
+        await _db.SaveChangesAsync();
+
+        var cmd = MakeCommand(DateTimeOffset.UtcNow.AddHours(1)) with { FollowUpFromAppointmentId = original.Id };
+        Func<Task> act = async () => await _handler.Handle(cmd, CancellationToken.None);
+
+        await act.Should().ThrowAsync<ConflictException>();
+    }
+
+    /// <summary>Check-in tái khám hợp lệ phải tạo buổi hẹn mới CheckedIn, gắn về đúng buổi gốc —
+    /// kể cả khi staff chọn giờ/bác sĩ khác với buổi gốc trên lưới đặt lịch.</summary>
+    [Test]
+    public async Task HandleAsync_ValidFollowUpFromAppointmentId_CreatesLinkedCheckedInAppointment()
+    {
+        var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam", phoneNumber: "0900000007");
+        _db.Patients.Add(patient);
+        var original = Appointment.Create(patient.Id, _dentistId, DateTimeOffset.UtcNow.AddDays(-10));
+        original.Complete();
+        original.SetFollowUpReminder(DateOnly.FromDateTime(DateTime.Today.AddDays(1)), null);
+        _db.Appointments.Add(original);
+        await _db.SaveChangesAsync();
+
+        var cmd = MakeCommand(DateTimeOffset.UtcNow.AddHours(1)) with { FollowUpFromAppointmentId = original.Id };
+        var result = await _handler.Handle(cmd, CancellationToken.None);
+
+        var followUp = await _db.Appointments.SingleAsync(a => a.Id == result.AppointmentId);
+        followUp.Status.Should().Be(AppointmentStatus.CheckedIn);
+        followUp.FollowUpFromAppointmentId.Should().Be(original.Id);
+    }
 }
