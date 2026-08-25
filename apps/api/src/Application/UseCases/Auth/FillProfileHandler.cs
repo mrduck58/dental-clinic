@@ -81,7 +81,8 @@ public class FillProfileHandler(
                 command.DateOfBirth ?? employee.DateOfBirth,
                 command.Address ?? employee.Address,
                 command.ProfilePictureUrl ?? employee.ProfilePictureUrl,
-                employee.BaseSalary, employee.SalaryUnit, employee.Allowance, employee.LeaveAccrued);
+                employee.BaseSalary, employee.SalaryUnit, employee.Allowance, employee.LeaveAccrued,
+                employee.RatePerShift);
             await employeeRepository.UpdateAsync(employee, ct);
         }
 

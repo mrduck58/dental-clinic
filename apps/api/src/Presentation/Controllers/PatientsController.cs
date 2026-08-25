@@ -75,6 +75,18 @@ public class PatientsController(ISender sender, ICurrentUserService currentUser)
         return Ok(result);
     }
 
+    /// <summary>
+    /// GET api/patients/balances — Công nợ tổng hợp của TẤT CẢ bệnh nhân: đã thanh toán / còn nợ bao
+    /// nhiêu, theo từng dịch vụ — màn hình tổng hợp công nợ bệnh nhân của Owner/Staff/Admin.
+    /// </summary>
+    [HttpGet("balances")]
+    [Authorize(Roles = "Staff,Admin,Owner")]
+    public async Task<IActionResult> GetAllPatientsBalance(CancellationToken ct)
+    {
+        var result = await sender.Send(new GetAllPatientsBalanceQuery(), ct);
+        return Ok(result);
+    }
+
     [HttpGet("my-medical-history")]
     [Authorize(Roles = "Patient")]
     public async Task<IActionResult> GetMyMedicalHistory(CancellationToken ct)

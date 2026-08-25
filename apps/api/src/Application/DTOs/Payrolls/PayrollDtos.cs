@@ -9,8 +9,13 @@ public record PayrollItemDto(
     string? Department,
     string? Position,
     string? PhoneNumber,
+    // "Full-time" (hoặc chưa thiết lập) = lương tháng + khấu trừ phép. Khác thì = số ca × đơn giá/ca.
+    string? EmploymentType,
     decimal BaseSalary,
     decimal Allowance,
+    // Số ca đã được phân lịch (WorkSchedule) trong kỳ — dùng để tính lương khi không phải Full-time
+    // (BaseSalary khi đó = số ca này × đơn giá/ca), chỉ mang tính tham khảo khi Full-time.
+    int RequiredShifts,
     int LeaveShifts,
     decimal AllowedLeaveShifts,
     decimal ExceededShifts,
@@ -47,25 +52,6 @@ public record PayrollPeriodDto(
     int WorkingShiftsPerMonth,
     PayrollSummaryDto Summary,
     IReadOnlyList<PayrollItemDto> Items);
-
-// ── Báo cáo quỹ lương theo năm ───────────────────────────────────────────────
-
-public record PayrollMonthStatDto(
-    int Month,
-    int StaffCount,
-    int PaidCount,
-    decimal TotalNet,
-    decimal TotalPaid,
-    decimal TotalDeduction);
-
-public record PayrollYearlyDto(
-    int Year,
-    decimal TotalNet,
-    decimal TotalPaid,
-    decimal TotalDeduction,
-    decimal AverageMonthlyNet,
-    int PeakMonth,
-    IReadOnlyList<PayrollMonthStatDto> Months);
 
 // ── Bảng lương của tôi (Dentist/Staff tự xem) ────────────────────────────────
 

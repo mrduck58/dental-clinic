@@ -9,7 +9,7 @@ namespace DentalClinic.API.Application.UseCases.Payrolls;
 /// <summary>Diễn biến lương 12 tháng của chính người đang đăng nhập (Dentist/Staff) trong một năm.</summary>
 public record GetMyPayrollYearlyQuery(Guid UserId, int Year) : IRequest<MyPayrollYearlyDto>;
 
-public class GetMyPayrollYearlyHandler(IPayrollRepository payrollRepository)
+public class GetMyPayrollYearlyHandler(IPayrollRepository payrollRepository, IWorkScheduleRepository workScheduleRepository)
     : IRequestHandler<GetMyPayrollYearlyQuery, MyPayrollYearlyDto>
 {
     public async Task<MyPayrollYearlyDto> Handle(GetMyPayrollYearlyQuery query, CancellationToken ct)
@@ -23,8 +23,15 @@ public class GetMyPayrollYearlyHandler(IPayrollRepository payrollRepository)
 
         var records = await payrollRepository.GetByUserAndYearAsync(user.Id, query.Year, ct);
         var recordByMonth = records.ToDictionary(r => r.Month);
-        var leaves = await payrollRepository.GetApprovedLeavesOverlappingAsync(
-            new DateOnly(query.Year, 1, 1), new DateOnly(query.Year, 12, 31), ct);
+        var yearStart = new DateOnly(query.Year, 1, 1);
+        var yearEnd = new DateOnly(query.Year, 12, 31);
+        var leaves = await payrollRepository.GetApprovedLeavesOverlappingAsync(yearStart, yearEnd, ct);
+        var employeeId = user.Employee?.Id ?? Guid.Empty;
+        var yearSchedules = await workScheduleRepository.GetByDateRangeAsync(yearStart, yearEnd, ct);
+        var shiftsByMonth = yearSchedules
+            .Where(s => !s.IsHoliday && s.EmployeeId == employeeId)
+            .GroupBy(s => s.Date.Month)
+            .ToDictionary(g => g.Key, g => g.Count());
 
         var months = new List<MyPayrollMonthDto>(12);
         for (var month = 1; month <= 12; month++)
@@ -36,7 +43,8 @@ public class GetMyPayrollYearlyHandler(IPayrollRepository payrollRepository)
             }
             else
             {
-                var c = PayrollCalculator.Compute(user, leaves, query.Year, month);
+                var requiredShifts = shiftsByMonth.GetValueOrDefault(month, 0);
+                var c = PayrollCalculator.Compute(user, leaves, requiredShifts, query.Year, month);
                 months.Add(new MyPayrollMonthDto(month, c.NetSalary, "NotCreated", null));
             }
         }

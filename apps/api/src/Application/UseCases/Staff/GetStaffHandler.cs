@@ -48,6 +48,7 @@ public record StaffItemDto(
     string? SalaryUnit,
     decimal? LeaveAccrued,
     decimal? Allowance,
+    decimal? RatePerShift,
     /// <summary>Id hồ sơ nha sĩ — null nếu nhân viên này không phải bác sĩ. Dùng để tra đánh giá
     /// của bệnh nhân (api/dentists/{id}/reviews), thứ chỉ khóa theo DentistProfile chứ không theo User.</summary>
     Guid? DentistProfileId,
@@ -106,7 +107,7 @@ public class GetStaffHandler(IUserRepository userRepository)
             u.Gender, e?.DateOfBirth, e?.Address,
             e?.StartDate, null, d?.CertificateIssuedDate,
             d?.CertificateIssuedBy, d?.Education, d?.Biography, e?.Position,
-            e?.EmploymentType, e?.BaseSalary, e?.SalaryUnit, e?.LeaveAccrued, e?.Allowance,
+            e?.EmploymentType, e?.BaseSalary, e?.SalaryUnit, e?.LeaveAccrued, e?.Allowance, e?.RatePerShift,
             d?.Id, d?.Content);
     }
 }

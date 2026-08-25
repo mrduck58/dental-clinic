@@ -23,6 +23,7 @@ public class PatientRepository(AppDbContext dbContext) : IPatientRepository
     public async Task<IReadOnlyList<Patient>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         return await dbContext.Patients
+            .AsNoTracking()
             .Include(p => p.User)
             .ToListAsync(cancellationToken);
     }

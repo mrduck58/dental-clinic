@@ -77,7 +77,7 @@ const STATUS_CFG: Record<string, { label: string; cls: string; dot: string }> = 
 type SortKey = "date" | "amount" | "patient" | "dentist";
 type SortDir = "asc" | "desc";
 
-const PAGE_SIZE = 15;
+const PAGE_SIZE_DEFAULT = 15;
 
 export default function OwnerRevenuePage() {
   useRequireOwner();
@@ -112,6 +112,7 @@ export default function OwnerRevenuePage() {
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_DEFAULT);
 
   const [items, setItems] = useState<RevenueTransactionDto[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -169,7 +170,7 @@ export default function OwnerRevenuePage() {
         paymentMethod: methodFilter || undefined,
         search: searchTerm || undefined,
         page,
-        pageSize: PAGE_SIZE,
+        pageSize,
         sortBy: sortKey,
         sortDir,
       });
@@ -183,7 +184,7 @@ export default function OwnerRevenuePage() {
     } finally {
       setListLoading(false);
     }
-  }, [fromISO, toISO, dentistFilter, serviceFilter, statusFilter, methodFilter, searchTerm, page, sortKey, sortDir]);
+  }, [fromISO, toISO, dentistFilter, serviceFilter, statusFilter, methodFilter, searchTerm, page, pageSize, sortKey, sortDir]);
 
   useEffect(() => { reloadSummary(); }, [reloadSummary]);
   useEffect(() => { reloadCharts(); }, [reloadCharts]);
@@ -200,6 +201,11 @@ export default function OwnerRevenuePage() {
   };
 
   const isFiltered = Boolean(dentistFilter || serviceFilter || statusFilter || methodFilter || searchTerm);
+
+  const handlePageSizeChange = (size: number) => {
+    setPageSize(size);
+    setPage(1);
+  };
 
   return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
@@ -380,6 +386,15 @@ export default function OwnerRevenuePage() {
                   <option value="OnlinePayment">Thanh toán online</option>
                 </select>
 
+                <div className="flex items-center gap-2 text-[13px] text-slate-400 font-semibold whitespace-nowrap">
+                  <span>Hiển thị</span>
+                  <select value={pageSize} onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                    className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:outline-none font-semibold text-slate-600 text-[13px] cursor-pointer">
+                    {[10, 20, 50].map((n) => (<option key={n} value={n}>{n}</option>))}
+                  </select>
+                  <span>/ trang</span>
+                </div>
+
                 {isFiltered && (
                   <button
                     onClick={() => { setSearchQuery(""); setDentistFilter(""); setServiceFilter(""); setStatusFilter(""); setMethodFilter(""); }}
@@ -454,7 +469,7 @@ export default function OwnerRevenuePage() {
                 <Pagination
                   currentPage={page}
                   totalCount={totalCount}
-                  pageSize={PAGE_SIZE}
+                  pageSize={pageSize}
                   onPageChange={setPage}
                   itemLabel="giao dịch"
                 />

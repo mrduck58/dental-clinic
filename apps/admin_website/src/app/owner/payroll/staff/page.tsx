@@ -9,7 +9,6 @@ import { SortableTh, Th } from "../../../../components/shared/TableHeader";
 import { useRequireOwner } from "../../../../hooks/useRequireOwner";
 import {
   getPayrollPeriodApi,
-  getPayrollYearlyApi,
   payPayrollApi,
   unpayPayrollApi,
   payAllPayrollApi,
@@ -20,22 +19,10 @@ import {
   type PayrollPeriodDto,
   type PayrollItemDto,
   type PayrollFailureDto,
-  type PayrollYearlyDto,
 } from "../../../../lib/apiClient";
 import * as XLSX from "xlsx";
 
-const PAGE_SIZE = 10;
-
-/**
- * Màu biểu đồ — thang một tông theo đỏ chủ đạo của web (--color-primary = red 600),
- * đậm = đã chi, nhạt = còn phải chi. Cặp này đạt cả 4 tiêu chí của thang tuần tự:
- * sáng→tối đơn điệu, chênh lệch độ sáng đủ lớn, cùng một tông (lệch 5°),
- * và đầu nhạt vẫn đạt 2.77:1 so với nền trắng.
- */
-const CHART_PAID = "#dc2626";
-const CHART_REMAINING = "#f87171";
-const CHART_GRID = "#e2e8f0";
-const CHART_AXIS_TEXT = "#94a3b8";
+const PAGE_SIZE_DEFAULT = 10;
 
 type SortKey =
   | "name" | "base" | "allowance"
@@ -95,20 +82,12 @@ export default function OwnerPayrollStaffPage() {
   const [sortKey, setSortKey] = useState<SortKey>("net");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_DEFAULT);
 
   // Hộp thoại xác nhận chi trả hàng loạt
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmTotals, setConfirmTotals] = useState<{ count: number; amount: number } | null>(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
-
-  // Báo cáo lương theo năm (tải lười, chỉ khi mở)
-  const [showYearly, setShowYearly] = useState(false);
-  const [yearlyYear, setYearlyYear] = useState(new Date().getFullYear());
-  const [yearly, setYearly] = useState<PayrollYearlyDto | null>(null);
-  const [yearlyLoading, setYearlyLoading] = useState(false);
-  const [yearlyError, setYearlyError] = useState<string | null>(null);
-  const [yearlyView, setYearlyView] = useState<"chart" | "table">("chart");
-  const [hoverMonth, setHoverMonth] = useState<number | null>(null);
 
   // Gõ tìm kiếm không gọi API ngay — mỗi lần gõ là một request tới /api/payrolls
   useEffect(() => {
@@ -165,13 +144,6 @@ export default function OwnerPayrollStaffPage() {
 
   const formatCurrency = (val: number) => new Intl.NumberFormat("vi-VN").format(val) + " đ";
 
-  const formatCompact = (val: number) => {
-    if (Math.abs(val) >= 1_000_000_000) return (val / 1_000_000_000).toFixed(1).replace(".0", "") + " tỷ";
-    if (Math.abs(val) >= 1_000_000) return Math.round(val / 1_000_000) + " tr";
-    if (Math.abs(val) >= 1_000) return Math.round(val / 1_000) + "k";
-    return String(val);
-  };
-
   const formatDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("vi-VN") : "—");
 
   const formatShifts = (val: number) => (Number.isInteger(val) ? String(val) : val.toFixed(1));
@@ -226,9 +198,14 @@ export default function OwnerPayrollStaffPage() {
 
   // ── Phân trang ─────────────────────────────────────────────────────────────
 
-  const totalPages = Math.max(1, Math.ceil(sortedItems.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(sortedItems.length / pageSize));
   const currentPage = Math.min(page, totalPages);
-  const pagedItems = sortedItems.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const pagedItems = sortedItems.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  const handlePageSizeChange = (size: number) => {
+    setPageSize(size);
+    setPage(1);
+  };
 
   // ── Hành động ──────────────────────────────────────────────────────────────
 
@@ -391,37 +368,6 @@ export default function OwnerPayrollStaffPage() {
     XLSX.utils.book_append_sheet(workbook, worksheet, "NhanVien");
     XLSX.writeFile(workbook, `Bang_Luong_Nhan_Vien_Thang_${selectedMonth}_Nam_${selectedYear}.xlsx`);
   };
-
-  // ── Báo cáo năm ────────────────────────────────────────────────────────────
-
-  const toggleYearly = () => {
-    const opening = !showYearly;
-    setShowYearly(opening);
-    // Khu vực này nằm cuối trang: mở ra thì đưa luôn vào tầm mắt
-    if (opening) {
-      setTimeout(
-        () => document.getElementById("bao-cao-nam")?.scrollIntoView({ behavior: "smooth", block: "start" }),
-        80
-      );
-    }
-  };
-
-  const loadYearly = useCallback(async (year: number) => {
-    setYearlyLoading(true);
-    setYearlyError(null);
-    try {
-      setYearly(await getPayrollYearlyApi(year));
-    } catch (err) {
-      setYearly(null);
-      setYearlyError(err instanceof Error ? err.message : "Không thể tải báo cáo lương theo năm");
-    } finally {
-      setYearlyLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (showYearly) loadYearly(yearlyYear);
-  }, [showYearly, yearlyYear, loadYearly]);
 
   const totalNet = summary?.totalNet ?? 0;
   const totalPaid = summary?.totalPaid ?? 0;
@@ -629,61 +575,9 @@ export default function OwnerPayrollStaffPage() {
             </div>
           </div>
 
-          {/* Quy trình duyệt lương: Tạo → Tính → Duyệt → Chi trả */}
-          <div className="bg-white p-4 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[11.5px] font-extrabold text-slate-400 uppercase tracking-wider mr-1">
-                Quy trình kỳ {selectedMonth}/{selectedYear}
-              </span>
-              {(
-                [
-                  ["NotCreated", notCreatedCount],
-                  ["Draft", draftCount],
-                  ["Calculated", calculatedCount],
-                  ["Approved", approvedCount],
-                  ["Paid", paidCount],
-                ] as const
-              ).map(([key, count]) => (
-                <span
-                  key={key}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-black ${STATUS_BADGE[key].cls}`}
-                >
-                  <span className={`w-1.5 h-1.5 rounded-full ${STATUS_BADGE[key].dot}`} />
-                  {STATUS_BADGE[key].label}: {count}
-                </span>
-              ))}
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={handleCreatePeriod}
-                disabled={isCreatingPeriod || isLoading}
-                title="Tạo kỳ lương nháp cho toàn bộ nhân sự chưa có bản ghi trong kỳ (áp dụng cho cả nha sĩ và nhân viên)"
-                className="px-3.5 py-2 bg-white border border-slate-250 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-slate-600 text-xs font-black rounded-xl cursor-pointer shadow-sm transition-all whitespace-nowrap"
-              >
-                {isCreatingPeriod ? "Đang tạo..." : `Tạo kỳ lương${notCreatedCount > 0 ? ` (${notCreatedCount})` : ""}`}
-              </button>
-              <button
-                onClick={handleCalculatePeriod}
-                disabled={isCalculating || isLoading || draftCount === 0}
-                title="Tính lại số liệu và chốt các kỳ đang Nháp sang Đã tính (áp dụng cho toàn bộ nhân sự, không riêng danh sách đang lọc)"
-                className="px-3.5 py-2 bg-blue-50 border border-blue-200 hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed text-blue-700 text-xs font-black rounded-xl cursor-pointer shadow-sm transition-all whitespace-nowrap"
-              >
-                {isCalculating ? "Đang tính..." : `Tính lương${draftCount > 0 ? ` (${draftCount})` : ""}`}
-              </button>
-              <button
-                onClick={handleApprovePeriod}
-                disabled={isApproving || isLoading || calculatedCount === 0}
-                title="Duyệt các kỳ Đã tính sang Đã duyệt, đủ điều kiện chi trả (áp dụng cho toàn bộ nhân sự, không riêng danh sách đang lọc)"
-                className="px-3.5 py-2 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed text-indigo-700 text-xs font-black rounded-xl cursor-pointer shadow-sm transition-all whitespace-nowrap"
-              >
-                {isApproving ? "Đang duyệt..." : `Duyệt kỳ lương${calculatedCount > 0 ? ` (${calculatedCount})` : ""}`}
-              </button>
-            </div>
-          </div>
-
           {/* Filters & Actions Bar */}
-          <div className="bg-white p-4 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col gap-3.5">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3 w-full sm:w-auto flex-1">
               {/* Search */}
               <div className="relative flex-1 max-w-md">
@@ -752,6 +646,7 @@ export default function OwnerPayrollStaffPage() {
                   </svg>
                 </span>
               </div>
+
             </div>
 
             <div className="flex items-center gap-3 shrink-0">
@@ -781,6 +676,73 @@ export default function OwnerPayrollStaffPage() {
                   : approvedCount === 0
                     ? "Không có kỳ chờ chi trả"
                     : `Thanh Toán Tất Cả (${approvedCount})`}
+              </button>
+            </div>
+            </div>
+
+            {/* Page Size Selector — hàng dưới, tách riêng khỏi bộ lọc bộ phận/tháng/năm */}
+            <div className="flex items-center gap-2 text-[13px] text-slate-400 font-semibold border-t border-slate-100 pt-3">
+              <span>Hiển thị</span>
+              <select
+                value={pageSize}
+                onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:outline-none font-semibold text-slate-600 text-[13px] cursor-pointer"
+              >
+                {[10, 20, 50].map((n) => (<option key={n} value={n}>{n}</option>))}
+              </select>
+              <span>/ trang</span>
+            </div>
+          </div>
+
+          {/* Quy trình duyệt lương: Tạo → Tính → Duyệt → Chi trả */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[11.5px] font-extrabold text-slate-400 uppercase tracking-wider mr-1">
+                Quy trình kỳ {selectedMonth}/{selectedYear}
+              </span>
+              {(
+                [
+                  ["NotCreated", notCreatedCount],
+                  ["Draft", draftCount],
+                  ["Calculated", calculatedCount],
+                  ["Approved", approvedCount],
+                  ["Paid", paidCount],
+                ] as const
+              ).map(([key, count]) => (
+                <span
+                  key={key}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-black ${STATUS_BADGE[key].cls}`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${STATUS_BADGE[key].dot}`} />
+                  {STATUS_BADGE[key].label}: {count}
+                </span>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={handleCreatePeriod}
+                disabled={isCreatingPeriod || isLoading}
+                title="Tạo kỳ lương nháp cho toàn bộ nhân sự chưa có bản ghi trong kỳ (áp dụng cho cả nha sĩ và nhân viên)"
+                className="px-3.5 py-2 bg-white border border-slate-250 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-slate-600 text-xs font-black rounded-xl cursor-pointer shadow-sm transition-all whitespace-nowrap"
+              >
+                {isCreatingPeriod ? "Đang tạo..." : `Tạo kỳ lương${notCreatedCount > 0 ? ` (${notCreatedCount})` : ""}`}
+              </button>
+              <button
+                onClick={handleCalculatePeriod}
+                disabled={isCalculating || isLoading || draftCount === 0}
+                title="Tính lại số liệu và chốt các kỳ đang Nháp sang Đã tính (áp dụng cho toàn bộ nhân sự, không riêng danh sách đang lọc)"
+                className="px-3.5 py-2 bg-blue-50 border border-blue-200 hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed text-blue-700 text-xs font-black rounded-xl cursor-pointer shadow-sm transition-all whitespace-nowrap"
+              >
+                {isCalculating ? "Đang tính..." : `Tính lương${draftCount > 0 ? ` (${draftCount})` : ""}`}
+              </button>
+              <button
+                onClick={handleApprovePeriod}
+                disabled={isApproving || isLoading || calculatedCount === 0}
+                title="Duyệt các kỳ Đã tính sang Đã duyệt, đủ điều kiện chi trả (áp dụng cho toàn bộ nhân sự, không riêng danh sách đang lọc)"
+                className="px-3.5 py-2 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed text-indigo-700 text-xs font-black rounded-xl cursor-pointer shadow-sm transition-all whitespace-nowrap"
+              >
+                {isApproving ? "Đang duyệt..." : `Duyệt kỳ lương${calculatedCount > 0 ? ` (${calculatedCount})` : ""}`}
               </button>
             </div>
           </div>
@@ -821,7 +783,7 @@ export default function OwnerPayrollStaffPage() {
                       return (
                         <tr key={item.userId} className="hover:bg-slate-50/50 transition-colors">
                           <td className="px-4 py-4 text-center text-slate-400 font-bold tabular-nums">
-                            {(currentPage - 1) * PAGE_SIZE + idx + 1}
+                            {(currentPage - 1) * pageSize + idx + 1}
                           </td>
                           <td className="px-4 py-4">
                             <div className="flex items-center gap-3">
@@ -838,7 +800,14 @@ export default function OwnerPayrollStaffPage() {
                           </td>
                           <td className="px-4 py-4 text-right font-bold text-slate-700 tabular-nums">
                             {item.hasSalaryConfigured ? (
-                              formatCurrency(item.baseSalary)
+                              <>
+                                {formatCurrency(item.baseSalary)}
+                                {item.employmentType && item.employmentType !== "Full-time" && (
+                                  <div className="text-[10px] text-slate-400 font-bold mt-0.5">
+                                    {formatShifts(item.requiredShifts)} ca
+                                  </div>
+                                )}
+                              </>
                             ) : (
                               <span className="text-amber-600 text-[11.5px] font-bold">Chưa thiết lập</span>
                             )}
@@ -847,7 +816,9 @@ export default function OwnerPayrollStaffPage() {
                           <td className="px-4 py-4 text-right">
                             <div className="text-rose-500 font-bold tabular-nums">-{formatCurrency(item.deduction)}</div>
                             <div className="text-[10px] text-slate-400 font-bold mt-0.5 block whitespace-nowrap">
-                              {item.leaveShifts > 0 ? (
+                              {item.employmentType && item.employmentType !== "Full-time" ? (
+                                <span>Theo ca — không áp dụng phép</span>
+                              ) : item.leaveShifts > 0 ? (
                                 <span>
                                   Nghỉ {formatShifts(item.leaveShifts)}c/{formatShifts(item.allowedLeaveShifts)}c phép{" "}
                                   {item.exceededShifts > 0 && (
@@ -931,183 +902,13 @@ export default function OwnerPayrollStaffPage() {
                 <Pagination
                   currentPage={currentPage}
                   totalCount={sortedItems.length}
-                  pageSize={PAGE_SIZE}
+                  pageSize={pageSize}
                   onPageChange={setPage}
                   itemLabel="nhân sự"
                 />
               </div>
             )}
           </div>
-
-          {/* ── Báo cáo quỹ lương theo năm ─────────────────────────────────── */}
-          <section
-            id="bao-cao-nam"
-            className="rounded-2xl border-2 border-primary/20 shadow-lg shadow-primary/10 overflow-hidden bg-white"
-          >
-            <button
-              onClick={toggleYearly}
-              aria-expanded={showYearly}
-              aria-controls="bao-cao-nam-noi-dung"
-              className="w-full flex items-center justify-between gap-4 px-6 py-5 cursor-pointer text-left bg-gradient-to-r from-primary to-primary-hover hover:from-primary-hover hover:to-primary-hover transition-colors"
-            >
-              <div className="flex items-center gap-4 min-w-0">
-                {/* Biểu tượng cột — nhắc lại đúng hình dạng của biểu đồ bên trong.
-                    Trên nền đỏ phải dùng sắc trắng, cột màu đỏ sẽ chìm mất. */}
-                <span className="w-11 h-11 rounded-xl bg-white/15 flex items-end justify-center gap-[3px] p-2.5 shrink-0">
-                  <span className="w-1.5 rounded-sm bg-white/50" style={{ height: "40%" }} />
-                  <span className="w-1.5 rounded-sm bg-white/80" style={{ height: "75%" }} />
-                  <span className="w-1.5 rounded-sm bg-white" style={{ height: "100%" }} />
-                </span>
-                <div className="min-w-0">
-                  <span className="text-[15px] font-extrabold text-white block">Báo cáo quỹ lương theo năm</span>
-                  <span className="text-[12px] text-red-100 font-semibold block leading-snug">
-                    Diễn biến 12 tháng: tổng quỹ, phần đã chi và phần còn phải chi.
-                  </span>
-                </div>
-              </div>
-
-              <span className="flex items-center gap-2.5 shrink-0">
-                <span className="hidden sm:inline text-[12px] font-black text-white uppercase tracking-wide">
-                  {showYearly ? "Thu gọn" : "Xem báo cáo"}
-                </span>
-                <span className={`w-8 h-8 rounded-full bg-white/20 text-white flex items-center justify-center transition-transform ${showYearly ? "rotate-180" : ""}`}>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
-                </span>
-              </span>
-            </button>
-
-            <p className="px-6 py-2 text-[11px] text-slate-400 font-semibold bg-white">
-              Báo cáo quỹ lương theo năm hiện tổng hợp toàn phòng khám (nha sĩ và nhân viên), theo dữ liệu backend hiện tại.
-            </p>
-
-            {showYearly && (
-              <div id="bao-cao-nam-noi-dung" className="p-5 space-y-5">
-                {/* Thanh điều khiển */}
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="relative">
-                    <select
-                      value={yearlyYear}
-                      onChange={(e) => setYearlyYear(Number(e.target.value))}
-                      className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:outline-none transition-all font-semibold text-slate-600 text-[13px] pr-8 appearance-none cursor-pointer"
-                    >
-                      {[2025, 2026, 2027].map((yr) => (
-                        <option key={yr} value={yr}>Năm {yr}</option>
-                      ))}
-                    </select>
-                    <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                      </svg>
-                    </span>
-                  </div>
-
-                  <div className="inline-flex rounded-xl border border-slate-200 overflow-hidden">
-                    {(["chart", "table"] as const).map((v) => (
-                      <button
-                        key={v}
-                        onClick={() => setYearlyView(v)}
-                        className={`px-3.5 py-2 text-[12px] font-black cursor-pointer transition-colors ${
-                          yearlyView === v ? "bg-primary text-white" : "bg-white text-slate-500 hover:bg-slate-50"
-                        }`}
-                      >
-                        {v === "chart" ? "Biểu đồ" : "Bảng"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {yearlyLoading ? (
-                  <div className="py-16 text-center text-slate-400 font-semibold animate-pulse">Đang tải báo cáo năm...</div>
-                ) : yearlyError ? (
-                  <div className="py-10 text-center text-rose-600 font-bold text-[13px]">{yearlyError}</div>
-                ) : yearly ? (
-                  <>
-                    {/* Con số dẫn dắt của cả năm, đứng trước biểu đồ */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                      <div className="rounded-xl px-5 py-4 bg-primary shadow-md shadow-primary/20 lg:row-span-1">
-                        <span className="text-[10.5px] font-extrabold text-red-100 uppercase tracking-wider block leading-tight">
-                          Tổng quỹ lương năm {yearly.year}
-                        </span>
-                        <span className="text-[26px] font-black text-white mt-1.5 block leading-none">
-                          {formatCurrency(yearly.totalNet)}
-                        </span>
-                        <span className="text-[11px] text-red-100 font-semibold block mt-2">
-                          Đã chi {formatCurrency(yearly.totalPaid)} · còn{" "}
-                          {formatCurrency(yearly.totalNet - yearly.totalPaid)}
-                        </span>
-                      </div>
-
-                      <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        {[
-                          { label: "Trung bình mỗi tháng", value: formatCurrency(yearly.averageMonthlyNet) },
-                          { label: "Tháng chi cao nhất", value: `Tháng ${yearly.peakMonth}` },
-                          { label: "Tổng khấu trừ cả năm", value: formatCurrency(yearly.totalDeduction) },
-                        ].map((s) => (
-                          <div key={s.label} className="bg-slate-50/70 border border-slate-100 rounded-xl px-4 py-3 flex flex-col justify-center">
-                            <span className="text-[10.5px] font-extrabold text-slate-400 uppercase tracking-wider block leading-tight">{s.label}</span>
-                            <span className="text-[15px] font-black text-slate-900 mt-1 block">{s.value}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {yearlyView === "chart" ? (
-                      <YearlyChart
-                        data={yearly}
-                        hoverMonth={hoverMonth}
-                        onHover={setHoverMonth}
-                        formatCurrency={formatCurrency}
-                        formatCompact={formatCompact}
-                      />
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-[13px]">
-                          <thead>
-                            <tr className="border-b border-slate-150 bg-slate-50/80">
-                              <Th className="px-4">Tháng</Th>
-                              <Th className="px-4" align="center">Nhân sự</Th>
-                              <Th className="px-4" align="center">Đã trả</Th>
-                              <Th className="px-4" align="right">Tổng quỹ</Th>
-                              <Th className="px-4" align="right">Đã chi</Th>
-                              <Th className="px-4" align="right">Còn phải chi</Th>
-                              <Th className="px-4" align="right">Khấu trừ</Th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {yearly.months.map((m) => (
-                              <tr key={m.month} className="hover:bg-slate-50/50">
-                                <td className="px-4 py-2.5 font-bold text-slate-700">Tháng {m.month}</td>
-                                <td className="px-4 py-2.5 text-center text-slate-500 font-semibold tabular-nums">{m.staffCount}</td>
-                                <td className="px-4 py-2.5 text-center text-slate-500 font-semibold tabular-nums">{m.paidCount}</td>
-                                <td className="px-4 py-2.5 text-right font-black text-slate-900 tabular-nums">{formatCurrency(m.totalNet)}</td>
-                                <td className="px-4 py-2.5 text-right font-bold text-slate-600 tabular-nums">{formatCurrency(m.totalPaid)}</td>
-                                <td className="px-4 py-2.5 text-right font-bold text-slate-600 tabular-nums">{formatCurrency(m.totalNet - m.totalPaid)}</td>
-                                <td className="px-4 py-2.5 text-right font-bold text-rose-500 tabular-nums">{formatCurrency(m.totalDeduction)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                          <tfoot>
-                            <tr className="border-t-2 border-slate-200 bg-slate-50/80">
-                              <td className="px-4 py-3 font-black text-slate-700" colSpan={3}>Cả năm {yearly.year}</td>
-                              <td className="px-4 py-3 text-right font-black text-slate-900 tabular-nums">{formatCurrency(yearly.totalNet)}</td>
-                              <td className="px-4 py-3 text-right font-black text-slate-700 tabular-nums">{formatCurrency(yearly.totalPaid)}</td>
-                              <td className="px-4 py-3 text-right font-black text-slate-700 tabular-nums">{formatCurrency(yearly.totalNet - yearly.totalPaid)}</td>
-                              <td className="px-4 py-3 text-right font-black text-rose-500 tabular-nums">{formatCurrency(yearly.totalDeduction)}</td>
-                            </tr>
-                          </tfoot>
-                        </table>
-                      </div>
-                    )}
-
-                    <p className="text-[11px] text-slate-400 font-semibold leading-relaxed">
-                      Tháng đã chi trả lấy đúng số đã chốt; tháng chưa chi trả được tính lại theo hồ sơ lương
-                      và đơn nghỉ hiện tại, nên có thể còn thay đổi.
-                    </p>
-                  </>
-                ) : null}
-              </div>
-            )}
-          </section>
         </div>
       </main>
 
@@ -1186,162 +987,4 @@ export default function OwnerPayrollStaffPage() {
       )}
     </div>
   );
-}
-
-// ── Biểu đồ cột chồng 12 tháng ─────────────────────────────────────────────
-// Cột = tổng quỹ lương của tháng, chia hai phần: đã chi trả và còn phải chi.
-// Vẽ tay bằng SVG vì dự án không có thư viện biểu đồ nào.
-
-function YearlyChart({
-  data, hoverMonth, onHover, formatCurrency, formatCompact,
-}: {
-  data: PayrollYearlyDto;
-  hoverMonth: number | null;
-  onHover: (m: number | null) => void;
-  formatCurrency: (v: number) => string;
-  formatCompact: (v: number) => string;
-}) {
-  const W = 760, H = 300;
-  const padL = 62, padR = 12, padT = 16, padB = 30;
-  const plotW = W - padL - padR;
-  const plotH = H - padT - padB;
-  const band = plotW / 12;
-  const barW = Math.min(24, band - 14);
-
-  // Sàn 1 triệu để năm chưa có dữ liệu không sinh ra nhãn trục kiểu "0.25"
-  const maxValue = Math.max(...data.months.map((m) => m.totalNet), 1_000_000);
-  // Làm tròn trục lên số đẹp (1/2/5 × 10^n) để nhãn trục dễ đọc
-  const niceMax = (() => {
-    const pow = Math.pow(10, Math.floor(Math.log10(maxValue)));
-    const n = maxValue / pow;
-    const step = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10;
-    return step * pow;
-  })();
-
-  const y = (v: number) => padT + plotH - (v / niceMax) * plotH;
-  const ticks = [0, 0.25, 0.5, 0.75, 1].map((t) => t * niceMax);
-
-  const hovered = hoverMonth ? data.months.find((m) => m.month === hoverMonth) ?? null : null;
-  // Tâm cột đang trỏ, quy ra % chiều rộng khung (SVG co giãn nên phải tính theo tỉ lệ)
-  const tooltipCenterPercent = hovered ? ((padL + (hovered.month - 0.5) * band) / W) * 100 : 0;
-
-  return (
-    <div className="relative">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img"
-        aria-label={`Biểu đồ quỹ lương 12 tháng năm ${data.year}`}>
-        {/* Lưới + nhãn trục dọc */}
-        {ticks.map((t) => (
-          <g key={t}>
-            <line x1={padL} x2={W - padR} y1={y(t)} y2={y(t)} stroke={CHART_GRID} strokeWidth={1} />
-            <text x={padL - 10} y={y(t) + 4} textAnchor="end" fontSize={11} fill={CHART_AXIS_TEXT}
-              fontWeight={600} style={{ fontVariantNumeric: "tabular-nums" }}>
-              {t === 0 ? "0" : formatCompact(t)}
-            </text>
-          </g>
-        ))}
-
-        {data.months.map((m, i) => {
-          const x = padL + i * band + (band - barW) / 2;
-          const isHover = hoverMonth === m.month;
-          const totalH = (m.totalNet / niceMax) * plotH;
-          const paidH = (m.totalPaid / niceMax) * plotH;
-          const remainH = Math.max(0, totalH - paidH);
-          const baseY = padT + plotH;
-          // Khe 2px màu nền tách hai đoạn của cột chồng
-          const gap = paidH > 0 && remainH > 2 ? 2 : 0;
-
-          return (
-            <g key={m.month}>
-              {/* Đoạn "còn phải chi" nằm trên, bo tròn đầu cột */}
-              {remainH > 0 && (
-                <path
-                  d={roundedTopRect(x, baseY - totalH, barW, remainH - gap > 0 ? remainH - gap : remainH, 4)}
-                  fill={CHART_REMAINING}
-                  opacity={hoverMonth === null || isHover ? 1 : 0.45}
-                />
-              )}
-              {/* Đoạn "đã chi trả" đứng trên đường cơ sở */}
-              {paidH > 0 && (
-                <path
-                  d={remainH > 0
-                    ? `M${x},${baseY - paidH} h${barW} v${paidH} h${-barW} Z`
-                    : roundedTopRect(x, baseY - paidH, barW, paidH, 4)}
-                  fill={CHART_PAID}
-                  opacity={hoverMonth === null || isHover ? 1 : 0.45}
-                />
-              )}
-
-              {/* Vùng bắt hover rộng hơn cột để dễ trỏ */}
-              <rect
-                x={padL + i * band} y={padT} width={band} height={plotH}
-                fill="transparent"
-                onMouseEnter={() => onHover(m.month)}
-                onMouseLeave={() => onHover(null)}
-              />
-
-              <text x={padL + i * band + band / 2} y={H - 10} textAnchor="middle" fontSize={11}
-                fill={isHover ? "#334155" : CHART_AXIS_TEXT} fontWeight={isHover ? 800 : 600}>
-                T{m.month}
-              </text>
-            </g>
-          );
-        })}
-
-        {/* Đường cơ sở */}
-        <line x1={padL} x2={W - padR} y1={padT + plotH} y2={padT + plotH} stroke="#cbd5e1" strokeWidth={1} />
-      </svg>
-
-      {/* Chú giải — luôn có vì biểu đồ có 2 thành phần */}
-      <div className="flex items-center gap-5 mt-2 pl-1">
-        <span className="inline-flex items-center gap-2 text-[11.5px] font-bold text-slate-500">
-          <span className="w-3 h-3 rounded-sm" style={{ background: CHART_PAID }} /> Đã chi trả
-        </span>
-        <span className="inline-flex items-center gap-2 text-[11.5px] font-bold text-slate-500">
-          <span className="w-3 h-3 rounded-sm" style={{ background: CHART_REMAINING }} /> Còn phải chi
-        </span>
-      </div>
-
-      {/* Tooltip — sát mép trái/phải thì neo theo mép đó thay vì căn giữa,
-          nếu không các tháng đầu và cuối (nhất là T12) sẽ bị tràn ra ngoài khung. */}
-      {hovered && (
-        <div
-          className="absolute -top-1 z-10 pointer-events-none bg-white border border-slate-200 rounded-xl shadow-xl px-3.5 py-2.5 w-[210px] max-w-[calc(100%-0.5rem)]"
-          style={{
-            left: `${tooltipCenterPercent}%`,
-            transform: `translateX(${
-              tooltipCenterPercent < 22 ? "0%" : tooltipCenterPercent > 78 ? "-100%" : "-50%"
-            })`,
-          }}
-        >
-          <span className="text-[12px] font-black text-slate-900 block">Tháng {hovered.month}/{data.year}</span>
-          <div className="mt-1.5 space-y-1">
-            <Row label="Tổng quỹ" value={formatCurrency(hovered.totalNet)} bold />
-            <Row label="Đã chi trả" value={formatCurrency(hovered.totalPaid)} dot={CHART_PAID} />
-            <Row label="Còn phải chi" value={formatCurrency(hovered.totalNet - hovered.totalPaid)} dot={CHART_REMAINING} />
-            <Row label="Nhân sự đã trả" value={`${hovered.paidCount}/${hovered.staffCount}`} />
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Row({ label, value, dot, bold }: { label: string; value: string; dot?: string; bold?: boolean }) {
-  return (
-    <div className="flex items-center justify-between gap-4 whitespace-nowrap">
-      <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-500">
-        {dot && <span className="w-2 h-2 rounded-sm shrink-0" style={{ background: dot }} />}
-        {label}
-      </span>
-      <span className={`text-[11.5px] tabular-nums ${bold ? "font-black text-slate-900" : "font-bold text-slate-600"}`}>
-        {value}
-      </span>
-    </div>
-  );
-}
-
-/** Hình chữ nhật bo tròn ở đầu cột, vuông góc ở chân cột (đường cơ sở). */
-function roundedTopRect(x: number, yTop: number, w: number, h: number, r: number) {
-  const radius = Math.min(r, h, w / 2);
-  return `M${x},${yTop + h} V${yTop + radius} Q${x},${yTop} ${x + radius},${yTop} H${x + w - radius} Q${x + w},${yTop} ${x + w},${yTop + radius} V${yTop + h} Z`;
 }

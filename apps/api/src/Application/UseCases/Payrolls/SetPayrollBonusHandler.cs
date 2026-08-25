@@ -39,6 +39,7 @@ public class SetPayrollBonusHandler(
             targetId: record.Id.ToString(),
             ct: ct);
 
-        return GetPayrollPeriodHandler.BuildItem(user, record, [], command.Year, command.Month);
+        // record luôn khác null tại đây nên requiredShifts không được dùng tới trong BuildItem.
+        return GetPayrollPeriodHandler.BuildItem(user, record, [], 0, command.Year, command.Month);
     }
 }

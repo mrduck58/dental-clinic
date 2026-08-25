@@ -14,6 +14,14 @@ public class SupplyTransactionRepository(AppDbContext db) : ISupplyTransactionRe
             .OrderByDescending(t => t.CreatedAt)
             .ToListAsync(ct);
 
+    public async Task<IEnumerable<SupplyTransaction>> GetImportsInRangeAsync(DateTimeOffset start, DateTimeOffset end, CancellationToken ct = default)
+        => await db.SupplyTransactions
+            .AsNoTracking()
+            .Include(t => t.SupplyItem)
+            .Where(t => t.Type == "import" && t.UnitPrice != null && t.CreatedAt >= start && t.CreatedAt < end)
+            .OrderByDescending(t => t.CreatedAt)
+            .ToListAsync(ct);
+
     public async Task AddAsync(SupplyTransaction transaction, CancellationToken ct = default)
     {
         await db.SupplyTransactions.AddAsync(transaction, ct);
