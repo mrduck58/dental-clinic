@@ -110,11 +110,12 @@ public class GetFollowUpDueHandler(
             var plansInChain = activePlans.Where(p => chain.Contains(p.AppointmentId)).ToList();
             var planNames = plansInChain.Select(p => p.ServiceName).Distinct().ToList();
 
-            // Dịch vụ điền sẵn khi staff check-in phải là dịch vụ ĐANG ĐIỀU TRỊ (liệu trình InProgress
-            // trong cùng chuỗi tái khám), không phải dịch vụ đặt lúc đầu — bệnh nhân tái khám thường đến
-            // vì liệu trình đang làm dở, có thể khác hẳn dịch vụ đã chọn ở buổi đặt lịch ban đầu. Không
-            // còn liệu trình nào đang thực hiện (ví dụ hẹn tái khám tay, chưa lập liệu trình) thì mới
-            // dùng tạm dịch vụ của buổi hẹn gốc.
+            // Dịch vụ điền sẵn khi staff check-in (PrefillServiceId) phải là dịch vụ ĐANG ĐIỀU TRỊ
+            // (liệu trình InProgress trong cùng chuỗi tái khám) — bệnh nhân tái khám thường đến vì liệu
+            // trình đang làm dở, có thể khác hẳn dịch vụ đã chọn ở buổi đặt lịch ban đầu. Không còn
+            // liệu trình nào đang thực hiện (ví dụ hẹn tái khám tay, chưa lập liệu trình) thì mới dùng
+            // tạm dịch vụ của buổi hẹn gốc. Riêng ServiceId/ServiceName vẫn PHẢI giữ nguyên là dịch vụ
+            // đã đặt ở buổi hẹn gốc — dùng để hiển thị "Buổi gần nhất", không được đổi theo liệu trình.
             var activeServicePlan = plansInChain.FirstOrDefault();
 
             result.Add(new FollowUpDueDto
@@ -127,8 +128,9 @@ public class GetFollowUpDueHandler(
                 Gender = a.Patient.Gender,
                 DentistId = a.DentistId,
                 DentistName = a.Dentist.FullName,
-                ServiceId = activeServicePlan?.ServiceId ?? a.ServiceId,
-                ServiceName = activeServicePlan?.ServiceName ?? a.Service?.Name,
+                ServiceId = a.ServiceId,
+                ServiceName = a.Service?.Name,
+                PrefillServiceId = activeServicePlan?.ServiceId ?? a.ServiceId,
                 OriginalAppointmentDate = a.AppointmentDate,
                 FollowUpDate = a.FollowUpDate,
                 FollowUpNote = a.FollowUpNote,

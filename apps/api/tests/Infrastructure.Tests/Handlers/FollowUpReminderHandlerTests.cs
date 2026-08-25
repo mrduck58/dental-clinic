@@ -178,6 +178,33 @@ public class FollowUpReminderHandlerTests
         result.Should().ContainSingle(x => x.OriginalAppointmentId == appointment.Id && x.PatientId == patient.Id);
     }
 
+    /// <summary>ServiceId/ServiceName (hiển thị "Buổi gần nhất") phải giữ nguyên dịch vụ đã đặt ở buổi
+    /// hẹn gốc; PrefillServiceId (dùng để điền form đặt lịch tái khám) mới là dịch vụ đang điều trị —
+    /// 2 giá trị này phải tách biệt, không được lẫn vào nhau.</summary>
+    [Test]
+    public async Task GetDueAsync_ActivePlanHasDifferentService_KeepsOriginalServiceSeparateFromPrefillService()
+    {
+        var (patient, dentist, bookedService) = await SeedBaseDataAsync();
+        var inProgressService = Service.Create("Trám răng", 500_000m, 30, "Phục hồi");
+        _db.Services.Add(inProgressService);
+        var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddDays(-1), serviceId: bookedService.Id);
+        appointment.Complete();
+        appointment.SetFollowUpReminder(DateOnly.FromDateTime(DateTime.Today), null);
+        _db.Appointments.Add(appointment);
+        await _db.SaveChangesAsync();
+
+        var plan = TreatmentPlan.Create(patient.Id, dentist.Id, appointment.Id, inProgressService.Id, inProgressService.Price, 1);
+        plan.SetStatus(TreatmentPlanStatus.InProgress);
+        _db.TreatmentPlans.Add(plan);
+        await _db.SaveChangesAsync();
+
+        var result = (await _due.Handle(new GetFollowUpDueQuery(), CancellationToken.None)).Single();
+
+        result.ServiceId.Should().Be(bookedService.Id, "Buổi gần nhất phải hiện đúng dịch vụ đã đặt ban đầu");
+        result.ServiceName.Should().Be("Niềng răng");
+        result.PrefillServiceId.Should().Be(inProgressService.Id, "form đặt lịch phải điền dịch vụ đang điều trị");
+    }
+
     /// <summary>Buổi gốc đã được check-in tái khám rồi (buổi con chưa kết thúc) phải bị ẩn khỏi danh sách
     /// chờ tái khám, tránh hiện trùng khi bệnh nhân đã có mặt.</summary>
     [Test]

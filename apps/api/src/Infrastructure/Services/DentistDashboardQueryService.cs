@@ -73,11 +73,18 @@ public class DentistDashboardQueryService(AppDbContext db) : IDentistDashboardQu
         var weekStart = today.AddDays(-daysFromMon);
         var weekEnd = weekStart.AddDays(7);
 
-        var weekSchedules = await db.WorkSchedules
-            .Where(s => s.StaffName == dentist.FullName &&
-                        s.Date >= weekStart && s.Date < weekEnd &&
-                        !s.IsHoliday)
+        // Nối lịch với bác sĩ qua EmployeeId — khóa THẬT (xem WorkSchedule.Create). StaffName chỉ còn là
+        // lưới an toàn cho dòng cũ/nhập tay chưa gán được EmployeeId — so khớp exact string trước đây khiến
+        // "Ca làm việc hôm nay" trống trơn khi hồ sơ ghi khác chữ so với bảng xếp lịch, cùng lỗi đã sửa ở
+        // GetWaitingQueueHandler/GetMyScheduleHandler.
+        var employeeId = dentist.EmployeeId;
+        var weekSchedulesRaw = await db.WorkSchedules
+            .Where(s => s.Date >= weekStart && s.Date < weekEnd && !s.IsHoliday)
             .ToListAsync(ct);
+        var weekSchedules = weekSchedulesRaw
+            .Where(s => s.EmployeeId == employeeId ||
+                        (s.EmployeeId == null && StaffNameMatcher.IsSamePerson(s.StaffName, dentist.FullName)))
+            .ToList();
 
         var todaySchedules = weekSchedules.Where(s => s.Date == today).ToList();
 

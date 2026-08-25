@@ -2,6 +2,7 @@ using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace DentalClinic.API.Infrastructure.Persistence.Repositories;
 
@@ -62,9 +63,6 @@ public class InvoiceRepository(AppDbContext db) : IInvoiceRepository
     public Task<bool> HasChildInvoiceAsync(Guid parentInvoiceId, CancellationToken ct = default) =>
         db.Invoices.AnyAsync(c => c.ParentInvoiceId == parentInvoiceId, ct);
 
-    public Task<int> CountAsync(CancellationToken ct = default) =>
-        db.Invoices.CountAsync(ct);
-
     public async Task<IReadOnlyList<Invoice>> GetCollectingRemainingParentsAsync(CancellationToken ct = default) =>
         await db.Invoices.AsNoTracking()
             .Include(i => i.Appointment).ThenInclude(a => a.Patient).ThenInclude(p => p.User)
@@ -74,7 +72,45 @@ public class InvoiceRepository(AppDbContext db) : IInvoiceRepository
             .OrderBy(i => i.CreatedAt)
             .ToListAsync(ct);
 
-    public void Add(Invoice invoice) => db.Invoices.Add(invoice);
+    public async Task<Invoice> IssueWithUniqueNumberAsync(Func<string, Invoice> build, CancellationToken ct = default)
+    {
+        const int maxAttempts = 5;
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            var invoiceNumber = await GenerateNextInvoiceNumberAsync(ct);
+            var invoice = build(invoiceNumber);
+            db.Invoices.Add(invoice);
+            try
+            {
+                await db.SaveChangesAsync(ct);
+                return invoice;
+            }
+            catch (DbUpdateException ex) when (attempt < maxAttempts && IsDuplicateInvoiceNumber(ex))
+            {
+                // 2 yêu cầu xuất hóa đơn gần như đồng thời có thể đọc cùng số kế tiếp trước khi cái nào
+                // kịp lưu — gỡ bản ghi vừa Add (chưa lưu được) khỏi change tracker rồi sinh số khác thử lại.
+                db.Invoices.Remove(invoice);
+            }
+        }
+        throw new InvalidOperationException("Không thể sinh số hóa đơn duy nhất sau nhiều lần thử, vui lòng thử lại.");
+    }
+
+    /// <summary>MAX số hiện có + 1, không dùng COUNT — COUNT sai nếu từng có hóa đơn bị xóa (số đã dùng
+    /// không giảm theo count), dẫn đến sinh lại số đã tồn tại và trùng vĩnh viễn.</summary>
+    private async Task<string> GenerateNextInvoiceNumberAsync(CancellationToken ct)
+    {
+        var numbers = await db.Invoices.Select(i => i.InvoiceNumber).ToListAsync(ct);
+        var next = numbers
+            .Select(n => n.StartsWith("INV") && int.TryParse(n.AsSpan(3), out var num) ? num : 0)
+            .DefaultIfEmpty(0)
+            .Max() + 1;
+        return $"INV{next:D3}";
+    }
+
+    private static bool IsDuplicateInvoiceNumber(DbUpdateException ex) =>
+        ex.InnerException is PostgresException pg &&
+        pg.SqlState == PostgresErrorCodes.UniqueViolation &&
+        pg.ConstraintName == "IX_Invoices_InvoiceNumber";
 
     public Task<Guid?> GetPatientUserIdByAppointmentIdAsync(Guid appointmentId, CancellationToken ct = default) =>
         db.Appointments
