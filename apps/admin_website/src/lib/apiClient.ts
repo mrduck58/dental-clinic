@@ -3332,8 +3332,11 @@ export interface FollowUpDueDto {
   gender: string | null;
   dentistId: string;
   dentistName: string;
+  /** Dịch vụ đã đặt ở buổi hẹn gốc — hiển thị ở "Buổi gần nhất", KHÔNG dùng để điền form. */
   serviceId: string | null;
   serviceName: string | null;
+  /** Dịch vụ đang điều trị (liệu trình InProgress) — dùng để điền sẵn form đặt lịch khi check-in tái khám. */
+  prefillServiceId: string | null;
   originalAppointmentDate: string;
   followUpDate: string | null;
   followUpNote: string | null;

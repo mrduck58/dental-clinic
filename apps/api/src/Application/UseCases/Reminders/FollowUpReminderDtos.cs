@@ -21,8 +21,12 @@ public class FollowUpDueDto
     public string? Gender { get; set; }
     public Guid DentistId { get; set; }
     public string DentistName { get; set; } = string.Empty;
+    /// <summary>Dịch vụ đã đặt ở buổi hẹn gốc — hiển thị ở "Buổi gần nhất", KHÔNG dùng để điền form.</summary>
     public Guid? ServiceId { get; set; }
     public string? ServiceName { get; set; }
+    /// <summary>Dịch vụ đang điều trị (liệu trình InProgress) — dùng để điền sẵn form đặt lịch khi
+    /// staff check-in tái khám; rơi về ServiceId nếu không còn liệu trình nào đang thực hiện.</summary>
+    public Guid? PrefillServiceId { get; set; }
     public DateTimeOffset OriginalAppointmentDate { get; set; }
     public DateOnly? FollowUpDate { get; set; }
     public string? FollowUpNote { get; set; }

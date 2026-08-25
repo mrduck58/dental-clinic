@@ -26,7 +26,6 @@ public record IssueInvoiceCommand(
 public class IssueInvoiceHandler(
     IInvoiceRepository invoiceRepository,
     IPromotionRepository promotionRepository,
-    IUnitOfWork unitOfWork,
     INotificationService notificationService,
     InvoiceQueryHelper invoiceQuery) : IRequestHandler<IssueInvoiceCommand, InvoiceDto>
 {
@@ -102,6 +101,8 @@ public class IssueInvoiceHandler(
         var depositAmount = command.Items.Sum(i => i.AmountCollected ?? (i.Quantity < 1 ? 1 : i.Quantity) * i.UnitPrice);
         if (depositAmount > totalAmount)
             throw new ValidationException("Số tiền thu không được vượt quá tổng tiền hóa đơn.");
+        if (depositAmount <= 0)
+            throw new ValidationException("Số tiền thu phải lớn hơn 0.");
 
         // Cho phép nhiều hóa đơn/buổi, nhưng chặn xuất vượt tổng tiền của mỗi liệu trình
         // (tránh xuất trùng dịch vụ đã có hóa đơn trước đó).
@@ -119,23 +120,17 @@ public class IssueInvoiceHandler(
 
         var paymentMethod = ParsePaymentMethod(command.PaymentMethod);
 
-        // Thu ngay của mỗi dòng: mặc định = thành tiền (thu toàn bộ); nếu đặt cọc thì là số cọc của dòng.
-        var invoiceNumber = await invoiceQuery.GenerateInvoiceNumberAsync(ct);
-
-        var invoice = Invoice.Issue(
+        // Không tự sinh + Add + Save riêng lẻ ở đây nữa: IssueWithUniqueNumberAsync tự sinh số VÀ lưu
+        // trong cùng 1 bước, tự thử lại nếu đụng số do 2 yêu cầu xuất hóa đơn gần như đồng thời.
+        var invoice = await invoiceRepository.IssueWithUniqueNumberAsync(invoiceNumber => Invoice.Issue(
             appointment.Id,
             invoiceNumber,
             command.Items.Select(i => (i.Name, i.Quantity, i.UnitPrice, i.TreatmentPlanId, i.AmountCollected)),
             effectiveDiscount,
             paymentMethod,
             command.Notes,
-            command.PromotionId);
+            command.PromotionId), ct);
 
-        if (invoice.DepositAmount <= 0)
-            throw new ValidationException("Số tiền thu phải lớn hơn 0.");
-
-        invoiceRepository.Add(invoice);
-        await unitOfWork.SaveChangesAsync(ct);
         await NotifyInvoiceIssuedAsync(invoice, ct);
 
         return await invoiceQuery.GetByIdAsync(invoice.Id, ct);
@@ -155,19 +150,16 @@ public class IssueInvoiceHandler(
             throw new ConflictException("Đã tạo hóa đơn thu phần còn lại cho hóa đơn này.");
 
         var paymentMethod = ParsePaymentMethod(command.PaymentMethod);
-        var invoiceNumber = await invoiceQuery.GenerateInvoiceNumberAsync(ct);
 
-        var invoice = Invoice.IssueRemaining(
+        var invoice = await invoiceRepository.IssueWithUniqueNumberAsync(invoiceNumber => Invoice.IssueRemaining(
             parent.AppointmentId,
             invoiceNumber,
             parent.Id,
             $"Phần còn lại - HĐ {parent.InvoiceNumber}",
             parent.RemainingAmount,
             paymentMethod,
-            command.Notes);
+            command.Notes), ct);
 
-        invoiceRepository.Add(invoice);
-        await unitOfWork.SaveChangesAsync(ct);
         await NotifyInvoiceIssuedAsync(invoice, ct);
 
         return await invoiceQuery.GetByIdAsync(invoice.Id, ct);
@@ -204,19 +196,16 @@ public class IssueInvoiceHandler(
             throw new ValidationException($"Số tiền thu vượt quá công nợ còn lại ({remaining:#,##0}đ).");
 
         var paymentMethod = ParsePaymentMethod(command.PaymentMethod);
-        var invoiceNumber = await invoiceQuery.GenerateInvoiceNumberAsync(ct);
 
-        var invoice = Invoice.IssuePlanInstallment(
+        var invoice = await invoiceRepository.IssueWithUniqueNumberAsync(invoiceNumber => Invoice.IssuePlanInstallment(
             appointment.Id,
             treatmentPlanId,
             invoiceNumber,
             $"Đợt thu - {BuildPlanName(plan)}",
             amount,
             paymentMethod,
-            command.Notes);
+            command.Notes), ct);
 
-        invoiceRepository.Add(invoice);
-        await unitOfWork.SaveChangesAsync(ct);
         await NotifyInvoiceIssuedAsync(invoice, ct);
 
         return await invoiceQuery.GetByIdAsync(invoice.Id, ct);

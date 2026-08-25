@@ -44,12 +44,6 @@ public class WorkScheduleRepository(AppDbContext db) : IWorkScheduleRepository
     public async Task<IReadOnlyList<WorkSchedule>> GetByDateRangeAsync(DateOnly start, DateOnly end, CancellationToken ct = default)
         => await db.WorkSchedules.AsNoTracking().Where(ws => ws.Date >= start && ws.Date <= end).ToListAsync(ct);
 
-    public async Task<IReadOnlyList<WorkSchedule>> GetByStaffNameAndDateRangeAsync(string staffName, DateOnly start, DateOnly end, CancellationToken ct = default)
-        => await db.WorkSchedules
-            .Where(s => s.StaffName == staffName && s.Date >= start && s.Date < end)
-            .OrderBy(s => s.Date)
-            .ToListAsync(ct);
-
     public async Task RemoveRangeAsync(IEnumerable<WorkSchedule> entries, CancellationToken ct = default)
     {
         var ids = entries.Select(e => e.Id).ToList();

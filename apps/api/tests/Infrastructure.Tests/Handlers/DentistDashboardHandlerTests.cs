@@ -121,7 +121,7 @@ public class DentistDashboardHandlerTests
     [Test]
     public async Task HandleAsync_WeekSchedules_CountsShiftsByPeriodCorrectly()
     {
-        var dentistUser = User.Create("dd3", "dd3@test.com", "hash", UserRole.Dentist);
+        var dentistUser = User.Create("dd3", "dd3@test.com", "hash", UserRole.Dentist, fullName: "Nguyễn Văn Ba");
         _db.Users.Add(dentistUser);
         var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
         employee.User = dentistUser;
@@ -153,7 +153,7 @@ public class DentistDashboardHandlerTests
     [Test]
     public async Task HandleAsync_HolidaySchedule_ExcludedFromWeekShifts()
     {
-        var dentistUser = User.Create("dd4", "dd4@test.com", "hash", UserRole.Dentist);
+        var dentistUser = User.Create("dd4", "dd4@test.com", "hash", UserRole.Dentist, fullName: "Nguyễn Văn Tư");
         _db.Users.Add(dentistUser);
         var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
         employee.User = dentistUser;
@@ -177,7 +177,7 @@ public class DentistDashboardHandlerTests
     [Test]
     public async Task HandleAsync_TodaySchedules_ReturnsOrderedShiftsWithRoom()
     {
-        var dentistUser = User.Create("dd5", "dd5@test.com", "hash", UserRole.Dentist);
+        var dentistUser = User.Create("dd5", "dd5@test.com", "hash", UserRole.Dentist, fullName: "Nguyễn Văn Năm");
         _db.Users.Add(dentistUser);
         var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
         employee.User = dentistUser;
@@ -197,5 +197,56 @@ public class DentistDashboardHandlerTests
         result.TodayShifts.Should().HaveCount(2);
         result.TodayShifts[0].Room.Should().Be("P101"); // ca sáng phải đứng trước ca chiều
         result.TodayShifts[1].Room.Should().Be("P202");
+    }
+
+    /// <summary>Nối lịch với bác sĩ qua EmployeeId — khóa thật — kể cả khi StaffName ghi trên dòng lịch
+    /// (do người xếp lịch gõ tay) không khớp tuyệt đối với FullName của tài khoản.</summary>
+    [Test]
+    public async Task HandleAsync_TodaySchedule_MatchesByEmployeeIdEvenWhenStaffNameDiffers()
+    {
+        var dentistUser = User.Create("dd6", "dd6@test.com", "hash", UserRole.Dentist);
+        _db.Users.Add(dentistUser);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
+        await _db.SaveChangesAsync();
+
+        var today = VietnamToday();
+        // StaffName lệch hẳn (chức danh khác kiểu gõ) so với FullName — vẫn phải khớp vì có EmployeeId.
+        _db.WorkSchedules.Add(WorkSchedule.Create(today, "08:00-10:00", "dentist", "dentist", "BS. " + dentistUser.FullName, "P101", "border-primary", false, dentist.EmployeeId));
+        await _db.SaveChangesAsync();
+
+        var result = await _handler.Handle(new GetDentistDashboardQuery(dentistUser.Id), CancellationToken.None);
+
+        result.TodayShifts.Should().ContainSingle();
+        result.WeekShifts.Total.Should().Be(1);
+    }
+
+    /// <summary>Dòng lịch đã gán EmployeeId của người khác không được lẫn vào chỉ vì StaffName tình cờ
+    /// trùng — EmployeeId khi đã có là căn cứ duy nhất cho dòng đó, không rơi xuống so tên nữa.</summary>
+    [Test]
+    public async Task HandleAsync_TodaySchedule_RowHasEmployeeIdBelongingToSomeoneElse_DoesNotMatchByCoincidentalName()
+    {
+        var dentistUser = User.Create("dd7", "dd7@test.com", "hash", UserRole.Dentist);
+        _db.Users.Add(dentistUser);
+        var employee = Employee.Create(dentistUser.Id, $"DT-{Guid.NewGuid():N}");
+        employee.User = dentistUser;
+        var dentist = DentistProfile.Create(employee.Id, "Nha khoa tổng quát", "N/A", 5);
+        dentist.Employee = employee;
+        _db.Employees.Add(employee);
+        _db.DentistProfiles.Add(dentist);
+        await _db.SaveChangesAsync();
+
+        var today = VietnamToday();
+        _db.WorkSchedules.Add(WorkSchedule.Create(today, "08:00-10:00", "dentist", "dentist", dentist.FullName, "P101", "border-primary", false, Guid.NewGuid()));
+        await _db.SaveChangesAsync();
+
+        var result = await _handler.Handle(new GetDentistDashboardQuery(dentistUser.Id), CancellationToken.None);
+
+        result.TodayShifts.Should().BeEmpty();
+        result.WeekShifts.Total.Should().Be(0);
     }
 }

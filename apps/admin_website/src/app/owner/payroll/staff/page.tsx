@@ -40,6 +40,13 @@ const STATUS_BADGE: Record<string, { label: string; dot: string; cls: string }> 
   Paid: { label: "Đã trả", dot: "bg-green-500", cls: "bg-green-50 text-green-700 border border-green-200" },
 };
 
+// Null/thiếu = mặc định Full-time (tương thích ngược, khớp PayrollCalculator.IsFullTime ở backend).
+const employmentTypeBadge = (type: string | null): { label: string; cls: string } => {
+  if (type === "Part-time") return { label: "Bán thời gian", cls: "bg-amber-50 text-amber-700 border-amber-200" };
+  if (type === "Shift-based") return { label: "Theo ca", cls: "bg-violet-50 text-violet-700 border-violet-200" };
+  return { label: "Toàn thời gian", cls: "bg-sky-50 text-sky-700 border-sky-200" };
+};
+
 // Ô nhập tiền: hiển thị có dấu phân cách (5.000.000), parse về số.
 const fmtMoneyInput = (n: number) => (n ? n.toLocaleString("vi-VN") : "");
 const parseMoneyInput = (s: string) => Number(s.replace(/[^\d]/g, "")) || 0;
@@ -755,6 +762,7 @@ export default function OwnerPayrollStaffPage() {
                   <tr className="border-b border-slate-150 bg-slate-50/80">
                     <Th className="px-4" align="center">STT</Th>
                     <SortableTh column="name" label="Nhân viên" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-4" />
+                    <Th className="px-4" align="center">Hình thức</Th>
                     <SortableTh column="base" label="Lương cơ bản" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" className="px-4" />
                     <SortableTh column="allowance" label="Phụ cấp" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" className="px-4" />
                     <SortableTh column="deduction" label="Khấu trừ" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" className="px-4" />
@@ -768,13 +776,13 @@ export default function OwnerPayrollStaffPage() {
                 <tbody className="divide-y divide-slate-100">
                   {isLoading ? (
                     <tr>
-                      <td colSpan={10} className="px-5 py-12 text-center text-slate-400 font-semibold animate-pulse">
+                      <td colSpan={11} className="px-5 py-12 text-center text-slate-400 font-semibold animate-pulse">
                         Đang tải danh sách lương nhân sự...
                       </td>
                     </tr>
                   ) : pagedItems.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="px-5 py-12 text-center text-slate-400 font-semibold">
+                      <td colSpan={11} className="px-5 py-12 text-center text-slate-400 font-semibold">
                         Không tìm thấy thông tin lương phù hợp.
                       </td>
                     </tr>
@@ -797,6 +805,16 @@ export default function OwnerPayrollStaffPage() {
                                 <span className="text-[11px] font-mono text-slate-400 font-extrabold">{item.employeeId ?? "Chưa cấp ID"}</span>
                               </div>
                             </div>
+                          </td>
+                          <td className="px-4 py-4 text-center">
+                            {(() => {
+                              const badge = employmentTypeBadge(item.employmentType);
+                              return (
+                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-black border whitespace-nowrap ${badge.cls}`}>
+                                  {badge.label}
+                                </span>
+                              );
+                            })()}
                           </td>
                           <td className="px-4 py-4 text-right font-bold text-slate-700 tabular-nums">
                             {item.hasSalaryConfigured ? (
