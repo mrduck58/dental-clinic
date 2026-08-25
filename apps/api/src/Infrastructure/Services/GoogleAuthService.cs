@@ -7,7 +7,7 @@ namespace DentalClinic.API.Infrastructure.Services;
 
 public class GoogleAuthService(IOptions<GoogleAuthSettings> options) : IGoogleAuthService
 {
-    private const string DefaultClientId = "480881191460-8e7emobqjha18fkom70vs432jq0fmttk.apps.googleusercontent.com";
+    private const string DefaultClientId = "170456318656-4t2r29iejm1mnhbcu9raogdibehlnehm.apps.googleusercontent.com";
     private readonly GoogleAuthSettings _settings = options.Value;
 
     public async Task<GoogleUserInfo> VerifyIdTokenAsync(string idToken, CancellationToken ct = default)
