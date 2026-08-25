@@ -1191,11 +1191,11 @@ function EditScheduleContent() {
                   ✕
                 </button>
               </div>
-              <div className="pr-2">
-                <div className={`text-[12px] font-black leading-tight break-words ${doctorEntry.isDraft ? "text-primary" : "text-slate-800"}`}>
+              <div className="pr-2 min-w-0" title={doctorEntry.name}>
+                <div className={`text-[12px] font-black leading-tight break-normal ${doctorEntry.isDraft ? "text-primary" : "text-slate-800"}`}>
                   {doctorEntry.name}
                 </div>
-                <div className="text-[10px] font-bold text-slate-400 mt-0.5 break-words">
+                <div className="text-[10px] font-bold text-slate-400 mt-0.5 break-normal">
                   {staffDatabase.find(s => s.name === doctorEntry.name)?.specialization || "Bác sĩ"}
                 </div>
               </div>
@@ -1256,11 +1256,11 @@ function EditScheduleContent() {
               key={entry.id}
               className={`group relative bg-white border-l-4 border-emerald-600 px-2.5 py-2 rounded-xl shadow-sm border border-slate-200/70 flex items-center justify-between gap-1.5 hover:border-slate-350 transition-all ${entry.isDraft ? "border-emerald-400/60 ring-1 ring-emerald-500/20 shadow-emerald-50" : ""}`}
             >
-              <div className="min-w-0">
-                <div className={`text-[12px] font-black leading-tight break-words ${entry.isDraft ? "text-primary font-black" : "text-slate-800"}`}>
+              <div className="min-w-0" title={entry.name}>
+                <div className={`text-[12px] font-black leading-tight break-normal ${entry.isDraft ? "text-primary font-black" : "text-slate-800"}`}>
                   {entry.name}
                 </div>
-                <div className="text-[10px] font-bold text-slate-400 break-words mt-0.5">
+                <div className="text-[10px] font-bold text-slate-400 break-normal mt-0.5">
                   {staffDatabase.find(s => s.name === entry.name)?.specialization || "Nhân viên"}
                 </div>
               </div>

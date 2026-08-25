@@ -44,7 +44,11 @@ internal static class InvoiceHelpers
             PatientPhone = appointment.Patient.User?.PhoneNumber,
             Gender = appointment.Patient.Gender,
             DentistName = appointment.Dentist.FullName,
-            AppointmentDate = appointment.AppointmentDate,
+            // Hóa đơn thu phần còn lại (ParentInvoiceId != null) dùng lại lịch hẹn CŨ của hóa đơn gốc —
+            // hiển thị theo ngày lịch hẹn đó sẽ làm nó rơi vào quá khứ và biến mất khỏi tab "Chờ thanh
+            // toán" khi lọc theo hôm nay. Hóa đơn loại này là một sự kiện thu tiền độc lập nên hiển thị
+            // theo đúng ngày nó được lập (CreatedAt), không phải ngày buổi hẹn gốc.
+            AppointmentDate = invoice.ParentInvoiceId != null ? invoice.CreatedAt : appointment.AppointmentDate,
             Items = invoice.Items
                 .Select(i => new InvoiceItemDto(i.Name, i.Quantity, i.UnitPrice, i.TreatmentPlanId))
                 .ToList(),

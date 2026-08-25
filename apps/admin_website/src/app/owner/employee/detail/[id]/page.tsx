@@ -530,13 +530,24 @@ export default function StaffDetailPage() {
                     </div>
 
                     <div>
-                      <span className="block text-slate-400 font-semibold">Lương cơ bản:</span>
-                      <span className={`font-extrabold block mt-1 ${staff.baseSalary == null ? "text-slate-400" : "text-red-600"}`}>
-                        {fmtMoneyOrEmpty(staff.baseSalary)}
-                        {staff.baseSalary != null && salaryUnit && (
-                          <span className="text-xs text-slate-400 font-semibold"> / {salaryUnit.replace("Theo ", "")}</span>
-                        )}
+                      <span className="block text-slate-400 font-semibold">
+                        {employmentType === "Part-time" ? "Đơn giá / ca:" : "Lương cơ bản:"}
                       </span>
+                      {employmentType === "Part-time" ? (
+                        <span className={`font-extrabold block mt-1 ${staff.ratePerShift == null ? "text-slate-400" : "text-red-600"}`}>
+                          {fmtMoneyOrEmpty(staff.ratePerShift)}
+                          {staff.ratePerShift != null && (
+                            <span className="text-xs text-slate-400 font-semibold"> / ca</span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className={`font-extrabold block mt-1 ${staff.baseSalary == null ? "text-slate-400" : "text-red-600"}`}>
+                          {fmtMoneyOrEmpty(staff.baseSalary)}
+                          {staff.baseSalary != null && salaryUnit && (
+                            <span className="text-xs text-slate-400 font-semibold"> / {salaryUnit.replace("Theo ", "")}</span>
+                          )}
+                        </span>
+                      )}
                     </div>
 
                     <div>

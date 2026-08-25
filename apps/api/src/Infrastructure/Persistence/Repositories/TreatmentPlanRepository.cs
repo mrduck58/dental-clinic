@@ -70,12 +70,20 @@ public class TreatmentPlanRepository(AppDbContext db) : ITreatmentPlanRepository
                 PlanId = it.TreatmentPlanId!.Value,
                 Line = it.Quantity * it.UnitPrice,
                 it.AmountCollected,
-                it.Invoice.IsSettled
+                it.Invoice.IsSettled,
+                it.Invoice.Subtotal,
+                it.Invoice.TotalAmount
             })
             .ToListAsync(ct);
         foreach (var r in lineRows)
         {
-            var credit = r.IsSettled ? r.Line : r.AmountCollected;
+            // Hóa đơn đã tất toán (đặt cọc + thu phần còn lại) credit trọn dòng — NHƯNG nếu hóa đơn có
+            // khuyến mãi, tiền thực thu chỉ là TotalAmount (đã giảm giá), không phải tổng thành tiền
+            // thô (Subtotal) của các dòng. Quy đổi theo đúng tỉ lệ giảm giá của hóa đơn để không credit
+            // vượt quá số tiền bệnh nhân thực sự đã trả.
+            var credit = r.IsSettled
+                ? (r.Subtotal > 0 ? r.Line * r.TotalAmount / r.Subtotal : r.Line)
+                : r.AmountCollected;
             map[r.PlanId] = map.GetValueOrDefault(r.PlanId, 0m) + credit;
         }
 
