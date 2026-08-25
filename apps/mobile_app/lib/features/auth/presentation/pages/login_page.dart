@@ -11,6 +11,7 @@ import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/core/network/api_client.dart';
 import 'package:mobile_app/core/services/firebase_messaging_service.dart';
 import 'package:mobile_app/core/services/notification_sync_service.dart';
+import 'package:mobile_app/core/utils/app_toast.dart';
 import 'package:mobile_app/features/auth/data/auth_service.dart';
 import 'package:mobile_app/features/auth/presentation/widgets/auth_widgets.dart';
 import 'package:mobile_app/features/auth/presentation/widgets/google_signin_web_button.dart';
@@ -31,7 +32,7 @@ class _LoginPageState extends State<LoginPage> {
       ? GoogleSignIn()
       : GoogleSignIn(
           serverClientId:
-              '480881191460-8e7emobqjha18fkom70vs432jq0fmttk.apps.googleusercontent.com',
+              '170456318656-4ovvd8apq0a3pd9cglhetctojc4873sb.apps.googleusercontent.com',
         );
 
   final _emailCtrl = TextEditingController();
@@ -160,9 +161,17 @@ class _LoginPageState extends State<LoginPage> {
 
   /// Luồng native (Android/iOS/desktop) — gọi signIn() trực tiếp.
   Future<void> _handleGoogleSignIn() async {
-    final googleUser = await _googleSignIn.signIn();
-    if (googleUser == null) return; // Người dùng huỷ đăng nhập
-    await _handleGoogleAccount(googleUser);
+    try {
+      await _googleSignIn.signOut();
+      final googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) return; // Người dùng huỷ đăng nhập
+      await _handleGoogleAccount(googleUser);
+    } catch (e) {
+      debugPrint('Google sign-in error: $e');
+      if (mounted) {
+        AppToast.showError(context, 'Lỗi đăng nhập Google: $e');
+      }
+    }
   }
 
 
@@ -189,25 +198,19 @@ class _LoginPageState extends State<LoginPage> {
 
       if (!mounted) return;
       if (!result.isNewUser) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Chào mừng quay trở lại.')),
-        );
+        AppToast.showSuccess(context, 'Chào mừng quay trở lại.');
       }
       NotificationSyncService.instance.start();
       unawaited(FirebaseMessagingService.instance.syncTokenWithBackend());
       context.go(AppRoutes.home);
     } on DioException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(ApiClient.errorMessage(e))),
-        );
+        AppToast.showError(context, ApiClient.errorMessage(e));
       }
     } catch (e) {
       debugPrint('Google sign-in error: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đăng nhập Google thất bại. Vui lòng thử lại.')),
-        );
+        AppToast.showError(context, 'Đăng nhập Google thất bại: $e');
       }
     } finally {
       if (mounted) setState(() => _isGoogleLoading = false);
