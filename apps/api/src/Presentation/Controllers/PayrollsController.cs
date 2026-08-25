@@ -29,6 +29,15 @@ public class PayrollsController(ISender sender) : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>GET api/payrolls/yearly?year= — Báo cáo quỹ lương cả năm, 12 kỳ (Owner)</summary>
+    [HttpGet("yearly")]
+    [Authorize(Roles = "Owner")]
+    public async Task<IActionResult> GetYearly([FromQuery] int? year, CancellationToken ct)
+    {
+        var result = await sender.Send(new GetPayrollYearlyQuery(year ?? DateTime.UtcNow.Year), ct);
+        return Ok(result);
+    }
+
     /// <summary>GET api/payrolls/me?year=&amp;month= — Bảng lương của chính người đang đăng nhập (Dentist/Staff)</summary>
     [HttpGet("me")]
     [Authorize(Roles = "Dentist,Staff")]

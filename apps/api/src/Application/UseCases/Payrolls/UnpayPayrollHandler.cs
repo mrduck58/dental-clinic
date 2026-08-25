@@ -42,7 +42,6 @@ public class UnpayPayrollHandler(
             targetId: record.Id.ToString(),
             ct: ct);
 
-        // record luôn khác null tại đây nên requiredShifts không được dùng tới trong BuildItem.
-        return GetPayrollPeriodHandler.BuildItem(user, record, leaves, 0, command.Year, command.Month);
+        return GetPayrollPeriodHandler.BuildItem(user, record, leaves, command.Year, command.Month);
     }
 }

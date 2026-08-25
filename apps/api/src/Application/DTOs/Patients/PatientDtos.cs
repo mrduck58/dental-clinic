@@ -55,28 +55,3 @@ public record CreatePatientAccountRequest(
     string VerificationCode);
 
 public record RequestPatientEmailVerificationRequest(string Email);
-
-/// <summary>Công nợ của một bệnh nhân cho MỘT dịch vụ cụ thể — cộng dồn mọi liệu trình (mọi option/buổi
-/// hẹn) của dịch vụ đó. RemainingAmount = TotalCost - AmountPaid, không bao giờ âm.</summary>
-public record PatientServiceBalanceDto(
-    Guid ServiceId,
-    string ServiceName,
-    decimal TotalCost,
-    decimal AmountPaid,
-    decimal RemainingAmount);
-
-/// <summary>Công nợ tổng hợp của một bệnh nhân — đã thanh toán / còn nợ bao nhiêu, theo từng dịch vụ.
-/// Công nợ = tổng TotalCost các liệu trình (trừ đã hủy) - số tiền đã thu qua hóa đơn liên quan, cùng
-/// công thức đã dùng ở tab "Công nợ" (xem ITreatmentPlanRepository.GetPlanPaidMapAsync).</summary>
-public record PatientBalanceDto(
-    Guid PatientId,
-    string FullName,
-    string? PhoneNumber,
-    decimal TotalCost,
-    decimal AmountPaid,
-    decimal RemainingAmount,
-    // Số liệu trình (trừ đã hủy) đã từng chỉ định cho bệnh nhân này — 0 nếu chưa từng điều trị.
-    int TreatmentPlanCount,
-    // Ngày liệu trình gần nhất được lập — null nếu chưa từng điều trị.
-    DateTimeOffset? LastTreatmentDate,
-    IReadOnlyList<PatientServiceBalanceDto> Services);

@@ -15,7 +15,6 @@ namespace DentalClinic.API.Application.Tests.Payrolls;
 public class PayrollHandlersTests
 {
     private IPayrollRepository _repo = null!;
-    private IWorkScheduleRepository _workScheduleRepo = null!;
     private IActivityLogService _activityLog = null!;
     private ICurrentUserService _currentUser = null!;
 
@@ -23,15 +22,12 @@ public class PayrollHandlersTests
     public void SetUp()
     {
         _repo = Substitute.For<IPayrollRepository>();
-        _workScheduleRepo = Substitute.For<IWorkScheduleRepository>();
         _activityLog = Substitute.For<IActivityLogService>();
         _currentUser = Substitute.For<ICurrentUserService>();
 
         _repo.GetByPeriodAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns([]);
         _repo.GetApprovedLeavesOverlappingAsync(Arg.Any<DateOnly>(), Arg.Any<DateOnly>(), Arg.Any<CancellationToken>())
-            .Returns([]);
-        _workScheduleRepo.GetByDateRangeAsync(Arg.Any<DateOnly>(), Arg.Any<DateOnly>(), Arg.Any<CancellationToken>())
             .Returns([]);
     }
 
@@ -47,7 +43,7 @@ public class PayrollHandlersTests
         var user = MakeStaffUser(10_000_000m, 1_000_000m);
         _repo.GetPayableUsersAsync(Arg.Any<CancellationToken>()).Returns([user]);
 
-        var result = await new GetPayrollPeriodHandler(_repo, _workScheduleRepo)
+        var result = await new GetPayrollPeriodHandler(_repo)
             .Handle(new GetPayrollPeriodQuery(2026, 8, null, null, null), CancellationToken.None);
 
         result.Items.Should().HaveCount(1);
@@ -70,7 +66,7 @@ public class PayrollHandlersTests
         _repo.GetPayableUsersAsync(Arg.Any<CancellationToken>()).Returns([user]);
         _repo.GetByPeriodAsync(2026, 8, Arg.Any<CancellationToken>()).Returns([record]);
 
-        var result = await new GetPayrollPeriodHandler(_repo, _workScheduleRepo)
+        var result = await new GetPayrollPeriodHandler(_repo)
             .Handle(new GetPayrollPeriodQuery(2026, 8, null, null, null), CancellationToken.None);
 
         result.Items[0].Status.Should().Be("Paid");
@@ -88,7 +84,7 @@ public class PayrollHandlersTests
         var dentistUser = User.Create("d1", "d@test.com", "hash", UserRole.Dentist);
         _repo.GetPayableUsersAsync(Arg.Any<CancellationToken>()).Returns([staff, dentistUser]);
 
-        var result = await new GetPayrollPeriodHandler(_repo, _workScheduleRepo)
+        var result = await new GetPayrollPeriodHandler(_repo)
             .Handle(new GetPayrollPeriodQuery(2026, 8, null, null, "Dentist,Doctor"), CancellationToken.None);
 
         result.Items.Should().HaveCount(1);
@@ -117,7 +113,7 @@ public class PayrollHandlersTests
     public async Task Pay_NotYetApproved_ThrowsValidationException()
     {
         var user = MakeStaffUser(10_000_000m, 1_000_000m);
-        var record = PayrollRecord.CreateDraft(user.Id, 2026, 8, 10_000_000m, 1_000_000m, 0, 0, 1m, 0m, 0m);
+        var record = PayrollRecord.CreateDraft(user.Id, 2026, 8, 10_000_000m, 1_000_000m, 0, 1m, 0m, 0m);
         record.MarkCalculated(); // Đã tính nhưng chưa duyệt
 
         _repo.GetPayableUsersAsync(Arg.Any<CancellationToken>()).Returns([user]);
@@ -286,7 +282,7 @@ public class PayrollHandlersTests
         var user = MakeStaffUser(10_000_000m, 1_000_000m);
         _repo.GetPayableUsersAsync(Arg.Any<CancellationToken>()).Returns([user]);
 
-        var result = await new CreatePayrollPeriodHandler(_repo, _workScheduleRepo, _activityLog, _currentUser)
+        var result = await new CreatePayrollPeriodHandler(_repo, _activityLog, _currentUser)
             .Handle(new CreatePayrollPeriodCommand(2026, 8), CancellationToken.None);
 
         result.AffectedCount.Should().Be(1);
@@ -301,12 +297,12 @@ public class PayrollHandlersTests
     public async Task CreatePeriod_UserAlreadyHasRecord_IsSkipped()
     {
         var user = MakeStaffUser(10_000_000m, 0m);
-        var existing = PayrollRecord.CreateDraft(user.Id, 2026, 8, 10_000_000m, 0m, 0, 0, 0m, 0m, 0m);
+        var existing = PayrollRecord.CreateDraft(user.Id, 2026, 8, 10_000_000m, 0m, 0, 0m, 0m, 0m);
 
         _repo.GetPayableUsersAsync(Arg.Any<CancellationToken>()).Returns([user]);
         _repo.GetByPeriodAsync(2026, 8, Arg.Any<CancellationToken>()).Returns([existing]);
 
-        var result = await new CreatePayrollPeriodHandler(_repo, _workScheduleRepo, _activityLog, _currentUser)
+        var result = await new CreatePayrollPeriodHandler(_repo, _activityLog, _currentUser)
             .Handle(new CreatePayrollPeriodCommand(2026, 8), CancellationToken.None);
 
         result.AffectedCount.Should().Be(0);
@@ -318,13 +314,13 @@ public class PayrollHandlersTests
     public async Task CalculatePeriod_DraftRecords_MarksCalculatedAndKeepsBonus()
     {
         var user = MakeStaffUser(10_000_000m, 1_000_000m);
-        var record = PayrollRecord.CreateDraft(user.Id, 2026, 8, 10_000_000m, 1_000_000m, 0, 0, 1m, 0m, 0m);
+        var record = PayrollRecord.CreateDraft(user.Id, 2026, 8, 10_000_000m, 1_000_000m, 0, 1m, 0m, 0m);
         record.SetBonus(500_000m);
 
         _repo.GetPayableUsersAsync(Arg.Any<CancellationToken>()).Returns([user]);
         _repo.GetByPeriodAsync(2026, 8, Arg.Any<CancellationToken>()).Returns([record]);
 
-        var result = await new CalculatePayrollPeriodHandler(_repo, _workScheduleRepo, _activityLog, _currentUser)
+        var result = await new CalculatePayrollPeriodHandler(_repo, _activityLog, _currentUser)
             .Handle(new CalculatePayrollPeriodCommand(2026, 8), CancellationToken.None);
 
         result.AffectedCount.Should().Be(1);
@@ -342,7 +338,7 @@ public class PayrollHandlersTests
         _repo.GetPayableUsersAsync(Arg.Any<CancellationToken>()).Returns([user]);
         _repo.GetByPeriodAsync(2026, 8, Arg.Any<CancellationToken>()).Returns([record]);
 
-        var result = await new CalculatePayrollPeriodHandler(_repo, _workScheduleRepo, _activityLog, _currentUser)
+        var result = await new CalculatePayrollPeriodHandler(_repo, _activityLog, _currentUser)
             .Handle(new CalculatePayrollPeriodCommand(2026, 8), CancellationToken.None);
 
         result.AffectedCount.Should().Be(0);
@@ -355,7 +351,7 @@ public class PayrollHandlersTests
     public async Task ApprovePeriod_CalculatedRecords_MarksApproved()
     {
         var user = MakeStaffUser(10_000_000m, 0m);
-        var record = PayrollRecord.CreateDraft(user.Id, 2026, 8, 10_000_000m, 0m, 0, 0, 0m, 0m, 0m);
+        var record = PayrollRecord.CreateDraft(user.Id, 2026, 8, 10_000_000m, 0m, 0, 0m, 0m, 0m);
         record.MarkCalculated();
 
         _repo.GetByPeriodAsync(2026, 8, Arg.Any<CancellationToken>()).Returns([record]);
@@ -372,7 +368,7 @@ public class PayrollHandlersTests
     public async Task ApprovePeriod_DraftRecord_IsSkipped()
     {
         var user = MakeStaffUser(10_000_000m, 0m);
-        var record = PayrollRecord.CreateDraft(user.Id, 2026, 8, 10_000_000m, 0m, 0, 0, 0m, 0m, 0m);
+        var record = PayrollRecord.CreateDraft(user.Id, 2026, 8, 10_000_000m, 0m, 0, 0m, 0m, 0m);
 
         _repo.GetByPeriodAsync(2026, 8, Arg.Any<CancellationToken>()).Returns([record]);
 
@@ -389,7 +385,7 @@ public class PayrollHandlersTests
     public async Task SetBonus_DraftRecord_UpdatesNetSalary()
     {
         var user = MakeStaffUser(10_000_000m, 0m);
-        var record = PayrollRecord.CreateDraft(user.Id, 2026, 8, 10_000_000m, 0m, 0, 0, 0m, 0m, 0m);
+        var record = PayrollRecord.CreateDraft(user.Id, 2026, 8, 10_000_000m, 0m, 0, 0m, 0m, 0m);
 
         _repo.GetByUserAndPeriodAsync(user.Id, 2026, 8, Arg.Any<CancellationToken>()).Returns(record);
         _repo.GetPayableUsersAsync(Arg.Any<CancellationToken>()).Returns([user]);
@@ -406,7 +402,7 @@ public class PayrollHandlersTests
     public async Task SetBonus_CalculatedRecord_ThrowsValidationException()
     {
         var user = MakeStaffUser(10_000_000m, 0m);
-        var record = PayrollRecord.CreateDraft(user.Id, 2026, 8, 10_000_000m, 0m, 0, 0, 0m, 0m, 0m);
+        var record = PayrollRecord.CreateDraft(user.Id, 2026, 8, 10_000_000m, 0m, 0, 0m, 0m, 0m);
         record.MarkCalculated();
 
         _repo.GetByUserAndPeriodAsync(user.Id, 2026, 8, Arg.Any<CancellationToken>()).Returns(record);
@@ -432,7 +428,7 @@ public class PayrollHandlersTests
         _repo.GetPayableUsersAsync(Arg.Any<CancellationToken>()).Returns([user]);
         _repo.GetByPeriodAsync(2026, 7, Arg.Any<CancellationToken>()).Returns([prev]);
 
-        var result = await new GetPayrollPeriodHandler(_repo, _workScheduleRepo)
+        var result = await new GetPayrollPeriodHandler(_repo)
             .Handle(new GetPayrollPeriodQuery(2026, 8, null, null, null), CancellationToken.None);
 
         result.Items[0].NetSalary.Should().Be(11_000_000m);
@@ -447,17 +443,59 @@ public class PayrollHandlersTests
         var user = MakeStaffUser(10_000_000m, 0m);
         _repo.GetPayableUsersAsync(Arg.Any<CancellationToken>()).Returns([user]);
 
-        await new GetPayrollPeriodHandler(_repo, _workScheduleRepo)
+        await new GetPayrollPeriodHandler(_repo)
             .Handle(new GetPayrollPeriodQuery(2026, 1, null, null, null), CancellationToken.None);
 
         await _repo.Received(1).GetByPeriodAsync(2025, 12, Arg.Any<CancellationToken>());
+    }
+
+    // ── Báo cáo năm ───────────────────────────────────────────────────────────
+
+    /// <summary>Báo cáo năm luôn đủ 12 kỳ, kể cả tháng chưa có dữ liệu chi trả.</summary>
+    [Test]
+    public async Task GetYearly_ReturnsTwelveMonthsWithTotals()
+    {
+        var user = MakeStaffUser(10_000_000m, 1_000_000m);
+        var paidAugust = CreatePaidRecord(user.Id, 2026, 8, 10_000_000m, 1_000_000m, 0m);
+
+        _repo.GetPayableUsersAsync(Arg.Any<CancellationToken>()).Returns([user]);
+        _repo.GetByYearAsync(2026, Arg.Any<CancellationToken>()).Returns([paidAugust]);
+
+        var result = await new GetPayrollYearlyHandler(_repo)
+            .Handle(new GetPayrollYearlyQuery(2026), CancellationToken.None);
+
+        result.Months.Should().HaveCount(12);
+        result.Months.Select(m => m.Month).Should().BeInAscendingOrder();
+        result.TotalNet.Should().Be(11_000_000m * 12);
+        // Chỉ tháng 8 đã chi trả
+        result.TotalPaid.Should().Be(11_000_000m);
+        result.Months.Single(m => m.Month == 8).PaidCount.Should().Be(1);
+        result.Months.Single(m => m.Month == 7).PaidCount.Should().Be(0);
+        result.AverageMonthlyNet.Should().Be(11_000_000m);
+    }
+
+    /// <summary>Tháng có tổng quỹ cao nhất được nêu đích danh trong báo cáo.</summary>
+    [Test]
+    public async Task GetYearly_PeakMonth_IsTheHighestTotalNet()
+    {
+        var user = MakeStaffUser(10_000_000m, 0m);
+        // Tháng 3 đã chốt ở mức cao hơn mức tính lại của các tháng khác
+        var march = CreatePaidRecord(user.Id, 2026, 3, 50_000_000m, 0m, 0m);
+
+        _repo.GetPayableUsersAsync(Arg.Any<CancellationToken>()).Returns([user]);
+        _repo.GetByYearAsync(2026, Arg.Any<CancellationToken>()).Returns([march]);
+
+        var result = await new GetPayrollYearlyHandler(_repo)
+            .Handle(new GetPayrollYearlyQuery(2026), CancellationToken.None);
+
+        result.PeakMonth.Should().Be(3);
     }
 
     /// <summary>Tháng ngoài khoảng 1–12 bị từ chối ngay ở tầng use case.</summary>
     [Test]
     public async Task GetPeriod_InvalidMonth_ThrowsValidationException()
     {
-        Func<Task> act = () => new GetPayrollPeriodHandler(_repo, _workScheduleRepo)
+        Func<Task> act = () => new GetPayrollPeriodHandler(_repo)
             .Handle(new GetPayrollPeriodQuery(2026, 13, null, null, null), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
@@ -475,7 +513,7 @@ public class PayrollHandlersTests
         Guid userId, int year, int month, decimal baseSalary, decimal allowance, decimal deduction,
         int leaveDays = 0, decimal allowedLeaveDays = 0m, decimal exceededDays = 0m)
     {
-        var record = PayrollRecord.CreateDraft(userId, year, month, baseSalary, allowance, 0, leaveDays, allowedLeaveDays, exceededDays, deduction);
+        var record = PayrollRecord.CreateDraft(userId, year, month, baseSalary, allowance, leaveDays, allowedLeaveDays, exceededDays, deduction);
         record.MarkCalculated();
         record.MarkApproved();
         return record;

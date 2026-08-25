@@ -19,9 +19,6 @@ public class PayrollRecord
 
     public decimal BaseSalary { get; private set; }
     public decimal Allowance { get; private set; }
-    /// <summary>Số ca đã được phân lịch (WorkSchedule) trong kỳ — dùng để tính lương khi nhân sự không
-    /// phải Full-time (BaseSalary khi đó là số ca này × đơn giá/ca), và để tham khảo khi Full-time.</summary>
-    public int RequiredShifts { get; private set; }
     public int LeaveShifts { get; private set; }
     public decimal AllowedLeaveShifts { get; private set; }
     public decimal ExceededShifts { get; private set; }
@@ -44,7 +41,6 @@ public class PayrollRecord
         int month,
         decimal baseSalary,
         decimal allowance,
-        int requiredShifts,
         int leaveShifts,
         decimal allowedLeaveShifts,
         decimal exceededShifts,
@@ -64,7 +60,6 @@ public class PayrollRecord
             Month = month,
             BaseSalary = baseSalary,
             Allowance = allowance,
-            RequiredShifts = requiredShifts,
             LeaveShifts = leaveShifts,
             AllowedLeaveShifts = allowedLeaveShifts,
             ExceededShifts = exceededShifts,
@@ -92,7 +87,6 @@ public class PayrollRecord
     public void RefreshDraftFigures(
         decimal baseSalary,
         decimal allowance,
-        int requiredShifts,
         int leaveShifts,
         decimal allowedLeaveShifts,
         decimal exceededShifts,
@@ -103,7 +97,6 @@ public class PayrollRecord
 
         BaseSalary = baseSalary;
         Allowance = allowance;
-        RequiredShifts = requiredShifts;
         LeaveShifts = leaveShifts;
         AllowedLeaveShifts = allowedLeaveShifts;
         ExceededShifts = exceededShifts;

@@ -31,13 +31,6 @@ public class TreatmentPlanRepository(AppDbContext db) : ITreatmentPlanRepository
             .OrderBy(tp => tp.CreatedAt)
             .ToListAsync(ct);
 
-    public async Task<IReadOnlyList<TreatmentPlan>> GetAllWithServiceAsync(CancellationToken ct = default)
-        => await db.TreatmentPlans
-            .AsNoTracking()
-            .Include(tp => tp.Service)
-            .Where(tp => tp.Status != TreatmentPlanStatus.Cancelled)
-            .ToListAsync(ct);
-
     public async Task AddAsync(TreatmentPlan treatmentPlan, CancellationToken ct = default)
     {
         await db.TreatmentPlans.AddAsync(treatmentPlan, ct);

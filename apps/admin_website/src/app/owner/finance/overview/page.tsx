@@ -3,16 +3,11 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import OwnerSidebar from "../../../../components/shared/OwnerSidebar";
 import OwnerPageHeader from "../../../../components/shared/OwnerPageHeader";
-import Pagination from "../../../../components/shared/Pagination";
 import { useRequireOwner } from "../../../../hooks/useRequireOwner";
 import {
   getFinanceOverviewApi,
-  getRevenueTransactionsApi,
   type FinanceOverviewDto,
-  type RevenueTransactionsPagedDto,
 } from "../../../../lib/apiClient";
-
-const TRANSACTIONS_PAGE_SIZE_DEFAULT = 10;
 
 const fmt = (n: number) => new Intl.NumberFormat("vi-VN").format(Math.round(n)) + " đ";
 const formatCompact = (val: number) => {
@@ -112,11 +107,6 @@ export default function OwnerFinanceOverviewPage() {
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const [transactionsPage, setTransactionsPage] = useState(1);
-  const [transactionsPageSize, setTransactionsPageSize] = useState(TRANSACTIONS_PAGE_SIZE_DEFAULT);
-  const [transactions, setTransactions] = useState<RevenueTransactionsPagedDto | null>(null);
-  const [transactionsLoading, setTransactionsLoading] = useState(true);
-
   const reload = useCallback(async () => {
     setLoading(true);
     try {
@@ -128,25 +118,6 @@ export default function OwnerFinanceOverviewPage() {
   }, [fromISO, toISO]);
 
   useEffect(() => { reload(); }, [reload]);
-
-  // Reset về trang 1 khi đổi khoảng thời gian — tránh đứng ở trang không còn dữ liệu của kỳ mới.
-  useEffect(() => { setTransactionsPage(1); }, [fromISO, toISO]);
-
-  useEffect(() => {
-    setTransactionsLoading(true);
-    getRevenueTransactionsApi({
-      from: fromISO, to: toISO, page: transactionsPage, pageSize: transactionsPageSize,
-      sortBy: "date", sortDir: "desc",
-    })
-      .then(setTransactions)
-      .catch((err) => setErrorMsg(err instanceof Error ? err.message : "Không thể tải danh sách giao dịch"))
-      .finally(() => setTransactionsLoading(false));
-  }, [fromISO, toISO, transactionsPage, transactionsPageSize]);
-
-  const handleTransactionsPageSizeChange = (size: number) => {
-    setTransactionsPageSize(size);
-    setTransactionsPage(1);
-  };
 
   return (
     <div className="animate-fade-in flex min-h-screen bg-slate-50 font-sans text-slate-800">
@@ -252,26 +223,8 @@ export default function OwnerFinanceOverviewPage() {
 
           {/* Giao dịch gần đây */}
           <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-3">
+            <div className="px-6 py-4 border-b border-slate-100">
               <span className="text-[13.5px] font-extrabold text-slate-800">Giao dịch gần đây</span>
-              <div className="flex items-center gap-2 text-[13px] text-slate-400 font-semibold">
-                <span>Hiển thị</span>
-                <div className="relative">
-                  <select
-                    value={transactionsPageSize}
-                    onChange={(e) => handleTransactionsPageSizeChange(Number(e.target.value))}
-                    className="appearance-none bg-white text-slate-700 font-bold text-[13px] pl-3 pr-7 py-1 rounded-lg border border-slate-200 focus:outline-none cursor-pointer"
-                  >
-                    {[10, 20, 50].map((n) => (<option key={n} value={n}>{n}</option>))}
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-slate-400">
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                    </svg>
-                  </div>
-                </div>
-                <span>/ trang</span>
-              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-[13.5px] text-left border-collapse">
@@ -286,11 +239,11 @@ export default function OwnerFinanceOverviewPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {transactionsLoading ? (
+                  {loading ? (
                     <tr><td colSpan={6} className="px-6 py-10 text-center text-slate-400 font-semibold animate-pulse">Đang tải...</td></tr>
-                  ) : !transactions || transactions.items.length === 0 ? (
+                  ) : !data || data.recentTransactions.length === 0 ? (
                     <tr><td colSpan={6} className="px-6 py-10 text-center text-[13px] text-slate-400 font-semibold">Chưa có giao dịch nào trong kỳ.</td></tr>
-                  ) : transactions.items.map((t) => {
+                  ) : data.recentTransactions.map((t) => {
                     const cfg = STATUS_CFG[t.status] ?? STATUS_CFG.Unpaid;
                     return (
                       <tr key={t.invoiceId} className="hover:bg-slate-50/50 transition-colors">
@@ -318,17 +271,6 @@ export default function OwnerFinanceOverviewPage() {
                 </tbody>
               </table>
             </div>
-            {!transactionsLoading && transactions && transactions.totalCount > 0 && (
-              <div className="p-4 border-t border-slate-100">
-                <Pagination
-                  currentPage={transactionsPage}
-                  totalCount={transactions.totalCount}
-                  pageSize={transactionsPageSize}
-                  onPageChange={setTransactionsPage}
-                  itemLabel="giao dịch"
-                />
-              </div>
-            )}
           </div>
         </div>
       </main>

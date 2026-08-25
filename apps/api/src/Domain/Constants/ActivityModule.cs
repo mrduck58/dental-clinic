@@ -14,4 +14,5 @@ public static class ActivityModule
     public const string Promotion   = "promotion";
     public const string Payroll     = "payroll";
     public const string Expense     = "expense";
+    public const string Commission  = "commission";
 }

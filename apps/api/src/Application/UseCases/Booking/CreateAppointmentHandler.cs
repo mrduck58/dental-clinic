@@ -28,8 +28,7 @@ public class CreateAppointmentHandler(
     AppointmentSlotGuard slotGuard,
     INotificationService notificationService,
     ISlotHoldRepository? slotHoldRepository = null,
-    ISlotNotifier? slotNotifier = null,
-    IServiceRepository? serviceRepository = null) : IRequestHandler<CreateAppointmentCommand, CreateAppointmentResult>
+    ISlotNotifier? slotNotifier = null) : IRequestHandler<CreateAppointmentCommand, CreateAppointmentResult>
 {
     public async Task<CreateAppointmentResult> Handle(CreateAppointmentCommand cmd, CancellationToken ct)
     {
@@ -123,11 +122,7 @@ public class CreateAppointmentHandler(
 
         var code = $"DK{cmd.AppointmentDate:yyyyMMdd}{appointment.Id.ToString("N")[..6].ToUpper()}";
 
-        var vnStart = cmd.AppointmentDate.UtcDateTime.AddHours(7);
-        var service = (cmd.ServiceId.HasValue && serviceRepository != null) ? await serviceRepository.GetByIdAsync(cmd.ServiceId.Value, ct) : null;
-        var durationMinutes = (service != null && service.DurationMinutes > 0) ? service.DurationMinutes : 30;
-        var vnEnd = vnStart.AddMinutes(durationMinutes);
-        var timeSlotNotify = $"{vnStart:HH:mm} - {vnEnd:HH:mm}";
+        var vnTimeNotify = cmd.AppointmentDate.UtcDateTime.AddHours(7);
 
         // Thông báo cho tài khoản bệnh nhân đặt lịch
         await notificationService.CreateAsync(new CreateNotificationRequest(
@@ -135,7 +130,7 @@ public class CreateAppointmentHandler(
             Type: NotificationType.Appointment,
             Priority: NotificationPriority.Medium,
             Title: "Đặt lịch hẹn thành công",
-            Body: $"Lịch khám của bạn vào lúc {timeSlotNotify} ngày {vnStart:dd/MM/yyyy} đã được ghi nhận. Vui lòng chờ phòng khám xác nhận.",
+            Body: $"Lịch khám của bạn vào {vnTimeNotify:HH:mm dd/MM/yyyy} đã được ghi nhận. Vui lòng chờ phòng khám xác nhận.",
             RelatedEntityType: "Appointment",
             RelatedEntityId: appointment.Id.ToString()), ct);
 
@@ -146,7 +141,7 @@ public class CreateAppointmentHandler(
                 Type: NotificationType.Appointment,
                 Priority: NotificationPriority.High,
                 Title: "Lịch hẹn mới",
-                Body: $"Bạn có lịch hẹn mới vào lúc {timeSlotNotify} ngày {vnStart:dd/MM/yyyy}.",
+                Body: $"Bạn có lịch hẹn mới vào {vnTimeNotify:HH:mm dd/MM/yyyy}.",
                 RelatedEntityType: "Appointment",
                 RelatedEntityId: appointment.Id.ToString()), ct);
         }
@@ -157,7 +152,7 @@ public class CreateAppointmentHandler(
             Type: NotificationType.Appointment,
             Priority: NotificationPriority.High,
             Title: "Đặt lịch mới",
-            Body: $"Có lịch hẹn mới vào lúc {timeSlotNotify} ngày {vnStart:dd/MM/yyyy}. Vui lòng xác nhận.",
+            Body: $"Có lịch hẹn mới vào {vnTimeNotify:HH:mm dd/MM/yyyy}. Vui lòng xác nhận.",
             RelatedEntityType: "Appointment",
             RelatedEntityId: appointment.Id.ToString());
         await notificationService.CreateForMultipleUsersAsync(staffIds, staffTemplate, ct);

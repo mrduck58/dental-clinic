@@ -448,7 +448,7 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
                                           ),
                                           const SizedBox(height: 2),
                                           Text(
-                                            item.displayTimeRange,
+                                            timeStr,
                                             style: TextStyle(
                                               fontSize: 13,
                                               fontWeight: FontWeight.w800,

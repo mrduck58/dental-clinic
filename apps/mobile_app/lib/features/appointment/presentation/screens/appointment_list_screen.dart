@@ -580,7 +580,7 @@ class _AppointmentCard extends StatelessWidget {
                 SizedBox(height: 8),
                 _DetailRow(icon: Iconsax.calendar_1, text: '$dateStr · $dayLabel'),
                 SizedBox(height: 8),
-                _DetailRow(icon: Iconsax.clock, text: item.displayTimeRange),
+                _DetailRow(icon: Iconsax.clock, text: timeStr),
                 if (item.serviceName != null) ...[
                   SizedBox(height: 8),
                   _DetailRow(icon: Iconsax.health, text: item.serviceName!),

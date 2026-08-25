@@ -171,7 +171,65 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
   }
 
   Future<void> _cancelBookingSession(bool isVi) async {
-    await BookingHelper.cancelBookingSessionAndGoHome(context, draft: widget.draft);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Iconsax.trash, color: Color(0xFFDC2626), size: 22),
+            const SizedBox(width: 8),
+            Text(
+              isVi ? 'Hủy phiên đặt lịch?' : 'Cancel Booking Session?',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: Text(
+          isVi
+              ? 'Bạn có chắc chắn muốn hủy đặt lịch này? Ca khám đang giữ chỗ sẽ được giải phóng ngay lập tức cho người khác.'
+              : 'Are you sure you want to cancel? The held slot will be released immediately.',
+          style: const TextStyle(fontSize: 14, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(isVi ? 'Không' : 'No'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: Text(isVi ? 'Hủy đặt lịch' : 'Cancel Booking'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isLoading = true);
+    try {
+      final d = widget.draft;
+      if (d.doctor != null && d.date != null && d.timeSlot != null) {
+        await _bookingService.releaseHold(
+          dentistId: d.doctor!.id,
+          date: d.date!,
+          timeSlot: d.timeSlot!.range,
+          patientId: (d.patient != null && d.patient!.id != 'self') ? d.patient!.id : '',
+        );
+      }
+    } catch (_) {}
+    _bookingService.clearActiveDraft();
+    if (!mounted) return;
+    AppToast.showSuccess(
+      context,
+      isVi ? 'Đã hủy phiên đặt lịch và giải phóng ca khám.' : 'Booking session cancelled and slot released.',
+    );
+    context.go(AppRoutes.home);
   }
 
   @override
@@ -194,7 +252,6 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
               : (isVi ? 'Xác nhận đặt khám' : 'Confirm Booking'),
           showBack: false,
           showHome: true,
-          draft: d,
           onHome: () => _cancelBookingSession(isVi),
         ),
         body: Column(
@@ -233,9 +290,7 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
                               icon: Iconsax.user,
                               label: isVi ? 'Bệnh nhân' : 'Patient',
                               value: '${d.patient!.name} (${d.patient!.relationship})',
-                              onEdit: d.isRescheduling
-                                  ? null
-                                  : () => context.push(AppRoutes.bookingSelectPatient, extra: d),
+                              onEdit: () => context.push(AppRoutes.bookingSelectPatient, extra: d),
                             ),
                           if (d.service != null)
                             _InfoRow(

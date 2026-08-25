@@ -45,9 +45,7 @@ public class PayPayrollHandler(
             targetId: record.Id.ToString(),
             ct: ct);
 
-        // record luôn khác null tại đây (MarkPaidOrThrow đã throw nếu null) nên requiredShifts không
-        // được dùng tới trong BuildItem — truyền 0 cho đủ tham số.
-        return GetPayrollPeriodHandler.BuildItem(user, record, leaves, 0, command.Year, command.Month);
+        return GetPayrollPeriodHandler.BuildItem(user, record, leaves, command.Year, command.Month);
     }
 
     /// <summary>Chi trả chỉ được phép khi kỳ lương của nhân sự này đã ở trạng thái Đã duyệt (Approved).</summary>

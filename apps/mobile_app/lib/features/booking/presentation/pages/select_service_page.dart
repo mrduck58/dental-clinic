@@ -107,10 +107,7 @@ class _SelectServicePageState extends State<SelectServicePage> {
 
     return Scaffold(
       backgroundColor: context.bg,
-      appBar: BookingAppBar(
-        title: isVi ? 'Chọn dịch vụ' : 'Select Service',
-        draft: widget.draft,
-      ),
+      appBar: BookingAppBar(title: isVi ? 'Chọn dịch vụ' : 'Select Service'),
       body: Column(
         children: [
           if (widget.draft.holdExpiresAt != null)

@@ -77,16 +77,6 @@ public class InventoryController(ISender sender) : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>GET api/inventory/transactions/imports?from=&amp;to= — Các lần nhập kho trong khoảng ngày —
-    /// drill-down cho thẻ/cột "Vật tư" bên trang Chi phí (Owner).</summary>
-    [HttpGet("transactions/imports")]
-    [Authorize(Roles = "Admin,Owner,Staff")]
-    public async Task<IActionResult> GetImportsInRange([FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken ct)
-    {
-        var result = await sender.Send(new GetSupplyImportsInRangeQuery(from, to), ct);
-        return Ok(result);
-    }
-
     /// <summary>POST api/inventory/transactions — Tạo giao dịch nhập/xuất</summary>
     [HttpPost("transactions")]
     [Authorize(Roles = "Admin,Owner,Staff")]

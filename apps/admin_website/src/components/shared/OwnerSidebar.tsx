@@ -169,21 +169,6 @@ export default function OwnerSidebar({ activeMenu }: SidebarProps) {
             Chi phí
           </Link>
 
-          {/* Công nợ bệnh nhân */}
-          <Link
-            href="/owner/patients"
-            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold text-[13px] transition-all ${
-              activeMenu === "patient-balances"
-                ? "bg-primary text-white shadow-md shadow-primary/25"
-                : "text-slate-500 hover:bg-red-50/50 hover:text-primary"
-            }`}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-9-11.25h18a1.5 1.5 0 011.5 1.5v10.5a1.5 1.5 0 01-1.5 1.5H3a1.5 1.5 0 01-1.5-1.5V6a1.5 1.5 0 011.5-1.5zM8.25 15.75a3 3 0 106 0 3 3 0 00-6 0z" />
-            </svg>
-            Công nợ bệnh nhân
-          </Link>
-
           {/* Lương (mở rộng: Nha sĩ / Nhân viên) */}
           <button
             onClick={() => setPayrollMenuOpen((v) => !v)}
@@ -233,6 +218,36 @@ export default function OwnerSidebar({ activeMenu }: SidebarProps) {
               </Link>
             </div>
           )}
+
+          {/* Hoa hồng */}
+          <Link
+            href="/owner/commissions"
+            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold text-[13px] transition-all ${
+              activeMenu === "commissions"
+                ? "bg-primary text-white shadow-md shadow-primary/25"
+                : "text-slate-500 hover:bg-red-50/50 hover:text-primary"
+            }`}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498l4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 00-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0z" />
+            </svg>
+            Hoa hồng
+          </Link>
+
+          {/* Báo cáo */}
+          <Link
+            href="/owner/finance/reports"
+            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold text-[13px] transition-all ${
+              activeMenu === "finance-reports"
+                ? "bg-primary text-white shadow-md shadow-primary/25"
+                : "text-slate-500 hover:bg-red-50/50 hover:text-primary"
+            }`}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+            </svg>
+            Báo cáo
+          </Link>
 
           {/* Nhóm: Nhân sự */}
           <div className="px-4 pt-3 pb-1 text-[10.5px] font-extrabold text-slate-400 uppercase tracking-wider">

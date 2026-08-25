@@ -145,20 +145,12 @@ class _SelectDatetimePageState extends State<SelectDatetimePage> {
 
     return Scaffold(
       backgroundColor: context.bg,
-      appBar: BookingAppBar(
-        title: isVi ? 'Chọn ngày khám' : 'Select Date',
-        draft: widget.draft,
-      ),
+      appBar: BookingAppBar(title: isVi ? 'Chọn ngày khám' : 'Select Date'),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (widget.draft.holdExpiresAt != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 12, bottom: 4),
-                child: HoldCountdownBanner(holdExpiresAt: widget.draft.holdExpiresAt),
-              ),
             const SizedBox(height: 16),
 
             if (widget.draft.doctor != null) ...[

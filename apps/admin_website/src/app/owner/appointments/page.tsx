@@ -4,7 +4,6 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import OwnerSidebar from "../../../components/shared/OwnerSidebar";
 import OwnerPageHeader from "../../../components/shared/OwnerPageHeader";
 import PatientDetailModal from "../../../components/shared/PatientDetailModal";
-import Pagination from "../../../components/shared/Pagination";
 import { useRequireOwner } from "../../../hooks/useRequireOwner";
 import { getStaffAppointmentsApi, type StaffAppointmentDto } from "../../../lib/apiClient";
 import { supabase } from "../../../lib/supabaseClient";
@@ -38,8 +37,6 @@ const STATUS_ORDER = Object.keys(STATUS_CFG);
 
 /** Sentinel cho ô lọc dịch vụ — lịch hẹn chưa gán dịch vụ (serviceName = null). */
 const NO_SERVICE = "__none__";
-
-const PAGE_SIZE_DEFAULT = 15;
 
 /* ─── Helpers ─────────────────────────────────────────────────────────────── */
 
@@ -104,9 +101,6 @@ export default function OwnerAppointmentsPage() {
   const [search, setSearch] = useState("");
 
   const [selectedPatient, setSelectedPatient] = useState<{ id: string; name: string; phone: string | null } | null>(null);
-
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(PAGE_SIZE_DEFAULT);
 
   const inFlight = useRef(false);
   // Tăng lên để buộc nạp lại cùng một ngày (bấm "Làm mới", hoặc realtime báo có thay đổi).
@@ -204,18 +198,6 @@ export default function OwnerAppointmentsPage() {
       return dateFilter ? ta - tb : tb - ta;
     });
   }, [appointments, statusFilter, dentistFilter, serviceFilter, search, dateFilter]);
-
-  useEffect(() => { setPage(1); }, [statusFilter, dentistFilter, serviceFilter, search, dateFilter]);
-
-  const pagedRows = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
-  }, [filtered, page, pageSize]);
-
-  const handlePageSizeChange = (size: number) => {
-    setPageSize(size);
-    setPage(1);
-  };
 
   const hasActiveFilter =
     statusFilter !== "All" || dentistFilter !== "All" || serviceFilter !== "All" || search.trim() !== "";
@@ -402,15 +384,11 @@ export default function OwnerAppointmentsPage() {
               </div>
             ) : (
               <>
-                <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-end gap-3 flex-wrap">
-                  <div className="flex items-center gap-2 text-[13px] text-slate-400 font-semibold whitespace-nowrap">
-                    <span>Hiển thị</span>
-                    <select value={pageSize} onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                      className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:outline-none font-semibold text-slate-600 text-[13px] cursor-pointer">
-                      {[10, 20, 50].map((n) => (<option key={n} value={n}>{n}</option>))}
-                    </select>
-                    <span>/ trang</span>
-                  </div>
+                <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between gap-3">
+                  <span className="text-[12.5px] font-bold text-slate-500">
+                    Hiển thị <span className="text-slate-900 font-black">{filtered.length}</span>
+                    {filtered.length !== appointments.length && <> / {appointments.length}</>} lịch hẹn
+                  </span>
                 </div>
 
                 <div className="overflow-x-auto">
@@ -425,7 +403,7 @@ export default function OwnerAppointmentsPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {pagedRows.map(a => {
+                      {filtered.map(a => {
                         const cfg = cfgOf(a.status);
                         return (
                           <tr
@@ -490,10 +468,6 @@ export default function OwnerAppointmentsPage() {
                       })}
                     </tbody>
                   </table>
-                </div>
-
-                <div className="border-t border-slate-100 px-5 py-3.5 bg-slate-50/25">
-                  <Pagination currentPage={page} totalCount={filtered.length} pageSize={pageSize} onPageChange={setPage} itemLabel="lịch hẹn" />
                 </div>
               </>
             )}

@@ -48,7 +48,6 @@ export default function EditStaffPage() {
   const [formSalaryUnit, setFormSalaryUnit] = useState("Theo tháng");
   const [formLeaveAccrued, setFormLeaveAccrued] = useState(24);
   const [formAllowance, setFormAllowance] = useState(1200000);
-  const [formRatePerShift, setFormRatePerShift] = useState(0);
 
   useEffect(() => {
     if (formEmploymentType === "Full-time") {
@@ -59,12 +58,20 @@ export default function EditStaffPage() {
   const populateData = (data: StaffDto) => {
     setStaff(data);
 
-    setFormEmploymentType(data.employmentType || "Full-time");
-    setFormBaseSalary(data.baseSalary ?? 0);
-    setFormSalaryUnit(data.salaryUnit || "Theo tháng");
-    setFormLeaveAccrued(data.leaveAccrued ?? 0);
-    setFormAllowance(data.allowance ?? 0);
-    setFormRatePerShift(data.ratePerShift ?? 0);
+    const exp = data.yearsOfExperience ?? 5;
+    const isDentist = data.role === "Dentist";
+    const isPartTime = exp % 2 === 0 && isDentist;
+    const isShift = !isPartTime && (data.role === "Staff" && (data.position?.toLowerCase().includes("lễ tân") || data.position?.toLowerCase().includes("tiếp đón")));
+    const calculatedType = isPartTime ? "Part-time" : isShift ? "Shift-based" : "Full-time";
+    const calculatedSalary = isDentist ? (25000000 + exp * 1500000) : (10000000 + (data.fullName?.length || 5) * 200000);
+    const calculatedUnit = isPartTime ? "Theo ngày" : isShift ? "Theo ca" : "Theo tháng";
+    const calculatedLeave = 24;
+
+    setFormEmploymentType(data.employmentType || calculatedType);
+    setFormBaseSalary(data.baseSalary ?? calculatedSalary);
+    setFormSalaryUnit(data.salaryUnit || calculatedUnit);
+    setFormLeaveAccrued(data.leaveAccrued ?? calculatedLeave);
+    setFormAllowance(data.allowance ?? (isDentist ? 2500000 : 1200000));
 
     setFormData({
       fullName: data.fullName || "",
@@ -215,7 +222,6 @@ export default function EditStaffPage() {
         salaryUnit: formSalaryUnit,
         leaveAccrued: formLeaveAccrued,
         allowance: formAllowance,
-        ratePerShift: formRatePerShift,
       };
       await updateStaffApi(id, payload);
       sessionStorage.setItem("staffSuccessMsg", `Cập nhật thông tin nhân viên ${formData.fullName.trim()} thành công!`);
@@ -635,7 +641,7 @@ export default function EditStaffPage() {
                   </div>
 
                   <div>
-                    <label className={lbl}>Định mức nghỉ phép (ca/tháng)</label>
+                    <label className={lbl}>Số ca nghỉ / tháng</label>
                     <input
                       type="number"
                       required
@@ -646,22 +652,6 @@ export default function EditStaffPage() {
                       className={inp("leaveAccrued")}
                     />
                     {errMsg("leaveAccrued")}
-                  </div>
-
-                  <div>
-                    <label className={lbl}>Giá / ca (VNĐ)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      placeholder="150.000"
-                      value={formRatePerShift}
-                      onChange={(e) => setFormRatePerShift(Number(e.target.value))}
-                      disabled={formEmploymentType === "Full-time"}
-                      className={`${inp("ratePerShift")} ${
-                        formEmploymentType === "Full-time" ? "opacity-60 cursor-not-allowed bg-slate-200 text-slate-500 font-bold text-[14px]" : ""
-                      }`}
-                    />
-                    {errMsg("ratePerShift")}
                   </div>
 
                   {formEmploymentType === "Full-time" && (

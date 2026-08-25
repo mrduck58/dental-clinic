@@ -19,7 +19,7 @@ public class PayrollCalculatorTests
         var user = MakeStaffUser(baseSalary: 10_000_000m, allowance: 1_000_000m, leaveAccrued: 12m);
         var leave = MakeApprovedLeave(user.Id, new DateOnly(2026, 8, 3), new DateOnly(2026, 8, 4));
 
-        var result = PayrollCalculator.Compute(user, [leave], 0, 2026, 8);
+        var result = PayrollCalculator.Compute(user, [leave], 2026, 8);
 
         result.LeaveShifts.Should().Be(12); // 2 ngày × 6 ca/ngày
         result.ExceededShifts.Should().Be(0);
@@ -36,7 +36,7 @@ public class PayrollCalculatorTests
         var user = MakeStaffUser(baseSalary: 13_000_000m, allowance: 1_000_000m, leaveAccrued: 6m);
         var leave = MakeApprovedLeave(user.Id, new DateOnly(2026, 8, 10), new DateOnly(2026, 8, 12));
 
-        var result = PayrollCalculator.Compute(user, [leave], 0, 2026, 8);
+        var result = PayrollCalculator.Compute(user, [leave], 2026, 8);
 
         result.LeaveShifts.Should().Be(18); // 3 ngày × 6 ca/ngày
         result.ExceededShifts.Should().Be(12);
@@ -53,8 +53,8 @@ public class PayrollCalculatorTests
         var user = MakeStaffUser(baseSalary: 10_000_000m, allowance: 0m, leaveAccrued: 0m);
         var leave = MakeApprovedLeave(user.Id, new DateOnly(2026, 7, 30), new DateOnly(2026, 8, 2));
 
-        PayrollCalculator.Compute(user, [leave], 0, 2026, 8).LeaveShifts.Should().Be(12);
-        PayrollCalculator.Compute(user, [leave], 0, 2026, 7).LeaveShifts.Should().Be(12);
+        PayrollCalculator.Compute(user, [leave], 2026, 8).LeaveShifts.Should().Be(12);
+        PayrollCalculator.Compute(user, [leave], 2026, 7).LeaveShifts.Should().Be(12);
     }
 
     /// <summary>
@@ -66,7 +66,7 @@ public class PayrollCalculatorTests
         var user = MakeStaffUser(baseSalary: 10_000_000m, allowance: 0m, leaveAccrued: 0m);
         var otherLeave = MakeApprovedLeave(Guid.NewGuid(), new DateOnly(2026, 8, 5), new DateOnly(2026, 8, 9));
 
-        var result = PayrollCalculator.Compute(user, [otherLeave], 0, 2026, 8);
+        var result = PayrollCalculator.Compute(user, [otherLeave], 2026, 8);
 
         result.LeaveShifts.Should().Be(0);
         result.NetSalary.Should().Be(10_000_000m);
@@ -81,7 +81,7 @@ public class PayrollCalculatorTests
     {
         var user = MakeStaffUser(baseSalary: null, allowance: null, leaveAccrued: null);
 
-        var result = PayrollCalculator.Compute(user, [], 0, 2026, 8);
+        var result = PayrollCalculator.Compute(user, [], 2026, 8);
 
         result.BaseSalary.Should().Be(0);
         result.NetSalary.Should().Be(0);
@@ -97,7 +97,7 @@ public class PayrollCalculatorTests
         var user = MakeStaffUser(baseSalary: 10_000_000m, allowance: 500_000m, leaveAccrued: 0m);
         var leave = MakeApprovedLeave(user.Id, new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 31));
 
-        var result = PayrollCalculator.Compute(user, [leave], 0, 2026, 8);
+        var result = PayrollCalculator.Compute(user, [leave], 2026, 8);
 
         result.NetSalary.Should().Be(0);
         result.Deduction.Should().Be(10_500_000m);
@@ -116,63 +116,19 @@ public class PayrollCalculatorTests
         user.AttachEmployee(employee);
         DentistProfile.Create(employee.Id, "Chỉnh nha", "CCHN-001");
 
-        var (baseSalary, allowance, leaveAccrued, ratePerShift) = PayrollCalculator.ReadSalaryProfile(user);
+        var (baseSalary, allowance, leaveAccrued) = PayrollCalculator.ReadSalaryProfile(user);
 
         baseSalary.Should().Be(30_000_000m);
         allowance.Should().Be(2_000_000m);
         leaveAccrued.Should().Be(1.5m);
-        ratePerShift.Should().BeNull();
     }
 
-    /// <summary>Part-time (hoặc bất kỳ hình thức nào khác Full-time) không dùng công thức lương tháng/
-    /// khấu trừ phép — lương = số ca đã lên lịch × đơn giá/ca, cộng phụ cấp nếu có.</summary>
-    [Test]
-    public void Compute_PartTime_PaysByShiftCountTimesRate()
-    {
-        var user = MakeStaffUser(baseSalary: null, allowance: 200_000m, leaveAccrued: null, employmentType: "Part-time", ratePerShift: 150_000m);
-        var leave = MakeApprovedLeave(user.Id, new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 31));
-
-        var result = PayrollCalculator.Compute(user, [leave], 10, 2026, 8);
-
-        result.BaseSalary.Should().Be(1_500_000m); // 10 ca × 150.000
-        result.RequiredShifts.Should().Be(10);
-        result.LeaveShifts.Should().Be(0); // nghỉ phép không áp dụng cho Part-time
-        result.Deduction.Should().Be(0);
-        result.NetSalary.Should().Be(1_700_000m); // 1.500.000 + 200.000 phụ cấp
-        result.HasSalaryConfigured.Should().BeTrue();
-    }
-
-    /// <summary>Part-time chưa cấu hình đơn giá/ca thì trả về 0 và đánh dấu thiếu cấu hình, không suy đoán.</summary>
-    [Test]
-    public void Compute_PartTime_NoRatePerShiftConfigured_ReturnsZeroAndFlagsMissing()
-    {
-        var user = MakeStaffUser(baseSalary: null, allowance: null, leaveAccrued: null, employmentType: "Part-time", ratePerShift: null);
-
-        var result = PayrollCalculator.Compute(user, [], 20, 2026, 8);
-
-        result.BaseSalary.Should().Be(0);
-        result.NetSalary.Should().Be(0);
-        result.HasSalaryConfigured.Should().BeFalse();
-    }
-
-    /// <summary>Chưa thiết lập EmploymentType thì coi như Full-time — không âm thầm đổi công thức của
-    /// hồ sơ cũ chưa cập nhật.</summary>
-    [Test]
-    public void IsFullTime_EmploymentTypeNotSet_DefaultsToTrue()
-    {
-        var user = MakeStaffUser(baseSalary: 10_000_000m, allowance: 0m, leaveAccrued: 0m);
-
-        PayrollCalculator.IsFullTime(user).Should().BeTrue();
-    }
-
-    private static User MakeStaffUser(
-        decimal? baseSalary, decimal? allowance, decimal? leaveAccrued,
-        string? employmentType = null, decimal? ratePerShift = null)
+    private static User MakeStaffUser(decimal? baseSalary, decimal? allowance, decimal? leaveAccrued)
     {
         var user = User.Create("emp", "emp@test.com", "hash", UserRole.Staff, null, "Nguyễn Văn A");
         var employee = Employee.Create(
-            user.Id, "NV001", employmentType: employmentType,
-            baseSalary: baseSalary, allowance: allowance, leaveAccrued: leaveAccrued, ratePerShift: ratePerShift);
+            user.Id, "NV001",
+            baseSalary: baseSalary, allowance: allowance, leaveAccrued: leaveAccrued);
         user.AttachEmployee(employee);
         return user;
     }

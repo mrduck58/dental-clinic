@@ -36,7 +36,6 @@ public record UpdateStaffCommand(
     string? SalaryUnit,
     decimal? LeaveAccrued,
     decimal? Allowance,
-    decimal? RatePerShift = null,
     string? Content = null) : IRequest<StaffItemDto>;
 
 public class UpdateStaffHandler(
@@ -84,7 +83,7 @@ public class UpdateStaffHandler(
             command.EmploymentStatus ?? Employee.DefaultEmploymentStatus,
             command.EmploymentType, command.StartDate, command.DateOfBirth,
             command.Address, command.ProfilePictureUrl,
-            command.BaseSalary, command.SalaryUnit, command.Allowance, command.LeaveAccrued, command.RatePerShift);
+            command.BaseSalary, command.SalaryUnit, command.Allowance, command.LeaveAccrued);
         await employeeRepository.UpdateAsync(employee, ct);
 
         if (role == UserRole.Dentist)

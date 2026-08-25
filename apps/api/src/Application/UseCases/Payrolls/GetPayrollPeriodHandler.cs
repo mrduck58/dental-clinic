@@ -14,7 +14,7 @@ public record GetPayrollPeriodQuery(
     string? Department,
     string? Role) : IRequest<PayrollPeriodDto>;
 
-public class GetPayrollPeriodHandler(IPayrollRepository payrollRepository, IWorkScheduleRepository workScheduleRepository)
+public class GetPayrollPeriodHandler(IPayrollRepository payrollRepository)
     : IRequestHandler<GetPayrollPeriodQuery, PayrollPeriodDto>
 {
     public async Task<PayrollPeriodDto> Handle(GetPayrollPeriodQuery query, CancellationToken ct)
@@ -24,15 +24,13 @@ public class GetPayrollPeriodHandler(IPayrollRepository payrollRepository, IWork
 
         var (from, to) = PeriodRange(query.Year, query.Month);
         var (prevYear, prevMonth) = PreviousPeriod(query.Year, query.Month);
-        var (prevFrom, prevTo) = PeriodRange(prevYear, prevMonth);
+        var (prevFrom, _) = PeriodRange(prevYear, prevMonth);
 
         var users = await payrollRepository.GetPayableUsersAsync(ct);
         var records = await payrollRepository.GetByPeriodAsync(query.Year, query.Month, ct);
         var prevRecords = await payrollRepository.GetByPeriodAsync(prevYear, prevMonth, ct);
         // Một truy vấn phủ cả hai kỳ, tránh gọi DB hai lần chỉ để lấy số so sánh
         var leaves = await payrollRepository.GetApprovedLeavesOverlappingAsync(prevFrom, to, ct);
-        var shiftCounts = await PayrollShiftCounter.CountByEmployeeAsync(workScheduleRepository, from, to, ct);
-        var prevShiftCounts = await PayrollShiftCounter.CountByEmployeeAsync(workScheduleRepository, prevFrom, prevTo, ct);
 
         var recordByUser = records.ToDictionary(r => r.UserId);
         var prevRecordByUser = prevRecords.ToDictionary(r => r.UserId);
@@ -43,12 +41,9 @@ public class GetPayrollPeriodHandler(IPayrollRepository payrollRepository, IWork
                 u,
                 recordByUser.GetValueOrDefault(u.Id),
                 leaves,
-                shiftCounts.GetValueOrDefault(u.Employee?.Id ?? Guid.Empty, 0),
                 query.Year,
                 query.Month,
-                previousNetSalary: NetSalaryOf(
-                    u, prevRecordByUser.GetValueOrDefault(u.Id), leaves,
-                    prevShiftCounts.GetValueOrDefault(u.Employee?.Id ?? Guid.Empty, 0), prevYear, prevMonth)))
+                previousNetSalary: NetSalaryOf(u, prevRecordByUser.GetValueOrDefault(u.Id), leaves, prevYear, prevMonth)))
             .ToList();
 
         var summary = new PayrollSummaryDto(
@@ -84,10 +79,10 @@ public class GetPayrollPeriodHandler(IPayrollRepository payrollRepository, IWork
 
     /// <summary>Thực nhận của một kỳ: đã có bản ghi (Draft trở lên) thì lấy số đã lưu, chưa tạo thì ước tính theo hồ sơ hiện tại.</summary>
     internal static decimal NetSalaryOf(
-        User user, PayrollRecord? record, IEnumerable<LeaveRequest> approvedLeaves, int requiredShifts, int year, int month)
+        User user, PayrollRecord? record, IEnumerable<LeaveRequest> approvedLeaves, int year, int month)
         => record is not null
             ? record.NetSalary
-            : PayrollCalculator.Compute(user, approvedLeaves, requiredShifts, year, month).NetSalary;
+            : PayrollCalculator.Compute(user, approvedLeaves, year, month).NetSalary;
 
     /// <summary>
     /// Kỳ đã tạo (Draft trở lên) trả về đúng số liệu đã lưu — không âm thầm tính lại theo hồ sơ nữa,
@@ -97,21 +92,19 @@ public class GetPayrollPeriodHandler(IPayrollRepository payrollRepository, IWork
         User user,
         PayrollRecord? record,
         IEnumerable<LeaveRequest> approvedLeaves,
-        int requiredShifts,
         int year,
         int month,
         decimal previousNetSalary = 0m)
     {
         var (employeeId, department, position) = ReadEmploymentProfile(user);
-        var employmentType = user.Employee?.EmploymentType;
 
         if (record is not null)
         {
             return new PayrollItemDto(
                 user.Id, user.FullName, user.Email ?? string.Empty, user.Role.ToString(),
-                employeeId, department, position, user.PhoneNumber, employmentType,
+                employeeId, department, position, user.PhoneNumber,
                 record.BaseSalary, record.Allowance,
-                record.RequiredShifts, record.LeaveShifts, record.AllowedLeaveShifts, record.ExceededShifts,
+                record.LeaveShifts, record.AllowedLeaveShifts, record.ExceededShifts,
                 record.Deduction, record.Bonus, record.NetSalary,
                 record.Status.ToString(), record.PaidAt, record.Note,
                 HasSalaryConfigured: record.BaseSalary > 0,
@@ -119,13 +112,13 @@ public class GetPayrollPeriodHandler(IPayrollRepository payrollRepository, IWork
                 IsCreated: true);
         }
 
-        var c = PayrollCalculator.Compute(user, approvedLeaves, requiredShifts, year, month);
+        var c = PayrollCalculator.Compute(user, approvedLeaves, year, month);
 
         return new PayrollItemDto(
             user.Id, user.FullName, user.Email ?? string.Empty, user.Role.ToString(),
-            employeeId, department, position, user.PhoneNumber, employmentType,
+            employeeId, department, position, user.PhoneNumber,
             c.BaseSalary, c.Allowance,
-            c.RequiredShifts, c.LeaveShifts, c.AllowedLeaveShifts, c.ExceededShifts,
+            c.LeaveShifts, c.AllowedLeaveShifts, c.ExceededShifts,
             c.Deduction, 0m, c.NetSalary,
             "NotCreated", null, null,
             c.HasSalaryConfigured,

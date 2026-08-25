@@ -35,7 +35,6 @@ public record CreateStaffCommand(
     string? SalaryUnit,
     decimal? LeaveAccrued,
     decimal? Allowance,
-    decimal? RatePerShift = null,
     string? Content = null) : IRequest<StaffItemDto>;
 
 public class CreateStaffHandler(
@@ -81,8 +80,7 @@ public class CreateStaffHandler(
             command.BaseSalary,
             command.SalaryUnit,
             command.Allowance,
-            command.LeaveAccrued,
-            command.RatePerShift);
+            command.LeaveAccrued);
         await employeeRepository.AddAsync(employee, ct);
 
         if (role == UserRole.Dentist)

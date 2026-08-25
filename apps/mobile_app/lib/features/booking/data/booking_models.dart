@@ -439,19 +439,6 @@ class MyAppointmentItem {
 
   /// Cho phép tự hủy/dời trước thời gian khám.
   bool get canSelfManage => !isPastAppointmentDate;
-
-  /// Khung giờ thực tế hiển thị từ giờ bắt đầu đến giờ kết thúc theo thời lượng dịch vụ (ví dụ: 09:00 - 10:00).
-  String get displayTimeRange {
-    final startH = parsedDate.hour.toString().padLeft(2, '0');
-    final startM = parsedDate.minute.toString().padLeft(2, '0');
-    final duration = (serviceDurationMinutes != null && serviceDurationMinutes! > 0)
-        ? serviceDurationMinutes!
-        : 30;
-    final totalEndMinutes = parsedDate.hour * 60 + parsedDate.minute + duration;
-    final endH = ((totalEndMinutes ~/ 60) % 24).toString().padLeft(2, '0');
-    final endM = (totalEndMinutes % 60).toString().padLeft(2, '0');
-    return '$startH:$startM - $endH:$endM';
-  }
 }
 
 class BookingEligibility {
