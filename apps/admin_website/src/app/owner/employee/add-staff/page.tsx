@@ -55,6 +55,7 @@ export default function AddStaffPage() {
   const [formSalaryUnit, setFormSalaryUnit] = useState("Theo tháng");
   const [formLeaveAccrued, setFormLeaveAccrued] = useState(24);
   const [formAllowance, setFormAllowance] = useState(1200000);
+  const [formRatePerShift, setFormRatePerShift] = useState(0);
 
   useEffect(() => {
     if (formEmploymentType === "Full-time") {
@@ -155,6 +156,7 @@ export default function AddStaffPage() {
         salaryUnit: formSalaryUnit,
         leaveAccrued: formLeaveAccrued,
         allowance: formAllowance,
+        ratePerShift: formRatePerShift,
       };
       await createStaffApi(payload);
       sessionStorage.setItem("staffSuccessMsg", `Thêm nhân viên ${formData.fullName.trim()} (${staffCode}) thành công!`);
@@ -535,7 +537,7 @@ export default function AddStaffPage() {
                   </div>
 
                   <div>
-                    <label className={lbl}>Số ca / tháng</label>
+                    <label className={lbl}>Định mức nghỉ phép (ca/tháng)</label>
                     <input
                       type="number"
                       required
@@ -546,6 +548,22 @@ export default function AddStaffPage() {
                       className={inp("leaveAccrued")}
                     />
                     {errMsg("leaveAccrued")}
+                  </div>
+
+                  <div>
+                    <label className={lbl}>Giá / ca (VNĐ)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="150.000"
+                      value={formRatePerShift}
+                      onChange={(e) => setFormRatePerShift(Number(e.target.value))}
+                      disabled={formEmploymentType === "Full-time"}
+                      className={`${inp("ratePerShift")} ${
+                        formEmploymentType === "Full-time" ? "opacity-60 cursor-not-allowed bg-slate-200 text-slate-500 font-bold text-[14px]" : ""
+                      }`}
+                    />
+                    {errMsg("ratePerShift")}
                   </div>
                 </div>
               </div>

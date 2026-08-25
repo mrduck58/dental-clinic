@@ -103,8 +103,8 @@ public class PayrollRepositoryTests
     {
         var userId = Guid.NewGuid();
         await _db.PayrollRecords.AddRangeAsync(
-            PayrollRecord.CreateDraft(userId, 2026, 8, 10_000_000m, 0m, 0, 0m, 0m, 0m),
-            PayrollRecord.CreateDraft(userId, 2026, 9, 10_000_000m, 0m, 0, 0m, 0m, 0m));
+            PayrollRecord.CreateDraft(userId, 2026, 8, 10_000_000m, 0m, 0, 0, 0m, 0m, 0m),
+            PayrollRecord.CreateDraft(userId, 2026, 9, 10_000_000m, 0m, 0, 0, 0m, 0m, 0m));
         await _db.SaveChangesAsync();
 
         var result = await _sut.GetByPeriodAsync(2026, 8);

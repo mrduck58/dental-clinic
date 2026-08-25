@@ -54,14 +54,16 @@ export default function PatientDetailModal({
   patientId,
   patientName,
   patientPhone,
+  defaultTab = "history",
   onClose,
 }: {
   patientId: string;
   patientName: string;
   patientPhone?: string | null;
+  defaultTab?: Tab;
   onClose: () => void;
 }) {
-  const [tab, setTab] = useState<Tab>("history");
+  const [tab, setTab] = useState<Tab>(defaultTab);
 
   const [history, setHistory] = useState<PatientMedicalHistoryDto[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);

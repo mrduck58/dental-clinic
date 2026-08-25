@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import OwnerSidebar from "../../../components/shared/OwnerSidebar";
 import OwnerPageHeader from "../../../components/shared/OwnerPageHeader";
@@ -15,11 +15,13 @@ import {
   updateExpenseApi,
   deleteExpenseApi,
   generateRecurringExpensesApi,
+  getSupplyImportsInRangeApi,
   type ExpenseDto,
   type ExpenseSummaryDto,
   type ExpenseChartsDto,
   type ExpenseCategory,
   type RecurrenceFrequency,
+  type SupplyTransactionDto,
 } from "../../../lib/apiClient";
 
 const fmt = (n: number) => new Intl.NumberFormat("vi-VN").format(Math.round(n)) + " đ";
@@ -75,7 +77,10 @@ function Portal({ children }: { children: React.ReactNode }) {
 
 type SortKey = "date" | "amount" | "category";
 type SortDir = "asc" | "desc";
-const PAGE_SIZE = 15;
+const PAGE_SIZE_DEFAULT = 15;
+
+type SupplySortKey = "date" | "item" | "quantity" | "unitPrice" | "total";
+const SUPPLY_PAGE_SIZE_DEFAULT = 15;
 
 interface ExpenseFormState {
   category: ExpenseCategory;
@@ -124,6 +129,7 @@ export default function OwnerExpensesPage() {
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_DEFAULT);
 
   const [items, setItems] = useState<ExpenseDto[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -139,12 +145,22 @@ export default function OwnerExpensesPage() {
   const [deleteTarget, setDeleteTarget] = useState<ExpenseDto | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  const [supplyImports, setSupplyImports] = useState<SupplyTransactionDto[]>([]);
+  const [supplyLoading, setSupplyLoading] = useState(true);
+  const [supplySearch, setSupplySearch] = useState("");
+  const [supplySortKey, setSupplySortKey] = useState<SupplySortKey>("date");
+  const [supplySortDir, setSupplySortDir] = useState<SortDir>("desc");
+  const [supplyPage, setSupplyPage] = useState(1);
+  const [supplyPageSize, setSupplyPageSize] = useState(SUPPLY_PAGE_SIZE_DEFAULT);
+  const supplyTableRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const timer = setTimeout(() => { setSearchTerm(searchQuery.trim()); setPage(1); }, 350);
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
   useEffect(() => { setPage(1); }, [fromISO, toISO, categoryFilter]);
+  useEffect(() => { setSupplyPage(1); }, [fromISO, toISO, supplySearch]);
 
   const showMessage = (msg: string) => { setErrorMsg(null); setSuccessMsg(msg); setTimeout(() => setSuccessMsg(null), 4000); };
   const showError = (err: unknown, fallback: string) => { setSuccessMsg(null); setErrorMsg(err instanceof Error ? err.message : fallback); };
@@ -170,7 +186,7 @@ export default function OwnerExpensesPage() {
         from: fromISO, to: toISO,
         category: categoryFilter || undefined,
         search: searchTerm || undefined,
-        page, pageSize: PAGE_SIZE, sortBy: sortKey, sortDir,
+        page, pageSize, sortBy: sortKey, sortDir,
       });
       setItems(data.items);
       setTotalCount(data.totalCount);
@@ -178,13 +194,63 @@ export default function OwnerExpensesPage() {
       setItems([]); setTotalCount(0);
       showError(err, "Không thể tải danh sách chi phí");
     } finally { setListLoading(false); }
-  }, [fromISO, toISO, categoryFilter, searchTerm, page, sortKey, sortDir]);
+  }, [fromISO, toISO, categoryFilter, searchTerm, page, pageSize, sortKey, sortDir]);
+
+  const reloadSupplyHistory = useCallback(async () => {
+    setSupplyLoading(true);
+    try { setSupplyImports(await getSupplyImportsInRangeApi(fromISO, toISO)); }
+    catch (err) { showError(err, "Không thể tải lịch sử nhập kho"); setSupplyImports([]); }
+    finally { setSupplyLoading(false); }
+  }, [fromISO, toISO]);
 
   useEffect(() => { reloadSummary(); }, [reloadSummary]);
   useEffect(() => { reloadCharts(); }, [reloadCharts]);
   useEffect(() => { reloadList(); }, [reloadList]);
+  useEffect(() => { reloadSupplyHistory(); }, [reloadSupplyHistory]);
 
-  const reloadAll = useCallback(() => { reloadSummary(); reloadCharts(); reloadList(); }, [reloadSummary, reloadCharts, reloadList]);
+  const reloadAll = useCallback(() => {
+    reloadSummary(); reloadCharts(); reloadList(); reloadSupplyHistory();
+  }, [reloadSummary, reloadCharts, reloadList, reloadSupplyHistory]);
+
+  const filteredSupplyImports = useMemo(() => {
+    const term = supplySearch.trim().toLowerCase();
+    const filtered = term
+      ? supplyImports.filter((t) => t.itemName.toLowerCase().includes(term) || (t.note ?? "").toLowerCase().includes(term))
+      : supplyImports;
+    const dir = supplySortDir === "asc" ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      switch (supplySortKey) {
+        case "item": return a.itemName.localeCompare(b.itemName) * dir;
+        case "quantity": return (a.quantity - b.quantity) * dir;
+        case "unitPrice": return ((a.unitPrice ?? 0) - (b.unitPrice ?? 0)) * dir;
+        case "total": return ((a.unitPrice ?? 0) * a.quantity - (b.unitPrice ?? 0) * b.quantity) * dir;
+        default: return (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) * dir;
+      }
+    });
+  }, [supplyImports, supplySearch, supplySortKey, supplySortDir]);
+
+  const supplyTotalAmount = useMemo(
+    () => filteredSupplyImports.reduce((sum, t) => sum + (t.unitPrice ?? 0) * t.quantity, 0),
+    [filteredSupplyImports]
+  );
+
+  const pagedSupplyImports = useMemo(() => {
+    const start = (supplyPage - 1) * supplyPageSize;
+    return filteredSupplyImports.slice(start, start + supplyPageSize);
+  }, [filteredSupplyImports, supplyPage, supplyPageSize]);
+
+  const toggleSupplySort = (column: SupplySortKey) => {
+    if (supplySortKey === column) setSupplySortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSupplySortKey(column); setSupplySortDir(column === "item" ? "asc" : "desc"); }
+    setSupplyPage(1);
+  };
+
+  const handleSupplyPageSizeChange = (size: number) => {
+    setSupplyPageSize(size);
+    setSupplyPage(1);
+  };
+
+  const scrollToSupplyHistory = () => supplyTableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   const toggleSort = (column: SortKey) => {
     if (sortKey === column) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -202,6 +268,11 @@ export default function OwnerExpensesPage() {
       reloadAll();
     } catch (err) { showError(err, "Không thể sinh chi phí định kỳ"); }
     finally { setIsGenerating(false); }
+  };
+
+  const handlePageSizeChange = (size: number) => {
+    setPageSize(size);
+    setPage(1);
   };
 
   const openCreateForm = () => { setEditingId(null); setForm(emptyForm()); setFormOpen(true); };
@@ -330,10 +401,11 @@ export default function OwnerExpensesPage() {
               <span className="text-xl font-black text-slate-900 mt-1.5 block">{summaryLoading ? "…" : fmt(summary?.totalOther ?? 0)}</span>
               <span className="text-[11.5px] font-semibold text-slate-400 mt-0.5 block">Thuốc/thiết bị/mặt bằng/...</span>
             </div>
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm">
+            <div onClick={scrollToSupplyHistory}
+              className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm cursor-pointer hover:border-orange-300 hover:shadow-md transition-all">
               <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Vật tư</span>
               <span className="text-xl font-black text-orange-600 mt-1.5 block">{summaryLoading ? "…" : fmt(summary?.totalSupply ?? 0)}</span>
-              <span className="text-[11.5px] font-semibold text-slate-400 mt-0.5 block">Nhập kho trong kỳ</span>
+              <span className="text-[11.5px] font-semibold text-slate-400 mt-0.5 block">Chi phí mua vào (nhập kho) trong kỳ — bấm để xem lịch sử bên dưới</span>
             </div>
             <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm">
               <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Lương</span>
@@ -344,7 +416,10 @@ export default function OwnerExpensesPage() {
 
           {/* Biểu đồ theo danh mục */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm">
-            <span className="text-[13.5px] font-extrabold text-slate-800 block mb-4">Chi phí theo danh mục</span>
+            <span className="text-[13.5px] font-extrabold text-slate-800 block mb-1">Chi phí theo danh mục</span>
+            <span className="text-[11.5px] text-slate-400 font-semibold block mb-4">
+              Số liệu tính theo chi phí mua vào (thực chi/nhập kho) trong kỳ — khác với giá vốn lúc tiêu hao theo dịch vụ đang hiển thị ở Doanh thu/Tổng quan tài chính.
+            </span>
             {chartsLoading ? (
               <div className="py-10 text-center text-slate-400 font-semibold text-[13px] animate-pulse">Đang tải...</div>
             ) : !charts || charts.byCategory.length === 0 ? (
@@ -353,11 +428,13 @@ export default function OwnerExpensesPage() {
               <div className="space-y-2.5">
                 {charts.byCategory.map((c) => {
                   const max = Math.max(...charts.byCategory.map((x) => x.amount), 1);
+                  const isSupply = c.categoryLabel === "Vật tư";
                   return (
-                    <div key={c.categoryLabel} className="flex items-center gap-3">
-                      <span className="w-32 shrink-0 text-[12px] font-bold text-slate-600 truncate" title={c.categoryLabel}>{c.categoryLabel}</span>
+                    <div key={c.categoryLabel} onClick={isSupply ? scrollToSupplyHistory : undefined}
+                      className={`flex items-center gap-3 ${isSupply ? "cursor-pointer group" : ""}`}>
+                      <span className={`w-32 shrink-0 text-[12px] font-bold text-slate-600 truncate ${isSupply ? "group-hover:text-orange-600" : ""}`} title={c.categoryLabel}>{c.categoryLabel}</span>
                       <div className="flex-1 h-5 bg-slate-100 rounded-md overflow-hidden">
-                        <div className="h-full bg-primary rounded-md transition-all duration-500" style={{ width: `${Math.max(2, (c.amount / max) * 100)}%` }} />
+                        <div className={`h-full rounded-md transition-all duration-500 ${isSupply ? "bg-orange-500" : "bg-primary"}`} style={{ width: `${Math.max(2, (c.amount / max) * 100)}%` }} />
                       </div>
                       <span className="w-16 shrink-0 text-right text-[12px] font-black text-slate-700 tabular-nums">{formatCompact(c.amount)}</span>
                     </div>
@@ -384,6 +461,14 @@ export default function OwnerExpensesPage() {
                 <option value="">Tất cả danh mục</option>
                 {CATEGORY_OPTIONS.map((c) => <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>)}
               </select>
+              <div className="flex items-center gap-2 text-[13px] text-slate-400 font-semibold whitespace-nowrap">
+                <span>Hiển thị</span>
+                <select value={pageSize} onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                  className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:outline-none font-semibold text-slate-600 text-[13px] cursor-pointer">
+                  {[10, 20, 50].map((n) => (<option key={n} value={n}>{n}</option>))}
+                </select>
+                <span>/ trang</span>
+              </div>
             </div>
 
             <div className="overflow-x-auto">
@@ -442,7 +527,85 @@ export default function OwnerExpensesPage() {
 
             {!listLoading && totalCount > 0 && (
               <div className="border-t border-slate-100 px-5 py-3.5 bg-slate-50/25">
-                <Pagination currentPage={page} totalCount={totalCount} pageSize={PAGE_SIZE} onPageChange={setPage} itemLabel="chi phí" />
+                <Pagination currentPage={page} totalCount={totalCount} pageSize={pageSize} onPageChange={setPage} itemLabel="chi phí" />
+              </div>
+            )}
+          </div>
+
+          {/* Lịch sử nhập kho (chi tiết cho khoản "Vật tư" ở trên) */}
+          <div ref={supplyTableRef} className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden flex flex-col scroll-mt-6">
+            <div className="p-4 border-b border-slate-100">
+              <span className="text-[13.5px] font-extrabold text-slate-800 block">Lịch sử nhập kho</span>
+              <span className="text-[11.5px] text-slate-400 font-semibold block mt-0.5">
+                Chi phí mua vào theo từng lần nhập kho trong kỳ đang lọc — khác với giá vốn lúc tiêu hao theo dịch vụ (xem ở Doanh thu/Tổng quan tài chính).
+              </span>
+            </div>
+            <div className="p-4 flex flex-wrap items-center gap-3 border-b border-slate-100">
+              <div className="relative flex-1 min-w-[220px]">
+                <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-slate-400">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </span>
+                <input type="text" placeholder="Tìm theo tên vật tư, ghi chú..." value={supplySearch} onChange={(e) => setSupplySearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 text-[13.5px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-semibold" />
+              </div>
+              <div className="flex items-center gap-2 text-[13px] text-slate-400 font-semibold whitespace-nowrap">
+                <span>Hiển thị</span>
+                <select value={supplyPageSize} onChange={(e) => handleSupplyPageSizeChange(Number(e.target.value))}
+                  className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:outline-none font-semibold text-slate-600 text-[13px] cursor-pointer">
+                  {[10, 20, 50].map((n) => (<option key={n} value={n}>{n}</option>))}
+                </select>
+                <span>/ trang</span>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-[13.5px] text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-150 bg-slate-50/70 select-none">
+                    <SortableTh column="date" label="Ngày" sortKey={supplySortKey} sortDir={supplySortDir} onSort={toggleSupplySort} className="px-6" />
+                    <SortableTh column="item" label="Vật tư" sortKey={supplySortKey} sortDir={supplySortDir} onSort={toggleSupplySort} className="px-6" />
+                    <SortableTh column="quantity" label="Số lượng" sortKey={supplySortKey} sortDir={supplySortDir} onSort={toggleSupplySort} align="right" className="px-6" />
+                    <SortableTh column="unitPrice" label="Đơn giá" sortKey={supplySortKey} sortDir={supplySortDir} onSort={toggleSupplySort} align="right" className="px-6" />
+                    <SortableTh column="total" label="Thành tiền" sortKey={supplySortKey} sortDir={supplySortDir} onSort={toggleSupplySort} align="right" className="px-6" />
+                    <Th className="px-6">Người nhập</Th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {supplyLoading ? (
+                    <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-400 font-semibold animate-pulse">Đang tải lịch sử nhập kho...</td></tr>
+                  ) : pagedSupplyImports.length === 0 ? (
+                    <tr><td colSpan={6} className="px-6 py-10 text-center text-[13px] text-slate-400 font-semibold">Không có lần nhập kho nào khớp với bộ lọc hiện tại.</td></tr>
+                  ) : pagedSupplyImports.map((t) => (
+                    <tr key={t.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-6 py-4 font-semibold text-slate-500 whitespace-nowrap">{formatDate(t.createdAt)}</td>
+                      <td className="px-6 py-4">
+                        <div className="font-extrabold text-slate-900">{t.itemName}</div>
+                        {t.note && <div className="text-[11px] text-slate-400 font-semibold mt-0.5">{t.note}</div>}
+                      </td>
+                      <td className="px-6 py-4 text-right font-semibold text-slate-600">{t.quantity}</td>
+                      <td className="px-6 py-4 text-right font-semibold text-slate-600">{fmt(t.unitPrice ?? 0)}</td>
+                      <td className="px-6 py-4 text-right font-black text-slate-900">{fmt((t.unitPrice ?? 0) * t.quantity)}</td>
+                      <td className="px-6 py-4 font-semibold text-slate-500">{t.createdBy}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                {!supplyLoading && pagedSupplyImports.length > 0 && (
+                  <tfoot>
+                    <tr className="border-t border-slate-200 bg-slate-50/50">
+                      <td colSpan={4} className="px-6 py-3 text-right font-black text-slate-500 text-[11px] uppercase tracking-wide">Tổng cộng ({filteredSupplyImports.length} lần nhập)</td>
+                      <td className="px-6 py-3 text-right font-black text-orange-600">{fmt(supplyTotalAmount)}</td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+
+            {!supplyLoading && filteredSupplyImports.length > 0 && (
+              <div className="border-t border-slate-100 px-5 py-3.5 bg-slate-50/25">
+                <Pagination currentPage={supplyPage} totalCount={filteredSupplyImports.length} pageSize={supplyPageSize} onPageChange={setSupplyPage} itemLabel="lần nhập" />
               </div>
             )}
           </div>
@@ -554,6 +717,7 @@ export default function OwnerExpensesPage() {
           </div>
         </Portal>
       )}
+
     </div>
   );
 }

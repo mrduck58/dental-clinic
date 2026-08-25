@@ -25,6 +25,9 @@ public class Employee
     public string? SalaryUnit { get; private set; }
     public decimal? Allowance { get; private set; }
     public decimal? LeaveAccrued { get; private set; }
+    /// <summary>Đơn giá cho 1 ca làm việc — chỉ dùng khi EmploymentType khác "Full-time" (lương =
+    /// số ca đã lên lịch trong tháng × đơn giá này, không áp dụng công thức lương tháng/khấu trừ phép).</summary>
+    public decimal? RatePerShift { get; private set; }
 
     // Navigation properties
     public User User { get; set; } = null!;
@@ -46,7 +49,8 @@ public class Employee
         decimal? baseSalary = null,
         string? salaryUnit = null,
         decimal? allowance = null,
-        decimal? leaveAccrued = null)
+        decimal? leaveAccrued = null,
+        decimal? ratePerShift = null)
     {
         return new Employee
         {
@@ -64,7 +68,8 @@ public class Employee
             BaseSalary = baseSalary,
             SalaryUnit = salaryUnit,
             Allowance = allowance,
-            LeaveAccrued = leaveAccrued
+            LeaveAccrued = leaveAccrued,
+            RatePerShift = ratePerShift
         };
     }
 
@@ -80,7 +85,8 @@ public class Employee
         decimal? baseSalary,
         string? salaryUnit,
         decimal? allowance,
-        decimal? leaveAccrued)
+        decimal? leaveAccrued,
+        decimal? ratePerShift)
     {
         Department = department;
         Position = position;
@@ -94,5 +100,6 @@ public class Employee
         SalaryUnit = salaryUnit;
         Allowance = allowance;
         LeaveAccrued = leaveAccrued;
+        RatePerShift = ratePerShift;
     }
 }

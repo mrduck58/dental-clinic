@@ -247,6 +247,8 @@ export interface StaffDto {
   salaryUnit: string | null;
   leaveAccrued: number | null;
   allowance: number | null;
+  /** Đơn giá/ca — chỉ dùng khi employmentType khác "Full-time" (lương = số ca đã lên lịch × đơn giá này). */
+  ratePerShift: number | null;
   /** Id hồ sơ nha sĩ — null nếu nhân viên không phải bác sĩ. Đánh giá của bệnh nhân khóa theo id này. */
   dentistProfileId: string | null;
   /** Bài viết chi tiết (HTML) giới thiệu về nha sĩ — null nếu không phải bác sĩ. */
@@ -296,6 +298,7 @@ export interface CreateStaffCommand {
   salaryUnit?: string | null;
   leaveAccrued?: number | null;
   allowance?: number | null;
+  ratePerShift?: number | null;
   content?: string | null;
 }
 
@@ -328,6 +331,7 @@ export interface UpdateStaffCommand {
   salaryUnit?: string | null;
   leaveAccrued?: number | null;
   allowance?: number | null;
+  ratePerShift?: number | null;
   content?: string | null;
 }
 
@@ -1250,6 +1254,19 @@ export async function getSupplyTransactionsApi(roomId?: string): Promise<SupplyT
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { title?: string }).title ?? "Không thể tải lịch sử giao dịch");
+  }
+  return res.json() as Promise<SupplyTransactionDto[]>;
+}
+
+/** Các lần nhập kho trong khoảng ngày — drill-down cho thẻ/cột "Vật tư" bên trang Chi phí (Owner). */
+export async function getSupplyImportsInRangeApi(from: string, to: string): Promise<SupplyTransactionDto[]> {
+  const res = await fetch(`${API_URL}/api/inventory/transactions/imports?from=${from}&to=${to}`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách nhập kho");
   }
   return res.json() as Promise<SupplyTransactionDto[]>;
 }
@@ -2367,6 +2384,39 @@ export async function getPatientDetailApi(patientId: string): Promise<PatientDet
     throw new Error((err as { title?: string }).title ?? "Không thể tải thông tin bệnh nhân");
   }
   return res.json() as Promise<PatientDetailDto>;
+}
+
+export interface PatientServiceBalanceDto {
+  serviceId: string;
+  serviceName: string;
+  totalCost: number;
+  amountPaid: number;
+  remainingAmount: number;
+}
+
+export interface PatientBalanceDto {
+  patientId: string;
+  fullName: string;
+  phoneNumber: string | null;
+  totalCost: number;
+  amountPaid: number;
+  remainingAmount: number;
+  treatmentPlanCount: number;
+  lastTreatmentDate: string | null;
+  services: PatientServiceBalanceDto[];
+}
+
+/** Công nợ tổng hợp của TẤT CẢ bệnh nhân — đã thanh toán / còn nợ bao nhiêu, theo từng dịch vụ. */
+export async function getPatientBalancesApi(): Promise<PatientBalanceDto[]> {
+  const res = await fetch(`${API_URL}/api/patients/balances`, {
+    headers: { ...authHeaders() },
+  });
+  await checkAuth(res);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { title?: string }).title ?? "Không thể tải công nợ bệnh nhân");
+  }
+  return res.json() as Promise<PatientBalanceDto[]>;
 }
 
 export interface CreateWalkInResult {
@@ -4189,8 +4239,13 @@ export interface PayrollItemDto {
   department: string | null;
   position: string | null;
   phoneNumber: string | null;
+  /** "Full-time" (hoặc chưa thiết lập) = lương tháng + khấu trừ phép. Khác thì = số ca × đơn giá/ca. */
+  employmentType: string | null;
   baseSalary: number;
   allowance: number;
+  /** Số ca đã được phân lịch trong kỳ — dùng để tính lương khi không phải Full-time (baseSalary khi đó
+   * là số ca này × đơn giá/ca), chỉ mang tính tham khảo khi Full-time. */
+  requiredShifts: number;
   leaveShifts: number;
   allowedLeaveShifts: number;
   exceededShifts: number;
@@ -4240,37 +4295,6 @@ export interface PayAllPayrollResult {
   totalPaid: number;
   alreadyPaidCount: number;
   failures: PayrollFailureDto[];
-}
-
-export interface PayrollMonthStatDto {
-  month: number;
-  staffCount: number;
-  paidCount: number;
-  totalNet: number;
-  totalPaid: number;
-  totalDeduction: number;
-}
-
-export interface PayrollYearlyDto {
-  year: number;
-  totalNet: number;
-  totalPaid: number;
-  totalDeduction: number;
-  averageMonthlyNet: number;
-  peakMonth: number;
-  months: PayrollMonthStatDto[];
-}
-
-export async function getPayrollYearlyApi(year: number): Promise<PayrollYearlyDto> {
-  const res = await fetch(`${API_URL}/api/payrolls/yearly?year=${year}`, {
-    headers: { ...authHeaders() },
-  });
-  await checkAuth(res);
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { title?: string }).title ?? "Không thể tải báo cáo lương theo năm");
-  }
-  return res.json() as Promise<PayrollYearlyDto>;
 }
 
 export async function getPayrollPeriodApi(params: {
@@ -4899,99 +4923,6 @@ export async function generateRecurringExpensesApi(): Promise<GenerateRecurringE
     throw new Error((err as { title?: string }).title ?? "Không thể sinh chi phí định kỳ");
   }
   return res.json() as Promise<GenerateRecurringExpensesResult>;
-}
-
-// ── Tài chính: Hoa hồng (module mới — quy tắc hoa hồng theo % doanh thu) ─────
-
-export interface CommissionRuleDto {
-  id: string;
-  dentistId: string | null;
-  dentistName: string | null;
-  serviceName: string | null;
-  ratePercent: number;
-  effectiveFrom: string;
-  effectiveTo: string | null;
-  isActive: boolean;
-  note: string | null;
-  revenueBasis: number;
-  commissionAmount: number;
-}
-
-export interface CommissionRulesResultDto {
-  items: CommissionRuleDto[];
-  totalCommission: number;
-}
-
-export interface CommissionRuleRequest {
-  dentistId?: string | null;
-  serviceName?: string | null;
-  ratePercent: number;
-  effectiveFrom: string;
-  effectiveTo?: string | null;
-  note?: string | null;
-}
-
-export async function getCommissionRulesApi(from: string, to: string): Promise<CommissionRulesResultDto> {
-  const res = await fetch(`${API_URL}/api/commissions?from=${from}&to=${to}`, {
-    headers: { ...authHeaders() },
-  });
-  await checkAuth(res);
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách quy tắc hoa hồng");
-  }
-  return res.json() as Promise<CommissionRulesResultDto>;
-}
-
-export async function createCommissionRuleApi(data: CommissionRuleRequest): Promise<{ id: string }> {
-  const res = await fetch(`${API_URL}/api/commissions`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify(data),
-  });
-  await checkAuth(res);
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { title?: string }).title ?? "Không thể tạo quy tắc hoa hồng");
-  }
-  return res.json() as Promise<{ id: string }>;
-}
-
-export async function updateCommissionRuleApi(id: string, data: CommissionRuleRequest): Promise<void> {
-  const res = await fetch(`${API_URL}/api/commissions/${id}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify(data),
-  });
-  await checkAuth(res);
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { title?: string }).title ?? "Không thể cập nhật quy tắc hoa hồng");
-  }
-}
-
-export async function toggleCommissionRuleActiveApi(id: string): Promise<void> {
-  const res = await fetch(`${API_URL}/api/commissions/${id}/toggle-active`, {
-    method: "PUT",
-    headers: { ...authHeaders() },
-  });
-  await checkAuth(res);
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { title?: string }).title ?? "Không thể đổi trạng thái quy tắc hoa hồng");
-  }
-}
-
-export async function deleteCommissionRuleApi(id: string): Promise<void> {
-  const res = await fetch(`${API_URL}/api/commissions/${id}`, {
-    method: "DELETE",
-    headers: { ...authHeaders() },
-  });
-  await checkAuth(res);
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { title?: string }).title ?? "Không thể xoá quy tắc hoa hồng");
-  }
 }
 
 // ── Tài chính: Tổng quan (module mới — tổng hợp Doanh thu + Chi phí + Lương) ─

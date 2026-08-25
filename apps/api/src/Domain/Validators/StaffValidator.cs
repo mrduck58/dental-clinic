@@ -28,6 +28,7 @@ public static partial class StaffValidator
     public const int MaxAge = 100;
     public const int MaxYearsOfExperience = 70;
     public const decimal MaxBaseSalary = 999_999_999m;
+    public const decimal MaxRatePerShift = 999_999_999m;
     /// <summary>Định mức phép tối đa/tháng, tính theo ca (không vượt quá tổng ca công một tháng: 26 ngày × 6 ca/ngày = 156).</summary>
     public const decimal MaxLeaveAccrued = 156m;
 
@@ -42,7 +43,7 @@ public static partial class StaffValidator
         DateOnly? certificateIssuedDate, string? certificateIssuedBy,
         string? education, string? bio, string? position, string? department,
         string? employmentType, decimal? baseSalary, string? salaryUnit,
-        decimal? leaveAccrued, string? employmentStatus)
+        decimal? leaveAccrued, string? employmentStatus, decimal? ratePerShift = null)
     {
         var errors = new Dictionary<string, List<string>>();
 
@@ -82,6 +83,7 @@ public static partial class StaffValidator
         ValidateBaseSalary(baseSalary, errors);
         ValidateSalaryUnit(salaryUnit, employmentType, errors);
         ValidateLeaveAccrued(leaveAccrued, errors);
+        ValidateRatePerShift(ratePerShift, errors);
 
         ThrowIfErrors(errors);
     }
@@ -97,7 +99,7 @@ public static partial class StaffValidator
         DateOnly? certificateIssuedDate, string? certificateIssuedBy,
         string? education, string? bio, string? position, string? department,
         string? employmentType, decimal? baseSalary, string? salaryUnit,
-        decimal? leaveAccrued, string? employmentStatus)
+        decimal? leaveAccrued, string? employmentStatus, decimal? ratePerShift = null)
     {
         // Same validation rules apply for update
         ValidateCreate(fullName, email, phoneNumber, role,
@@ -107,7 +109,7 @@ public static partial class StaffValidator
             certificateIssuedDate, certificateIssuedBy,
             education, bio, position, department,
             employmentType, baseSalary, salaryUnit,
-            leaveAccrued, employmentStatus);
+            leaveAccrued, employmentStatus, ratePerShift);
     }
 
     // ── Individual field validators ──────────────────────────────────────────
@@ -335,6 +337,17 @@ public static partial class StaffValidator
             AddError(errors, "leaveAccrued", "Số ca phép tích luỹ không được âm.");
         else if (leaveAccrued > MaxLeaveAccrued)
             AddError(errors, "leaveAccrued", $"Số ca phép tích luỹ không được vượt quá {MaxLeaveAccrued}.");
+    }
+
+    /// <summary>Đơn giá/ca — dùng để tính lương cho nhân sự KHÔNG phải Full-time (lương = số ca đã lên
+    /// lịch trong tháng × đơn giá này).</summary>
+    public static void ValidateRatePerShift(decimal? ratePerShift, Dictionary<string, List<string>> errors)
+    {
+        if (ratePerShift is null) return;
+        if (ratePerShift < 0)
+            AddError(errors, "ratePerShift", "Đơn giá/ca không được âm.");
+        else if (ratePerShift > MaxRatePerShift)
+            AddError(errors, "ratePerShift", $"Đơn giá/ca không được vượt quá {MaxRatePerShift:N0}.");
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

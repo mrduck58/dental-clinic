@@ -51,7 +51,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<DentistReview> DentistReviews => Set<DentistReview>();
     public DbSet<PayrollRecord> PayrollRecords => Set<PayrollRecord>();
     public DbSet<Expense> Expenses => Set<Expense>();
-    public DbSet<CommissionRule> CommissionRules => Set<CommissionRule>();
     public DbSet<UserDeviceToken> UserDeviceTokens => Set<UserDeviceToken>();
     public DbSet<AppointmentSlotHold> AppointmentSlotHolds => Set<AppointmentSlotHold>();
     public DbSet<AppointmentChangeRequest> AppointmentChangeRequests => Set<AppointmentChangeRequest>();

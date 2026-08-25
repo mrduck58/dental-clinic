@@ -67,6 +67,7 @@ export default function AddDentistPage() {
   const [formSalaryUnit, setFormSalaryUnit] = useState("Theo tháng");
   const [formLeaveAccrued, setFormLeaveAccrued] = useState(24);
   const [formAllowance, setFormAllowance] = useState(2500000);
+  const [formRatePerShift, setFormRatePerShift] = useState(0);
 
   useEffect(() => {
     if (formEmploymentType === "Full-time") {
@@ -158,6 +159,7 @@ export default function AddDentistPage() {
         salaryUnit: formSalaryUnit,
         leaveAccrued: formLeaveAccrued,
         allowance: formAllowance,
+        ratePerShift: formRatePerShift,
         content: formContent,
       };
       await createStaffApi(payload);
@@ -648,7 +650,7 @@ export default function AddDentistPage() {
                   </div>
 
                   <div>
-                    <label className={lbl}>Số ca / tháng</label>
+                    <label className={lbl}>Định mức nghỉ phép (ca/tháng)</label>
                     <input
                       type="number"
                       required
@@ -659,6 +661,22 @@ export default function AddDentistPage() {
                       className={inp("leaveAccrued")}
                     />
                     {errMsg("leaveAccrued")}
+                  </div>
+
+                  <div>
+                    <label className={lbl}>Giá / ca (VNĐ)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="150.000"
+                      value={formRatePerShift}
+                      onChange={(e) => setFormRatePerShift(Number(e.target.value))}
+                      disabled={formEmploymentType === "Full-time"}
+                      className={`${inp("ratePerShift")} ${
+                        formEmploymentType === "Full-time" ? "opacity-60 cursor-not-allowed bg-slate-200 text-slate-500 font-bold text-[14px]" : ""
+                      }`}
+                    />
+                    {errMsg("ratePerShift")}
                   </div>
                 </div>
               </div>

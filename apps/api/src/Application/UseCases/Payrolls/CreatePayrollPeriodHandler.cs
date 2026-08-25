@@ -14,6 +14,7 @@ public record CreatePayrollPeriodCommand(int Year, int Month) : IRequest<Payroll
 
 public class CreatePayrollPeriodHandler(
     IPayrollRepository payrollRepository,
+    IWorkScheduleRepository workScheduleRepository,
     IActivityLogService activityLogService,
     ICurrentUserService currentUser) : IRequestHandler<CreatePayrollPeriodCommand, PayrollPeriodActionResult>
 {
@@ -27,16 +28,18 @@ public class CreatePayrollPeriodHandler(
         var existingRecords = await payrollRepository.GetByPeriodAsync(command.Year, command.Month, ct);
         var existingUserIds = existingRecords.Select(r => r.UserId).ToHashSet();
         var leaves = await payrollRepository.GetApprovedLeavesOverlappingAsync(from, to, ct);
+        var shiftCounts = await PayrollShiftCounter.CountByEmployeeAsync(workScheduleRepository, from, to, ct);
 
         var newRecords = new List<PayrollRecord>();
         foreach (var user in users)
         {
             if (existingUserIds.Contains(user.Id)) continue;
 
-            var c = PayrollCalculator.Compute(user, leaves, command.Year, command.Month);
+            var requiredShifts = shiftCounts.GetValueOrDefault(user.Employee?.Id ?? Guid.Empty, 0);
+            var c = PayrollCalculator.Compute(user, leaves, requiredShifts, command.Year, command.Month);
             newRecords.Add(PayrollRecord.CreateDraft(
                 user.Id, command.Year, command.Month,
-                c.BaseSalary, c.Allowance, c.LeaveShifts, c.AllowedLeaveShifts, c.ExceededShifts, c.Deduction));
+                c.BaseSalary, c.Allowance, c.RequiredShifts, c.LeaveShifts, c.AllowedLeaveShifts, c.ExceededShifts, c.Deduction));
         }
 
         if (newRecords.Count > 0)
