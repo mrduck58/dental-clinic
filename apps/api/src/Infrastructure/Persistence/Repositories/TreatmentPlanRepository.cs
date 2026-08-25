@@ -131,6 +131,6 @@ public class TreatmentPlanRepository(AppDbContext db) : ITreatmentPlanRepository
             .AsNoTracking()
             .Include(tp => tp.Service)
             .Where(tp => tp.Status == TreatmentPlanStatus.InProgress && tp.AppointmentId != null && patientIds.Contains(tp.PatientId))
-            .Select(tp => new ActiveTreatmentPlanSummary(tp.AppointmentId!.Value, tp.Service.Name))
+            .Select(tp => new ActiveTreatmentPlanSummary(tp.AppointmentId!.Value, tp.ServiceId, tp.Service.Name))
             .ToListAsync(ct);
 }

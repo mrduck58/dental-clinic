@@ -41,17 +41,21 @@ public class EndTreatmentHandler(
             throw new InvalidOperationException("Chỉ có thể kết thúc điều trị khi đang trong trạng thái đang khám.");
 
         var hasActivePlans = false;
+        var activePlansTotalCost = 0m;
         if (treatmentPlanRepository != null)
         {
             var plans = await treatmentPlanRepository.GetByPatientIdAsync(appointment.PatientId, ct);
-            hasActivePlans = plans.Any(p => p.AppointmentId == appointmentId && p.Status != TreatmentPlanStatus.Cancelled);
+            var activePlans = plans.Where(p => p.AppointmentId == appointmentId && p.Status != TreatmentPlanStatus.Cancelled).ToList();
+            hasActivePlans = activePlans.Count > 0;
+            activePlansTotalCost = activePlans.Sum(p => p.TotalCost);
         }
 
-        if (treatmentPlanRepository != null && !hasActivePlans)
+        if (treatmentPlanRepository != null && (!hasActivePlans || activePlansTotalCost == 0))
         {
-            // Bác sĩ không thêm liệu trình nào -> Hoàn tất ca khám trực tiếp (không thu phí / không chờ thanh toán)
+            // Không có liệu trình, hoặc liệu trình tổng 0đ (dịch vụ miễn phí) -> Hoàn tất ca khám trực
+            // tiếp, không chờ thanh toán — không có gì để thu thì không cần qua bước chờ thanh toán.
             appointment.Complete();
-            logger?.LogInformation("Appointment {Id} has no treatment plans, completed directly without billing", appointmentId);
+            logger?.LogInformation("Appointment {Id} has no billable treatment plans (none, or total cost is 0), completed directly without billing", appointmentId);
         }
         else
         {

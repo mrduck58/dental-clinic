@@ -7,7 +7,6 @@ public record RoomDto(
     string Code,
     string Name,
     string Floor,
-    string Type,
     string Status,
     string ActiveStatus,
     string Description,
@@ -18,14 +17,12 @@ public record CreateRoomRequest(
     string Code,
     string Name,
     string Floor,
-    string Type,
     string Description);
 
 public record UpdateRoomRequest(
     string Code,
     string Name,
     string Floor,
-    string Type,
     string Description);
 
 public record ChangeRoomStatusRequest(string Status);

@@ -27,7 +27,12 @@ public record CreateWalkInCommand(
     /// <summary>Có email thì bệnh nhân mới được lập tài khoản thật để lần sau tự đặt lịch trên app.</summary>
     string? PatientEmail = null,
     /// <summary>Mã bệnh nhân đọc từ hộp thư — thiếu nó thì chỉ tạo hồ sơ, không cấp tài khoản.</summary>
-    string? EmailVerificationCode = null) : IRequest<CreateWalkInResult>;
+    string? EmailVerificationCode = null,
+    /// <summary>
+    /// Có giá trị khi đây là staff check-in một buổi tái khám từ tab Tái khám (thay vì lịch vãng lai
+    /// thường) — buổi hẹn mới sẽ gắn về buổi gốc này để bác sĩ thấy cờ tái khám và liệu trình cũ.
+    /// </summary>
+    Guid? FollowUpFromAppointmentId = null) : IRequest<CreateWalkInResult>;
 
 public record CreateWalkInResult(
     Guid AppointmentId,
@@ -56,6 +61,22 @@ public class CreateWalkInAppointmentHandler(
         if (!dentistUserId.HasValue)
             throw new ValidationException($"Không tìm thấy bác sĩ với ID: '{cmd.DentistId}'.");
 
+        // 1c. Check-in tái khám (có FollowUpFromAppointmentId): buổi gốc phải tồn tại, đã được bác sĩ
+        // hẹn ngày tái khám, và chưa từng được check-in tái khám lần nào khác (tránh tạo trùng nếu
+        // staff bấm lại hoặc mở 2 tab).
+        if (cmd.FollowUpFromAppointmentId is { } originalAppointmentId)
+        {
+            var original = await appointmentRepository.GetByIdAsync(originalAppointmentId, ct)
+                ?? throw new NotFoundException("Không tìm thấy buổi hẹn gốc.");
+
+            if (original.FollowUpDate == null)
+                throw new ValidationException("Buổi hẹn này chưa được bác sĩ hẹn tái khám.");
+
+            var alreadyCheckedIn = await appointmentRepository.HasActiveFollowUpCheckInAsync(originalAppointmentId, ct);
+            if (alreadyCheckedIn)
+                throw new ConflictException("Buổi hẹn này đã được check-in tái khám.");
+        }
+
         // 2. Kiểm tra slot còn trống
         var isBooked = await appointmentRepository.IsSlotBookedAsync(cmd.DentistId, utcAppointmentDate, ct);
 
@@ -63,11 +84,17 @@ public class CreateWalkInAppointmentHandler(
             throw new ConflictException("Khung giờ này đã được đặt. Vui lòng chọn giờ khác.");
 
         // 3. Xác định hồ sơ bệnh nhân, theo thứ tự ưu tiên:
-        //    a) hồ sơ staff đã chọn từ ô tra cứu;
-        //    b) hồ sơ khớp số điện thoại — dò cả cột PhoneNumber của Patient (bệnh nhân tạo tại quầy,
-        //       không có tài khoản) lẫn số của tài khoản liên kết;
+        //    a) hồ sơ staff đã CHỦ ĐỘNG chọn từ ô tra cứu — coi là đã xác nhận đúng người, cho phép
+        //       ghi đè tên/ngày sinh/giới tính để sửa lỗi chính tả hồ sơ cũ;
+        //    b) hồ sơ khớp NGẦM theo số điện thoại (staff gõ tay, không bấm chọn từ ô tra cứu) — dò
+        //       cả cột PhoneNumber của Patient (bệnh nhân tạo tại quầy, không có tài khoản) lẫn số
+        //       của tài khoản liên kết, nhưng KHÔNG ghi đè tên/ngày sinh/giới tính: một số điện thoại
+        //       có thể dùng chung cho nhiều người (vợ chồng, cha mẹ và con nhỏ, người lớn tuổi không
+        //       có điện thoại riêng...), gõ tên khác lúc này rất dễ vô tình xóa mất tên đúng của hồ
+        //       sơ cũ. Muốn sửa tên thật thì phải bấm chọn từ ô tra cứu để rơi vào nhánh (a).
         //    c) chưa có thì tạo mới.
         Patient? patient = null;
+        var patientExplicitlySelected = cmd.PatientId is not null;
 
         if (cmd.PatientId is { } patientId)
         {
@@ -107,21 +134,25 @@ public class CreateWalkInAppointmentHandler(
                 await patientRepository.AddAsync(patient, ct);
             }
         }
-        else
+        else if (patientExplicitlySelected)
         {
-            // Cập nhật thông tin bệnh nhân tìm được bằng thông tin staff nhập tại quầy
+            // Staff đã tự tay chọn đúng hồ sơ này từ ô tra cứu — ghi đè bằng thông tin nhập tại quầy
+            // là sửa lỗi chính tả có chủ đích, không phải nhầm lẫn.
             patient.SetPhoneNumber(cmd.PatientPhone);
             patient.SetDateOfBirth(cmd.DateOfBirth);
             patient.SetGender(cmd.Gender);
             patient.SetFullName(cmd.PatientName);
             await patientRepository.UpdateAsync(patient, ct);
         }
+        // else: khớp ngầm theo số điện thoại (không qua ô tra cứu) — giữ nguyên thông tin cũ, không
+        // ghi đè, để tránh làm mất tên đúng khi số điện thoại dùng chung cho nhiều người.
 
         // 4. Bệnh nhân đã có mặt tại quầy nên bỏ qua cả Pending lẫn Confirmed:
         //    lịch hẹn vào thẳng CheckedIn để xuất hiện ngay ở hàng đợi, không phải check-in lại.
         var appointment = Appointment.CreateWalkIn(
             patient.Id, cmd.DentistId, utcAppointmentDate,
-            symptoms: cmd.Symptoms, serviceId: cmd.ServiceId);
+            symptoms: cmd.Symptoms, serviceId: cmd.ServiceId,
+            followUpFromAppointmentId: cmd.FollowUpFromAppointmentId);
 
         await appointmentRepository.AddAsync(appointment, ct);
 

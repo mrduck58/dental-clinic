@@ -15,7 +15,7 @@ public class GetRoomByIdHandler(IRoomRepository roomRepository) : IRequestHandle
             ?? throw new NotFoundException($"Không tìm thấy phòng với ID: {query.Id}");
 
         return new RoomDto(
-            room.Id, room.Code, room.Name, room.Floor, room.Type,
+            room.Id, room.Code, room.Name, room.Floor,
             room.Status.ToVietnamese(), room.Status.ToActiveStatus(),
             room.Description, room.CreatedAt, room.UpdatedAt);
     }

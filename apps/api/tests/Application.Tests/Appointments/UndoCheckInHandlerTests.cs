@@ -167,12 +167,13 @@ public class UndoCheckInHandlerTests
         appointment.CheckedInAt.Should().NotBeNull();
     }
 
-    /// <summary>Check-in tái khám cũng lập tại quầy — cùng một kết cục khi hoàn tác.</summary>
+    /// <summary>Check-in tái khám cũng lập tại quầy (CreateWalkIn kèm followUpFromAppointmentId) —
+    /// cùng một kết cục khi hoàn tác.</summary>
     [Test]
-    public void CheckInFollowUp_IsAlsoWalkIn()
+    public void CreateWalkIn_WithFollowUpFromAppointmentId_IsAlsoWalkIn()
     {
-        var appointment = Appointment.CheckInFollowUp(
-            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        var appointment = Appointment.CreateWalkIn(
+            Guid.NewGuid(), Guid.NewGuid(), DateTimeOffset.UtcNow, followUpFromAppointmentId: Guid.NewGuid());
 
         appointment.Origin.Should().Be(AppointmentOrigin.WalkIn);
     }

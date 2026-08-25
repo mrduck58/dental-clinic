@@ -13,15 +13,16 @@ import {
 import { Toast, useToast } from "../../../../components/shared/Toast";
 import PhotoGallery from "../../../../components/shared/PhotoGallery";
 import { SUPPLY_UNITS } from "../../../../lib/inventoryConstants";
+import type { DraftMaterialItem } from "./TreatmentWorkspace";
 
 interface MaterialWorkspaceProps {
   appointmentId: string;
   /** Cho phép gửi yêu cầu dù buổi hẹn đã kết thúc (chế độ chỉnh sửa đơn hoàn thành). */
   editMode?: boolean;
-  /** Tăng lên mỗi khi tab "Liệu trình" vừa thêm 1 dịch vụ mới — dịch vụ có Vật tư chính trong định mức
-   * được backend tự động tạo kèm yêu cầu vật tư (xem CreateTreatmentPlanHandler), tín hiệu này báo cho
-   * danh sách "Yêu cầu vật tư đã gửi" ở đây tải lại ngay, khỏi phải rời tab rồi quay lại mới thấy. */
-  refreshSignal?: number;
+  /** Set lại (object mới) mỗi khi tab "Liệu trình" vừa thêm 1 dịch vụ có "Vật tư chính" trong định mức —
+   * điền các dòng này vào form "Gửi yêu cầu vật tư" dưới dạng NHÁP, gắn treatmentPlanId để lúc gửi nhóm
+   * đúng theo dịch vụ. Không tự gửi gì cả — bác sĩ phải tự bấm "Gửi sang kho". */
+  draftToAdd?: { treatmentPlanId: string; items: DraftMaterialItem[] } | null;
 }
 
 const fmtDateTime = (iso: string) => {
@@ -45,7 +46,7 @@ function CardHeader({ title, icon, color, action }: {
 
 const BOX_ICON = "M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z";
 
-export default function MaterialWorkspace({ appointmentId, editMode = false, refreshSignal }: MaterialWorkspaceProps) {
+export default function MaterialWorkspace({ appointmentId, editMode = false, draftToAdd }: MaterialWorkspaceProps) {
   const [examination, setExamination] = useState<ExaminationDto | null>(null);
   const [requests, setRequests] = useState<MaterialRequestDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -130,13 +131,24 @@ export default function MaterialWorkspace({ appointmentId, editMode = false, ref
     return () => { cancelled = true; };
   }, [appointmentId, loadRequests]);
 
-  // refreshSignal đổi (khác 0, tức không phải lần mount đầu) → tab "Liệu trình" vừa thêm dịch vụ, có thể
-  // đã tự động phát sinh yêu cầu vật tư chính — tải lại danh sách ngay.
+  // draftToAdd đổi (object mới mỗi lần) → tab "Liệu trình" vừa thêm dịch vụ có Vật tư chính trong định mức —
+  // điền các dòng đó vào form nháp bên dưới thay vì tự gửi. Nếu form đang chỉ có đúng 1 dòng trống mặc định
+  // thì thay hẳn dòng đó; ngược lại (bác sĩ đang gõ dở) thì nối thêm vào cuối, không mất nội dung đang nhập.
   useEffect(() => {
-    if (!refreshSignal || !examination) return;
-    void loadRequests(examination.patient.id, examination.patient.fullName);
+    if (!draftToAdd || draftToAdd.items.length === 0) return;
+    const newRows = draftToAdd.items.map(i => ({
+      itemName: i.itemName,
+      detail: i.detail ?? "",
+      quantity: String(i.quantity),
+      unit: i.unit,
+      treatmentPlanId: draftToAdd.treatmentPlanId,
+    }));
+    setRows(prev => {
+      const isSingleEmptyRow = prev.length === 1 && !prev[0].itemName.trim() && !prev[0].detail.trim() && !prev[0].quantity.trim();
+      return isSingleEmptyRow ? newRows : [...prev, ...newRows];
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshSignal]);
+  }, [draftToAdd]);
 
   const handleSubmit = async () => {
     if (validRows.length === 0 || !examination) return;
@@ -366,8 +378,8 @@ export default function MaterialWorkspace({ appointmentId, editMode = false, ref
             </button>
 
             <p className="text-[11.5px] font-semibold text-slate-400 leading-relaxed">
-              Vật tư chính đã tự động gửi yêu cầu khi thêm dịch vụ ở tab &quot;Liệu trình&quot; — form này chỉ
-              dùng để gửi thêm vật tư ngoài định mức nếu phát sinh giữa ca khám.
+              Vật tư chính của dịch vụ vừa thêm ở tab &quot;Liệu trình&quot; được điền sẵn ở đây dưới dạng
+              nháp — kiểm tra/sửa số lượng rồi bấm &quot;Gửi sang kho&quot; để thật sự gửi yêu cầu.
             </p>
             {!canEdit && (
               <p className="text-[11.5px] font-semibold text-amber-600 text-center">

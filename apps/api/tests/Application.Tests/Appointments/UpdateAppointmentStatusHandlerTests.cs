@@ -599,6 +599,73 @@ public class UpdateAppointmentStatusHandlerTests
             Arg.Any<CancellationToken>());
     }
 
+    // ── EndTreatmentAsync: nhánh liệu trình 0đ ────────────────────────────────
+    // 3 test dưới đây tự dựng EndTreatmentHandler kèm ITreatmentPlanRepository riêng — handler dùng
+    // chung ở SetUp() (_endTreatment) không có treatmentPlanRepository (luôn null) nên không đi qua
+    // nhánh kiểm tra liệu trình, giữ nguyên các test EndTreatmentAsync_* phía trên không bị ảnh hưởng.
+
+    /// <summary>Không có liệu trình nào (loại trừ đã hủy) cho buổi hẹn thì hoàn tất trực tiếp, không
+    /// chờ thanh toán — hành vi có sẵn từ trước.</summary>
+    [Test]
+    public async Task EndTreatmentAsync_NoActiveTreatmentPlans_CompletesDirectlyWithoutBilling()
+    {
+        var id = Guid.NewGuid();
+        var appt = MakeAppointment();
+        appt.Confirm();
+        appt.CheckIn();
+        appt.StartTreatment();
+        _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
+        var treatmentPlanRepo = Substitute.For<ITreatmentPlanRepository>();
+        treatmentPlanRepo.GetByPatientIdAsync(appt.PatientId, Arg.Any<CancellationToken>()).Returns(new List<TreatmentPlan>());
+        var endTreatment = new EndTreatmentHandler(_repo, _notification, _patientRepo, treatmentPlanRepo);
+
+        await endTreatment.Handle(new EndTreatmentCommand(id), CancellationToken.None);
+
+        appt.Status.Should().Be(AppointmentStatus.Completed);
+    }
+
+    /// <summary>Có liệu trình nhưng tổng chi phí bằng 0đ (dịch vụ miễn phí) thì cũng hoàn tất trực
+    /// tiếp như không có liệu trình nào — không có gì để thu thì không cần qua bước chờ thanh toán.</summary>
+    [Test]
+    public async Task EndTreatmentAsync_ActivePlansWithZeroTotalCost_CompletesDirectlyWithoutBilling()
+    {
+        var id = Guid.NewGuid();
+        var appt = MakeAppointment();
+        appt.Confirm();
+        appt.CheckIn();
+        appt.StartTreatment();
+        _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
+        var freePlan = TreatmentPlan.Create(appt.PatientId, appt.DentistId, id, Guid.NewGuid(), 0m, 1);
+        var treatmentPlanRepo = Substitute.For<ITreatmentPlanRepository>();
+        treatmentPlanRepo.GetByPatientIdAsync(appt.PatientId, Arg.Any<CancellationToken>()).Returns(new List<TreatmentPlan> { freePlan });
+        var endTreatment = new EndTreatmentHandler(_repo, _notification, _patientRepo, treatmentPlanRepo);
+
+        await endTreatment.Handle(new EndTreatmentCommand(id), CancellationToken.None);
+
+        appt.Status.Should().Be(AppointmentStatus.Completed);
+    }
+
+    /// <summary>Có liệu trình với chi phí khác 0 thì vẫn phải chờ thanh toán như trước — thêm nhánh
+    /// kiểm tra "0đ" không được ảnh hưởng tới trường hợp có phí thật.</summary>
+    [Test]
+    public async Task EndTreatmentAsync_ActivePlansWithNonZeroCost_SetsStatusToPendingPayment()
+    {
+        var id = Guid.NewGuid();
+        var appt = MakeAppointment();
+        appt.Confirm();
+        appt.CheckIn();
+        appt.StartTreatment();
+        _repo.GetByIdAsync(id, Arg.Any<CancellationToken>()).Returns(appt);
+        var paidPlan = TreatmentPlan.Create(appt.PatientId, appt.DentistId, id, Guid.NewGuid(), 500_000m, 1);
+        var treatmentPlanRepo = Substitute.For<ITreatmentPlanRepository>();
+        treatmentPlanRepo.GetByPatientIdAsync(appt.PatientId, Arg.Any<CancellationToken>()).Returns(new List<TreatmentPlan> { paidPlan });
+        var endTreatment = new EndTreatmentHandler(_repo, _notification, _patientRepo, treatmentPlanRepo);
+
+        await endTreatment.Handle(new EndTreatmentCommand(id), CancellationToken.None);
+
+        appt.Status.Should().Be(AppointmentStatus.PendingPayment);
+    }
+
     // ── CancelAsync: các nhánh quyền hạn khác ─────────────────────────────────
 
     // Bỏ test "Patient role nhưng IPatientRepository = null": trước đây repository là tham số tùy chọn

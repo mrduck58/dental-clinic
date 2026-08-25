@@ -88,13 +88,11 @@ const ROLE_LABEL: Record<string, string> = {
   staff:     "Nhân viên",
 };
 
-// Nhãn ca rút gọn cho chip: "08:00-10:00" → "08–10", "13:30-15:30" → "13:30–15:30".
-// Giờ tròn bỏ hẳn phút để một ngày 6 ca vẫn nằm gọn trên một dòng.
+// Nhãn ca cho chip: "08:00-10:00" → "08:00–10:00" — luôn đủ giờ:phút, nhất quán với mọi ca khác.
 const compactShift = (id: string) => {
   const m = id.match(/^(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})$/);
   if (!m) return shiftLabel(id);
-  const t = (h: string, mm: string) => (mm === "00" ? h : `${h}:${mm}`);
-  return `${t(m[1], m[2])}–${t(m[3], m[4])}`;
+  return `${m[1]}:${m[2]}–${m[3]}:${m[4]}`;
 };
 
 // Một ngày thường chỉ có 1 phòng nhưng nhiều ca — gom theo phòng+vai trò để không lặp lại

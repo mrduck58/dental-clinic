@@ -10,7 +10,6 @@ import {
   getPendingInvoicesApi,
   getInvoiceHistoryApi,
   getOutstandingInvoicesApi,
-  getOutstandingPlansApi,
   issueInvoiceApi,
   confirmInvoicePaymentApi,
   collectRemainingInvoiceApi,
@@ -19,7 +18,6 @@ import {
   getPromotionsApi,
   type BillablePlanDto,
   type InvoiceDto,
-  type OutstandingPlanDto,
   type PaymentTransactionDto,
   type PromotionDto,
 } from "../../../lib/apiClient";
@@ -1212,35 +1210,23 @@ function HistoryTab({ paid }: { paid: Invoice[] }) {
 
 /* ─── Tab 4: Outstanding (công nợ) ───────────────────────── */
 
-function OutstandingTab({ invoices, plans, onCollect }: { invoices: Invoice[]; plans: OutstandingPlanDto[]; onCollect: (id: string) => void }) {
-  // Hai tab con = hai CÁCH NHÌN cùng dòng tiền, mỗi bên có tổng riêng và KHÔNG cộng vào nhau:
-  // - theo hóa đơn: hóa đơn đã xuất mà chưa thu đủ (thu bằng nút "Thu phần còn lại");
-  // - theo liệu trình: liệu trình đang điều trị đã thu một phần mà còn thiếu, trong đó
-  //   `unbilledAmount` là phần chưa nằm trên bất kỳ hóa đơn nào (sẽ xuất ở đợt thu sau).
+// Tên (các) liệu trình gắn với hóa đơn — hóa đơn có thể gồm nhiều dòng dịch vụ khác nhau.
+const planNames = (inv: Invoice) => {
+  const names = Array.from(new Set(inv.items.map(i => i.name)));
+  return names.length > 0 ? names.join(", ") : "—";
+};
+
+function OutstandingTab({ invoices, onCollect }: { invoices: Invoice[]; onCollect: (id: string) => void }) {
   const invoiceRemaining = invoices.reduce((s, i) => s + i.remaining, 0);
   const invoiceCollected = invoices.reduce((s, i) => s + i.depositAmount, 0);
 
-  const planRemaining = plans.reduce((s, p) => s + p.remainingAmount, 0);
-  const planCollected = plans.reduce((s, p) => s + p.amountPaid, 0);
-  const planUnbilled = plans.reduce((s, p) => s + p.unbilledAmount, 0);
+  const cards = [
+    { label: "Còn nợ trên hóa đơn", value: fmt(invoiceRemaining), color: "text-orange-600",  bg: "bg-orange-50" },
+    { label: "Đã thu (cọc)",        value: fmt(invoiceCollected), color: "text-emerald-600", bg: "bg-emerald-50" },
+    { label: "Số hóa đơn",          value: `${invoices.length} hóa đơn`, color: "text-sky-600", bg: "bg-sky-50" },
+  ];
 
-  const totalCount = invoices.length + plans.length;
-
-  const [sub, setSub] = useState<"invoices" | "plans">("invoices");
-
-  const cards = sub === "invoices"
-    ? [
-        { label: "Còn nợ trên hóa đơn", value: fmt(invoiceRemaining), color: "text-orange-600",  bg: "bg-orange-50" },
-        { label: "Đã thu (cọc)",        value: fmt(invoiceCollected), color: "text-emerald-600", bg: "bg-emerald-50" },
-        { label: "Số hóa đơn",          value: `${invoices.length} hóa đơn`, color: "text-sky-600", bg: "bg-sky-50" },
-      ]
-    : [
-        { label: "Còn nợ liệu trình", value: fmt(planRemaining),  color: "text-orange-600",  bg: "bg-orange-50" },
-        { label: "Đã thu",            value: fmt(planCollected),  color: "text-emerald-600", bg: "bg-emerald-50" },
-        { label: "Chưa xuất hóa đơn", value: fmt(planUnbilled),   color: "text-violet-600",  bg: "bg-violet-50" },
-      ];
-
-  if (totalCount === 0) {
+  if (invoices.length === 0) {
     return (
       <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm flex flex-col items-center gap-3 py-20">
         <div className="w-14 h-14 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center">
@@ -1253,30 +1239,7 @@ function OutstandingTab({ invoices, plans, onCollect }: { invoices: Invoice[]; p
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Hai cách nhìn công nợ — tách tab để tổng của mỗi bên đứng riêng, không cộng chồng nhau:
-          theo HÓA ĐƠN đã xuất, và theo LIỆU TRÌNH đang điều trị. */}
-      <div className="flex gap-2 flex-wrap">
-        {([
-          { key: "invoices", label: "Hóa đơn đặt cọc còn nợ", count: invoices.length },
-          { key: "plans",    label: "Liệu trình còn nợ",      count: plans.length },
-        ] as const).map(t => (
-          <button key={t.key} onClick={() => setSub(t.key)}
-            className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-[12.5px] font-bold border transition-all cursor-pointer ${
-              sub === t.key
-                ? "bg-slate-900 text-white border-slate-900"
-                : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700"
-            }`}>
-            {t.label}
-            {t.count > 0 && (
-              <span className={`px-1.5 py-0.5 rounded-full text-[10.5px] font-black leading-none ${
-                sub === t.key ? "bg-white/25 text-white" : "bg-slate-100 text-slate-500"
-              }`}>{t.count}</span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* Summary cards — chỉ của tab đang xem */}
+      {/* Summary cards */}
       <div className="grid grid-cols-3 gap-4">
         {cards.map(s => (
           <div key={s.label} className="bg-white rounded-2xl border border-slate-200/70 shadow-sm px-5 py-4 flex items-center gap-4">
@@ -1291,17 +1254,12 @@ function OutstandingTab({ invoices, plans, onCollect }: { invoices: Invoice[]; p
         ))}
       </div>
 
-      {/* Tab con 1: hóa đơn đã xuất mà chưa thu đủ */}
-      {sub === "invoices" && (invoices.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm py-16 text-center text-[13.5px] font-bold text-slate-400">
-          Không có hóa đơn nào còn nợ.
-        </div>
-      ) : (<>
+      {/* Hóa đơn đã xuất mà chưa thu đủ */}
       <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm overflow-hidden">
         <table className="w-full text-[13px]">
           <thead>
             <tr className="bg-slate-50/70 border-b border-slate-200">
-              {["Mã HĐ","Ngày","Bệnh nhân","Bác sĩ","Tổng tiền","Đã thu","Còn lại","Trạng thái",""].map((h, hi) => (
+              {["Mã HĐ","Ngày","Bệnh nhân","Liệu trình","Bác sĩ","Tổng tiền","Đã thu","Còn lại","Trạng thái",""].map((h, hi) => (
                 <th key={hi} className="px-5 py-3 text-left text-[11px] font-extrabold text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -1315,6 +1273,7 @@ function OutstandingTab({ invoices, plans, onCollect }: { invoices: Invoice[]; p
                   <div className="font-black text-slate-900">{inv.patientName}</div>
                   <div className="font-mono text-slate-400 text-[11.5px]">{inv.patientPhone}</div>
                 </td>
+                <td className="px-5 py-3.5 font-semibold text-slate-600 max-w-[220px]">{planNames(inv)}</td>
                 <td className="px-5 py-3.5">
                   <span className={`text-[11.5px] font-black px-2 py-0.5 rounded-lg border ${DENTIST_COLOR[inv.dentist] ?? "bg-slate-50 text-slate-600 border-slate-200"}`}>{inv.dentist}</span>
                 </td>
@@ -1350,54 +1309,6 @@ function OutstandingTab({ invoices, plans, onCollect }: { invoices: Invoice[]; p
           </tbody>
         </table>
       </div>
-      </>))}
-
-      {/* Tab con 2: công nợ nhìn theo liệu trình điều trị */}
-      {sub === "plans" && (plans.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm py-16 text-center text-[13.5px] font-bold text-slate-400">
-          Không có liệu trình nào còn nợ.
-        </div>
-      ) : (<>
-      <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm overflow-hidden">
-        <table className="w-full text-[13px]">
-          <thead>
-            <tr className="bg-slate-50/70 border-b border-slate-200">
-              {["Liệu trình","Bệnh nhân","Bác sĩ","Tổng chi phí","Đã thu","Còn lại","Chưa xuất HĐ","Trạng thái"].map((h, hi) => (
-                <th key={hi} className="px-5 py-3 text-left text-[11px] font-extrabold text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {plans.map(p => (
-              <tr key={p.treatmentPlanId} className="hover:bg-slate-50/50 transition-colors">
-                <td className="px-5 py-3.5 font-black text-slate-900">{p.planName}</td>
-                <td className="px-5 py-3.5">
-                  <div className="font-black text-slate-900">{p.patientName}</div>
-                  <div className="font-mono text-slate-400 text-[11.5px]">{p.patientPhone ?? "—"}</div>
-                </td>
-                <td className="px-5 py-3.5">
-                  <span className={`text-[11.5px] font-black px-2 py-0.5 rounded-lg border ${DENTIST_COLOR[p.dentistName] ?? "bg-slate-50 text-slate-600 border-slate-200"}`}>{p.dentistName}</span>
-                </td>
-                <td className="px-5 py-3.5 font-mono font-semibold text-slate-600">{fmt(p.totalCost)}</td>
-                <td className="px-5 py-3.5 font-mono font-semibold text-emerald-600">{fmt(p.amountPaid)}</td>
-                <td className="px-5 py-3.5 font-mono font-black text-orange-600">{fmt(p.remainingAmount)}</td>
-                {/* Phần chưa nằm trên hóa đơn nào — số sẽ xuất hóa đơn ở đợt thu sau. Phần còn lại của
-                    khoản nợ (nếu có) đang nằm ở tab "Hóa đơn đặt cọc còn nợ". */}
-                <td className="px-5 py-3.5 font-mono font-semibold text-violet-600">{fmt(p.unbilledAmount)}</td>
-                <td className="px-5 py-3.5">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11.5px] font-black border bg-indigo-50 border-indigo-200 text-indigo-700">Đang điều trị</span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <p className="text-[12px] font-semibold text-slate-400 -mt-1">
-        Đây là công nợ nhìn theo liệu trình — phần <strong>đã xuất hóa đơn mà chưa thu</strong> nằm ở tab
-        {" "}<strong>Hóa đơn đặt cọc còn nợ</strong>, nên đừng cộng tổng của hai tab với nhau.
-        Mỗi đợt thu của liệu trình được thực hiện ở tab <strong>Liệu trình → Hóa đơn</strong> sau khi bác sĩ kết thúc buổi điều trị/tái khám.
-      </p>
-      </>))}
     </div>
   );
 }
@@ -1412,7 +1323,6 @@ export default function InvoicesPage() {
   const [pending, setPending] = useState<Invoice[]>([]);
   const [paid,    setPaid]    = useState<Invoice[]>([]);
   const [outstanding, setOutstanding] = useState<Invoice[]>([]);
-  const [outstandingPlans, setOutstandingPlans] = useState<OutstandingPlanDto[]>([]);
   const [promotions, setPromotions] = useState<PromotionDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState<string | null>(null);
@@ -1441,19 +1351,17 @@ export default function InvoicesPage() {
   const reload = useCallback(async () => {
     // Khuyến mãi tải song song với các danh sách khác thay vì để PlansTab tự fetch riêng sau khi
     // trang đã hiện xong — tránh phần "Khuyến mãi" bị hiện trễ một nhịp so với phần còn lại.
-    const [billable, pendingInv, history, outstandingInv, outstandingPls, promos] = await Promise.all([
+    const [billable, pendingInv, history, outstandingInv, promos] = await Promise.all([
       getBillablePlansApi(),
       getPendingInvoicesApi(),
       getInvoiceHistoryApi(),
       getOutstandingInvoicesApi(),
-      getOutstandingPlansApi(),
       getPromotionsApi().catch(() => []),
     ]);
     setPlans(billable.map(mapPlan));
     setPending(pendingInv.map(mapInvoice));
     setPaid(history.map(mapInvoice));
     setOutstanding(outstandingInv.map(mapInvoice));
-    setOutstandingPlans(outstandingPls);
     setPromotions(promos);
   }, []);
 
@@ -1588,7 +1496,7 @@ export default function InvoicesPage() {
             {([
               { key: "plans",       label: "Liệu trình → Hóa đơn", count: fPlans.length,      dot: fPlans.length > 0 },
               { key: "pending",     label: "Chờ thanh toán",         count: fPending.length,    dot: fPending.some(i => i.status === "awaiting_payment") },
-              { key: "outstanding", label: "Công nợ",                count: outstanding.length + outstandingPlans.length, dot: (outstanding.length + outstandingPlans.length) > 0 },
+              { key: "outstanding", label: "Công nợ",                count: outstanding.length, dot: outstanding.length > 0 },
               { key: "history",     label: "Lịch sử hóa đơn",        count: fPaid.length,       dot: false },
             ] as const).map(t => (
               <button key={t.key} onClick={() => setTab(t.key)}
@@ -1624,7 +1532,7 @@ export default function InvoicesPage() {
             <>
               {tab === "plans"       && <PlansTab       plans={fPlans}        promotions={promotions} onIssued={handleIssued} />}
               {tab === "pending"     && <PendingTab     invoices={fPending}    onPaid={handlePaid}    onAutoConfirmed={handleAutoConfirmed} />}
-              {tab === "outstanding" && <OutstandingTab invoices={outstanding} plans={outstandingPlans} onCollect={handleCollectRemaining} />}
+              {tab === "outstanding" && <OutstandingTab invoices={outstanding} onCollect={handleCollectRemaining} />}
               {tab === "history"     && <HistoryTab     paid={fPaid}                                  />}
             </>
           )}

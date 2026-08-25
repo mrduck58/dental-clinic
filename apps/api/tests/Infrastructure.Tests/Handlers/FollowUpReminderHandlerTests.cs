@@ -14,11 +14,12 @@ namespace DentalClinic.API.Infrastructure.Tests.Handlers;
 public class FollowUpReminderHandlerTests
 {
     private AppDbContext _db = null!;
-    // God-handler FollowUpReminderHandler (4 method) đã tách thành 4 handler MediatR.
+    // God-handler FollowUpReminderHandler (4 method) đã tách thành 3 handler MediatR — check-in tái
+    // khám (method thứ 4) đã bỏ, thay bằng đặt lịch tại quầy bình thường kèm FollowUpFromAppointmentId
+    // (xem CreateWalkInAppointmentHandlerTests).
     private SetFollowUpReminderHandler _set = null!;
     private ClearFollowUpReminderHandler _clear = null!;
     private GetFollowUpDueHandler _due = null!;
-    private CheckInFollowUpHandler _checkIn = null!;
 
     [SetUp]
     public void SetUp()
@@ -31,7 +32,6 @@ public class FollowUpReminderHandlerTests
         _set = new SetFollowUpReminderHandler(appointmentRepository);
         _clear = new ClearFollowUpReminderHandler(appointmentRepository);
         _due = new GetFollowUpDueHandler(appointmentRepository, new TreatmentPlanRepository(_db));
-        _checkIn = new CheckInFollowUpHandler(appointmentRepository);
     }
 
     [TearDown]
@@ -193,79 +193,12 @@ public class FollowUpReminderHandlerTests
         plan.SetStatus(TreatmentPlanStatus.InProgress);
         _db.TreatmentPlans.Add(plan);
         await _db.SaveChangesAsync();
-        await _checkIn.Handle(new CheckInFollowUpCommand(appointment.Id), CancellationToken.None);
+        var followUp = Appointment.CreateWalkIn(patient.Id, dentist.Id, DateTimeOffset.UtcNow, followUpFromAppointmentId: appointment.Id);
+        _db.Appointments.Add(followUp);
+        await _db.SaveChangesAsync();
 
         var result = await _due.Handle(new GetFollowUpDueQuery(), CancellationToken.None);
 
         result.Should().NotContain(x => x.OriginalAppointmentId == appointment.Id);
-    }
-
-    /// <summary>Check-in tái khám cho buổi hẹn gốc không tồn tại phải báo lỗi.</summary>
-    [Test]
-    public async Task CheckInAsync_OriginalAppointmentNotFound_ThrowsNotFoundException()
-    {
-        Func<Task> act = () => _checkIn.Handle(new CheckInFollowUpCommand(Guid.NewGuid()), CancellationToken.None);
-
-        await act.Should().ThrowAsync<NotFoundException>();
-    }
-
-    /// <summary>Chuỗi điều trị không còn liệu trình đang thực hiện thì không cho check-in tái khám.</summary>
-    [Test]
-    public async Task CheckInAsync_NoActiveTreatmentPlanInChain_ThrowsValidationException()
-    {
-        var (patient, dentist, _) = await SeedBaseDataAsync();
-        var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddDays(-1));
-        appointment.Complete();
-        _db.Appointments.Add(appointment);
-        await _db.SaveChangesAsync();
-
-        Func<Task> act = () => _checkIn.Handle(new CheckInFollowUpCommand(appointment.Id), CancellationToken.None);
-
-        await act.Should().ThrowAsync<ValidationException>();
-    }
-
-    /// <summary>Buổi gốc đã có buổi tái khám check-in rồi (chưa hủy) thì không cho check-in lần 2.</summary>
-    [Test]
-    public async Task CheckInAsync_AlreadyCheckedIn_ThrowsConflictException()
-    {
-        var (patient, dentist, service) = await SeedBaseDataAsync();
-        var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddDays(-1));
-        appointment.Complete();
-        appointment.SetFollowUpReminder(DateOnly.FromDateTime(DateTime.Today), null);
-        _db.Appointments.Add(appointment);
-        await _db.SaveChangesAsync();
-
-        var plan = TreatmentPlan.Create(patient.Id, dentist.Id, appointment.Id, service.Id, service.Price, 1);
-        plan.SetStatus(TreatmentPlanStatus.InProgress);
-        _db.TreatmentPlans.Add(plan);
-        await _db.SaveChangesAsync();
-        await _checkIn.Handle(new CheckInFollowUpCommand(appointment.Id), CancellationToken.None);
-
-        Func<Task> act = () => _checkIn.Handle(new CheckInFollowUpCommand(appointment.Id), CancellationToken.None);
-
-        await act.Should().ThrowAsync<ConflictException>();
-    }
-
-    /// <summary>Check-in tái khám hợp lệ phải tạo buổi hẹn mới ở trạng thái CheckedIn, gắn về buổi gốc.</summary>
-    [Test]
-    public async Task CheckInAsync_ValidRequest_CreatesCheckedInFollowUpAppointment()
-    {
-        var (patient, dentist, service) = await SeedBaseDataAsync();
-        var appointment = Appointment.Create(patient.Id, dentist.Id, DateTimeOffset.UtcNow.AddDays(-1));
-        appointment.Complete();
-        appointment.SetFollowUpReminder(DateOnly.FromDateTime(DateTime.Today), null);
-        _db.Appointments.Add(appointment);
-        await _db.SaveChangesAsync();
-
-        var plan = TreatmentPlan.Create(patient.Id, dentist.Id, appointment.Id, service.Id, service.Price, 1);
-        plan.SetStatus(TreatmentPlanStatus.InProgress);
-        _db.TreatmentPlans.Add(plan);
-        await _db.SaveChangesAsync();
-
-        var newAppointmentId = await _checkIn.Handle(new CheckInFollowUpCommand(appointment.Id), CancellationToken.None);
-
-        var followUp = await _db.Appointments.SingleAsync(a => a.Id == newAppointmentId);
-        followUp.Status.Should().Be(AppointmentStatus.CheckedIn);
-        followUp.FollowUpFromAppointmentId.Should().Be(appointment.Id);
     }
 }

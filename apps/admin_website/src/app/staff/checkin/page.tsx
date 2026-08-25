@@ -16,7 +16,6 @@ import {
   getServicesApi,
   searchPatientsApi,
   getFollowUpDueApi,
-  checkInFollowUpApi,
   undoCheckInAppointmentApi,
   undoNoShowAppointmentApi,
   type StaffAppointmentDto,
@@ -109,6 +108,37 @@ function CreatePatientAccountTab({
   const [emailError, setEmailError] = useState<string | null>(null);
   const { toast, showToast } = useToast();
   const dobPickerRef = useRef<HTMLInputElement>(null);
+
+  // Danh sách bệnh nhân chưa có tài khoản — bấm để điền nhanh form thay vì gõ tay lại từ đầu.
+  const [accountlessList, setAccountlessList] = useState<PatientSearchResultDto[]>([]);
+  const [listLoading, setListLoading] = useState(true);
+  const [listSearch, setListSearch] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    setListLoading(true);
+    const timer = setTimeout(() => {
+      void searchPatientsApi(listSearch.trim(), 20, true)
+        .then(rows => { if (!cancelled) setAccountlessList(rows); })
+        .catch(() => { if (!cancelled) setAccountlessList([]); })
+        .finally(() => { if (!cancelled) setListLoading(false); });
+    }, 300);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [listSearch]);
+
+  const pickFromAccountlessList = (p: PatientSearchResultDto) => {
+    const [y, m, d] = (p.dateOfBirth || "").split("-");
+    const gender = ["Nam", "Nữ", "Khác"].includes(p.gender) ? p.gender : "Nam";
+    setForm(prev => ({
+      ...prev,
+      name: p.fullName,
+      phone: (p.phoneNumber ?? "").replace(/\D/g, "").slice(0, 11),
+      dob: d && m && y ? `${d}/${m}/${y}` : "",
+      gender,
+    }));
+    setPhoneError(null);
+    setDobError(null);
+  };
 
   // Đếm ngược gửi lại mã OTP
   useEffect(() => {
@@ -548,37 +578,53 @@ function CreatePatientAccountTab({
         </form>
       </div>
 
-      {/* Guide card (Desktop right side) */}
-      <div className="w-full lg:w-80 shrink-0 flex flex-col gap-4">
-        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 flex flex-col gap-4">
-          <h4 className="text-[14px] font-black text-slate-900 flex items-center gap-2">
-            <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            Quy trình tạo tài khoản
-          </h4>
+      {/* Danh sách bệnh nhân chưa có tài khoản (Desktop right side) */}
+      <div className="w-full lg:w-80 shrink-0 flex flex-col gap-4 min-h-0">
+        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 flex flex-col gap-4 flex-1 min-h-0">
+          <div>
+            <h4 className="text-[14px] font-black text-slate-900 flex items-center gap-2">
+              <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+              </svg>
+              Bệnh nhân chưa có tài khoản
+            </h4>
+            <p className="text-[11.5px] text-slate-400 font-semibold mt-1">Bấm chọn một bệnh nhân để điền nhanh thông tin vào form bên trái.</p>
+          </div>
 
-          <ol className="flex flex-col gap-3 text-[12.5px] text-slate-600 font-semibold">
-            <li className="flex items-start gap-2.5">
-              <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-[11px] font-black flex items-center justify-center shrink-0 mt-0.5">1</span>
-              <span>Lễ tân nhập thông tin họ tên, số điện thoại, ngày sinh và email của bệnh nhân.</span>
-            </li>
-            <li className="flex items-start gap-2.5">
-              <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-[11px] font-black flex items-center justify-center shrink-0 mt-0.5">2</span>
-              <span>Bấm “Gửi mã OTP” để hệ thống gửi mã xác minh 6 số tới email của bệnh nhân.</span>
-            </li>
-            <li className="flex items-start gap-2.5">
-              <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-[11px] font-black flex items-center justify-center shrink-0 mt-0.5">3</span>
-              <span>Bệnh nhân mở hộp thư và đọc lại mã 6 số để lễ tân điền vào ô xác thực.</span>
-            </li>
-            <li className="flex items-start gap-2.5">
-              <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-[11px] font-black flex items-center justify-center shrink-0 mt-0.5">4</span>
-              <span>Bấm “Lưu tài khoản & Sang đặt lịch” — hệ thống tạo tài khoản, gửi mật khẩu tạm và tự động chuyển sang tab Đặt lịch để chọn giờ khám.</span>
-            </li>
-          </ol>
+          <div className="relative shrink-0">
+            <span className="absolute inset-y-0 left-3 flex items-center text-slate-400 pointer-events-none">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </span>
+            <input
+              value={listSearch}
+              onChange={e => setListSearch(e.target.value)}
+              placeholder="Tìm theo tên, số điện thoại..."
+              className="w-full pl-9 pr-3 py-2.5 text-[13px] bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all font-semibold text-slate-700 placeholder:text-slate-400"
+            />
+          </div>
 
-          <div className="p-3.5 bg-emerald-50 border border-emerald-100 rounded-xl text-emerald-800 text-[11.5px] font-semibold mt-2">
-            💡 Sau khi tạo xong, tài khoản được kích hoạt ngay. Bệnh nhân có thể đăng nhập trên Website/App để theo dõi lộ trình điều trị.
+          <div className="flex-1 overflow-y-auto -mx-1.5 px-1.5 flex flex-col gap-2 min-h-0">
+            {listLoading ? (
+              <div className="py-8 text-center text-slate-400 font-semibold text-[12.5px] animate-pulse">Đang tải...</div>
+            ) : accountlessList.length === 0 ? (
+              <div className="py-8 text-center text-slate-400 font-semibold text-[12.5px]">
+                {listSearch.trim() ? "Không tìm thấy bệnh nhân phù hợp." : "Chưa có bệnh nhân nào chưa có tài khoản."}
+              </div>
+            ) : accountlessList.map(p => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => pickFromAccountlessList(p)}
+                className="text-left p-3 rounded-xl border border-slate-200 hover:border-primary hover:bg-red-50/10 transition-all cursor-pointer shrink-0"
+              >
+                <div className="font-extrabold text-slate-900 text-[13px] truncate">{p.fullName}</div>
+                <div className="text-[11.5px] text-slate-400 font-semibold mt-0.5">
+                  {p.phoneNumber || "Chưa có SĐT"}{p.dateOfBirth ? ` · ${fmtDate(p.dateOfBirth)}` : ""}
+                </div>
+              </button>
+            ))}
           </div>
         </div>
       </div>
@@ -600,10 +646,18 @@ function WalkinTab({
   selectedPatient,
   onClearSelectedPatient,
   onGoToCreateAccount,
+  followUpFromAppointmentId,
+  followUpServiceId,
+  onClearFollowUp,
 }: {
   selectedPatient?: PatientSearchResultDto | null;
   onClearSelectedPatient?: () => void;
   onGoToCreateAccount?: () => void;
+  /** Có giá trị khi bệnh nhân được chọn từ tab Tái khám — gửi kèm khi đặt lịch để bác sĩ
+   * vẫn thấy lại liệu trình cũ, dù staff chọn giờ/bác sĩ khác với buổi khám trước. */
+  followUpFromAppointmentId?: string | null;
+  followUpServiceId?: string | null;
+  onClearFollowUp?: () => void;
 }) {
   const [schedule,  setSchedule]  = useState<StaffScheduleResponse | null>(null);
   const [services,  setServices]  = useState<ServiceDto[]>([]);
@@ -653,6 +707,13 @@ function WalkinTab({
     }
   }, [selectedPatient]);
 
+  // Giữ đúng dịch vụ của buổi khám trước khi bệnh nhân đến từ tab Tái khám — staff vẫn đổi được nếu cần.
+  useEffect(() => {
+    if (followUpFromAppointmentId && followUpServiceId) {
+      setForm(prev => ({ ...prev, serviceId: followUpServiceId }));
+    }
+  }, [followUpFromAppointmentId, followUpServiceId]);
+
   useEffect(() => {
     const term = lookup.trim();
     if (term.length < 2) { setResults([]); setSearching(false); return; }
@@ -689,6 +750,7 @@ function WalkinTab({
   const unlinkPatient = () => {
     setLinked(null);
     onClearSelectedPatient?.();
+    onClearFollowUp?.();
     setForm(prev => ({ ...prev, name: "", phone: "", dob: "", gender: "Nam" }));
   };
 
@@ -849,6 +911,7 @@ function WalkinTab({
         serviceId:       form.serviceId || undefined,
         symptoms:        form.note || undefined,
         patientId:       linked?.id,
+        followUpFromAppointmentId: followUpFromAppointmentId ?? undefined,
       });
 
       // Cập nhật lưới ngay lập tức, không chờ API refresh
@@ -870,6 +933,8 @@ function WalkinTab({
 
       setSaved(true);
       setSelected(null);
+      onClearSelectedPatient?.();
+      onClearFollowUp?.();
       setTimeout(() => {
         setSaved(false);
         setForm(p => ({ name: "", phone: "", dob: "", gender: "Nam", serviceId: p.serviceId, note: "" }));
@@ -1064,6 +1129,21 @@ function WalkinTab({
                 </div>
               )}
 
+              {followUpFromAppointmentId && (
+                <div className="flex items-center gap-2.5 p-3 bg-indigo-50 border border-indigo-200 rounded-xl">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0 text-indigo-700">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992V4.356m-.001 0v4.99m0-4.99l-3.181 3.183a8.25 8.25 0 00-11.667 0L3.75 9.348m0 0V4.356m0 4.992h4.99M3.75 14.652h4.992m-4.992 0v4.992m0-4.992l3.181 3.183a8.25 8.25 0 0011.667 0l2.416-2.415m0 0h-4.99m4.99 0v4.992" /></svg>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[12.5px] font-black text-indigo-900">Đang check-in tái khám</div>
+                    <div className="text-[11px] text-indigo-700 font-semibold">Đặt lịch xong, bác sĩ sẽ thấy lại liệu trình cũ của bệnh nhân.</div>
+                  </div>
+                  <button type="button" onClick={onClearFollowUp} className="ml-auto text-slate-400 hover:text-red-500 cursor-pointer shrink-0" title="Bỏ liên kết, đặt như lịch vãng lai thường">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+              )}
+
               {bookError && (
                 <div className="px-4 py-2.5 bg-red-50 border border-red-100 text-red-600 text-[12.5px] font-semibold rounded-xl">{bookError}</div>
               )}
@@ -1244,13 +1324,11 @@ function WalkinTab({
 
 /* ─── Follow-up due tab (bệnh nhân chờ tái khám) ──────────── */
 
-function FollowUpDueTab({ dueList, onCheckedIn }: {
+function FollowUpDueTab({ dueList, onPickForWalkin }: {
   dueList: FollowUpDueDto[];
-  onCheckedIn: () => Promise<void>;
+  onPickForWalkin: (patient: FollowUpDueDto) => void;
 }) {
   const [search, setSearch] = useState("");
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
 
   const todayKey = (() => {
     const now = new Date();
@@ -1270,20 +1348,6 @@ function FollowUpDueTab({ dueList, onCheckedIn }: {
     p.patientName.toLowerCase().includes(search.toLowerCase()) ||
     (p.patientPhone ?? "").includes(search)
   );
-
-  const doCheckIn = async (p: FollowUpDueDto) => {
-    setBusyId(p.originalAppointmentId);
-    setMessage(null);
-    try {
-      await checkInFollowUpApi(p.originalAppointmentId);
-      setMessage({ text: `Đã check-in tái khám cho ${p.patientName} — bệnh nhân đã vào hàng đợi của ${p.dentistName}.`, ok: true });
-      await onCheckedIn();
-    } catch (err) {
-      setMessage({ text: err instanceof Error ? err.message : "Check-in tái khám thất bại.", ok: false });
-    } finally {
-      setBusyId(null);
-    }
-  };
 
   return (
     <div className="flex-1 min-h-0 flex flex-col gap-4">
@@ -1308,15 +1372,11 @@ function FollowUpDueTab({ dueList, onCheckedIn }: {
         </div>
         <p className="text-[12px] font-semibold text-slate-400">
           Bệnh nhân còn liệu trình <strong>đang thực hiện</strong> sau buổi khám trước — không cần đặt lịch lại.
-          Khi bệnh nhân đến, bấm <strong>Check-in tái khám</strong>: bệnh nhân vào thẳng hàng đợi của bác sĩ cũ
-          và bác sĩ sẽ thấy lại toàn bộ liệu trình đang điều trị. Nếu bệnh nhân tự đặt lịch mới thì check-in
-          ở tab thường như một lần khám riêng.
+          Khi bệnh nhân đến, bấm <strong>Check-in tái khám</strong>: thông tin được chuyển sang tab
+          <strong> Đặt lịch tại quầy</strong> để chọn giờ/bác sĩ còn ca trống, bác sĩ khám vẫn sẽ thấy lại
+          toàn bộ liệu trình đang điều trị. Nếu bệnh nhân tự đặt lịch mới thì check-in ở tab thường như
+          một lần khám riêng.
         </p>
-        {message && (
-          <div className={`px-4 py-2.5 rounded-xl text-[13px] font-bold border ${message.ok ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-red-50 text-red-600 border-red-200"}`}>
-            {message.text}
-          </div>
-        )}
       </div>
 
       {/* List */}
@@ -1364,20 +1424,12 @@ function FollowUpDueTab({ dueList, onCheckedIn }: {
                     </div>
                   </div>
                   <button
-                    onClick={() => void doCheckIn(p)}
-                    disabled={busyId !== null}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-bold bg-primary text-white hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shrink-0 cursor-pointer shadow-sm shadow-primary/20"
+                    onClick={() => onPickForWalkin(p)}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-bold bg-primary text-white hover:bg-red-600 transition-all shrink-0 cursor-pointer shadow-sm shadow-primary/20"
                   >
-                    {busyId === p.originalAppointmentId ? (
-                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                      </svg>
-                    ) : (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                      </svg>
-                    )}
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                    </svg>
                     Check-in tái khám
                   </button>
                 </div>
@@ -1397,6 +1449,9 @@ export default function CheckinPage() {
 
   const [tab, setTab] = useState<"checkin" | "walkin" | "create-account" | "followup">("checkin");
   const [walkinPatient, setWalkinPatient] = useState<PatientSearchResultDto | null>(null);
+  // Bệnh nhân được chọn từ tab Tái khám: mang theo buổi hẹn gốc để đặt lịch tại quầy vẫn gắn
+  // được về đúng liệu trình cũ (xem WalkinTab.followUpFromAppointmentId).
+  const [walkinFollowUp, setWalkinFollowUp] = useState<{ originalAppointmentId: string; serviceId?: string | null } | null>(null);
   const [followUpDue, setFollowUpDue] = useState<FollowUpDueDto[]>([]);
   const [search,    setSearch]    = useState("");
   const [selected,  setSelected]  = useState<string | null>(null);
@@ -1831,10 +1886,29 @@ export default function CheckinPage() {
               selectedPatient={walkinPatient}
               onClearSelectedPatient={() => setWalkinPatient(null)}
               onGoToCreateAccount={() => setTab("create-account")}
+              followUpFromAppointmentId={walkinFollowUp?.originalAppointmentId}
+              followUpServiceId={walkinFollowUp?.serviceId}
+              onClearFollowUp={() => setWalkinFollowUp(null)}
             />
           )}
 
-          {tab === "followup" && <FollowUpDueTab dueList={followUpDue} onCheckedIn={loadAppointments} />}
+          {tab === "followup" && (
+            <FollowUpDueTab
+              dueList={followUpDue}
+              onPickForWalkin={(p) => {
+                setWalkinPatient({
+                  id: p.patientId,
+                  fullName: p.patientName,
+                  phoneNumber: p.patientPhone,
+                  dateOfBirth: p.patientDateOfBirth ?? "",
+                  gender: p.gender ?? "Khác",
+                  hasAccount: false,
+                });
+                setWalkinFollowUp({ originalAppointmentId: p.originalAppointmentId, serviceId: p.serviceId });
+                setTab("walkin");
+              }}
+            />
+          )}
 
           {tab === "checkin" && (
           <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">

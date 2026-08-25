@@ -8,7 +8,8 @@ using Microsoft.AspNetCore.Mvc;
 namespace DentalClinic.API.Presentation.Controllers;
 
 /// <summary>
-/// Bounded context Reminders — nhắc tái khám (bác sĩ hẹn ngày, staff check-in) và nhắc uống thuốc.
+/// Bounded context Reminders — nhắc tái khám (bác sĩ hẹn ngày; staff check-in bằng cách đặt lịch
+/// tại quầy bình thường, xem CreateWalkInAppointmentHandler) và nhắc uống thuốc.
 /// Route ghi TUYỆT ĐỐI, y hệt path cũ trong AppointmentsController.
 /// </summary>
 [ApiController]
@@ -42,15 +43,6 @@ public class RemindersController(ISender sender) : ControllerBase
     {
         var result = await sender.Send(new GetFollowUpDueQuery(), cancellationToken);
         return Ok(result);
-    }
-
-    /// <summary>POST api/appointments/{id}/follow-up-check-in — Check-in bệnh nhân đến tái khám (Staff/Admin)</summary>
-    [HttpPost("api/appointments/{id}/follow-up-check-in")]
-    [Authorize(Roles = "Staff,Admin")]
-    public async Task<IActionResult> CheckInFollowUp(Guid id, CancellationToken cancellationToken)
-    {
-        var newAppointmentId = await sender.Send(new CheckInFollowUpCommand(id), cancellationToken);
-        return Ok(new { appointmentId = newAppointmentId });
     }
 
     /// <summary>

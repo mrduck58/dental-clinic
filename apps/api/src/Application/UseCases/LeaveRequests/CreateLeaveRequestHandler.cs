@@ -56,6 +56,21 @@ public class CreateLeaveRequestHandler(
         if (pastShift != null)
             throw new ValidationException($"Không thể xin nghỉ cho ca đã qua: {pastShift.Date:dd/MM/yyyy} {pastShift.ShiftId}.");
 
+        // Chặn xin nghỉ trùng ca đã có trong một đơn Pending/Approved khác của chính người này —
+        // UI đã khoá các ca này, đây là lớp chặn lại phía server cho request đi thẳng qua API.
+        // Đơn Rejected/Cancelled không tính, ca đó vẫn xin nghỉ lại được bình thường.
+        var existingRequests = await leaveRequestRepository.GetByUserIdAsync(command.UserId, ct);
+        var activeShiftKeys = existingRequests
+            .Where(r => r.Status is LeaveStatus.Pending or LeaveStatus.Approved)
+            .SelectMany(r => r.Shifts)
+            .Select(s => (s.Date, ShiftId: s.ShiftId.Trim().ToUpperInvariant()))
+            .ToHashSet();
+        var duplicateShift = request.Shifts.FirstOrDefault(
+            s => activeShiftKeys.Contains((s.Date, s.ShiftId.Trim().ToUpperInvariant())));
+        if (duplicateShift != null)
+            throw new ValidationException(
+                $"Ca {duplicateShift.ShiftId} ngày {duplicateShift.Date:dd/MM/yyyy} đã có trong một đơn xin nghỉ khác đang chờ duyệt hoặc đã được duyệt.");
+
         var shiftTuples = request.Shifts.Select(s => (s.Date, s.ShiftId)).ToList();
         var leaveRequest = LeaveRequest.Create(command.UserId, leaveType, shiftTuples, request.Reason);
         await leaveRequestRepository.AddAsync(leaveRequest, ct);

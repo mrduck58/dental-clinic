@@ -39,11 +39,17 @@ const getWeekDates = (monday: Date): Date[] =>
 interface ShiftWeekPickerProps {
   selected: Set<string>;
   onToggle: (date: string, shiftId: string) => void;
+  /** Bấm vào tiêu đề một ngày → chọn/bỏ chọn toàn bộ ca còn bấm được của ngày đó, để xin nghỉ cả
+   * ngày không phải bấm từng ca. */
+  onToggleDay?: (date: string, shiftIds: string[]) => void;
+  /** Các ca (key `${date}__${shiftId}`) đã nằm trong một đơn xin nghỉ Pending/Approved khác —
+   * khoá lại, không cho chọn thêm lần nữa cho tới khi đơn đó bị từ chối/huỷ. */
+  lockedShifts?: Set<string>;
 }
 
 /// Lưới chọn ca theo tuần dùng cho form "Đơn xin nghỉ" — cùng bố cục với trang "Lịch Làm Việc"
 /// (dentist/schedule), nhưng mỗi thẻ ca là nút bấm chọn/bỏ chọn thay vì chỉ hiển thị.
-export default function ShiftWeekPicker({ selected, onToggle }: ShiftWeekPickerProps) {
+export default function ShiftWeekPicker({ selected, onToggle, onToggleDay, lockedShifts }: ShiftWeekPickerProps) {
   const [monday, setMonday] = useState<Date>(getThisWeekMonday);
   const [entries, setEntries] = useState<ScheduleEntryDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -123,13 +129,24 @@ export default function ShiftWeekPicker({ selected, onToggle }: ShiftWeekPickerP
               const isToday = key === todayKey;
               const isHoliday = dayEntries.some(e => e.isHoliday);
               const shifts = dayEntries.filter(e => !e.isHoliday);
+              const availableShiftIds = shifts
+                .filter(e => !isShiftPast(key, e.shift) && !(lockedShifts?.has(selectionKey(key, e.shift)) ?? false))
+                .map(e => e.shift);
+              const isDaySelectable = !!onToggleDay && availableShiftIds.length > 0;
+              const isDayFullySelected = isDaySelectable && availableShiftIds.every(id => selected.has(selectionKey(key, id)));
 
               return (
                 <div key={key} className={`p-2.5 flex flex-col gap-2 min-h-[130px] ${isToday ? "bg-red-50/40" : ""}`}>
-                  <div className="flex flex-col items-center gap-0.5">
+                  <button
+                    type="button"
+                    disabled={!isDaySelectable}
+                    onClick={() => onToggleDay?.(key, availableShiftIds)}
+                    title={isDaySelectable ? "Chọn/bỏ chọn cả ngày" : undefined}
+                    className={`flex flex-col items-center gap-0.5 rounded-lg py-0.5 transition-colors ${isDaySelectable ? "cursor-pointer hover:bg-slate-100" : ""}`}
+                  >
                     <span className={`text-[10px] font-extrabold uppercase tracking-wider ${isToday ? "text-primary" : "text-slate-400"}`}>{DAY_LABELS[i]}</span>
-                    <span className={`text-[13.5px] font-black ${isToday ? "text-primary" : "text-slate-700"}`}>{pad(d.getDate())}</span>
-                  </div>
+                    <span className={`text-[13.5px] font-black ${isDayFullySelected ? "text-primary" : isToday ? "text-primary" : "text-slate-700"}`}>{pad(d.getDate())}</span>
+                  </button>
 
                   {isHoliday ? (
                     <div className="rounded-lg px-2 py-2 bg-rose-50 border border-rose-100 flex items-center justify-center">
@@ -142,28 +159,33 @@ export default function ShiftWeekPicker({ selected, onToggle }: ShiftWeekPickerP
                         const st = PERIOD_STYLE[period];
                         const isSelected = selected.has(selectionKey(key, e.shift));
                         const isPast = isShiftPast(key, e.shift);
+                        const isLocked = !isPast && (lockedShifts?.has(selectionKey(key, e.shift)) ?? false);
+                        const isDisabled = isPast || isLocked;
                         return (
                           <button
                             type="button"
                             key={e.id}
-                            disabled={isPast}
+                            disabled={isDisabled}
+                            title={isLocked ? "Ca này đã có trong một đơn xin nghỉ khác" : undefined}
                             onClick={() => onToggle(key, e.shift)}
                             className={`rounded-lg px-2 py-1.5 border flex flex-col gap-0.5 text-left transition-all ${
-                              isPast
+                              isDisabled
                                 ? "bg-slate-50 border-slate-100 opacity-60 cursor-not-allowed"
                                 : `cursor-pointer ${isSelected ? `${st.chipSelected} shadow-sm` : `${st.chip} hover:brightness-95`}`
                             }`}
                           >
                             <div className="flex items-center gap-1">
-                              <span className={`w-1.5 h-1.5 rounded-full ${isPast ? "bg-slate-300" : isSelected ? "bg-white" : st.dot}`} />
-                              <span className={`text-[9px] font-black uppercase tracking-wide ${isPast ? "text-slate-400" : isSelected ? "text-white" : st.text}`}>{period}</span>
-                              {isSelected && !isPast && (
+                              <span className={`w-1.5 h-1.5 rounded-full ${isDisabled ? "bg-slate-300" : isSelected ? "bg-white" : st.dot}`} />
+                              <span className={`text-[9px] font-black uppercase tracking-wide ${isDisabled ? "text-slate-400" : isSelected ? "text-white" : st.text}`}>
+                                {isLocked ? "Đã xin nghỉ" : period}
+                              </span>
+                              {isSelected && !isDisabled && (
                                 <svg className="w-3 h-3 ml-auto text-white" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                                 </svg>
                               )}
                             </div>
-                            <span className={`text-[11px] font-black font-mono ${isPast ? "text-slate-400" : isSelected ? "text-white" : "text-slate-800"}`}>{shiftLabel(e.shift)}</span>
+                            <span className={`text-[11px] font-black font-mono ${isDisabled ? "text-slate-400" : isSelected ? "text-white" : "text-slate-800"}`}>{shiftLabel(e.shift)}</span>
                           </button>
                         );
                       })}

@@ -17,6 +17,8 @@ public class ServiceSupplyItemDto
     public string SupplyItemName { get; set; } = string.Empty;
     public string Unit { get; set; } = string.Empty;
     public int DefaultQuantity { get; set; }
+    /// <summary>Danh mục của vật tư (vd "Vật tư chính") — dùng để lọc phía client khi cần chỉ lấy vật tư chính.</summary>
+    public string Category { get; set; } = string.Empty;
 }
 
 /// <summary>Toàn bộ định mức của dịch vụ (mọi option) — dùng cho màn quản lý (Admin).</summary>
@@ -100,6 +102,7 @@ public class ServiceSupplyItemHandler(
             SupplyItemName = i.SupplyItem.Name,
             Unit = i.SupplyItem.Unit,
             DefaultQuantity = i.DefaultQuantity,
+            Category = i.SupplyItem.Category,
         })
         .ToList();
 }

@@ -6,7 +6,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import DentistSidebar from "../../../../components/shared/DentistSidebar";
 import DentistPageHeader from "../../../../components/shared/DentistPageHeader";
 import PhotoGallery from "../../../../components/shared/PhotoGallery";
-import TreatmentWorkspace from "./TreatmentWorkspace";
+import TreatmentWorkspace, { type DraftMaterialItem } from "./TreatmentWorkspace";
 import PrescriptionWorkspace from "./PrescriptionWorkspace";
 import FollowUpWorkspace from "./FollowUpWorkspace";
 import MaterialWorkspace from "./MaterialWorkspace";
@@ -218,9 +218,9 @@ export default function PatientDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>("diagnosis");
 
-  // Tăng lên mỗi khi tab "Liệu trình" thêm 1 dịch vụ mới — dịch vụ có Vật tư chính trong định mức sẽ được
-  // backend tự động tạo kèm yêu cầu vật tư, tín hiệu này báo cho tab "Vật tư" tải lại danh sách ngay.
-  const [materialRefreshSignal, setMaterialRefreshSignal] = useState(0);
+  // Set lại (object mới) mỗi khi tab "Liệu trình" thêm 1 dịch vụ có Vật tư chính trong định mức — chuyển
+  // các dòng vật tư đó sang tab "Vật tư" để điền nháp vào form "Gửi yêu cầu vật tư" (không tự gửi).
+  const [materialDraft, setMaterialDraft] = useState<{ treatmentPlanId: string; items: DraftMaterialItem[] } | null>(null);
 
   // Phiếu khám răng miệng — gom các trường vào một object cho gọn
   const [form, setForm] = useState<ExamForm>(EMPTY_EXAM_FORM);
@@ -788,7 +788,7 @@ return (
                 <TreatmentWorkspace
                   appointmentId={id}
                   editMode={editMode && isFinished}
-                  onServiceAdded={() => setMaterialRefreshSignal(n => n + 1)}
+                  onServiceAdded={(treatmentPlanId, items) => setMaterialDraft({ treatmentPlanId, items })}
                 />
               </div>
 
@@ -809,7 +809,7 @@ return (
                 <MaterialWorkspace
                   appointmentId={id}
                   editMode={editMode && isFinished}
-                  refreshSignal={materialRefreshSignal}
+                  draftToAdd={materialDraft}
                 />
               </div>
 

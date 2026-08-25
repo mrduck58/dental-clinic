@@ -26,7 +26,6 @@ public class CreateRoomHandler(IRoomRepository roomRepository, IActivityLogServi
             request.Code,
             request.Name,
             request.Floor,
-            request.Type,
             request.Description);
 
         await roomRepository.AddAsync(room, ct);
@@ -44,7 +43,7 @@ public class CreateRoomHandler(IRoomRepository roomRepository, IActivityLogServi
             ct: ct);
 
         return new RoomDto(
-            room.Id, room.Code, room.Name, room.Floor, room.Type,
+            room.Id, room.Code, room.Name, room.Floor,
             room.Status.ToVietnamese(), room.Status.ToActiveStatus(),
             room.Description, room.CreatedAt, room.UpdatedAt);
     }

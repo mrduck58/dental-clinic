@@ -1451,7 +1451,6 @@ export interface RoomDto {
   code: string;
   name: string;
   floor: string;
-  type: string;
   status: string;
   activeStatus: string;
   description: string;
@@ -1463,7 +1462,6 @@ export interface CreateRoomRequest {
   code: string;
   name: string;
   floor: string;
-  type: string;
   description: string;
 }
 
@@ -1471,7 +1469,6 @@ export interface UpdateRoomRequest {
   code: string;
   name: string;
   floor: string;
-  type: string;
   description: string;
 }
 
@@ -2276,6 +2273,11 @@ export interface CreateWalkInRequest {
    * CHỈ tạo hồ sơ bệnh nhân, không cấp tài khoản — tránh gửi mật khẩu tới email gõ nhầm.
    */
   emailVerificationCode?: string;
+  /**
+   * Có giá trị khi đây là staff check-in một buổi tái khám từ tab Tái khám (thay vì lịch vãng lai
+   * thường) — buổi hẹn mới sẽ gắn về buổi gốc này để bác sĩ thấy cờ tái khám và liệu trình cũ.
+   */
+  followUpFromAppointmentId?: string;
 }
 
 /**
@@ -2341,9 +2343,11 @@ export interface PatientSearchResultDto {
   hasAccount: boolean;
 }
 
-/** Tra cứu bệnh nhân đã có hồ sơ (staff/admin). Dưới 2 ký tự backend trả về mảng rỗng. */
-export async function searchPatientsApi(query: string, limit = 8): Promise<PatientSearchResultDto[]> {
+/** Tra cứu bệnh nhân đã có hồ sơ (staff/admin). Dưới 2 ký tự backend trả về mảng rỗng —
+ * trừ khi onlyWithoutAccount=true (duyệt danh sách bệnh nhân chưa có tài khoản, không cần từ khóa). */
+export async function searchPatientsApi(query: string, limit = 8, onlyWithoutAccount = false): Promise<PatientSearchResultDto[]> {
   const params = new URLSearchParams({ q: query, limit: String(limit) });
+  if (onlyWithoutAccount) params.set("onlyWithoutAccount", "true");
   const res = await fetch(`${API_URL}/api/patients/search?${params}`, {
     headers: { ...authHeaders() },
   });
@@ -3053,6 +3057,8 @@ export interface ServiceSupplyItemDto {
   supplyItemName: string;
   unit: string;
   defaultQuantity: number;
+  /** Danh mục của vật tư (vd "Vật tư chính") — lọc phía client khi chỉ cần vật tư chính để prefill nháp. */
+  category: string;
 }
 
 export interface ServiceSupplyItemStepRequest {
@@ -3322,8 +3328,11 @@ export interface FollowUpDueDto {
   patientId: string;
   patientName: string;
   patientPhone: string | null;
+  patientDateOfBirth: string | null; // "YYYY-MM-DD"
   gender: string | null;
+  dentistId: string;
   dentistName: string;
+  serviceId: string | null;
   serviceName: string | null;
   originalAppointmentDate: string;
   followUpDate: string | null;
@@ -3341,19 +3350,6 @@ export async function getFollowUpDueApi(): Promise<FollowUpDueDto[]> {
     throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách chờ tái khám");
   }
   return res.json() as Promise<FollowUpDueDto[]>;
-}
-
-export async function checkInFollowUpApi(originalAppointmentId: string): Promise<{ appointmentId: string }> {
-  const res = await fetch(`${API_URL}/api/appointments/${originalAppointmentId}/follow-up-check-in`, {
-    method: "POST",
-    headers: { ...authHeaders() },
-  });
-  await checkAuth(res);
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { title?: string }).title ?? "Check-in tái khám thất bại");
-  }
-  return res.json() as Promise<{ appointmentId: string }>;
 }
 
 // End Treatment API
@@ -3632,36 +3628,6 @@ export interface IssueInvoiceRequest {
   parentInvoiceId?: string | null;  // khi thu phần còn lại của hóa đơn đặt cọc
   treatmentPlanId?: string | null;  // khi thu một đợt của liệu trình điều trị
   promotionId?: string | null;      // khuyến mãi áp dụng — server tự tính lại discount từ khuyến mãi này
-}
-
-// ── Công nợ liệu trình điều trị ──────────────────────────────────────────────
-
-export interface OutstandingPlanDto {
-  treatmentPlanId: string;
-  planName: string;
-  patientName: string;
-  patientPhone: string | null;
-  gender: string | null;
-  dentistName: string;
-  totalCost: number;
-  amountPaid: number;
-  remainingAmount: number;
-  /** Phần chi phí chưa gắn vào hóa đơn nào — số còn phải xuất hóa đơn ở các đợt thu sau. */
-  unbilledAmount: number;
-  status: string;
-  createdAt: string;
-}
-
-export async function getOutstandingPlansApi(): Promise<OutstandingPlanDto[]> {
-  const res = await fetch(`${API_URL}/api/invoices/outstanding-plans`, {
-    headers: { ...authHeaders() },
-  });
-  await checkAuth(res);
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { title?: string }).title ?? "Không thể tải công nợ liệu trình");
-  }
-  return res.json() as Promise<OutstandingPlanDto[]>;
 }
 
 export async function getBillablePlansApi(): Promise<BillablePlanDto[]> {

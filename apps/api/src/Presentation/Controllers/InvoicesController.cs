@@ -53,14 +53,6 @@ public class InvoicesController(ISender sender) : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>GET api/invoices/outstanding-plans — Liệu trình điều trị còn công nợ.</summary>
-    [HttpGet("outstanding-plans")]
-    public async Task<IActionResult> GetOutstandingPlans(CancellationToken cancellationToken)
-    {
-        var result = await sender.Send(new GetOutstandingPlansQuery(), cancellationToken);
-        return Ok(result);
-    }
-
     /// <summary>GET api/invoices/by-patient/{patientId} — Toàn bộ hóa đơn (chờ + đã thanh toán) của một bệnh nhân.</summary>
     [HttpGet("by-patient/{patientId:guid}")]
     public async Task<IActionResult> GetByPatient(Guid patientId, CancellationToken cancellationToken)
