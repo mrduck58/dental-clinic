@@ -84,11 +84,17 @@ public class CreateWalkInAppointmentHandler(
             throw new ConflictException("Khung giờ này đã được đặt. Vui lòng chọn giờ khác.");
 
         // 3. Xác định hồ sơ bệnh nhân, theo thứ tự ưu tiên:
-        //    a) hồ sơ staff đã chọn từ ô tra cứu;
-        //    b) hồ sơ khớp số điện thoại — dò cả cột PhoneNumber của Patient (bệnh nhân tạo tại quầy,
-        //       không có tài khoản) lẫn số của tài khoản liên kết;
+        //    a) hồ sơ staff đã CHỦ ĐỘNG chọn từ ô tra cứu — coi là đã xác nhận đúng người, cho phép
+        //       ghi đè tên/ngày sinh/giới tính để sửa lỗi chính tả hồ sơ cũ;
+        //    b) hồ sơ khớp NGẦM theo số điện thoại (staff gõ tay, không bấm chọn từ ô tra cứu) — dò
+        //       cả cột PhoneNumber của Patient (bệnh nhân tạo tại quầy, không có tài khoản) lẫn số
+        //       của tài khoản liên kết, nhưng KHÔNG ghi đè tên/ngày sinh/giới tính: một số điện thoại
+        //       có thể dùng chung cho nhiều người (vợ chồng, cha mẹ và con nhỏ, người lớn tuổi không
+        //       có điện thoại riêng...), gõ tên khác lúc này rất dễ vô tình xóa mất tên đúng của hồ
+        //       sơ cũ. Muốn sửa tên thật thì phải bấm chọn từ ô tra cứu để rơi vào nhánh (a).
         //    c) chưa có thì tạo mới.
         Patient? patient = null;
+        var patientExplicitlySelected = cmd.PatientId is not null;
 
         if (cmd.PatientId is { } patientId)
         {
@@ -128,15 +134,18 @@ public class CreateWalkInAppointmentHandler(
                 await patientRepository.AddAsync(patient, ct);
             }
         }
-        else
+        else if (patientExplicitlySelected)
         {
-            // Cập nhật thông tin bệnh nhân tìm được bằng thông tin staff nhập tại quầy
+            // Staff đã tự tay chọn đúng hồ sơ này từ ô tra cứu — ghi đè bằng thông tin nhập tại quầy
+            // là sửa lỗi chính tả có chủ đích, không phải nhầm lẫn.
             patient.SetPhoneNumber(cmd.PatientPhone);
             patient.SetDateOfBirth(cmd.DateOfBirth);
             patient.SetGender(cmd.Gender);
             patient.SetFullName(cmd.PatientName);
             await patientRepository.UpdateAsync(patient, ct);
         }
+        // else: khớp ngầm theo số điện thoại (không qua ô tra cứu) — giữ nguyên thông tin cũ, không
+        // ghi đè, để tránh làm mất tên đúng khi số điện thoại dùng chung cho nhiều người.
 
         // 4. Bệnh nhân đã có mặt tại quầy nên bỏ qua cả Pending lẫn Confirmed:
         //    lịch hẹn vào thẳng CheckedIn để xuất hiện ngay ở hàng đợi, không phải check-in lại.

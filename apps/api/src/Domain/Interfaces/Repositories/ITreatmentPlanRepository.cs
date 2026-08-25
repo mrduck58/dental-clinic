@@ -47,4 +47,4 @@ public interface ITreatmentPlanRepository
     Task<IReadOnlyList<ActiveTreatmentPlanSummary>> GetActiveByPatientIdsAsync(List<Guid> patientIds, CancellationToken ct = default);
 }
 
-public record ActiveTreatmentPlanSummary(Guid AppointmentId, string ServiceName);
+public record ActiveTreatmentPlanSummary(Guid AppointmentId, Guid ServiceId, string ServiceName);

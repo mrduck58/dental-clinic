@@ -172,6 +172,36 @@ public class CreateWalkInAppointmentHandlerTests
         (await _db.Patients.SingleAsync()).PhoneNumber.Should().Be("0988887777");
     }
 
+    /// <summary>
+    /// Khớp NGẦM theo số điện thoại (staff gõ tay, không bấm chọn từ ô tra cứu nên PatientId để
+    /// trống) mà gõ tên khác hẳn tên đã lưu — một số điện thoại có thể dùng chung cho nhiều người
+    /// (vợ chồng, cha mẹ và con nhỏ...), nên KHÔNG được tự ý ghi đè tên/ngày sinh/giới tính của hồ
+    /// sơ cũ. Chỉ ghi đè khi staff chủ động chọn đúng hồ sơ (xem test phía trên).
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_ImplicitPhoneMatchWithDifferentName_DoesNotOverwriteExistingIdentity()
+    {
+        var user = User.CreateEmployee("existing2@test.com", UserRole.Patient, phoneNumber: "0900000002", fullName: "Trần Thị B");
+        user.UpdateGender("Nữ");
+        _db.Users.Add(user);
+        var existing = Patient.Create(user.Id, new DateOnly(1985, 5, 20), phoneNumber: "0900000002");
+        _db.Patients.Add(existing);
+        await _db.SaveChangesAsync();
+
+        var cmd = MakeCommand(DateTimeOffset.UtcNow.AddHours(1))
+            with { PatientPhone = "0900000002", PatientName = "Nguyễn Văn C", Gender = "Nam", DateOfBirth = new DateOnly(1999, 9, 9) };
+        var result = await _handler.Handle(cmd, CancellationToken.None);
+
+        _db.Patients.Should().HaveCount(1);
+        var appointment = await _db.Appointments.SingleAsync();
+        appointment.PatientId.Should().Be(existing.Id);
+        var patient = await _db.Patients.SingleAsync();
+        patient.FullName.Should().Be("Trần Thị B");
+        patient.Gender.Should().Be("Nữ");
+        patient.DateOfBirth.Should().Be(new DateOnly(1985, 5, 20));
+        result.PatientName.Should().Be("Trần Thị B");
+    }
+
     /// <summary>Không tìm thấy hồ sơ đã chọn (đã bị xoá) thì báo lỗi thay vì âm thầm tạo mới.</summary>
     [Test]
     public async Task HandleAsync_WithUnknownPatientId_ThrowsValidationException()
