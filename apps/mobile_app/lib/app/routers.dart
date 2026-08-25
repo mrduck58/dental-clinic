@@ -236,7 +236,10 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: AppRoutes.changePassword,
-      builder: (context, state) => const ChangePasswordPage(),
+      builder: (context, state) {
+        final isFirstTime = state.uri.queryParameters['firstTime'] == 'true' || state.extra == true;
+        return ChangePasswordPage(isFirstTime: isFirstTime);
+      },
     ),
     GoRoute(
       path: AppRoutes.payment,

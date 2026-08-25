@@ -11,7 +11,8 @@ import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/features/auth/data/auth_service.dart';
 
 class ChangePasswordPage extends StatefulWidget {
-  const ChangePasswordPage({super.key});
+  final bool isFirstTime;
+  const ChangePasswordPage({super.key, this.isFirstTime = false});
 
   @override
   State<ChangePasswordPage> createState() => _ChangePasswordPageState();
@@ -31,6 +32,8 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
   String _newPassword = '';
   String _userName = '';
   String? _avatarUrl;
+
+  bool get _isFirstTime => widget.isFirstTime || _isForced;
 
   @override
   void initState() {
@@ -128,7 +131,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     final newPass = _newPasswordCtrl.text;
     final confirm = _confirmPasswordCtrl.text;
 
-    if (current.isEmpty) {
+    if (!_isFirstTime && current.isEmpty) {
       _showSnackbar(isVi ? 'Mật khẩu hiện tại không được để trống.' : 'Current password cannot be empty.');
       return;
     }
@@ -161,7 +164,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
 
       await _auth.changePassword(
         token: token,
-        currentPassword: current,
+        currentPassword: _isFirstTime ? null : current,
         newPassword: newPass,
       );
 
@@ -172,7 +175,9 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
       if (mounted) {
         AppToast.showSuccess(
           context,
-          isVi ? 'Đổi mật khẩu thành công!' : 'Password changed successfully!',
+          isVi
+              ? (_isFirstTime ? 'Thiết lập mật khẩu thành công!' : 'Đổi mật khẩu thành công!')
+              : (_isFirstTime ? 'Password set successfully!' : 'Password changed successfully!'),
         );
         _leave();
       }
@@ -233,7 +238,9 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                 onPressed: _leave,
               ),
         title: Text(
-          isVi ? 'Đổi mật khẩu' : 'Change Password',
+          isVi
+              ? (_isFirstTime ? 'Thiết lập mật khẩu' : 'Đổi mật khẩu')
+              : (_isFirstTime ? 'Set Password' : 'Change Password'),
           style: TextStyle(
             color: AppColors.primary,
             fontWeight: FontWeight.w800,
@@ -361,14 +368,16 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                     ),
                     SizedBox(height: 24),
 
-                    // Current Password Field
-                    _buildLabel(context.l10n('current_password')),
-                    _buildPasswordField(
-                      controller: _currentPasswordCtrl,
-                      obscure: _obscureCurrent,
-                      onToggle: () => setState(() => _obscureCurrent = !_obscureCurrent),
-                    ),
-                    SizedBox(height: 20),
+                    // Current Password Field (chỉ hiện khi đổi mật khẩu thông thường, ẩn khi đăng nhập lần đầu / thiết lập mật khẩu)
+                    if (!_isFirstTime) ...[
+                      _buildLabel(context.l10n('current_password')),
+                      _buildPasswordField(
+                        controller: _currentPasswordCtrl,
+                        obscure: _obscureCurrent,
+                        onToggle: () => setState(() => _obscureCurrent = !_obscureCurrent),
+                      ),
+                      SizedBox(height: 20),
+                    ],
 
                     // New Password Field
                     _buildLabel(context.l10n('new_password')),

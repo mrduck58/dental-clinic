@@ -278,13 +278,13 @@ class AuthService {
 
   Future<void> changePassword({
     required String token,
-    required String currentPassword,
+    String? currentPassword,
     required String newPassword,
   }) async {
     await _client.put(
       ApiConstants.changePassword,
       {
-        'currentPassword': currentPassword,
+        if (currentPassword != null && currentPassword.isNotEmpty) 'currentPassword': currentPassword,
         'newPassword': newPassword,
       },
       token: token,
