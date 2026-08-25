@@ -3634,36 +3634,6 @@ export interface IssueInvoiceRequest {
   promotionId?: string | null;      // khuyến mãi áp dụng — server tự tính lại discount từ khuyến mãi này
 }
 
-// ── Công nợ liệu trình điều trị ──────────────────────────────────────────────
-
-export interface OutstandingPlanDto {
-  treatmentPlanId: string;
-  planName: string;
-  patientName: string;
-  patientPhone: string | null;
-  gender: string | null;
-  dentistName: string;
-  totalCost: number;
-  amountPaid: number;
-  remainingAmount: number;
-  /** Phần chi phí chưa gắn vào hóa đơn nào — số còn phải xuất hóa đơn ở các đợt thu sau. */
-  unbilledAmount: number;
-  status: string;
-  createdAt: string;
-}
-
-export async function getOutstandingPlansApi(): Promise<OutstandingPlanDto[]> {
-  const res = await fetch(`${API_URL}/api/invoices/outstanding-plans`, {
-    headers: { ...authHeaders() },
-  });
-  await checkAuth(res);
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { title?: string }).title ?? "Không thể tải công nợ liệu trình");
-  }
-  return res.json() as Promise<OutstandingPlanDto[]>;
-}
-
 export async function getBillablePlansApi(): Promise<BillablePlanDto[]> {
   const res = await fetch(`${API_URL}/api/invoices/billable-plans`, {
     headers: { ...authHeaders() },
