@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using DentalClinic.API.Domain.Exceptions;
@@ -22,7 +22,7 @@ public class ChangePasswordHandler(IUserRepository userRepository, IActivityLogS
             ?? throw new NotFoundException("Không tìm thấy tài khoản.");
 
         if (user.PasswordHash is null || !BCrypt.Net.BCrypt.Verify(command.CurrentPassword, user.PasswordHash))
-            throw new UnauthorizedAccessException("Mật khẩu hiện tại không chính xác.");
+            throw new ValidationException("Mật khẩu hiện tại không chính xác.");
 
         var newPasswordHash = BCrypt.Net.BCrypt.HashPassword(command.NewPassword, workFactor: 12);
         user.ResetPassword(newPasswordHash);
