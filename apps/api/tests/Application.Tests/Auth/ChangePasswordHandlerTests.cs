@@ -42,16 +42,17 @@ public class ChangePasswordHandlerTests
         await act.Should().ThrowAsync<NotFoundException>();
     }
 
-    /// <summary>Mật khẩu hiện tại nhập sai phải ném UnauthorizedAccessException, không đổi mật khẩu.</summary>
+    /// <summary>Mật khẩu hiện tại nhập sai phải ném ValidationException, không đổi mật khẩu.</summary>
     [Test]
-    public async Task HandleAsync_WrongCurrentPassword_ThrowsUnauthorizedAccessException()
+    public async Task HandleAsync_WrongCurrentPassword_ThrowsValidationException()
     {
         var user = CreateUserWithPassword("correct-password");
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
 
         Func<Task> act = () => _handler.Handle(new ChangePasswordCommand(user.Id, "wrong-password", "new-password"), CancellationToken.None);
 
-        await act.Should().ThrowAsync<UnauthorizedAccessException>();
+        await act.Should().ThrowAsync<ValidationException>()
+            .WithMessage("Mật khẩu hiện tại không chính xác.");
         await _userRepo.DidNotReceive().UpdateAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
     }
 
@@ -71,16 +72,17 @@ public class ChangePasswordHandlerTests
             Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
-    /// <summary>Tài khoản chưa từng có mật khẩu (PasswordHash null, ví dụ đăng nhập qua Google) phải ném UnauthorizedAccessException, không đổi mật khẩu.</summary>
+    /// <summary>Tài khoản chưa từng có mật khẩu (PasswordHash null, ví dụ đăng nhập qua Google) phải ném ValidationException, không đổi mật khẩu.</summary>
     [Test]
-    public async Task HandleAsync_NullPasswordHash_ThrowsUnauthorizedAccessException()
+    public async Task HandleAsync_NullPasswordHash_ThrowsValidationException()
     {
         var user = User.CreateGoogleUser("google-user@test.com", "Google User", null);
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
 
         Func<Task> act = () => _handler.Handle(new ChangePasswordCommand(user.Id, "any-password", "new-password"), CancellationToken.None);
 
-        await act.Should().ThrowAsync<UnauthorizedAccessException>();
+        await act.Should().ThrowAsync<ValidationException>()
+            .WithMessage("Mật khẩu hiện tại không chính xác.");
         await _userRepo.DidNotReceive().UpdateAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
     }
 
