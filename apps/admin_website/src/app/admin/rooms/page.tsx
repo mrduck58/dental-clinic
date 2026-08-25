@@ -50,7 +50,6 @@ export default function RoomsPage() {
   const [editRoomName, setEditRoomName] = useState("");
   const [editRoomCode, setEditRoomCode] = useState("");
   const [editRoomFloor, setEditRoomFloor] = useState("");
-  const [editRoomType, setEditRoomType] = useState("");
   const [editRoomDescription, setEditRoomDescription] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
@@ -119,8 +118,7 @@ export default function RoomsPage() {
       const q = searchQuery.toLowerCase();
       const matchesSearch = !q ||
         room.name.toLowerCase().includes(q) ||
-        room.code.toLowerCase().includes(q) ||
-        room.type.toLowerCase().includes(q);
+        room.code.toLowerCase().includes(q);
       return matchesFloor && matchesStatus && matchesSearch;
     });
 
@@ -150,7 +148,6 @@ export default function RoomsPage() {
         code: editRoomCode.trim(),
         name: editRoomName.trim(),
         floor: editRoomFloor,
-        type: editRoomType,
         description: editRoomDescription.trim(),
       });
       setRooms(prev => prev.map(r => r.id === updated.id ? updated : r));
@@ -202,7 +199,6 @@ export default function RoomsPage() {
     setEditRoomName(room.name);
     setEditRoomCode(room.code);
     setEditRoomFloor(room.floor);
-    setEditRoomType(room.type);
     setEditRoomDescription(room.description ?? "");
     setShowEditRoomModal(true);
   };
@@ -395,7 +391,7 @@ export default function RoomsPage() {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Tìm kiếm phòng, mã phòng, loại phòng..."
+                  placeholder="Tìm kiếm phòng, mã phòng..."
                   className="w-full pl-10 pr-4 py-2.5 text-[14px] bg-slate-100/80 rounded-xl border border-transparent focus:bg-white focus:border-slate-200 focus:outline-none transition-all placeholder:text-slate-400 font-semibold text-slate-800"
                 />
                 {searchQuery && (
@@ -463,7 +459,6 @@ export default function RoomsPage() {
                   <thead>
                     <tr className="bg-slate-50/75 border-b border-slate-200/80">
                       <SortableTh column="name" label="Phòng" sortKey={sortField ?? ""} sortDir={sortDirection} onSort={handleSort} className="px-6" />
-                      <SortableTh column="type" label="Loại phòng" sortKey={sortField ?? ""} sortDir={sortDirection} onSort={handleSort} className="px-6" />
                       <SortableTh column="floor" label="Tầng" sortKey={sortField ?? ""} sortDir={sortDirection} onSort={handleSort} className="px-6" />
                       <SortableTh column="status" label="Trạng thái" sortKey={sortField ?? ""} sortDir={sortDirection} onSort={handleSort} align="center" className="px-6" />
                       <SortableTh column="createdAt" label="Ngày tạo" sortKey={sortField ?? ""} sortDir={sortDirection} onSort={handleSort} className="px-6" />
@@ -488,7 +483,6 @@ export default function RoomsPage() {
                             </span>
                           </div>
                         </td>
-                        <td className="py-4.5 px-6 font-semibold text-slate-700">{room.type}</td>
                         <td className="py-4.5 px-6 font-semibold text-slate-600">Tầng {room.floor}</td>
                         <td className="py-4.5 px-6 text-center" onClick={(e) => e.stopPropagation()}>
                           <button onClick={() => openStatusModal(room)}
@@ -553,7 +547,15 @@ export default function RoomsPage() {
           : toast.type === "error" ? "bg-red-900 text-white border-red-800"
           : "bg-slate-900 text-white border-slate-800"
         }`}>
-          <span className="text-lg">{toast.type === "success" ? "✓" : toast.type === "error" ? "⚠" : "ℹ"}</span>
+          <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+            {toast.type === "success" ? (
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            ) : toast.type === "error" ? (
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+            ) : (
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+            )}
+          </svg>
           <span>{toast.message}</span>
         </div>
       )}
@@ -597,17 +599,6 @@ export default function RoomsPage() {
                     <option value="2">Tầng 2</option>
                     <option value="3">Tầng 3</option>
                   </select>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="font-bold text-slate-600">Loại phòng <span className="text-primary">*</span></label>
-                  <div className="grid grid-cols-2 gap-2 mt-1">
-                    {["Khám tổng quát", "Cấp cứu", "Phẫu thuật", "X-Quang"].map(name => (
-                      <button key={name} type="button" onClick={() => setEditRoomType(name)}
-                        className={`flex items-center p-3 rounded-xl border text-left transition-all cursor-pointer ${editRoomType === name ? "border-primary text-primary bg-red-50/15 font-bold shadow-sm" : "border-slate-200 text-slate-600 bg-white hover:border-slate-300 font-medium"}`}>
-                        <span className="text-[12.5px] truncate">{name}</span>
-                      </button>
-                    ))}
-                  </div>
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="font-bold text-slate-600">Mô tả chi tiết trang thiết bị</label>
@@ -700,8 +691,11 @@ export default function RoomsPage() {
                 <p className="text-[13px] text-slate-500 font-semibold leading-relaxed mt-2">
                   Bạn có chắc chắn muốn xóa phòng <span className="text-slate-900 font-black">{roomToDelete.name}</span> ({roomToDelete.code}) không?
                 </p>
-                <p className="text-[11px] text-red-600/80 font-bold bg-red-50 rounded-lg p-2.5 border border-red-100 mt-3 leading-relaxed">
-                  ⚠️ Hành động này không thể hoàn tác.
+                <p className="text-[11px] text-red-600/80 font-bold bg-red-50 rounded-lg p-2.5 border border-red-100 mt-3 leading-relaxed flex items-center justify-center gap-1.5">
+                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                  </svg>
+                  Hành động này không thể hoàn tác.
                 </p>
               </div>
               <div className="flex gap-3 w-full mt-2 border-t border-slate-100 pt-4 text-[13px]">

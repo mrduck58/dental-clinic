@@ -8,7 +8,6 @@ public class Room
     public string Code { get; private set; } = string.Empty;
     public string Name { get; private set; } = string.Empty;
     public string Floor { get; private set; } = string.Empty;
-    public string Type { get; private set; } = string.Empty;
     public RoomStatus Status { get; private set; }
     public string Description { get; private set; } = string.Empty;
     public DateTimeOffset CreatedAt { get; private set; }
@@ -23,7 +22,6 @@ public class Room
         string code,
         string name,
         string floor,
-        string type,
         string description)
         => new()
         {
@@ -31,18 +29,16 @@ public class Room
             Code = code.ToUpperInvariant(),
             Name = name,
             Floor = floor,
-            Type = type,
             Status = RoomStatus.Trong,
             Description = description,
             CreatedAt = DateTimeOffset.UtcNow,
         };
 
-    public void Update(string code, string name, string floor, string type, string description)
+    public void Update(string code, string name, string floor, string description)
     {
         Code = code.ToUpperInvariant();
         Name = name;
         Floor = floor;
-        Type = type;
         Description = description;
         UpdatedAt = DateTimeOffset.UtcNow;
     }

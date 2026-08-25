@@ -30,12 +30,11 @@ public class GetRoomsHandler(IRoomRepository roomRepository) : IRequestHandler<G
             var q = query.Search.ToLower();
             rooms = rooms.Where(r =>
                 r.Name.ToLower().Contains(q) ||
-                r.Code.ToLower().Contains(q) ||
-                r.Type.ToLower().Contains(q));
+                r.Code.ToLower().Contains(q));
         }
 
         return rooms.Select(r => new RoomDto(
-            r.Id, r.Code, r.Name, r.Floor, r.Type,
+            r.Id, r.Code, r.Name, r.Floor,
             r.Status.ToVietnamese(), r.Status.ToActiveStatus(),
             r.Description, r.CreatedAt, r.UpdatedAt));
     }

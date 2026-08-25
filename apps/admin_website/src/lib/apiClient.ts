@@ -1451,7 +1451,6 @@ export interface RoomDto {
   code: string;
   name: string;
   floor: string;
-  type: string;
   status: string;
   activeStatus: string;
   description: string;
@@ -1463,7 +1462,6 @@ export interface CreateRoomRequest {
   code: string;
   name: string;
   floor: string;
-  type: string;
   description: string;
 }
 
@@ -1471,7 +1469,6 @@ export interface UpdateRoomRequest {
   code: string;
   name: string;
   floor: string;
-  type: string;
   description: string;
 }
 

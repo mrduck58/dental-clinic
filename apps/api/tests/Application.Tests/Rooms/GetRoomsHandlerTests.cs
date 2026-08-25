@@ -52,16 +52,15 @@ public class GetRoomsHandlerTests
 
     /// <summary>
     /// Filter search khớp theo tên phòng không phân biệt hoa thường.
-    /// Dùng loại phòng không chứa từ khóa để chỉ test match theo tên.
     /// </summary>
     [Test]
     public async Task HandleAsync_SearchByName_ReturnsMatchingRooms()
     {
         _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<Room>
         {
-            Room.Create("P01", "Phòng Khám 1", "1", "Nội tổng hợp", "Mô tả"),
-            Room.Create("P02", "Phòng Phẫu Thuật", "1", "Ngoại tổng hợp", "Mô tả"),
-            Room.Create("P03", "Phòng Khám 2", "1", "Nội tổng hợp", "Mô tả"),
+    Room.Create("P01", "Phòng Khám 1", "1", "Mô tả"),
+            Room.Create("P02", "Phòng Phẫu Thuật", "1", "Mô tả"),
+            Room.Create("P03", "Phòng Khám 2", "1", "Mô tả"),
         });
         var handler = new GetRoomsHandler(_repo);
 
@@ -115,8 +114,8 @@ public class GetRoomsHandlerTests
     {
         _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<Room>
         {
-            Room.Create("ABC01", "Phòng A", "1", "Nội tổng hợp", "Mô tả"),
-            Room.Create("XYZ02", "Phòng B", "1", "Ngoại tổng hợp", "Mô tả"),
+            Room.Create("ABC01", "Phòng A", "1", "Mô tả"),
+            Room.Create("XYZ02", "Phòng B", "1", "Mô tả"),
         });
         var handler = new GetRoomsHandler(_repo);
 
@@ -127,25 +126,6 @@ public class GetRoomsHandlerTests
     }
 
     /// <summary>
-    /// Filter search khớp theo loại phòng (Type).
-    /// </summary>
-    [Test]
-    public async Task HandleAsync_SearchByType_ReturnsMatchingRoom()
-    {
-        _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<Room>
-        {
-            Room.Create("P01", "Phòng A", "1", "Phẫu thuật", "Mô tả"),
-            Room.Create("P02", "Phòng B", "1", "Nội tổng hợp", "Mô tả"),
-        });
-        var handler = new GetRoomsHandler(_repo);
-
-        var result = await handler.Handle(new GetRoomsQuery(null, null, "phẫu thuật"), CancellationToken.None);
-
-        result.Should().ContainSingle();
-        result.Single().Code.Should().Be("P01");
-    }
-
-    /// <summary>
     /// Kết hợp nhiều filter (floor + search) phải áp dụng đồng thời (AND), không phải OR.
     /// </summary>
     [Test]
@@ -153,8 +133,8 @@ public class GetRoomsHandlerTests
     {
         _repo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(new List<Room>
         {
-            Room.Create("P01", "Phòng Khám 1", "1", "Nội tổng hợp", "Mô tả"),
-            Room.Create("P02", "Phòng Khám 2", "2", "Nội tổng hợp", "Mô tả"),
+            Room.Create("P01", "Phòng Khám 1", "1", "Mô tả"),
+            Room.Create("P02", "Phòng Khám 2", "2", "Mô tả"),
         });
         var handler = new GetRoomsHandler(_repo);
 
@@ -183,5 +163,5 @@ public class GetRoomsHandlerTests
     }
 
     private static Room MakeRoom(string code, string name = "Phòng Test", string floor = "1")
-        => Room.Create(code, name, floor, "Nội tổng hợp", "Mô tả");
+        => Room.Create(code, name, floor, "Mô tả");
 }

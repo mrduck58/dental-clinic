@@ -15,7 +15,6 @@ export default function CreateRoomPage() {
   const [roomName, setRoomName] = useState("");
   const [roomCode, setRoomCode] = useState("");
   const [floor, setFloor] = useState("");
-  const [selectedType, setSelectedType] = useState<string>("Khám tổng quát");
   const [description, setDescription] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -34,7 +33,6 @@ export default function CreateRoomPage() {
         code: roomCode.trim(),
         name: roomName.trim(),
         floor,
-        type: selectedType,
         description: description.trim(),
       });
       router.push("/admin/rooms");
@@ -73,7 +71,10 @@ export default function CreateRoomPage() {
           {/* Error banner */}
           {errorMsg && (
             <div className="bg-red-50 border border-red-200 text-red-700 font-bold text-[13px] px-4 py-3 rounded-xl flex items-center gap-2">
-              <span>⚠</span> {errorMsg}
+              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+              </svg>
+              {errorMsg}
             </div>
           )}
 
@@ -85,7 +86,9 @@ export default function CreateRoomPage() {
               {/* Card A: Thông tin cơ bản */}
               <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col gap-5">
                 <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-                  <span className="text-[16px] text-primary">ℹ️</span>
+                  <svg className="w-4.5 h-4.5 text-primary" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+                  </svg>
                   <h3 className="text-[16px] font-extrabold text-slate-800">Thông tin cơ bản</h3>
                 </div>
 
@@ -116,51 +119,14 @@ export default function CreateRoomPage() {
                     </div>
                   </div>
                 </div>
-
-                {/* Room type selector */}
-                <div className="flex flex-col gap-2 text-[13px] mt-1">
-                  <label className="font-bold text-slate-500">Loại phòng <span className="text-primary">*</span></label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-1">
-                    {[
-                      { type: "Khám tổng quát", icon: (
-                        <svg className="w-8 h-8 mb-2.5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 2C8.5 2 6 4.5 6 8c0 3 2 5.5 2 8 0 1.5-1 3.5-1 4.5 0 1.5 2.5 1.5 3.5.5s1.5-2 1.5-3c0 1 .5 2 1.5 3s3.5 1 3.5-.5c0-1-1-3-1-4.5 0-2.5 2-5 2-8 0-3.5-2.5-6-6-6z" />
-                        </svg>
-                      ), label: "Tổng quát" },
-                      { type: "Cấp cứu", icon: (
-                        <svg className="w-8 h-8 mb-2.5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                        </svg>
-                      ), label: "Cấp cứu" },
-                      { type: "Phẫu thuật", icon: (
-                        <svg className="w-8 h-8 mb-2.5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-                          <rect x="3" y="6" width="18" height="12" rx="2" />
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h8" />
-                        </svg>
-                      ), label: "Phẫu thuật" },
-                      { type: "X-Quang", icon: (
-                        <svg className="w-8 h-8 mb-2.5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-                          <rect x="6" y="3" width="12" height="14" rx="1" />
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 7h12M6 11h12M12 3v14M12 17v4" />
-                        </svg>
-                      ), label: "X-Quang" },
-                    ].map(({ type, icon, label }) => (
-                      <button key={type} type="button" onClick={() => setSelectedType(type)}
-                        className={`flex flex-col items-center justify-center p-5 rounded-xl border transition-all hover:scale-[1.02] cursor-pointer ${
-                          selectedType === type ? "border-primary text-primary bg-red-50/15" : "border-slate-200 text-slate-500 bg-white hover:border-slate-300"
-                        }`}>
-                        <span className={selectedType === type ? "text-primary" : "text-slate-400"}>{icon}</span>
-                        <span className="text-[13px] font-extrabold leading-none">{label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
               </div>
 
               {/* Card B: Mô tả */}
               <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col gap-5">
                 <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-                  <span className="text-[16px] text-primary">📋</span>
+                  <svg className="w-4.5 h-4.5 text-primary" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
+                  </svg>
                   <h3 className="text-[16px] font-extrabold text-slate-800">Ghi chú & Mô tả</h3>
                 </div>
                 <div className="flex flex-col gap-2 text-[13px]">
@@ -178,7 +144,11 @@ export default function CreateRoomPage() {
               {/* Card C: Xác nhận */}
               <div className="bg-primary p-6 rounded-3xl text-white shadow-lg shadow-red-700/15 flex flex-col gap-4">
                 <div className="flex items-center gap-2">
-                  <span className="w-5 h-5 rounded-full bg-white/15 text-white flex items-center justify-center">✓</span>
+                  <span className="w-5 h-5 rounded-full bg-white/15 text-white flex items-center justify-center shrink-0">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                  </span>
                   <h4 className="text-[14px] font-extrabold uppercase tracking-wider">Xác nhận thiết lập</h4>
                 </div>
                 <p className="text-[12px] font-medium leading-relaxed opacity-90">
@@ -201,7 +171,9 @@ export default function CreateRoomPage() {
 
               {/* Card D: Mẹo */}
               <div className="bg-white p-4 rounded-xl border border-slate-200/60 shadow-sm border-l-4 border-l-red-500/80 flex items-start gap-3">
-                <span className="text-[17px] text-primary shrink-0 mt-0.5 animate-pulse">💡</span>
+                <svg className="w-4.5 h-4.5 text-primary shrink-0 mt-0.5 animate-pulse" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
+                </svg>
                 <div>
                   <span className="text-[11px] font-bold text-slate-400 block uppercase tracking-wider">Mẹo quản trị</span>
                   <p className="text-[12px] text-slate-500 font-semibold leading-relaxed mt-0.5">

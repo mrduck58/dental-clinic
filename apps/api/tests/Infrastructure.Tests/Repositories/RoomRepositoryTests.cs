@@ -135,5 +135,5 @@ public class RoomRepositoryTests
     }
 
     private static Room MakeRoom(string code, string floor = "Tầng 1", string name = "Phòng Test")
-        => Room.Create(code, name, floor, "Phòng khám", "Mô tả");
+        => Room.Create(code, name, floor, "Mô tả");
 }

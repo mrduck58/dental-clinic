@@ -30,7 +30,7 @@ public class DeleteRoomHandlerTests
     [Test]
     public async Task HandleAsync_ExistingRoom_CallsDeleteAsyncOnce()
     {
-        var room = Room.Create("P01", "Phòng 1", "1", "Loại", "Mô tả");
+        var room = Room.Create("P01", "Phòng 1", "1", "Mô tả");
         _repo.GetByIdAsync(room.Id, Arg.Any<CancellationToken>()).Returns(room);
         var handler = new DeleteRoomHandler(_repo, _activityLog, _currentUser);
 

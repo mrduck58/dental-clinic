@@ -23,7 +23,7 @@ public class ChangeRoomStatusHandlerTests
     [Test]
     public async Task HandleAsync_ValidStatus_UpdatesAndReturnsDto()
     {
-        var room = Room.Create("P01", "Phòng 1", "1", "Loại", "Mô tả");
+        var room = Room.Create("P01", "Phòng 1", "1", "Mô tả");
         _repo.GetByIdAsync(room.Id, Arg.Any<CancellationToken>()).Returns(room);
         var handler = new ChangeRoomStatusHandler(_repo);
 
@@ -53,7 +53,7 @@ public class ChangeRoomStatusHandlerTests
     [Test]
     public async Task HandleAsync_InvalidStatus_ThrowsArgumentException()
     {
-        var room = Room.Create("P01", "Phòng 1", "1", "Loại", "Mô tả");
+        var room = Room.Create("P01", "Phòng 1", "1", "Mô tả");
         _repo.GetByIdAsync(room.Id, Arg.Any<CancellationToken>()).Returns(room);
         var handler = new ChangeRoomStatusHandler(_repo);
 
@@ -69,7 +69,7 @@ public class ChangeRoomStatusHandlerTests
     [Test]
     public async Task HandleAsync_ChangeToNgungHoatDong_ReturnsInactiveActiveStatus()
     {
-        var room = Room.Create("P01", "Phòng 1", "1", "Loại", "Mô tả");
+        var room = Room.Create("P01", "Phòng 1", "1", "Mô tả");
         _repo.GetByIdAsync(room.Id, Arg.Any<CancellationToken>()).Returns(room);
         var handler = new ChangeRoomStatusHandler(_repo);
 
@@ -85,7 +85,7 @@ public class ChangeRoomStatusHandlerTests
     [Test]
     public async Task HandleAsync_EmptyStatus_ThrowsArgumentException()
     {
-        var room = Room.Create("P01", "Phòng 1", "1", "Loại", "Mô tả");
+        var room = Room.Create("P01", "Phòng 1", "1", "Mô tả");
         _repo.GetByIdAsync(room.Id, Arg.Any<CancellationToken>()).Returns(room);
         var handler = new ChangeRoomStatusHandler(_repo);
 

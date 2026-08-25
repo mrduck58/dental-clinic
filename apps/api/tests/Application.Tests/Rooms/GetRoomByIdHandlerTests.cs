@@ -22,7 +22,7 @@ public class GetRoomByIdHandlerTests
     [Test]
     public async Task HandleAsync_ExistingRoom_ReturnsDto()
     {
-        var room = Room.Create("P01", "Phòng Test", "1", "Loại", "Mô tả");
+        var room = Room.Create("P01", "Phòng Test", "1", "Mô tả");
         _repo.GetByIdAsync(room.Id, Arg.Any<CancellationToken>()).Returns(room);
         var handler = new GetRoomByIdHandler(_repo);
 
