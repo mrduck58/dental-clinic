@@ -1,5 +1,7 @@
 using DentalClinic.API.Application.DTOs.Schedules;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
+using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Schedules;
 using MediatR;
@@ -8,7 +10,10 @@ namespace DentalClinic.API.Application.UseCases.Schedules;
 
 public record SaveWeekScheduleCommand(string WeekStart, SaveWeekScheduleRequest Request) : IRequest<IEnumerable<ScheduleEntryDto>>;
 
-public class SaveWeekScheduleHandler(IWorkScheduleRepository repo, IUserRepository userRepository)
+public class SaveWeekScheduleHandler(
+    IWorkScheduleRepository repo,
+    IUserRepository userRepository,
+    ILeaveRequestRepository leaveRequestRepository)
     : IRequestHandler<SaveWeekScheduleCommand, IEnumerable<ScheduleEntryDto>>
 {
     public async Task<IEnumerable<ScheduleEntryDto>> Handle(SaveWeekScheduleCommand command, CancellationToken ct)
@@ -35,10 +40,48 @@ public class SaveWeekScheduleHandler(IWorkScheduleRepository repo, IUserReposito
                 employeeId == Guid.Empty ? null : employeeId);
         }).ToList();
 
+        await EnsureNoApprovedLeaveConflictsAsync(entries, ct);
+
         await repo.ReplaceWeekAsync(weekDate, entries, ct);
 
         return entries.Select(GetWeekScheduleHandler.ToDto);
     }
+
+    /// <summary>
+    /// Chặn lưu nếu có dòng lịch trùng đúng (người, ngày, ca) với một đơn xin nghỉ đã Approved —
+    /// nếu không, Owner vẫn xếp được ca cho người vừa được duyệt nghỉ đúng ca đó, và không có gì
+    /// báo lại. So khớp theo tên đã chuẩn hoá (<see cref="StaffNameMatcher"/>), cùng cách WorkSchedule
+    /// tự gán EmployeeId ở trên — LeaveRequest chỉ giữ UserId, không có liên kết cứng tới WorkSchedule.
+    /// </summary>
+    private async Task EnsureNoApprovedLeaveConflictsAsync(List<WorkSchedule> entries, CancellationToken ct)
+    {
+        var approvedShiftKeys = (await leaveRequestRepository.GetAllAsync(ct))
+            .Where(r => r.Status == LeaveStatus.Approved)
+            .SelectMany(r => r.Shifts.Select(sh => (
+                NameKey: StaffNameMatcher.Key(!string.IsNullOrWhiteSpace(r.User?.FullName) ? r.User.FullName : r.User?.Email),
+                sh.Date,
+                ShiftKey: NormalizeShiftId(sh.ShiftId))))
+            .Where(k => k.NameKey.Length > 0)
+            .ToHashSet();
+
+        if (approvedShiftKeys.Count == 0) return;
+
+        var conflicts = entries
+            .Where(e => !e.IsHoliday)
+            .Select(e => new { Entry = e, NameKey = StaffNameMatcher.Key(e.StaffName), ShiftKey = NormalizeShiftId(e.Shift) })
+            .Where(x => x.NameKey.Length > 0 && approvedShiftKeys.Contains((x.NameKey, x.Entry.Date, x.ShiftKey)))
+            .OrderBy(x => x.Entry.Date).ThenBy(x => x.Entry.Shift)
+            .ToList();
+
+        if (conflicts.Count == 0) return;
+
+        var lines = conflicts.Select(x =>
+            $"{x.Entry.StaffName} — {x.Entry.Date:dd/MM/yyyy} ({x.Entry.Shift}): đã được duyệt nghỉ ca này.");
+        throw new ValidationException(
+            "Không thể lưu lịch vì các ca sau trùng với đơn xin nghỉ đã được duyệt:\n" + string.Join("\n", lines));
+    }
+
+    private static string NormalizeShiftId(string shift) => shift.Trim().Replace(" ", "").Replace("–", "-");
 
     /// <summary>
     /// Bảng tra "tên đã chuẩn hoá → nhân sự". Tên trùng nhau sau khi chuẩn hoá bị loại khỏi bảng:

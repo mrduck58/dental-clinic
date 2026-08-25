@@ -2,6 +2,7 @@ using DentalClinic.API.Application.DTOs.Schedules;
 using DentalClinic.API.Application.UseCases.Schedules;
 using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
+using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using FluentAssertions;
 using NSubstitute;
@@ -14,11 +15,13 @@ public class SaveWeekScheduleHandlerTests
 {
     private IWorkScheduleRepository _repo = null!;
     private IUserRepository _userRepo = null!;
+    private ILeaveRequestRepository _leaveRequestRepo = null!;
 
     // Cùng một instance được trả về mọi lần gọi, nên thêm vào đây là handler thấy ngay. Cấu hình
     // lại substitute sau mỗi lần seed thì phải gọi GetAllAsync ngoài ngữ cảnh Returns/Received —
     // NSubstitute để lại arg matcher lơ lửng và làm hỏng lần cấu hình kế tiếp.
     private readonly List<User> _users = [];
+    private readonly List<LeaveRequest> _leaveRequests = [];
 
     [SetUp]
     public void SetUp()
@@ -30,9 +33,24 @@ public class SaveWeekScheduleHandlerTests
         _users.Clear();
         _userRepo = Substitute.For<IUserRepository>();
         _userRepo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(_users);
+
+        _leaveRequests.Clear();
+        _leaveRequestRepo = Substitute.For<ILeaveRequestRepository>();
+        _leaveRequestRepo.GetAllAsync(Arg.Any<CancellationToken>()).Returns(_leaveRequests);
     }
 
-    private SaveWeekScheduleHandler NewHandler() => new(_repo, _userRepo);
+    private SaveWeekScheduleHandler NewHandler() => new(_repo, _userRepo, _leaveRequestRepo);
+
+    /// <summary>Đơn xin nghỉ đã Approved cho một người, một ca cụ thể — dùng để dựng xung đột.</summary>
+    private LeaveRequest SeedApprovedLeave(string fullName, DateOnly date, string shiftId)
+    {
+        var user = User.CreateEmployee($"{Guid.NewGuid():N}@clinic.local", UserRole.Dentist, fullName: fullName);
+        var leave = LeaveRequest.Create(user.Id, LeaveType.Annual, [(date, shiftId)], "Nghỉ phép");
+        leave.Approve();
+        typeof(LeaveRequest).GetProperty("User")!.SetValue(leave, user);
+        _leaveRequests.Add(leave);
+        return leave;
+    }
 
     /// <summary>Nhân sự có hồ sơ để dò tên — trả về employeeId cho tiện assert.</summary>
     private Guid SeedEmployee(string fullName)
@@ -190,5 +208,61 @@ public class SaveWeekScheduleHandlerTests
             new SaveWeekScheduleCommand("2026-06-16", OneEntryFor("Trần Văn A")), CancellationToken.None);
 
         CapturedEntries().Single().EmployeeId.Should().BeNull();
+    }
+
+    /// <summary>
+    /// Điểm cốt lõi của lưới an toàn: xếp ca đúng (người, ngày, ca) đã có đơn nghỉ Approved phải bị
+    /// chặn lại — nếu không Owner vẫn gán được ca cho người vừa được duyệt nghỉ đúng ca đó mà không
+    /// hay biết. Không được gọi ReplaceWeekAsync khi bị chặn.
+    /// </summary>
+    [Test]
+    public async Task Save_ShiftConflictsWithApprovedLeave_ThrowsValidationException()
+    {
+        SeedApprovedLeave("Nguyễn Thị Lan", new DateOnly(2026, 6, 16), "08:00-10:00");
+
+        Func<Task> act = () => NewHandler().Handle(
+            new SaveWeekScheduleCommand("2026-06-16", OneEntryFor("Nguyễn Thị Lan")), CancellationToken.None);
+
+        await act.Should().ThrowAsync<ValidationException>();
+        await _repo.DidNotReceive().ReplaceWeekAsync(Arg.Any<DateOnly>(), Arg.Any<IEnumerable<WorkSchedule>>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Khác ngày hoặc khác ca thì không phải xung đột — vẫn lưu bình thường.</summary>
+    [Test]
+    public async Task Save_ShiftOnDifferentDayFromApprovedLeave_Succeeds()
+    {
+        SeedApprovedLeave("Nguyễn Thị Lan", new DateOnly(2026, 6, 17), "08:00-10:00");
+
+        await NewHandler().Handle(
+            new SaveWeekScheduleCommand("2026-06-16", OneEntryFor("Nguyễn Thị Lan")), CancellationToken.None);
+
+        await _repo.Received(1).ReplaceWeekAsync(Arg.Any<DateOnly>(), Arg.Any<IEnumerable<WorkSchedule>>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Tên chỉ khác tiền tố chức danh vẫn phải nhận ra là cùng một người và bị chặn.</summary>
+    [Test]
+    public async Task Save_ShiftConflictsWithApprovedLeave_TitlePrefixDifference_StillBlocks()
+    {
+        SeedApprovedLeave("BS. Nguyễn Thị Lan", new DateOnly(2026, 6, 16), "08:00-10:00");
+
+        Func<Task> act = () => NewHandler().Handle(
+            new SaveWeekScheduleCommand("2026-06-16", OneEntryFor("Nguyễn Thị Lan")), CancellationToken.None);
+
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    /// <summary>Đơn nghỉ chưa Approved (Pending) không được tính là xung đột — chỉ chặn theo đơn đã duyệt.</summary>
+    [Test]
+    public async Task Save_ShiftMatchesPendingLeave_DoesNotBlock()
+    {
+        var user = User.CreateEmployee($"{Guid.NewGuid():N}@clinic.local", UserRole.Dentist, fullName: "Nguyễn Thị Lan");
+        var leave = LeaveRequest.Create(user.Id, LeaveType.Annual, [(new DateOnly(2026, 6, 16), "08:00-10:00")], "Nghỉ phép");
+        typeof(LeaveRequest).GetProperty("User")!.SetValue(leave, user);
+        _leaveRequests.Add(leave);
+
+        await NewHandler().Handle(
+            new SaveWeekScheduleCommand("2026-06-16", OneEntryFor("Nguyễn Thị Lan")), CancellationToken.None);
+
+        await _repo.Received(1).ReplaceWeekAsync(Arg.Any<DateOnly>(), Arg.Any<IEnumerable<WorkSchedule>>(), Arg.Any<CancellationToken>());
     }
 }
