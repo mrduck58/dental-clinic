@@ -8,6 +8,7 @@ import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
 import 'package:mobile_app/core/services/local_notification_helper.dart';
 import 'package:mobile_app/core/utils/app_toast.dart';
+import 'package:mobile_app/features/home/data/notification_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class NotificationSettingsPage extends StatefulWidget {
@@ -23,6 +24,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage>
 
   bool _isSystemPermissionGranted = true;
   bool _isCheckingPermission = false;
+  bool _isTestingServerPush = false;
 
   @override
   void initState() {
@@ -667,45 +669,139 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage>
 
   Widget _buildTestNotificationCard(bool pushEnabled) {
     final isVi = _settings.locale.value.languageCode == 'vi';
-    return SizedBox(
-      width: double.infinity,
-      height: 48,
-      child: OutlinedButton.icon(
-        onPressed: pushEnabled
-            ? () async {
-                if (!_isSystemPermissionGranted && !kIsWeb) {
-                  _showPermissionRequiredDialog();
-                  return;
-                }
-                await LocalNotificationHelper.instance.showNotification(
-                  title: isVi ? 'Nha Khoa Sơn Giang 🔔' : 'Dental Clinic 🔔',
-                  body: isVi
-                      ? 'Thông báo thử nghiệm! Cài đặt thông báo đang hoạt động hoàn hảo.'
-                      : 'Test notification! Your notification settings are working perfectly.',
-                  type: 'booking',
-                );
-                _showSnackBar(
-                  isVi
-                      ? 'Đã gửi thông báo thử nghiệm! Hãy kiểm tra thanh thông báo & màn hình khóa.'
-                      : 'Test notification sent! Check notification shade & lock screen.',
-                  isSuccess: true,
-                );
-              }
-            : null,
-        icon: const Icon(Iconsax.notification_status, size: 18),
-        label: Text(
-          isVi ? 'Gửi thử nghiệm 1 thông báo đẩy' : 'Send a Test Notification',
-          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
-        ),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.primary,
-          side: BorderSide(
-            color: pushEnabled ? AppColors.primary : context.divider,
-            width: 1.5,
+    return Column(
+      children: [
+        SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: OutlinedButton.icon(
+            onPressed: pushEnabled
+                ? () async {
+                    if (!_isSystemPermissionGranted && !kIsWeb) {
+                      _showPermissionRequiredDialog();
+                      return;
+                    }
+                    await LocalNotificationHelper.instance.showNotification(
+                      title: isVi ? 'Nha Khoa Sơn Giang 🔔' : 'Dental Clinic 🔔',
+                      body: isVi
+                          ? 'Thông báo thử nghiệm! Cài đặt thông báo đang hoạt động hoàn hảo.'
+                          : 'Test notification! Your notification settings are working perfectly.',
+                      type: 'booking',
+                    );
+                    _showSnackBar(
+                      isVi
+                          ? 'Đã gửi thông báo thử nghiệm cục bộ! Hãy kiểm tra thanh thông báo & màn hình khóa.'
+                          : 'Local test notification sent! Check notification shade & lock screen.',
+                      isSuccess: true,
+                    );
+                  }
+                : null,
+            icon: const Icon(Iconsax.notification_status, size: 18),
+            label: Text(
+              isVi ? 'Test thông báo Cục bộ (Local)' : 'Send Local Test Notification',
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.primary,
+              side: BorderSide(
+                color: pushEnabled ? AppColors.primary : context.divider,
+                width: 1.5,
+              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
           ),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
-      ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: ElevatedButton.icon(
+            onPressed: (pushEnabled && !_isTestingServerPush)
+                ? () async {
+                    setState(() => _isTestingServerPush = true);
+                    try {
+                      final result = await NotificationService().testServerPush();
+                      final summary = result['summary'] as String? ?? 'Đã gửi lệnh test push tới server.';
+                      final isSuccess = (result['isFirebaseInitialized'] == true) &&
+                          ((result['successMessageIds'] as List?)?.isNotEmpty == true);
+
+                      if (mounted) {
+                        showDialog(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                            title: Row(
+                              children: [
+                                Icon(
+                                  isSuccess ? Iconsax.tick_circle : Iconsax.warning_2,
+                                  color: isSuccess ? Colors.green : Colors.orange,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  isVi ? 'Kết quả Push từ Server' : 'Server Push Result',
+                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                            content: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(summary, style: const TextStyle(fontSize: 14, height: 1.4)),
+                                if ((result['errors'] as List?)?.isNotEmpty == true) ...[
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    isVi ? 'Chi tiết lỗi:' : 'Error details:',
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.red),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  ...((result['errors'] as List).map(
+                                    (e) => Text('• $e', style: const TextStyle(fontSize: 12, color: Colors.red)),
+                                  )),
+                                ],
+                              ],
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                child: const Text('OK', style: TextStyle(fontWeight: FontWeight.bold)),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      _showSnackBar(
+                        isVi ? 'Lỗi khi gọi server: $e' : 'Server error: $e',
+                        isSuccess: false,
+                      );
+                    } finally {
+                      if (mounted) setState(() => _isTestingServerPush = false);
+                    }
+                  }
+                : null,
+            icon: _isTestingServerPush
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                : const Icon(Iconsax.send_2, size: 18),
+            label: Text(
+              _isTestingServerPush
+                  ? (isVi ? 'Đang gửi từ server...' : 'Sending from server...')
+                  : (isVi ? 'Bắn thử từ Server (FCM Push)' : 'Send Server FCM Push'),
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

@@ -35,6 +35,23 @@ public class NotificationsController(
         return Ok(new { message = "Đã lưu device token thành công." });
     }
 
+    /// <summary>POST api/notifications/test-push — Bắn thử 1 thông báo FCM thật từ Server đến thiết bị của user hiện tại và trả về chi tiết chẩn đoán</summary>
+    [HttpPost("test-push")]
+    public async Task<IActionResult> TestPushNotification(CancellationToken cancellationToken)
+    {
+        if (pushNotificationService == null)
+        {
+            return StatusCode(500, new
+            {
+                success = false,
+                message = "IFirebasePushNotificationService chưa được đăng ký trong hệ thống."
+            });
+        }
+
+        var result = await pushNotificationService.TestPushToUserAsync(CurrentUserId, cancellationToken);
+        return Ok(result);
+    }
+
     /// <summary>GET api/notifications — Lấy danh sách thông báo của user hiện tại</summary>
     [HttpGet]
     public async Task<IActionResult> GetNotifications(
