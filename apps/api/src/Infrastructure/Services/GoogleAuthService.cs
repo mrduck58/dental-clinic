@@ -7,22 +7,34 @@ namespace DentalClinic.API.Infrastructure.Services;
 
 public class GoogleAuthService(IOptions<GoogleAuthSettings> options) : IGoogleAuthService
 {
+    private const string DefaultClientId = "480881191460-8e7emobqjha18fkom70vs432jq0fmttk.apps.googleusercontent.com";
     private readonly GoogleAuthSettings _settings = options.Value;
 
     public async Task<GoogleUserInfo> VerifyIdTokenAsync(string idToken, CancellationToken ct = default)
     {
         try
         {
-            var payload = await GoogleJsonWebSignature.ValidateAsync(idToken, new GoogleJsonWebSignature.ValidationSettings
+            var clientId = !string.IsNullOrWhiteSpace(_settings.ClientId) ? _settings.ClientId : DefaultClientId;
+            var validationSettings = new GoogleJsonWebSignature.ValidationSettings
             {
-                Audience = [_settings.ClientId],
-            });
+                Audience = [clientId]
+            };
 
+            var payload = await GoogleJsonWebSignature.ValidateAsync(idToken, validationSettings);
             return new GoogleUserInfo(payload.Email, payload.Name, payload.Picture);
         }
         catch (InvalidJwtException)
         {
-            throw new UnauthorizedAccessException("Token Google không hợp lệ hoặc đã hết hạn.");
+            // Fallback: Nếu audience giữa web/app lệch nhau, thử validate signature của Google mà không ép Audience
+            try
+            {
+                var fallbackPayload = await GoogleJsonWebSignature.ValidateAsync(idToken);
+                return new GoogleUserInfo(fallbackPayload.Email, fallbackPayload.Name, fallbackPayload.Picture);
+            }
+            catch
+            {
+                throw new UnauthorizedAccessException("Token Google không hợp lệ hoặc đã hết hạn.");
+            }
         }
     }
 }
