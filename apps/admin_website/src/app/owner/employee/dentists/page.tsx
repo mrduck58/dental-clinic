@@ -392,8 +392,21 @@ export default function OwnerDentistManagementPage() {
                             {(() => {
                               const exp = item.yearsOfExperience ?? 5;
                               const isPartTime = exp % 2 === 0;
+                              const type = item.employmentType || (isPartTime ? "Part-time" : "Full-time");
+
+                              if (type === "Part-time") {
+                                const rate = item.ratePerShift ?? 150000;
+                                const formatted = new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(rate);
+                                return (
+                                  <>
+                                    {formatted}
+                                    <span className="text-[11px] text-slate-400 font-semibold ml-0.5">/ca</span>
+                                  </>
+                                );
+                              }
+
                               const baseSalary = item.baseSalary ?? (25000000 + exp * 1500000);
-                              const rawUnit = item.salaryUnit || (isPartTime ? "Theo ngày" : "Theo tháng");
+                              const rawUnit = item.salaryUnit || "Theo tháng";
                               const unit = rawUnit.toLowerCase().includes("tháng") ? "tháng" : rawUnit.toLowerCase().includes("ngày") ? "ngày" : rawUnit.toLowerCase().includes("ca") ? "ca" : "giờ";
                               const formatted = new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(baseSalary);
                               return (

@@ -64,7 +64,7 @@ public static partial class StaffValidator
         // Doctor-specific validations
         if (string.Equals(role, "Dentist", StringComparison.OrdinalIgnoreCase))
         {
-            ValidateSpecialty(specialty, errors, required: true);
+            ValidateSpecialty(specialty, errors, required: false);
             ValidateLicenseNumber(licenseNumber, errors, required: true);
             ValidateYearsOfExperience(yearsOfExperience, errors);
             ValidateServicesHandled(servicesHandled, errors);

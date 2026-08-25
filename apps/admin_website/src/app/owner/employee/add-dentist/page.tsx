@@ -72,6 +72,10 @@ export default function AddDentistPage() {
   useEffect(() => {
     if (formEmploymentType === "Full-time") {
       setFormSalaryUnit("Theo tháng");
+    } else if (formEmploymentType === "Part-time") {
+      setFormSalaryUnit("Theo ca");
+      setFormBaseSalary(0);
+      setFormAllowance(0);
     }
   }, [formEmploymentType]);
 
@@ -100,9 +104,7 @@ export default function AddDentistPage() {
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       e.email = "Email không đúng định dạng";
     }
-    if (!formData.specialty.trim()) e.specialty = "Chuyên khoa không được để trống";
     if (!formData.licenseNumber.trim()) e.licenseNumber = "Số CCHN không được để trống";
-    if (!formData.servicesHandled.trim()) e.servicesHandled = "Dịch vụ phụ trách không được để trống";
     if (!formData.startDate) e.startDate = "Ngày bắt đầu làm việc không được để trống";
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -399,24 +401,6 @@ export default function AddDentistPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className={lbl}>Chuyên khoa *</label>
-                    <select
-                      name="specialty"
-                      value={formData.specialty}
-                      onChange={handleChange}
-                      className={inp("specialty")}
-                    >
-                      <option value="">-- Chọn chuyên khoa --</option>
-                      <option value="Răng Hàm Mặt">Răng Hàm Mặt</option>
-                      <option value="Nha chu">Nha chu</option>
-                      <option value="Chỉnh nha / Niềng răng">Chỉnh nha / Niềng răng</option>
-                      <option value="Phục hình răng / Implant">Phục hình răng / Implant</option>
-                      <option value="Nha khoa thẩm mỹ">Nha khoa thẩm mỹ</option>
-                    </select>
-                    {errMsg("specialty")}
-                  </div>
-
-                  <div>
                     <label className={lbl}>Số chứng chỉ hành nghề (CCHN) *</label>
                     <input
                       type="text"
@@ -453,49 +437,6 @@ export default function AddDentistPage() {
                       className={inp("certificateIssuedBy")}
                     />
                     {errMsg("certificateIssuedBy")}
-                  </div>
-
-                  <div className="sm:col-span-2">
-                    <label className={lbl}>Dịch vụ phụ trách *</label>
-                    <div className="flex flex-wrap gap-2.5">
-                      {["Nhổ răng", "Lấy cao răng", "Cấy Implant", "Niềng răng mắc cài", "Niềng răng trong suốt Invisalign"].map((srv) => {
-                        const currentServices = (formData.servicesHandled || "").split(",").map(s => s.trim()).filter(Boolean);
-                        const isSelected = currentServices.includes(srv);
-                        return (
-                          <button
-                            key={srv}
-                            type="button"
-                            onClick={() => {
-                              let newVal = "";
-                              if (isSelected) {
-                                newVal = currentServices.filter(x => x !== srv).join(", ");
-                              } else {
-                                newVal = [...currentServices, srv].join(", ");
-                              }
-                              setFormData(prev => ({ ...prev, servicesHandled: newVal }));
-                              if (errors.servicesHandled) setErrors(prev => ({ ...prev, servicesHandled: "" }));
-                            }}
-                            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                              isSelected 
-                                ? "bg-red-50 border-primary text-primary shadow-sm"
-                                : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
-                            }`}
-                          >
-                            <span className={`w-4.5 h-4.5 rounded border flex items-center justify-center shrink-0 transition-colors ${
-                              isSelected ? "bg-primary border-primary text-white" : "border-slate-300 bg-white"
-                            }`}>
-                              {isSelected && (
-                                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                                </svg>
-                              )}
-                            </span>
-                            {srv}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {errMsg("servicesHandled")}
                   </div>
 
                   <div>
@@ -597,38 +538,41 @@ export default function AddDentistPage() {
                     >
                       <option value="Full-time">Full time (Toàn thời gian)</option>
                       <option value="Part-time">Part time (Bán thời gian)</option>
-                      <option value="Shift-based">Theo ca (Shift-based)</option>
                     </select>
                     {errMsg("employmentType")}
                   </div>
 
-                  <div>
-                    <label className={lbl}>Mức lương cơ bản * (VNĐ)</label>
-                    <input
-                      type="number"
-                      required
-                      min="0"
-                      placeholder="25.000.000"
-                      value={formBaseSalary}
-                      onChange={(e) => setFormBaseSalary(Number(e.target.value))}
-                      className={inp("baseSalary")}
-                    />
-                    {errMsg("baseSalary")}
-                  </div>
+                  {formEmploymentType !== "Part-time" && (
+                    <div>
+                      <label className={lbl}>Mức lương cơ bản * (VNĐ)</label>
+                      <input
+                        type="number"
+                        required
+                        min="0"
+                        placeholder="25.000.000"
+                        value={formBaseSalary}
+                        onChange={(e) => setFormBaseSalary(Number(e.target.value))}
+                        className={inp("baseSalary")}
+                      />
+                      {errMsg("baseSalary")}
+                    </div>
+                  )}
 
-                  <div>
-                    <label className={lbl}>Phụ cấp * (VNĐ)</label>
-                    <input
-                      type="number"
-                      required
-                      min="0"
-                      placeholder="2.500.000"
-                      value={formAllowance}
-                      onChange={(e) => setFormAllowance(Number(e.target.value))}
-                      className={inp("allowance")}
-                    />
-                    {errMsg("allowance")}
-                  </div>
+                  {formEmploymentType !== "Part-time" && (
+                    <div>
+                      <label className={lbl}>Phụ cấp * (VNĐ)</label>
+                      <input
+                        type="number"
+                        required
+                        min="0"
+                        placeholder="2.500.000"
+                        value={formAllowance}
+                        onChange={(e) => setFormAllowance(Number(e.target.value))}
+                        className={inp("allowance")}
+                      />
+                      {errMsg("allowance")}
+                    </div>
+                  )}
 
                   {/* Row 2 */}
                   <div>
@@ -636,9 +580,9 @@ export default function AddDentistPage() {
                     <select
                       value={formSalaryUnit}
                       onChange={(e) => setFormSalaryUnit(e.target.value)}
-                      disabled={formEmploymentType === "Full-time"}
+                      disabled={formEmploymentType === "Full-time" || formEmploymentType === "Part-time"}
                       className={`${inp("salaryUnit")} ${
-                        formEmploymentType === "Full-time" ? "opacity-60 cursor-not-allowed bg-slate-200 text-slate-500 font-bold text-[14px]" : ""
+                        formEmploymentType === "Full-time" || formEmploymentType === "Part-time" ? "opacity-60 cursor-not-allowed bg-slate-200 text-slate-500 font-bold text-[14px]" : ""
                       }`}
                     >
                       <option value="Theo tháng">Theo tháng</option>
@@ -687,42 +631,6 @@ export default function AddDentistPage() {
                       </div>
                     </div>
                   )}
-                </div>
-              </div>
-
-              {/* CARD 4: TRẠNG THÁI TÀI KHOẢN & CÔNG TÁC */}
-              <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
-                <h4 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider mb-6 pb-2 border-b border-slate-100 flex items-center gap-2">
-                  <span className="w-1.5 h-3.5 bg-primary rounded-full inline-block" />
-                  Trạng thái tài khoản & công tác
-                </h4>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
-                  <div>
-                    <label className={lbl}>Trạng thái làm việc</label>
-                    <select
-                      name="employmentStatus"
-                      value={formData.employmentStatus}
-                      onChange={handleChange}
-                      className={inp("employmentStatus")}
-                    >
-                      <option value="Active">Đang làm việc (Active)</option>
-                      <option value="On Leave">Nghỉ phép (On Leave)</option>
-                      <option value="Inactive">Đã nghỉ việc (Inactive)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="flex items-center gap-3 cursor-pointer select-none p-3.5 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors">
-                      <input
-                        type="checkbox"
-                        checked={formData.isActive}
-                        onChange={(e) => setFormData(prev => ({ ...prev, isActive: e.target.checked }))}
-                        className="w-5 h-5 rounded text-primary border-slate-350 focus:ring-primary"
-                      />
-                      <span className="text-[13px] font-bold text-slate-700">Kích hoạt tài khoản người dùng</span>
-                    </label>
-                  </div>
                 </div>
               </div>
 

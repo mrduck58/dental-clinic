@@ -53,6 +53,10 @@ export default function EditStaffPage() {
   useEffect(() => {
     if (formEmploymentType === "Full-time") {
       setFormSalaryUnit("Theo tháng");
+    } else if (formEmploymentType === "Part-time") {
+      setFormSalaryUnit("Theo ca");
+      setFormBaseSalary(0);
+      setFormAllowance(0);
     }
   }, [formEmploymentType]);
 
@@ -582,38 +586,41 @@ export default function EditStaffPage() {
                     >
                       <option value="Full-time">Full time (Toàn thời gian)</option>
                       <option value="Part-time">Part time (Bán thời gian)</option>
-                      <option value="Shift-based">Theo ca (Shift-based)</option>
                     </select>
                     {errMsg("employmentType")}
                   </div>
 
-                  <div>
-                    <label className={lbl}>Mức lương cơ bản * (VNĐ)</label>
-                    <input
-                      type="number"
-                      required
-                      min="0"
-                      placeholder="12.000.000"
-                      value={formBaseSalary}
-                      onChange={(e) => setFormBaseSalary(Number(e.target.value))}
-                      className={inp("baseSalary")}
-                    />
-                    {errMsg("baseSalary")}
-                  </div>
+                  {formEmploymentType !== "Part-time" && (
+                    <div>
+                      <label className={lbl}>Mức lương cơ bản * (VNĐ)</label>
+                      <input
+                        type="number"
+                        required
+                        min="0"
+                        placeholder="12.000.000"
+                        value={formBaseSalary}
+                        onChange={(e) => setFormBaseSalary(Number(e.target.value))}
+                        className={inp("baseSalary")}
+                      />
+                      {errMsg("baseSalary")}
+                    </div>
+                  )}
 
-                  <div>
-                    <label className={lbl}>Phụ cấp * (VNĐ)</label>
-                    <input
-                      type="number"
-                      required
-                      min="0"
-                      placeholder="1.200.000"
-                      value={formAllowance}
-                      onChange={(e) => setFormAllowance(Number(e.target.value))}
-                      className={inp("allowance")}
-                    />
-                    {errMsg("allowance")}
-                  </div>
+                  {formEmploymentType !== "Part-time" && (
+                    <div>
+                      <label className={lbl}>Phụ cấp * (VNĐ)</label>
+                      <input
+                        type="number"
+                        required
+                        min="0"
+                        placeholder="1.200.000"
+                        value={formAllowance}
+                        onChange={(e) => setFormAllowance(Number(e.target.value))}
+                        className={inp("allowance")}
+                      />
+                      {errMsg("allowance")}
+                    </div>
+                  )}
 
                   {/* Row 2 */}
                   <div>
@@ -621,9 +628,9 @@ export default function EditStaffPage() {
                     <select
                       value={formSalaryUnit}
                       onChange={(e) => setFormSalaryUnit(e.target.value)}
-                      disabled={formEmploymentType === "Full-time"}
+                      disabled={formEmploymentType === "Full-time" || formEmploymentType === "Part-time"}
                       className={`${inp("salaryUnit")} ${
-                        formEmploymentType === "Full-time" ? "opacity-60 cursor-not-allowed bg-slate-200 text-slate-500 font-bold text-[14px]" : ""
+                        formEmploymentType === "Full-time" || formEmploymentType === "Part-time" ? "opacity-60 cursor-not-allowed bg-slate-200 text-slate-500 font-bold text-[14px]" : ""
                       }`}
                     >
                       <option value="Theo tháng">Theo tháng</option>
