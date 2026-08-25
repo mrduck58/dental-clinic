@@ -261,7 +261,7 @@ export default function MaterialWorkspace({ appointmentId, editMode = false, ref
           </div>
 
           {/* Ảnh đính kèm — dấu răng, răng lợi... phục vụ yêu cầu vật tư */}
-          <PhotoGallery appointmentId={appointmentId} section="material-request" title="Ảnh đính kèm (dấu răng, răng lợi...)" />
+          <PhotoGallery appointmentId={appointmentId} section="material-request" title="Ảnh đính kèm (dấu răng, răng lợi...)" canEdit={canEdit} />
         </div>
 
         {/* ══════════ RIGHT 1/3: NEW REQUEST FORM ══════════ */}

@@ -17,6 +17,10 @@ interface PhotoGalleryProps {
   appointmentId: string;
   section: string;
   title: string;
+  // Chỉ cho phép tải ảnh lên khi buổi khám đang diễn ra hoặc đang ở chế độ chỉnh sửa —
+  // giống các trường nhập liệu khác của phiếu khám/vật tư. Mặc định true để không phá các nơi
+  // gọi cũ chưa truyền prop này.
+  canEdit?: boolean;
 }
 
 /**
@@ -24,7 +28,7 @@ interface PhotoGalleryProps {
  * upload ảnh thường (giống các nơi khác trong app) kèm ghi chú tuỳ chọn mỗi ảnh. Dùng chung cho tab
  * "Khám" (section="exam") và tab "Vật tư" (section="material-request").
  */
-export default function PhotoGallery({ appointmentId, section, title }: PhotoGalleryProps) {
+export default function PhotoGallery({ appointmentId, section, title, canEdit = true }: PhotoGalleryProps) {
   const [photos, setPhotos] = useState<AppointmentPhotoDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -106,8 +110,9 @@ export default function PhotoGallery({ appointmentId, section, title }: PhotoGal
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="px-3 py-1.5 rounded-lg bg-primary text-white text-[11.5px] font-bold hover:opacity-90 disabled:opacity-50 transition-all cursor-pointer"
+            disabled={uploading || !canEdit}
+            title={canEdit ? undefined : "Bấm \"Bắt đầu khám\" hoặc \"Chỉnh sửa\" để tải ảnh lên"}
+            className="px-3 py-1.5 rounded-lg bg-primary text-white text-[11.5px] font-bold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
           >
             {uploading ? "Đang tải..." : "+ Thêm ảnh"}
           </button>
