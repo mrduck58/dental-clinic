@@ -72,18 +72,46 @@ public class ChangePasswordHandlerTests
             Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
-    /// <summary>Tài khoản chưa từng có mật khẩu (PasswordHash null, ví dụ đăng nhập qua Google) phải ném ValidationException, không đổi mật khẩu.</summary>
+    /// <summary>Đổi mật khẩu thông thường không nhập mật khẩu hiện tại phải ném ValidationException.</summary>
     [Test]
-    public async Task HandleAsync_NullPasswordHash_ThrowsValidationException()
+    public async Task HandleAsync_NormalUser_EmptyCurrentPassword_ThrowsValidationException()
+    {
+        var user = CreateUserWithPassword("old-password");
+        _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
+
+        Func<Task> act = () => _handler.Handle(new ChangePasswordCommand(user.Id, "", "new-password"), CancellationToken.None);
+
+        await act.Should().ThrowAsync<ValidationException>()
+            .WithMessage("Mật khẩu hiện tại không được để trống.");
+        await _userRepo.DidNotReceive().UpdateAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Tài khoản đăng nhập lần đầu (MustChangePassword = true) cho phép đặt mật khẩu mới mà không cần mật khẩu cũ.</summary>
+    [Test]
+    public async Task HandleAsync_MustChangePassword_SetsNewPasswordWithoutCurrentPassword()
+    {
+        var user = CreateUserWithPassword("temp-password");
+        user.RequirePasswordChange();
+        _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
+
+        await _handler.Handle(new ChangePasswordCommand(user.Id, null, "new-password"), CancellationToken.None);
+
+        BCrypt.Net.BCrypt.Verify("new-password", user.PasswordHash).Should().BeTrue();
+        user.MustChangePassword.Should().BeFalse();
+        await _userRepo.Received(1).UpdateAsync(user, Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Tài khoản chưa từng có mật khẩu (PasswordHash null, ví dụ đăng nhập qua Google) cho phép đặt mật khẩu mới trực tiếp.</summary>
+    [Test]
+    public async Task HandleAsync_NullPasswordHash_SetsNewPasswordSuccessfully()
     {
         var user = User.CreateGoogleUser("google-user@test.com", "Google User", null);
         _userRepo.GetByIdAsync(user.Id, Arg.Any<CancellationToken>()).Returns(user);
 
-        Func<Task> act = () => _handler.Handle(new ChangePasswordCommand(user.Id, "any-password", "new-password"), CancellationToken.None);
+        await _handler.Handle(new ChangePasswordCommand(user.Id, null, "new-password"), CancellationToken.None);
 
-        await act.Should().ThrowAsync<ValidationException>()
-            .WithMessage("Mật khẩu hiện tại không chính xác.");
-        await _userRepo.DidNotReceive().UpdateAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
+        BCrypt.Net.BCrypt.Verify("new-password", user.PasswordHash).Should().BeTrue();
+        await _userRepo.Received(1).UpdateAsync(user, Arg.Any<CancellationToken>());
     }
 
     /// <summary>Đổi mật khẩu hợp lệ phải ghi log hoạt động đúng action, module, mô tả, trạng thái và targetId theo thông tin người dùng hiện tại.</summary>

@@ -144,7 +144,7 @@ class _LoginPageState extends State<LoginPage> {
             content: Text('Vui lòng đổi mật khẩu do phòng khám cấp trước khi tiếp tục.'),
           ),
         );
-        context.go(AppRoutes.changePassword);
+        context.go('${AppRoutes.changePassword}?firstTime=true');
         return;
       }
 
