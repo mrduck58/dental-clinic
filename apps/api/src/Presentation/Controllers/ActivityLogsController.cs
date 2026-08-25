@@ -23,10 +23,11 @@ public class ActivityLogsController(ISender sender) : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         [FromQuery] string? sortDir = null,
+        [FromQuery] string? excludeAction = null,
         CancellationToken cancellationToken = default)
     {
         var result = await sender.Send(
-            new GetActivityLogsQuery(userId, action, module, status, search, startDate, endDate, page, pageSize, sortDir),
+            new GetActivityLogsQuery(userId, action, module, status, search, startDate, endDate, page, pageSize, sortDir, excludeAction),
             cancellationToken);
 
         return Ok(result);

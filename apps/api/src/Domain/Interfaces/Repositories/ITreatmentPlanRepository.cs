@@ -21,6 +21,10 @@ public interface ITreatmentPlanRepository
     /// <summary>Tất cả liệu trình của một bệnh nhân (mọi buổi hẹn), cũ nhất trước.</summary>
     Task<IReadOnlyList<TreatmentPlan>> GetByPatientIdAsync(Guid patientId, CancellationToken ct = default);
 
+    /// <summary>Toàn bộ liệu trình của MỌI bệnh nhân (trừ đã hủy) kèm dịch vụ — dùng cho báo cáo công nợ
+    /// tổng hợp theo bệnh nhân (xem GetAllPatientsBalanceHandler).</summary>
+    Task<IReadOnlyList<TreatmentPlan>> GetAllWithServiceAsync(CancellationToken ct = default);
+
     Task AddAsync(TreatmentPlan treatmentPlan, CancellationToken ct = default);
     Task UpdateAsync(TreatmentPlan treatmentPlan, CancellationToken ct = default);
     Task DeleteAsync(TreatmentPlan treatmentPlan, CancellationToken ct = default);

@@ -23,7 +23,7 @@ export const ROLE_LABELS: Record<UiRole, string> = {
   Admin: "Quản trị viên",
   Owner: "Chủ phòng khám",
   Dentist: "Bác sĩ",
-  Staff: "Lễ tân / Trợ lý",
+  Staff: "Nhân viên",
 };
 
 /** Canonical Tailwind badge classes per role, used for role pill/badge UI. */

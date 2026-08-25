@@ -53,8 +53,24 @@ public class IssueInvoiceHandler(
 
         var subtotal = command.Items.Sum(i => (i.Quantity < 1 ? 1 : i.Quantity) * i.UnitPrice);
 
+        // Liệu trình gắn với các dòng hóa đơn — dùng cho cả (1) chặn xuất vượt tổng tiền dịch vụ bên
+        // dưới, và (2) biết ServiceId THẬT của từng dòng để khớp đúng khuyến mãi.
+        var lineByPlan = command.Items
+            .Where(i => i.TreatmentPlanId != null)
+            .GroupBy(i => i.TreatmentPlanId!.Value)
+            .ToDictionary(g => g.Key, g => g.Sum(i => (i.Quantity < 1 ? 1 : i.Quantity) * i.UnitPrice));
+        var plans = lineByPlan.Count > 0
+            ? await invoiceRepository.GetTreatmentPlanBillingInfoAsync(lineByPlan.Keys.ToList(), ct)
+            : Array.Empty<TreatmentPlanBillingInfo>();
+        var planServiceMap = plans.ToDictionary(p => p.Id, p => p.ServiceId);
+
         // Nếu staff chọn khuyến mãi, số tiền giảm luôn được TÍNH LẠI ở server từ Promotion thật —
         // không tin số discount client gửi lên, tránh bị sửa giảm giá vượt mức khuyến mãi cho phép.
+        // Chỉ tính khuyến mãi trên ĐÚNG các dòng thuộc dịch vụ được áp dụng (theo ServiceId của liệu
+        // trình gắn với dòng đó) — KHÔNG áp dụng lên toàn bộ hóa đơn như trước (dòng dịch vụ khác
+        // không liên quan không được giảm giá theo). So theo ServiceId (không phải giá gốc dịch vụ)
+        // nên tự động đúng cho MỌI option đã chọn của dịch vụ, vì UnitPrice của dòng luôn là giá
+        // option thực tế đã dùng, không phải Service.Price.
         var effectiveDiscount = 0m;
         if (command.PromotionId is Guid promotionId)
         {
@@ -64,10 +80,22 @@ public class IssueInvoiceHandler(
             if (!promotion.IsActive || promotion.StartDate > today || promotion.EndDate < today)
                 throw new ValidationException("Khuyến mãi không còn hiệu lực.");
 
+            // ServiceIds rỗng nghĩa là khuyến mãi áp dụng cho TẤT CẢ dịch vụ (quy ước sẵn có).
+            var promotedServiceIds = promotion.GetServiceIds().ToHashSet();
+            var eligibleSubtotal = promotedServiceIds.Count == 0
+                ? subtotal
+                : command.Items
+                    .Where(i => i.TreatmentPlanId is Guid tpId
+                                && planServiceMap.TryGetValue(tpId, out var sid)
+                                && promotedServiceIds.Contains(sid))
+                    .Sum(i => (i.Quantity < 1 ? 1 : i.Quantity) * i.UnitPrice);
+
+            if (eligibleSubtotal <= 0)
+                throw new ValidationException("Khuyến mãi không áp dụng cho các dịch vụ trong hóa đơn này.");
+
             effectiveDiscount = promotion.DiscountType == "Percentage"
-                ? Math.Round(subtotal * promotion.DiscountValue / 100, 0)
-                : promotion.DiscountValue;
-            effectiveDiscount = Math.Clamp(effectiveDiscount, 0, subtotal);
+                ? Math.Round(eligibleSubtotal * promotion.DiscountValue / 100, 0)
+                : Math.Min(promotion.DiscountValue, eligibleSubtotal);
         }
 
         var totalAmount = subtotal - effectiveDiscount;
@@ -77,14 +105,9 @@ public class IssueInvoiceHandler(
 
         // Cho phép nhiều hóa đơn/buổi, nhưng chặn xuất vượt tổng tiền của mỗi liệu trình
         // (tránh xuất trùng dịch vụ đã có hóa đơn trước đó).
-        var lineByPlan = command.Items
-            .Where(i => i.TreatmentPlanId != null)
-            .GroupBy(i => i.TreatmentPlanId!.Value)
-            .ToDictionary(g => g.Key, g => g.Sum(i => (i.Quantity < 1 ? 1 : i.Quantity) * i.UnitPrice));
         if (lineByPlan.Count > 0)
         {
             var billedMap = await invoiceQuery.GetPlanBilledMapAsync(lineByPlan.Keys.ToList(), ct);
-            var plans = await invoiceRepository.GetTreatmentPlanBillingInfoAsync(lineByPlan.Keys.ToList(), ct);
             foreach (var p in plans)
             {
                 var total = p.UnitPrice * Math.Max(1, p.Quantity);

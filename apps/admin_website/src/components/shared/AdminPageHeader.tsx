@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import NotificationBell from "./NotificationBell";
 
 interface AdminPageHeaderProps {
   title: string;
@@ -68,7 +67,6 @@ export default function AdminPageHeader({ title, subtitle, left, right }: AdminP
             <span className="text-[13px] font-mono font-black text-slate-700 tabular-nums">{time}</span>
           </div>
         )}
-        <NotificationBell href="/admin/notifications" />
       </div>
     </header>
   );

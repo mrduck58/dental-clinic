@@ -11,6 +11,7 @@ import { useRequireAdmin } from "@/src/hooks/useRequireAdmin";
 import {
   getServiceByIdApi,
   updateServiceApi,
+  toggleServiceStatusApi,
   getServiceProceduresApi,
   updateServiceProceduresApi,
   getServiceSupplyItemsApi,
@@ -75,6 +76,9 @@ export default function EditServicePage({ params }: EditServicePageProps) {
   const [isUploadingIcon, setIsUploadingIcon] = useState(false);
   const iconInputRef = useRef<HTMLInputElement>(null);
 
+  // Trạng thái hoạt động — đổi ngay khi bấm (gọi API riêng, giống trang danh sách), không đợi lưu form.
+  const [isActive, setIsActive] = useState(true);
+
   // Submit & Loading state
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -96,6 +100,7 @@ export default function EditServicePage({ params }: EditServicePageProps) {
         setFormContent(dto.content || "");
         setUploadedImage(dto.imageUrl ?? null);
         setIconUrl(dto.iconUrl ?? null);
+        setIsActive(dto.isActive);
 
         // Ghép các dòng định mức đã lưu (gắn theo tên option) thành danh sách vật tư riêng của
         // chính option đó — 1 option có thể có nhiều vật tư khác nhau.
@@ -285,12 +290,21 @@ export default function EditServicePage({ params }: EditServicePageProps) {
     }
   };
 
+  const handleToggleStatus = async () => {
+    try {
+      const updated = await toggleServiceStatusApi(id);
+      setIsActive(updated.isActive);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Không thể cập nhật trạng thái. Vui lòng thử lại.");
+    }
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaveError(null);
 
     const rawPrice = formPrice.replace(/[^0-9]/g, "");
-    if (!formName || !rawPrice || !formDuration) {
+    if (!formName || !formDuration) {
       setSaveError("Vui lòng điền đầy đủ thông tin bắt buộc.");
       return;
     }
@@ -346,6 +360,7 @@ export default function EditServicePage({ params }: EditServicePageProps) {
       await updateServiceProceduresApi(id, validSteps);
       await updateServiceSupplyItemsApi(id, validSupplyItems);
 
+      sessionStorage.setItem("serviceSuccessMsg", "Đã cập nhật dịch vụ thành công!");
       router.push("/admin/services");
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Cập nhật dịch vụ thất bại.");
@@ -423,24 +438,26 @@ export default function EditServicePage({ params }: EditServicePageProps) {
 
                     <div className="flex flex-col gap-1.5">
                       <label className="text-[12px] font-extrabold text-slate-500 uppercase tracking-wide">
-                        Giá khởi điểm (Từ) <span className="text-primary">*</span>
+                        Trạng thái
                       </label>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          required
-                          placeholder="0"
-                          value={formPrice}
-                          onChange={(e) => {
-                            const raw = e.target.value.replace(/[^0-9]/g, "");
-                            setFormPrice(raw ? parseInt(raw).toLocaleString("vi-VN") : "");
-                          }}
-                          className="w-full px-4 py-3 pr-12 text-[14px] bg-white border border-slate-200 rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all font-semibold text-slate-800 placeholder:text-slate-300"
-                        />
-                        <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[12px] text-slate-400 font-bold">
-                          VNĐ
+                      <button
+                        type="button"
+                        onClick={() => void handleToggleStatus()}
+                        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all cursor-pointer ${
+                          isActive ? "bg-green-50 border-green-200 hover:bg-green-100/60" : "bg-slate-50 border-slate-200 hover:bg-slate-100"
+                        }`}
+                      >
+                        <span className={`text-[14px] font-bold ${isActive ? "text-green-700" : "text-slate-500"}`}>
+                          {isActive ? "Đang hoạt động" : "Tạm ngưng"}
                         </span>
-                      </div>
+                        <span className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors duration-200 ${isActive ? "bg-green-500" : "bg-slate-400"}`}>
+                          <span
+                            className={`pointer-events-none absolute top-0.5 left-0.5 inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition duration-200 ${
+                              isActive ? "translate-x-5" : "translate-x-0"
+                            }`}
+                          />
+                        </span>
+                      </button>
                     </div>
 
                     <div className="flex flex-col gap-1.5">

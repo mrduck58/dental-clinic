@@ -65,7 +65,7 @@ public class ExpenseQueryServiceTests
     {
         var user = User.Create("dt1", $"dt1-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist);
         _db.Users.Add(user);
-        var record = PayrollRecord.CreateDraft(user.Id, 2026, 8, 10_000_000m, 0m, 0, 0m, 0m, 0m);
+        var record = PayrollRecord.CreateDraft(user.Id, 2026, 8, 10_000_000m, 0m, 0, 0, 0m, 0m, 0m);
         _db.PayrollRecords.Add(record);
         await _db.SaveChangesAsync();
 
@@ -88,7 +88,7 @@ public class ExpenseQueryServiceTests
 
         var user = User.Create("dt2", $"dt2-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist);
         _db.Users.Add(user);
-        var payroll = PayrollRecord.CreateDraft(user.Id, 2026, 8, 8_000_000m, 0m, 0, 0m, 0m, 0m);
+        var payroll = PayrollRecord.CreateDraft(user.Id, 2026, 8, 8_000_000m, 0m, 0, 0, 0m, 0m, 0m);
         _db.PayrollRecords.Add(payroll);
 
         await _db.SaveChangesAsync();
@@ -114,7 +114,7 @@ public class ExpenseQueryServiceTests
 
         var user = User.Create("dt3", $"dt3-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist);
         _db.Users.Add(user);
-        var payroll = PayrollRecord.CreateDraft(user.Id, 2026, 8, 6_000_000m, 0m, 0, 0m, 0m, 0m);
+        var payroll = PayrollRecord.CreateDraft(user.Id, 2026, 8, 6_000_000m, 0m, 0, 0, 0m, 0m, 0m);
         _db.PayrollRecords.Add(payroll);
 
         await _db.SaveChangesAsync();

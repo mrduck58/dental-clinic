@@ -82,4 +82,7 @@ public interface IInvoiceRepository
     Task<IReadOnlyList<TreatmentPlanBillingInfo>> GetTreatmentPlanBillingInfoByAppointmentIdsAsync(IReadOnlyList<Guid> appointmentIds, CancellationToken ct = default);
 }
 
-public record TreatmentPlanBillingInfo(Guid Id, decimal UnitPrice, int Quantity);
+/// <summary>ServiceId dùng để khớp đúng khuyến mãi theo dịch vụ (không phải so tên chuỗi) — khớp theo
+/// ServiceId của liệu trình nên tự động đúng cho MỌI option đã chọn của dịch vụ đó (UnitPrice là giá
+/// option thực tế, không phải giá gốc dịch vụ).</summary>
+public record TreatmentPlanBillingInfo(Guid Id, decimal UnitPrice, int Quantity, Guid ServiceId);

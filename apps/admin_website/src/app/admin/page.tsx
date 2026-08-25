@@ -8,7 +8,6 @@ import { useRequireAdmin } from "../../hooks/useRequireAdmin";
 import {
   AccountDto,
   ActivityLogItemDto,
-  NotificationDto,
   getAccountsApi,
   getStaffApi,
   getRoomsApi,
@@ -18,7 +17,6 @@ import {
   getAppointmentTrendApi,
   AppointmentTrendPointDto,
   getActivityLogsApi,
-  getNotificationsApi,
 } from "../../lib/apiClient";
 import { normalizeRole, ROLE_LABELS, type UiRole } from "../../lib/roles";
 
@@ -99,12 +97,6 @@ const STATUS_CONFIG: Record<string, { label: string; badgeClass: string }> = {
   success: { label: "Thành công", badgeClass: "bg-green-50 text-green-700 border border-green-100" },
   failed: { label: "Thất bại", badgeClass: "bg-red-50 text-red-700 border border-red-100" },
   warning: { label: "Cảnh báo", badgeClass: "bg-amber-50 text-amber-700 border border-amber-100" },
-};
-
-const PRIORITY_CONFIG: Record<string, { label: string; badgeClass: string }> = {
-  high: { label: "Cao", badgeClass: "bg-red-50 text-red-700 border border-red-100" },
-  medium: { label: "Vừa", badgeClass: "bg-amber-50 text-amber-700 border border-amber-100" },
-  low: { label: "Thấp", badgeClass: "bg-slate-100 text-slate-500 border border-slate-200" },
 };
 
 // Cùng bảng màu/nhãn với trang Vai Trò (admin/permissions/roles) để nhất quán trong toàn hệ thống.
@@ -281,13 +273,8 @@ const QUICK_ACTIONS = [
   },
   {
     href: "/admin/activity-logs",
-    label: "Xem nhật ký hệ thống",
+    label: "Nhật ký hệ thống",
     iconPath: "M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z",
-  },
-  {
-    href: "/admin/ai-analytics",
-    label: "Phân tích AI",
-    iconPath: "M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z",
   },
   {
     href: "/admin/services/add",
@@ -295,8 +282,13 @@ const QUICK_ACTIONS = [
     iconPath: "M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z",
   },
   {
+    href: "/admin/services/promotions/add",
+    label: "Thêm khuyến mãi",
+    iconPath: "M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z M6 6h.008v.008H6V6z",
+  },
+  {
     href: "/admin/rooms/create",
-    label: "Thêm phòng khám",
+    label: "Thêm phòng",
     iconPath: "M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3a1.5 1.5 0 011.5-1.5h3a1.5 1.5 0 011.5 1.5v3m-9-10.5h.75m-.75 3h.75m-.75 3h.75m9-6h.75m-.75 3h.75m-.75 3h.75",
   },
 ];
@@ -315,7 +307,6 @@ export default function Dashboard() {
   const [todayAppointmentsCount, setTodayAppointmentsCount] = useState<number | null>(null);
   const [appointmentTrend, setAppointmentTrend] = useState<AppointmentTrendPointDto[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLogItemDto[]>([]);
-  const [notifications, setNotifications] = useState<NotificationDto[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -327,9 +318,8 @@ export default function Dashboard() {
       getMedicinesApi(),
       getDashboardTodayAppointmentsApi(1, 1),
       getActivityLogsApi({ page: 1, pageSize: 100 }),
-      getNotificationsApi({ page: 1, pageSize: 3 }),
     ])
-      .then(([acc, staff, rooms, services, medicines, todayAppts, logs, notifs]) => {
+      .then(([acc, staff, rooms, services, medicines, todayAppts, logs]) => {
         if (cancelled) return;
         setAccounts(acc);
         setStaffStats({ totalDentists: staff.statistics.totalDentists, totalEmployees: staff.statistics.totalEmployees });
@@ -338,7 +328,6 @@ export default function Dashboard() {
         setMedicinesCount(medicines.length);
         setTodayAppointmentsCount(todayAppts.totalCount);
         setActivityLogs(logs.items);
-        setNotifications(notifs.items);
         setLoadError(false);
       })
       .catch((err) => {
@@ -443,217 +432,181 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Chỉ số hệ thống */}
-          <section className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col gap-4">
-            <div>
-              <h3 className="text-[18px] font-extrabold text-slate-900">Chỉ Số Hệ Thống</h3>
-              <p className="text-[13.5px] text-slate-400 mt-0.5 font-semibold">Số liệu tổng quan toàn bộ hệ thống tính đến hiện tại.</p>
-            </div>
-
-            {/* 2 chỉ số quan trọng nhất được nhấn mạnh hơn (kích thước lớn hơn) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <StatTile
-                size="lg"
-                label="Tổng số người dùng"
-                value={accounts?.length ?? "—"}
-                iconPath="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
-              />
-              <StatTile
-                size="lg"
-                label="Lịch hẹn hôm nay"
-                value={todayAppointmentsCount ?? "—"}
-                iconPath="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-              <StatTile
-                label="Tổng số bác sĩ"
-                value={staffStats?.totalDentists ?? "—"}
-                iconPath="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23-.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5"
-              />
-              <StatTile
-                label="Tổng số nhân viên"
-                value={staffStats?.totalEmployees ?? "—"}
-                iconPath="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198.007.031c.003.01.005.02.008.029A9.091 9.091 0 0021 18.75m-2.785-5.365A3 3 0 1016.5 9.75M16.5 13.5A3 3 0 0016.5 9.75M9 13.5a3.75 3.75 0 110-7.5 3.75 3.75 0 010 7.5zM2.25 18.75a6.75 6.75 0 0113.5 0M9 13.5c-.394 0-.776-.03-1.147-.09a6.75 6.75 0 00-5.603 5.34"
-              />
-              <StatTile
-                label="Tổng số phòng"
-                value={roomsCount ?? "—"}
-                iconPath="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3a1.5 1.5 0 011.5-1.5h3a1.5 1.5 0 011.5 1.5v3m-9-10.5h.75m-.75 3h.75m-.75 3h.75m9-6h.75m-.75 3h.75m-.75 3h.75"
-              />
-              <StatTile
-                label="Tổng số dịch vụ"
-                value={servicesCount ?? "—"}
-                iconPath="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.83-5.83m0 0a2.95 2.95 0 11-4.174-4.172 2.95 2.95 0 014.174 4.172zm-7.42 7.42l9.39-9.39"
-              />
-            </div>
-          </section>
-
-          {/* Quick Actions */}
-          <section className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col gap-4">
-            <div>
-              <h3 className="text-[18px] font-extrabold text-slate-900">Thao Tác Nhanh</h3>
-              <p className="text-[13.5px] text-slate-400 mt-0.5 font-semibold">Truy cập nhanh các tác vụ quản trị thường dùng.</p>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
-              {QUICK_ACTIONS.map((action) => (
-                <QuickAction key={action.href} {...action} />
-              ))}
-            </div>
-          </section>
-
+          {/* ── HÀNG 1: Chỉ số hệ thống + Thao tác nhanh ── */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
-            {/* ── LEFT COLUMN ── */}
-            <div className="lg:col-span-8 flex flex-col gap-6 min-w-0">
+            {/* Chỉ số hệ thống */}
+            <section className="lg:col-span-8 bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col gap-4 min-w-0">
+              <div>
+                <h3 className="text-[18px] font-extrabold text-slate-900">Chỉ Số Hệ Thống</h3>
+                <p className="text-[13.5px] text-slate-400 mt-0.5 font-semibold">Số liệu tổng quan toàn bộ hệ thống tính đến hiện tại.</p>
+              </div>
 
-              {/* Biểu đồ hoạt động */}
-              <section className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col gap-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <h3 className="text-[18px] font-extrabold text-slate-900">Biểu Đồ Hoạt Động</h3>
-                    <p className="text-[13.5px] text-slate-400 mt-0.5 font-semibold">Lịch hẹn, người dùng mới và hoạt động ghi nhận.</p>
-                  </div>
-                  <div className="flex bg-slate-100 p-1 rounded-xl self-start shrink-0">
-                    {(["week", "month", "year"] as Range[]).map((r) => (
-                      <button
-                        key={r}
-                        onClick={() => setRange(r)}
-                        className={`px-4 py-1.5 rounded-lg text-[13px] font-bold transition-all cursor-pointer ${range === r ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-900"}`}
-                      >
-                        {r === "week" ? "Theo Tuần" : r === "month" ? "Theo Tháng" : "Theo Năm"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+              {/* 2 chỉ số quan trọng nhất được nhấn mạnh hơn (kích thước lớn hơn) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <StatTile
+                  size="lg"
+                  label="Tổng số người dùng"
+                  value={accounts?.length ?? "—"}
+                  iconPath="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
+                />
+                <StatTile
+                  size="lg"
+                  label="Lịch hẹn hôm nay"
+                  value={todayAppointmentsCount ?? "—"}
+                  iconPath="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
+                />
+              </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-                  <MiniBarChart title="Số Lượng Lịch Hẹn" desc="Lịch hẹn theo thời gian" items={appointmentItems} />
-                  <MiniBarChart title="Người Dùng Mới" desc="Tài khoản tạo mới" items={newUsersItems} />
-                  <MiniBarChart title="Hoạt Động Hệ Thống" desc="Số thao tác ghi nhận" items={activityItems} />
-                  <RoleDonutChart data={roleDistribution} />
-                </div>
-              </section>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <StatTile
+                  label="Tổng số bác sĩ"
+                  value={staffStats?.totalDentists ?? "—"}
+                  iconPath="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23-.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5"
+                />
+                <StatTile
+                  label="Tổng số nhân viên"
+                  value={staffStats?.totalEmployees ?? "—"}
+                  iconPath="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198.007.031c.003.01.005.02.008.029A9.091 9.091 0 0021 18.75m-2.785-5.365A3 3 0 1016.5 9.75M16.5 13.5A3 3 0 0016.5 9.75M9 13.5a3.75 3.75 0 110-7.5 3.75 3.75 0 010 7.5zM2.25 18.75a6.75 6.75 0 0113.5 0M9 13.5c-.394 0-.776-.03-1.147-.09a6.75 6.75 0 00-5.603 5.34"
+                />
+                <StatTile
+                  label="Tổng số phòng"
+                  value={roomsCount ?? "—"}
+                  iconPath="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3a1.5 1.5 0 011.5-1.5h3a1.5 1.5 0 011.5 1.5v3m-9-10.5h.75m-.75 3h.75m-.75 3h.75m9-6h.75m-.75 3h.75m-.75 3h.75"
+                />
+                <StatTile
+                  label="Tổng số dịch vụ"
+                  value={servicesCount ?? "—"}
+                  iconPath="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.83-5.83m0 0a2.95 2.95 0 11-4.174-4.172 2.95 2.95 0 014.174 4.172zm-7.42 7.42l9.39-9.39"
+                />
+              </div>
+            </section>
 
-              {/* Bảng nhật ký hoạt động gần đây */}
-              <section className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden flex flex-col w-full">
-                <div className="p-4.5 border-b border-slate-100 flex justify-between items-center">
-                  <div>
-                    <h3 className="text-[18px] font-extrabold text-slate-900">Nhật Ký Hoạt Động Gần Đây</h3>
-                    <p className="text-[13.5px] text-slate-400 mt-0.5 font-semibold">Các thao tác mới nhất được ghi nhận trên hệ thống.</p>
-                  </div>
-                  <Link
-                    href="/admin/activity-logs"
-                    className="shrink-0 text-[12.5px] font-bold text-primary hover:text-red-700 transition-colors"
-                  >
-                    Xem tất cả →
-                  </Link>
+            {/* Quick Actions — grid cố định 2 cột (3 hàng) vì cột này hẹp, không cần responsive lên nhiều cột */}
+            <section className="lg:col-span-4 bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col gap-4 min-w-0">
+              <div>
+                <h3 className="text-[18px] font-extrabold text-slate-900">Thao Tác Nhanh</h3>
+                <p className="text-[13.5px] text-slate-400 mt-0.5 font-semibold">Truy cập nhanh các tác vụ quản trị thường dùng.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {QUICK_ACTIONS.map((action) => (
+                  <QuickAction key={action.href} {...action} />
+                ))}
+              </div>
+            </section>
+          </div>
+
+          {/* ── HÀNG 2: Biểu đồ hoạt động + Tình trạng hệ thống ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+            {/* Biểu đồ hoạt động */}
+            <section className="lg:col-span-8 bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col gap-4 min-w-0">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-[18px] font-extrabold text-slate-900">Biểu Đồ Hoạt Động</h3>
+                  <p className="text-[13.5px] text-slate-400 mt-0.5 font-semibold">Lịch hẹn, người dùng mới và hoạt động ghi nhận.</p>
                 </div>
-                <div className="overflow-x-auto flex-1">
-                  <table className="w-full text-left border-collapse text-[13px]">
-                    <thead>
-                      <tr className="bg-slate-50/50 font-extrabold text-slate-400 uppercase tracking-wider border-b border-slate-100">
-                        <th className="px-5 py-3">Thời gian</th>
-                        <th className="px-5 py-3">Người dùng</th>
-                        <th className="px-5 py-3">Hành động</th>
-                        <th className="px-5 py-3">Module</th>
-                        <th className="px-5 py-3">Trạng thái</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 font-semibold text-slate-600">
-                      {activityLogs.length === 0 ? (
-                        <tr>
-                          <td colSpan={5} className="px-5 py-6 text-center text-slate-400 font-semibold">
-                            Chưa có hoạt động nào được ghi nhận.
+                <div className="flex bg-slate-100 p-1 rounded-xl self-start shrink-0">
+                  {(["week", "month", "year"] as Range[]).map((r) => (
+                    <button
+                      key={r}
+                      onClick={() => setRange(r)}
+                      className={`px-4 py-1.5 rounded-lg text-[13px] font-bold transition-all cursor-pointer ${range === r ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-900"}`}
+                    >
+                      {r === "week" ? "Theo Tuần" : r === "month" ? "Theo Tháng" : "Theo Năm"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                <MiniBarChart title="Số Lượng Lịch Hẹn" desc="Lịch hẹn theo thời gian" items={appointmentItems} />
+                <MiniBarChart title="Người Dùng Mới" desc="Tài khoản tạo mới" items={newUsersItems} />
+                <MiniBarChart title="Hoạt Động Hệ Thống" desc="Số thao tác ghi nhận" items={activityItems} />
+                <RoleDonutChart data={roleDistribution} />
+              </div>
+            </section>
+
+            {/* Tình trạng hệ thống — thay cho ô "Trạng thái hệ thống" đơn lẻ trước đây, gộp nhiều tín hiệu
+                thực tế đang có (không bịa số liệu health-check chưa tồn tại ở backend). */}
+            <section className="lg:col-span-4 bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col gap-3.5 min-w-0">
+              <h3 className="text-[16px] font-extrabold text-slate-900">Tình Trạng Hệ Thống</h3>
+
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-green-50 border border-green-100">
+                <span className="relative flex w-2.5 h-2.5 shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
+                </span>
+                <p className="text-[13px] font-bold text-green-700">Hệ thống đang hoạt động bình thường</p>
+              </div>
+
+              <div className="flex items-center justify-between px-1">
+                <span className="text-[12.5px] font-semibold text-slate-500">Hoạt động gần nhất</span>
+                <span className="text-[12.5px] font-bold text-slate-800">
+                  {mostRecentLogAt ? formatRelativeTime(mostRecentLogAt) : "—"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between px-1">
+                <span className="text-[12.5px] font-semibold text-slate-500">Tài khoản đang bị khóa</span>
+                <span className={`text-[12.5px] font-bold ${lockedAccountsCount > 0 ? "text-amber-600" : "text-slate-800"}`}>
+                  {lockedAccountsCount}
+                </span>
+              </div>
+            </section>
+          </div>
+
+          {/* ── HÀNG 3: Nhật ký hoạt động — full width, tự cuộn dọc lẫn ngang ── */}
+          <section className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden flex flex-col w-full">
+            <div className="p-4.5 border-b border-slate-100 flex justify-between items-center">
+              <div>
+                <h3 className="text-[18px] font-extrabold text-slate-900">Nhật Ký Hoạt Động Gần Đây</h3>
+                <p className="text-[13.5px] text-slate-400 mt-0.5 font-semibold">Các thao tác mới nhất được ghi nhận trên hệ thống.</p>
+              </div>
+              <Link
+                href="/admin/activity-logs"
+                className="shrink-0 text-[12.5px] font-bold text-primary hover:text-red-700 transition-colors"
+              >
+                Xem tất cả →
+              </Link>
+            </div>
+            <div className="overflow-auto max-h-[420px]">
+              <table className="w-full text-left border-collapse text-[13px]">
+                <thead>
+                  <tr className="bg-slate-50/50 font-extrabold text-slate-400 uppercase tracking-wider border-b border-slate-100">
+                    <th className="px-5 py-3">Thời gian</th>
+                    <th className="px-5 py-3">Người dùng</th>
+                    <th className="px-5 py-3">Hành động</th>
+                    <th className="px-5 py-3">Module</th>
+                    <th className="px-5 py-3">Trạng thái</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-semibold text-slate-600">
+                  {activityLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-5 py-6 text-center text-slate-400 font-semibold">
+                        Chưa có hoạt động nào được ghi nhận.
+                      </td>
+                    </tr>
+                  ) : (
+                    activityLogs.slice(0, 8).map((log) => {
+                      const badge = STATUS_CONFIG[log.status] ?? { label: log.status, badgeClass: "bg-slate-100 text-slate-500" };
+                      return (
+                        <tr key={log.id} className="hover:bg-slate-50/30 transition-colors">
+                          <td className="px-5 py-3 font-bold text-slate-950 whitespace-nowrap">{formatDateTime(log.createdAt)}</td>
+                          <td className="px-5 py-3 font-bold text-slate-800">{log.userName}</td>
+                          <td className="px-5 py-3 text-slate-500 font-medium">{log.description}</td>
+                          <td className="px-5 py-3 text-slate-500 font-medium">{log.module}</td>
+                          <td className="px-5 py-3">
+                            <span className={`inline-flex px-2 py-0.5 rounded-full text-[12px] font-bold ${badge.badgeClass}`}>{badge.label}</span>
                           </td>
                         </tr>
-                      ) : (
-                        activityLogs.slice(0, 8).map((log) => {
-                          const badge = STATUS_CONFIG[log.status] ?? { label: log.status, badgeClass: "bg-slate-100 text-slate-500" };
-                          return (
-                            <tr key={log.id} className="hover:bg-slate-50/30 transition-colors">
-                              <td className="px-5 py-3 font-bold text-slate-950 whitespace-nowrap">{formatDateTime(log.createdAt)}</td>
-                              <td className="px-5 py-3 font-bold text-slate-800">{log.userName}</td>
-                              <td className="px-5 py-3 text-slate-500 font-medium">{log.description}</td>
-                              <td className="px-5 py-3 text-slate-500 font-medium">{log.module}</td>
-                              <td className="px-5 py-3">
-                                <span className={`inline-flex px-2 py-0.5 rounded-full text-[12px] font-bold ${badge.badgeClass}`}>{badge.label}</span>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-            </div>
-
-            {/* ── RIGHT COLUMN ── */}
-            <div className="lg:col-span-4 flex flex-col min-w-0 self-stretch gap-6">
-
-              {/* Tình trạng hệ thống — thay cho ô "Trạng thái hệ thống" đơn lẻ trước đây, gộp nhiều tín hiệu
-                  thực tế đang có (không bịa số liệu health-check chưa tồn tại ở backend). */}
-              <section className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col gap-3.5">
-                <h3 className="text-[16px] font-extrabold text-slate-900">Tình Trạng Hệ Thống</h3>
-
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-green-50 border border-green-100">
-                  <span className="relative flex w-2.5 h-2.5 shrink-0">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
-                  </span>
-                  <p className="text-[13px] font-bold text-green-700">Hệ thống đang hoạt động bình thường</p>
-                </div>
-
-                <div className="flex items-center justify-between px-1">
-                  <span className="text-[12.5px] font-semibold text-slate-500">Hoạt động gần nhất</span>
-                  <span className="text-[12.5px] font-bold text-slate-800">
-                    {mostRecentLogAt ? formatRelativeTime(mostRecentLogAt) : "—"}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between px-1">
-                  <span className="text-[12.5px] font-semibold text-slate-500">Tài khoản đang bị khóa</span>
-                  <span className={`text-[12.5px] font-bold ${lockedAccountsCount > 0 ? "text-amber-600" : "text-slate-800"}`}>
-                    {lockedAccountsCount}
-                  </span>
-                </div>
-              </section>
-
-              {/* Thông báo quản trị — 3 thông báo gần nhất */}
-              <section className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col gap-3.5">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-[16px] font-extrabold text-slate-900">Thông Báo Quản Trị</h3>
-                  <Link
-                    href="/admin/notifications"
-                    className="text-[12px] font-bold text-primary hover:text-red-700 transition-colors"
-                  >
-                    Xem tất cả →
-                  </Link>
-                </div>
-                <div className="flex flex-col gap-3">
-                  {notifications.length === 0 ? (
-                    <p className="text-[13px] text-slate-400 font-semibold">Chưa có thông báo nào.</p>
-                  ) : (
-                    notifications.map((n) => {
-                      const prio = PRIORITY_CONFIG[n.priority?.toLowerCase()] ?? PRIORITY_CONFIG.low;
-                      return (
-                        <div key={n.id} className="flex flex-col gap-1.5 p-3 rounded-xl bg-slate-50 border border-slate-100 hover:border-slate-200 hover:bg-slate-100/30 transition-all duration-200">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-[13px] font-bold text-slate-900 truncate">{n.title}</span>
-                            <span className={`shrink-0 inline-flex px-1.5 py-0.5 rounded-full text-[10.5px] font-bold ${prio.badgeClass}`}>{prio.label}</span>
-                          </div>
-                          <p className="text-[12px] text-slate-500 leading-relaxed line-clamp-2">{n.body}</p>
-                          <span className="text-[11px] text-slate-400 font-medium">{formatDateTime(n.createdAt)}</span>
-                        </div>
                       );
                     })
                   )}
-                </div>
-              </section>
-
+                </tbody>
+              </table>
             </div>
-          </div>
+          </section>
         </div>
       </main>
     </div>

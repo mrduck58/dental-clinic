@@ -14,6 +14,7 @@ public record CalculatePayrollPeriodCommand(int Year, int Month) : IRequest<Payr
 
 public class CalculatePayrollPeriodHandler(
     IPayrollRepository payrollRepository,
+    IWorkScheduleRepository workScheduleRepository,
     IActivityLogService activityLogService,
     ICurrentUserService currentUser) : IRequestHandler<CalculatePayrollPeriodCommand, PayrollPeriodActionResult>
 {
@@ -27,6 +28,7 @@ public class CalculatePayrollPeriodHandler(
         var usersById = users.ToDictionary(u => u.Id);
         var records = await payrollRepository.GetByPeriodAsync(command.Year, command.Month, ct);
         var leaves = await payrollRepository.GetApprovedLeavesOverlappingAsync(from, to, ct);
+        var shiftCounts = await PayrollShiftCounter.CountByEmployeeAsync(workScheduleRepository, from, to, ct);
 
         var calculated = 0;
         var skipped = 0;
@@ -38,8 +40,9 @@ public class CalculatePayrollPeriodHandler(
                 continue;
             }
 
-            var c = PayrollCalculator.Compute(user, leaves, command.Year, command.Month);
-            record.RefreshDraftFigures(c.BaseSalary, c.Allowance, c.LeaveShifts, c.AllowedLeaveShifts, c.ExceededShifts, c.Deduction);
+            var requiredShifts = shiftCounts.GetValueOrDefault(user.Employee?.Id ?? Guid.Empty, 0);
+            var c = PayrollCalculator.Compute(user, leaves, requiredShifts, command.Year, command.Month);
+            record.RefreshDraftFigures(c.BaseSalary, c.Allowance, c.RequiredShifts, c.LeaveShifts, c.AllowedLeaveShifts, c.ExceededShifts, c.Deduction);
             record.MarkCalculated();
             calculated++;
         }

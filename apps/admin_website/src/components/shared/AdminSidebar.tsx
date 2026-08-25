@@ -11,7 +11,7 @@ interface SidebarProps {
 }
 
 const USER_SUBMENU_KEYS = ["permissions-users", "permissions-roles"];
-const LOGS_SUBMENU_KEYS = ["history-audit", "history-login", "history-system"];
+const LOGS_SUBMENU_KEYS = ["history-audit", "history-login"];
 
 export default function AdminSidebar({ activeMenu }: SidebarProps) {
   const router = useRouter();
@@ -224,21 +224,7 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
             Hệ thống
           </div>
 
-          {/* Thống kê AI */}
-          <Link
-            href="/admin/ai-analytics"
-            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold text-[13px] transition-all ${activeMenu === "ai-analytics"
-                ? "bg-primary text-white shadow-md shadow-primary/25"
-                : "text-slate-500 hover:bg-red-50 hover:text-primary"
-              }`}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
-            </svg>
-            Phân tích AI
-          </Link>
-
-          {/* Nhật ký hệ thống (mở rộng: Audit Log / Đăng nhập / System Log) */}
+          {/* Nhật ký hệ thống (mở rộng: Audit Log / Đăng nhập) */}
           <button
             onClick={() => setLogsMenuOpen((v) => !v)}
             className={`flex items-center justify-between gap-3.5 px-4 py-3 rounded-xl font-semibold text-[13px] transition-all cursor-pointer ${isLogsGroupActive
@@ -282,32 +268,8 @@ export default function AdminSidebar({ activeMenu }: SidebarProps) {
                 <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" />
                 Đăng nhập
               </Link>
-              <Link
-                href="/admin/activity-logs/system-log"
-                className={`flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-[12.5px] font-semibold transition-all ${activeMenu === "history-system"
-                    ? "bg-red-50 text-primary"
-                    : "text-slate-500 hover:bg-red-50 hover:text-primary"
-                  }`}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" />
-                System Log
-              </Link>
             </div>
           )}
-
-          {/* Thông báo */}
-          <Link
-            href="/admin/notifications"
-            className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold text-[13px] transition-all ${activeMenu === "notifications"
-                ? "bg-primary text-white shadow-md shadow-primary/25"
-                : "text-slate-500 hover:bg-red-50 hover:text-primary"
-              }`}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
-            </svg>
-            Thông báo
-          </Link>
         </nav>
       </div>
 

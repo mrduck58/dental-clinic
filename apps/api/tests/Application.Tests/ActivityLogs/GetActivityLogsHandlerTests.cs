@@ -31,7 +31,7 @@ public class GetActivityLogsHandlerTests
             Arg.Any<Guid?>(),
             Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
             Arg.Any<DateTimeOffset?>(), Arg.Any<DateTimeOffset?>(),
-            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns((new List<ActivityLog>().AsReadOnly() as IReadOnlyList<ActivityLog>, 0));
     }
 
@@ -53,7 +53,7 @@ public class GetActivityLogsHandlerTests
         result.Items.Should().HaveCount(2);
         result.TotalCount.Should().Be(2);
         await _repo.Received(1).GetPagedAsync(
-            null, null, null, null, null, null, null, 1, 20, null, Arg.Any<CancellationToken>());
+            null, null, null, null, null, null, null, 1, 20, null, null, Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -99,7 +99,7 @@ public class GetActivityLogsHandlerTests
         await _repo.Received(1).GetPagedAsync(
             Arg.Any<Guid?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
             Arg.Any<DateTimeOffset?>(), Arg.Any<DateTimeOffset?>(),
-            3, 50, Arg.Any<string?>(), Arg.Any<CancellationToken>());
+            3, 50, Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -114,7 +114,7 @@ public class GetActivityLogsHandlerTests
         await _repo.Received(1).GetPagedAsync(
             Arg.Any<Guid?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
             Arg.Any<DateTimeOffset?>(), Arg.Any<DateTimeOffset?>(),
-            1, 100, Arg.Any<string?>(), Arg.Any<CancellationToken>());
+            1, 100, Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -129,7 +129,7 @@ public class GetActivityLogsHandlerTests
         await _repo.Received(1).GetPagedAsync(
             Arg.Any<Guid?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
             Arg.Any<DateTimeOffset?>(), Arg.Any<DateTimeOffset?>(),
-            1, 1, Arg.Any<string?>(), Arg.Any<CancellationToken>());
+            1, 1, Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -144,7 +144,7 @@ public class GetActivityLogsHandlerTests
         await _repo.Received(1).GetPagedAsync(
             Arg.Any<Guid?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
             Arg.Any<DateTimeOffset?>(), Arg.Any<DateTimeOffset?>(),
-            1, 10, Arg.Any<string?>(), Arg.Any<CancellationToken>());
+            1, 10, Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -167,7 +167,22 @@ public class GetActivityLogsHandlerTests
 
         await _repo.Received(1).GetPagedAsync(
             null, "create", "account", "success", "admin", start, end,
-            1, 20, null, Arg.Any<CancellationToken>());
+            1, 20, null, null, Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// ExcludeAction phải được truyền nguyên vẹn xuống repository — dùng để Audit Log không còn hiển thị
+    /// log đăng nhập (đã có màn hình Lịch sử đăng nhập riêng).
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_WithExcludeAction_PassedToRepository()
+    {
+        await _handler.Handle(
+            new GetActivityLogsQuery(null, null, null, null, null, null, null, ExcludeAction: "login"),
+            CancellationToken.None);
+
+        await _repo.Received(1).GetPagedAsync(
+            null, null, null, null, null, null, null, 1, 20, null, "login", Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -224,7 +239,7 @@ public class GetActivityLogsHandlerTests
         await _repo.Received(1).GetPagedAsync(
             currentUserId, Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
             Arg.Any<DateTimeOffset?>(), Arg.Any<DateTimeOffset?>(),
-            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     [Test]
@@ -239,7 +254,7 @@ public class GetActivityLogsHandlerTests
         await _repo.Received(1).GetPagedAsync(
             requestedUserId, Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
             Arg.Any<DateTimeOffset?>(), Arg.Any<DateTimeOffset?>(),
-            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -258,7 +273,7 @@ public class GetActivityLogsHandlerTests
         await _repo.Received(1).GetPagedAsync(
             requestedUserId, Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
             Arg.Any<DateTimeOffset?>(), Arg.Any<DateTimeOffset?>(),
-            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     // ── EndDate normalization ────────────────────────────────────────────────
@@ -279,7 +294,7 @@ public class GetActivityLogsHandlerTests
         await _repo.Received(1).GetPagedAsync(
             Arg.Any<Guid?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
             Arg.Any<DateTimeOffset?>(), expectedEndDate,
-            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -297,7 +312,7 @@ public class GetActivityLogsHandlerTests
         await _repo.Received(1).GetPagedAsync(
             Arg.Any<Guid?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
             Arg.Any<DateTimeOffset?>(), endDate,
-            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -318,7 +333,7 @@ public class GetActivityLogsHandlerTests
             Arg.Any<Guid?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
             Arg.Is<DateTimeOffset?>(d => d!.Value.Offset == TimeSpan.Zero && d.Value == start),
             Arg.Is<DateTimeOffset?>(d => d!.Value.Offset == TimeSpan.Zero && d.Value == end),
-            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -339,7 +354,7 @@ public class GetActivityLogsHandlerTests
             Arg.Any<Guid?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
             Arg.Any<DateTimeOffset?>(),
             Arg.Is<DateTimeOffset?>(d => d!.Value.Offset == TimeSpan.Zero && d.Value == expected),
-            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -350,7 +365,7 @@ public class GetActivityLogsHandlerTests
             Arg.Any<Guid?>(),
             Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
             Arg.Any<DateTimeOffset?>(), Arg.Any<DateTimeOffset?>(),
-            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            Arg.Any<int>(), Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(((IReadOnlyList<ActivityLog>)items.AsReadOnly(), total));
     }
 

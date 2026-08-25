@@ -133,7 +133,7 @@ public class InvoiceRepository(AppDbContext db) : IInvoiceRepository
         IReadOnlyList<Guid> treatmentPlanIds, CancellationToken ct = default) =>
         await db.TreatmentPlans
             .Where(tp => treatmentPlanIds.Contains(tp.Id))
-            .Select(tp => new TreatmentPlanBillingInfo(tp.Id, tp.UnitPrice, tp.Quantity))
+            .Select(tp => new TreatmentPlanBillingInfo(tp.Id, tp.UnitPrice, tp.Quantity, tp.ServiceId))
             .ToListAsync(ct);
 
     public async Task<IReadOnlyList<TreatmentPlan>> GetInProgressTreatmentPlansWithDetailsAsync(CancellationToken ct = default) =>
@@ -150,6 +150,6 @@ public class InvoiceRepository(AppDbContext db) : IInvoiceRepository
         await db.TreatmentPlans
             .Where(tp => tp.AppointmentId != null && appointmentIds.Contains(tp.AppointmentId.Value)
                          && tp.Status != TreatmentPlanStatus.Cancelled)
-            .Select(tp => new TreatmentPlanBillingInfo(tp.Id, tp.UnitPrice, tp.Quantity))
+            .Select(tp => new TreatmentPlanBillingInfo(tp.Id, tp.UnitPrice, tp.Quantity, tp.ServiceId))
             .ToListAsync(ct);
 }

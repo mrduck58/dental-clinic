@@ -43,9 +43,9 @@ const TYPE_ICON: Record<string, { path: string; bg: string; color: string }> = {
 
 const FALLBACK_ICON = TYPE_ICON.system;
 
-interface NotificationBellProps { href?: string }
+interface NotificationBellProps { href: string }
 
-export default function NotificationBell({ href = "/admin/notifications" }: NotificationBellProps) {
+export default function NotificationBell({ href }: NotificationBellProps) {
   const [open, setOpen]         = useState(false);
   const [notes, setNotes]       = useState<NotificationDto[]>([]);
   const [unreadCount, setUnread] = useState(0);
