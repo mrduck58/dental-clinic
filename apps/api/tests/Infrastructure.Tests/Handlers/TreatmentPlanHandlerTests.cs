@@ -52,13 +52,10 @@ public class TreatmentPlanHandlerTests
         var supplyItemRepository = new SupplyItemRepository(_db);
         var supplyTransactionRepository = new SupplyTransactionRepository(_db);
         var materialRequestRepository = new MaterialRequestRepository(_db);
-        var serviceSupplyItemRepository = new ServiceSupplyItemRepository(_db);
-        var appointmentSummaryReader = new AppointmentSummaryReader(_db);
         var queryHelper = new TreatmentPlanQueryHelper(treatmentPlanRepository, appointmentRepository, procedureRepository);
 
         _create = new CreateTreatmentPlanHandler(
-            appointmentRepository, serviceRepository, treatmentPlanRepository, queryHelper, _patientRepo, _notificationService,
-            serviceSupplyItemRepository, appointmentSummaryReader, materialRequestRepository);
+            appointmentRepository, serviceRepository, treatmentPlanRepository, queryHelper, _patientRepo, _notificationService);
         _update = new UpdateTreatmentPlanHandler(treatmentPlanRepository, queryHelper);
         _delete = new DeleteTreatmentPlanHandler(treatmentPlanRepository, materialRequestRepository, queryHelper);
         _getByPatient = new GetPatientTreatmentPlansHandler(treatmentPlanRepository, queryHelper);
@@ -174,11 +171,11 @@ public class TreatmentPlanHandlerTests
         dto.ServiceOptionName.Should().Be("Titan");
     }
 
-    /// <summary>Dịch vụ có khai "Vật tư chính" trong định mức — thêm dịch vụ vào liệu trình phải tự động tạo
-    /// kèm 1 MaterialRequest gắn đúng TreatmentPlanId, chỉ gồm đúng dòng Vật tư chính (bỏ vật tư tiêu hao),
-    /// số lượng = định mức nhân Quantity của liệu trình, Detail giữ nguyên vị trí răng đã chọn.</summary>
+    /// <summary>Dịch vụ có khai "Vật tư chính" trong định mức — thêm dịch vụ vào liệu trình KHÔNG được tự
+    /// tạo MaterialRequest nữa (đổi sang cơ chế nháp phía client: bác sĩ xem/sửa số lượng ở form "Gửi yêu
+    /// cầu vật tư" rồi mới bấm gửi — xem CreateMaterialRequestHandler, giờ là nơi duy nhất tạo bản ghi này).</summary>
     [Test]
-    public async Task CreateAsync_ServiceHasMainSupplyItems_AutoCreatesLinkedMaterialRequest()
+    public async Task CreateAsync_ServiceHasMainSupplyItems_DoesNotAutoCreateMaterialRequest()
     {
         var (patient, dentist) = await SeedPatientAndDentistAsync("p20", "d20");
         var (appointment, service) = await SeedInProgressAppointmentAsync(patient, dentist);
@@ -194,16 +191,11 @@ public class TreatmentPlanHandlerTests
             new CreateTreatmentPlanRequest(appointment.Id, service.Id, null, 2, "16, 15", null, null),
             CancellationToken.None);
 
-        var materialRequest = await _db.MaterialRequests.Include(m => m.Items).SingleAsync(m => m.TreatmentPlanId == dto.Id);
-        materialRequest.Items.Should().ContainSingle();
-        var item = materialRequest.Items.Single();
-        item.ItemName.Should().Be("Mão sứ Titan");
-        item.Quantity.Should().Be(2);
-        item.Detail.Should().Be("16, 15");
+        (await _db.MaterialRequests.AnyAsync(m => m.TreatmentPlanId == dto.Id)).Should().BeFalse();
     }
 
     /// <summary>Dịch vụ không có "Vật tư chính" nào trong định mức (chỉ vật tư tiêu hao, hoặc không khai gì)
-    /// thì không tự tạo yêu cầu vật tư nào — tránh phát sinh yêu cầu rỗng/vô nghĩa.</summary>
+    /// cũng không tự tạo yêu cầu vật tư nào, giống trường hợp có vật tư chính ở trên.</summary>
     [Test]
     public async Task CreateAsync_ServiceHasNoMainSupplyItems_DoesNotCreateMaterialRequest()
     {

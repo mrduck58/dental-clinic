@@ -70,10 +70,7 @@ public class CreateTreatmentPlanHandler(
     ITreatmentPlanRepository treatmentPlanRepository,
     TreatmentPlanQueryHelper queryHelper,
     IPatientRepository patientRepository,
-    INotificationService notificationService,
-    IServiceSupplyItemRepository serviceSupplyItemRepository,
-    IAppointmentSummaryReader appointmentSummaryReader,
-    IMaterialRequestRepository materialRequestRepository) : IRequestHandler<CreateTreatmentPlanRequest, TreatmentPlanDto>
+    INotificationService notificationService) : IRequestHandler<CreateTreatmentPlanRequest, TreatmentPlanDto>
 {
     public async Task<TreatmentPlanDto> Handle(CreateTreatmentPlanRequest request, CancellationToken ct)
     {
@@ -103,35 +100,10 @@ public class CreateTreatmentPlanHandler(
 
         await treatmentPlanRepository.AddAsync(treatmentPlan, ct);
 
-        // Vật tư chính (mão sứ, veneer...) trong định mức của dịch vụ + option vừa chọn — tự động tạo luôn
-        // yêu cầu vật tư gắn với liệu trình này, khỏi cần bác sĩ tự gõ/chỉnh số liệu như trước. Số lượng nhân
-        // theo Quantity của liệu trình (vd điều trị 2 răng → định mức x2); Detail giữ nguyên vị trí răng đã
-        // chọn để staff biết đặt/nhập cho đúng răng nào.
-        var mainItems = (await serviceSupplyItemRepository.GetEffectiveByServiceIdAsync(service.Id, optionName, ct))
-            .Where(i => i.SupplyItem.Category == InventoryConstants.CategoryMain)
-            .ToList();
-
-        if (mainItems.Count > 0)
-        {
-            var apptSummary = await appointmentSummaryReader.GetSummaryAsync(appointment.Id, ct)
-                ?? throw new NotFoundException("Không tìm thấy lịch hẹn.");
-
-            var courseName = optionName is null ? service.Name : $"{service.Name} — {optionName}";
-            var materialRequest = MaterialRequest.Create(
-                courseName: courseName,
-                patientName: apptSummary.PatientName,
-                dentistName: apptSummary.DentistName,
-                items: mainItems.Select(i => (
-                    i.SupplyItem.Name,
-                    (string?)teeth,
-                    i.DefaultQuantity * Math.Max(1, request.Quantity),
-                    i.SupplyItem.Unit)),
-                patientId: appointment.PatientId,
-                treatmentPlanId: treatmentPlan.Id,
-                appointmentId: appointment.Id);
-
-            await materialRequestRepository.AddAsync(materialRequest, ct);
-        }
+        // Vật tư chính (mão sứ, veneer...) trong định mức của dịch vụ + option vừa chọn KHÔNG còn tự động
+        // tạo yêu cầu vật tư ở đây nữa — client tự lấy định mức qua GET supply-items/effective để điền nháp
+        // vào form "Gửi yêu cầu vật tư" (tab Vật tư), bác sĩ xem/sửa số lượng rồi mới thật sự gửi. Xem
+        // MaterialRequestHandlers.CreateMaterialRequestHandler — giờ là nơi DUY NHẤT tạo MaterialRequest.
 
         // Báo cho bệnh nhân có kế hoạch điều trị mới (nếu tài khoản có liên kết User).
         var patient = await patientRepository.GetByIdAsync(appointment.PatientId, ct);
