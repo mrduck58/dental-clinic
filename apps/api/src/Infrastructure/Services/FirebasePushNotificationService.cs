@@ -309,4 +309,107 @@ public class FirebasePushNotificationService : IFirebasePushNotificationService
             await SendPushNotificationAsync(uid, title, body, type, relatedEntityId, ct);
         }
     }
+
+    public async Task<PushNotificationDiagnosticResult> TestPushToUserAsync(Guid userId, CancellationToken ct = default)
+    {
+        EnsureFirebaseInitialized();
+        if (!_isFirebaseInitialized || FirebaseApp.DefaultInstance == null)
+        {
+            return new PushNotificationDiagnosticResult(
+                IsFirebaseInitialized: false,
+                DeviceTokensCount: 0,
+                TokensFound: [],
+                SuccessMessageIds: [],
+                Errors: ["Firebase Admin SDK chưa được khởi tạo trên server. Hãy kiểm tra biến môi trường FIREBASE_CREDENTIALS_JSON trên Render."],
+                Summary: "Firebase Admin SDK is not initialized on server.");
+        }
+
+        List<string> activeTokens;
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        activeTokens = await db.UserDeviceTokens
+            .Where(t => t.UserId == userId)
+            .OrderByDescending(t => t.UpdatedAt)
+            .Select(t => t.Token)
+            .Distinct()
+            .ToListAsync(ct);
+
+        if (activeTokens.Count == 0 && UserTokens.TryGetValue(userId, out var cachedTokens))
+        {
+            activeTokens = cachedTokens.Keys.Distinct().ToList();
+        }
+
+        if (activeTokens.Count == 0)
+        {
+            return new PushNotificationDiagnosticResult(
+                IsFirebaseInitialized: true,
+                DeviceTokensCount: 0,
+                TokensFound: [],
+                SuccessMessageIds: [],
+                Errors: ["Không tìm thấy FCM Device Token nào trong PostgreSQL cho tài khoản này. Vui lòng mở lại Mobile App để app đồng bộ token lên server."],
+                Summary: $"Không tìm thấy Device Token của user {userId} trong cơ sở dữ liệu.");
+        }
+
+        var successIds = new List<string>();
+        var errors = new List<string>();
+
+        foreach (var token in activeTokens)
+        {
+            try
+            {
+                var message = new Message
+                {
+                    Token = token,
+                    Notification = new FirebaseAdmin.Messaging.Notification
+                    {
+                        Title = "Test Server Push 🔔",
+                        Body = "Chúc mừng! Server đã gửi thông báo FCM thành công đến điện thoại của bạn."
+                    },
+                    Data = new Dictionary<string, string>
+                    {
+                        ["type"] = "appointment",
+                        ["title"] = "Test Server Push 🔔",
+                        ["body"] = "Chúc mừng! Server đã gửi thông báo FCM thành công đến điện thoại của bạn.",
+                        ["relatedEntityId"] = "test",
+                        ["click_action"] = "FLUTTER_NOTIFICATION_CLICK"
+                    },
+                    Android = new AndroidConfig
+                    {
+                        Priority = Priority.High,
+                        Notification = new AndroidNotification
+                        {
+                            ChannelId = "dental_clinic_high_importance_channel",
+                            Sound = "default",
+                            Visibility = NotificationVisibility.PUBLIC,
+                            Priority = NotificationPriority.HIGH,
+                            ClickAction = "FLUTTER_NOTIFICATION_CLICK",
+                            DefaultSound = true,
+                            DefaultVibrateTimings = true
+                        }
+                    }
+                };
+
+                var response = await FirebaseMessaging.DefaultInstance.SendAsync(message, ct);
+                successIds.Add(response);
+                _logger.LogInformation("Test FCM push notification sent successfully {Response} to user {UserId}", response, userId);
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"Token {token[..Math.Min(15, token.Length)]}... lỗi: {ex.Message}");
+                _logger.LogError(ex, "Failed to send test FCM push notification for user {UserId}", userId);
+            }
+        }
+
+        var summary = successIds.Count > 0
+            ? $"Đã gửi thành công {successIds.Count}/{activeTokens.Count} thông báo FCM đến thiết bị!"
+            : $"Gửi thất bại tới {activeTokens.Count} thiết bị: {string.Join("; ", errors)}";
+
+        return new PushNotificationDiagnosticResult(
+            IsFirebaseInitialized: true,
+            DeviceTokensCount: activeTokens.Count,
+            TokensFound: activeTokens.Select(t => t.Length > 20 ? $"{t[..10]}...{t[^10..]}" : t).ToList(),
+            SuccessMessageIds: successIds,
+            Errors: errors,
+            Summary: summary);
+    }
 }
