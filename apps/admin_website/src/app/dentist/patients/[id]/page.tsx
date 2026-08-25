@@ -665,7 +665,7 @@ return (
                     </div>
 
                     {/* Ảnh chụp chiếu — chỉ up ảnh thường (không có máy tích hợp) + ghi chú mỗi ảnh */}
-                    <PhotoGallery appointmentId={id} section="exam" title="Ảnh chụp chiếu" />
+                    <PhotoGallery appointmentId={id} section="exam" title="Ảnh chụp chiếu" canEdit={canEdit} />
                   </div>
 
                   {/* RIGHT: Phiếu khám răng miệng */}
