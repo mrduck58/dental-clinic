@@ -74,4 +74,16 @@ class NotificationService {
       );
     } catch (_) {}
   }
+
+  /// Gọi API test-push từ server để kiểm tra luồng FCM Firebase từ Server -> Máy
+  Future<Map<String, dynamic>> testServerPush() async {
+    final token = await _auth.getToken();
+    if (token == null) throw Exception('Chưa đăng nhập.');
+    final res = await _client.post(
+      '${ApiConstants.notifications}/test-push',
+      <String, dynamic>{},
+      token: token,
+    );
+    return res.data as Map<String, dynamic>;
+  }
 }
