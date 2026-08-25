@@ -39,6 +39,9 @@ const getWeekDates = (monday: Date): Date[] =>
 interface StaffLeaveShiftPickerProps {
   selected: Set<string>;
   onToggle: (date: string, shiftId: string) => void;
+  /** Bấm vào tiêu đề một ngày → chọn/bỏ chọn toàn bộ ca còn bấm được của ngày đó, để xin nghỉ cả
+   * ngày không phải bấm từng ca. */
+  onToggleDay?: (date: string, shiftIds: string[]) => void;
   /** Các ca (key `${date}__${shiftId}`) đã nằm trong một đơn xin nghỉ Pending/Approved khác —
    * khoá lại, không cho chọn thêm lần nữa cho tới khi đơn đó bị từ chối/huỷ. */
   lockedShifts?: Set<string>;
@@ -47,7 +50,7 @@ interface StaffLeaveShiftPickerProps {
 /// Lưới chọn ca theo tuần cho đơn xin nghỉ của Staff — chỉ hiển thị các ca có trong lịch làm việc
 /// thật của nhân viên đang đăng nhập (GET /api/schedules/my), không hiện mock 6 ca cố định mỗi ngày.
 /// Cùng pattern với ShiftWeekPicker (dentist/leave).
-export default function StaffLeaveShiftPicker({ selected, onToggle, lockedShifts }: StaffLeaveShiftPickerProps) {
+export default function StaffLeaveShiftPicker({ selected, onToggle, onToggleDay, lockedShifts }: StaffLeaveShiftPickerProps) {
   const [monday, setMonday] = useState<Date>(getThisWeekMonday);
   const [entries, setEntries] = useState<ScheduleEntryDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -128,13 +131,24 @@ export default function StaffLeaveShiftPicker({ selected, onToggle, lockedShifts
               const isToday = key === todayKey;
               const isHoliday = dayEntries.some(e => e.isHoliday);
               const shifts = dayEntries.filter(e => !e.isHoliday);
+              const availableShiftIds = shifts
+                .filter(e => !isShiftPast(key, e.shift) && !(lockedShifts?.has(selectionKey(key, e.shift)) ?? false))
+                .map(e => e.shift);
+              const isDaySelectable = !!onToggleDay && availableShiftIds.length > 0;
+              const isDayFullySelected = isDaySelectable && availableShiftIds.every(id => selected.has(selectionKey(key, id)));
 
               return (
                 <div key={key} className={`p-2.5 flex flex-col gap-2 min-h-[120px] ${isToday ? "bg-red-50/40" : ""}`}>
-                  <div className="flex flex-col items-center gap-0.5">
+                  <button
+                    type="button"
+                    disabled={!isDaySelectable}
+                    onClick={() => onToggleDay?.(key, availableShiftIds)}
+                    title={isDaySelectable ? "Chọn/bỏ chọn cả ngày" : undefined}
+                    className={`flex flex-col items-center gap-0.5 rounded-lg py-0.5 transition-colors ${isDaySelectable ? "cursor-pointer hover:bg-slate-100" : ""}`}
+                  >
                     <span className={`text-[10px] font-extrabold uppercase tracking-wider ${isToday ? "text-primary" : "text-slate-400"}`}>{DAY_LABELS[i]}</span>
-                    <span className={`text-[13.5px] font-black ${isToday ? "text-primary" : "text-slate-700"}`}>{pad(d.getDate())}</span>
-                  </div>
+                    <span className={`text-[13.5px] font-black ${isDayFullySelected ? "text-primary" : isToday ? "text-primary" : "text-slate-700"}`}>{pad(d.getDate())}</span>
+                  </button>
 
                   {isHoliday ? (
                     <div className="rounded-lg px-2 py-2 bg-rose-50 border border-rose-100 flex items-center justify-center">
