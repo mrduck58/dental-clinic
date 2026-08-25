@@ -17,9 +17,6 @@ public interface IWorkScheduleRepository
     /// <summary>Mọi bản ghi lịch làm việc trong một khoảng ngày (dùng cho tính lịch trống theo tháng).</summary>
     Task<IReadOnlyList<WorkSchedule>> GetByDateRangeAsync(DateOnly start, DateOnly end, CancellationToken ct = default);
 
-    /// <summary>Lịch làm việc của một nhân sự (theo StaffName) trong một khoảng ngày, sắp theo ngày.</summary>
-    Task<IReadOnlyList<WorkSchedule>> GetByStaffNameAndDateRangeAsync(string staffName, DateOnly start, DateOnly end, CancellationToken ct = default);
-
     /// <summary>Gỡ hẳn một loạt ca khỏi lịch làm việc (duyệt đơn nghỉ → bỏ trống các ca của người nghỉ).</summary>
     Task RemoveRangeAsync(IEnumerable<WorkSchedule> entries, CancellationToken ct = default);
 }

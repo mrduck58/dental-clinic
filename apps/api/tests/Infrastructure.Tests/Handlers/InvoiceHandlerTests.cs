@@ -51,7 +51,7 @@ public class InvoiceHandlerTests
 
         _promotionRepo = Substitute.For<IPromotionRepository>();
         _getBillablePlansHandler = new GetBillablePlansHandler(invoiceRepository, _invoiceQuery);
-        _issueHandler = new IssueInvoiceHandler(invoiceRepository, _promotionRepo, _db, _notificationService, _invoiceQuery);
+        _issueHandler = new IssueInvoiceHandler(invoiceRepository, _promotionRepo, _notificationService, _invoiceQuery);
         _getPendingHandler = new GetPendingInvoicesHandler(invoiceRepository);
         _getOutstandingHandler = new GetOutstandingInvoicesHandler(invoiceRepository);
         _getOutstandingPlansHandler = new GetOutstandingPlansHandler(invoiceRepository, _invoiceQuery);
@@ -155,6 +155,27 @@ public class InvoiceHandlerTests
 
         second.Should().NotBeNull();
         (await _db.Invoices.Where(i => i.AppointmentId == appointment.Id).CountAsync()).Should().Be(2);
+    }
+
+    /// <summary>Số hóa đơn phải sinh theo MAX số hiện có + 1, không phải theo COUNT — 2 hóa đơn liên tiếp
+    /// không được trùng số dù đứng trước một hóa đơn đã có số cao hơn tổng số hóa đơn hiện tại (mô phỏng
+    /// khoảng trống do dữ liệu cũ) — nếu vẫn dùng COUNT, hóa đơn mới sẽ sinh trùng số hóa đơn cũ này và
+    /// đụng unique constraint IX_Invoices_InvoiceNumber (bug thực tế đã xảy ra: "duplicate key value
+    /// violates unique constraint").</summary>
+    [Test]
+    public async Task IssueAsync_InvoiceNumberGap_GeneratesNumberPastHighestExisting()
+    {
+        var (appointment1, _, _) = await SeedPendingPaymentAppointmentAsync();
+        var (appointment2, _, _) = await SeedPendingPaymentAppointmentAsync();
+        // Chỉ 1 hóa đơn tồn tại nhưng số của nó đã là INV010 (mô phỏng khoảng trống do dữ liệu cũ) —
+        // COUNT-based (count=1 -> "INV002") sẽ không vượt qua được số này.
+        _db.Invoices.Add(Invoice.Issue(appointment1.Id, "INV010",
+            new[] { ("Trám răng", 1, 500_000m, (Guid?)null, (decimal?)null) }, 0, PaymentMethod.Cash));
+        await _db.SaveChangesAsync();
+
+        var result = await _issueHandler.Handle(MakeIssueCommand(appointment2.Id), CancellationToken.None);
+
+        result.InvoiceNumber.Should().Be("INV011");
     }
 
     /// <summary>Đặt cọc với số tiền vượt quá tổng hóa đơn phải bị từ chối.</summary>

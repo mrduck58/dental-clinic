@@ -1904,7 +1904,7 @@ export default function CheckinPage() {
                   gender: p.gender ?? "Khác",
                   hasAccount: false,
                 });
-                setWalkinFollowUp({ originalAppointmentId: p.originalAppointmentId, serviceId: p.serviceId });
+                setWalkinFollowUp({ originalAppointmentId: p.originalAppointmentId, serviceId: p.prefillServiceId });
                 setTab("walkin");
               }}
             />

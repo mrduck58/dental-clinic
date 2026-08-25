@@ -26,8 +26,6 @@ public interface IInvoiceRepository
 
     Task<bool> HasChildInvoiceAsync(Guid parentInvoiceId, CancellationToken ct = default);
 
-    Task<int> CountAsync(CancellationToken ct = default);
-
     /// <summary>Hóa đơn đặt cọc đang thu phần còn lại, chưa có hóa đơn con — tab "Liệu trình → Hóa đơn".</summary>
     Task<IReadOnlyList<Invoice>> GetCollectingRemainingParentsAsync(CancellationToken ct = default);
 
@@ -46,8 +44,13 @@ public interface IInvoiceRepository
     /// <summary>Tab "Lịch sử hóa đơn": mọi hóa đơn đã Paid.</summary>
     Task<IReadOnlyList<Invoice>> GetInvoiceHistoryAsync(CancellationToken ct = default);
 
-    /// <summary>Thêm hóa đơn mới — chỉ stage, KHÔNG tự SaveChanges (caller dùng <see cref="IUnitOfWork"/>).</summary>
-    void Add(Invoice invoice);
+    /// <summary>
+    /// Sinh số hóa đơn tiếp theo (INVxxx) và lưu hóa đơn mới do <paramref name="build"/> dựng (nhận
+    /// invoiceNumber vừa sinh). Tự SaveChanges NGAY tại đây — khác quy ước "Add() chỉ stage" thông thường
+    /// — vì phải phát hiện đụng số (race condition khi 2 yêu cầu xuất hóa đơn cùng lúc tính ra cùng số kế
+    /// tiếp, va constraint duy nhất trên InvoiceNumber) và tự sinh số khác để thử lại ngay tại đây.
+    /// </summary>
+    Task<Invoice> IssueWithUniqueNumberAsync(Func<string, Invoice> build, CancellationToken ct = default);
 
     /// <summary>UserId của bệnh nhân gắn với 1 buổi hẹn (qua Invoice.AppointmentId) — dùng gửi thông báo.</summary>
     Task<Guid?> GetPatientUserIdByAppointmentIdAsync(Guid appointmentId, CancellationToken ct = default);

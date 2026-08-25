@@ -17,12 +17,6 @@ public class InvoiceQueryHelper(IInvoiceRepository invoiceRepository, ITreatment
         return InvoiceHelpers.ToDto(invoice);
     }
 
-    public async Task<string> GenerateInvoiceNumberAsync(CancellationToken ct)
-    {
-        var count = await invoiceRepository.CountAsync(ct);
-        return $"INV{count + 1:D3}";
-    }
-
     /// <summary>Tổng số tiền đã thu (Paid) của một liệu trình.</summary>
     public async Task<decimal> GetPlanPaidAsync(Guid treatmentPlanId, CancellationToken ct) =>
         (await GetPlanPaidMapAsync(new List<Guid> { treatmentPlanId }, ct)).GetValueOrDefault(treatmentPlanId, 0m);
