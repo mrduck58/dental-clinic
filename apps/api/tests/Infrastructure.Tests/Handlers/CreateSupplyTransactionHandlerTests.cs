@@ -163,7 +163,7 @@ public class CreateSupplyTransactionHandlerTests
 
     private async Task<Room> SeedRoomAsync(string code = "P01", string name = "Phòng khám 1")
     {
-        var room = Room.Create(code, name, "1", "Khám tổng quát", "");
+        var room = Room.Create(code, name, "1", "");
         _db.Rooms.Add(room);
         await _db.SaveChangesAsync();
         return room;

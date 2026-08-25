@@ -19,7 +19,7 @@ public class ChangeRoomStatusHandler(IRoomRepository roomRepository) : IRequestH
         await roomRepository.UpdateAsync(room, ct);
 
         return new RoomDto(
-            room.Id, room.Code, room.Name, room.Floor, room.Type,
+            room.Id, room.Code, room.Name, room.Floor,
             room.Status.ToVietnamese(), room.Status.ToActiveStatus(),
             room.Description, room.CreatedAt, room.UpdatedAt);
     }

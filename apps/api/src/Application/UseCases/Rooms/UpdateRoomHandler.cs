@@ -27,7 +27,7 @@ public class UpdateRoomHandler(
         if (await roomRepository.ExistsByNameAsync(request.Name, excludeId: command.Id, ct: ct))
             throw new ConflictException($"Tên phòng '{request.Name}' đã được sử dụng.");
 
-        room.Update(request.Code, request.Name, request.Floor, request.Type, request.Description);
+        room.Update(request.Code, request.Name, request.Floor, request.Description);
         await roomRepository.UpdateAsync(room, ct);
 
         await activityLogService.LogAsync(
@@ -43,7 +43,7 @@ public class UpdateRoomHandler(
             ct: ct);
 
         return new RoomDto(
-            room.Id, room.Code, room.Name, room.Floor, room.Type,
+            room.Id, room.Code, room.Name, room.Floor,
             room.Status.ToVietnamese(), room.Status.ToActiveStatus(),
             room.Description, room.CreatedAt, room.UpdatedAt);
     }
