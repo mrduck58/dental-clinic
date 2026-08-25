@@ -1,5 +1,7 @@
 namespace DentalClinic.API.Application.DTOs.LeaveRequests;
 
+public record LeaveRequestShiftDto(DateOnly Date, string ShiftId);
+
 public record LeaveRequestDto(
     Guid Id,
     Guid UserId,
@@ -13,12 +15,14 @@ public record LeaveRequestDto(
     string Status,
     string? ReviewerNote,
     DateTimeOffset CreatedAt,
-    DateTimeOffset? ReviewedAt);
+    DateTimeOffset? ReviewedAt,
+    IReadOnlyList<LeaveRequestShiftDto> Shifts);
+
+public record LeaveRequestShiftInput(DateOnly Date, string ShiftId);
 
 public record CreateLeaveRequestRequest(
     string LeaveType,
-    DateOnly StartDate,
-    DateOnly EndDate,
+    IReadOnlyList<LeaveRequestShiftInput> Shifts,
     string Reason);
 
 public record RejectLeaveRequestRequest(

@@ -3,6 +3,7 @@ using System;
 using DentalClinic.API.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DentalClinic.API.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260823191342_AddLeaveRequestShifts")]
+    partial class AddLeaveRequestShifts
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -539,6 +542,51 @@ namespace DentalClinic.API.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("DentalClinic.API.Domain.Entities.CommissionRule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DentistId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("EffectiveFrom")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("EffectiveTo")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<decimal>("RatePercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<string>("ServiceName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DentistId");
+
+                    b.HasIndex("IsActive");
+
+                    b.ToTable("CommissionRules");
+                });
+
             modelBuilder.Entity("DentalClinic.API.Domain.Entities.DentistProfile", b =>
                 {
                     b.Property<Guid>("Id")
@@ -555,12 +603,6 @@ namespace DentalClinic.API.Infrastructure.Persistence.Migrations
 
                     b.Property<DateOnly?>("CertificateIssuedDate")
                         .HasColumnType("date");
-
-                    b.Property<string>("Content")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("text")
-                        .HasDefaultValue("");
 
                     b.Property<string>("Education")
                         .HasMaxLength(200)
@@ -783,9 +825,6 @@ namespace DentalClinic.API.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("ProfilePictureUrl")
                         .HasColumnType("text");
-
-                    b.Property<decimal?>("RatePerShift")
-                        .HasColumnType("numeric");
 
                     b.Property<string>("SalaryUnit")
                         .HasMaxLength(50)
@@ -1552,10 +1591,9 @@ namespace DentalClinic.API.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
-                    b.Property<decimal>("AllowedLeaveShifts")
+                    b.Property<decimal>("AllowedLeaveDays")
                         .HasPrecision(5, 2)
-                        .HasColumnType("numeric(5,2)")
-                        .HasColumnName("AllowedLeaveDays");
+                        .HasColumnType("numeric(5,2)");
 
                     b.Property<decimal>("BaseSalary")
                         .HasPrecision(18, 2)
@@ -1572,14 +1610,12 @@ namespace DentalClinic.API.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
-                    b.Property<decimal>("ExceededShifts")
+                    b.Property<decimal>("ExceededDays")
                         .HasPrecision(5, 2)
-                        .HasColumnType("numeric(5,2)")
-                        .HasColumnName("ExceededDays");
+                        .HasColumnType("numeric(5,2)");
 
-                    b.Property<int>("LeaveShifts")
-                        .HasColumnType("integer")
-                        .HasColumnName("LeaveDays");
+                    b.Property<int>("LeaveDays")
+                        .HasColumnType("integer");
 
                     b.Property<int>("Month")
                         .HasColumnType("integer");
@@ -1594,9 +1630,6 @@ namespace DentalClinic.API.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTimeOffset?>("PaidAt")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("RequiredShifts")
-                        .HasColumnType("integer");
 
                     b.Property<string>("Status")
                         .IsRequired()

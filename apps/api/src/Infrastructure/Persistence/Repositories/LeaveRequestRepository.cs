@@ -9,12 +9,14 @@ public class LeaveRequestRepository(AppDbContext db) : ILeaveRequestRepository
     public async Task<IEnumerable<LeaveRequest>> GetAllAsync(CancellationToken ct = default)
         => await db.LeaveRequests
             .Include(l => l.User).ThenInclude(u => u.Employee).ThenInclude(e => e!.DentistProfile)
+            .Include(l => l.Shifts)
             .OrderByDescending(l => l.CreatedAt)
             .ToListAsync(ct);
 
     public async Task<IEnumerable<LeaveRequest>> GetByUserIdAsync(Guid userId, CancellationToken ct = default)
         => await db.LeaveRequests
             .Include(l => l.User).ThenInclude(u => u.Employee).ThenInclude(e => e!.DentistProfile)
+            .Include(l => l.Shifts)
             .Where(l => l.UserId == userId)
             .OrderByDescending(l => l.CreatedAt)
             .ToListAsync(ct);
@@ -22,6 +24,7 @@ public class LeaveRequestRepository(AppDbContext db) : ILeaveRequestRepository
     public async Task<LeaveRequest?> GetByIdAsync(Guid id, CancellationToken ct = default)
         => await db.LeaveRequests
             .Include(l => l.User).ThenInclude(u => u.Employee).ThenInclude(e => e!.DentistProfile)
+            .Include(l => l.Shifts)
             .FirstOrDefaultAsync(l => l.Id == id, ct);
 
     public async Task AddAsync(LeaveRequest leaveRequest, CancellationToken ct = default)

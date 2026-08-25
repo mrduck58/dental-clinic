@@ -475,7 +475,7 @@ class _RemindersPageState extends State<RemindersPage> {
   }
 
   Widget _buildAppointmentCard(MyAppointmentItem app, bool isVi) {
-    final timeStr = '${app.parsedDate.hour.toString().padLeft(2, '0')}:${app.parsedDate.minute.toString().padLeft(2, '0')}';
+    final timeStr = app.displayTimeRange;
     final doctorName = app.dentistName.toLowerCase().startsWith('bs') ||
             app.dentistName.toLowerCase().startsWith('bác sĩ') ||
             app.dentistName.toLowerCase().startsWith('dr')

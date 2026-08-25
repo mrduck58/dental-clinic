@@ -26,9 +26,11 @@ public class SchedulesController(ISender sender) : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>GET api/schedules/my?weekStart=YYYY-MM-DD — Lịch làm việc của nha sĩ đang đăng nhập (chỉ xem)</summary>
+    /// <summary>GET api/schedules/my?weekStart=YYYY-MM-DD — Lịch làm việc của chính người dùng đang đăng nhập (chỉ xem).
+    /// Dùng chung cho Dentist và Staff — handler tra cứu theo FullName nên không phân biệt vai trò.
+    /// Staff dùng endpoint này để lấy lịch làm việc thật khi tạo đơn xin nghỉ.</summary>
     [HttpGet("my")]
-    [Authorize(Roles = "Dentist")]
+    [Authorize(Roles = "Dentist,Staff")]
     public async Task<IActionResult> GetMySchedule([FromQuery] string weekStart, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(weekStart))

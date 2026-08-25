@@ -1066,7 +1066,7 @@ class _UpcomingAppointmentCard extends StatelessWidget {
               Icon(Iconsax.clock, size: 16, color: AppColors.primary),
               const SizedBox(width: 8),
               Text(
-                timeStr,
+                item.displayTimeRange,
                 style: TextStyle(fontSize: 13, color: context.textPrimary, fontWeight: FontWeight.w600),
               ),
             ],

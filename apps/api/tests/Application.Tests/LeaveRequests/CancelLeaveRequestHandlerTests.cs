@@ -119,7 +119,13 @@ public class CancelLeaveRequestHandlerTests
     private static LeaveRequest MakeRequest(Guid userId)
     {
         var today = DateOnly.FromDateTime(DateTime.Today);
-        var lr = LeaveRequest.Create(userId, LeaveType.Annual, today, today.AddDays(2), "Lý do test");
+        var shifts = new List<(DateOnly Date, string ShiftId)>
+        {
+            (today, "08:00-10:00"),
+            (today.AddDays(1), "08:00-10:00"),
+            (today.AddDays(2), "08:00-10:00"),
+        };
+        var lr = LeaveRequest.Create(userId, LeaveType.Annual, shifts, "Lý do test");
         var user = User.Create("emp", "emp@test.com", "hash", UserRole.Staff, null, "Test");
         typeof(LeaveRequest).GetProperty("User")!.SetValue(lr, user);
         return lr;

@@ -230,7 +230,7 @@ class _BookingSuccessPageState extends State<BookingSuccessPage>
                             _SummaryRow(
                               icon: Iconsax.clock,
                               label: isVi ? 'Giờ khám' : 'Time Slot',
-                              value: d.timeSlot!.range,
+                              value: d.displayTimeRange.isNotEmpty ? d.displayTimeRange : d.timeSlot!.range,
                               isLast: true,
                             ),
                         ],
