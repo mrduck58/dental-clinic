@@ -32,7 +32,7 @@ class _LoginPageState extends State<LoginPage> {
       ? GoogleSignIn()
       : GoogleSignIn(
           serverClientId:
-              '170456318656-4ovvd8apq0a3pd9cglhetctojc4873sb.apps.googleusercontent.com',
+              '685584671952-hujosskrlbss3ckted6q13pq9q55n70o.apps.googleusercontent.com',
         );
 
   final _emailCtrl = TextEditingController();

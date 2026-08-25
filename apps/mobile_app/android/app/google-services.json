@@ -1,26 +1,44 @@
 {
   "project_info": {
-    "project_number": "503047981320",
-    "project_id": "songiangdental",
-    "storage_bucket": "songiangdental.firebasestorage.app"
+    "project_number": "685584671952",
+    "project_id": "songiangdental-906c2",
+    "storage_bucket": "songiangdental-906c2.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:503047981320:android:a3b44f084f50b9fccd84bd",
+        "mobilesdk_app_id": "1:685584671952:android:f4d76f53faa84f497c2ad5",
         "android_client_info": {
           "package_name": "com.songiangdental.mobileapp"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "685584671952-fk21eu6m2po424tsj89ja90b0gnu2mvm.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.songiangdental.mobileapp",
+            "certificate_hash": "104d8de21a7bb57a09eeaa295f023b52ab05809e"
+          }
+        },
+        {
+          "client_id": "685584671952-hujosskrlbss3ckted6q13pq9q55n70o.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "AIzaSyC7Scl7sVf9mBvs_HEIT-4YLQYrPd9saN8"
+          "current_key": "AIzaSyDX-5ne95SVPL9EiusqO0ePQEbkzmWd-gU"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "685584671952-hujosskrlbss3ckted6q13pq9q55n70o.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
