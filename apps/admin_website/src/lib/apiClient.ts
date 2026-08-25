@@ -3053,6 +3053,8 @@ export interface ServiceSupplyItemDto {
   supplyItemName: string;
   unit: string;
   defaultQuantity: number;
+  /** Danh mục của vật tư (vd "Vật tư chính") — lọc phía client khi chỉ cần vật tư chính để prefill nháp. */
+  category: string;
 }
 
 export interface ServiceSupplyItemStepRequest {

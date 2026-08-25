@@ -14,6 +14,7 @@ import {
   updateTreatmentPlanProgressApi,
   reorderTreatmentPlanProgressApi,
   deleteTreatmentPlanProgressApi,
+  getEffectiveServiceSupplyItemsApi,
   type ExaminationDto,
   type PatientMedicalHistoryDto,
   type TreatmentPlanDto,
@@ -24,16 +25,26 @@ import {
 import { Toast, useToast } from "../../../../components/shared/Toast";
 import { ConfirmDialog, useConfirm } from "../../../../components/shared/ConfirmDialog";
 
+/** Danh mục vật tư dùng để lọc "Vật tư chính" trong định mức dịch vụ — khớp InventoryConstants.CategoryMain bên backend. */
+const SUPPLY_CATEGORY_MAIN = "Vật tư chính";
+
+export interface DraftMaterialItem {
+  itemName: string;
+  detail?: string;
+  quantity: number;
+  unit: string;
+}
+
 interface TreatmentWorkspaceProps {
   appointmentId: string;
   /** Có onBack → hiển thị header riêng (dùng ở trang Phác đồ điều trị); không có → chế độ nhúng trong tab. */
   onBack?: () => void;
   /** Cho phép sửa dù buổi hẹn đã kết thúc (chế độ chỉnh sửa đơn hoàn thành). */
   editMode?: boolean;
-  /** Báo lên sau khi thêm dịch vụ thành công — dịch vụ có "Vật tư chính" trong định mức sẽ được backend
-   * tự động tạo kèm yêu cầu vật tư (xem CreateTreatmentPlanHandler); cha dùng tín hiệu này để tải lại
-   * danh sách yêu cầu ở tab "Vật tư". */
-  onServiceAdded?: () => void;
+  /** Báo lên sau khi thêm dịch vụ thành công VÀ dịch vụ có "Vật tư chính" trong định mức — cha dùng để điền
+   * nháp các dòng vật tư này vào form "Gửi yêu cầu vật tư" bên tab Vật tư. Không tự tạo MaterialRequest ở
+   * đây nữa; chỉ thật sự gửi khi bác sĩ bấm "Gửi sang kho" (xem MaterialWorkspace.handleSubmit). */
+  onServiceAdded?: (treatmentPlanId: string, draftItems: DraftMaterialItem[]) => void;
 }
 
 // Chọn vị trí điều trị bằng nút bấm (số răng FDI hoặc hàm) thay vì gõ tay — tránh lỗi chính tả/định dạng.
@@ -325,18 +336,30 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
     if (selOptions.length > 0 && !selOption) return;
     try {
       setSavingService(true);
-      await createTreatmentPlanApi(appointmentId, {
+      const teeth = addTeeth.trim() || undefined;
+      const quantity = Math.max(1, addQuantity);
+      const plan = await createTreatmentPlanApi(appointmentId, {
         serviceId: selService.id,
         unitPrice: selOption?.price,
-        quantity: Math.max(1, addQuantity),
-        teeth: addTeeth.trim() || undefined,
+        quantity,
+        teeth,
         notes: addNotes.trim() || undefined,
         serviceOptionName: selOption?.name,
       });
 
-      // Vật tư chính trong định mức (mão sứ, veneer...) được backend tự động tạo yêu cầu vật tư gắn với
-      // liệu trình này ngay khi thêm dịch vụ (xem CreateTreatmentPlanHandler) — không cần bác sĩ tự nhập/
-      // chỉnh số liệu ở đây nữa.
+      // Vật tư chính trong định mức (mão sứ, veneer...) không còn tự động gửi yêu cầu vật tư nữa — chỉ điền
+      // nháp sang form "Gửi yêu cầu vật tư" ở tab Vật tư (onServiceAdded), bác sĩ xem/sửa số lượng rồi mới
+      // bấm "Gửi sang kho" để thật sự gửi.
+      const mainItems = (await getEffectiveServiceSupplyItemsApi(selService.id, selOption?.name).catch(() => []))
+        .filter(i => i.category === SUPPLY_CATEGORY_MAIN)
+        .map(i => ({
+          itemName: i.supplyItemName,
+          detail: teeth,
+          quantity: i.defaultQuantity * quantity,
+          unit: i.unit,
+        }));
+      if (mainItems.length > 0) onServiceAdded?.(plan.id, mainItems);
+
       showToast("Đã thêm dịch vụ vào liệu trình");
 
       setShowAddService(false);
@@ -347,7 +370,6 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
       setAddTeeth("");
       setAddNotes("");
       await loadPlans(examination.patient.id);
-      onServiceAdded?.();
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Không thể thêm dịch vụ", "error");
     } finally {
