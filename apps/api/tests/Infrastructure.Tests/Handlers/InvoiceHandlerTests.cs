@@ -28,7 +28,6 @@ public class InvoiceHandlerTests
     private IssueInvoiceHandler _issueHandler = null!;
     private GetPendingInvoicesHandler _getPendingHandler = null!;
     private GetOutstandingInvoicesHandler _getOutstandingHandler = null!;
-    private GetOutstandingPlansHandler _getOutstandingPlansHandler = null!;
     private ConfirmInvoicePaymentHandler _confirmPaymentHandler = null!;
     private CollectRemainingInvoiceHandler _collectRemainingHandler = null!;
     private GetInvoiceHistoryHandler _getHistoryHandler = null!;
@@ -54,7 +53,6 @@ public class InvoiceHandlerTests
         _issueHandler = new IssueInvoiceHandler(invoiceRepository, _promotionRepo, _db, _notificationService, _invoiceQuery);
         _getPendingHandler = new GetPendingInvoicesHandler(invoiceRepository);
         _getOutstandingHandler = new GetOutstandingInvoicesHandler(invoiceRepository);
-        _getOutstandingPlansHandler = new GetOutstandingPlansHandler(invoiceRepository, _invoiceQuery);
         _confirmPaymentHandler = new ConfirmInvoicePaymentHandler(invoiceRepository, _db, _confirmationService, _invoiceQuery);
         _collectRemainingHandler = new CollectRemainingInvoiceHandler(invoiceRepository, _db, _invoiceQuery);
         _getHistoryHandler = new GetInvoiceHistoryHandler(invoiceRepository);
@@ -443,12 +441,12 @@ public class InvoiceHandlerTests
     }
 
     /// <summary>
-    /// Tab "Công nợ" → tab con "Liệu trình còn nợ": liệu trình đã thu một phần mà còn thiếu vẫn được
-    /// liệt kê (nhìn công nợ theo liệu trình). Ở đây cả liệu trình đã nằm trọn trên một hóa đơn còn nợ
-    /// nên UnbilledAmount = 0 — giao diện dùng số này để không cộng trùng với tab hóa đơn.
+    /// Công nợ liệu trình: liệu trình đã thu một phần mà còn thiếu — credit đúng số đã thu (deposit)
+    /// từ hóa đơn ĐÃ Paid. GetPlanBilledMapAsync dùng để biết phần đã gắn hóa đơn (không xuất trùng);
+    /// ở đây cả liệu trình đã nằm trọn trên một hóa đơn nên phần chưa gắn hóa đơn = 0.
     /// </summary>
     [Test]
-    public async Task GetOutstandingPlansAsync_PlanFullyBilled_ListedWithZeroUnbilled()
+    public async Task GetPlanPaidMapAsync_PlanFullyBilled_CreditsDepositWithZeroUnbilled()
     {
         var (appointmentA, patient, _) = await SeedPendingPaymentAppointmentAsync();
         var dentist = await _db.DentistProfiles.FirstAsync();
@@ -456,14 +454,9 @@ public class InvoiceHandlerTests
         _db.Services.Add(service);
         var inProgressPlan = TreatmentPlan.Create(patient.Id, dentist.Id, null, service.Id, service.Price, 1);
         inProgressPlan.SetStatus(TreatmentPlanStatus.InProgress);
-        var completedPlan = TreatmentPlan.Create(patient.Id, dentist.Id, null, service.Id, service.Price, 1);
-        completedPlan.SetStatus(TreatmentPlanStatus.Completed);
-        _db.TreatmentPlans.AddRange(inProgressPlan, completedPlan);
+        _db.TreatmentPlans.Add(inProgressPlan);
         await _db.SaveChangesAsync();
 
-        // GetOutstandingPlansHandler chỉ tính là "công nợ" khi liệu trình ĐÃ thu một phần mà còn thiếu —
-        // liệu trình chưa thu đồng nào chỉ là "đang điều trị", chưa phải nợ (xem comment trong handler).
-        // Cần 1 hóa đơn đặt cọc thật gắn vào inProgressPlan để có AmountPaid > 0.
         // GetPlanPaidMapAsync chỉ credit công nợ từ hóa đơn ĐÃ Paid (chưa Paid thì chưa tính là "đã thu")
         // — phải MarkAsPaid thật, không chỉ Issue, mới khớp đúng luồng nghiệp vụ thật.
         var deposit = service.Price / 3;
@@ -475,22 +468,23 @@ public class InvoiceHandlerTests
         _db.Invoices.Add(partialInvoice);
         await _db.SaveChangesAsync();
 
-        var result = await _getOutstandingPlansHandler.Handle(new GetOutstandingPlansQuery(), CancellationToken.None);
+        var planIds = new List<Guid> { inProgressPlan.Id };
+        var paidMap = await _invoiceQuery.GetPlanPaidMapAsync(planIds, CancellationToken.None);
+        var billedMap = await _invoiceQuery.GetPlanBilledMapAsync(planIds, CancellationToken.None);
 
-        result.Should().ContainSingle(p => p.TreatmentPlanId == inProgressPlan.Id);
-        result[0].AmountPaid.Should().Be(deposit);
-        result[0].RemainingAmount.Should().Be(service.Price - deposit);
+        paidMap.GetValueOrDefault(inProgressPlan.Id).Should().Be(deposit);
+        (service.Price - paidMap.GetValueOrDefault(inProgressPlan.Id)).Should().Be(service.Price - deposit);
         // Toàn bộ 15tr đã nằm trên hóa đơn (dòng hóa đơn = trọn giá liệu trình) → không còn gì để
         // xuất hóa đơn nữa; phần thiếu 10tr là công nợ CỦA HÓA ĐƠN, không phải phần chờ xuất HĐ.
-        result[0].UnbilledAmount.Should().Be(0);
+        (service.Price - billedMap.GetValueOrDefault(inProgressPlan.Id)).Should().Be(0);
     }
 
     /// <summary>
     /// Liệu trình trả góp: mới xuất hóa đơn đợt 1 (đã thu đủ đợt đó) thì phần chưa xuất hóa đơn mới là
-    /// công nợ liệu trình — hiện ở tab "Công nợ" kèm số tiền còn phải xuất hóa đơn.
+    /// công nợ liệu trình — GetPlanBilledMapAsync phải phản ánh đúng số tiền còn phải xuất hóa đơn.
     /// </summary>
     [Test]
-    public async Task GetOutstandingPlansAsync_PartiallyBilledPlan_ListedWithUnbilledAmount()
+    public async Task GetPlanBilledMapAsync_PartiallyBilledPlan_ReportsUnbilledAmount()
     {
         var (appointment, patient, _) = await SeedPendingPaymentAppointmentAsync();
         var dentist = await _db.DentistProfiles.FirstAsync();
@@ -511,12 +505,13 @@ public class InvoiceHandlerTests
         _db.Invoices.Add(firstInstallment);
         await _db.SaveChangesAsync();
 
-        var result = await _getOutstandingPlansHandler.Handle(new GetOutstandingPlansQuery(), CancellationToken.None);
+        var planIds = new List<Guid> { plan.Id };
+        var paidMap = await _invoiceQuery.GetPlanPaidMapAsync(planIds, CancellationToken.None);
+        var billedMap = await _invoiceQuery.GetPlanBilledMapAsync(planIds, CancellationToken.None);
 
-        result.Should().ContainSingle(p => p.TreatmentPlanId == plan.Id);
-        result[0].AmountPaid.Should().Be(5_000_000m);
-        result[0].RemainingAmount.Should().Be(10_000_000m);
-        result[0].UnbilledAmount.Should().Be(10_000_000m);
+        paidMap.GetValueOrDefault(plan.Id).Should().Be(5_000_000m);
+        (service.Price - paidMap.GetValueOrDefault(plan.Id)).Should().Be(10_000_000m);
+        (service.Price - billedMap.GetValueOrDefault(plan.Id)).Should().Be(10_000_000m);
     }
 
     /// <summary>Xác nhận thanh toán cho hóa đơn thu phần còn lại phải tất toán (Settle) hóa đơn gốc.</summary>
