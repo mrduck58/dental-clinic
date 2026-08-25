@@ -39,12 +39,15 @@ const getWeekDates = (monday: Date): Date[] =>
 interface StaffLeaveShiftPickerProps {
   selected: Set<string>;
   onToggle: (date: string, shiftId: string) => void;
+  /** Các ca (key `${date}__${shiftId}`) đã nằm trong một đơn xin nghỉ Pending/Approved khác —
+   * khoá lại, không cho chọn thêm lần nữa cho tới khi đơn đó bị từ chối/huỷ. */
+  lockedShifts?: Set<string>;
 }
 
 /// Lưới chọn ca theo tuần cho đơn xin nghỉ của Staff — chỉ hiển thị các ca có trong lịch làm việc
 /// thật của nhân viên đang đăng nhập (GET /api/schedules/my), không hiện mock 6 ca cố định mỗi ngày.
 /// Cùng pattern với ShiftWeekPicker (dentist/leave).
-export default function StaffLeaveShiftPicker({ selected, onToggle }: StaffLeaveShiftPickerProps) {
+export default function StaffLeaveShiftPicker({ selected, onToggle, lockedShifts }: StaffLeaveShiftPickerProps) {
   const [monday, setMonday] = useState<Date>(getThisWeekMonday);
   const [entries, setEntries] = useState<ScheduleEntryDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -144,28 +147,33 @@ export default function StaffLeaveShiftPicker({ selected, onToggle }: StaffLeave
                         const st = PERIOD_STYLE[period];
                         const isSelected = selected.has(selectionKey(key, e.shift));
                         const isPast = isShiftPast(key, e.shift);
+                        const isLocked = !isPast && (lockedShifts?.has(selectionKey(key, e.shift)) ?? false);
+                        const isDisabled = isPast || isLocked;
                         return (
                           <button
                             type="button"
                             key={e.id}
-                            disabled={isPast}
+                            disabled={isDisabled}
+                            title={isLocked ? "Ca này đã có trong một đơn xin nghỉ khác" : undefined}
                             onClick={() => onToggle(key, e.shift)}
                             className={`rounded-lg px-2 py-1.5 border flex flex-col gap-0.5 text-left transition-all ${
-                              isPast
+                              isDisabled
                                 ? "bg-slate-50 border-slate-100 opacity-60 cursor-not-allowed"
                                 : `cursor-pointer ${isSelected ? `${st.chipSelected} shadow-sm` : `${st.chip} hover:brightness-95`}`
                             }`}
                           >
                             <div className="flex items-center gap-1">
-                              <span className={`w-1.5 h-1.5 rounded-full ${isPast ? "bg-slate-300" : isSelected ? "bg-white" : st.dot}`} />
-                              <span className={`text-[9px] font-black uppercase tracking-wide ${isPast ? "text-slate-400" : isSelected ? "text-white" : st.text}`}>{period}</span>
-                              {isSelected && !isPast && (
+                              <span className={`w-1.5 h-1.5 rounded-full ${isDisabled ? "bg-slate-300" : isSelected ? "bg-white" : st.dot}`} />
+                              <span className={`text-[9px] font-black uppercase tracking-wide ${isDisabled ? "text-slate-400" : isSelected ? "text-white" : st.text}`}>
+                                {isLocked ? "Đã xin nghỉ" : period}
+                              </span>
+                              {isSelected && !isDisabled && (
                                 <svg className="w-3 h-3 ml-auto text-white" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                                 </svg>
                               )}
                             </div>
-                            <span className={`text-[11px] font-black font-mono ${isPast ? "text-slate-400" : isSelected ? "text-white" : "text-slate-800"}`}>{shiftLabel(e.shift)}</span>
+                            <span className={`text-[11px] font-black font-mono ${isDisabled ? "text-slate-400" : isSelected ? "text-white" : "text-slate-800"}`}>{shiftLabel(e.shift)}</span>
                           </button>
                         );
                       })}

@@ -24,6 +24,7 @@ public class CreateLeaveRequestHandlerTests
     public void SetUp()
     {
         _repo = Substitute.For<ILeaveRequestRepository>();
+        _repo.GetByUserIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(new List<LeaveRequest>());
         _activityLog = Substitute.For<IActivityLogService>();
         _currentUser = Substitute.For<ICurrentUserService>();
         _notification = Substitute.For<INotificationService>();
@@ -116,6 +117,48 @@ public class CreateLeaveRequestHandlerTests
         Func<Task> act = () => handler.Handle(new CreateLeaveRequestCommand(Guid.NewGuid(), req), CancellationToken.None);
 
         await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    /// <summary>
+    /// Ca đã nằm trong một đơn Pending của chính người này phải ném ValidationException —
+    /// không cho xin nghỉ trùng ca hai lần trong khi đơn trước còn đang chờ duyệt.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_ShiftAlreadyInPendingRequest_ThrowsValidationException()
+    {
+        var userId = Guid.NewGuid();
+        var day = DateOnly.FromDateTime(DateTime.Today.AddDays(3));
+        var existing = LeaveRequest.Create(userId, LeaveType.Annual, [(day, "08:00-10:00")], "Đơn trước");
+        _repo.GetByUserIdAsync(userId, Arg.Any<CancellationToken>()).Returns(new List<LeaveRequest> { existing });
+        var handler = new CreateLeaveRequestHandler(_repo, _activityLog, _notification, _userRepo, _currentUser);
+        var req = new CreateLeaveRequestRequest("Annual", [new LeaveRequestShiftInput(day, "08:00-10:00")], "Đơn mới");
+
+        Func<Task> act = () => handler.Handle(new CreateLeaveRequestCommand(userId, req), CancellationToken.None);
+
+        await act.Should().ThrowAsync<ValidationException>();
+    }
+
+    /// <summary>
+    /// Ca thuộc một đơn đã bị Rejected thì không còn bị khoá — xin nghỉ lại ca đó phải thành công.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_ShiftInRejectedRequest_IsNotBlocked()
+    {
+        var userId = Guid.NewGuid();
+        var day = DateOnly.FromDateTime(DateTime.Today.AddDays(3));
+        var rejected = LeaveRequest.Create(userId, LeaveType.Annual, [(day, "08:00-10:00")], "Đơn trước");
+        rejected.Reject(null);
+        _repo.GetByUserIdAsync(userId, Arg.Any<CancellationToken>()).Returns(new List<LeaveRequest> { rejected });
+        var user = User.Create("emp", "emp@test.com", "hash", UserRole.Staff, null, "Nhân Viên Test");
+        _repo.When(r => r.AddAsync(Arg.Any<LeaveRequest>(), Arg.Any<CancellationToken>()))
+            .Do(call => typeof(LeaveRequest).GetProperty("User")!.SetValue(call.Arg<LeaveRequest>(), user));
+        _userRepo.GetUserIdsByRoleAsync("Owner", Arg.Any<CancellationToken>()).Returns([]);
+        var handler = new CreateLeaveRequestHandler(_repo, _activityLog, _notification, _userRepo, _currentUser);
+        var req = new CreateLeaveRequestRequest("Annual", [new LeaveRequestShiftInput(day, "08:00-10:00")], "Đơn mới");
+
+        var result = await handler.Handle(new CreateLeaveRequestCommand(userId, req), CancellationToken.None);
+
+        result.Status.Should().Be("Pending");
     }
 
     /// <summary>
