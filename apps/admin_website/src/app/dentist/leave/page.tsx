@@ -48,6 +48,27 @@ const parseSelectionKey = (key: string): { date: string; shiftId: string } => {
   return { date, shiftId };
 };
 
+const WEEKDAY_LABEL = ["Chủ nhật", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"];
+
+// Thứ trong tuần của một chuỗi "YYYY-MM-DD" — tự tách chuỗi thay vì new Date(s) để khỏi lệch
+// múi giờ (chuỗi ngày trần bị trình duyệt hiểu là UTC).
+const weekdayOf = (s: string) => {
+  const [y, m, d] = s.split("-").map(Number);
+  return WEEKDAY_LABEL[new Date(y, m - 1, d).getDay()];
+};
+
+// Gom các ca đã chọn trong một đơn theo ngày, để hiển thị "Thứ x · ngày" + các ca trong ngày đó
+// thay vì một dãy chip phẳng khó nhìn khi đơn có nhiều ca.
+const groupShiftsByDate = (shifts: { date: string; shiftId: string }[]) => {
+  const map = new Map<string, string[]>();
+  for (const sh of shifts) {
+    const arr = map.get(sh.date) ?? [];
+    arr.push(sh.shiftId);
+    map.set(sh.date, arr);
+  }
+  return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
+};
+
 export default function DentistLeavePage() {
   useRequireDentist();
 
@@ -84,6 +105,18 @@ export default function DentistLeavePage() {
       const next = new Set(prev);
       const key = selectionKey(date, shiftId);
       if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
+  // Bấm tiêu đề một ngày trong lưới chọn ca → chọn/bỏ chọn hết các ca còn bấm được của ngày đó,
+  // để xin nghỉ cả ngày không phải bấm từng ca một.
+  const toggleDay = (date: string, shiftIds: string[]) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      const keys = shiftIds.map((id) => selectionKey(date, id));
+      const allSelected = keys.every((k) => next.has(k));
+      for (const k of keys) { if (allSelected) next.delete(k); else next.add(k); }
       return next;
     });
   };
@@ -237,7 +270,7 @@ export default function DentistLeavePage() {
                     </span>
                   )}
                 </div>
-                <ShiftWeekPicker selected={selected} onToggle={toggleShift} lockedShifts={lockedShifts} />
+                <ShiftWeekPicker selected={selected} onToggle={toggleShift} onToggleDay={toggleDay} lockedShifts={lockedShifts} />
               </div>
 
               {/* Reason */}
@@ -298,11 +331,21 @@ export default function DentistLeavePage() {
                         </span>
                       </div>
                       {req.shifts?.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5">
-                          {req.shifts.map((sh) => (
-                            <span key={`${sh.date}-${sh.shiftId}`} className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[11px] font-bold rounded-md font-mono">
-                              {fmtDate(sh.date)} {shiftLabel(sh.shiftId)}
-                            </span>
+                        <div className="flex flex-col gap-1.5">
+                          {groupShiftsByDate(req.shifts).map(([date, shiftIds]) => (
+                            <div key={date} className="rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2 flex flex-col gap-1.5">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-[11.5px] font-black text-slate-600">{weekdayOf(date)} · {fmtDate(date)}</span>
+                                <span className="text-[10px] font-black text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-full shrink-0">{shiftIds.length} ca</span>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {shiftIds.map((id) => (
+                                  <span key={id} className="px-2 py-0.5 bg-white text-slate-600 text-[11px] font-bold rounded-md font-mono border border-slate-200">
+                                    {shiftLabel(id)}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
                           ))}
                         </div>
                       )}
