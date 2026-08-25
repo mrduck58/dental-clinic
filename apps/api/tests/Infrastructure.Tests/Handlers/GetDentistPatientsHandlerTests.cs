@@ -158,7 +158,7 @@ public class GetDentistPatientsHandlerTests
         original.Complete();
         _db.Appointments.Add(original);
         await _db.SaveChangesAsync();
-        var followUp = Appointment.CheckInFollowUp(original.Id, patient.Id, dentist.Id);
+        var followUp = Appointment.CreateWalkIn(patient.Id, dentist.Id, DateTimeOffset.UtcNow, followUpFromAppointmentId: original.Id);
         _db.Appointments.Add(followUp);
         await _db.SaveChangesAsync();
 

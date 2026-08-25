@@ -100,4 +100,52 @@ public class PatientRepositoryTests
 
         results.Should().BeEmpty();
     }
+
+    /// <summary>Không có từ khóa và không bật onlyWithoutAccount vẫn phải trả rỗng — tránh quét
+    /// toàn bảng ngoài ý muốn khi tham số bị bỏ trống.</summary>
+    [Test]
+    public async Task SearchAsync_EmptyTermWithoutOnlyWithoutAccount_ReturnsEmpty()
+    {
+        await SeedWalkInPatientAsync("Nguyễn Văn Hùng", "0901111111");
+
+        var results = await _sut.SearchAsync("", 10);
+
+        results.Should().BeEmpty();
+    }
+
+    /// <summary>onlyWithoutAccount=true dùng để duyệt danh sách bệnh nhân chưa có tài khoản (staff
+    /// bấm chọn nhanh) — phải loại hẳn bệnh nhân đã có PasswordHash, kể cả khi không gõ từ khóa.</summary>
+    [Test]
+    public async Task SearchAsync_OnlyWithoutAccount_ExcludesPatientsWithAnAccount()
+    {
+        await SeedWalkInPatientAsync("Trần Thị Lan", "0902222222");
+        var withAccount = User.Create("u2", "u2@test.com", "hash", UserRole.Patient,
+            phoneNumber: "0903333333", fullName: "Lê Minh Quân");
+        _db.Users.Add(withAccount);
+        _db.Patients.Add(Patient.Create(withAccount.Id, new DateOnly(1992, 3, 3), "Nam"));
+        await _db.SaveChangesAsync();
+
+        var results = await _sut.SearchAsync("", 10, onlyWithoutAccount: true);
+
+        results.Should().ContainSingle().Which.FullName.Should().Be("Trần Thị Lan");
+    }
+
+    /// <summary>Duyệt danh sách (không gõ từ khóa) phải ưu tiên bệnh nhân mới thêm gần đây lên đầu —
+    /// đúng nhu cầu thực tế của staff hơn là sắp theo tên.</summary>
+    [Test]
+    public async Task SearchAsync_OnlyWithoutAccount_NoTerm_OrdersByCreatedAtDescending()
+    {
+        var older = await SeedWalkInPatientAsync("Bệnh Nhân Cũ", "0904444444");
+        var newer = await SeedWalkInPatientAsync("Bệnh Nhân Mới", "0905555555");
+        SetCreatedAt(older, DateTimeOffset.UtcNow.AddDays(-2));
+        SetCreatedAt(newer, DateTimeOffset.UtcNow);
+        await _db.SaveChangesAsync();
+
+        var results = await _sut.SearchAsync("", 10, onlyWithoutAccount: true);
+
+        results.Select(p => p.FullName).Should().Equal("Bệnh Nhân Mới", "Bệnh Nhân Cũ");
+    }
+
+    private static void SetCreatedAt(Patient patient, DateTimeOffset createdAt)
+        => typeof(Patient).GetProperty(nameof(Patient.CreatedAt))!.SetValue(patient, createdAt);
 }

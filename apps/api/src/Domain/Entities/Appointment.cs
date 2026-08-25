@@ -99,15 +99,21 @@ public class Appointment
     /// CheckedIn để xuất hiện ngay ở hàng đợi. <see cref="Origin"/> = WalkIn là căn cứ duy nhất để
     /// sau này biết lịch này KHÔNG có trạng thái nào trước check-in để quay về (xem <see cref="UndoCheckIn"/>).
     /// </summary>
+    /// <param name="followUpFromAppointmentId">
+    /// Có giá trị khi lịch lập tại quầy này là buổi tái khám staff check-in từ tab Tái khám —
+    /// gắn về buổi gốc để bác sĩ thấy cờ tái khám và liệu trình cũ (xem <see cref="FollowUpFromAppointmentId"/>).
+    /// </param>
     public static Appointment CreateWalkIn(
         Guid patientId,
         Guid dentistId,
         DateTimeOffset appointmentDate,
         string? symptoms = null,
-        Guid? serviceId = null)
+        Guid? serviceId = null,
+        Guid? followUpFromAppointmentId = null)
     {
         var appointment = Create(patientId, dentistId, appointmentDate, symptoms, serviceId);
         appointment.Origin = AppointmentOrigin.WalkIn;
+        appointment.FollowUpFromAppointmentId = followUpFromAppointmentId;
         appointment.CheckIn();
         return appointment;
     }
@@ -259,36 +265,6 @@ public class Appointment
         AiSummaryBasedOnCount = basedOnPastAppointmentCount;
     }
 
-    /// <summary>
-    /// Staff check-in bệnh nhân đến tái khám (từ tab Tái khám ở quầy): tạo buổi hẹn mới
-    /// đã check-in ngay, gắn về buổi gốc qua <see cref="FollowUpFromAppointmentId"/> —
-    /// đây là căn cứ để phía bác sĩ đánh dấu buổi này là tái khám.
-    /// </summary>
-    public static Appointment CheckInFollowUp(
-        Guid originalAppointmentId,
-        Guid patientId,
-        Guid dentistId,
-        Guid? serviceId = null,
-        string? symptoms = null)
-    {
-        var now = DateTimeOffset.UtcNow;
-        return new Appointment
-        {
-            Id = Guid.NewGuid(),
-            PatientId = patientId,
-            DentistId = dentistId,
-            ServiceId = serviceId,
-            AppointmentDate = now,
-            Status = AppointmentStatus.CheckedIn,
-            // Cũng là lịch lập tại quầy: không đi qua Pending/Confirmed nên hoàn tác check-in
-            // chỉ có thể là hủy hẳn, y như lịch vãng lai.
-            Origin = AppointmentOrigin.WalkIn,
-            CheckedInAt = now,
-            Symptoms = symptoms,
-            FollowUpFromAppointmentId = originalAppointmentId,
-            CreatedAt = now
-        };
-    }
     /// <summary>
     /// VỊ TRÍ HIỂN THỊ trong hàng đợi (tick UTC). Tách khỏi <see cref="CheckedInAt"/> để lễ tân đẩy
     /// bệnh nhân lên/xuống hoặc chuyển phòng (xuống cuối) mà KHÔNG làm đổi thời gian chờ. Null =

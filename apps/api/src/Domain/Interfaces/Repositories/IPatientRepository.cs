@@ -17,7 +17,7 @@ public interface IPatientRepository
     /// Số điện thoại được dò cả ở <see cref="Patient.PhoneNumber"/> (bệnh nhân tạo tại quầy, không có
     /// tài khoản) lẫn ở tài khoản liên kết — hai nguồn này không phải lúc nào cũng trùng nhau.
     /// </summary>
-    Task<IReadOnlyList<Patient>> SearchAsync(string term, int limit, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Patient>> SearchAsync(string term, int limit, bool onlyWithoutAccount = false, CancellationToken cancellationToken = default);
 
     /// <summary>Tìm bệnh nhân theo số điện thoại của TÀI KHOẢN liên kết (User.PhoneNumber) — dùng khi
     /// đặt lịch vãng lai để tránh tạo trùng hồ sơ cho người đã có tài khoản.</summary>

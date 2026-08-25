@@ -162,7 +162,7 @@ public class PatientMedicalHistoryHandlerTests
         var result = await _search.Handle(new SearchPatientsQuery(null, 10), CancellationToken.None);
 
         result.Should().BeEmpty();
-        await _searchPatientRepo.DidNotReceive().SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+        await _searchPatientRepo.DidNotReceive().SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<bool>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>Từ khóa dưới 2 ký tự phải trả về rỗng để tránh quét toàn bảng.</summary>
@@ -174,40 +174,54 @@ public class PatientMedicalHistoryHandlerTests
         result.Should().BeEmpty();
     }
 
+    /// <summary>OnlyWithoutAccount=true phải bỏ qua ràng buộc tối thiểu 2 ký tự — dùng để duyệt
+    /// danh sách bệnh nhân chưa có tài khoản mà không cần gõ từ khóa.</summary>
+    [Test]
+    public async Task Handle_OnlyWithoutAccountTrue_BypassesMinLengthAndQueriesRepository()
+    {
+        _searchPatientRepo.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns([]);
+
+        var result = await _search.Handle(new SearchPatientsQuery(null, 10, OnlyWithoutAccount: true), CancellationToken.None);
+
+        result.Should().BeEmpty();
+        await _searchPatientRepo.Received(1).SearchAsync("", 10, true, Arg.Any<CancellationToken>());
+    }
+
     /// <summary>Limit không hợp lệ (<= 0) phải được thay bằng giá trị mặc định 8 khi gọi repository.</summary>
     [Test]
     public async Task Handle_LimitZeroOrNegative_ClampsToDefaultEight()
     {
-        _searchPatientRepo.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        _searchPatientRepo.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns([]);
 
         await _search.Handle(new SearchPatientsQuery("Nguyen", 0), CancellationToken.None);
 
-        await _searchPatientRepo.Received(1).SearchAsync("Nguyen", 8, Arg.Any<CancellationToken>());
+        await _searchPatientRepo.Received(1).SearchAsync("Nguyen", 8, false, Arg.Any<CancellationToken>());
     }
 
     /// <summary>Limit vượt quá 20 phải được thay bằng giá trị mặc định 8 khi gọi repository.</summary>
     [Test]
     public async Task Handle_LimitAboveTwenty_ClampsToDefaultEight()
     {
-        _searchPatientRepo.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        _searchPatientRepo.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns([]);
 
         await _search.Handle(new SearchPatientsQuery("Nguyen", 100), CancellationToken.None);
 
-        await _searchPatientRepo.Received(1).SearchAsync("Nguyen", 8, Arg.Any<CancellationToken>());
+        await _searchPatientRepo.Received(1).SearchAsync("Nguyen", 8, false, Arg.Any<CancellationToken>());
     }
 
     /// <summary>Limit hợp lệ (1-20) phải được truyền nguyên vẹn xuống repository.</summary>
     [Test]
     public async Task Handle_LimitWithinRange_PassesThroughUnchanged()
     {
-        _searchPatientRepo.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        _searchPatientRepo.SearchAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns([]);
 
         await _search.Handle(new SearchPatientsQuery("Nguyen", 5), CancellationToken.None);
 
-        await _searchPatientRepo.Received(1).SearchAsync("Nguyen", 5, Arg.Any<CancellationToken>());
+        await _searchPatientRepo.Received(1).SearchAsync("Nguyen", 5, false, Arg.Any<CancellationToken>());
     }
 
     /// <summary>Kết quả trả về phải map đúng các trường, và HasAccount phải phân biệt bệnh nhân có
@@ -223,7 +237,7 @@ public class PatientMedicalHistoryHandlerTests
         var patientWithoutAccount = Patient.Create(withoutAccount.Id);
         patientWithoutAccount.User = withoutAccount;
 
-        _searchPatientRepo.SearchAsync("nguyen", 8, Arg.Any<CancellationToken>())
+        _searchPatientRepo.SearchAsync("nguyen", 8, false, Arg.Any<CancellationToken>())
             .Returns([patientWithAccount, patientWithoutAccount]);
 
         var result = (await _search.Handle(new SearchPatientsQuery("nguyen", 8), CancellationToken.None)).ToList();
