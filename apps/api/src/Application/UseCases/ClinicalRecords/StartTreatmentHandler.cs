@@ -37,7 +37,7 @@ public class StartTreatmentHandler(
             appointment.DentistId, appointmentId, dayStartUtc, dayStartUtc.AddDays(1), ct);
         if (inProgress != null)
             throw new ConflictException(
-                $"Bạn đang khám bệnh nhân {inProgress.Patient.FullName}. Vui lòng kết thúc điều trị bệnh nhân đó trước khi bắt đầu khám bệnh nhân mới.");
+                $"Bạn đang khám bệnh nhân {inProgress.Patient?.FullName ?? "khác"}. Vui lòng kết thúc điều trị bệnh nhân đó trước khi bắt đầu khám bệnh nhân mới.");
 
         appointment.StartTreatment();
         await appointmentRepository.UpdateAsync(appointment, ct);

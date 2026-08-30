@@ -57,7 +57,7 @@ public class RecordTreatmentSupplyUsageHandler(
         if (!await queryHelper.HasActiveVisitAsync(treatmentPlan.PatientId, ct))
             throw new ValidationException("Chỉ có thể ghi nhận vật tư khi buổi hẹn đang khám hoặc đã kết thúc điều trị.");
 
-        var dentistName = treatmentPlan.Dentist.FullName;
+        var dentistName = treatmentPlan.Dentist?.FullName ?? string.Empty;
 
         await using var transaction = await treatmentSupplyUsageRepository.BeginTransactionAsync(ct);
         foreach (var line in items)

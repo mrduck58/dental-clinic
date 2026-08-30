@@ -115,8 +115,8 @@ export default function FollowUpWorkspace({ appointmentId, editMode = false }: F
     const key = dayKey(examination.appointmentDate);
     return plans
       .filter(p => p.appointmentId != null && chainIds.has(p.appointmentId))
-      .flatMap(p => p.stepProgress.map(sp => ({ ...sp, serviceName: p.serviceName })))
-      .filter(sp => dayKey(sp.date) === key)
+      .flatMap(p => (p.stepProgress ?? []).map(sp => ({ ...sp, serviceName: p.serviceName })))
+      .filter(sp => sp?.date && dayKey(sp.date) === key)
       .sort((a, b) => a.stepNumber - b.stepNumber);
   }, [plans, examination, chainIds]);
 
