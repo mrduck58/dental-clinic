@@ -307,7 +307,9 @@ public class SupabaseDatabaseMigrator
                 ""SupplyItemId"" uuid NOT NULL,
                 ""Quantity"" integer NOT NULL,
                 ""Note"" text NULL
-            );"
+            );",
+            @"ALTER TABLE ""Invoices"" ADD COLUMN IF NOT EXISTS ""PatientId"" uuid NULL;",
+            @"ALTER TABLE ""Invoices"" ALTER COLUMN ""AppointmentId"" DROP NOT NULL;"
         };
 
         await using var conn = await GetOpenConnectionAsync();

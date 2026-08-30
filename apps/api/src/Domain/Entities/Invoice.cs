@@ -3,15 +3,14 @@ using DentalClinic.API.Domain.Enums;
 namespace DentalClinic.API.Domain.Entities;
 
 /// <summary>
-/// Hóa đơn thanh toán của một lịch hẹn.
-/// Được staff xuất ra từ liệu trình điều trị sau khi bác sĩ kết thúc điều trị
-/// (lịch hẹn chuyển sang trạng thái <see cref="AppointmentStatus.PendingPayment"/>).
+/// Hóa đơn thanh toán các dịch vụ / khoản thu của bệnh nhân.
 /// </summary>
 public class Invoice
 {
     public Guid Id { get; private set; }
     public string InvoiceNumber { get; private set; } = string.Empty;
-    public Guid AppointmentId { get; private set; }
+    public Guid? PatientId { get; private set; }
+    public Guid? AppointmentId { get; private set; }
     public decimal Subtotal { get; private set; }
     public decimal Discount { get; private set; }
     public decimal TotalAmount { get; private set; }       // Tổng chi phí điều trị (sau giảm giá)
@@ -36,7 +35,8 @@ public class Invoice
     public Promotion? Promotion { get; private set; }
 
     // Navigation properties
-    public Appointment Appointment { get; private set; } = null!;
+    public Patient? Patient { get; private set; }
+    public Appointment? Appointment { get; private set; }
     public ICollection<InvoiceItem> Items { get; private set; } = new List<InvoiceItem>();
     public ICollection<PaymentTransaction> PaymentTransactions { get; private set; } = new List<PaymentTransaction>();
 
