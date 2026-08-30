@@ -128,6 +128,7 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
   const [addEstimatedStartDate, setAddEstimatedStartDate] = useState<string>("");
   const [addEstimatedEndDate, setAddEstimatedEndDate] = useState<string>("");
   const [savingService, setSavingService] = useState(false);
+  const [addServiceError, setAddServiceError] = useState<string | null>(null);
 
   // ── Modal: thêm quá trình ──────────────────────────────────────────────────
   const [showAddProgress, setShowAddProgress] = useState(false);
@@ -347,6 +348,7 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
   const handleAddService = async () => {
     if (!selService || !examination) return;
     if (selOptions.length > 0 && !selOption) return;
+    setAddServiceError(null);
     try {
       setSavingService(true);
       const teeth = addTeeth.trim() || undefined;
@@ -394,9 +396,12 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
       setAddEstimatedDurationUnit("Month");
       setAddEstimatedStartDate("");
       setAddEstimatedEndDate("");
+      setAddServiceError(null);
       await loadPlans(examination.patient.id);
     } catch (err) {
-      showToast(err instanceof Error ? err.message : "Không thể thêm dịch vụ", "error");
+      const msg = err instanceof Error ? err.message : "Không thể thêm dịch vụ";
+      setAddServiceError(msg);
+      showToast(msg, "error");
     } finally {
       setSavingService(false);
     }
@@ -946,7 +951,10 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
               icon="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25z"
               action={
                 <button
-                  onClick={() => setShowAddService(true)}
+                  onClick={() => {
+                    setAddServiceError(null);
+                    setShowAddService(true);
+                  }}
                   disabled={!canEdit}
                   title={canEdit ? undefined : "Chỉ thêm được khi buổi hẹn đang khám"}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-[12.5px] font-bold bg-primary text-white rounded-lg hover:bg-red-600 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed cursor-pointer"
@@ -1096,6 +1104,7 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                         setSelService(s);
                         setSelOption(null);
                         setAddTeeth("");
+                        setAddServiceError(null);
                         setAddEstimatedSessionCount(s.estimatedSessionCount ?? "");
                         setAddEstimatedDurationMin(s.estimatedDurationMin ?? "");
                         setAddEstimatedDurationMax(s.estimatedDurationMax ?? "");
@@ -1336,6 +1345,18 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                     rows={2}
                     className="w-full px-3 py-2 text-[13px] bg-white border border-slate-200 rounded-lg focus:border-primary focus:outline-none font-semibold resize-none"
                   />
+                </div>
+              )}
+
+              {addServiceError && (
+                <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl text-red-700 text-[13px] font-semibold flex items-start gap-2.5">
+                  <svg className="w-5 h-5 text-red-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                  </svg>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-[13px] text-red-800">Không thể thêm dịch vụ:</div>
+                    <div className="text-[12px] text-red-600 mt-1 break-words leading-relaxed font-normal">{addServiceError}</div>
+                  </div>
                 </div>
               )}
 
