@@ -38,6 +38,9 @@ interface ServiceOptionRow {
 interface ProcedureStepRow {
   id: string;
   name: string;
+  durationMinutes: number;
+  description?: string;
+  isRequired?: boolean;
 }
 
 export default function AddServicePage() {
@@ -166,7 +169,13 @@ export default function AddServicePage() {
   const handleAddStep = () => {
     setSteps((prev) => [
       ...prev,
-      { id: Date.now().toString(), name: "" },
+      {
+        id: Date.now().toString(),
+        name: "",
+        durationMinutes: 30,
+        description: "",
+        isRequired: true,
+      },
     ]);
   };
 
@@ -174,9 +183,13 @@ export default function AddServicePage() {
     setSteps((prev) => prev.filter((step) => step.id !== id));
   };
 
-  const handleStepChange = (id: string, val: string) => {
+  const handleStepChange = (
+    id: string,
+    field: "name" | "durationMinutes" | "description" | "isRequired",
+    val: string | number | boolean
+  ) => {
     setSteps((prev) =>
-      prev.map((step) => (step.id === id ? { ...step, name: val } : step))
+      prev.map((step) => (step.id === id ? { ...step, [field]: val } : step))
     );
   };
 
@@ -252,6 +265,9 @@ export default function AddServicePage() {
       .map((s, index) => ({
         stepNumber: index + 1,
         name: s.name.trim(),
+        durationMinutes: Number(s.durationMinutes) > 0 ? Number(s.durationMinutes) : 30,
+        isRequired: s.isRequired !== false,
+        description: s.description?.trim() || null,
       }));
 
     // Vật tư riêng của từng option (1 option có thể có nhiều vật tư khác nhau).
@@ -546,34 +562,81 @@ export default function AddServicePage() {
                     </button>
                   </div>
                 ) : (
-                  <div className="flex flex-col gap-2">
+                  <div className="flex flex-col gap-2.5">
                     {steps.map((step, idx) => (
                       <div
                         key={step.id}
-                        className="flex items-center gap-2 p-2 bg-slate-50/90 rounded-xl border border-slate-200/80"
+                        className="flex flex-col gap-1.5 p-2.5 bg-slate-50/90 hover:bg-slate-50 rounded-xl border border-slate-200/80 transition-all"
                       >
-                        <span className="w-6 h-6 rounded-md bg-blue-100 text-blue-700 text-[11px] font-extrabold flex items-center justify-center shrink-0">
-                          {idx + 1}
-                        </span>
-                        <input
-                          type="text"
-                          placeholder={`Bước ${idx + 1}: Tên bước (vd: Thăm khám & chụp X-quang)...`}
-                          value={step.name}
-                          onChange={(e) => handleStepChange(step.id, e.target.value)}
-                          className="flex-1 px-2.5 py-1 text-[12px] bg-white border border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none font-semibold text-slate-800 placeholder:text-slate-300"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveStep(step.id)}
-                          className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                          title="Xóa bước này"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                          </svg>
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-md bg-blue-100 text-blue-700 text-[11px] font-extrabold flex items-center justify-center shrink-0">
+                            {idx + 1}
+                          </span>
+                          <input
+                            type="text"
+                            placeholder={`Bước ${idx + 1}: Tên bước (vd: Thăm khám & chụp X-quang)...`}
+                            value={step.name}
+                            onChange={(e) => handleStepChange(step.id, "name", e.target.value)}
+                            className="flex-1 min-w-0 px-2.5 py-1 text-[12px] bg-white border border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none font-semibold text-slate-800 placeholder:text-slate-300"
+                          />
+                          {/* Thời lượng phút */}
+                          <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-0.5 shrink-0 focus-within:border-blue-500" title="Thời lượng thực hiện bước này (phút)">
+                            <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <input
+                              type="number"
+                              min={5}
+                              max={480}
+                              step={5}
+                              value={step.durationMinutes}
+                              onChange={(e) => handleStepChange(step.id, "durationMinutes", parseInt(e.target.value) || 0)}
+                              className="w-10 text-center text-[12px] font-bold text-slate-800 focus:outline-none p-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                            <span className="text-[11px] font-semibold text-slate-400 shrink-0">phút</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveStep(step.id)}
+                            className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer shrink-0"
+                            title="Xóa bước này"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                            </svg>
+                          </button>
+                        </div>
+                        {/* Ghi chú mô tả bước */}
+                        <div className="flex items-center gap-2 pl-8">
+                          <input
+                            type="text"
+                            placeholder="Mô tả / lưu ý cho bác sĩ ở bước này (tùy chọn)..."
+                            value={step.description || ""}
+                            onChange={(e) => handleStepChange(step.id, "description", e.target.value)}
+                            className="w-full px-2.5 py-0.5 text-[11.5px] bg-white/70 hover:bg-white focus:bg-white border border-slate-200/60 focus:border-blue-400 rounded-md focus:outline-none text-slate-600 placeholder:text-slate-300 font-normal transition-all"
+                          />
+                        </div>
                       </div>
                     ))}
+
+                    {/* Helper tính tổng thời lượng các bước */}
+                    {steps.length > 0 && (
+                      <div className="mt-1 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11.5px] text-slate-500">
+                        <span>
+                          Tổng thời gian các bước: <strong className="text-blue-600 font-bold">{steps.reduce((sum, s) => sum + (Number(s.durationMinutes) || 0), 0)} phút</strong>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const total = steps.reduce((sum, s) => sum + (Number(s.durationMinutes) || 0), 0);
+                            if (total > 0) setFormDuration(String(total));
+                          }}
+                          className="text-blue-600 hover:text-blue-700 font-bold hover:underline cursor-pointer"
+                        >
+                          Áp dụng vào thời gian dịch vụ
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

@@ -20,7 +20,7 @@ public class DentistDashboardQueryService(AppDbContext db) : IDentistDashboardQu
         // 1. Khớp trực tiếp qua Employee.UserId hoặc DentistProfile.Id hoặc EmployeeId
         var dentist = await db.DentistProfiles
             .Include(d => d.Employee).ThenInclude(e => e.User)
-            .FirstOrDefaultAsync(d => d.Employee.UserId == userId || d.Id == userId || d.EmployeeId == userId, ct);
+            .FirstOrDefaultAsync(d => (d.Employee != null && d.Employee.UserId == userId) || d.Id == userId || d.EmployeeId == userId, ct);
         if (dentist != null) return dentist;
 
         // 2. Thử tìm qua User.Id -> Employee -> DentistProfile
@@ -48,8 +48,8 @@ public class DentistDashboardQueryService(AppDbContext db) : IDentistDashboardQu
             if (dentist != null) return dentist;
         }
 
-        // 4. Nếu là Admin hoặc tài khoản demo chưa link hồ sơ, lấy bác sĩ đầu tiên trong hệ thống
-        if (user != null && (user.Role == UserRole.Admin || user.Role == UserRole.Dentist))
+        // 4. Nếu là Admin/Owner hoặc tài khoản demo chưa link hồ sơ, lấy bác sĩ đầu tiên trong hệ thống
+        if (user != null && (user.Role == UserRole.Admin || user.Role == UserRole.Owner || user.Role == UserRole.Dentist))
         {
             dentist = await db.DentistProfiles
                 .Include(d => d.Employee).ThenInclude(e => e.User)

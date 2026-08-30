@@ -24,6 +24,10 @@ public class GetMyExaminationHistoryHandler(
         var patientId = request.PatientId;
 
         var patient = await patientRepository.GetByUserIdAsync(userId, ct);
+        if (patient is null)
+        {
+            patient = await patientRepository.GetByIdAsync(userId, ct);
+        }
         if (patient is null) return new List<MyMedicalHistoryDto>();
 
         var appointments = await appointmentRepository.GetCompletedHistoryForFamilyAsync(patient.Id, patientId, 50, ct);
@@ -49,7 +53,7 @@ public class GetMyExaminationHistoryHandler(
             a.PatientId == patient.Id ? "Tôi" : (a.Patient?.Relationship ?? string.Empty),
             a.FollowUpDate,
             a.FollowUpNote,
-            chainByAppointment[a.Id],
+            chainByAppointment.GetValueOrDefault(a.Id, new List<Guid>()),
             ClinicalRecordMappers.ToMedicalHistoryDiagnoses(a),
             ClinicalRecordMappers.ToMedicalHistoryTreatmentPlans(a),
             ClinicalRecordMappers.ToMedicalHistoryPrescriptionItems(a),
