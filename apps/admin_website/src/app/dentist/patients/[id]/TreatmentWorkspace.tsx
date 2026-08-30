@@ -202,18 +202,10 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
     return steps;
   }, [proceduresCache]);
 
-  // Buổi tái khám (staff check-in từ tab Tái khám) → hiển thị liệu trình của CHUỖI đơn được tái khám
-  // (buổi gốc + các buổi tái khám trước trong chuỗi + buổi này) — không hiển thị dịch vụ của các lần khám khác.
-  // Buổi khám thường → chỉ hiển thị liệu trình lập trong chính buổi này.
   const isFollowUpVisit = examination?.isFollowUpVisit ?? false;
-  const chainIds = useMemo(() => {
-    const ids = new Set(examination?.relatedAppointmentIds ?? []);
-    ids.add(appointmentId);
-    return ids;
-  }, [examination?.relatedAppointmentIds, appointmentId]);
   const visiblePlans = useMemo(
-    () => plans.filter(p => p.appointmentId != null && chainIds.has(p.appointmentId)),
-    [plans, chainIds]
+    () => plans.filter(p => p.status !== "Cancelled"),
+    [plans]
   );
 
   // Nạp quy trình chuẩn của mọi dịch vụ đang hiển thị để biết MẪU SỐ khi tính % hoàn thành
@@ -271,10 +263,10 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
   const activePlans = useMemo(() => visiblePlans.filter(p => p.status !== "Cancelled"), [visiblePlans]);
   const totalCost = useMemo(() => activePlans.reduce((sum, p) => sum + p.totalCost, 0), [activePlans]);
 
-  // Các liệu trình đang thực hiện từ chuỗi đơn trước (hiện trong banner tái khám)
+  // Các liệu trình đang thực hiện (hiện trong banner tái khám)
   const continuingPlans = useMemo(
-    () => visiblePlans.filter(p => p.status === "InProgress" && p.appointmentId !== appointmentId),
-    [visiblePlans, appointmentId]
+    () => visiblePlans.filter(p => p.status === "InProgress"),
+    [visiblePlans]
   );
 
   const filteredServices = useMemo(() => {
