@@ -305,7 +305,7 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
             .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Items).ThenInclude(i => i.Service)
             .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Items).ThenInclude(i => i.ServiceOption)
             .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Items).ThenInclude(i => i.Sessions)
-            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Dentist)
+            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
             .Include(a => a.AppointmentSessions).ThenInclude(ase => ase.TreatmentSession)
             .Include(a => a.Prescriptions).ThenInclude(p => p.Items)
             .Include(a => a.FollowUpOrder)

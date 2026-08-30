@@ -23,7 +23,7 @@ public class GetPatientMedicalHistoryHandler(IAppointmentRepository appointmentR
             a.Id,
             ClinicalRecordMappers.AppointmentCode(a),
             a.AppointmentDate,
-            a.Dentist.FullName,
+            a.Dentist?.FullName ?? string.Empty,
             a.Service?.Name ?? "Khám tổng quát",
             a.Symptoms,
             ClinicalRecordMappers.ToMedicalHistoryDiagnoses(a),
