@@ -55,7 +55,7 @@ public class TreatmentPlanHandlerTests
         var queryHelper = new TreatmentPlanQueryHelper(treatmentPlanRepository, appointmentRepository, procedureRepository);
 
         _create = new CreateTreatmentPlanHandler(
-            appointmentRepository, serviceRepository, treatmentPlanRepository, queryHelper, _patientRepo, _notificationService);
+            appointmentRepository, serviceRepository, treatmentPlanRepository, procedureRepository, queryHelper, _patientRepo, _notificationService);
         _update = new UpdateTreatmentPlanHandler(treatmentPlanRepository, queryHelper);
         _delete = new DeleteTreatmentPlanHandler(treatmentPlanRepository, materialRequestRepository, queryHelper);
         _getByPatient = new GetPatientTreatmentPlansHandler(treatmentPlanRepository, queryHelper);
@@ -677,25 +677,25 @@ public class TreatmentPlanHandlerTests
         dto.StepProgress.Should().HaveCount(2);
     }
 
-    /// <summary>Tạo sẵn liệu trình với các mục nhật ký điều trị (StepProgress) đã ghi nhận, để test
-    /// trực tiếp Update/Reorder/Delete mà không cần đi qua AddStepProgressHandler.</summary>
     private async Task<TreatmentPlan> SeedPlanWithStepsAsync(
         Patient patient, DentistProfile dentist, Appointment appointment, Service service, params string[] stepNames)
     {
         var plan = TreatmentPlan.Create(patient.Id, dentist.Id, appointment.Id, service.Id, 500_000m, 1);
+        var item = plan.Items.First();
         if (stepNames.Length > 0)
         {
-            var entries = stepNames.Select((name, i) => new StepProgressEntryDto
+            for (int i = 0; i < stepNames.Length; i++)
             {
-                Id = Guid.NewGuid(),
-                StepNumber = i + 1,
-                StepName = name,
-                Percent = 50,
-                Date = DateOnly.FromDateTime(DateTime.Today),
-                DentistName = "BS. Test",
-                Note = null
-            }).ToList();
-            plan.UpdateStepProgress(SerializeStepProgress(entries));
+                var session = TreatmentSession.Create(
+                    item.Id,
+                    i + 1,
+                    stepNames[i],
+                    30,
+                    null,
+                    dentist.Id);
+                session.SetStatus(TreatmentSessionStatus.InProgress, DateTimeOffset.UtcNow);
+                item.Sessions.Add(session);
+            }
         }
         _db.TreatmentPlans.Add(plan);
         await _db.SaveChangesAsync();
@@ -896,12 +896,12 @@ public class TreatmentPlanHandlerTests
     /// <summary>Xóa một mục quá trình có vật tư tiêu hao gắn theo (StepEntryId khớp) phải hoàn lại đúng
     /// số lượng vào kho, tạo giao dịch nhập "hoàn trả", và đánh dấu dòng tiêu hao đó là đã hoàn kho.</summary>
     [Test]
-    public async Task DeleteStepProgressAsync_EntryHasLinkedSupplyUsage_RestocksAndMarksReversed()
+    public async Task DeleteStepProgressAsync_EntryHasLinkedSupplyUsage_ReversesSupplyUsageAndRestoresStock()
     {
         var (patient, dentist) = await SeedPatientAndDentistAsync("p30", "d30");
         var (appointment, service) = await SeedInProgressAppointmentAsync(patient, dentist);
         var plan = await SeedPlanWithStepsAsync(patient, dentist, appointment, service, "Gắn mão");
-        var stepEntryId = ParseStepProgress(plan.StepProgressJson).Single().Id;
+        var stepEntryId = plan.Items.First().Sessions.First().Id;
 
         // Kho hiện còn 4 (giả lập đã bị trừ 1 khi ghi nhận tiêu hao cho bước "Gắn mão" ở trên).
         var supplyItem = SupplyItem.Create("VT-TEST-30", "Mão Titan", "Vật tư chính", "Cái", 4, 1, 200_000m);
@@ -934,8 +934,7 @@ public class TreatmentPlanHandlerTests
         var (patient, dentist) = await SeedPatientAndDentistAsync("p31", "d31");
         var (appointment, service) = await SeedInProgressAppointmentAsync(patient, dentist);
         var plan = await SeedPlanWithStepsAsync(patient, dentist, appointment, service, "Chụp X-quang", "Gắn mão");
-        var entries = ParseStepProgress(plan.StepProgressJson);
-        var otherStepEntryId = entries[1].Id; // gắn với "Gắn mão", KHÔNG phải bước sẽ bị xóa (index 0)
+        var otherStepEntryId = plan.Items.First().Sessions.ElementAt(1).Id; // gắn với "Gắn mão", KHÔNG phải bước sẽ bị xóa (index 0)
 
         var supplyItem = SupplyItem.Create("VT-TEST-31", "Mão Titan", "Vật tư chính", "Cái", 4, 1, 200_000m);
         _db.SupplyItems.Add(supplyItem);

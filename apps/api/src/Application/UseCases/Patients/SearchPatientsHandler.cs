@@ -22,10 +22,13 @@ public class SearchPatientsHandler(IPatientRepository patientRepository)
         return patients.Select(p => new PatientSearchResultDto(
             p.Id,
             p.FullName,
-            p.PhoneNumber ?? p.User?.PhoneNumber,
+            p.PhoneNumber ?? p.PrimaryPatient?.PhoneNumber ?? p.User?.PhoneNumber,
             p.DateOfBirth,
             p.Gender,
-            p.User != null && p.User.PasswordHash != null
+            p.User != null && p.User.PasswordHash != null,
+            p.Relationship,
+            p.PrimaryPatientId,
+            p.PrimaryPatient?.FullName
         ));
     }
 }

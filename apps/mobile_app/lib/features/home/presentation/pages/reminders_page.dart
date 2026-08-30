@@ -8,6 +8,7 @@ import 'package:mobile_app/features/booking/data/booking_models.dart';
 import 'package:mobile_app/features/booking/data/booking_service.dart';
 import 'package:mobile_app/features/home/data/medication_reminder_service.dart';
 import 'package:mobile_app/features/home/data/models/medication_reminder_model.dart';
+import 'package:mobile_app/features/profile/data/medical_record_service.dart';
 
 class RemindersPage extends StatefulWidget {
   const RemindersPage({super.key});
@@ -20,6 +21,7 @@ class _RemindersPageState extends State<RemindersPage> {
   DateTime _selectedDate = DateTime.now();
   List<MedicationReminder> _reminders = [];
   List<MyAppointmentItem> _appointmentReminders = [];
+  List<MedicalHistoryEvent> _followUpReminders = [];
   final Map<String, bool> _taken = {};
   bool _isLoading = true;
   String? _error;
@@ -40,12 +42,18 @@ class _RemindersPageState extends State<RemindersPage> {
     try {
       final medicationFuture = MedicationReminderService().getReminders(_selectedDate);
       final appointmentsFuture = BookingService().getMyAppointments().catchError((_) => <MyAppointmentItem>[]);
+      final medicalHistoryFuture = MedicalRecordService().getMyMedicalHistory().catchError((_) => <MedicalHistoryEvent>[]);
 
       final reminders = await medicationFuture;
       final allAppointments = await appointmentsFuture;
+      final allHistory = await medicalHistoryFuture;
 
       final dayAppointments = allAppointments.where((a) {
         return _isSameDay(a.parsedDate, _selectedDate) && a.status != 'Cancelled';
+      }).toList();
+
+      final dayFollowUps = allHistory.where((h) {
+        return h.followUpDate != null && _isSameDay(h.followUpDate!, _selectedDate);
       }).toList();
 
       final takenEntries = await Future.wait(reminders.map((r) async {
@@ -57,6 +65,7 @@ class _RemindersPageState extends State<RemindersPage> {
       setState(() {
         _reminders = reminders;
         _appointmentReminders = dayAppointments;
+        _followUpReminders = dayFollowUps;
         _taken
           ..clear()
           ..addEntries(takenEntries);
@@ -156,18 +165,19 @@ class _RemindersPageState extends State<RemindersPage> {
             const SizedBox(height: 28),
 
             _buildAppointmentRemindersSection(isVi),
+            _buildFollowUpRemindersSection(isVi),
             _buildReminderSection('MORNING', isVi),
             const SizedBox(height: 20),
             _buildReminderSection('AFTERNOON', isVi),
             const SizedBox(height: 20),
             _buildReminderSection('EVENING', isVi),
 
-            if (_reminders.isEmpty && _appointmentReminders.isEmpty)
+            if (_reminders.isEmpty && _appointmentReminders.isEmpty && _followUpReminders.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 40),
                 child: Center(
                   child: Text(
-                    isVi ? 'Không có thuốc cần uống hoặc lịch khám nào vào ngày này.' : 'No medications or appointments scheduled for this date.',
+                    isVi ? 'Không có thuốc cần uống, lịch khám hoặc lịch tái khám nào vào ngày này.' : 'No medications, appointments or follow-ups scheduled for this date.',
                     style: TextStyle(color: context.textMuted),
                   ),
                 ),
@@ -587,6 +597,197 @@ class _RemindersPageState extends State<RemindersPage> {
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFollowUpRemindersSection(bool isVi) {
+    if (_followUpReminders.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 26,
+                height: 26,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF16A34A).withValues(alpha: context.isDark ? 0.25 : 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.event_available_rounded, size: 14, color: Color(0xFF16A34A)),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                isVi ? 'LỊCH HẸN TÁI KHÁM THEO CHỈ ĐỊNH' : 'RECOMMENDED FOLLOW-UPS',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF16A34A),
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ..._followUpReminders.map((event) => _buildFollowUpCard(event, isVi)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFollowUpCard(MedicalHistoryEvent event, bool isVi) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: context.card,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFF16A34A).withValues(alpha: 0.3)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF16A34A).withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFDCFCE7),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(Icons.calendar_month_rounded, color: Color(0xFF16A34A), size: 22),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            event.dentistName,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: context.textPrimary,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFDCFCE7),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            isVi ? 'ĐẾN HẠN TÁI KHÁM' : 'DUE FOR FOLLOW-UP',
+                            style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Color(0xFF16A34A)),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      event.serviceName,
+                      style: TextStyle(fontSize: 13, color: context.textSecondary, fontWeight: FontWeight.w600),
+                    ),
+                    if (event.followUpNote != null && event.followUpNote!.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        '${isVi ? 'Ghi chú' : 'Note'}: ${event.followUpNote}',
+                        style: TextStyle(fontSize: 12, color: context.textMuted),
+                      ),
+                    ],
+                    if (event.patientRelationship != 'Tôi') ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        '${isVi ? 'Bệnh nhân' : 'Patient'}: ${event.patientName}',
+                        style: TextStyle(fontSize: 11.5, color: context.textMuted, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Divider(color: context.divider, height: 1),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 40,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                final doctor = DoctorInfo(
+                  id: event.dentistId,
+                  name: event.dentistName,
+                  title: '',
+                  specialty: '',
+                  room: '',
+                  session: DoctorSession.morning,
+                  rating: 5.0,
+                  reviewCount: 0,
+                  avatarUrl: event.dentistAvatarUrl,
+                );
+
+                final service = event.serviceId != null
+                    ? ServiceInfo(
+                        id: event.serviceId!,
+                        name: event.serviceName,
+                        description: '',
+                        price: '',
+                        durationMinutes: 30,
+                      )
+                    : null;
+
+                final draft = BookingDraft(
+                  preferredDentistId: event.dentistId,
+                  patient: PatientInfo(
+                    id: event.patientId,
+                    name: event.patientName,
+                    relationship: event.patientRelationship,
+                  ),
+                  doctor: doctor,
+                  service: service,
+                  date: event.followUpDate,
+                  isFollowUp: true,
+                  symptoms: isVi
+                      ? 'Tái khám theo hẹn: ${event.serviceName}${event.followUpNote != null ? ' - ${event.followUpNote}' : ''}'
+                      : 'Follow-up visit: ${event.serviceName}${event.followUpNote != null ? ' - ${event.followUpNote}' : ''}',
+                );
+
+                BookingService().setActiveDraft(draft);
+                context.push(AppRoutes.bookingSelectTimeSlot, extra: draft);
+              },
+              icon: const Icon(Iconsax.calendar_add, size: 16),
+              label: Text(
+                isVi ? 'ĐẶT LỊCH TÁI KHÁM NGAY' : 'BOOK FOLLOW-UP NOW',
+                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF16A34A),
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),

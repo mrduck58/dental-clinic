@@ -53,6 +53,24 @@ public class User
         };
     }
 
+    /// <summary>Tạo hồ sơ bệnh nhân tại quầy chưa có tài khoản đăng nhập (không có email/mật khẩu).</summary>
+    public static User CreatePatient(string fullName, string? phoneNumber = null, string? gender = null, DateOnly? dateOfBirth = null)
+    {
+        return new User
+        {
+            Id = Guid.NewGuid(),
+            Username = null,
+            Email = null,
+            PasswordHash = null,
+            Role = UserRole.Patient,
+            PhoneNumber = phoneNumber,
+            FullName = fullName,
+            Gender = gender,
+            IsActive = true,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+    }
+
     /// <summary>Tạo hồ sơ nhân viên chưa có tài khoản đăng nhập.</summary>
     public static User CreateEmployee(string email, UserRole role, string? phoneNumber = null, string? fullName = null)
     {

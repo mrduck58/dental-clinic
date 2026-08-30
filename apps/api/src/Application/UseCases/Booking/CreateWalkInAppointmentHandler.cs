@@ -5,15 +5,12 @@ using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Domain.Schedules;
+using DentalClinic.API.Application.UseCases.ClinicalRecords;
 using DentalClinic.API.Application.UseCases.Patients;
 using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Booking;
 
-/// <param name="PatientId">
-/// Hồ sơ bệnh nhân staff đã chọn từ ô tra cứu. Khi có giá trị, dùng thẳng hồ sơ này thay vì
-/// dò theo số điện thoại — tránh tạo trùng khi bệnh nhân đổi số hoặc có nhiều người trùng số.
-/// </param>
 public record CreateWalkInCommand(
     Guid DentistId,
     DateTimeOffset AppointmentDate,
@@ -24,15 +21,12 @@ public record CreateWalkInCommand(
     Guid? ServiceId,
     string? Symptoms,
     Guid? PatientId = null,
-    /// <summary>Có email thì bệnh nhân mới được lập tài khoản thật để lần sau tự đặt lịch trên app.</summary>
     string? PatientEmail = null,
-    /// <summary>Mã bệnh nhân đọc từ hộp thư — thiếu nó thì chỉ tạo hồ sơ, không cấp tài khoản.</summary>
     string? EmailVerificationCode = null,
-    /// <summary>
-    /// Có giá trị khi đây là staff check-in một buổi tái khám từ tab Tái khám (thay vì lịch vãng lai
-    /// thường) — buổi hẹn mới sẽ gắn về buổi gốc này để bác sĩ thấy cờ tái khám và liệu trình cũ.
-    /// </summary>
-    Guid? FollowUpFromAppointmentId = null) : IRequest<CreateWalkInResult>;
+    Guid? FollowUpFromAppointmentId = null,
+    Guid? FollowUpId = null,
+    AppointmentType AppointmentType = AppointmentType.GeneralExam,
+    int DurationMinutes = 30) : IRequest<CreateWalkInResult>;
 
 public record CreateWalkInResult(
     Guid AppointmentId,
@@ -45,14 +39,15 @@ public class CreateWalkInAppointmentHandler(
     IPatientRepository patientRepository,
     IUserRepository userRepository,
     INotificationService notificationService,
-    ISender sender)
+    IFollowUpRepository? followUpRepository = null,
+    ISender sender = null!)
     : IRequestHandler<CreateWalkInCommand, CreateWalkInResult>
 {
     public async Task<CreateWalkInResult> Handle(CreateWalkInCommand cmd, CancellationToken ct)
     {
         var utcAppointmentDate = cmd.AppointmentDate.ToUniversalTime();
 
-        // 1. Không cho đặt lịch cho khung giờ đã qua 15 phút (cho phép trễ tối đa 15 phút đầu ca).
+        // 1. Không cho đặt lịch cho khung giờ đã qua 15 phút
         if (utcAppointmentDate.AddMinutes(SlotCalculator.WalkInGraceMinutes) <= DateTimeOffset.UtcNow)
             throw new ValidationException("Không thể đặt lịch cho khung giờ đã qua.");
 
@@ -61,15 +56,13 @@ public class CreateWalkInAppointmentHandler(
         if (!dentistUserId.HasValue)
             throw new ValidationException($"Không tìm thấy bác sĩ với ID: '{cmd.DentistId}'.");
 
-        // 1c. Check-in tái khám (có FollowUpFromAppointmentId): buổi gốc phải tồn tại, đã được bác sĩ
-        // hẹn ngày tái khám, và chưa từng được check-in tái khám lần nào khác (tránh tạo trùng nếu
-        // staff bấm lại hoặc mở 2 tab).
+        // 1c. Check-in tái khám
         if (cmd.FollowUpFromAppointmentId is { } originalAppointmentId)
         {
             var original = await appointmentRepository.GetByIdAsync(originalAppointmentId, ct)
                 ?? throw new NotFoundException("Không tìm thấy buổi hẹn gốc.");
 
-            if (original.FollowUpDate == null)
+            if (original.FollowUpDate == null && cmd.FollowUpId == null)
                 throw new ValidationException("Buổi hẹn này chưa được bác sĩ hẹn tái khám.");
 
             var alreadyCheckedIn = await appointmentRepository.HasActiveFollowUpCheckInAsync(originalAppointmentId, ct);
@@ -79,99 +72,135 @@ public class CreateWalkInAppointmentHandler(
 
         // 2. Kiểm tra slot còn trống
         var isBooked = await appointmentRepository.IsSlotBookedAsync(cmd.DentistId, utcAppointmentDate, ct);
-
         if (isBooked)
             throw new ConflictException("Khung giờ này đã được đặt. Vui lòng chọn giờ khác.");
 
-        // 3. Xác định hồ sơ bệnh nhân, theo thứ tự ưu tiên:
-        //    a) hồ sơ staff đã CHỦ ĐỘNG chọn từ ô tra cứu — coi là đã xác nhận đúng người, cho phép
-        //       ghi đè tên/ngày sinh/giới tính để sửa lỗi chính tả hồ sơ cũ;
-        //    b) hồ sơ khớp NGẦM theo số điện thoại (staff gõ tay, không bấm chọn từ ô tra cứu) — dò
-        //       cả cột PhoneNumber của Patient (bệnh nhân tạo tại quầy, không có tài khoản) lẫn số
-        //       của tài khoản liên kết, nhưng KHÔNG ghi đè tên/ngày sinh/giới tính: một số điện thoại
-        //       có thể dùng chung cho nhiều người (vợ chồng, cha mẹ và con nhỏ, người lớn tuổi không
-        //       có điện thoại riêng...), gõ tên khác lúc này rất dễ vô tình xóa mất tên đúng của hồ
-        //       sơ cũ. Muốn sửa tên thật thì phải bấm chọn từ ô tra cứu để rơi vào nhánh (a).
-        //    c) chưa có thì tạo mới.
         Patient? patient = null;
         var patientExplicitlySelected = cmd.PatientId is not null;
 
         if (cmd.PatientId is { } patientId)
         {
             patient = await patientRepository.GetByIdAsync(patientId, ct)
-                ?? throw new ValidationException("Không tìm thấy hồ sơ bệnh nhân đã chọn.");
+                ?? throw new ValidationException("Không tìm thấy bệnh nhân.");
         }
         else
         {
-            patient = await patientRepository.GetByPhoneNumberAsync(cmd.PatientPhone, ct);
-        }
+            var normalizedInputPhone = cmd.PatientPhone.Trim();
+            var familyMembers = await patientRepository.GetFamilyByPhoneNumberAsync(normalizedInputPhone, ct);
 
-        if (patient == null)
-        {
-            // Bệnh nhân đến lần đầu. Chỉ lập TÀI KHOẢN THẬT khi có CẢ email LẪN mã xác thực email —
-            // mã chứng minh địa chỉ đó có thật và đúng người, nếu không thì lễ tân gõ nhầm một ký tự
-            // là mật khẩu bay tới hộp thư người lạ kèm quyền vào hồ sơ bệnh án.
-            //
-            // Thiếu một trong hai thì vẫn phải khám được: tạo hồ sơ không tài khoản, cấp tài khoản sau.
-            if (!string.IsNullOrWhiteSpace(cmd.PatientEmail) &&
-                !string.IsNullOrWhiteSpace(cmd.EmailVerificationCode))
+            if (familyMembers.Count > 0)
             {
-                var created = await sender.Send(
-                    new CreatePatientAccountCommand(
-                        cmd.PatientName, cmd.PatientEmail, cmd.PatientPhone, cmd.DateOfBirth, cmd.Gender,
-                        cmd.EmailVerificationCode),
-                    ct);
+                var normalizedInputName = cmd.PatientName.Trim();
+                var matchedByName = familyMembers.FirstOrDefault(p =>
+                    string.Equals(p.FullName.Trim(), normalizedInputName, StringComparison.OrdinalIgnoreCase));
 
-                patient = await patientRepository.GetByIdAsync(created.PatientId, ct)
-                    ?? throw new ValidationException("Không tạo được hồ sơ bệnh nhân.");
-            }
-            else
-            {
-                var placeholderUser = User.CreateEmployee(null, UserRole.Patient, cmd.PatientPhone, cmd.PatientName);
-                placeholderUser.UpdateGender(cmd.Gender);
-                await userRepository.AddAsync(placeholderUser, ct);
-                patient = Patient.Create(placeholderUser.Id, cmd.DateOfBirth);
-                await patientRepository.AddAsync(patient, ct);
+                if (matchedByName != null)
+                {
+                    patient = matchedByName;
+                }
+                else
+                {
+                    var primaryPatient = familyMembers.FirstOrDefault(p => p.PrimaryPatientId == null) ?? familyMembers[0];
+
+                    var tempUser = User.CreatePatient(
+                        fullName: cmd.PatientName.Trim(),
+                        phoneNumber: normalizedInputPhone,
+                        gender: cmd.Gender,
+                        dateOfBirth: cmd.DateOfBirth);
+
+                    patient = Patient.Create(
+                        userId: tempUser.Id,
+                        dateOfBirth: cmd.DateOfBirth,
+                        primaryPatientId: primaryPatient.Id,
+                        relationship: "Người thân");
+
+                    patient.User = tempUser;
+                    await patientRepository.AddAsync(patient, ct);
+                }
             }
         }
-        else if (patientExplicitlySelected)
+
+        if (patient is null)
         {
-            // Staff đã tự tay chọn đúng hồ sơ này từ ô tra cứu — ghi đè bằng thông tin nhập tại quầy
-            // là sửa lỗi chính tả có chủ đích, không phải nhầm lẫn.
-            patient.SetPhoneNumber(cmd.PatientPhone);
-            patient.SetDateOfBirth(cmd.DateOfBirth);
-            patient.SetGender(cmd.Gender);
-            patient.SetFullName(cmd.PatientName);
-            await patientRepository.UpdateAsync(patient, ct);
-        }
-        // else: khớp ngầm theo số điện thoại (không qua ô tra cứu) — giữ nguyên thông tin cũ, không
-        // ghi đè, để tránh làm mất tên đúng khi số điện thoại dùng chung cho nhiều người.
+            var tempUser = User.CreatePatient(
+                fullName: cmd.PatientName,
+                phoneNumber: cmd.PatientPhone,
+                gender: cmd.Gender,
+                dateOfBirth: cmd.DateOfBirth);
 
-        // 4. Bệnh nhân đã có mặt tại quầy nên bỏ qua cả Pending lẫn Confirmed:
-        //    lịch hẹn vào thẳng CheckedIn để xuất hiện ngay ở hàng đợi, không phải check-in lại.
+            patient = Patient.Create(
+                userId: tempUser.Id,
+                dateOfBirth: cmd.DateOfBirth);
+
+            patient.User = tempUser;
+            await patientRepository.AddAsync(patient, ct);
+        }
+        else
+        {
+            if (patientExplicitlySelected)
+            {
+                patient.SetDateOfBirth(cmd.DateOfBirth);
+                patient.SetGender(cmd.Gender);
+                patient.SetFullName(cmd.PatientName);
+                patient.SetPhoneNumber(cmd.PatientPhone);
+
+                await patientRepository.UpdateAsync(patient, ct);
+            }
+        }
+
+        if (cmd.PatientEmail is not null && cmd.EmailVerificationCode is not null && (patient.User == null || (!patient.User.HasAccount && string.IsNullOrEmpty(patient.User.Email))))
+        {
+            await sender.Send(new CreatePatientAccountCommand(
+                FullName: patient.FullName,
+                Email: cmd.PatientEmail,
+                PhoneNumber: patient.PhoneNumber ?? cmd.PatientPhone,
+                DateOfBirth: patient.DateOfBirth,
+                Gender: patient.Gender,
+                VerificationCode: cmd.EmailVerificationCode), ct);
+        }
+
+        var apptType = (cmd.FollowUpFromAppointmentId.HasValue || cmd.FollowUpId.HasValue) ? AppointmentType.FollowUp : cmd.AppointmentType;
+        var duration = cmd.DurationMinutes > 0 ? cmd.DurationMinutes : 30;
+
         var appointment = Appointment.CreateWalkIn(
-            patient.Id, cmd.DentistId, utcAppointmentDate,
-            symptoms: cmd.Symptoms, serviceId: cmd.ServiceId,
-            followUpFromAppointmentId: cmd.FollowUpFromAppointmentId);
+            patientId: patient.Id,
+            dentistId: cmd.DentistId,
+            appointmentDate: utcAppointmentDate,
+            symptoms: cmd.Symptoms,
+            serviceId: cmd.ServiceId,
+            followUpFromAppointmentId: cmd.FollowUpFromAppointmentId,
+            appointmentType: apptType,
+            durationMinutes: duration,
+            followUpId: cmd.FollowUpId);
 
         await appointmentRepository.AddAsync(appointment, ct);
 
-        var code = $"DK{cmd.AppointmentDate:yyyyMMdd}{appointment.Id.ToString("N")[..6].ToUpper()}";
-
-        // Bệnh nhân đã ngồi chờ tại quầy (CheckedIn ngay) nên bác sĩ càng cần được báo ngay lập tức —
-        // không báo Staff vì chính nhân viên đang thao tác đã biết rõ việc này rồi.
-        if (dentistUserId.HasValue)
+        if (cmd.FollowUpId.HasValue && followUpRepository != null)
         {
-            await notificationService.CreateAsync(new CreateNotificationRequest(
-                UserId: dentistUserId.Value,
-                Type: NotificationType.Appointment,
-                Priority: NotificationPriority.High,
-                Title: "Bệnh nhân vãng lai mới",
-                Body: $"{cmd.PatientName} vừa đến khám và đang chờ tại quầy.",
-                RelatedEntityType: "Appointment",
-                RelatedEntityId: appointment.Id.ToString()), ct);
+            var followUp = await followUpRepository.GetByIdAsync(cmd.FollowUpId.Value, ct);
+            if (followUp != null)
+            {
+                followUp.LinkAppointment(appointment.Id);
+                await followUpRepository.UpdateAsync(followUp, ct);
+            }
         }
 
-        return new CreateWalkInResult(appointment.Id, code, patient.FullName, appointment.Status.ToString());
+        var appointmentCode = ClinicalRecordMappers.AppointmentCode(appointment);
+
+        var dateFormatted = cmd.AppointmentDate.ToString("HH:mm dd/MM/yyyy");
+        await notificationService.CreateAsync(new CreateNotificationRequest(
+            UserId: dentistUserId.Value,
+            Type: NotificationType.Appointment,
+            Priority: NotificationPriority.High,
+            Title: "Bệnh nhân check-in tại quầy",
+            Body: $"{cmd.PatientName} đã được check-in vào phòng khám lúc {dateFormatted}.",
+            RelatedEntityType: "Appointment",
+            RelatedEntityId: appointment.Id.ToString()), ct);
+
+        return new CreateWalkInResult(
+            AppointmentId: appointment.Id,
+            AppointmentCode: appointmentCode,
+            PatientName: cmd.PatientName,
+            Status: appointment.Status.ToString());
     }
 }

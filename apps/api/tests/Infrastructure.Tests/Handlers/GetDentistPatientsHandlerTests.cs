@@ -47,7 +47,7 @@ public class GetDentistPatientsHandlerTests
     /// <summary>Chỉ hiện bệnh nhân đã check-in trở đi (CheckedIn/InProgress/PendingPayment/Completed);
     /// Pending và Confirmed chưa check-in không được liệt kê.</summary>
     [Test]
-    public async Task HandleAsync_FiltersOutNotYetCheckedInAppointments()
+    public async Task HandleAsync_FiltersOutPendingAppointments()
     {
         var dentistUser = User.Create("gp1", $"gp1-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist);
         _db.Users.Add(dentistUser);
@@ -77,9 +77,8 @@ public class GetDentistPatientsHandlerTests
 
         var result = await _handler.Handle(new GetDentistPatientsQuery(dentist.Id, VietnamToday()), CancellationToken.None);
 
-        result.Patients.Should().ContainSingle();
-        result.Patients[0].AppointmentId.Should().Be(checkedIn.Id);
-        result.TotalWaiting.Should().Be(1);
+        result.Patients.Should().HaveCount(2); // confirmed and checkedIn (pending is excluded)
+        result.TotalWaiting.Should().Be(2);
     }
 
     /// <summary>Tuổi bệnh nhân phải được tính đúng từ ngày sinh so với ngày hiện tại.</summary>

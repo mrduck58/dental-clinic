@@ -239,6 +239,10 @@ class BookingService {
     String? symptoms,
     String? serviceId,
     String? patientId,
+    String? appointmentType,
+    int? durationMinutes,
+    String? followUpId,
+    List<String>? treatmentSessionIds,
   }) async {
     final token = await _auth.getToken();
     if (token == null) throw Exception('Chưa đăng nhập.');
@@ -255,6 +259,18 @@ class BookingService {
     if (serviceId != null && serviceId.isNotEmpty) body['serviceId'] = serviceId;
     if (patientId != null && patientId.isNotEmpty && patientId != 'self') {
       body['patientId'] = patientId;
+    }
+    if (appointmentType != null && appointmentType.isNotEmpty) {
+      body['appointmentType'] = appointmentType;
+    }
+    if (durationMinutes != null && durationMinutes > 0) {
+      body['durationMinutes'] = durationMinutes;
+    }
+    if (followUpId != null && followUpId.isNotEmpty) {
+      body['followUpId'] = followUpId;
+    }
+    if (treatmentSessionIds != null && treatmentSessionIds.isNotEmpty) {
+      body['treatmentSessionIds'] = treatmentSessionIds;
     }
 
     // Diagnostics print

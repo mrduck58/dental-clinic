@@ -5,11 +5,6 @@ using DentalClinic.API.Domain.Enums;
 
 namespace DentalClinic.API.Application.UseCases.ClinicalRecords;
 
-/// <summary>
-/// Hàm mapping/truy vấn dùng chung giữa các handler ClinicalRecords sau khi các god-handler
-/// (GetExaminationHandler / DiagnosisHandler / TreatmentPlanHandler / PrescriptionHandler) được
-/// tách thành nhiều handler nhỏ. Để static nên không cần đăng ký DI.
-/// </summary>
 public static class ClinicalRecordMappers
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -82,62 +77,86 @@ public static class ClinicalRecordMappers
         }).ToList()
     };
 
-    // ── Treatment plan ───────────────────────────────────────────────────────
+    // ── Treatment Sessions & Items ───────────────────────────────────────────
 
-    public static List<StepProgressEntryDto> ParseStepProgress(string? json)
+    public static TreatmentSessionDto ToDto(TreatmentSession s) => new()
     {
-        if (string.IsNullOrWhiteSpace(json)) return new List<StepProgressEntryDto>();
-        try
+        Id = s.Id,
+        TreatmentPlanItemId = s.TreatmentPlanItemId,
+        TreatmentProcedureId = s.TreatmentProcedureId,
+        SessionNumber = s.SessionNumber,
+        Name = s.Name,
+        Status = s.Status.ToString(),
+        DurationMinutes = s.DurationMinutes,
+        DentistId = s.DentistId,
+        DentistName = s.Dentist?.FullName ?? string.Empty,
+        PerformedAt = s.PerformedAt,
+        Note = s.Note,
+        CreatedAt = s.CreatedAt
+    };
+
+    public static TreatmentPlanItemDto ToDto(
+        TreatmentPlanItem item,
+        IEnumerable<int>? procedureStepNumbers = null)
+    {
+        var distinctSessions = item.Sessions.DistinctBy(s => s.Id).OrderBy(s => s.SessionNumber).ToList();
+        var sessionDtos = distinctSessions.Select(ToDto).ToList();
+        var stepEntries = distinctSessions.Select(s => new StepProgressEntryDto
         {
-            return JsonSerializer.Deserialize<List<StepProgressEntryDto>>(json, JsonOptions) ?? new List<StepProgressEntryDto>();
-        }
-        catch (JsonException)
+            Id = s.Id,
+            StepNumber = s.SessionNumber,
+            StepName = s.Name,
+            Percent = s.Percent > 0 ? s.Percent : (s.Status == TreatmentSessionStatus.Completed ? 100 : (s.Status == TreatmentSessionStatus.InProgress ? 50 : 0)),
+            Date = s.PerformedAt.HasValue ? DateOnly.FromDateTime(s.PerformedAt.Value.Date) : DateOnly.FromDateTime(s.CreatedAt.Date),
+            DentistName = s.Dentist?.FullName ?? string.Empty,
+            Note = s.Note
+        }).ToList();
+
+        var total = procedureStepNumbers != null && procedureStepNumbers.Any()
+            ? procedureStepNumbers.Count()
+            : distinctSessions.Count;
+        var completed = distinctSessions.Count(s => s.Percent >= 100 || s.Status == TreatmentSessionStatus.Completed);
+        var percent = total > 0 ? (int)Math.Round((double)distinctSessions.Sum(s => s.Percent > 0 ? s.Percent : (s.Status == TreatmentSessionStatus.Completed ? 100 : 0)) / total) : 0;
+        if (percent > 100) percent = 100;
+
+        return new TreatmentPlanItemDto
         {
-            return new List<StepProgressEntryDto>();
-        }
+            Id = item.Id,
+            TreatmentPlanId = item.TreatmentPlanId,
+            ServiceId = item.ServiceId,
+            ServiceName = item.Service?.Name ?? string.Empty,
+            ServiceOptionId = item.ServiceOptionId,
+            ServiceOptionName = item.ServiceOptionName,
+            UnitPrice = item.UnitPrice,
+            Quantity = item.Quantity,
+            Teeth = item.Teeth,
+            Status = item.Status.ToString(),
+            WarrantyUntil = item.WarrantyUntil,
+            Notes = item.Notes,
+            TotalCost = item.TotalCost,
+            Sessions = sessionDtos,
+            StepProgress = stepEntries,
+            TotalSteps = total,
+            CompletedSteps = completed,
+            ProgressPercent = percent,
+            CreatedAt = item.CreatedAt,
+            CompletedAt = item.CompletedAt
+        };
     }
 
-    public static string SerializeStepProgress(List<StepProgressEntryDto> entries) =>
-        JsonSerializer.Serialize(entries, JsonOptions);
-
-    /// <summary>
-    /// Tiến độ chuyên môn của một liệu trình: số bước quy trình đã đạt 100% trên tổng số bước.
-    ///
-    /// - Một bước tính là XONG khi mục ghi nhận cao nhất của nó đạt 100% (bác sĩ có thể ghi 30% rồi 100%).
-    /// - Bước tự nhập (StepNumber = 0, ngoài quy trình chuẩn) gộp theo tên và cũng phải đạt 100% thì
-    ///   dịch vụ mới được coi là xong — nếu không, một bước phát sinh dở dang sẽ bị bỏ qua.
-    /// - Dịch vụ chưa khai báo quy trình (TotalSteps = 0): lấy chính các bước đã ghi nhận làm mẫu số.
-    /// </summary>
-    public static (int TotalSteps, int CompletedSteps, int Percent, bool AllDone) CalcStepProgress(
-        List<StepProgressEntryDto> entries, IEnumerable<int>? procedureStepNumbers = null)
-    {
-        var maxPercentByStep = entries
-            .GroupBy(e => e.StepNumber > 0 ? $"#{e.StepNumber}" : $"~{e.StepName.Trim().ToLowerInvariant()}")
-            .ToDictionary(g => g.Key, g => g.Max(e => e.Percent));
-
-        var procedureKeys = (procedureStepNumbers ?? Enumerable.Empty<int>()).Distinct().Select(n => $"#{n}").ToList();
-        var allKeys = procedureKeys.Union(maxPercentByStep.Keys).ToList();
-
-        var total = procedureKeys.Count > 0 ? allKeys.Count : maxPercentByStep.Count;
-        var completed = allKeys.Count(k => maxPercentByStep.GetValueOrDefault(k, 0) >= 100);
-        var sumPercent = allKeys.Sum(k => maxPercentByStep.GetValueOrDefault(k, 0));
-        var percent = total == 0 ? 0 : (int)Math.Round(sumPercent * 1.0 / total);
-
-        return (total, completed, percent, total > 0 && completed == total);
-    }
-
-    /// <param name="procedureStepNumbers">
-    /// Các bước quy trình chuẩn của dịch vụ — để tính % hoàn thành. Bỏ trống thì % tính theo
-    /// chính các bước đã ghi nhận (các endpoint không nạp quy trình).
-    /// </param>
     public static TreatmentPlanDto ToDto(
         TreatmentPlan tp,
         decimal amountPaid = 0,
         bool isInvoiced = false,
         IEnumerable<int>? procedureStepNumbers = null)
     {
-        var entries = ParseStepProgress(tp.StepProgressJson);
-        var progress = CalcStepProgress(entries, procedureStepNumbers ?? Enumerable.Empty<int>());
+        var itemDtos = tp.Items.Select(i => ToDto(i, procedureStepNumbers)).ToList();
+        var primaryItem = itemDtos.FirstOrDefault();
+
+        var allSessions = itemDtos.SelectMany(i => i.Sessions).DistinctBy(s => s.Id).OrderBy(s => s.SessionNumber).ToList();
+        var totalSteps = itemDtos.Sum(i => i.TotalSteps);
+        var completedSteps = itemDtos.Sum(i => i.CompletedSteps);
+        var progressPercent = itemDtos.Count > 0 ? (int)Math.Round(itemDtos.Average(i => i.ProgressPercent)) : 0;
 
         return new TreatmentPlanDto
         {
@@ -146,86 +165,114 @@ public static class ClinicalRecordMappers
             DentistId = tp.DentistId,
             DentistName = tp.Dentist?.FullName ?? string.Empty,
             AppointmentId = tp.AppointmentId,
-            ServiceId = tp.ServiceId,
-            ServiceName = tp.Service?.Name ?? string.Empty,
-            ServiceOptionName = tp.ServiceOptionName,
-            UnitPrice = tp.UnitPrice,
-            Quantity = tp.Quantity,
-            Teeth = tp.Teeth,
+            Title = tp.Title,
             Status = tp.Status.ToString(),
-            WarrantyUntil = tp.WarrantyUntil,
             Notes = tp.Notes,
             TotalCost = tp.TotalCost,
             AmountPaid = amountPaid,
             IsInvoiced = isInvoiced,
-            StepProgress = entries,
-            TotalSteps = progress.TotalSteps,
-            CompletedSteps = progress.CompletedSteps,
-            ProgressPercent = progress.Percent,
+            Items = itemDtos,
+
+            // Thuộc tính tương thích ngược cho DTO cũ
+            ServiceId = primaryItem?.ServiceId ?? Guid.Empty,
+            ServiceName = primaryItem?.ServiceName ?? (itemDtos.Count > 0 ? string.Join(", ", itemDtos.Select(i => i.ServiceName)) : tp.Title),
+            ServiceOptionName = primaryItem?.ServiceOptionName,
+            UnitPrice = primaryItem?.UnitPrice ?? 0,
+            Quantity = primaryItem?.Quantity ?? 1,
+            Teeth = primaryItem?.Teeth,
+            WarrantyUntil = primaryItem?.WarrantyUntil,
+            StepProgress = itemDtos.SelectMany(i => i.StepProgress).DistinctBy(s => s.Id).OrderBy(s => s.StepNumber).ToList(),
+            TotalSteps = totalSteps,
+            CompletedSteps = completedSteps,
+            ProgressPercent = progressPercent,
+
             CreatedAt = tp.CreatedAt,
             CompletedAt = tp.CompletedAt
         };
     }
 
-    // ── Examination (phiếu khám tổng hợp) ────────────────────────────────────
-
-    public static ExaminationDto ToExaminationDto(Appointment appointment)
+    public static AppointmentSessionDto ToDto(AppointmentSession ase) => new()
     {
-        return new ExaminationDto
-        {
-            AppointmentId = appointment.Id,
-            AppointmentCode = AppointmentCode(appointment),
-            Patient = new PatientBriefDto
-            {
-                Id = appointment.PatientId,
-                FullName = appointment.Patient.FullName,
-                PhoneNumber = appointment.Patient.PhoneNumber ?? appointment.Patient.User?.PhoneNumber,
-                // Walk-in patients (có PhoneNumber trực tiếp trên Patient) không hiện email vì staff không thu thập
-                Email = appointment.Patient.PhoneNumber == null ? appointment.Patient.User?.Email : null,
-                DateOfBirth = appointment.Patient.DateOfBirth,
-                Gender = appointment.Patient.Gender,
-                Address = appointment.Patient.Address
-            },
-            Dentist = new DentistBriefDto
-            {
-                Id = appointment.DentistId,
-                FullName = appointment.Dentist.FullName
-            },
-            ServiceName = appointment.Service?.Name,
-            AppointmentDate = appointment.AppointmentDate,
-            Status = appointment.Status.ToString(),
-            Symptoms = appointment.Symptoms,
-            Notes = appointment.Notes,
-            StartTime = appointment.Status == AppointmentStatus.InProgress ? DateTimeOffset.UtcNow : null,
-            FollowUpDate = appointment.FollowUpDate,
-            FollowUpNote = appointment.FollowUpNote,
-            IsFollowUpVisit = appointment.FollowUpFromAppointmentId != null,
-            Diagnoses = appointment.Diagnoses.Select(ToDto).ToList(),
-            TreatmentPlans = appointment.TreatmentPlans
-                .Select(tp => ToDto(tp))
-                .ToList(),
-            Prescription = appointment.Prescriptions.FirstOrDefault() != null
-                ? new PrescriptionDto
-                {
-                    Id = appointment.Prescriptions.First().Id,
-                    Notes = appointment.Prescriptions.First().Notes,
-                    CreatedAt = appointment.Prescriptions.First().CreatedAt,
-                    Items = appointment.Prescriptions.First().Items.Select(i => new PrescriptionItemDto
-                    {
-                        Id = i.Id,
-                        MedicineName = i.MedicineName,
-                        Dosage = i.Dosage,
-                        Quantity = i.Quantity,
-                        Unit = i.Unit,
-                        Usage = i.Usage,
-                        Notes = i.Notes
-                    }).ToList()
-                }
-                : null
-        };
-    }
+        Id = ase.Id,
+        AppointmentId = ase.AppointmentId,
+        TreatmentSessionId = ase.TreatmentSessionId,
+        SessionName = ase.TreatmentSession?.Name ?? string.Empty,
+        ServiceName = ase.TreatmentSession?.TreatmentPlanItem?.Service?.Name ?? string.Empty,
+        Teeth = ase.TreatmentSession?.TreatmentPlanItem?.Teeth,
+        Sequence = ase.Sequence,
+        DurationMinutes = ase.DurationMinutes,
+        Status = ase.TreatmentSession?.Status.ToString() ?? "Planned",
+        Note = ase.Note
+    };
 
-    // ── Lịch sử khám ─────────────────────────────────────────────────────────
+    public static FollowUpDto ToDto(FollowUp f) => new()
+    {
+        Id = f.Id,
+        PatientId = f.PatientId,
+        PatientName = f.Patient?.FullName ?? string.Empty,
+        PatientPhone = f.Patient?.User?.PhoneNumber,
+        DentistId = f.DentistId,
+        DentistName = f.Dentist?.FullName ?? string.Empty,
+        OriginAppointmentId = f.OriginAppointmentId,
+        TreatmentPlanItemId = f.TreatmentPlanItemId,
+        ServiceName = f.TreatmentPlanItem?.Service?.Name,
+        TreatmentSessionId = f.TreatmentSessionId,
+        SessionName = f.TreatmentSession?.Name,
+        DueDate = f.DueDate,
+        Note = f.Note,
+        Status = f.Status.ToString(),
+        AppointmentId = f.AppointmentId,
+        CreatedAt = f.CreatedAt,
+        CompletedAt = f.CompletedAt
+    };
+
+    public static TreatmentProcedureDto ToDto(TreatmentProcedure p) => new()
+    {
+        Id = p.Id,
+        ServiceId = p.ServiceId,
+        StepNumber = p.StepNumber,
+        Name = p.Name,
+        DurationMinutes = p.DurationMinutes,
+        IsRequired = p.IsRequired,
+        Description = p.Description
+    };
+
+    public static ExaminationDto ToExaminationDto(Appointment a) => new()
+    {
+        AppointmentId = a.Id,
+        AppointmentCode = AppointmentCode(a),
+        Patient = new PatientBriefDto
+        {
+            Id = a.PatientId,
+            FullName = a.Patient?.FullName ?? string.Empty,
+            PhoneNumber = a.Patient?.PhoneNumber ?? a.Patient?.User?.PhoneNumber,
+            Email = a.Patient?.User?.Email,
+            DateOfBirth = a.Patient?.DateOfBirth,
+            Gender = a.Patient?.Gender,
+            Address = a.Patient?.Address
+        },
+        Dentist = new DentistBriefDto
+        {
+            Id = a.DentistId,
+            FullName = a.Dentist?.FullName ?? string.Empty
+        },
+        ServiceName = a.Service?.Name,
+        AppointmentDate = a.AppointmentDate,
+        Status = a.Status.ToString(),
+        AppointmentType = a.AppointmentType.ToString(),
+        DurationMinutes = a.DurationMinutes,
+        Symptoms = a.Symptoms,
+        Notes = a.Notes,
+        StartTime = a.CheckedInAt,
+        FollowUpDate = a.FollowUpDate,
+        FollowUpNote = a.FollowUpNote,
+        IsFollowUpVisit = a.FollowUpFromAppointmentId.HasValue || a.FollowUpId.HasValue,
+        Diagnoses = a.Diagnoses.Select(ToDto).ToList(),
+        TreatmentPlans = a.TreatmentPlans.Select(tp => ToDto(tp, 0, false)).ToList(),
+        AppointmentSessions = a.AppointmentSessions.Select(ToDto).ToList(),
+        FollowUpOrder = a.FollowUpOrder != null ? ToDto(a.FollowUpOrder) : null,
+        Prescription = a.Prescriptions.FirstOrDefault() is { } pres ? ToDto(pres) : null
+    };
 
     public static List<MedicalHistoryDiagnosisDto> ToMedicalHistoryDiagnoses(Appointment a) =>
         a.Diagnoses.Select(d => new MedicalHistoryDiagnosisDto(
@@ -249,30 +296,28 @@ public static class ClinicalRecordMappers
         )).ToList();
 
     public static List<MedicalHistoryTreatmentPlanDto> ToMedicalHistoryTreatmentPlans(Appointment a) =>
-        a.TreatmentPlans.Select(tp => new MedicalHistoryTreatmentPlanDto(
-            string.IsNullOrWhiteSpace(tp.Teeth) ? tp.Service.Name : $"{tp.Service.Name} - Răng {tp.Teeth}",
-            tp.Status.ToString(),
-            tp.TotalCost
-        )).ToList();
+        a.TreatmentPlans.SelectMany(tp => tp.Items.Count > 0
+            ? tp.Items.Select(i => new MedicalHistoryTreatmentPlanDto(
+                string.IsNullOrWhiteSpace(i.Teeth) ? (i.Service?.Name ?? tp.Title) : $"{i.Service?.Name ?? tp.Title} - Răng {i.Teeth}",
+                i.Status.ToString(),
+                i.TotalCost))
+            : new[] { new MedicalHistoryTreatmentPlanDto(tp.Title, tp.Status.ToString(), tp.TotalCost) }
+        ).ToList();
 
     public static List<MedicalHistoryPrescriptionItemDto> ToMedicalHistoryPrescriptionItems(Appointment a) =>
-        a.Prescriptions.FirstOrDefault() != null
-            ? a.Prescriptions.First().Items.Select(i => new MedicalHistoryPrescriptionItemDto(
-                i.MedicineName,
-                i.Dosage,
-                i.Quantity,
-                i.Unit,
-                i.Usage,
-                i.Notes
-            )).ToList()
-            : new List<MedicalHistoryPrescriptionItemDto>();
+        a.Prescriptions.SelectMany(p => p.Items.Select(i => new MedicalHistoryPrescriptionItemDto(
+            i.MedicineName,
+            i.Dosage,
+            i.Quantity,
+            i.Unit,
+            i.Usage,
+            i.Notes
+        ))).ToList();
 
-    /// <summary>Chỉ lấy ảnh section "exam" — ảnh yêu cầu vật tư (dấu răng gửi kho) không phải thứ
-    /// bệnh nhân cần xem trong lịch sử khám của mình.</summary>
     public static List<MedicalHistoryPhotoDto> ToMedicalHistoryPhotos(Appointment a) =>
-        a.Photos
-            .Where(p => p.Section == AppointmentPhoto.SectionExam)
-            .OrderByDescending(p => p.CreatedAt)
-            .Select(p => new MedicalHistoryPhotoDto(p.Url, p.Note, p.CreatedAt))
-            .ToList();
+        a.Photos.Where(p => p.Section == "exam").Select(p => new MedicalHistoryPhotoDto(
+            p.Url,
+            p.Note,
+            p.CreatedAt
+        )).ToList();
 }

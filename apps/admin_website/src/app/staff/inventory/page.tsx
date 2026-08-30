@@ -1584,7 +1584,14 @@ export default function InventoryPage() {
                             {p.fullName.trim().split(/\s+/).slice(-2).map(w => w[0]).join("").toUpperCase()}
                           </div>
                           <div className="min-w-0 flex-1">
-                            <div className="text-[12.5px] font-bold text-slate-800 truncate">{p.fullName}</div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[12.5px] font-bold text-slate-800 truncate">{p.fullName}</span>
+                              {p.relationship && (
+                                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                  {p.relationship}
+                                </span>
+                              )}
+                            </div>
                             <div className="text-[11px] text-slate-400 font-mono">{p.phoneNumber ?? "—"}</div>
                           </div>
                         </button>

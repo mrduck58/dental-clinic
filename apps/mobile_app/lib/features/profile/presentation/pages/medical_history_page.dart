@@ -30,9 +30,9 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
   List<FamilyMember> _familyMembers = [];
   bool _isDropdownOpen = false;
 
-  Map<String, List<String>> _allergiesMap = {};
-  Map<String, List<String>> _chronicMap = {};
-  Map<String, List<String>> _medicationsMap = {};
+  final Map<String, List<String>> _allergiesMap = {};
+  final Map<String, List<String>> _chronicMap = {};
+  final Map<String, List<String>> _medicationsMap = {};
 
   @override
   void initState() {
@@ -74,7 +74,7 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
             child: Image.asset(
               avatarUrl,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => _buildInitialsFallback(size, isSelected, initials),
+              errorBuilder: (_, __, _) => _buildInitialsFallback(size, isSelected, initials),
             ),
           ),
         );
@@ -91,7 +91,7 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
           child: Image.network(
             url,
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => _buildInitialsFallback(size, isSelected, initials),
+            errorBuilder: (_, __, _) => _buildInitialsFallback(size, isSelected, initials),
           ),
         ),
       );
@@ -481,6 +481,73 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
                       ),
                     ),
                   ],
+                  const SizedBox(height: 16),
+
+                  // ── Examination History Banner ──
+                  GestureDetector(
+                    onTap: () => context.push(AppRoutes.medicalRecords),
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            AppColors.primary,
+                            AppColors.primary.withValues(alpha: 0.85),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.25),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Iconsax.health, color: Colors.white, size: 22),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  isVi ? 'Lịch sử khám & Điều trị' : 'Examination & Treatment History',
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  isVi
+                                      ? 'Xem chẩn đoán, tiến độ liệu trình, đơn thuốc & lịch tái khám'
+                                      : 'View diagnoses, treatment progress, prescriptions & follow-ups',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    color: Colors.white.withValues(alpha: 0.9),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white, size: 16),
+                        ],
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 24),
 
                   // Allergies Section
@@ -505,7 +572,7 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
                               badgeTextColor: isHigh ? const Color(0xFFEF4444) : const Color(0xFF64748B),
                             ),
                           );
-                        }).toList(),
+                        }),
                         if ((_allergiesMap[memberKey] ?? []).isEmpty)
                           _buildSubItem(
                             title: isVi ? 'Không có dị ứng nào ghi nhận' : 'No recorded allergies',
@@ -537,7 +604,7 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
                               description: desc,
                             ),
                           );
-                        }).toList(),
+                        }),
                         if ((_chronicMap[memberKey] ?? []).isEmpty)
                           _buildChronicItem(
                             title: isVi ? 'Không có bệnh lý mãn tính' : 'No chronic conditions',
@@ -571,7 +638,7 @@ class _MedicalHistoryPageState extends State<MedicalHistoryPage> {
                               ),
                             ],
                           );
-                        }).toList(),
+                        }),
                         if ((_medicationsMap[memberKey] ?? []).isEmpty)
                           _buildMedicationItem(
                             title: isVi ? 'Không sử dụng thuốc thường xuyên' : 'No regular medications',

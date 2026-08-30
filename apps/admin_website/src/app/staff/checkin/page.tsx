@@ -686,6 +686,7 @@ function WalkinTab({
   const [results,     setResults]     = useState<PatientSearchResultDto[]>([]);
   const [searching,   setSearching]   = useState(false);
   const [linked,      setLinked]      = useState<PatientSearchResultDto | null>(null);
+  const [phoneFamilyMembers, setPhoneFamilyMembers] = useState<PatientSearchResultDto[]>([]);
 
   // Tự động nhận bệnh nhân vừa tạo từ tab Tạo tài khoản
   useEffect(() => {
@@ -702,6 +703,7 @@ function WalkinTab({
       setLinked(selectedPatient);
       setLookup("");
       setResults([]);
+      setPhoneFamilyMembers([]);
       setPhoneError(null);
       setDobError(null);
     }
@@ -730,6 +732,34 @@ function WalkinTab({
     return () => { cancelled = true; clearTimeout(timer); };
   }, [lookup]);
 
+  // Tự động gợi ý thành viên gia đình khi nhập SĐT đủ 10 chữ số
+  useEffect(() => {
+    const p = form.phone.replace(/\D/g, "");
+    if (p.length < 10 || linked) {
+      setPhoneFamilyMembers([]);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      void searchPatientsApi(p, 10)
+        .then(rows => {
+          if (!cancelled) {
+            const matched = rows.filter(r => (r.phoneNumber ?? "").replace(/\D/g, "") === p || !!r.primaryPatientName);
+            setPhoneFamilyMembers(matched.length > 0 ? matched : rows);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setPhoneFamilyMembers([]);
+        });
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [form.phone, linked]);
+
   const pickPatient = (p: PatientSearchResultDto) => {
     const [y, m, d] = (p.dateOfBirth || "").split("-");
     const gender = ["Nam", "Nữ", "Khác"].includes(p.gender) ? p.gender : "Khác";
@@ -743,12 +773,14 @@ function WalkinTab({
     setLinked(p);
     setLookup("");
     setResults([]);
+    setPhoneFamilyMembers([]);
     setPhoneError(null);
     setDobError(null);
   };
 
   const unlinkPatient = () => {
     setLinked(null);
+    setPhoneFamilyMembers([]);
     onClearSelectedPatient?.();
     onClearFollowUp?.();
     setForm(prev => ({ ...prev, name: "", phone: "", dob: "", gender: "Nam" }));
@@ -941,6 +973,7 @@ function WalkinTab({
         setPhoneError(null);
         setDobError(null);
         setLinked(null);
+        setPhoneFamilyMembers([]);
         setLookup("");
       }, 2000);
     } catch (e) {
@@ -1155,11 +1188,19 @@ function WalkinTab({
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="text-[12.5px] font-black text-emerald-900 truncate">{linked.fullName}</div>
-                    <div className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1.5 mt-0.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[12.5px] font-black text-emerald-900 truncate">{linked.fullName}</span>
+                      {linked.relationship && (
+                        <span className="px-1.5 py-0.2 bg-indigo-100 text-indigo-800 text-[10px] font-extrabold rounded">{linked.relationship}</span>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1.5 mt-0.5 flex-wrap">
                       <span>{linked.phoneNumber ?? "—"}</span>
                       {linked.hasAccount && (
                         <span className="px-1.5 py-0.2 bg-emerald-200/70 text-emerald-800 text-[10px] font-extrabold rounded">Có tài khoản</span>
+                      )}
+                      {linked.primaryPatientName && (
+                        <span className="text-[10.5px] text-emerald-700">· TK: {linked.primaryPatientName}</span>
                       )}
                     </div>
                   </div>
@@ -1208,14 +1249,30 @@ function WalkinTab({
                             {p.fullName.trim().split(/\s+/).slice(-2).map(w => w[0]).join("").toUpperCase()}
                           </div>
                           <div className="min-w-0 flex-1">
-                            <div className="text-[12.5px] font-bold text-slate-800 truncate">{p.fullName}</div>
-                            <div className="text-[11px] text-slate-400 font-mono">{p.phoneNumber ?? "—"}</div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[12.5px] font-bold text-slate-800 truncate">{p.fullName}</span>
+                              {p.relationship && (
+                                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                  {p.relationship}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-slate-400 font-mono flex items-center gap-1 flex-wrap">
+                              <span>{p.phoneNumber ?? "—"}</span>
+                              {p.primaryPatientName && (
+                                <span className="text-slate-400 text-[10.5px]">· TK: {p.primaryPatientName}</span>
+                              )}
+                            </div>
                           </div>
-                          {p.hasAccount && (
+                          {p.hasAccount ? (
                             <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-600 border border-emerald-100 shrink-0">
                               Có TK
                             </span>
-                          )}
+                          ) : p.primaryPatientId ? (
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-violet-50 text-violet-600 border border-violet-100 shrink-0">
+                              Thành viên
+                            </span>
+                          ) : null}
                         </button>
                       ))}
                     </div>
@@ -1241,6 +1298,36 @@ function WalkinTab({
                     className={`${inputCls} ${phoneError ? "border-red-400 bg-red-50 focus:border-red-400 focus:ring-red-200" : ""}`}
                   />
                   {phoneError && <p className="text-[11.5px] font-semibold text-red-500">{phoneError}</p>}
+
+                  {/* Gợi ý thành viên gia đình khi SĐT đã có hồ sơ */}
+                  {phoneFamilyMembers.length > 0 && !linked && (
+                    <div className="p-2.5 bg-sky-50/90 border border-sky-200 rounded-xl flex flex-col gap-1.5 mt-1 animate-in fade-in duration-200">
+                      <div className="text-[11.5px] font-bold text-sky-900 flex items-center gap-1.5">
+                        <svg className="w-3.5 h-3.5 text-sky-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" /></svg>
+                        SĐT này có hồ sơ gia đình:
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {phoneFamilyMembers.map(m => (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => pickPatient(m)}
+                            className="px-2.5 py-1 bg-white border border-sky-200 hover:border-sky-400 text-sky-900 rounded-lg text-[11.5px] font-bold transition-all flex items-center gap-1 shadow-xs cursor-pointer hover:bg-sky-50"
+                          >
+                            <span>{m.fullName}</span>
+                            {m.relationship ? (
+                              <span className="text-[10px] text-sky-600 font-medium">({m.relationship})</span>
+                            ) : m.hasAccount ? (
+                              <span className="text-[10px] text-emerald-600 font-medium">(Chủ TK)</span>
+                            ) : null}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="text-[10.5px] text-sky-700/80 italic">
+                        Bấm để chọn đúng người, hoặc tiếp tục gõ tên mới bên trên nếu là thành viên mới.
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="flex gap-3">
                   <div className="flex flex-col gap-1.5 flex-1 min-w-0">

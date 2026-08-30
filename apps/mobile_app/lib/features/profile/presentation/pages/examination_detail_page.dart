@@ -4,6 +4,8 @@ import 'package:iconsax/iconsax.dart';
 import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
+import 'package:mobile_app/features/booking/data/booking_models.dart';
+import 'package:mobile_app/features/booking/data/booking_service.dart';
 import 'package:mobile_app/features/profile/data/medical_record_service.dart';
 
 /// Trang trung tâm của 1 buổi khám — 4 lối vào tương ứng đúng 4 tab bác sĩ thấy khi khám
@@ -232,6 +234,73 @@ class _ExaminationDetailPageState extends State<ExaminationDetailPage> {
           ],
         ),
       ),
+      bottomNavigationBar: event.followUpDate == null
+          ? null
+          : Container(
+              padding: EdgeInsets.fromLTRB(24, 14, 24, MediaQuery.of(context).padding.bottom + 14),
+              decoration: BoxDecoration(
+                color: context.card,
+                border: Border(top: BorderSide(color: context.divider)),
+              ),
+              child: SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    final doctor = DoctorInfo(
+                      id: event.dentistId,
+                      name: event.dentistName,
+                      title: '',
+                      specialty: '',
+                      room: '',
+                      session: DoctorSession.morning,
+                      rating: 5.0,
+                      reviewCount: 0,
+                      avatarUrl: event.dentistAvatarUrl,
+                    );
+
+                    final service = event.serviceId != null
+                        ? ServiceInfo(
+                            id: event.serviceId!,
+                            name: event.serviceName,
+                            description: '',
+                            price: '',
+                            durationMinutes: 30,
+                          )
+                        : null;
+
+                    final draft = BookingDraft(
+                      preferredDentistId: event.dentistId,
+                      patient: PatientInfo(
+                        id: event.patientId,
+                        name: event.patientName,
+                        relationship: event.patientRelationship,
+                      ),
+                      doctor: doctor,
+                      service: service,
+                      date: event.followUpDate,
+                      isFollowUp: true,
+                      symptoms: isVi
+                          ? 'Tái khám theo hẹn: ${event.serviceName}${event.followUpNote != null ? ' - ${event.followUpNote}' : ''}'
+                          : 'Follow-up visit: ${event.serviceName}${event.followUpNote != null ? ' - ${event.followUpNote}' : ''}',
+                    );
+
+                    BookingService().setActiveDraft(draft);
+                    context.push(AppRoutes.bookingSelectTimeSlot, extra: draft);
+                  },
+                  icon: const Icon(Iconsax.calendar_add, size: 18),
+                  label: Text(
+                    isVi ? 'ĐẶT LỊCH TÁI KHÁM NGAY' : 'BOOK FOLLOW-UP NOW',
+                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF16A34A),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+            ),
     );
   }
 
