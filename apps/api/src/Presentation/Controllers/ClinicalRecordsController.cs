@@ -42,7 +42,7 @@ public class ClinicalRecordsController(ISender sender, ClinicalRecordWriteGuard 
 
     /// <summary>PUT api/appointments/{id}/end-treatment — Kết thúc điều trị, chuyển sang chờ thanh toán (Staff/Admin/Dentist)</summary>
     [HttpPut("api/appointments/{id}/end-treatment")]
-    [Authorize(Roles = "Staff,Admin,Dentist")]
+    [Authorize(Roles = "Staff,Admin,Dentist,Owner")]
     public async Task<IActionResult> EndTreatment(Guid id, CancellationToken cancellationToken)
     {
         await writeGuard.EnsureCanWriteAppointmentAsync(id, cancellationToken);
@@ -52,7 +52,7 @@ public class ClinicalRecordsController(ISender sender, ClinicalRecordWriteGuard 
 
     /// <summary>GET api/appointments/{id}/examination — Lấy thông tin khám bệnh (Staff/Admin/Dentist)</summary>
     [HttpGet("api/appointments/{id}/examination")]
-    [Authorize(Roles = "Staff,Admin,Dentist")]
+    [Authorize(Roles = "Staff,Admin,Dentist,Owner")]
     public async Task<IActionResult> GetExamination(Guid id, CancellationToken cancellationToken)
     {
         var result = await sender.Send(new GetExaminationQuery(id), cancellationToken);
@@ -65,7 +65,7 @@ public class ClinicalRecordsController(ISender sender, ClinicalRecordWriteGuard 
 
     /// <summary>POST api/appointments/{id}/diagnosis — Thêm chuẩn đoán (Staff/Admin/Dentist)</summary>
     [HttpPost("api/appointments/{id}/diagnosis")]
-    [Authorize(Roles = "Staff,Admin,Dentist")]
+    [Authorize(Roles = "Staff,Admin,Dentist,Owner")]
     public async Task<IActionResult> CreateDiagnosis(
         Guid id,
         [FromBody] CreateDiagnosisRequest request,
@@ -79,7 +79,7 @@ public class ClinicalRecordsController(ISender sender, ClinicalRecordWriteGuard 
 
     /// <summary>PUT api/appointments/diagnosis/{diagnosisId} — Cập nhật chuẩn đoán (Staff/Admin/Dentist)</summary>
     [HttpPut("api/appointments/diagnosis/{diagnosisId}")]
-    [Authorize(Roles = "Staff,Admin,Dentist")]
+    [Authorize(Roles = "Staff,Admin,Dentist,Owner")]
     public async Task<IActionResult> UpdateDiagnosis(
         Guid diagnosisId,
         [FromBody] UpdateDiagnosisRequest request,
@@ -93,7 +93,7 @@ public class ClinicalRecordsController(ISender sender, ClinicalRecordWriteGuard 
 
     /// <summary>DELETE api/appointments/diagnosis/{diagnosisId} — Xóa chuẩn đoán (Staff/Admin/Dentist)</summary>
     [HttpDelete("api/appointments/diagnosis/{diagnosisId}")]
-    [Authorize(Roles = "Staff,Admin,Dentist")]
+    [Authorize(Roles = "Staff,Admin,Dentist,Owner")]
     public async Task<IActionResult> DeleteDiagnosis(Guid diagnosisId, CancellationToken cancellationToken)
     {
         await writeGuard.EnsureCanWriteDiagnosisAsync(diagnosisId, cancellationToken);
@@ -107,7 +107,7 @@ public class ClinicalRecordsController(ISender sender, ClinicalRecordWriteGuard 
 
     /// <summary>GET api/appointments/{id}/photos — Lấy ảnh gắn với buổi hẹn, lọc theo khu vực nếu có (Staff/Admin/Dentist)</summary>
     [HttpGet("api/appointments/{id}/photos")]
-    [Authorize(Roles = "Staff,Admin,Dentist")]
+    [Authorize(Roles = "Staff,Admin,Dentist,Owner")]
     public async Task<IActionResult> GetAppointmentPhotos(Guid id, [FromQuery] string? section, CancellationToken cancellationToken)
     {
         var result = await sender.Send(new GetAppointmentPhotosQuery(id, section), cancellationToken);
@@ -116,7 +116,7 @@ public class ClinicalRecordsController(ISender sender, ClinicalRecordWriteGuard 
 
     /// <summary>POST api/appointments/{id}/photos — Thêm ảnh cho buổi hẹn (Staff/Admin/Dentist)</summary>
     [HttpPost("api/appointments/{id}/photos")]
-    [Authorize(Roles = "Staff,Admin,Dentist")]
+    [Authorize(Roles = "Staff,Admin,Dentist,Owner")]
     public async Task<IActionResult> AddAppointmentPhoto(
         Guid id,
         [FromBody] AddAppointmentPhotoRequest request,
@@ -130,7 +130,7 @@ public class ClinicalRecordsController(ISender sender, ClinicalRecordWriteGuard 
 
     /// <summary>PUT api/appointments/photos/{photoId} — Sửa ghi chú ảnh (Staff/Admin/Dentist)</summary>
     [HttpPut("api/appointments/photos/{photoId}")]
-    [Authorize(Roles = "Staff,Admin,Dentist")]
+    [Authorize(Roles = "Staff,Admin,Dentist,Owner")]
     public async Task<IActionResult> UpdateAppointmentPhotoNote(
         Guid photoId,
         [FromBody] UpdateAppointmentPhotoNoteRequest request,
@@ -144,7 +144,7 @@ public class ClinicalRecordsController(ISender sender, ClinicalRecordWriteGuard 
 
     /// <summary>DELETE api/appointments/photos/{photoId} — Xóa ảnh (Staff/Admin/Dentist)</summary>
     [HttpDelete("api/appointments/photos/{photoId}")]
-    [Authorize(Roles = "Staff,Admin,Dentist")]
+    [Authorize(Roles = "Staff,Admin,Dentist,Owner")]
     public async Task<IActionResult> DeleteAppointmentPhoto(Guid photoId, CancellationToken cancellationToken)
     {
         await writeGuard.EnsureCanWritePhotoAsync(photoId, cancellationToken);
@@ -158,7 +158,7 @@ public class ClinicalRecordsController(ISender sender, ClinicalRecordWriteGuard 
 
     /// <summary>POST api/appointments/{id}/treatment-plan — Thêm liệu trình điều trị (Staff/Admin/Dentist)</summary>
     [HttpPost("api/appointments/{id}/treatment-plan")]
-    [Authorize(Roles = "Staff,Admin,Dentist")]
+    [Authorize(Roles = "Staff,Admin,Dentist,Owner")]
     public async Task<IActionResult> CreateTreatmentPlan(
         Guid id,
         [FromBody] CreateTreatmentPlanRequest request,
@@ -172,7 +172,7 @@ public class ClinicalRecordsController(ISender sender, ClinicalRecordWriteGuard 
 
     /// <summary>PUT api/appointments/treatment-plan/{treatmentPlanId} — Cập nhật liệu trình (Staff/Admin/Dentist)</summary>
     [HttpPut("api/appointments/treatment-plan/{treatmentPlanId}")]
-    [Authorize(Roles = "Staff,Admin,Dentist")]
+    [Authorize(Roles = "Staff,Admin,Dentist,Owner")]
     public async Task<IActionResult> UpdateTreatmentPlan(
         Guid treatmentPlanId,
         [FromBody] UpdateTreatmentPlanRequest request,
@@ -186,7 +186,7 @@ public class ClinicalRecordsController(ISender sender, ClinicalRecordWriteGuard 
 
     /// <summary>DELETE api/appointments/treatment-plan/{treatmentPlanId} — Xóa liệu trình (Staff/Admin/Dentist)</summary>
     [HttpDelete("api/appointments/treatment-plan/{treatmentPlanId}")]
-    [Authorize(Roles = "Staff,Admin,Dentist")]
+    [Authorize(Roles = "Staff,Admin,Dentist,Owner")]
     public async Task<IActionResult> DeleteTreatmentPlan(Guid treatmentPlanId, CancellationToken cancellationToken)
     {
         await writeGuard.EnsureCanWriteTreatmentPlanAsync(treatmentPlanId, cancellationToken);
@@ -205,7 +205,7 @@ public class ClinicalRecordsController(ISender sender, ClinicalRecordWriteGuard 
 
     /// <summary>POST api/appointments/treatment-plan/{treatmentPlanId}/progress — Ghi nhận bước điều trị đã thực hiện.</summary>
     [HttpPost("api/appointments/treatment-plan/{treatmentPlanId}/progress")]
-    [Authorize(Roles = "Staff,Admin,Dentist")]
+    [Authorize(Roles = "Staff,Admin,Dentist,Owner")]
     public async Task<IActionResult> AddTreatmentPlanProgress(
         Guid treatmentPlanId,
         [FromBody] AddStepProgressRequest request,
@@ -218,7 +218,7 @@ public class ClinicalRecordsController(ISender sender, ClinicalRecordWriteGuard 
 
     /// <summary>PUT api/appointments/treatment-plan/{treatmentPlanId}/progress — Sửa một mục trong nhật ký điều trị.</summary>
     [HttpPut("api/appointments/treatment-plan/{treatmentPlanId}/progress")]
-    [Authorize(Roles = "Staff,Admin,Dentist")]
+    [Authorize(Roles = "Staff,Admin,Dentist,Owner")]
     public async Task<IActionResult> UpdateTreatmentPlanProgress(
         Guid treatmentPlanId,
         [FromBody] UpdateStepProgressRequest request,
@@ -231,7 +231,7 @@ public class ClinicalRecordsController(ISender sender, ClinicalRecordWriteGuard 
 
     /// <summary>PUT api/appointments/treatment-plan/{treatmentPlanId}/progress/reorder — Đổi thứ tự các mục nhật ký điều trị.</summary>
     [HttpPut("api/appointments/treatment-plan/{treatmentPlanId}/progress/reorder")]
-    [Authorize(Roles = "Staff,Admin,Dentist")]
+    [Authorize(Roles = "Staff,Admin,Dentist,Owner")]
     public async Task<IActionResult> ReorderTreatmentPlanProgress(
         Guid treatmentPlanId,
         [FromBody] ReorderStepProgressRequest request,
@@ -244,7 +244,7 @@ public class ClinicalRecordsController(ISender sender, ClinicalRecordWriteGuard 
 
     /// <summary>DELETE api/appointments/treatment-plan/{treatmentPlanId}/progress/{entryIndex} — Xóa một mục trong nhật ký điều trị.</summary>
     [HttpDelete("api/appointments/treatment-plan/{treatmentPlanId}/progress/{entryIndex:int}")]
-    [Authorize(Roles = "Staff,Admin,Dentist")]
+    [Authorize(Roles = "Staff,Admin,Dentist,Owner")]
     public async Task<IActionResult> DeleteTreatmentPlanProgress(
         Guid treatmentPlanId,
         int entryIndex,
@@ -266,7 +266,7 @@ public class ClinicalRecordsController(ISender sender, ClinicalRecordWriteGuard 
 
     /// <summary>POST api/appointments/treatment-plan/{treatmentPlanId}/supply-usage — Ghi nhận vật tư đã dùng (tự trừ kho).</summary>
     [HttpPost("api/appointments/treatment-plan/{treatmentPlanId}/supply-usage")]
-    [Authorize(Roles = "Staff,Admin,Dentist")]
+    [Authorize(Roles = "Staff,Admin,Dentist,Owner")]
     public async Task<IActionResult> RecordTreatmentSupplyUsage(
         Guid treatmentPlanId,
         [FromBody] RecordTreatmentSupplyUsageRequest request,
@@ -283,7 +283,7 @@ public class ClinicalRecordsController(ISender sender, ClinicalRecordWriteGuard 
 
     /// <summary>POST api/appointments/{id}/prescription — Tạo đơn thuốc (Staff/Admin/Dentist)</summary>
     [HttpPost("api/appointments/{id}/prescription")]
-    [Authorize(Roles = "Staff,Admin,Dentist")]
+    [Authorize(Roles = "Staff,Admin,Dentist,Owner")]
     public async Task<IActionResult> CreatePrescription(
         Guid id,
         [FromBody] CreatePrescriptionRequest request,
@@ -297,7 +297,7 @@ public class ClinicalRecordsController(ISender sender, ClinicalRecordWriteGuard 
 
     /// <summary>PUT api/appointments/prescription/{prescriptionId} — Cập nhật đơn thuốc (Staff/Admin/Dentist)</summary>
     [HttpPut("api/appointments/prescription/{prescriptionId}")]
-    [Authorize(Roles = "Staff,Admin,Dentist")]
+    [Authorize(Roles = "Staff,Admin,Dentist,Owner")]
     public async Task<IActionResult> UpdatePrescription(
         Guid prescriptionId,
         [FromBody] UpdatePrescriptionRequest request,
@@ -311,7 +311,7 @@ public class ClinicalRecordsController(ISender sender, ClinicalRecordWriteGuard 
 
     /// <summary>POST api/appointments/prescription/{prescriptionId}/items — Thêm thuốc vào đơn (Staff/Admin/Dentist)</summary>
     [HttpPost("api/appointments/prescription/{prescriptionId}/items")]
-    [Authorize(Roles = "Staff,Admin,Dentist")]
+    [Authorize(Roles = "Staff,Admin,Dentist,Owner")]
     public async Task<IActionResult> AddPrescriptionItem(
         Guid prescriptionId,
         [FromBody] AddPrescriptionItemRequest request,
@@ -325,7 +325,7 @@ public class ClinicalRecordsController(ISender sender, ClinicalRecordWriteGuard 
 
     /// <summary>PUT api/appointments/prescription-items/{itemId} — Cập nhật thuốc trong đơn (Staff/Admin/Dentist)</summary>
     [HttpPut("api/appointments/prescription-items/{itemId}")]
-    [Authorize(Roles = "Staff,Admin,Dentist")]
+    [Authorize(Roles = "Staff,Admin,Dentist,Owner")]
     public async Task<IActionResult> UpdatePrescriptionItem(
         Guid itemId,
         [FromBody] UpdatePrescriptionItemRequest request,
@@ -339,7 +339,7 @@ public class ClinicalRecordsController(ISender sender, ClinicalRecordWriteGuard 
 
     /// <summary>DELETE api/appointments/prescription-items/{itemId} — Xóa thuốc khỏi đơn (Staff/Admin/Dentist)</summary>
     [HttpDelete("api/appointments/prescription-items/{itemId}")]
-    [Authorize(Roles = "Staff,Admin,Dentist")]
+    [Authorize(Roles = "Staff,Admin,Dentist,Owner")]
     public async Task<IActionResult> DeletePrescriptionItem(Guid itemId, CancellationToken cancellationToken)
     {
         await writeGuard.EnsureCanWritePrescriptionItemAsync(itemId, cancellationToken);

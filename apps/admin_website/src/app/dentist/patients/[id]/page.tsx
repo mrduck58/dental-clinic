@@ -402,7 +402,9 @@ export default function PatientDetailPage() {
   }
 
   const patient = examination.patient;
-  const initials = patient.fullName.trim().split(/\s+/).slice(-2).map((w: string) => w[0]).join("").toUpperCase();
+  const initials = patient?.fullName?.trim()
+    ? patient.fullName.trim().split(/\s+/).slice(-2).map((w: string) => w[0] ?? "").join("").toUpperCase()
+    : "BN";
   const statusConfig = STATUS_LABEL[examination.status] ?? { label: examination.status, cls: "bg-slate-100 text-slate-600" };
   const isInProgress = examination.status === "InProgress";
   const isPendingPayment = examination.status === "PendingPayment";
@@ -416,14 +418,14 @@ return (
 
       <main className="flex-1 flex flex-col min-w-0">
         <DentistPageHeader
-          title={patient.fullName}
-          subtitle={`${patient.dateOfBirth ? `${new Date().getFullYear() - new Date(patient.dateOfBirth).getFullYear()} tuổi` : "—"} · ${patient.gender ?? "—"} · ${patient.phoneNumber ?? "—"}`}
+          title={patient?.fullName || "Bệnh nhân"}
+          subtitle={`${patient?.dateOfBirth ? `${new Date().getFullYear() - new Date(patient.dateOfBirth).getFullYear()} tuổi` : "—"} · ${patient?.gender ?? "—"} · ${patient?.phoneNumber ?? "—"}`}
           left={
             <div className="flex items-center gap-2.5">
               <Link href={listHref} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-all shrink-0">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
               </Link>
-              <div className={`w-9 h-9 rounded-full flex items-center justify-center font-black text-[12px] border shrink-0 ${patient.gender === "Nữ" ? "bg-rose-50 text-rose-600 border-rose-100" : "bg-sky-50 text-sky-700 border-sky-100"}`}>
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center font-black text-[12px] border shrink-0 ${patient?.gender === "Nữ" ? "bg-rose-50 text-rose-600 border-rose-100" : "bg-sky-50 text-sky-700 border-sky-100"}`}>
                 {initials}
               </div>
             </div>
@@ -456,7 +458,7 @@ return (
               )}
               {isFinished && !editMode && (
                 <Link
-                  href={`/dentist/patients/${id}?edit=1`}
+                  href={`/dentist/patients/${id}?edit=1${fromPast ? "&from=past" : ""}`}
                   className="flex items-center px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-[13px] font-bold rounded-xl transition-all shadow-sm cursor-pointer"
                 >
                   Chỉnh sửa
@@ -464,7 +466,7 @@ return (
               )}
               {isFinished && editMode && (
                 <Link
-                  href={`/dentist/patients/${id}`}
+                  href={`/dentist/patients/${id}${fromPast ? "?from=past" : ""}`}
                   className="flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[13px] font-bold rounded-xl transition-all shadow-sm cursor-pointer"
                 >
                   Xong
