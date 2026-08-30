@@ -239,6 +239,11 @@ using (var scope = app.Services.CreateScope())
             ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""CancelledByUserId"" uuid NULL;
             ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""Origin"" character varying(20) NOT NULL DEFAULT 'Online';
 
+            ALTER TABLE ""Services"" ADD COLUMN IF NOT EXISTS ""EstimatedSessionCount"" integer NULL;
+            ALTER TABLE ""Services"" ADD COLUMN IF NOT EXISTS ""EstimatedDurationMin"" integer NULL;
+            ALTER TABLE ""Services"" ADD COLUMN IF NOT EXISTS ""EstimatedDurationMax"" integer NULL;
+            ALTER TABLE ""Services"" ADD COLUMN IF NOT EXISTS ""EstimatedDurationUnit"" character varying(20) NULL;
+
             CREATE TABLE IF NOT EXISTS ""Diagnoses"" (
                 ""Id"" uuid PRIMARY KEY,
                 ""AppointmentId"" uuid NOT NULL,

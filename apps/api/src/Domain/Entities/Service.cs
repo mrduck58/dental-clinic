@@ -1,3 +1,5 @@
+using DentalClinic.API.Domain.Enums;
+
 namespace DentalClinic.API.Domain.Entities;
 
 public class Service
@@ -6,6 +8,10 @@ public class Service
     public string Name { get; private set; } = string.Empty;
     public decimal Price { get; private set; }
     public int DurationMinutes { get; private set; }
+    public int? EstimatedSessionCount { get; private set; }
+    public int? EstimatedDurationMin { get; private set; }
+    public int? EstimatedDurationMax { get; private set; }
+    public DurationUnit? EstimatedDurationUnit { get; private set; }
     public bool IsActive { get; private set; } = true;
     public string Description { get; private set; } = string.Empty;
     /// <summary>Nội dung bài viết HTML mô tả chi tiết dịch vụ (hiển thị trên clinic_website).</summary>
@@ -29,13 +35,21 @@ public class Service
         string description,
         string content = "",
         string? imageUrl = null,
-        string? iconUrl = null)
+        string? iconUrl = null,
+        int? estimatedSessionCount = null,
+        int? estimatedDurationMin = null,
+        int? estimatedDurationMax = null,
+        DurationUnit? estimatedDurationUnit = null)
         => new()
         {
             Id = Guid.NewGuid(),
             Name = name,
             Price = price,
             DurationMinutes = durationMinutes,
+            EstimatedSessionCount = estimatedSessionCount,
+            EstimatedDurationMin = estimatedDurationMin,
+            EstimatedDurationMax = estimatedDurationMax,
+            EstimatedDurationUnit = estimatedDurationUnit,
             IsActive = true,
             Description = description,
             Content = content,
@@ -52,7 +66,11 @@ public class Service
         string description,
         string content,
         string? imageUrl,
-        string? iconUrl)
+        string? iconUrl,
+        int? estimatedSessionCount = null,
+        int? estimatedDurationMin = null,
+        int? estimatedDurationMax = null,
+        DurationUnit? estimatedDurationUnit = null)
     {
         Name = name;
         Price = price;
@@ -61,6 +79,10 @@ public class Service
         Content = content;
         if (imageUrl is not null) ImageUrl = imageUrl;
         if (iconUrl is not null) IconUrl = iconUrl;
+        EstimatedSessionCount = estimatedSessionCount;
+        EstimatedDurationMin = estimatedDurationMin;
+        EstimatedDurationMax = estimatedDurationMax;
+        EstimatedDurationUnit = estimatedDurationUnit;
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 

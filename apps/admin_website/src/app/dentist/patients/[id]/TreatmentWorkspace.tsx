@@ -1092,14 +1092,27 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                   return (
                     <button
                       key={s.id}
-                      onClick={() => { setSelService(s); setSelOption(null); setAddTeeth(""); }}
+                      onClick={() => {
+                        setSelService(s);
+                        setSelOption(null);
+                        setAddTeeth("");
+                        setAddEstimatedSessionCount(s.estimatedSessionCount ?? "");
+                        setAddEstimatedDurationMin(s.estimatedDurationMin ?? "");
+                        setAddEstimatedDurationMax(s.estimatedDurationMax ?? "");
+                        setAddEstimatedDurationUnit(s.estimatedDurationUnit || "Month");
+                      }}
                       className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors cursor-pointer ${selService?.id === s.id ? "bg-primary/5" : "hover:bg-slate-50"}`}
                     >
                       <div>
                         <div className="text-[13.5px] font-bold text-slate-800">{s.name}</div>
-                        <div className="text-[11.5px] font-semibold text-slate-400">
-                          {s.durationMinutes} phút
-                          {opts.length > 0 && ` · ${opts.length} tùy chọn`}
+                        <div className="text-[11.5px] font-semibold text-slate-400 flex items-center gap-1.5 flex-wrap">
+                          <span>{s.durationMinutes} phút/buổi</span>
+                          {opts.length > 0 && <span>· {opts.length} tùy chọn</span>}
+                          {((s.estimatedSessionCount ?? 0) > 0 || (s.estimatedDurationMin ?? 0) > 0 || (s.estimatedDurationMax ?? 0) > 0) && (
+                            <span className="text-indigo-600 font-bold">
+                              · Liệu trình: {s.estimatedSessionCount ? `${s.estimatedSessionCount} buổi` : ""}{s.estimatedSessionCount && (s.estimatedDurationMin || s.estimatedDurationMax) ? " / " : ""}{s.estimatedDurationMin && s.estimatedDurationMax && s.estimatedDurationMin !== s.estimatedDurationMax ? `${s.estimatedDurationMin}–${s.estimatedDurationMax}` : (s.estimatedDurationMin || s.estimatedDurationMax || "")} {DURATION_UNIT_LABELS[s.estimatedDurationUnit || "Month"] || "tháng"}
+                            </span>
+                          )}
                         </div>
                       </div>
                       {opts.length === 0 && (

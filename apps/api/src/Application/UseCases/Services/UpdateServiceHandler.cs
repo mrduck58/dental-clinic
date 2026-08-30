@@ -1,4 +1,6 @@
 using DentalClinic.API.Application.DTOs.Services;
+using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
@@ -16,7 +18,11 @@ public record UpdateServiceCommand(
     string Content,
     string? ImageUrl,
     string? IconUrl,
-    IReadOnlyCollection<ServiceOptionRequest>? Options) : IRequest<ServiceDto>;
+    IReadOnlyCollection<ServiceOptionRequest>? Options,
+    int? EstimatedSessionCount = null,
+    int? EstimatedDurationMin = null,
+    int? EstimatedDurationMax = null,
+    string? EstimatedDurationUnit = null) : IRequest<ServiceDto>;
 
 public class UpdateServiceHandler(
     IServiceRepository serviceRepository,
@@ -28,6 +34,17 @@ public class UpdateServiceHandler(
         var service = await serviceRepository.GetByIdAsync(request.Id, cancellationToken)
             ?? throw new NotFoundException($"Không tìm thấy dịch vụ với ID: {request.Id}");
 
+        DurationUnit? durationUnit = service.EstimatedDurationUnit;
+        if (!string.IsNullOrWhiteSpace(request.EstimatedDurationUnit))
+        {
+            if (Enum.TryParse<DurationUnit>(request.EstimatedDurationUnit, ignoreCase: true, out var parsedUnit))
+                durationUnit = parsedUnit;
+        }
+        else if (request.EstimatedDurationUnit == null && !request.EstimatedDurationMin.HasValue && !request.EstimatedDurationMax.HasValue)
+        {
+            durationUnit = null;
+        }
+
         service.Update(
             request.Name,
             request.Price,
@@ -35,7 +52,11 @@ public class UpdateServiceHandler(
             request.Description,
             request.Content ?? string.Empty,
             request.ImageUrl,
-            request.IconUrl);
+            request.IconUrl,
+            request.EstimatedSessionCount,
+            request.EstimatedDurationMin,
+            request.EstimatedDurationMax,
+            durationUnit);
 
         // Thay toàn bộ tuỳ chọn bằng ĐÚNG MỘT thao tác trên aggregate: ReplaceOptions xoá sạch
         // collection rồi thêm bản mới, EF tự nhận ra cái nào là mồ côi (quan hệ Cascade) để xoá và
