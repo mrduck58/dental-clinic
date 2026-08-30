@@ -166,7 +166,7 @@ public class DentistDashboardQueryService(AppDbContext db) : IDentistDashboardQu
                 };
                 return new DentistDashboardPatientDto(
                     a.Id,
-                    a.Patient.FullName,
+                    a.Patient?.FullName ?? string.Empty,
                     a.Service?.Name,
                     $"{vnTime.Hour:D2}:{vnTime.Minute:D2}",
                     status);
@@ -217,10 +217,10 @@ public class DentistDashboardQueryService(AppDbContext db) : IDentistDashboardQu
         return appointments.Select(a => new DentistPatientDto(
             a.Id,
             $"DK{a.AppointmentDate:yyyyMMdd}{a.Id.ToString("N")[..6].ToUpper()}",
-            a.Patient.FullName,
-            DentistPatientMapper.CalculateAge(a.Patient.DateOfBirth),
-            a.Patient.Gender ?? "Khác",
-            a.Patient.PhoneNumber ?? a.Patient.User?.PhoneNumber,
+            a.Patient?.FullName ?? string.Empty,
+            a.Patient != null ? DentistPatientMapper.CalculateAge(a.Patient.DateOfBirth) : 0,
+            a.Patient?.Gender ?? "Khác",
+            a.Patient?.PhoneNumber ?? a.Patient?.User?.PhoneNumber,
             a.AppointmentDate,
             a.Status.ToString(),
             a.Service?.Name,
@@ -281,10 +281,10 @@ public class DentistDashboardQueryService(AppDbContext db) : IDentistDashboardQu
         var patients = orderedAppointments.Select(a => new DentistPatientDto(
             a.Id,
             $"DK{a.AppointmentDate:yyyyMMdd}{a.Id.ToString("N")[..6].ToUpper()}",
-            a.Patient.FullName,
-            DentistPatientMapper.CalculateAge(a.Patient.DateOfBirth),
-            a.Patient.Gender ?? "Khác",
-            a.Patient.PhoneNumber ?? a.Patient.User?.PhoneNumber,
+            a.Patient?.FullName ?? string.Empty,
+            a.Patient != null ? DentistPatientMapper.CalculateAge(a.Patient.DateOfBirth) : 0,
+            a.Patient?.Gender ?? "Khác",
+            a.Patient?.PhoneNumber ?? a.Patient?.User?.PhoneNumber,
             a.AppointmentDate,
             a.Status.ToString(),
             a.Service?.Name,

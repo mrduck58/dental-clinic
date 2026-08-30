@@ -215,8 +215,8 @@ export default function DentistPatientsPage() {
       const data = await getDentistPatientsApi(selectedDate);
       setResponse(data);
       setError(null);
-    } catch {
-      setError("Không thể tải danh sách bệnh nhân");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không thể tải danh sách bệnh nhân");
     } finally {
       setLoading(false);
     }

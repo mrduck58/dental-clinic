@@ -139,8 +139,8 @@ export default function PastPatientsPage() {
       const data = await getDentistPastPatientsApi();
       setPatients(data);
       setError(null);
-    } catch {
-      setError("Không thể tải danh sách bệnh nhân đã từng khám");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không thể tải danh sách bệnh nhân đã từng khám");
     } finally {
       setLoading(false);
     }
