@@ -28,7 +28,7 @@ public class ExceptionMiddleware(RequestDelegate next, ILogger<ExceptionMiddlewa
             NotFoundException           => (StatusCodes.Status404NotFound,               ex.Message),
             ValidationException or InvalidOperationException => (StatusCodes.Status422UnprocessableEntity, ex.Message),
             FormatException or JsonException or BadHttpRequestException => (StatusCodes.Status400BadRequest, ex.Message),
-            _                           => (StatusCodes.Status500InternalServerError,    "Đã xảy ra lỗi hệ thống.")
+            _                           => (StatusCodes.Status500InternalServerError,    string.IsNullOrWhiteSpace(ex.Message) ? "Đã xảy ra lỗi hệ thống." : $"{ex.GetType().Name}: {ex.Message}")
         };
 
         ctx.Response.StatusCode  = status;
@@ -38,11 +38,11 @@ public class ExceptionMiddleware(RequestDelegate next, ILogger<ExceptionMiddlewa
         object body;
         if (ex is ValidationException validationEx && validationEx.Errors.Count > 0)
         {
-            body = new { title, status, errors = validationEx.Errors };
+            body = new { title, status, errors = validationEx.Errors, detail = ex.Message, exception = ex.GetType().Name };
         }
         else
         {
-            body = new { title, status };
+            body = new { title, status, detail = ex.Message, exception = ex.GetType().Name };
         }
 
         var json = JsonSerializer.Serialize(body);
