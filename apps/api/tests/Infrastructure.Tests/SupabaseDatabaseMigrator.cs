@@ -285,6 +285,7 @@ public class SupabaseDatabaseMigrator
                 ""CreatedBy"" character varying(200) NULL,
                 ""CreatedAt"" timestamp with time zone NOT NULL
             );",
+            @"ALTER TABLE ""TreatmentSupplyUsages"" ADD COLUMN IF NOT EXISTS ""TreatmentSessionId"" uuid NULL;",
             @"CREATE INDEX IF NOT EXISTS ""IX_TreatmentSupplyUsages_TreatmentPlanId"" ON ""TreatmentSupplyUsages"" (""TreatmentPlanId"");",
             @"CREATE INDEX IF NOT EXISTS ""IX_TreatmentSupplyUsages_TreatmentSessionId"" ON ""TreatmentSupplyUsages"" (""TreatmentSessionId"");",
 
@@ -306,7 +307,9 @@ public class SupabaseDatabaseMigrator
                 ""SupplyItemId"" uuid NOT NULL,
                 ""Quantity"" integer NOT NULL,
                 ""Note"" text NULL
-            );"
+            );",
+            @"ALTER TABLE ""Invoices"" ADD COLUMN IF NOT EXISTS ""PatientId"" uuid NULL;",
+            @"ALTER TABLE ""Invoices"" ALTER COLUMN ""AppointmentId"" DROP NOT NULL;"
         };
 
         await using var conn = await GetOpenConnectionAsync();
