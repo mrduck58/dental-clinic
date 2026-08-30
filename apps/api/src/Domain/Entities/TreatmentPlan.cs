@@ -91,6 +91,21 @@ public class TreatmentPlan
         return plan;
     }
 
+    [Obsolete("Use overload without appointmentId as TreatmentPlan now belongs directly to Patient")]
+    public static TreatmentPlan Create(
+        Guid patientId,
+        Guid dentistId,
+        Guid? appointmentId,
+        Guid serviceId,
+        decimal unitPrice,
+        int quantity = 1,
+        string? teeth = null,
+        string? notes = null,
+        DateOnly? warrantyUntil = null,
+        string? serviceOptionName = null,
+        Guid? serviceOptionId = null) =>
+        Create(patientId, dentistId, serviceId, unitPrice, quantity, teeth, notes, warrantyUntil, serviceOptionName, serviceOptionId);
+
     public void Update(string title, string? notes)
     {
         Title = string.IsNullOrWhiteSpace(title) ? "Kế hoạch điều trị" : title.Trim();
