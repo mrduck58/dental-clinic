@@ -66,9 +66,9 @@ public class PaymentConfirmationService(
 
         // Hoàn tất lịch hẹn CHỈ khi mọi dịch vụ trong chuỗi đã xuất hóa đơn hết
         // (cho phép còn dịch vụ khác của buổi chưa xuất → giữ buổi ở "chờ thanh toán").
-        if (invoice.Appointment.Status == AppointmentStatus.PendingPayment)
+        if (invoice.Appointment != null && invoice.AppointmentId.HasValue && invoice.Appointment.Status == AppointmentStatus.PendingPayment)
         {
-            var chain = await invoiceQuery.GetChainAsync(invoice.AppointmentId, ct);
+            var chain = await invoiceQuery.GetChainAsync(invoice.AppointmentId.Value, ct);
             var chainPlans = await invoiceRepository.GetTreatmentPlanBillingInfoByAppointmentIdsAsync(chain.ToList(), ct);
             var billedMap = await invoiceQuery.GetPlanBilledMapAsync(chainPlans.Select(p => p.Id).ToList(), ct);
             var anyUnbilled = chainPlans.Any(p =>
@@ -83,17 +83,20 @@ public class PaymentConfirmationService(
     /// <summary>Báo cho bệnh nhân (nếu có tài khoản) và toàn bộ Staff khi một hóa đơn được xác nhận đã thanh toán.</summary>
     private async Task NotifyPaymentConfirmedAsync(Invoice invoice, PaymentMethod paymentMethod, CancellationToken ct)
     {
-        var patientUserId = await invoiceRepository.GetPatientUserIdByAppointmentIdAsync(invoice.AppointmentId, ct);
-        if (patientUserId is Guid userId)
+        if (invoice.AppointmentId.HasValue)
         {
-            await notificationService.CreateAsync(new CreateNotificationRequest(
-                UserId: userId,
-                Type: NotificationType.Invoice,
-                Priority: NotificationPriority.Medium,
-                Title: "Thanh toán thành công",
-                Body: $"Hóa đơn {invoice.InvoiceNumber} đã được thanh toán ({invoice.DepositAmount:#,##0}đ) qua {DescribePaymentMethod(paymentMethod)}.",
-                RelatedEntityType: "Invoice",
-                RelatedEntityId: invoice.Id.ToString()), ct);
+            var patientUserId = await invoiceRepository.GetPatientUserIdByAppointmentIdAsync(invoice.AppointmentId.Value, ct);
+            if (patientUserId is Guid userId)
+            {
+                await notificationService.CreateAsync(new CreateNotificationRequest(
+                    UserId: userId,
+                    Type: NotificationType.Invoice,
+                    Priority: NotificationPriority.Medium,
+                    Title: "Thanh toán thành công",
+                    Body: $"Hóa đơn {invoice.InvoiceNumber} đã được thanh toán ({invoice.DepositAmount:#,##0}đ) qua {DescribePaymentMethod(paymentMethod)}.",
+                    RelatedEntityType: "Invoice",
+                    RelatedEntityId: invoice.Id.ToString()), ct);
+            }
         }
 
         var staffIds = await userRepository.GetUserIdsByRoleAsync("Staff", ct);

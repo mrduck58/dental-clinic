@@ -3,15 +3,14 @@ using DentalClinic.API.Domain.Enums;
 namespace DentalClinic.API.Domain.Entities;
 
 /// <summary>
-/// Hóa đơn thanh toán của một lịch hẹn.
-/// Được staff xuất ra từ liệu trình điều trị sau khi bác sĩ kết thúc điều trị
-/// (lịch hẹn chuyển sang trạng thái <see cref="AppointmentStatus.PendingPayment"/>).
+/// Hóa đơn thanh toán các dịch vụ / khoản thu của bệnh nhân.
 /// </summary>
 public class Invoice
 {
     public Guid Id { get; private set; }
     public string InvoiceNumber { get; private set; } = string.Empty;
-    public Guid AppointmentId { get; private set; }
+    public Guid? PatientId { get; private set; }
+    public Guid? AppointmentId { get; private set; }
     public decimal Subtotal { get; private set; }
     public decimal Discount { get; private set; }
     public decimal TotalAmount { get; private set; }       // Tổng chi phí điều trị (sau giảm giá)
@@ -36,7 +35,8 @@ public class Invoice
     public Promotion? Promotion { get; private set; }
 
     // Navigation properties
-    public Appointment Appointment { get; private set; } = null!;
+    public Patient? Patient { get; private set; }
+    public Appointment? Appointment { get; private set; }
     public ICollection<InvoiceItem> Items { get; private set; } = new List<InvoiceItem>();
     public ICollection<PaymentTransaction> PaymentTransactions { get; private set; } = new List<PaymentTransaction>();
 
@@ -47,19 +47,21 @@ public class Invoice
     /// Tự tính tạm tính và tổng tiền sau khi trừ giảm giá.
     /// </summary>
     public static Invoice Issue(
-        Guid appointmentId,
+        Guid? appointmentId,
         string invoiceNumber,
         IEnumerable<(string Name, int Quantity, decimal UnitPrice, Guid? TreatmentPlanId, decimal? AmountCollected)> items,
         decimal discount,
         PaymentMethod paymentMethod,
         string? notes = null,
-        Guid? promotionId = null)
+        Guid? promotionId = null,
+        Guid? patientId = null)
     {
         var invoice = new Invoice
         {
             Id = Guid.NewGuid(),
             InvoiceNumber = invoiceNumber,
             AppointmentId = appointmentId,
+            PatientId = patientId,
             Status = PaymentStatus.Unpaid,
             PaymentMethod = paymentMethod,
             Notes = notes,
@@ -87,19 +89,21 @@ public class Invoice
     /// Đây là hóa đơn thanh toán toàn bộ số còn lại (1 dòng).
     /// </summary>
     public static Invoice IssueRemaining(
-        Guid appointmentId,
+        Guid? appointmentId,
         string invoiceNumber,
         Guid parentInvoiceId,
         string lineName,
         decimal remainingAmount,
         PaymentMethod paymentMethod,
-        string? notes = null)
+        string? notes = null,
+        Guid? patientId = null)
     {
         var invoice = new Invoice
         {
             Id = Guid.NewGuid(),
             InvoiceNumber = invoiceNumber,
             AppointmentId = appointmentId,
+            PatientId = patientId,
             ParentInvoiceId = parentInvoiceId,
             Status = PaymentStatus.Unpaid,
             PaymentMethod = paymentMethod,
@@ -120,19 +124,21 @@ public class Invoice
     /// Hóa đơn loại này chỉ là phiếu thu cho số tiền của đợt đó; công nợ được theo dõi ở cấp liệu trình.
     /// </summary>
     public static Invoice IssuePlanInstallment(
-        Guid appointmentId,
+        Guid? appointmentId,
         Guid treatmentPlanId,
         string invoiceNumber,
         string lineName,
         decimal amount,
         PaymentMethod paymentMethod,
-        string? notes = null)
+        string? notes = null,
+        Guid? patientId = null)
     {
         var invoice = new Invoice
         {
             Id = Guid.NewGuid(),
             InvoiceNumber = invoiceNumber,
             AppointmentId = appointmentId,
+            PatientId = patientId,
             TreatmentPlanId = treatmentPlanId,
             Status = PaymentStatus.Unpaid,
             PaymentMethod = paymentMethod,

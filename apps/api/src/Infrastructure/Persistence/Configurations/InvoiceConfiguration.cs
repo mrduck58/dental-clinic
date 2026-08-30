@@ -29,10 +29,17 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         builder.Property(i => i.Notes)
             .HasMaxLength(1000);
 
+        builder.HasOne(i => i.Patient)
+            .WithMany()
+            .HasForeignKey(i => i.PatientId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.SetNull);
+
         builder.HasOne(i => i.Appointment)
             .WithMany(a => a.Invoices)
             .HasForeignKey(i => i.AppointmentId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.SetNull);
 
         // Hóa đơn thu phần còn lại trỏ về hóa đơn đặt cọc gốc (tự tham chiếu)
         builder.HasIndex(i => i.ParentInvoiceId);

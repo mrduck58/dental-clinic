@@ -455,6 +455,7 @@ using (var scope = app.Services.CreateScope())
                 ""CreatedBy"" character varying(200) NULL,
                 ""CreatedAt"" timestamp with time zone NOT NULL
             );
+            ALTER TABLE ""TreatmentSupplyUsages"" ADD COLUMN IF NOT EXISTS ""TreatmentSessionId"" uuid NULL;
             CREATE INDEX IF NOT EXISTS ""IX_TreatmentSupplyUsages_TreatmentPlanId"" ON ""TreatmentSupplyUsages"" (""TreatmentPlanId"");
             CREATE INDEX IF NOT EXISTS ""IX_TreatmentSupplyUsages_TreatmentSessionId"" ON ""TreatmentSupplyUsages"" (""TreatmentSessionId"");
 
@@ -464,11 +465,13 @@ using (var scope = app.Services.CreateScope())
             CREATE INDEX IF NOT EXISTS ""IX_InvoiceItems_TreatmentPlanItemId"" ON ""InvoiceItems"" (""TreatmentPlanItemId"");
             CREATE INDEX IF NOT EXISTS ""IX_InvoiceItems_TreatmentPlanId"" ON ""InvoiceItems"" (""TreatmentPlanId"");
 
+            ALTER TABLE ""Invoices"" ADD COLUMN IF NOT EXISTS ""PatientId"" uuid NULL;
             ALTER TABLE ""Invoices"" ADD COLUMN IF NOT EXISTS ""ParentInvoiceId"" uuid NULL;
             ALTER TABLE ""Invoices"" ADD COLUMN IF NOT EXISTS ""IsSettled"" boolean NOT NULL DEFAULT false;
             ALTER TABLE ""Invoices"" ADD COLUMN IF NOT EXISTS ""CollectingRemaining"" boolean NOT NULL DEFAULT false;
             ALTER TABLE ""Invoices"" ADD COLUMN IF NOT EXISTS ""TreatmentPlanId"" uuid NULL;
             ALTER TABLE ""Invoices"" ADD COLUMN IF NOT EXISTS ""PromotionId"" uuid NULL;
+            ALTER TABLE ""Invoices"" ALTER COLUMN ""AppointmentId"" DROP NOT NULL;
         ");
         await db.Database.MigrateAsync();
         await DataSeeder.SeedAsync(db);
