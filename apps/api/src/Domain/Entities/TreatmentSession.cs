@@ -27,6 +27,7 @@ public class TreatmentSession
     public ICollection<AppointmentSession> AppointmentSessions { get; private set; } = new List<AppointmentSession>();
     public ICollection<TreatmentSupplyUsage> SupplyUsages { get; private set; } = new List<TreatmentSupplyUsage>();
     public ICollection<FollowUp> FollowUps { get; private set; } = new List<FollowUp>();
+    public ICollection<StepProgressEntry> StepProgressEntries { get; private set; } = new List<StepProgressEntry>();
 
     private TreatmentSession() { }
 

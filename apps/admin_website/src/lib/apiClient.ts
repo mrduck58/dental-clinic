@@ -193,19 +193,33 @@ export async function extractErrorMessage(res: Response, fallbackMessage: string
     if (!text) return `[HTTP ${res.status}] ${fallbackMessage}`;
     try {
       const data = JSON.parse(text);
-      if (typeof data === "string") return data;
-      if (data.detail && typeof data.detail === "string") return data.detail;
-      if (data.message && typeof data.message === "string") return data.message;
-      if (data.title && typeof data.title === "string") return data.title;
+      if (typeof data === "string") return `[HTTP ${res.status}] ${data}`;
+      let msg = "";
+      if (data.detail && typeof data.detail === "string" && data.detail.trim() !== "") {
+        msg = data.detail;
+      } else if (data.title && typeof data.title === "string" && data.title.trim() !== "") {
+        msg = data.title;
+      } else if (data.message && typeof data.message === "string" && data.message.trim() !== "") {
+        msg = data.message;
+      }
+
       if (data.errors && typeof data.errors === "object") {
         const errorList = Object.entries(data.errors)
           .map(([key, val]) => `${key}: ${Array.isArray(val) ? val.join(", ") : val}`)
           .join("; ");
-        if (errorList) return `${data.title || fallbackMessage} (${errorList})`;
+        if (errorList) {
+          msg = msg ? `${msg} (${errorList})` : errorList;
+        }
       }
-      return JSON.stringify(data);
+
+      if (data.exception && typeof data.exception === "string") {
+        msg = `[${data.exception}] ${msg}`;
+      }
+
+      if (msg) return `[HTTP ${res.status}] ${msg}`;
+      return `[HTTP ${res.status}] ${JSON.stringify(data)}`;
     } catch {
-      return text.length > 300 ? text.slice(0, 300) + "..." : text;
+      return `[HTTP ${res.status}] ${text.length > 300 ? text.slice(0, 300) + "..." : text}`;
     }
   } catch {
     return `[HTTP ${res.status}] ${fallbackMessage}`;
@@ -2612,6 +2626,12 @@ export interface TreatmentPlanItemDto {
   unitPrice: number;
   quantity: number;
   teeth?: string | null;
+  estimatedSessionCount?: number | null;
+  estimatedDurationMin?: number | null;
+  estimatedDurationMax?: number | null;
+  estimatedDurationUnit?: string | null;
+  estimatedStartDate?: string | null;
+  estimatedEndDate?: string | null;
   status: string;
   warrantyUntil?: string | null;
   notes?: string | null;
@@ -2639,6 +2659,12 @@ export interface TreatmentPlanDto {
   unitPrice: number;
   quantity: number;
   teeth: string | null;
+  estimatedSessionCount?: number | null;
+  estimatedDurationMin?: number | null;
+  estimatedDurationMax?: number | null;
+  estimatedDurationUnit?: string | null;
+  estimatedStartDate?: string | null;
+  estimatedEndDate?: string | null;
   status: string;
   warrantyUntil: string | null;
   notes: string | null;
@@ -2967,6 +2993,12 @@ export interface CreateTreatmentPlanRequest {
   notes?: string;
   warrantyUntil?: string;
   serviceOptionName?: string;
+  estimatedSessionCount?: number;
+  estimatedDurationMin?: number;
+  estimatedDurationMax?: number;
+  estimatedDurationUnit?: string;
+  estimatedStartDate?: string;
+  estimatedEndDate?: string;
 }
 
 export interface UpdateTreatmentPlanRequest {
@@ -2977,6 +3009,12 @@ export interface UpdateTreatmentPlanRequest {
   notes?: string;
   warrantyUntil?: string;
   status?: string;
+  estimatedSessionCount?: number;
+  estimatedDurationMin?: number;
+  estimatedDurationMax?: number;
+  estimatedDurationUnit?: string;
+  estimatedStartDate?: string;
+  estimatedEndDate?: string;
 }
 
 export async function createTreatmentPlanApi(appointmentId: string, request: CreateTreatmentPlanRequest): Promise<TreatmentPlanDto> {

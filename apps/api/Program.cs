@@ -239,6 +239,11 @@ using (var scope = app.Services.CreateScope())
             ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""CancelledByUserId"" uuid NULL;
             ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""Origin"" character varying(20) NOT NULL DEFAULT 'Online';
 
+            ALTER TABLE ""Services"" ADD COLUMN IF NOT EXISTS ""EstimatedSessionCount"" integer NULL;
+            ALTER TABLE ""Services"" ADD COLUMN IF NOT EXISTS ""EstimatedDurationMin"" integer NULL;
+            ALTER TABLE ""Services"" ADD COLUMN IF NOT EXISTS ""EstimatedDurationMax"" integer NULL;
+            ALTER TABLE ""Services"" ADD COLUMN IF NOT EXISTS ""EstimatedDurationUnit"" character varying(20) NULL;
+
             CREATE TABLE IF NOT EXISTS ""Diagnoses"" (
                 ""Id"" uuid PRIMARY KEY,
                 ""AppointmentId"" uuid NOT NULL,
@@ -269,12 +274,32 @@ using (var scope = app.Services.CreateScope())
                 ""PatientId"" uuid NOT NULL,
                 ""DentistId"" uuid NOT NULL,
                 ""AppointmentId"" uuid NULL,
-                ""Title"" character varying(200) NOT NULL,
-                ""Status"" character varying(50) NOT NULL,
+                ""Title"" character varying(200) NOT NULL DEFAULT 'Kế hoạch điều trị',
+                ""Status"" character varying(50) NOT NULL DEFAULT 'Planned',
                 ""Notes"" character varying(2000) NULL,
-                ""CreatedAt"" timestamp with time zone NOT NULL,
+                ""CreatedAt"" timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
                 ""CompletedAt"" timestamp with time zone NULL
             );
+            ALTER TABLE ""TreatmentPlans"" ADD COLUMN IF NOT EXISTS ""Title"" character varying(200) NOT NULL DEFAULT 'Kế hoạch điều trị';
+            ALTER TABLE ""TreatmentPlans"" ADD COLUMN IF NOT EXISTS ""Status"" character varying(50) NOT NULL DEFAULT 'Planned';
+            ALTER TABLE ""TreatmentPlans"" ADD COLUMN IF NOT EXISTS ""Notes"" character varying(2000) NULL;
+            ALTER TABLE ""TreatmentPlans"" ADD COLUMN IF NOT EXISTS ""AppointmentId"" uuid NULL;
+            ALTER TABLE ""TreatmentPlans"" ADD COLUMN IF NOT EXISTS ""CompletedAt"" timestamp with time zone NULL;
+            ALTER TABLE ""TreatmentPlans"" DROP CONSTRAINT IF EXISTS ""FK_TreatmentPlans_Services_ServiceId"";
+            DO $$ BEGIN
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'TreatmentPlans' AND column_name = 'ServiceId') THEN
+                    ALTER TABLE ""TreatmentPlans"" ALTER COLUMN ""ServiceId"" DROP NOT NULL;
+                    ALTER TABLE ""TreatmentPlans"" ALTER COLUMN ""ServiceId"" DROP DEFAULT;
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'TreatmentPlans' AND column_name = 'UnitPrice') THEN
+                    ALTER TABLE ""TreatmentPlans"" ALTER COLUMN ""UnitPrice"" DROP NOT NULL;
+                    ALTER TABLE ""TreatmentPlans"" ALTER COLUMN ""UnitPrice"" DROP DEFAULT;
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'TreatmentPlans' AND column_name = 'Quantity') THEN
+                    ALTER TABLE ""TreatmentPlans"" ALTER COLUMN ""Quantity"" DROP NOT NULL;
+                    ALTER TABLE ""TreatmentPlans"" ALTER COLUMN ""Quantity"" DROP DEFAULT;
+                END IF;
+            END $$;
             CREATE INDEX IF NOT EXISTS ""IX_TreatmentPlans_PatientId"" ON ""TreatmentPlans"" (""PatientId"");
             CREATE INDEX IF NOT EXISTS ""IX_TreatmentPlans_AppointmentId"" ON ""TreatmentPlans"" (""AppointmentId"");
 
@@ -290,9 +315,21 @@ using (var scope = app.Services.CreateScope())
                 ""Status"" character varying(50) NOT NULL,
                 ""WarrantyUntil"" date NULL,
                 ""Notes"" character varying(2000) NULL,
+                ""EstimatedSessionCount"" integer NULL,
+                ""EstimatedDurationMin"" integer NULL,
+                ""EstimatedDurationMax"" integer NULL,
+                ""EstimatedDurationUnit"" character varying(20) NULL,
+                ""EstimatedStartDate"" date NULL,
+                ""EstimatedEndDate"" date NULL,
                 ""CreatedAt"" timestamp with time zone NOT NULL,
                 ""CompletedAt"" timestamp with time zone NULL
             );
+            ALTER TABLE ""TreatmentPlanItems"" ADD COLUMN IF NOT EXISTS ""EstimatedSessionCount"" integer NULL;
+            ALTER TABLE ""TreatmentPlanItems"" ADD COLUMN IF NOT EXISTS ""EstimatedDurationMin"" integer NULL;
+            ALTER TABLE ""TreatmentPlanItems"" ADD COLUMN IF NOT EXISTS ""EstimatedDurationMax"" integer NULL;
+            ALTER TABLE ""TreatmentPlanItems"" ADD COLUMN IF NOT EXISTS ""EstimatedDurationUnit"" character varying(20) NULL;
+            ALTER TABLE ""TreatmentPlanItems"" ADD COLUMN IF NOT EXISTS ""EstimatedStartDate"" date NULL;
+            ALTER TABLE ""TreatmentPlanItems"" ADD COLUMN IF NOT EXISTS ""EstimatedEndDate"" date NULL;
             CREATE INDEX IF NOT EXISTS ""IX_TreatmentPlanItems_TreatmentPlanId"" ON ""TreatmentPlanItems"" (""TreatmentPlanId"");
             CREATE INDEX IF NOT EXISTS ""IX_TreatmentPlanItems_ServiceId"" ON ""TreatmentPlanItems"" (""ServiceId"");
 
@@ -311,26 +348,48 @@ using (var scope = app.Services.CreateScope())
                 ""TreatmentPlanItemId"" uuid NOT NULL,
                 ""TreatmentProcedureId"" uuid NULL,
                 ""DentistId"" uuid NULL,
-                ""StepOrder"" integer NOT NULL DEFAULT 1,
-                ""Name"" character varying(200) NOT NULL,
-                ""Status"" character varying(50) NOT NULL,
+                ""SessionNumber"" integer NOT NULL DEFAULT 1,
+                ""Name"" character varying(200) NOT NULL DEFAULT '',
+                ""Status"" character varying(50) NOT NULL DEFAULT 'Planned',
+                ""DurationMinutes"" integer NOT NULL DEFAULT 30,
                 ""PerformedAt"" timestamp with time zone NULL,
-                ""NextAppointmentDate"" timestamp with time zone NULL,
                 ""Note"" character varying(2000) NULL,
-                ""CreatedAt"" timestamp with time zone NOT NULL,
-                ""EstimatedDurationMinutes"" integer NOT NULL DEFAULT 30
+                ""Percent"" integer NOT NULL DEFAULT 0,
+                ""CreatedAt"" timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now())
             );
-            ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""EstimatedDurationMinutes"" integer NOT NULL DEFAULT 30;
-            ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""NextAppointmentDate"" timestamp with time zone NULL;
+            ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""DurationMinutes"" integer NOT NULL DEFAULT 30;
+            ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""SessionNumber"" integer NOT NULL DEFAULT 1;
+            ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""Name"" character varying(200) NOT NULL DEFAULT '';
+            ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""Status"" character varying(50) NOT NULL DEFAULT 'Planned';
+            ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""Percent"" integer NOT NULL DEFAULT 0;
+            ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""DentistId"" uuid NULL;
+            ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""PerformedAt"" timestamp with time zone NULL;
+            ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""TreatmentProcedureId"" uuid NULL;
             CREATE INDEX IF NOT EXISTS ""IX_TreatmentSessions_TreatmentPlanItemId"" ON ""TreatmentSessions"" (""TreatmentPlanItemId"");
+
+            CREATE TABLE IF NOT EXISTS ""StepProgressEntries"" (
+                ""Id"" uuid PRIMARY KEY,
+                ""TreatmentSessionId"" uuid NOT NULL,
+                ""CompletionPercentage"" integer NOT NULL DEFAULT 0,
+                ""Note"" character varying(1000) NULL,
+                ""RecordedAt"" timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+                ""CreatedAt"" timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now())
+            );
+            ALTER TABLE ""StepProgressEntries"" ADD COLUMN IF NOT EXISTS ""TreatmentSessionId"" uuid NULL;
+            CREATE INDEX IF NOT EXISTS ""IX_StepProgressEntries_TreatmentSessionId"" ON ""StepProgressEntries"" (""TreatmentSessionId"");
 
             CREATE TABLE IF NOT EXISTS ""AppointmentSessions"" (
                 ""Id"" uuid PRIMARY KEY,
                 ""AppointmentId"" uuid NOT NULL,
                 ""TreatmentSessionId"" uuid NOT NULL,
+                ""Sequence"" integer NOT NULL DEFAULT 1,
+                ""DurationMinutes"" integer NOT NULL DEFAULT 30,
                 ""Note"" character varying(1000) NULL,
-                ""CreatedAt"" timestamp with time zone NOT NULL
+                ""CreatedAt"" timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now())
             );
+            ALTER TABLE ""AppointmentSessions"" ADD COLUMN IF NOT EXISTS ""DurationMinutes"" integer NOT NULL DEFAULT 30;
+            ALTER TABLE ""AppointmentSessions"" ADD COLUMN IF NOT EXISTS ""Sequence"" integer NOT NULL DEFAULT 1;
+            ALTER TABLE ""AppointmentSessions"" ADD COLUMN IF NOT EXISTS ""Note"" character varying(1000) NULL;
             CREATE INDEX IF NOT EXISTS ""IX_AppointmentSessions_AppointmentId"" ON ""AppointmentSessions"" (""AppointmentId"");
             CREATE INDEX IF NOT EXISTS ""IX_AppointmentSessions_TreatmentSessionId"" ON ""AppointmentSessions"" (""TreatmentSessionId"");
 
@@ -398,6 +457,18 @@ using (var scope = app.Services.CreateScope())
             );
             CREATE INDEX IF NOT EXISTS ""IX_TreatmentSupplyUsages_TreatmentPlanId"" ON ""TreatmentSupplyUsages"" (""TreatmentPlanId"");
             CREATE INDEX IF NOT EXISTS ""IX_TreatmentSupplyUsages_TreatmentSessionId"" ON ""TreatmentSupplyUsages"" (""TreatmentSessionId"");
+
+            ALTER TABLE ""InvoiceItems"" ADD COLUMN IF NOT EXISTS ""TreatmentPlanItemId"" uuid NULL;
+            ALTER TABLE ""InvoiceItems"" ADD COLUMN IF NOT EXISTS ""TreatmentPlanId"" uuid NULL;
+            ALTER TABLE ""InvoiceItems"" ADD COLUMN IF NOT EXISTS ""AmountCollected"" numeric(18, 2) NOT NULL DEFAULT 0;
+            CREATE INDEX IF NOT EXISTS ""IX_InvoiceItems_TreatmentPlanItemId"" ON ""InvoiceItems"" (""TreatmentPlanItemId"");
+            CREATE INDEX IF NOT EXISTS ""IX_InvoiceItems_TreatmentPlanId"" ON ""InvoiceItems"" (""TreatmentPlanId"");
+
+            ALTER TABLE ""Invoices"" ADD COLUMN IF NOT EXISTS ""ParentInvoiceId"" uuid NULL;
+            ALTER TABLE ""Invoices"" ADD COLUMN IF NOT EXISTS ""IsSettled"" boolean NOT NULL DEFAULT false;
+            ALTER TABLE ""Invoices"" ADD COLUMN IF NOT EXISTS ""CollectingRemaining"" boolean NOT NULL DEFAULT false;
+            ALTER TABLE ""Invoices"" ADD COLUMN IF NOT EXISTS ""TreatmentPlanId"" uuid NULL;
+            ALTER TABLE ""Invoices"" ADD COLUMN IF NOT EXISTS ""PromotionId"" uuid NULL;
         ");
         await db.Database.MigrateAsync();
         await DataSeeder.SeedAsync(db);

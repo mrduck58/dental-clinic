@@ -41,19 +41,16 @@ public class GetBillablePlansHandler(IInvoiceRepository invoiceRepository, Invoi
             return chain;
         }
 
-        // Gán mỗi dịch vụ chưa xuất hóa đơn hết cho buổi PendingPayment MỚI NHẤT trong chuỗi của nó,
-        // rồi gom các dịch vụ theo buổi → mỗi buổi MỘT thẻ (nhiều dòng, chọn thanh toán theo từng dòng).
+        // Gán mỗi dịch vụ chưa xuất hóa đơn hết cho buổi PendingPayment MỚI NHẤT của bệnh nhân
         var byHost = new Dictionary<Guid, List<TreatmentPlan>>();
         foreach (var plan in allPlans.OrderBy(p => p.CreatedAt))
         {
-            if (plan.AppointmentId is not Guid planApptId) continue;
             if (plan.TotalCost - billedByPlan.GetValueOrDefault(plan.Id, 0m) <= 0) continue;
 
-            Appointment? host = null;
-            foreach (var a in appointments)
-                if (a.PatientId == plan.PatientId && ChainOf(a.Id).Contains(planApptId)
-                    && (host == null || a.AppointmentDate > host.AppointmentDate))
-                    host = a;
+            Appointment? host = appointments
+                .Where(a => a.PatientId == plan.PatientId)
+                .OrderByDescending(a => a.AppointmentDate)
+                .FirstOrDefault();
             if (host == null) continue;
 
             if (!byHost.TryGetValue(host.Id, out var list)) byHost[host.Id] = list = new List<TreatmentPlan>();

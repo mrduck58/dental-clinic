@@ -6,7 +6,33 @@ namespace DentalClinic.API.Infrastructure.Tests;
 [TestFixture]
 public class SupabaseDatabaseMigrator
 {
-    private const string ConnectionString = "Host=aws-1-ap-southeast-1.pooler.supabase.com;Port=5432;Database=postgres;Username=postgres.iyuwmzlolzsdqcucgufr;Password=Huan0508@2004;SslMode=Require;TrustServerCertificate=true;";
+    private static readonly string[] ConnectionStrings =
+    [
+        "Host=db.iyuwmzlolzsdqcucgufr.supabase.co;Port=5432;Database=postgres;Username=postgres;Password=Huan0508@2004;SslMode=Require;TrustServerCertificate=true;Timeout=15;CommandTimeout=30;",
+        "Host=aws-1-ap-southeast-1.pooler.supabase.com;Port=5432;Database=postgres;Username=postgres.iyuwmzlolzsdqcucgufr;Password=Huan0508@2004;SslMode=Require;TrustServerCertificate=true;Timeout=10;CommandTimeout=30;",
+        "Host=aws-0-ap-southeast-1.pooler.supabase.com;Port=5432;Database=postgres;Username=postgres.iyuwmzlolzsdqcucgufr;Password=Huan0508@2004;SslMode=Require;TrustServerCertificate=true;Timeout=10;CommandTimeout=30;",
+        "Host=aws-0-ap-southeast-1.pooler.supabase.com;Port=6543;Database=postgres;Username=postgres.iyuwmzlolzsdqcucgufr;Password=Huan0508@2004;SslMode=Require;TrustServerCertificate=true;Timeout=10;CommandTimeout=30;",
+        "Host=aws-1-ap-southeast-1.pooler.supabase.com;Port=6543;Database=postgres;Username=postgres.iyuwmzlolzsdqcucgufr;Password=Huan0508@2004;SslMode=Require;TrustServerCertificate=true;Timeout=10;CommandTimeout=30;"
+    ];
+
+    private static async Task<NpgsqlConnection> GetOpenConnectionAsync()
+    {
+        var errors = new List<string>();
+        foreach (var cs in ConnectionStrings)
+        {
+            try
+            {
+                var conn = new NpgsqlConnection(cs);
+                await conn.OpenAsync();
+                return conn;
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"{cs.Split(';')[0]}:{cs.Split(';')[1]} => {ex.Message}");
+            }
+        }
+        throw new InvalidOperationException($"Could not connect to Supabase: {string.Join(" | ", errors)}");
+    }
 
     [Test, Explicit("Chạy trực tiếp khi cần migrate database Supabase")]
     public async Task ApplySchemaUpdatesToSupabase()
@@ -33,6 +59,12 @@ public class SupabaseDatabaseMigrator
             @"ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""CancelledAt"" timestamp with time zone NULL;",
             @"ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""CancelledByUserId"" uuid NULL;",
             @"ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""Origin"" character varying(20) NOT NULL DEFAULT 'Online';",
+
+            // Services columns
+            @"ALTER TABLE ""Services"" ADD COLUMN IF NOT EXISTS ""EstimatedSessionCount"" integer NULL;",
+            @"ALTER TABLE ""Services"" ADD COLUMN IF NOT EXISTS ""EstimatedDurationMin"" integer NULL;",
+            @"ALTER TABLE ""Services"" ADD COLUMN IF NOT EXISTS ""EstimatedDurationMax"" integer NULL;",
+            @"ALTER TABLE ""Services"" ADD COLUMN IF NOT EXISTS ""EstimatedDurationUnit"" character varying(20) NULL;",
 
             // Diagnoses
             @"CREATE TABLE IF NOT EXISTS ""Diagnoses"" (
@@ -66,12 +98,32 @@ public class SupabaseDatabaseMigrator
                 ""PatientId"" uuid NOT NULL,
                 ""DentistId"" uuid NOT NULL,
                 ""AppointmentId"" uuid NULL,
-                ""Title"" character varying(200) NOT NULL,
-                ""Status"" character varying(50) NOT NULL,
+                ""Title"" character varying(200) NOT NULL DEFAULT 'Kế hoạch điều trị',
+                ""Status"" character varying(50) NOT NULL DEFAULT 'Planned',
                 ""Notes"" character varying(2000) NULL,
-                ""CreatedAt"" timestamp with time zone NOT NULL,
+                ""CreatedAt"" timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
                 ""CompletedAt"" timestamp with time zone NULL
             );",
+            @"ALTER TABLE ""TreatmentPlans"" ADD COLUMN IF NOT EXISTS ""Title"" character varying(200) NOT NULL DEFAULT 'Kế hoạch điều trị';",
+            @"ALTER TABLE ""TreatmentPlans"" ADD COLUMN IF NOT EXISTS ""Status"" character varying(50) NOT NULL DEFAULT 'Planned';",
+            @"ALTER TABLE ""TreatmentPlans"" ADD COLUMN IF NOT EXISTS ""Notes"" character varying(2000) NULL;",
+            @"ALTER TABLE ""TreatmentPlans"" ADD COLUMN IF NOT EXISTS ""AppointmentId"" uuid NULL;",
+            @"ALTER TABLE ""TreatmentPlans"" ADD COLUMN IF NOT EXISTS ""CompletedAt"" timestamp with time zone NULL;",
+            @"ALTER TABLE ""TreatmentPlans"" DROP CONSTRAINT IF EXISTS ""FK_TreatmentPlans_Services_ServiceId"";",
+            @"DO $$ BEGIN
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'TreatmentPlans' AND column_name = 'ServiceId') THEN
+                    ALTER TABLE ""TreatmentPlans"" ALTER COLUMN ""ServiceId"" DROP NOT NULL;
+                    ALTER TABLE ""TreatmentPlans"" ALTER COLUMN ""ServiceId"" DROP DEFAULT;
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'TreatmentPlans' AND column_name = 'UnitPrice') THEN
+                    ALTER TABLE ""TreatmentPlans"" ALTER COLUMN ""UnitPrice"" DROP NOT NULL;
+                    ALTER TABLE ""TreatmentPlans"" ALTER COLUMN ""UnitPrice"" DROP DEFAULT;
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'TreatmentPlans' AND column_name = 'Quantity') THEN
+                    ALTER TABLE ""TreatmentPlans"" ALTER COLUMN ""Quantity"" DROP NOT NULL;
+                    ALTER TABLE ""TreatmentPlans"" ALTER COLUMN ""Quantity"" DROP DEFAULT;
+                END IF;
+            END $$;",
             @"CREATE INDEX IF NOT EXISTS ""IX_TreatmentPlans_PatientId"" ON ""TreatmentPlans"" (""PatientId"");",
             @"CREATE INDEX IF NOT EXISTS ""IX_TreatmentPlans_AppointmentId"" ON ""TreatmentPlans"" (""AppointmentId"");",
 
@@ -88,9 +140,21 @@ public class SupabaseDatabaseMigrator
                 ""Status"" character varying(50) NOT NULL,
                 ""WarrantyUntil"" date NULL,
                 ""Notes"" character varying(2000) NULL,
+                ""EstimatedSessionCount"" integer NULL,
+                ""EstimatedDurationMin"" integer NULL,
+                ""EstimatedDurationMax"" integer NULL,
+                ""EstimatedDurationUnit"" character varying(20) NULL,
+                ""EstimatedStartDate"" date NULL,
+                ""EstimatedEndDate"" date NULL,
                 ""CreatedAt"" timestamp with time zone NOT NULL,
                 ""CompletedAt"" timestamp with time zone NULL
             );",
+            @"ALTER TABLE ""TreatmentPlanItems"" ADD COLUMN IF NOT EXISTS ""EstimatedSessionCount"" integer NULL;",
+            @"ALTER TABLE ""TreatmentPlanItems"" ADD COLUMN IF NOT EXISTS ""EstimatedDurationMin"" integer NULL;",
+            @"ALTER TABLE ""TreatmentPlanItems"" ADD COLUMN IF NOT EXISTS ""EstimatedDurationMax"" integer NULL;",
+            @"ALTER TABLE ""TreatmentPlanItems"" ADD COLUMN IF NOT EXISTS ""EstimatedDurationUnit"" character varying(20) NULL;",
+            @"ALTER TABLE ""TreatmentPlanItems"" ADD COLUMN IF NOT EXISTS ""EstimatedStartDate"" date NULL;",
+            @"ALTER TABLE ""TreatmentPlanItems"" ADD COLUMN IF NOT EXISTS ""EstimatedEndDate"" date NULL;",
             @"CREATE INDEX IF NOT EXISTS ""IX_TreatmentPlanItems_TreatmentPlanId"" ON ""TreatmentPlanItems"" (""TreatmentPlanId"");",
             @"CREATE INDEX IF NOT EXISTS ""IX_TreatmentPlanItems_ServiceId"" ON ""TreatmentPlanItems"" (""ServiceId"");",
 
@@ -100,9 +164,13 @@ public class SupabaseDatabaseMigrator
                 ""ServiceId"" uuid NOT NULL,
                 ""StepNumber"" integer NOT NULL,
                 ""Name"" character varying(300) NOT NULL,
-                ""EstimatedMinutes"" integer NOT NULL DEFAULT 30,
+                ""DurationMinutes"" integer NOT NULL DEFAULT 30,
+                ""IsRequired"" boolean NOT NULL DEFAULT true,
                 ""Description"" text NULL
             );",
+            @"ALTER TABLE ""TreatmentProcedures"" ADD COLUMN IF NOT EXISTS ""DurationMinutes"" integer NOT NULL DEFAULT 30;",
+            @"ALTER TABLE ""TreatmentProcedures"" ADD COLUMN IF NOT EXISTS ""IsRequired"" boolean NOT NULL DEFAULT true;",
+            @"ALTER TABLE ""TreatmentProcedures"" ADD COLUMN IF NOT EXISTS ""Description"" text NULL;",
             @"CREATE INDEX IF NOT EXISTS ""IX_TreatmentProcedures_ServiceId"" ON ""TreatmentProcedures"" (""ServiceId"");",
 
             // TreatmentSessions
@@ -111,18 +179,33 @@ public class SupabaseDatabaseMigrator
                 ""TreatmentPlanItemId"" uuid NOT NULL,
                 ""TreatmentProcedureId"" uuid NULL,
                 ""DentistId"" uuid NULL,
-                ""StepOrder"" integer NOT NULL DEFAULT 1,
+                ""SessionNumber"" integer NOT NULL DEFAULT 1,
                 ""Name"" character varying(200) NOT NULL,
                 ""Status"" character varying(50) NOT NULL,
+                ""DurationMinutes"" integer NOT NULL DEFAULT 30,
+                ""Percent"" integer NOT NULL DEFAULT 0,
                 ""PerformedAt"" timestamp with time zone NULL,
-                ""NextAppointmentDate"" timestamp with time zone NULL,
                 ""Note"" character varying(2000) NULL,
-                ""CreatedAt"" timestamp with time zone NOT NULL,
-                ""EstimatedDurationMinutes"" integer NOT NULL DEFAULT 30
+                ""CreatedAt"" timestamp with time zone NOT NULL
             );",
-            @"ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""EstimatedDurationMinutes"" integer NOT NULL DEFAULT 30;",
-            @"ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""NextAppointmentDate"" timestamp with time zone NULL;",
+            @"ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""DurationMinutes"" integer NOT NULL DEFAULT 30;",
+            @"ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""Percent"" integer NOT NULL DEFAULT 0;",
+            @"ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""SessionNumber"" integer NOT NULL DEFAULT 1;",
+            @"ALTER TABLE ""Diagnoses"" ADD COLUMN IF NOT EXISTS ""UpdatedAt"" timestamp with time zone NULL;",
+            @"ALTER TABLE ""TreatmentPlanItems"" ADD COLUMN IF NOT EXISTS ""TotalCost"" numeric(18, 2) NOT NULL DEFAULT 0;",
             @"CREATE INDEX IF NOT EXISTS ""IX_TreatmentSessions_TreatmentPlanItemId"" ON ""TreatmentSessions"" (""TreatmentPlanItemId"");",
+
+            // StepProgressEntries
+            @"CREATE TABLE IF NOT EXISTS ""StepProgressEntries"" (
+                ""Id"" uuid PRIMARY KEY,
+                ""TreatmentSessionId"" uuid NOT NULL,
+                ""CompletionPercentage"" integer NOT NULL DEFAULT 0,
+                ""Note"" character varying(1000) NULL,
+                ""RecordedAt"" timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+                ""CreatedAt"" timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now())
+            );",
+            @"ALTER TABLE ""StepProgressEntries"" ADD COLUMN IF NOT EXISTS ""TreatmentSessionId"" uuid NULL;",
+            @"CREATE INDEX IF NOT EXISTS ""IX_StepProgressEntries_TreatmentSessionId"" ON ""StepProgressEntries"" (""TreatmentSessionId"");",
 
             // AppointmentSessions
             @"CREATE TABLE IF NOT EXISTS ""AppointmentSessions"" (
@@ -226,8 +309,7 @@ public class SupabaseDatabaseMigrator
             );"
         };
 
-        await using var conn = new NpgsqlConnection(ConnectionString);
-        await conn.OpenAsync();
+        await using var conn = await GetOpenConnectionAsync();
 
         foreach (var sql in sqlCommands)
         {
@@ -242,5 +324,122 @@ public class SupabaseDatabaseMigrator
                 TestContext.WriteLine($"Warning executing {sql.Split('\n')[0]}: {ex.Message}");
             }
         }
+    }
+
+    [Test, Explicit("Chạy trực tiếp khi cần kiểm tra toàn diện schema trên Supabase")]
+    public async Task CheckAllTablesAndColumnsOnSupabase()
+    {
+        await using var conn = await GetOpenConnectionAsync();
+
+        // 1. Get all public tables
+        var tables = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        await using (var cmd = new NpgsqlCommand("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'", conn))
+        await using (var reader = await cmd.ExecuteReaderAsync())
+        {
+            while (await reader.ReadAsync())
+            {
+                tables.Add(reader.GetString(0));
+            }
+        }
+
+        // 2. Get all public columns
+        var tableColumns = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        await using (var cmd = new NpgsqlCommand("SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public'", conn))
+        await using (var reader = await cmd.ExecuteReaderAsync())
+        {
+            while (await reader.ReadAsync())
+            {
+                var tbl = reader.GetString(0);
+                var col = reader.GetString(1);
+                if (!tableColumns.TryGetValue(tbl, out var set))
+                {
+                    set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    tableColumns[tbl] = set;
+                }
+                set.Add(col);
+            }
+        }
+
+        // 3. Expected core tables and key columns for clinical & appointment workflow
+        var expectedSchema = new Dictionary<string, string[]>
+        {
+            ["Users"] = ["Id", "Email", "FullName", "Role", "IsActive", "PhoneNumber", "Gender"],
+            ["Patients"] = ["Id", "UserId", "DateOfBirth", "MedicalHistory", "PrimaryPatientId", "Relationship"],
+            ["Employees"] = ["Id", "UserId", "EmployeeCode"],
+            ["DentistProfiles"] = ["Id", "EmployeeId", "Specialization", "LicenseNumber", "Shift", "ExperienceYears"],
+            ["Appointments"] = [
+                "Id", "PatientId", "DentistId", "ServiceId", "AppointmentDate", "Status",
+                "AppointmentType", "DurationMinutes", "Origin", "Notes", "Symptoms", "CheckedInAt",
+                "AiSummary", "AiSummaryGeneratedAt", "AiSummaryBasedOnCount", "FollowUpId",
+                "FollowUpFromAppointmentId", "FollowUpDate", "FollowUpNote", "CancellationReason",
+                "CancellationNote", "RescheduledCount", "LastRescheduledAt", "CancelledAt", "CancelledByUserId"
+            ],
+            ["Diagnoses"] = [
+                "Id", "AppointmentId", "Description", "MedicalHistory", "AllergyHistory", "Conclusion",
+                "GumCondition", "OralMucosaCondition", "GumBleeding", "PainOnChewing", "TeethCount",
+                "DecayedTeeth", "WornOrBrokenTeeth", "LooseTeeth", "Tartar", "Plaque", "BadBreath"
+            ],
+            ["TreatmentPlans"] = ["Id", "PatientId", "DentistId", "AppointmentId", "Title", "Status", "Notes", "CreatedAt", "CompletedAt"],
+            ["TreatmentPlanItems"] = [
+                "Id", "TreatmentPlanId", "ServiceId", "UnitPrice", "Quantity", "Teeth", "Status", "Notes",
+                "EstimatedSessionCount", "EstimatedDurationMin", "EstimatedDurationMax", "EstimatedDurationUnit",
+                "EstimatedStartDate", "EstimatedEndDate"
+            ],
+            ["TreatmentProcedures"] = ["Id", "ServiceId", "StepNumber", "Name", "DurationMinutes", "IsRequired"],
+            ["TreatmentSessions"] = ["Id", "TreatmentPlanItemId", "DentistId", "StepOrder", "Name", "Status", "EstimatedDurationMinutes"],
+            ["AppointmentSessions"] = ["Id", "AppointmentId", "TreatmentSessionId", "Note", "CreatedAt"],
+            ["FollowUps"] = ["Id", "PatientId", "DentistId", "OriginAppointmentId", "DueDate", "Status", "Note", "CreatedAt"],
+            ["Prescriptions"] = ["Id", "AppointmentId", "CreatedAt", "Notes"],
+            ["PrescriptionItems"] = ["Id", "PrescriptionId", "MedicineName", "Dosage", "Quantity", "Unit", "Usage"],
+            ["AppointmentPhotos"] = ["Id", "AppointmentId", "Section", "Url", "UploadedBy", "CreatedAt"],
+            ["TreatmentSupplyUsages"] = ["Id", "TreatmentPlanId", "TreatmentSessionId", "SupplyItemId", "Quantity", "UnitCostAtUsage"],
+            ["MaterialRequests"] = ["Id", "AppointmentId", "DentistId", "RequestedByUserId", "Title", "Status"],
+            ["MaterialRequestItems"] = ["Id", "MaterialRequestId", "SupplyItemId", "Quantity"],
+            ["Services"] = ["Id", "Name", "Price", "Description", "EstimatedSessionCount", "EstimatedDurationMin", "EstimatedDurationMax", "EstimatedDurationUnit"],
+            ["ServiceOptions"] = ["Id", "ServiceId", "Name", "Price"],
+            ["Invoices"] = ["Id", "AppointmentId", "PatientId", "TotalAmount", "Status"],
+            ["InvoiceItems"] = ["Id", "InvoiceId", "ItemName", "UnitPrice", "Quantity", "TotalPrice"],
+            ["PaymentTransactions"] = ["Id", "InvoiceId", "Amount", "Status", "PaymentMethod"],
+            ["WorkSchedules"] = ["Id", "Date", "Shift", "StaffName", "Room"],
+            ["UserDeviceTokens"] = ["Id", "UserId", "Token"],
+            ["AppointmentSlotHolds"] = ["Id", "PatientId", "DentistId", "AppointmentDate", "TimeSlot", "ExpiresAt", "Status", "DurationMinutes"],
+            ["AppointmentChangeRequests"] = ["Id", "AppointmentId", "PatientId", "RequestedByUserId", "Type", "Status", "Reason"]
+        };
+
+        var missingTables = new List<string>();
+        var missingColumns = new List<string>();
+
+        TestContext.WriteLine("=== SUPABASE DATABASE SCHEMA VERIFICATION REPORT ===");
+        TestContext.WriteLine($"Total tables in public schema: {tables.Count}");
+        TestContext.WriteLine("-----------------------------------------------------");
+
+        foreach (var (tbl, cols) in expectedSchema)
+        {
+            if (!tables.Contains(tbl))
+            {
+                TestContext.WriteLine($"[MISSING TABLE] {tbl}");
+                missingTables.Add(tbl);
+                continue;
+            }
+
+            var actualCols = tableColumns.GetValueOrDefault(tbl, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+            var missingForTable = cols.Where(c => !actualCols.Contains(c)).ToList();
+
+            if (missingForTable.Count > 0)
+            {
+                TestContext.WriteLine($"[PARTIAL TABLE] {tbl}: Missing columns -> {string.Join(", ", missingForTable)}");
+                missingColumns.AddRange(missingForTable.Select(c => $"{tbl}.{c}"));
+            }
+            else
+            {
+                TestContext.WriteLine($"[OK] {tbl} ({actualCols.Count} columns verified)");
+            }
+        }
+
+        TestContext.WriteLine("-----------------------------------------------------");
+        TestContext.WriteLine($"Result: {missingTables.Count} missing tables, {missingColumns.Count} missing columns.");
+
+        Assert.That(missingTables, Is.Empty, $"Missing tables on Supabase: {string.Join(", ", missingTables)}");
+        Assert.That(missingColumns, Is.Empty, $"Missing columns on Supabase: {string.Join(", ", missingColumns)}");
     }
 }

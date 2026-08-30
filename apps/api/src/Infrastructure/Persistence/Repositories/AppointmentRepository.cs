@@ -302,13 +302,10 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
             .Include(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
             .Include(a => a.Service)
             .Include(a => a.Diagnoses)
-            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Items).ThenInclude(i => i.Service)
-            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Items).ThenInclude(i => i.ServiceOption)
-            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Items).ThenInclude(i => i.Sessions)
-            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
             .Include(a => a.AppointmentSessions).ThenInclude(ase => ase.TreatmentSession)
             .Include(a => a.Prescriptions).ThenInclude(p => p.Items)
             .Include(a => a.FollowUpOrder)
+            .Include(a => a.Photos)
             .FirstOrDefaultAsync(a => a.Id == appointmentId, cancellationToken);
     }
 
@@ -318,8 +315,6 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
             .Include(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
             .Include(a => a.Service)
             .Include(a => a.Diagnoses)
-            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Items).ThenInclude(i => i.Service)
-            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Items).ThenInclude(i => i.Sessions)
             .Include(a => a.AppointmentSessions).ThenInclude(ase => ase.TreatmentSession)
             .Include(a => a.Prescriptions).ThenInclude(p => p.Items)
             .Include(a => a.Photos)
@@ -338,12 +333,10 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
             .Include(a => a.Patient)
             .Include(a => a.Service)
             .Include(a => a.Diagnoses)
-            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Items).ThenInclude(i => i.Service)
-            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Items).ThenInclude(i => i.Sessions)
             .Include(a => a.AppointmentSessions).ThenInclude(ase => ase.TreatmentSession)
             .Include(a => a.Prescriptions).ThenInclude(p => p.Items)
             .Include(a => a.Photos)
-            .Where(a => (a.PatientId == primaryPatientId || a.Patient.PrimaryPatientId == primaryPatientId) &&
+            .Where(a => (a.PatientId == primaryPatientId || (a.Patient != null && a.Patient.PrimaryPatientId == primaryPatientId)) &&
                         (filterPatientId == null || a.PatientId == filterPatientId) &&
                         (a.Status == AppointmentStatus.Completed || a.Status == AppointmentStatus.PendingPayment))
             .OrderByDescending(a => a.AppointmentDate)
@@ -353,33 +346,64 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
 
     public async Task<List<Guid>> GetFollowUpChainAsync(Guid appointmentId, CancellationToken cancellationToken = default)
     {
-        var chain = new HashSet<Guid> { appointmentId };
-        bool added;
-        do
+        try
         {
-            added = false;
+            var chain = new HashSet<Guid> { appointmentId };
 
-            var parents = await dbContext.Appointments
-                .Where(a => chain.Contains(a.Id) && a.FollowUpFromAppointmentId != null)
-                .Select(a => a.FollowUpFromAppointmentId!.Value)
-                .ToListAsync(cancellationToken);
-            foreach (var p in parents)
+            // 1. Đi ngược lên các buổi hẹn gốc (parents)
+            Guid? parentCursor = appointmentId;
+            while (parentCursor.HasValue)
             {
-                if (chain.Add(p)) added = true;
+                var pid = parentCursor.Value;
+                var nextParent = await dbContext.Appointments
+                    .AsNoTracking()
+                    .Where(a => a.Id == pid)
+                    .Select(a => a.FollowUpFromAppointmentId)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                if (nextParent.HasValue && chain.Add(nextParent.Value))
+                {
+                    parentCursor = nextParent.Value;
+                }
+                else
+                {
+                    break;
+                }
             }
 
-            var children = await dbContext.Appointments
-                .Where(a => a.FollowUpFromAppointmentId != null && chain.Contains(a.FollowUpFromAppointmentId.Value))
-                .Select(a => a.Id)
-                .ToListAsync(cancellationToken);
-            foreach (var c in children)
+            // 2. Đi xuôi xuống các buổi hẹn tái khám (children)
+            var toScan = chain.ToList();
+            var scanned = new HashSet<Guid>();
+            while (toScan.Count > 0)
             {
-                if (chain.Add(c)) added = true;
-            }
-        } while (added);
+                var batch = toScan.ToList();
+                toScan.Clear();
+                foreach (var id in batch)
+                {
+                    if (!scanned.Add(id)) continue;
+                    var children = await dbContext.Appointments
+                        .AsNoTracking()
+                        .Where(a => a.FollowUpFromAppointmentId == id)
+                        .Select(a => a.Id)
+                        .ToListAsync(cancellationToken);
 
-        chain.Remove(appointmentId);
-        return chain.ToList();
+                    foreach (var childId in children)
+                    {
+                        if (chain.Add(childId))
+                        {
+                            toScan.Add(childId);
+                        }
+                    }
+                }
+            }
+
+            chain.Remove(appointmentId);
+            return chain.ToList();
+        }
+        catch
+        {
+            return new List<Guid>();
+        }
     }
 
     public async Task<IReadOnlyList<Appointment>> GetQueueAppointmentsByDateRangeAsync(DateTimeOffset utcStart, DateTimeOffset utcEnd, CancellationToken cancellationToken = default)
@@ -457,7 +481,6 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
         return await dbContext.Appointments
             .Include(a => a.Service)
             .Include(a => a.Diagnoses)
-            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Items).ThenInclude(i => i.Service)
             .Include(a => a.Prescriptions).ThenInclude(p => p.Items)
             .FirstOrDefaultAsync(a => a.Id == appointmentId, cancellationToken);
     }
@@ -468,7 +491,6 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
             .Where(a => a.PatientId == patientId && a.Id != excludeAppointmentId)
             .Include(a => a.Service)
             .Include(a => a.Diagnoses)
-            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Items).ThenInclude(i => i.Service)
             .Include(a => a.Prescriptions).ThenInclude(p => p.Items)
             .OrderByDescending(a => a.AppointmentDate)
             .ToListAsync(cancellationToken);

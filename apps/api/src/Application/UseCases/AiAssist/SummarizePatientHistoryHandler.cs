@@ -23,7 +23,10 @@ public record SummarizePatientHistoryQuery(Guid AppointmentId, bool ForceRegener
 /// AiSummaryBasedOnCount) — chỉ gọi lại Gemini khi có thêm lịch hẹn mới trong lịch sử hoặc khi
 /// <paramref name="forceRegenerate"/> = true, tránh tốn chi phí AI cho mỗi lần bác sĩ mở lại trang.
 /// </summary>
-public class SummarizePatientHistoryHandler(IAiChatService aiChatService, IAppointmentRepository appointmentRepository)
+public class SummarizePatientHistoryHandler(
+    IAiChatService aiChatService,
+    IAppointmentRepository appointmentRepository,
+    ITreatmentPlanRepository treatmentPlanRepository)
     : IRequestHandler<SummarizePatientHistoryQuery, PatientHistorySummaryResult>
 {
     private const string DisclaimerText =
@@ -44,17 +47,22 @@ public class SummarizePatientHistoryHandler(IAiChatService aiChatService, IAppoi
         if (pastAppointments.Count == 0)
         {
             return new PatientHistorySummaryResult(
-                "Bệnh nhân chưa có lịch sử khám nào trước đây để tóm tắt.", DisclaimerText);
+                "Bệnh nhân chưa có lịch sử khám nào trước đây để tóm tắt.",
+                DisclaimerText);
         }
 
-        if (!forceRegenerate &&
-            currentAppointment.AiSummary is not null &&
-            currentAppointment.AiSummaryBasedOnCount == pastAppointments.Count)
+        if (!forceRegenerate
+            && !string.IsNullOrWhiteSpace(currentAppointment.AiSummary)
+            && currentAppointment.AiSummaryBasedOnCount == pastAppointments.Count)
         {
-            return new PatientHistorySummaryResult(currentAppointment.AiSummary, DisclaimerText, FromCache: true);
+            return new PatientHistorySummaryResult(
+                currentAppointment.AiSummary,
+                DisclaimerText,
+                FromCache: true);
         }
 
-        var historyText = BuildHistoryText(pastAppointments);
+        var plans = (await treatmentPlanRepository.GetByPatientIdAsync(currentAppointment.PatientId, ct)).ToList();
+        var historyText = BuildHistoryText(pastAppointments, plans);
         var summary = await aiChatService.SummarizeAsync(
             BuildSystemInstruction(), historyText, feature: "PatientSummary", ct: ct);
 
@@ -75,9 +83,22 @@ public class SummarizePatientHistoryHandler(IAiChatService aiChatService, IAppoi
         return sb.ToString();
     }
 
-    private static string BuildHistoryText(List<Appointment> appointments)
+    private static string BuildHistoryText(List<Appointment> appointments, List<TreatmentPlan> plans)
     {
         var sb = new StringBuilder();
+
+        if (plans.Count > 0)
+        {
+            sb.AppendLine("== Toàn bộ liệu trình điều trị của bệnh nhân ==");
+            foreach (var t in plans)
+            {
+                var name = string.IsNullOrWhiteSpace(t.Teeth) ? (t.Service?.Name ?? t.Title) : $"{t.Service?.Name ?? t.Title} - Răng {t.Teeth}";
+                var cost = t.TotalCost > 0 ? $", chi phí: {t.TotalCost:N0}đ" : "";
+                sb.AppendLine($"Liệu trình: {name} — trạng thái: {t.Status}{cost}");
+            }
+            sb.AppendLine();
+        }
+
         foreach (var a in appointments)
         {
             sb.AppendLine($"== Lần khám ngày {a.AppointmentDate:dd/MM/yyyy} ==");
@@ -99,13 +120,6 @@ public class SummarizePatientHistoryHandler(IAiChatService aiChatService, IAppoi
                     sb.AppendLine($"Tiền sử bệnh lý: {d.MedicalHistory}");
                 if (!string.IsNullOrWhiteSpace(d.AllergyHistory))
                     sb.AppendLine($"Tiền sử dị ứng: {d.AllergyHistory}");
-            }
-
-            foreach (var t in a.TreatmentPlans)
-            {
-                var name = string.IsNullOrWhiteSpace(t.Teeth) ? t.Service.Name : $"{t.Service.Name} - Răng {t.Teeth}";
-                var cost = t.TotalCost > 0 ? $", chi phí: {t.TotalCost:N0}đ" : "";
-                sb.AppendLine($"Liệu trình điều trị: {name} — trạng thái: {t.Status}{cost}");
             }
 
             foreach (var p in a.Prescriptions)

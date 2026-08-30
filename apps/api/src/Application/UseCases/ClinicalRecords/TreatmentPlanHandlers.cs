@@ -21,7 +21,13 @@ public record CreateTreatmentPlanRequest(
     string? Notes,
     DateOnly? WarrantyUntil,
     string? ServiceOptionName = null,
-    Guid? ServiceOptionId = null) : IRequest<TreatmentPlanDto>;
+    Guid? ServiceOptionId = null,
+    int? EstimatedSessionCount = null,
+    int? EstimatedDurationMin = null,
+    int? EstimatedDurationMax = null,
+    string? EstimatedDurationUnit = null,
+    DateOnly? EstimatedStartDate = null,
+    DateOnly? EstimatedEndDate = null) : IRequest<TreatmentPlanDto>;
 
 public record UpdateTreatmentPlanRequest(
     Guid TreatmentPlanId,
@@ -30,7 +36,13 @@ public record UpdateTreatmentPlanRequest(
     string? Teeth,
     string? Notes,
     DateOnly? WarrantyUntil,
-    string? Status) : IRequest<TreatmentPlanDto>;
+    string? Status,
+    int? EstimatedSessionCount = null,
+    int? EstimatedDurationMin = null,
+    int? EstimatedDurationMax = null,
+    string? EstimatedDurationUnit = null,
+    DateOnly? EstimatedStartDate = null,
+    DateOnly? EstimatedEndDate = null) : IRequest<TreatmentPlanDto>;
 
 public record DeleteTreatmentPlanCommand(Guid TreatmentPlanId) : IRequest;
 
@@ -110,9 +122,15 @@ public class CreateTreatmentPlanHandler(
         var treatmentPlan = TreatmentPlan.Create(
             appointment.PatientId,
             appointment.DentistId,
-            appointment.Id,
             title: service.Name,
             notes: NormalizeText(request.Notes));
+
+        DurationUnit? durationUnit = null;
+        if (!string.IsNullOrWhiteSpace(request.EstimatedDurationUnit)
+            && Enum.TryParse<DurationUnit>(request.EstimatedDurationUnit, ignoreCase: true, out var parsedUnit))
+        {
+            durationUnit = parsedUnit;
+        }
 
         // Tạo TreatmentPlanItem (dịch vụ chỉ định)
         var item = TreatmentPlanItem.Create(
@@ -124,7 +142,13 @@ public class CreateTreatmentPlanHandler(
             NormalizeText(request.Notes),
             request.WarrantyUntil,
             request.ServiceOptionId,
-            optionName);
+            optionName,
+            request.EstimatedSessionCount,
+            request.EstimatedDurationMin,
+            request.EstimatedDurationMax,
+            durationUnit,
+            request.EstimatedStartDate,
+            request.EstimatedEndDate);
 
         // Tự động sinh TreatmentSession từ TreatmentProcedures chuẩn của dịch vụ
         var procedures = (await treatmentProcedureRepository.GetByServiceIdAsync(service.Id, ct)).ToList();
@@ -193,12 +217,25 @@ public class UpdateTreatmentPlanHandler(
             if (request.UnitPrice * Math.Max(1, request.Quantity) < amountPaid)
                 throw new ValidationException("Tổng chi phí mới không được nhỏ hơn số tiền đã thu.");
 
+            DurationUnit? durationUnit = item.EstimatedDurationUnit;
+            if (!string.IsNullOrWhiteSpace(request.EstimatedDurationUnit))
+            {
+                if (Enum.TryParse<DurationUnit>(request.EstimatedDurationUnit, ignoreCase: true, out var parsedUnit))
+                    durationUnit = parsedUnit;
+            }
+
             item.Update(
                 request.UnitPrice,
                 request.Quantity,
                 NormalizeText(request.Teeth),
                 NormalizeText(request.Notes),
-                request.WarrantyUntil);
+                request.WarrantyUntil,
+                request.EstimatedSessionCount ?? item.EstimatedSessionCount,
+                request.EstimatedDurationMin ?? item.EstimatedDurationMin,
+                request.EstimatedDurationMax ?? item.EstimatedDurationMax,
+                durationUnit,
+                request.EstimatedStartDate ?? item.EstimatedStartDate,
+                request.EstimatedEndDate ?? item.EstimatedEndDate);
 
             await treatmentPlanRepository.UpdateItemAsync(item, ct);
         }

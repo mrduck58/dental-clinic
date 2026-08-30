@@ -41,7 +41,6 @@ public class Appointment
 
     // Examination related
     public ICollection<Diagnosis> Diagnoses { get; private set; } = new List<Diagnosis>();
-    public ICollection<TreatmentPlan> TreatmentPlans { get; private set; } = new List<TreatmentPlan>();
     public ICollection<Prescription> Prescriptions { get; private set; } = new List<Prescription>();
     // Ảnh chụp chiếu lúc khám + ảnh đính kèm yêu cầu vật tư (dấu răng, răng lợi...) — tách theo
     // AppointmentPhoto.Section, xem ghi chú trên entity đó.

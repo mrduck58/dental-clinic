@@ -168,6 +168,14 @@ public class TreatmentPlanRepository(AppDbContext db) : ITreatmentPlanRepository
 
     public async Task DeleteSessionAsync(TreatmentSession session, CancellationToken ct = default)
     {
+        var apptSessions = await db.AppointmentSessions.Where(ase => ase.TreatmentSessionId == session.Id).ToListAsync(ct);
+        if (apptSessions.Count > 0)
+            db.AppointmentSessions.RemoveRange(apptSessions);
+
+        var progressEntries = await db.StepProgressEntries.Where(spe => spe.TreatmentSessionId == session.Id).ToListAsync(ct);
+        if (progressEntries.Count > 0)
+            db.StepProgressEntries.RemoveRange(progressEntries);
+
         var local = db.TreatmentSessions.Local.FirstOrDefault(e => e.Id == session.Id);
         if (local != null)
             db.TreatmentSessions.Remove(local);
@@ -263,8 +271,8 @@ public class TreatmentPlanRepository(AppDbContext db) : ITreatmentPlanRepository
             .Include(i => i.TreatmentPlan)
             .Include(i => i.Service)
             .Where(i => (i.Status == TreatmentPlanItemStatus.InProgress || i.TreatmentPlan.Status == TreatmentPlanStatus.InProgress)
-                        && i.TreatmentPlan.AppointmentId != null && patientIds.Contains(i.TreatmentPlan.PatientId))
-            .Select(i => new ActiveTreatmentPlanSummary(i.TreatmentPlan.AppointmentId!.Value, i.ServiceId, i.Service.Name))
+                        && patientIds.Contains(i.TreatmentPlan.PatientId))
+            .Select(i => new ActiveTreatmentPlanSummary(i.TreatmentPlan.Id, i.ServiceId, i.Service.Name))
             .ToListAsync(ct);
 
         return items;

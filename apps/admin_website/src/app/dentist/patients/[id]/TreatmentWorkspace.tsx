@@ -70,6 +70,13 @@ const fmtWarranty = (iso: string) => {
   return `${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 };
 
+const DURATION_UNIT_LABELS: Record<string, string> = {
+  Day: "ngày",
+  Week: "tuần",
+  Month: "tháng",
+  Year: "năm",
+};
+
 const PLAN_STATUS: Record<string, { label: string; cls: string }> = {
   Planned:    { label: "Chờ thực hiện",  cls: "bg-slate-100 text-slate-600 border-slate-200" },
   InProgress: { label: "Đang thực hiện", cls: "bg-sky-50 text-sky-700 border-sky-200" },
@@ -114,7 +121,14 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
   const [addQuantity, setAddQuantity] = useState(1);
   const [addTeeth, setAddTeeth] = useState("");
   const [addNotes, setAddNotes] = useState("");
+  const [addEstimatedSessionCount, setAddEstimatedSessionCount] = useState<number | "">("");
+  const [addEstimatedDurationMin, setAddEstimatedDurationMin] = useState<number | "">("");
+  const [addEstimatedDurationMax, setAddEstimatedDurationMax] = useState<number | "">("");
+  const [addEstimatedDurationUnit, setAddEstimatedDurationUnit] = useState<string>("Month");
+  const [addEstimatedStartDate, setAddEstimatedStartDate] = useState<string>("");
+  const [addEstimatedEndDate, setAddEstimatedEndDate] = useState<string>("");
   const [savingService, setSavingService] = useState(false);
+  const [addServiceError, setAddServiceError] = useState<string | null>(null);
 
   // ── Modal: thêm quá trình ──────────────────────────────────────────────────
   const [showAddProgress, setShowAddProgress] = useState(false);
@@ -188,18 +202,10 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
     return steps;
   }, [proceduresCache]);
 
-  // Buổi tái khám (staff check-in từ tab Tái khám) → hiển thị liệu trình của CHUỖI đơn được tái khám
-  // (buổi gốc + các buổi tái khám trước trong chuỗi + buổi này) — không hiển thị dịch vụ của các lần khám khác.
-  // Buổi khám thường → chỉ hiển thị liệu trình lập trong chính buổi này.
   const isFollowUpVisit = examination?.isFollowUpVisit ?? false;
-  const chainIds = useMemo(() => {
-    const ids = new Set(examination?.relatedAppointmentIds ?? []);
-    ids.add(appointmentId);
-    return ids;
-  }, [examination?.relatedAppointmentIds, appointmentId]);
   const visiblePlans = useMemo(
-    () => plans.filter(p => p.appointmentId != null && chainIds.has(p.appointmentId)),
-    [plans, chainIds]
+    () => plans.filter(p => p.status !== "Cancelled"),
+    [plans]
   );
 
   // Nạp quy trình chuẩn của mọi dịch vụ đang hiển thị để biết MẪU SỐ khi tính % hoàn thành
@@ -257,10 +263,10 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
   const activePlans = useMemo(() => visiblePlans.filter(p => p.status !== "Cancelled"), [visiblePlans]);
   const totalCost = useMemo(() => activePlans.reduce((sum, p) => sum + p.totalCost, 0), [activePlans]);
 
-  // Các liệu trình đang thực hiện từ chuỗi đơn trước (hiện trong banner tái khám)
+  // Các liệu trình đang thực hiện (hiện trong banner tái khám)
   const continuingPlans = useMemo(
-    () => visiblePlans.filter(p => p.status === "InProgress" && p.appointmentId !== appointmentId),
-    [visiblePlans, appointmentId]
+    () => visiblePlans.filter(p => p.status === "InProgress"),
+    [visiblePlans]
   );
 
   const filteredServices = useMemo(() => {
@@ -334,6 +340,7 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
   const handleAddService = async () => {
     if (!selService || !examination) return;
     if (selOptions.length > 0 && !selOption) return;
+    setAddServiceError(null);
     try {
       setSavingService(true);
       const teeth = addTeeth.trim() || undefined;
@@ -345,6 +352,12 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
         teeth,
         notes: addNotes.trim() || undefined,
         serviceOptionName: selOption?.name,
+        estimatedSessionCount: typeof addEstimatedSessionCount === "number" && addEstimatedSessionCount > 0 ? addEstimatedSessionCount : undefined,
+        estimatedDurationMin: typeof addEstimatedDurationMin === "number" && addEstimatedDurationMin > 0 ? addEstimatedDurationMin : undefined,
+        estimatedDurationMax: typeof addEstimatedDurationMax === "number" && addEstimatedDurationMax > 0 ? addEstimatedDurationMax : undefined,
+        estimatedDurationUnit: (addEstimatedDurationMin !== "" || addEstimatedDurationMax !== "") ? addEstimatedDurationUnit : undefined,
+        estimatedStartDate: addEstimatedStartDate || undefined,
+        estimatedEndDate: addEstimatedEndDate || undefined,
       });
 
       // Vật tư chính trong định mức (mão sứ, veneer...) không còn tự động gửi yêu cầu vật tư nữa — chỉ điền
@@ -369,9 +382,18 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
       setAddQuantity(1);
       setAddTeeth("");
       setAddNotes("");
+      setAddEstimatedSessionCount("");
+      setAddEstimatedDurationMin("");
+      setAddEstimatedDurationMax("");
+      setAddEstimatedDurationUnit("Month");
+      setAddEstimatedStartDate("");
+      setAddEstimatedEndDate("");
+      setAddServiceError(null);
       await loadPlans(examination.patient.id);
     } catch (err) {
-      showToast(err instanceof Error ? err.message : "Không thể thêm dịch vụ", "error");
+      const msg = err instanceof Error ? err.message : "Không thể thêm dịch vụ";
+      setAddServiceError(msg);
+      showToast(msg, "error");
     } finally {
       setSavingService(false);
     }
@@ -921,7 +943,10 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
               icon="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25z"
               action={
                 <button
-                  onClick={() => setShowAddService(true)}
+                  onClick={() => {
+                    setAddServiceError(null);
+                    setShowAddService(true);
+                  }}
                   disabled={!canEdit}
                   title={canEdit ? undefined : "Chỉ thêm được khi buổi hẹn đang khám"}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-[12.5px] font-bold bg-primary text-white rounded-lg hover:bg-red-600 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed cursor-pointer"
@@ -994,6 +1019,28 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                           {plan.warrantyUntil && (
                             <span className="text-emerald-600">🛡 BH đến {fmtWarranty(plan.warrantyUntil)}</span>
                           )}
+                          {((plan.estimatedSessionCount ?? 0) > 0 || (plan.estimatedDurationMin ?? 0) > 0 || (plan.estimatedDurationMax ?? 0) > 0 || plan.estimatedStartDate || plan.estimatedEndDate) && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-[11px] font-bold">
+                              <svg className="w-3 h-3 text-indigo-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              Dự kiến:
+                              {plan.estimatedSessionCount ? ` ${plan.estimatedSessionCount} buổi` : ""}
+                              {(plan.estimatedDurationMin || plan.estimatedDurationMax) && (
+                                <span>
+                                  {plan.estimatedSessionCount ? " · " : " "}
+                                  {plan.estimatedDurationMin && plan.estimatedDurationMax && plan.estimatedDurationMin !== plan.estimatedDurationMax
+                                    ? `${plan.estimatedDurationMin}–${plan.estimatedDurationMax}`
+                                    : `${plan.estimatedDurationMin || plan.estimatedDurationMax}`} {DURATION_UNIT_LABELS[plan.estimatedDurationUnit || "Month"] || "tháng"}
+                                </span>
+                              )}
+                              {(plan.estimatedStartDate || plan.estimatedEndDate) && (
+                                <span className="text-indigo-500 font-medium">
+                                  ({plan.estimatedStartDate ? fmtDate(plan.estimatedStartDate) : "?"} → {plan.estimatedEndDate ? fmtDate(plan.estimatedEndDate) : "?"})
+                                </span>
+                              )}
+                            </span>
+                          )}
                           {plan.amountPaid > 0 && (
                             <span className="text-violet-600">Đã thu: {fmtMoney(plan.amountPaid)}</span>
                           )}
@@ -1019,11 +1066,14 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
 
       {/* ══════════ MODAL: THÊM DỊCH VỤ ══════════ */}
       {showAddService && createPortal(
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-6" onClick={() => setShowAddService(false)}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-              <span className="text-[15px] font-black text-slate-900">Thêm dịch vụ vào liệu trình</span>
-              <button onClick={() => setShowAddService(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6" onClick={() => setShowAddService(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="px-6 py-4.5 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white/95 backdrop-blur z-10">
+              <div>
+                <span className="text-[16px] font-black text-slate-900">Thêm dịch vụ vào liệu trình</span>
+                <p className="text-[12px] font-semibold text-slate-400 mt-0.5">Chọn dịch vụ, vị trí điều trị và kế hoạch thời lượng</p>
+              </div>
+              <button onClick={() => setShowAddService(false)} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -1045,14 +1095,19 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                   return (
                     <button
                       key={s.id}
-                      onClick={() => { setSelService(s); setSelOption(null); setAddTeeth(""); }}
+                      onClick={() => {
+                        setSelService(s);
+                        setSelOption(null);
+                        setAddTeeth("");
+                        setAddServiceError(null);
+                      }}
                       className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors cursor-pointer ${selService?.id === s.id ? "bg-primary/5" : "hover:bg-slate-50"}`}
                     >
                       <div>
                         <div className="text-[13.5px] font-bold text-slate-800">{s.name}</div>
-                        <div className="text-[11.5px] font-semibold text-slate-400">
-                          {s.durationMinutes} phút
-                          {opts.length > 0 && ` · ${opts.length} tùy chọn`}
+                        <div className="text-[11.5px] font-semibold text-slate-400 flex items-center gap-1.5 flex-wrap">
+                          <span>{s.durationMinutes} phút/buổi</span>
+                          {opts.length > 0 && <span>· {opts.length} tùy chọn</span>}
                         </div>
                       </div>
                       {opts.length === 0 && (
@@ -1176,6 +1231,93 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                       />
                     </div>
                   )}
+                  {/* Kế hoạch số buổi & Thời gian dự kiến */}
+                  <div className="bg-white/90 border border-emerald-200/80 rounded-xl p-3.5 flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11.5px] font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                        <svg className="w-3.5 h-3.5 text-indigo-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Kế hoạch & Thời lượng dự kiến
+                      </span>
+                      <span className="text-[10.5px] font-semibold text-slate-400">Tùy chọn</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* Số buổi dự kiến */}
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500">Số buổi dự kiến</label>
+                        <div className="flex items-center gap-1 mt-1 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 focus-within:border-indigo-500">
+                          <input
+                            type="number"
+                            min={1}
+                            placeholder="Vd: 24"
+                            value={addEstimatedSessionCount}
+                            onChange={e => setAddEstimatedSessionCount(e.target.value === "" ? "" : Math.max(1, parseInt(e.target.value) || 1))}
+                            className="w-full text-[13px] font-bold text-slate-800 bg-transparent focus:outline-none"
+                          />
+                          <span className="text-[11.5px] font-semibold text-slate-400 shrink-0">buổi</span>
+                        </div>
+                      </div>
+
+                      {/* Thời lượng dự kiến (Min - Max Unit) */}
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500">Thời gian cả liệu trình</label>
+                        <div className="flex items-center gap-1 mt-1">
+                          <input
+                            type="number"
+                            min={1}
+                            placeholder="Từ (18)"
+                            value={addEstimatedDurationMin}
+                            onChange={e => setAddEstimatedDurationMin(e.target.value === "" ? "" : Math.max(1, parseInt(e.target.value) || 1))}
+                            className="w-16 px-2 py-1.5 text-[12.5px] font-bold text-slate-800 bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:outline-none text-center"
+                          />
+                          <span className="text-slate-400 font-bold text-[12px]">–</span>
+                          <input
+                            type="number"
+                            min={1}
+                            placeholder="Đến (24)"
+                            value={addEstimatedDurationMax}
+                            onChange={e => setAddEstimatedDurationMax(e.target.value === "" ? "" : Math.max(1, parseInt(e.target.value) || 1))}
+                            className="w-16 px-2 py-1.5 text-[12.5px] font-bold text-slate-800 bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:outline-none text-center"
+                          />
+                          <select
+                            value={addEstimatedDurationUnit}
+                            onChange={e => setAddEstimatedDurationUnit(e.target.value)}
+                            className="flex-1 px-2 py-1.5 text-[12px] font-bold text-slate-700 bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:outline-none cursor-pointer"
+                          >
+                            <option value="Month">Tháng</option>
+                            <option value="Week">Tuần</option>
+                            <option value="Day">Ngày</option>
+                            <option value="Year">Năm</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Ngày bắt đầu - Ngày kết thúc dự kiến */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-slate-100">
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500">Bắt đầu dự kiến</label>
+                        <input
+                          type="date"
+                          value={addEstimatedStartDate}
+                          onChange={e => setAddEstimatedStartDate(e.target.value)}
+                          className="w-full mt-1 px-2.5 py-1.5 text-[12px] font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500">Kết thúc dự kiến</label>
+                        <input
+                          type="date"
+                          value={addEstimatedEndDate}
+                          onChange={e => setAddEstimatedEndDate(e.target.value)}
+                          className="w-full mt-1 px-2.5 py-1.5 text-[12px] font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="flex items-center justify-between border-t border-emerald-200 pt-2.5">
                     <span className="text-[11px] font-extrabold text-emerald-700 uppercase tracking-wider">Thành tiền</span>
                     <span className="text-[15px] font-black text-emerald-800 tabular-nums">
@@ -1189,6 +1331,18 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                     rows={2}
                     className="w-full px-3 py-2 text-[13px] bg-white border border-slate-200 rounded-lg focus:border-primary focus:outline-none font-semibold resize-none"
                   />
+                </div>
+              )}
+
+              {addServiceError && (
+                <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl text-red-700 text-[13px] font-semibold flex items-start gap-2.5">
+                  <svg className="w-5 h-5 text-red-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                  </svg>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-[13px] text-red-800">Không thể thêm dịch vụ:</div>
+                    <div className="text-[12px] text-red-600 mt-1 break-words leading-relaxed font-normal">{addServiceError}</div>
+                  </div>
                 </div>
               )}
 

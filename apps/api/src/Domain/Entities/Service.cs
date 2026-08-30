@@ -1,3 +1,5 @@
+using DentalClinic.API.Domain.Enums;
+
 namespace DentalClinic.API.Domain.Entities;
 
 public class Service

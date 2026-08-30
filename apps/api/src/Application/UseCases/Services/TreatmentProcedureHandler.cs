@@ -5,7 +5,12 @@ using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Services;
 
-public record ProcedureStepRequest(int StepNumber, string Name);
+public record ProcedureStepRequest(
+    int StepNumber,
+    string Name,
+    int DurationMinutes = 30,
+    bool IsRequired = true,
+    string? Description = null);
 
 public class TreatmentProcedureDto
 {
@@ -13,6 +18,9 @@ public class TreatmentProcedureDto
     public Guid ServiceId { get; set; }
     public int StepNumber { get; set; }
     public string Name { get; set; } = string.Empty;
+    public int DurationMinutes { get; set; } = 30;
+    public bool IsRequired { get; set; } = true;
+    public string? Description { get; set; }
 }
 
 public record GetTreatmentProceduresQuery(Guid ServiceId) : IRequest<List<TreatmentProcedureDto>>;
@@ -48,7 +56,13 @@ public class TreatmentProcedureHandler(
 
         var newProcedures = steps
             .OrderBy(s => s.StepNumber)
-            .Select(step => TreatmentProcedure.Create(serviceId, step.StepNumber, step.Name.Trim()));
+            .Select(step => TreatmentProcedure.Create(
+                serviceId,
+                step.StepNumber,
+                step.Name.Trim(),
+                step.DurationMinutes,
+                step.IsRequired,
+                step.Description));
 
         await treatmentProcedureRepository.ReplaceAllForServiceAsync(serviceId, newProcedures, cancellationToken);
 
@@ -65,7 +79,10 @@ public class TreatmentProcedureHandler(
                 Id = p.Id,
                 ServiceId = p.ServiceId,
                 StepNumber = p.StepNumber,
-                Name = p.Name
+                Name = p.Name,
+                DurationMinutes = p.DurationMinutes,
+                IsRequired = p.IsRequired,
+                Description = p.Description
             })
             .ToList();
     }

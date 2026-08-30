@@ -62,7 +62,7 @@ public static class ClinicalRecordMappers
         Id = prescription.Id,
         Notes = prescription.Notes,
         CreatedAt = prescription.CreatedAt,
-        Items = prescription.Items.Select(i => new PrescriptionItemDto
+        Items = (prescription.Items ?? []).Select(i => new PrescriptionItemDto
         {
             Id = i.Id,
             MedicineName = i.MedicineName,
@@ -99,7 +99,7 @@ public static class ClinicalRecordMappers
         TreatmentPlanItem item,
         IEnumerable<int>? procedureStepNumbers = null)
     {
-        var distinctSessions = item.Sessions.DistinctBy(s => s.Id).OrderBy(s => s.SessionNumber).ToList();
+        var distinctSessions = (item.Sessions ?? []).DistinctBy(s => s.Id).OrderBy(s => s.SessionNumber).ToList();
         var sessionDtos = distinctSessions.Select(ToDto).ToList();
         var stepEntries = distinctSessions.Select(s => new StepProgressEntryDto
         {
@@ -130,6 +130,12 @@ public static class ClinicalRecordMappers
             UnitPrice = item.UnitPrice,
             Quantity = item.Quantity,
             Teeth = item.Teeth,
+            EstimatedSessionCount = item.EstimatedSessionCount,
+            EstimatedDurationMin = item.EstimatedDurationMin,
+            EstimatedDurationMax = item.EstimatedDurationMax,
+            EstimatedDurationUnit = item.EstimatedDurationUnit?.ToString(),
+            EstimatedStartDate = item.EstimatedStartDate,
+            EstimatedEndDate = item.EstimatedEndDate,
             Status = item.Status.ToString(),
             WarrantyUntil = item.WarrantyUntil,
             Notes = item.Notes,
@@ -150,10 +156,10 @@ public static class ClinicalRecordMappers
         bool isInvoiced = false,
         IEnumerable<int>? procedureStepNumbers = null)
     {
-        var itemDtos = tp.Items.Select(i => ToDto(i, procedureStepNumbers)).ToList();
+        var itemDtos = (tp.Items ?? []).Select(i => ToDto(i, procedureStepNumbers)).ToList();
         var primaryItem = itemDtos.FirstOrDefault();
 
-        var allSessions = itemDtos.SelectMany(i => i.Sessions).DistinctBy(s => s.Id).OrderBy(s => s.SessionNumber).ToList();
+        var allSessions = itemDtos.SelectMany(i => i.Sessions ?? []).DistinctBy(s => s.Id).OrderBy(s => s.SessionNumber).ToList();
         var totalSteps = itemDtos.Sum(i => i.TotalSteps);
         var completedSteps = itemDtos.Sum(i => i.CompletedSteps);
         var progressPercent = itemDtos.Count > 0 ? (int)Math.Round(itemDtos.Average(i => i.ProgressPercent)) : 0;
@@ -164,7 +170,7 @@ public static class ClinicalRecordMappers
             PatientId = tp.PatientId,
             DentistId = tp.DentistId,
             DentistName = tp.Dentist?.FullName ?? string.Empty,
-            AppointmentId = tp.AppointmentId,
+            AppointmentId = null,
             Title = tp.Title,
             Status = tp.Status.ToString(),
             Notes = tp.Notes,
@@ -180,6 +186,12 @@ public static class ClinicalRecordMappers
             UnitPrice = primaryItem?.UnitPrice ?? 0,
             Quantity = primaryItem?.Quantity ?? 1,
             Teeth = primaryItem?.Teeth,
+            EstimatedSessionCount = primaryItem?.EstimatedSessionCount,
+            EstimatedDurationMin = primaryItem?.EstimatedDurationMin,
+            EstimatedDurationMax = primaryItem?.EstimatedDurationMax,
+            EstimatedDurationUnit = primaryItem?.EstimatedDurationUnit,
+            EstimatedStartDate = primaryItem?.EstimatedStartDate,
+            EstimatedEndDate = primaryItem?.EstimatedEndDate,
             WarrantyUntil = primaryItem?.WarrantyUntil,
             StepProgress = itemDtos.SelectMany(i => i.StepProgress).DistinctBy(s => s.Id).OrderBy(s => s.StepNumber).ToList(),
             TotalSteps = totalSteps,
@@ -267,15 +279,15 @@ public static class ClinicalRecordMappers
         FollowUpDate = a.FollowUpDate,
         FollowUpNote = a.FollowUpNote,
         IsFollowUpVisit = a.FollowUpFromAppointmentId.HasValue || a.FollowUpId.HasValue,
-        Diagnoses = a.Diagnoses.Select(ToDto).ToList(),
-        TreatmentPlans = a.TreatmentPlans.Select(tp => ToDto(tp, 0, false)).ToList(),
-        AppointmentSessions = a.AppointmentSessions.Select(ToDto).ToList(),
+        Diagnoses = (a.Diagnoses ?? []).Select(ToDto).ToList(),
+        TreatmentPlans = new List<TreatmentPlanDto>(),
+        AppointmentSessions = (a.AppointmentSessions ?? []).Select(ToDto).ToList(),
         FollowUpOrder = a.FollowUpOrder != null ? ToDto(a.FollowUpOrder) : null,
-        Prescription = a.Prescriptions.FirstOrDefault() is { } pres ? ToDto(pres) : null
+        Prescription = a.Prescriptions?.FirstOrDefault() is { } pres ? ToDto(pres) : null
     };
 
     public static List<MedicalHistoryDiagnosisDto> ToMedicalHistoryDiagnoses(Appointment a) =>
-        a.Diagnoses.Select(d => new MedicalHistoryDiagnosisDto(
+        (a.Diagnoses ?? []).Select(d => new MedicalHistoryDiagnosisDto(
             d.Description,
             d.GumCondition,
             d.OralMucosaCondition,
@@ -296,16 +308,10 @@ public static class ClinicalRecordMappers
         )).ToList();
 
     public static List<MedicalHistoryTreatmentPlanDto> ToMedicalHistoryTreatmentPlans(Appointment a) =>
-        a.TreatmentPlans.SelectMany(tp => tp.Items.Count > 0
-            ? tp.Items.Select(i => new MedicalHistoryTreatmentPlanDto(
-                string.IsNullOrWhiteSpace(i.Teeth) ? (i.Service?.Name ?? tp.Title) : $"{i.Service?.Name ?? tp.Title} - Răng {i.Teeth}",
-                i.Status.ToString(),
-                i.TotalCost))
-            : new[] { new MedicalHistoryTreatmentPlanDto(tp.Title, tp.Status.ToString(), tp.TotalCost) }
-        ).ToList();
+        new List<MedicalHistoryTreatmentPlanDto>();
 
     public static List<MedicalHistoryPrescriptionItemDto> ToMedicalHistoryPrescriptionItems(Appointment a) =>
-        a.Prescriptions.SelectMany(p => p.Items.Select(i => new MedicalHistoryPrescriptionItemDto(
+        (a.Prescriptions ?? []).SelectMany(p => (p.Items ?? []).Select(i => new MedicalHistoryPrescriptionItemDto(
             i.MedicineName,
             i.Dosage,
             i.Quantity,
@@ -315,7 +321,7 @@ public static class ClinicalRecordMappers
         ))).ToList();
 
     public static List<MedicalHistoryPhotoDto> ToMedicalHistoryPhotos(Appointment a) =>
-        a.Photos.Where(p => p.Section == "exam").Select(p => new MedicalHistoryPhotoDto(
+        (a.Photos ?? []).Where(p => p.Section == "exam").Select(p => new MedicalHistoryPhotoDto(
             p.Url,
             p.Note,
             p.CreatedAt

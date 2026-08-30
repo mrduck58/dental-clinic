@@ -47,3 +47,4 @@ public record UpdateServiceRequest(
     string? ImageUrl,
     string? IconUrl,
     IReadOnlyCollection<ServiceOptionRequest>? Options);
+
