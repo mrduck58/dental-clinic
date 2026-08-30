@@ -58,6 +58,12 @@ public class SupabaseDatabaseMigrator
             @"ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""CancelledByUserId"" uuid NULL;",
             @"ALTER TABLE ""Appointments"" ADD COLUMN IF NOT EXISTS ""Origin"" character varying(20) NOT NULL DEFAULT 'Online';",
 
+            // Services columns
+            @"ALTER TABLE ""Services"" ADD COLUMN IF NOT EXISTS ""EstimatedSessionCount"" integer NULL;",
+            @"ALTER TABLE ""Services"" ADD COLUMN IF NOT EXISTS ""EstimatedDurationMin"" integer NULL;",
+            @"ALTER TABLE ""Services"" ADD COLUMN IF NOT EXISTS ""EstimatedDurationMax"" integer NULL;",
+            @"ALTER TABLE ""Services"" ADD COLUMN IF NOT EXISTS ""EstimatedDurationUnit"" character varying(20) NULL;",
+
             // Diagnoses
             @"CREATE TABLE IF NOT EXISTS ""Diagnoses"" (
                 ""Id"" uuid PRIMARY KEY,
@@ -355,7 +361,7 @@ public class SupabaseDatabaseMigrator
             ["TreatmentSupplyUsages"] = ["Id", "TreatmentPlanId", "TreatmentSessionId", "SupplyItemId", "Quantity", "UnitCostAtUsage"],
             ["MaterialRequests"] = ["Id", "AppointmentId", "DentistId", "RequestedByUserId", "Title", "Status"],
             ["MaterialRequestItems"] = ["Id", "MaterialRequestId", "SupplyItemId", "Quantity"],
-            ["Services"] = ["Id", "Name", "Price", "Description"],
+            ["Services"] = ["Id", "Name", "Price", "Description", "EstimatedSessionCount", "EstimatedDurationMin", "EstimatedDurationMax", "EstimatedDurationUnit"],
             ["ServiceOptions"] = ["Id", "ServiceId", "Name", "Price"],
             ["Invoices"] = ["Id", "AppointmentId", "PatientId", "TotalAmount", "Status"],
             ["InvoiceItems"] = ["Id", "InvoiceId", "ItemName", "UnitPrice", "Quantity", "TotalPrice"],
