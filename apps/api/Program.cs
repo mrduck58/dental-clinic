@@ -274,12 +274,17 @@ using (var scope = app.Services.CreateScope())
                 ""PatientId"" uuid NOT NULL,
                 ""DentistId"" uuid NOT NULL,
                 ""AppointmentId"" uuid NULL,
-                ""Title"" character varying(200) NOT NULL,
-                ""Status"" character varying(50) NOT NULL,
+                ""Title"" character varying(200) NOT NULL DEFAULT 'Kế hoạch điều trị',
+                ""Status"" character varying(50) NOT NULL DEFAULT 'Planned',
                 ""Notes"" character varying(2000) NULL,
-                ""CreatedAt"" timestamp with time zone NOT NULL,
+                ""CreatedAt"" timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
                 ""CompletedAt"" timestamp with time zone NULL
             );
+            ALTER TABLE ""TreatmentPlans"" ADD COLUMN IF NOT EXISTS ""Title"" character varying(200) NOT NULL DEFAULT 'Kế hoạch điều trị';
+            ALTER TABLE ""TreatmentPlans"" ADD COLUMN IF NOT EXISTS ""Status"" character varying(50) NOT NULL DEFAULT 'Planned';
+            ALTER TABLE ""TreatmentPlans"" ADD COLUMN IF NOT EXISTS ""Notes"" character varying(2000) NULL;
+            ALTER TABLE ""TreatmentPlans"" ADD COLUMN IF NOT EXISTS ""AppointmentId"" uuid NULL;
+            ALTER TABLE ""TreatmentPlans"" ADD COLUMN IF NOT EXISTS ""CompletedAt"" timestamp with time zone NULL;
             CREATE INDEX IF NOT EXISTS ""IX_TreatmentPlans_PatientId"" ON ""TreatmentPlans"" (""PatientId"");
             CREATE INDEX IF NOT EXISTS ""IX_TreatmentPlans_AppointmentId"" ON ""TreatmentPlans"" (""AppointmentId"");
 
@@ -328,26 +333,38 @@ using (var scope = app.Services.CreateScope())
                 ""TreatmentPlanItemId"" uuid NOT NULL,
                 ""TreatmentProcedureId"" uuid NULL,
                 ""DentistId"" uuid NULL,
-                ""StepOrder"" integer NOT NULL DEFAULT 1,
-                ""Name"" character varying(200) NOT NULL,
-                ""Status"" character varying(50) NOT NULL,
+                ""SessionNumber"" integer NOT NULL DEFAULT 1,
+                ""Name"" character varying(200) NOT NULL DEFAULT '',
+                ""Status"" character varying(50) NOT NULL DEFAULT 'Planned',
+                ""DurationMinutes"" integer NOT NULL DEFAULT 30,
                 ""PerformedAt"" timestamp with time zone NULL,
-                ""NextAppointmentDate"" timestamp with time zone NULL,
                 ""Note"" character varying(2000) NULL,
-                ""CreatedAt"" timestamp with time zone NOT NULL,
-                ""EstimatedDurationMinutes"" integer NOT NULL DEFAULT 30
+                ""Percent"" integer NOT NULL DEFAULT 0,
+                ""CreatedAt"" timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now())
             );
-            ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""EstimatedDurationMinutes"" integer NOT NULL DEFAULT 30;
-            ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""NextAppointmentDate"" timestamp with time zone NULL;
+            ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""DurationMinutes"" integer NOT NULL DEFAULT 30;
+            ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""SessionNumber"" integer NOT NULL DEFAULT 1;
+            ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""Name"" character varying(200) NOT NULL DEFAULT '';
+            ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""Status"" character varying(50) NOT NULL DEFAULT 'Planned';
+            ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""Percent"" integer NOT NULL DEFAULT 0;
+            ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""DentistId"" uuid NULL;
+            ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""PerformedAt"" timestamp with time zone NULL;
+            ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""TreatmentProcedureId"" uuid NULL;
+            ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""Note"" character varying(2000) NULL;
             CREATE INDEX IF NOT EXISTS ""IX_TreatmentSessions_TreatmentPlanItemId"" ON ""TreatmentSessions"" (""TreatmentPlanItemId"");
 
             CREATE TABLE IF NOT EXISTS ""AppointmentSessions"" (
                 ""Id"" uuid PRIMARY KEY,
                 ""AppointmentId"" uuid NOT NULL,
                 ""TreatmentSessionId"" uuid NOT NULL,
+                ""Sequence"" integer NOT NULL DEFAULT 1,
+                ""DurationMinutes"" integer NOT NULL DEFAULT 30,
                 ""Note"" character varying(1000) NULL,
-                ""CreatedAt"" timestamp with time zone NOT NULL
+                ""CreatedAt"" timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now())
             );
+            ALTER TABLE ""AppointmentSessions"" ADD COLUMN IF NOT EXISTS ""DurationMinutes"" integer NOT NULL DEFAULT 30;
+            ALTER TABLE ""AppointmentSessions"" ADD COLUMN IF NOT EXISTS ""Sequence"" integer NOT NULL DEFAULT 1;
+            ALTER TABLE ""AppointmentSessions"" ADD COLUMN IF NOT EXISTS ""Note"" character varying(1000) NULL;
             CREATE INDEX IF NOT EXISTS ""IX_AppointmentSessions_AppointmentId"" ON ""AppointmentSessions"" (""AppointmentId"");
             CREATE INDEX IF NOT EXISTS ""IX_AppointmentSessions_TreatmentSessionId"" ON ""AppointmentSessions"" (""TreatmentSessionId"");
 

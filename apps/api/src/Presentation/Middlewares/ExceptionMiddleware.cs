@@ -20,15 +20,19 @@ public class ExceptionMiddleware(RequestDelegate next, ILogger<ExceptionMiddlewa
 
     private static Task WriteErrorAsync(HttpContext ctx, Exception ex)
     {
+        var detail = ex is Microsoft.EntityFrameworkCore.DbUpdateException dbEx && dbEx.InnerException != null
+            ? $"{dbEx.Message} -> {dbEx.InnerException.Message}"
+            : ex.Message;
+
         var (status, title) = ex switch
         {
-            UnauthorizedAccessException => (StatusCodes.Status401Unauthorized,           ex.Message),
-            ForbiddenException          => (StatusCodes.Status403Forbidden,              ex.Message),
-            ConflictException           => (StatusCodes.Status409Conflict,               ex.Message),
-            NotFoundException           => (StatusCodes.Status404NotFound,               ex.Message),
-            ValidationException or InvalidOperationException => (StatusCodes.Status422UnprocessableEntity, ex.Message),
-            FormatException or JsonException or BadHttpRequestException => (StatusCodes.Status400BadRequest, ex.Message),
-            _                           => (StatusCodes.Status500InternalServerError,    string.IsNullOrWhiteSpace(ex.Message) ? "Đã xảy ra lỗi hệ thống." : $"{ex.GetType().Name}: {ex.Message}")
+            UnauthorizedAccessException => (StatusCodes.Status401Unauthorized,           detail),
+            ForbiddenException          => (StatusCodes.Status403Forbidden,              detail),
+            ConflictException           => (StatusCodes.Status409Conflict,               detail),
+            NotFoundException           => (StatusCodes.Status404NotFound,               detail),
+            ValidationException or InvalidOperationException => (StatusCodes.Status422UnprocessableEntity, detail),
+            FormatException or JsonException or BadHttpRequestException => (StatusCodes.Status400BadRequest, detail),
+            _                           => (StatusCodes.Status500InternalServerError,    string.IsNullOrWhiteSpace(detail) ? "Đã xảy ra lỗi hệ thống." : $"{ex.GetType().Name}: {detail}")
         };
 
         ctx.Response.StatusCode  = status;
@@ -38,11 +42,11 @@ public class ExceptionMiddleware(RequestDelegate next, ILogger<ExceptionMiddlewa
         object body;
         if (ex is ValidationException validationEx && validationEx.Errors.Count > 0)
         {
-            body = new { title, status, errors = validationEx.Errors, detail = ex.Message, exception = ex.GetType().Name };
+            body = new { title, status, errors = validationEx.Errors, detail, exception = ex.GetType().Name };
         }
         else
         {
-            body = new { title, status, detail = ex.Message, exception = ex.GetType().Name };
+            body = new { title, status, detail, exception = ex.GetType().Name };
         }
 
         var json = JsonSerializer.Serialize(body);
