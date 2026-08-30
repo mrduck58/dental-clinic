@@ -109,6 +109,21 @@ public class SupabaseDatabaseMigrator
             @"ALTER TABLE ""TreatmentPlans"" ADD COLUMN IF NOT EXISTS ""Notes"" character varying(2000) NULL;",
             @"ALTER TABLE ""TreatmentPlans"" ADD COLUMN IF NOT EXISTS ""AppointmentId"" uuid NULL;",
             @"ALTER TABLE ""TreatmentPlans"" ADD COLUMN IF NOT EXISTS ""CompletedAt"" timestamp with time zone NULL;",
+            @"ALTER TABLE ""TreatmentPlans"" DROP CONSTRAINT IF EXISTS ""FK_TreatmentPlans_Services_ServiceId"";",
+            @"DO $$ BEGIN
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'TreatmentPlans' AND column_name = 'ServiceId') THEN
+                    ALTER TABLE ""TreatmentPlans"" ALTER COLUMN ""ServiceId"" DROP NOT NULL;
+                    ALTER TABLE ""TreatmentPlans"" ALTER COLUMN ""ServiceId"" DROP DEFAULT;
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'TreatmentPlans' AND column_name = 'UnitPrice') THEN
+                    ALTER TABLE ""TreatmentPlans"" ALTER COLUMN ""UnitPrice"" DROP NOT NULL;
+                    ALTER TABLE ""TreatmentPlans"" ALTER COLUMN ""UnitPrice"" DROP DEFAULT;
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'TreatmentPlans' AND column_name = 'Quantity') THEN
+                    ALTER TABLE ""TreatmentPlans"" ALTER COLUMN ""Quantity"" DROP NOT NULL;
+                    ALTER TABLE ""TreatmentPlans"" ALTER COLUMN ""Quantity"" DROP DEFAULT;
+                END IF;
+            END $$;",
             @"CREATE INDEX IF NOT EXISTS ""IX_TreatmentPlans_PatientId"" ON ""TreatmentPlans"" (""PatientId"");",
             @"CREATE INDEX IF NOT EXISTS ""IX_TreatmentPlans_AppointmentId"" ON ""TreatmentPlans"" (""AppointmentId"");",
 
