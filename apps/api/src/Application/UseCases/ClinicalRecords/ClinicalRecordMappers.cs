@@ -170,7 +170,7 @@ public static class ClinicalRecordMappers
             PatientId = tp.PatientId,
             DentistId = tp.DentistId,
             DentistName = tp.Dentist?.FullName ?? string.Empty,
-            AppointmentId = tp.AppointmentId,
+            AppointmentId = null,
             Title = tp.Title,
             Status = tp.Status.ToString(),
             Notes = tp.Notes,
@@ -280,7 +280,7 @@ public static class ClinicalRecordMappers
         FollowUpNote = a.FollowUpNote,
         IsFollowUpVisit = a.FollowUpFromAppointmentId.HasValue || a.FollowUpId.HasValue,
         Diagnoses = (a.Diagnoses ?? []).Select(ToDto).ToList(),
-        TreatmentPlans = (a.TreatmentPlans ?? []).Select(tp => ToDto(tp, 0, false)).ToList(),
+        TreatmentPlans = new List<TreatmentPlanDto>(),
         AppointmentSessions = (a.AppointmentSessions ?? []).Select(ToDto).ToList(),
         FollowUpOrder = a.FollowUpOrder != null ? ToDto(a.FollowUpOrder) : null,
         Prescription = a.Prescriptions?.FirstOrDefault() is { } pres ? ToDto(pres) : null
@@ -308,13 +308,7 @@ public static class ClinicalRecordMappers
         )).ToList();
 
     public static List<MedicalHistoryTreatmentPlanDto> ToMedicalHistoryTreatmentPlans(Appointment a) =>
-        (a.TreatmentPlans ?? []).SelectMany(tp => (tp.Items != null && tp.Items.Count > 0)
-            ? tp.Items.Select(i => new MedicalHistoryTreatmentPlanDto(
-                string.IsNullOrWhiteSpace(i.Teeth) ? (i.Service?.Name ?? tp.Title) : $"{i.Service?.Name ?? tp.Title} - Răng {i.Teeth}",
-                i.Status.ToString(),
-                i.TotalCost))
-            : new[] { new MedicalHistoryTreatmentPlanDto(tp.Title, tp.Status.ToString(), tp.TotalCost) }
-        ).ToList();
+        new List<MedicalHistoryTreatmentPlanDto>();
 
     public static List<MedicalHistoryPrescriptionItemDto> ToMedicalHistoryPrescriptionItems(Appointment a) =>
         (a.Prescriptions ?? []).SelectMany(p => (p.Items ?? []).Select(i => new MedicalHistoryPrescriptionItemDto(

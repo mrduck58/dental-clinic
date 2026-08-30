@@ -501,10 +501,6 @@ export interface ServiceDto {
   name: string;
   price: number;
   durationMinutes: number;
-  estimatedSessionCount?: number | null;
-  estimatedDurationMin?: number | null;
-  estimatedDurationMax?: number | null;
-  estimatedDurationUnit?: string | null;
   isActive: boolean;
   description: string;
   content: string;
@@ -532,10 +528,6 @@ export interface CreateServiceRequest {
   imageUrl?: string | null;
   iconUrl?: string | null;
   options?: ServiceOptionRequest[];
-  estimatedSessionCount?: number;
-  estimatedDurationMin?: number;
-  estimatedDurationMax?: number;
-  estimatedDurationUnit?: string;
 }
 
 export interface UpdateServiceRequest {
@@ -547,10 +539,6 @@ export interface UpdateServiceRequest {
   imageUrl?: string | null;
   iconUrl?: string | null;
   options?: ServiceOptionRequest[];
-  estimatedSessionCount?: number;
-  estimatedDurationMin?: number;
-  estimatedDurationMax?: number;
-  estimatedDurationUnit?: string;
 }
 
 // ── Service endpoints ──────────────────────────────────────────────────────

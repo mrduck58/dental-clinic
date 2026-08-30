@@ -40,9 +40,7 @@ public class ServicesController(ISender sender) : ControllerBase
             new CreateServiceCommand(
                 request.Name, request.Price, request.DurationMinutes,
                 request.Description, request.Content ?? string.Empty,
-                request.ImageUrl, request.IconUrl, request.Options,
-                request.EstimatedSessionCount, request.EstimatedDurationMin,
-                request.EstimatedDurationMax, request.EstimatedDurationUnit),
+                request.ImageUrl, request.IconUrl, request.Options),
             ct);
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
@@ -56,9 +54,7 @@ public class ServicesController(ISender sender) : ControllerBase
             new UpdateServiceCommand(
                 id, request.Name, request.Price, request.DurationMinutes,
                 request.Description, request.Content ?? string.Empty,
-                request.ImageUrl, request.IconUrl, request.Options,
-                request.EstimatedSessionCount, request.EstimatedDurationMin,
-                request.EstimatedDurationMax, request.EstimatedDurationUnit),
+                request.ImageUrl, request.IconUrl, request.Options),
             ct);
         return Ok(result);
     }

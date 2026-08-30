@@ -195,6 +195,18 @@ public class SupabaseDatabaseMigrator
             @"ALTER TABLE ""TreatmentPlanItems"" ADD COLUMN IF NOT EXISTS ""TotalCost"" numeric(18, 2) NOT NULL DEFAULT 0;",
             @"CREATE INDEX IF NOT EXISTS ""IX_TreatmentSessions_TreatmentPlanItemId"" ON ""TreatmentSessions"" (""TreatmentPlanItemId"");",
 
+            // StepProgressEntries
+            @"CREATE TABLE IF NOT EXISTS ""StepProgressEntries"" (
+                ""Id"" uuid PRIMARY KEY,
+                ""TreatmentSessionId"" uuid NOT NULL,
+                ""CompletionPercentage"" integer NOT NULL DEFAULT 0,
+                ""Note"" character varying(1000) NULL,
+                ""RecordedAt"" timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+                ""CreatedAt"" timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now())
+            );",
+            @"ALTER TABLE ""StepProgressEntries"" ADD COLUMN IF NOT EXISTS ""TreatmentSessionId"" uuid NULL;",
+            @"CREATE INDEX IF NOT EXISTS ""IX_StepProgressEntries_TreatmentSessionId"" ON ""StepProgressEntries"" (""TreatmentSessionId"");",
+
             // AppointmentSessions
             @"CREATE TABLE IF NOT EXISTS ""AppointmentSessions"" (
                 ""Id"" uuid PRIMARY KEY,

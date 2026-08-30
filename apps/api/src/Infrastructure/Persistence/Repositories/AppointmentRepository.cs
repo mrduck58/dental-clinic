@@ -302,10 +302,6 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
             .Include(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
             .Include(a => a.Service)
             .Include(a => a.Diagnoses)
-            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Items).ThenInclude(i => i.Service)
-            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Items).ThenInclude(i => i.ServiceOption)
-            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Items).ThenInclude(i => i.Sessions)
-            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
             .Include(a => a.AppointmentSessions).ThenInclude(ase => ase.TreatmentSession)
             .Include(a => a.Prescriptions).ThenInclude(p => p.Items)
             .Include(a => a.FollowUpOrder)
@@ -319,8 +315,6 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
             .Include(a => a.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
             .Include(a => a.Service)
             .Include(a => a.Diagnoses)
-            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Items).ThenInclude(i => i.Service)
-            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Items).ThenInclude(i => i.Sessions)
             .Include(a => a.AppointmentSessions).ThenInclude(ase => ase.TreatmentSession)
             .Include(a => a.Prescriptions).ThenInclude(p => p.Items)
             .Include(a => a.Photos)
@@ -339,8 +333,6 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
             .Include(a => a.Patient)
             .Include(a => a.Service)
             .Include(a => a.Diagnoses)
-            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Items).ThenInclude(i => i.Service)
-            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Items).ThenInclude(i => i.Sessions)
             .Include(a => a.AppointmentSessions).ThenInclude(ase => ase.TreatmentSession)
             .Include(a => a.Prescriptions).ThenInclude(p => p.Items)
             .Include(a => a.Photos)
@@ -489,7 +481,6 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
         return await dbContext.Appointments
             .Include(a => a.Service)
             .Include(a => a.Diagnoses)
-            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Items).ThenInclude(i => i.Service)
             .Include(a => a.Prescriptions).ThenInclude(p => p.Items)
             .FirstOrDefaultAsync(a => a.Id == appointmentId, cancellationToken);
     }
@@ -500,7 +491,6 @@ public class AppointmentRepository(AppDbContext dbContext) : IAppointmentReposit
             .Where(a => a.PatientId == patientId && a.Id != excludeAppointmentId)
             .Include(a => a.Service)
             .Include(a => a.Diagnoses)
-            .Include(a => a.TreatmentPlans).ThenInclude(tp => tp.Items).ThenInclude(i => i.Service)
             .Include(a => a.Prescriptions).ThenInclude(p => p.Items)
             .OrderByDescending(a => a.AppointmentDate)
             .ToListAsync(cancellationToken);

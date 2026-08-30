@@ -52,10 +52,6 @@ export default function AddServicePage() {
   const [formName, setFormName] = useState("");
   const [formPrice, setFormPrice] = useState("");
   const [formDuration, setFormDuration] = useState("");
-  const [formEstimatedSessionCount, setFormEstimatedSessionCount] = useState("");
-  const [formEstimatedDurationMin, setFormEstimatedDurationMin] = useState("");
-  const [formEstimatedDurationMax, setFormEstimatedDurationMax] = useState("");
-  const [formEstimatedDurationUnit, setFormEstimatedDurationUnit] = useState("Month");
   const [formDescription, setFormDescription] = useState("");
   const [formContent, setFormContent] = useState("");
 
@@ -303,10 +299,6 @@ export default function AddServicePage() {
         imageUrl: uploadedImage,
         iconUrl,
         options: validOptions,
-        estimatedSessionCount: formEstimatedSessionCount ? parseInt(formEstimatedSessionCount) : undefined,
-        estimatedDurationMin: formEstimatedDurationMin ? parseInt(formEstimatedDurationMin) : undefined,
-        estimatedDurationMax: formEstimatedDurationMax ? parseInt(formEstimatedDurationMax) : undefined,
-        estimatedDurationUnit: (formEstimatedDurationMin || formEstimatedDurationMax) ? formEstimatedDurationUnit : undefined,
       });
 
       if (validSteps.length > 0) {
@@ -421,81 +413,6 @@ export default function AddServicePage() {
                       <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[12px] text-slate-400 font-bold">
                         phút
                       </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Kế hoạch liệu trình gợi ý */}
-                <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-2xl flex flex-col gap-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[12px] font-extrabold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
-                      <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      Kế hoạch & Thời gian liệu trình điều trị (Mặc định gợi ý)
-                    </span>
-                    <span className="text-[11px] font-semibold text-slate-400">Tùy chọn</span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Số buổi dự kiến */}
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[12px] font-bold text-slate-600">
-                        Số buổi dự kiến
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          min="1"
-                          placeholder="Vd: 24"
-                          value={formEstimatedSessionCount}
-                          onChange={(e) => setFormEstimatedSessionCount(e.target.value)}
-                          className="w-full px-4 py-2.5 pr-14 text-[13.5px] bg-white border border-slate-200 rounded-xl focus:border-indigo-500 focus:outline-none transition-all font-semibold text-slate-800"
-                        />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-slate-400 font-bold">
-                          buổi
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Thời lượng dự kiến */}
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-[12px] font-bold text-slate-600">
-                        Thời gian cả liệu trình
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 relative">
-                          <input
-                            type="number"
-                            min="1"
-                            placeholder="Từ (18)"
-                            value={formEstimatedDurationMin}
-                            onChange={(e) => setFormEstimatedDurationMin(e.target.value)}
-                            className="w-full px-3 py-2.5 text-[13.5px] bg-white border border-slate-200 rounded-xl focus:border-indigo-500 focus:outline-none transition-all font-semibold text-slate-800 text-center"
-                          />
-                        </div>
-                        <span className="text-slate-400 font-bold text-[13px]">–</span>
-                        <div className="flex-1 relative">
-                          <input
-                            type="number"
-                            min="1"
-                            placeholder="Đến (24)"
-                            value={formEstimatedDurationMax}
-                            onChange={(e) => setFormEstimatedDurationMax(e.target.value)}
-                            className="w-full px-3 py-2.5 text-[13.5px] bg-white border border-slate-200 rounded-xl focus:border-indigo-500 focus:outline-none transition-all font-semibold text-slate-800 text-center"
-                          />
-                        </div>
-                        <select
-                          value={formEstimatedDurationUnit}
-                          onChange={(e) => setFormEstimatedDurationUnit(e.target.value)}
-                          className="px-3 py-2.5 text-[13px] bg-white border border-slate-200 rounded-xl focus:border-indigo-500 focus:outline-none transition-all font-bold text-slate-700 cursor-pointer"
-                        >
-                          <option value="Month">Tháng</option>
-                          <option value="Week">Tuần</option>
-                          <option value="Day">Ngày</option>
-                          <option value="Year">Năm</option>
-                        </select>
-                      </div>
                     </div>
                   </div>
                 </div>

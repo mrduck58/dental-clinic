@@ -1,5 +1,6 @@
 using System.Text;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
@@ -22,7 +23,8 @@ public record SuggestPrescriptionQuery(Guid AppointmentId) : IRequest<Prescripti
 public class SuggestPrescriptionHandler(
     IAiChatService aiChatService,
     IAppointmentRepository appointmentRepository,
-    IMedicineRepository medicineRepository)
+    IMedicineRepository medicineRepository,
+    ITreatmentPlanRepository treatmentPlanRepository)
     : IRequestHandler<SuggestPrescriptionQuery, PrescriptionSuggestionResult>
 {
     private const string DisclaimerText =
@@ -43,7 +45,10 @@ public class SuggestPrescriptionHandler(
             .OrderBy(m => m.Name)
             .ToList();
 
-        var prompt = BuildPrompt(appointment, diagnosis, activeMedicines);
+        var treatmentPlans = await treatmentPlanRepository.GetByPatientIdAsync(appointment.PatientId, ct);
+        var activePlans = treatmentPlans.Where(t => t.Status != TreatmentPlanStatus.Cancelled).ToList();
+
+        var prompt = BuildPrompt(appointment, diagnosis, activeMedicines, activePlans);
         var suggestion = await aiChatService.SummarizeAsync(
             BuildSystemInstruction(), prompt, feature: "PrescriptionSuggestion", ct: ct);
 
@@ -62,7 +67,7 @@ public class SuggestPrescriptionHandler(
         return sb.ToString();
     }
 
-    private static string BuildPrompt(Appointment appointment, Diagnosis diagnosis, List<Medicine> activeMedicines)
+    private static string BuildPrompt(Appointment appointment, Diagnosis diagnosis, List<Medicine> activeMedicines, List<TreatmentPlan> activePlans)
     {
         var sb = new StringBuilder();
         sb.AppendLine("== Chẩn đoán buổi khám hiện tại ==");
@@ -82,16 +87,16 @@ public class SuggestPrescriptionHandler(
         AppendIfPresent(sb, "Kết quả & kế hoạch điều trị đã ghi", diagnosis.Conclusion);
         sb.AppendLine();
 
-        if (appointment.TreatmentPlans.Count == 0)
+        if (activePlans.Count == 0)
         {
-            sb.AppendLine("Chưa có liệu trình điều trị nào được ghi nhận cho buổi khám này.");
+            sb.AppendLine("Chưa có liệu trình điều trị nào được ghi nhận cho bệnh nhân này.");
         }
         else
         {
-            sb.AppendLine("== Liệu trình điều trị buổi khám hiện tại ==");
-            foreach (var t in appointment.TreatmentPlans)
+            sb.AppendLine("== Liệu trình điều trị của bệnh nhân ==");
+            foreach (var t in activePlans)
             {
-                var name = string.IsNullOrWhiteSpace(t.Teeth) ? t.Service.Name : $"{t.Service.Name} - Răng {t.Teeth}";
+                var name = string.IsNullOrWhiteSpace(t.Teeth) ? (t.Service?.Name ?? t.Title) : $"{t.Service?.Name ?? t.Title} - Răng {t.Teeth}";
                 sb.AppendLine($"- {name} — trạng thái: {t.Status}");
                 if (!string.IsNullOrWhiteSpace(t.Notes)) sb.AppendLine($"  Ghi chú: {t.Notes}");
             }

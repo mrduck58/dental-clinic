@@ -20,11 +20,7 @@ public record ServiceDto(
     string? IconUrl,
     DateTimeOffset CreatedAt,
     DateTimeOffset? UpdatedAt,
-    IReadOnlyCollection<ServiceOptionDto> Options,
-    int? EstimatedSessionCount = null,
-    int? EstimatedDurationMin = null,
-    int? EstimatedDurationMax = null,
-    string? EstimatedDurationUnit = null);
+    IReadOnlyCollection<ServiceOptionDto> Options);
 
 public record ServiceOptionRequest(
     string Name,
@@ -40,11 +36,7 @@ public record CreateServiceRequest(
     string Content,
     string? ImageUrl,
     string? IconUrl,
-    IReadOnlyCollection<ServiceOptionRequest>? Options,
-    int? EstimatedSessionCount = null,
-    int? EstimatedDurationMin = null,
-    int? EstimatedDurationMax = null,
-    string? EstimatedDurationUnit = null);
+    IReadOnlyCollection<ServiceOptionRequest>? Options);
 
 public record UpdateServiceRequest(
     string Name,
@@ -54,8 +46,5 @@ public record UpdateServiceRequest(
     string Content,
     string? ImageUrl,
     string? IconUrl,
-    IReadOnlyCollection<ServiceOptionRequest>? Options,
-    int? EstimatedSessionCount = null,
-    int? EstimatedDurationMin = null,
-    int? EstimatedDurationMax = null,
-    string? EstimatedDurationUnit = null);
+    IReadOnlyCollection<ServiceOptionRequest>? Options);
+

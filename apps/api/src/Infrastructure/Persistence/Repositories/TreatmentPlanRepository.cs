@@ -263,8 +263,8 @@ public class TreatmentPlanRepository(AppDbContext db) : ITreatmentPlanRepository
             .Include(i => i.TreatmentPlan)
             .Include(i => i.Service)
             .Where(i => (i.Status == TreatmentPlanItemStatus.InProgress || i.TreatmentPlan.Status == TreatmentPlanStatus.InProgress)
-                        && i.TreatmentPlan.AppointmentId != null && patientIds.Contains(i.TreatmentPlan.PatientId))
-            .Select(i => new ActiveTreatmentPlanSummary(i.TreatmentPlan.AppointmentId!.Value, i.ServiceId, i.Service.Name))
+                        && patientIds.Contains(i.TreatmentPlan.PatientId))
+            .Select(i => new ActiveTreatmentPlanSummary(i.TreatmentPlan.Id, i.ServiceId, i.Service.Name))
             .ToListAsync(ct);
 
         return items;
