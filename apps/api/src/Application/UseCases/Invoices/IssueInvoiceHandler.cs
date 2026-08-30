@@ -214,7 +214,8 @@ public class IssueInvoiceHandler(
     /// <summary>Báo cho bệnh nhân (nếu có tài khoản liên kết) khi có hóa đơn mới cần thanh toán.</summary>
     private async Task NotifyInvoiceIssuedAsync(Invoice invoice, CancellationToken ct)
     {
-        var patientUserId = await invoiceRepository.GetPatientUserIdByAppointmentIdAsync(invoice.AppointmentId, ct);
+        if (!invoice.AppointmentId.HasValue) return;
+        var patientUserId = await invoiceRepository.GetPatientUserIdByAppointmentIdAsync(invoice.AppointmentId.Value, ct);
         if (patientUserId is not Guid userId) return;
 
         await notificationService.CreateAsync(new CreateNotificationRequest(

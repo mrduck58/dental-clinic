@@ -41,7 +41,8 @@ public class InvoiceDto
 {
     public Guid Id { get; set; }
     public string InvoiceNumber { get; set; } = string.Empty;
-    public Guid AppointmentId { get; set; }
+    public Guid? PatientId { get; set; }
+    public Guid? AppointmentId { get; set; }
     public string PatientName { get; set; } = string.Empty;
     public string? PatientPhone { get; set; }
     public string? Gender { get; set; }
