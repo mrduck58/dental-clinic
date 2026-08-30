@@ -49,7 +49,7 @@ public class CreateWalkInAppointmentHandlerTests
 
         _handler = new CreateWalkInAppointmentHandler(
             new AppointmentRepository(_db), new PatientRepository(_db), new UserRepository(_db),
-            _notificationService, sender);
+            _notificationService, new FollowUpRepository(_db), sender);
 
         var dentistUser = User.Create("d1", $"d1-{Guid.NewGuid()}@test.com", "hash", UserRole.Dentist, fullName: "BS. Nguyễn Văn Hùng");
         _db.Users.Add(dentistUser);
@@ -173,13 +173,12 @@ public class CreateWalkInAppointmentHandlerTests
     }
 
     /// <summary>
-    /// Khớp NGẦM theo số điện thoại (staff gõ tay, không bấm chọn từ ô tra cứu nên PatientId để
-    /// trống) mà gõ tên khác hẳn tên đã lưu — một số điện thoại có thể dùng chung cho nhiều người
-    /// (vợ chồng, cha mẹ và con nhỏ...), nên KHÔNG được tự ý ghi đè tên/ngày sinh/giới tính của hồ
-    /// sơ cũ. Chỉ ghi đè khi staff chủ động chọn đúng hồ sơ (xem test phía trên).
+    /// Khớp theo số điện thoại (staff gõ tay, không chọn từ ô tra cứu) nhưng gõ tên khác hẳn tên đã lưu:
+    /// Một số điện thoại dùng chung cho gia đình (mẹ và con), hệ thống sẽ tạo một hồ sơ Patient mới
+    /// liên kết qua PrimaryPatientId với hồ sơ chủ, lịch hẹn gắn đúng cho người con, không làm bẩn bệnh án của mẹ.
     /// </summary>
     [Test]
-    public async Task HandleAsync_ImplicitPhoneMatchWithDifferentName_DoesNotOverwriteExistingIdentity()
+    public async Task HandleAsync_ImplicitPhoneMatchWithDifferentName_CreatesNewFamilyMemberPatient()
     {
         var user = User.CreateEmployee("existing2@test.com", UserRole.Patient, phoneNumber: "0900000002", fullName: "Trần Thị B");
         user.UpdateGender("Nữ");
@@ -192,14 +191,45 @@ public class CreateWalkInAppointmentHandlerTests
             with { PatientPhone = "0900000002", PatientName = "Nguyễn Văn C", Gender = "Nam", DateOfBirth = new DateOnly(1999, 9, 9) };
         var result = await _handler.Handle(cmd, CancellationToken.None);
 
+        _db.Patients.Should().HaveCount(2);
+        var originalPatient = await _db.Patients.FirstAsync(p => p.Id == existing.Id);
+        originalPatient.FullName.Should().Be("Trần Thị B");
+        originalPatient.Gender.Should().Be("Nữ");
+        originalPatient.DateOfBirth.Should().Be(new DateOnly(1985, 5, 20));
+
+        var newMember = await _db.Patients.FirstAsync(p => p.Id != existing.Id);
+        newMember.FullName.Should().Be("Nguyễn Văn C");
+        newMember.Gender.Should().Be("Nam");
+        newMember.DateOfBirth.Should().Be(new DateOnly(1999, 9, 9));
+        newMember.PrimaryPatientId.Should().Be(existing.Id);
+        newMember.Relationship.Should().Be("Người thân");
+
+        var appointment = await _db.Appointments.SingleAsync();
+        appointment.PatientId.Should().Be(newMember.Id);
+        result.PatientName.Should().Be("Nguyễn Văn C");
+    }
+
+    /// <summary>
+    /// Khớp theo số điện thoại và trùng đúng tên đã lưu trong gia đình: tái sử dụng đúng hồ sơ đó.
+    /// </summary>
+    [Test]
+    public async Task HandleAsync_ImplicitPhoneMatchWithSameName_ReusesExistingPatient()
+    {
+        var user = User.CreateEmployee("existing3@test.com", UserRole.Patient, phoneNumber: "0900000003", fullName: "Nguyễn Văn A");
+        user.UpdateGender("Nam");
+        _db.Users.Add(user);
+        var existing = Patient.Create(user.Id, new DateOnly(1990, 1, 1), phoneNumber: "0900000003");
+        _db.Patients.Add(existing);
+        await _db.SaveChangesAsync();
+
+        var cmd = MakeCommand(DateTimeOffset.UtcNow.AddHours(1))
+            with { PatientPhone = "0900000003", PatientName = "Nguyễn Văn A" };
+        var result = await _handler.Handle(cmd, CancellationToken.None);
+
         _db.Patients.Should().HaveCount(1);
         var appointment = await _db.Appointments.SingleAsync();
         appointment.PatientId.Should().Be(existing.Id);
-        var patient = await _db.Patients.SingleAsync();
-        patient.FullName.Should().Be("Trần Thị B");
-        patient.Gender.Should().Be("Nữ");
-        patient.DateOfBirth.Should().Be(new DateOnly(1985, 5, 20));
-        result.PatientName.Should().Be("Trần Thị B");
+        result.PatientName.Should().Be("Nguyễn Văn A");
     }
 
     /// <summary>Không tìm thấy hồ sơ đã chọn (đã bị xoá) thì báo lỗi thay vì âm thầm tạo mới.</summary>

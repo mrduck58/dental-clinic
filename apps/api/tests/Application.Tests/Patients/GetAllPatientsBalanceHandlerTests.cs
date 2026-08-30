@@ -146,7 +146,7 @@ public class GetAllPatientsBalanceHandlerTests
     private static TreatmentPlan MakePlan(Guid patientId, Service service, decimal unitPrice, int quantity)
     {
         var plan = TreatmentPlan.Create(patientId, Guid.NewGuid(), null, service.Id, unitPrice, quantity);
-        typeof(TreatmentPlan).GetProperty(nameof(TreatmentPlan.Service))!.SetValue(plan, service);
+        plan.Items.First().Service = service;
         return plan;
     }
 }

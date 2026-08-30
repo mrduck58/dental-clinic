@@ -19,12 +19,17 @@ public class InvoiceItemConfiguration : IEntityTypeConfiguration<InvoiceItem>
         builder.Property(i => i.UnitPrice).HasPrecision(18, 2);
         builder.Property(i => i.AmountCollected).HasPrecision(18, 2);
 
-        // Liệu trình mà dòng thu tiền cho — cột thường (không FK) để migration đơn giản,
-        // handler tự đối chiếu theo giá trị.
         builder.Property(i => i.TreatmentPlanId);
         builder.HasIndex(i => i.TreatmentPlanId);
 
-        // Thuộc tính tính toán, không ánh xạ xuống DB.
+        builder.Property(i => i.TreatmentPlanItemId);
+        builder.HasIndex(i => i.TreatmentPlanItemId);
+
+        builder.HasOne(i => i.TreatmentPlanItem)
+            .WithMany(tpi => tpi.InvoiceItems)
+            .HasForeignKey(i => i.TreatmentPlanItemId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         builder.Ignore(i => i.LineTotal);
         builder.Ignore(i => i.LineRemaining);
     }

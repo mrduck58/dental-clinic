@@ -153,14 +153,14 @@ public class InvoiceRepository(AppDbContext db) : IInvoiceRepository
     }
 
     public Task<TreatmentPlan?> GetTreatmentPlanWithServiceAsync(Guid treatmentPlanId, CancellationToken ct = default) =>
-        db.TreatmentPlans.Include(tp => tp.Service).FirstOrDefaultAsync(tp => tp.Id == treatmentPlanId, ct);
+        db.TreatmentPlans.Include(tp => tp.Items).ThenInclude(i => i.Service).FirstOrDefaultAsync(tp => tp.Id == treatmentPlanId, ct);
 
     public async Task<IReadOnlyList<TreatmentPlan>> GetActiveTreatmentPlansByPatientIdsAsync(
         IReadOnlyList<Guid> patientIds, CancellationToken ct = default)
     {
         if (patientIds.Count == 0) return [];
         return await db.TreatmentPlans.AsNoTracking()
-            .Include(tp => tp.Service)
+            .Include(tp => tp.Items).ThenInclude(i => i.Service)
             .Where(tp => patientIds.Contains(tp.PatientId) && tp.Status != TreatmentPlanStatus.Cancelled)
             .ToListAsync(ct);
     }
@@ -169,14 +169,18 @@ public class InvoiceRepository(AppDbContext db) : IInvoiceRepository
         IReadOnlyList<Guid> treatmentPlanIds, CancellationToken ct = default) =>
         await db.TreatmentPlans
             .Where(tp => treatmentPlanIds.Contains(tp.Id))
-            .Select(tp => new TreatmentPlanBillingInfo(tp.Id, tp.UnitPrice, tp.Quantity, tp.ServiceId))
+            .Select(tp => new TreatmentPlanBillingInfo(
+                tp.Id,
+                tp.Items.Select(i => i.UnitPrice).FirstOrDefault(),
+                tp.Items.Select(i => i.Quantity).FirstOrDefault(),
+                tp.Items.Select(i => i.ServiceId).FirstOrDefault()))
             .ToListAsync(ct);
 
     public async Task<IReadOnlyList<TreatmentPlan>> GetInProgressTreatmentPlansWithDetailsAsync(CancellationToken ct = default) =>
         await db.TreatmentPlans.AsNoTracking()
             .Include(tp => tp.Patient).ThenInclude(p => p.User)
             .Include(tp => tp.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
-            .Include(tp => tp.Service)
+            .Include(tp => tp.Items).ThenInclude(i => i.Service)
             .Where(tp => tp.Status == TreatmentPlanStatus.InProgress)
             .OrderByDescending(tp => tp.CreatedAt)
             .ToListAsync(ct);
@@ -186,6 +190,10 @@ public class InvoiceRepository(AppDbContext db) : IInvoiceRepository
         await db.TreatmentPlans
             .Where(tp => tp.AppointmentId != null && appointmentIds.Contains(tp.AppointmentId.Value)
                          && tp.Status != TreatmentPlanStatus.Cancelled)
-            .Select(tp => new TreatmentPlanBillingInfo(tp.Id, tp.UnitPrice, tp.Quantity, tp.ServiceId))
+            .Select(tp => new TreatmentPlanBillingInfo(
+                tp.Id,
+                tp.Items.Select(i => i.UnitPrice).FirstOrDefault(),
+                tp.Items.Select(i => i.Quantity).FirstOrDefault(),
+                tp.Items.Select(i => i.ServiceId).FirstOrDefault()))
             .ToListAsync(ct);
 }

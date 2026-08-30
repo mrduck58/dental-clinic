@@ -11,6 +11,8 @@ public class Appointment
     public Guid? ServiceId { get; private set; }
     public DateTimeOffset AppointmentDate { get; private set; }
     public AppointmentStatus Status { get; private set; }
+    public AppointmentType AppointmentType { get; private set; } = AppointmentType.GeneralExam;
+    public int DurationMinutes { get; private set; } = 30;
 
     /// <summary>Lịch này do bệnh nhân tự đặt từ xa hay do lễ tân lập tại quầy — xem <see cref="UndoCheckIn"/>.</summary>
     public AppointmentOrigin Origin { get; private set; }
@@ -45,13 +47,20 @@ public class Appointment
     // AppointmentPhoto.Section, xem ghi chú trên entity đó.
     public ICollection<AppointmentPhoto> Photos { get; private set; } = new List<AppointmentPhoto>();
 
-    // Follow-up appointments (dữ liệu lịch sử — luồng tạo lịch tái khám cũ đã bỏ)
+    // Sessions executed or planned in this appointment
+    public ICollection<AppointmentSession> AppointmentSessions { get; private set; } = new List<AppointmentSession>();
+
+    // Follow-up appointments (dữ liệu lịch sử — luồng tạo lịch tái khám cũ)
     public Guid? FollowUpFromAppointmentId { get; private set; }
     public Appointment? FollowUpFromAppointment { get; private set; }
     public ICollection<Appointment> FollowUpAppointments { get; private set; } = new List<Appointment>();
 
-    // Nhắc tái khám: chỉ hẹn ngày khám lại, không đặt lịch mới.
-    // Khi bác sĩ kết thúc điều trị, hệ thống gửi thông báo cho bệnh nhân.
+    // Liên kết với thực thể FollowUp độc lập
+    public Guid? FollowUpId { get; private set; }
+    public FollowUp? FollowUpOrder { get; private set; }
+    public ICollection<FollowUp> OriginatedFollowUps { get; private set; } = new List<FollowUp>();
+
+    // Nhắc tái khám (giữ tương thích)
     public DateOnly? FollowUpDate { get; private set; }
     public string? FollowUpNote { get; private set; }
 
@@ -77,7 +86,10 @@ public class Appointment
         DateTimeOffset appointmentDate,
         string? symptoms = null,
         Guid? serviceId = null,
-        string? notes = null)
+        string? notes = null,
+        AppointmentType appointmentType = AppointmentType.GeneralExam,
+        int durationMinutes = 30,
+        Guid? followUpId = null)
     {
         return new Appointment
         {
@@ -88,6 +100,9 @@ public class Appointment
             AppointmentDate = appointmentDate,
             Status = AppointmentStatus.Pending,
             Origin = AppointmentOrigin.Online,
+            AppointmentType = appointmentType,
+            DurationMinutes = durationMinutes > 0 ? durationMinutes : 30,
+            FollowUpId = followUpId,
             Symptoms = symptoms,
             Notes = notes,
             CreatedAt = DateTimeOffset.UtcNow
@@ -95,23 +110,20 @@ public class Appointment
     }
 
     /// <summary>
-    /// Lịch lập tại quầy khi bệnh nhân đã có mặt: bỏ qua cả Pending lẫn Confirmed, vào thẳng
-    /// CheckedIn để xuất hiện ngay ở hàng đợi. <see cref="Origin"/> = WalkIn là căn cứ duy nhất để
-    /// sau này biết lịch này KHÔNG có trạng thái nào trước check-in để quay về (xem <see cref="UndoCheckIn"/>).
+    /// Lịch lập tại quầy khi bệnh nhân đã có mặt: vào thẳng CheckedIn.
     /// </summary>
-    /// <param name="followUpFromAppointmentId">
-    /// Có giá trị khi lịch lập tại quầy này là buổi tái khám staff check-in từ tab Tái khám —
-    /// gắn về buổi gốc để bác sĩ thấy cờ tái khám và liệu trình cũ (xem <see cref="FollowUpFromAppointmentId"/>).
-    /// </param>
     public static Appointment CreateWalkIn(
         Guid patientId,
         Guid dentistId,
         DateTimeOffset appointmentDate,
         string? symptoms = null,
         Guid? serviceId = null,
-        Guid? followUpFromAppointmentId = null)
+        Guid? followUpFromAppointmentId = null,
+        AppointmentType appointmentType = AppointmentType.GeneralExam,
+        int durationMinutes = 30,
+        Guid? followUpId = null)
     {
-        var appointment = Create(patientId, dentistId, appointmentDate, symptoms, serviceId);
+        var appointment = Create(patientId, dentistId, appointmentDate, symptoms, serviceId, appointmentType: appointmentType, durationMinutes: durationMinutes, followUpId: followUpId);
         appointment.Origin = AppointmentOrigin.WalkIn;
         appointment.FollowUpFromAppointmentId = followUpFromAppointmentId;
         appointment.CheckIn();
@@ -128,9 +140,7 @@ public class Appointment
     public void MarkNoShow() => Status = AppointmentStatus.NoShow;
 
     /// <summary>
-    /// Gỡ một lần ghi nhận vắng mặt bấm nhầm. Trạng thái trước NoShow luôn là Confirmed — xem
-    /// <see cref="MarkNoShow"/> — nên chỉ cần trả thẳng về đó, không cần phân biệt theo Origin như
-    /// <see cref="UndoCheckIn"/>: NoShow chỉ xảy ra khi bệnh nhân CHƯA từng check-in.
+    /// Gỡ một lần ghi nhận vắng mặt bấm nhầm.
     /// </summary>
     public void UndoNoShow()
     {
@@ -141,20 +151,8 @@ public class Appointment
         Status = AppointmentStatus.Confirmed;
     }
 
-    /// <summary>Ghi chú hủy gắn cho lịch tại quầy bị hoàn tác — để báo cáo phân biệt được với hủy thật.</summary>
     public const string UndoCheckInCancellationNote = "Hủy do nhân viên bấm nhầm check-in.";
 
-    /// <summary>
-    /// Gỡ một lần check-in bấm nhầm. Chỉ làm được khi trạng thái VẪN LÀ CheckedIn: bác sĩ đã gọi
-    /// vào phòng (InProgress trở đi) thì buổi khám có thật, không còn là cú bấm nhầm nữa và đã có
-    /// bệnh án/hóa đơn treo vào lịch này.
-    ///
-    /// Lịch quay về <see cref="AppointmentStatus.Confirmed"/> — tức danh sách Đang chờ check-in,
-    /// để nhân viên có thể thực hiện check-in lại khi bệnh nhân có mặt hoặc tiếp tục quản lý.
-    ///
-    /// Xóa luôn vị trí hàng đợi để bệnh nhân biến khỏi màn hình hàng đợi phòng khám — giữ lại thì
-    /// bác sĩ vẫn thấy một người không còn ở đó.
-    /// </summary>
     public void UndoCheckIn(Guid? undoneByUserId, DateTimeOffset now)
     {
         if (Status != AppointmentStatus.CheckedIn)
@@ -169,22 +167,12 @@ public class Appointment
     public void StartTreatment() => Status = AppointmentStatus.InProgress;
     public void EndTreatment() => Status = AppointmentStatus.PendingPayment;
     public void Complete() => Status = AppointmentStatus.Completed;
-    /// <summary>
-    /// Các trạng thái còn hủy hoặc dời được. Sau khi bệnh nhân đã check-in thì buổi khám đã bắt đầu
-    /// diễn ra trên thực tế — hủy lúc đó sẽ tạo ra lịch hẹn "đã hủy" nhưng vẫn kèm bệnh án và hóa đơn,
-    /// một trạng thái vô nghĩa mà phần còn lại của hệ thống không xử lý được.
-    /// </summary>
+
     private static readonly AppointmentStatus[] ChangeableStatuses =
         [AppointmentStatus.Pending, AppointmentStatus.Confirmed, AppointmentStatus.NoShow, AppointmentStatus.Rebooking];
 
     public bool CanBeChanged => ChangeableStatuses.Contains(Status);
 
-    /// <summary>
-    /// Hủy lịch. <paramref name="reason"/> là nhóm lý do để thống kê, <paramref name="note"/> là
-    /// ghi chú tự do (bắt buộc khi chọn <see cref="CancellationReason.Other"/> — chọn "lý do khác"
-    /// mà không nói khác thế nào thì không ghi nhận được gì).
-    /// </summary>
-    // Enums.CancellationReason chỉ đích danh vì thuộc tính cùng tên ở trên che khuất tên kiểu trong class này.
     public void Cancel(Enums.CancellationReason reason, string? note, Guid? cancelledByUserId, DateTimeOffset now)
     {
         if (!CanBeChanged)
@@ -201,13 +189,6 @@ public class Appointment
         CancelledByUserId = cancelledByUserId;
     }
 
-    /// <summary>
-    /// Dời lịch sang khung giờ (và có thể là bác sĩ / dịch vụ) khác. Việc khung giờ mới có trống hay
-    /// không do tầng ứng dụng kiểm tra trước khi gọi — entity không truy cập được lịch hẹn khác.
-    ///
-    /// <paramref name="requiresReconfirmation"/>: bệnh nhân tự dời lịch sắp tới thì lịch quay về Pending;
-    /// <paramref name="isRebooking"/>: dời lịch đã qua giờ hoặc vắng mặt thì chuyển sang trạng thái Rebooking.
-    /// </summary>
     public void Reschedule(
         DateTimeOffset newDate,
         Guid newDentistId,
@@ -232,32 +213,25 @@ public class Appointment
             Status = AppointmentStatus.Pending;
     }
 
-    /// <summary>
-    /// Chuyển buổi hẹn sang bác sĩ khác. Dùng khi lễ tân kéo bệnh nhân đang chờ
-    /// sang hàng đợi của phòng khác — phòng được quyết định bởi bác sĩ phụ trách.
-    /// Giữ nguyên <see cref="CheckedInAt"/> để bệnh nhân không mất lượt ở hàng đợi mới.
-    /// </summary>
+    public void SetDuration(int durationMinutes)
+    {
+        if (durationMinutes > 0) DurationMinutes = durationMinutes;
+    }
+
+    public void SetAppointmentType(AppointmentType type) => AppointmentType = type;
+    public void SetFollowUpId(Guid? followUpId) => FollowUpId = followUpId;
+
     public void ReassignDentist(Guid dentistId) => DentistId = dentistId;
 
-    /// <summary>
-    /// Đặt vị trí hàng đợi thủ công (tick UTC): đẩy lên/xuống khi lễ tân đổi thứ tự, hoặc đưa xuống
-    /// cuối hàng đợi phòng mới khi chuyển phòng. Không đụng tới <see cref="CheckedInAt"/> nên thời
-    /// gian chờ được giữ nguyên.
-    /// </summary>
     public void SetQueueOrder(long order) => QueueOrder = order;
-
-    /// <summary>Đặt mốc vào hàng đợi phòng (dùng đánh số). Đặt lại khi chuyển phòng để đánh số mới ở cuối.</summary>
     public void SetQueueEntryOrder(long order) => QueueEntryOrder = order;
 
-    /// <summary>Đặt hoặc xóa lịch hẹn tái khám (chỉ nhắc ngày, không tạo lịch hẹn mới).</summary>
     public void SetFollowUpReminder(DateOnly? date, string? note)
     {
         FollowUpDate = date;
         FollowUpNote = date == null ? null : note;
     }
 
-    /// <summary>Lưu kết quả tóm tắt AI mới tạo cùng thời điểm và số lịch hẹn đã dùng làm căn cứ,
-    /// để lần sau xác định được cache còn hợp lệ hay không (xem <see cref="AiSummaryBasedOnCount"/>).</summary>
     public void SetAiSummary(string summary, int basedOnPastAppointmentCount)
     {
         AiSummary = summary;
@@ -265,18 +239,6 @@ public class Appointment
         AiSummaryBasedOnCount = basedOnPastAppointmentCount;
     }
 
-    /// <summary>
-    /// VỊ TRÍ HIỂN THỊ trong hàng đợi (tick UTC). Tách khỏi <see cref="CheckedInAt"/> để lễ tân đẩy
-    /// bệnh nhân lên/xuống hoặc chuyển phòng (xuống cuối) mà KHÔNG làm đổi thời gian chờ. Null =
-    /// chưa can thiệp thủ công, xếp theo giờ check-in như mặc định.
-    /// </summary>
     public long? QueueOrder { get; private set; }
-
-    /// <summary>
-    /// Mốc "vào hàng đợi phòng" (tick UTC) — dùng để ĐÁNH SỐ thứ tự. Khác <see cref="QueueOrder"/> ở
-    /// chỗ KHÔNG bị thao tác đẩy lên/xuống làm đổi, nên số của mỗi người giữ nguyên khi lễ tân sắp lại
-    /// chỗ. Khi CHUYỂN PHÒNG thì đặt = hiện tại để bệnh nhân nhận số MỚI ở cuối hàng đợi phòng mới.
-    /// Null = lùi về giờ check-in.
-    /// </summary>
     public long? QueueEntryOrder { get; private set; }
 }

@@ -29,8 +29,9 @@ public class FollowUpReminderHandlerTests
             .Options;
         _db = new AppDbContext(options);
         var appointmentRepository = new AppointmentRepository(_db);
-        _set = new SetFollowUpReminderHandler(appointmentRepository);
-        _clear = new ClearFollowUpReminderHandler(appointmentRepository);
+        var followUpRepository = new FollowUpRepository(_db);
+        _set = new SetFollowUpReminderHandler(appointmentRepository, followUpRepository);
+        _clear = new ClearFollowUpReminderHandler(appointmentRepository, followUpRepository);
         _due = new GetFollowUpDueHandler(appointmentRepository, new TreatmentPlanRepository(_db));
     }
 

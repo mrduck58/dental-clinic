@@ -32,7 +32,11 @@ public class AppointmentBookingController(ISender sender) : ControllerBase
             request.AppointmentDate,
             request.Symptoms,
             request.ServiceId,
-            request.PatientId);
+            request.PatientId,
+            request.AppointmentType,
+            request.DurationMinutes > 0 ? request.DurationMinutes : 30,
+            request.FollowUpId,
+            request.TreatmentSessionIds);
 
         var result = await sender.Send(cmd, cancellationToken);
         return Ok(result);
@@ -377,7 +381,11 @@ public record CreateAppointmentRequest(
     DateTimeOffset AppointmentDate,
     string? Symptoms,
     Guid? ServiceId,
-    Guid? PatientId);
+    Guid? PatientId,
+    AppointmentType AppointmentType = AppointmentType.GeneralExam,
+    int DurationMinutes = 30,
+    Guid? FollowUpId = null,
+    List<Guid>? TreatmentSessionIds = null);
 
 public record CreateWalkInRequest(
     Guid DentistId,

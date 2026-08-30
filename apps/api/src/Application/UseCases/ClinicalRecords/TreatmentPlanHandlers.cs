@@ -11,7 +11,6 @@ using static DentalClinic.API.Application.UseCases.ClinicalRecords.ClinicalRecor
 namespace DentalClinic.API.Application.UseCases.ClinicalRecords;
 
 // ── Request/Command ──────────────────────────────────────────────────────────
-// Hình dạng JSON body giữ NGUYÊN như trước khi tách god-handler TreatmentPlanHandler.
 
 public record CreateTreatmentPlanRequest(
     Guid AppointmentId,
@@ -21,7 +20,8 @@ public record CreateTreatmentPlanRequest(
     string? Teeth,
     string? Notes,
     DateOnly? WarrantyUntil,
-    string? ServiceOptionName = null) : IRequest<TreatmentPlanDto>;
+    string? ServiceOptionName = null,
+    Guid? ServiceOptionId = null) : IRequest<TreatmentPlanDto>;
 
 public record UpdateTreatmentPlanRequest(
     Guid TreatmentPlanId,
@@ -36,7 +36,27 @@ public record DeleteTreatmentPlanCommand(Guid TreatmentPlanId) : IRequest;
 
 public record GetPatientTreatmentPlansQuery(Guid PatientId) : IRequest<List<TreatmentPlanDto>>;
 
-/// <summary>Sửa một mục trong nhật ký điều trị — EntryIndex là vị trí trong mảng StepProgressJson.</summary>
+public record AddTreatmentSessionRequest(
+    Guid TreatmentPlanItemId,
+    string Name,
+    int DurationMinutes = 30,
+    Guid? DentistId = null,
+    string? Note = null);
+
+public record AddTreatmentSessionCommand(AddTreatmentSessionRequest Request) : IRequest<TreatmentPlanDto>;
+
+public record RecordTreatmentSessionRequest(
+    Guid TreatmentSessionId,
+    string Status, // InProgress, Completed, Skipped, Planned
+    DateTimeOffset? PerformedAt = null,
+    Guid? DentistId = null,
+    string? Note = null);
+
+public record RecordTreatmentSessionCommand(RecordTreatmentSessionRequest Request) : IRequest<TreatmentPlanDto>;
+
+public record DeleteTreatmentSessionCommand(Guid TreatmentSessionId) : IRequest<TreatmentPlanDto>;
+
+// Legacy compatibility commands
 public record UpdateStepProgressRequest(
     int EntryIndex,
     int Percent,
@@ -44,7 +64,6 @@ public record UpdateStepProgressRequest(
     string? StepName = null,
     DateOnly? Date = null);
 
-/// <summary>Sắp xếp lại nhật ký điều trị — Order là danh sách index gốc theo thứ tự mới.</summary>
 public record ReorderStepProgressRequest(List<int> Order);
 
 public record AddStepProgressRequest(
@@ -68,6 +87,7 @@ public class CreateTreatmentPlanHandler(
     IAppointmentRepository appointmentRepository,
     IServiceRepository serviceRepository,
     ITreatmentPlanRepository treatmentPlanRepository,
+    ITreatmentProcedureRepository treatmentProcedureRepository,
     TreatmentPlanQueryHelper queryHelper,
     IPatientRepository patientRepository,
     INotificationService notificationService) : IRequestHandler<CreateTreatmentPlanRequest, TreatmentPlanDto>
@@ -86,24 +106,57 @@ public class CreateTreatmentPlanHandler(
         var teeth = NormalizeText(request.Teeth);
         var optionName = NormalizeText(request.ServiceOptionName);
 
+        // Tạo TreatmentPlan (Master plan)
         var treatmentPlan = TreatmentPlan.Create(
             appointment.PatientId,
             appointment.DentistId,
             appointment.Id,
+            title: service.Name,
+            notes: NormalizeText(request.Notes));
+
+        // Tạo TreatmentPlanItem (dịch vụ chỉ định)
+        var item = TreatmentPlanItem.Create(
+            treatmentPlan.Id,
             service.Id,
             request.UnitPrice ?? service.Price,
             request.Quantity,
             teeth,
             NormalizeText(request.Notes),
             request.WarrantyUntil,
+            request.ServiceOptionId,
             optionName);
 
-        await treatmentPlanRepository.AddAsync(treatmentPlan, ct);
+        // Tự động sinh TreatmentSession từ TreatmentProcedures chuẩn của dịch vụ
+        var procedures = (await treatmentProcedureRepository.GetByServiceIdAsync(service.Id, ct)).ToList();
+        if (procedures.Count > 0)
+        {
+            foreach (var proc in procedures.OrderBy(p => p.StepNumber))
+            {
+                var session = TreatmentSession.Create(
+                    item.Id,
+                    proc.StepNumber,
+                    proc.Name,
+                    proc.DurationMinutes > 0 ? proc.DurationMinutes : 30,
+                    proc.Id,
+                    appointment.DentistId);
+                item.Sessions.Add(session);
+            }
+        }
+        else
+        {
+            // Nếu dịch vụ chưa có bước mẫu, tạo 1 session mặc định
+            var defaultSession = TreatmentSession.Create(
+                item.Id,
+                1,
+                service.Name,
+                service.DurationMinutes > 0 ? service.DurationMinutes : 30,
+                null,
+                appointment.DentistId);
+            item.Sessions.Add(defaultSession);
+        }
 
-        // Vật tư chính (mão sứ, veneer...) trong định mức của dịch vụ + option vừa chọn KHÔNG còn tự động
-        // tạo yêu cầu vật tư ở đây nữa — client tự lấy định mức qua GET supply-items/effective để điền nháp
-        // vào form "Gửi yêu cầu vật tư" (tab Vật tư), bác sĩ xem/sửa số lượng rồi mới thật sự gửi. Xem
-        // MaterialRequestHandlers.CreateMaterialRequestHandler — giờ là nơi DUY NHẤT tạo MaterialRequest.
+        treatmentPlan.Items.Add(item);
+        await treatmentPlanRepository.AddAsync(treatmentPlan, ct);
 
         // Báo cho bệnh nhân có kế hoạch điều trị mới (nếu tài khoản có liên kết User).
         var patient = await patientRepository.GetByIdAsync(appointment.PatientId, ct);
@@ -130,33 +183,36 @@ public class UpdateTreatmentPlanHandler(
 {
     public async Task<TreatmentPlanDto> Handle(UpdateTreatmentPlanRequest request, CancellationToken ct)
     {
-        var treatmentPlan = await treatmentPlanRepository.GetByIdAsync(request.TreatmentPlanId, ct)
+        var treatmentPlan = await treatmentPlanRepository.GetByIdWithDetailsAsync(request.TreatmentPlanId, ct)
             ?? throw new NotFoundException("Không tìm thấy liệu trình điều trị.");
 
-        var amountPaid = await queryHelper.GetAmountPaidAsync(treatmentPlan.Id, ct);
-        if (request.UnitPrice * Math.Max(1, request.Quantity) < amountPaid)
-            throw new ValidationException("Tổng chi phí mới không được nhỏ hơn số tiền đã thu.");
+        var item = treatmentPlan.Items.FirstOrDefault();
+        if (item != null)
+        {
+            var amountPaid = await queryHelper.GetAmountPaidAsync(treatmentPlan.Id, ct);
+            if (request.UnitPrice * Math.Max(1, request.Quantity) < amountPaid)
+                throw new ValidationException("Tổng chi phí mới không được nhỏ hơn số tiền đã thu.");
 
-        treatmentPlan.Update(
-            request.UnitPrice,
-            request.Quantity,
-            NormalizeText(request.Teeth),
-            NormalizeText(request.Notes),
-            request.WarrantyUntil);
+            item.Update(
+                request.UnitPrice,
+                request.Quantity,
+                NormalizeText(request.Teeth),
+                NormalizeText(request.Notes),
+                request.WarrantyUntil);
+
+            await treatmentPlanRepository.UpdateItemAsync(item, ct);
+        }
+
+        treatmentPlan.Update(treatmentPlan.Title, NormalizeText(request.Notes));
 
         if (!string.IsNullOrWhiteSpace(request.Status))
         {
             if (!Enum.TryParse<TreatmentPlanStatus>(request.Status, ignoreCase: true, out var status))
                 throw new ValidationException("Trạng thái liệu trình không hợp lệ.");
 
-            // Chờ thực hiện / đang thực hiện / hoàn thành là KẾT QUẢ tính từ tiến độ các bước quy trình
-            // (SyncStatusWithProgressAsync) — không ai được đặt tay, tránh đánh dấu "hoàn thành" khi
-            // bệnh nhân còn đang điều trị dở. Chỉ HỦY là quyết định hành chính nên vẫn nhận.
-            if (status != TreatmentPlanStatus.Cancelled && status != treatmentPlan.Status)
-                throw new ValidationException(
-                    "Trạng thái điều trị do hệ thống tự cập nhật theo tiến độ các bước quy trình — không đặt thủ công.");
+            if (status == TreatmentPlanStatus.Completed)
+                throw new ValidationException("Không thể tự chuyển trạng thái thành Hoàn thành. Trạng thái này được hệ thống tự tính dựa trên tiến độ các bước.");
 
-            // Hủy liệu trình = loại nó khỏi liệu trình/tổng chi phí → cũng bị chặn khi đã xuất hóa đơn.
             if (status == TreatmentPlanStatus.Cancelled
                 && treatmentPlan.Status != TreatmentPlanStatus.Cancelled
                 && await queryHelper.IsInvoicedAsync(treatmentPlan.Id, ct))
@@ -184,9 +240,6 @@ public class DeleteTreatmentPlanHandler(
         if (await queryHelper.IsInvoicedAsync(treatmentPlan.Id, ct))
             throw new ValidationException("Dịch vụ này đã được xuất hóa đơn nên không thể xóa khỏi liệu trình. Cần lễ tân hoàn/hủy hóa đơn trước.");
 
-        // Yêu cầu vật tư gắn với dịch vụ này: Ordered/Done nghĩa là đã đặt hàng nhà cung cấp hoặc đã nhập
-        // kho thật (đã tốn tiền/đã trừ kho) — không được tự ý xóa mất, phải chặn và để staff xử lý xong
-        // trước. Pending thì chưa có gì xảy ra thật nên xóa theo luôn, tránh để yêu cầu mồ côi vô nghĩa.
         var linkedRequests = await materialRequestRepository.GetByTreatmentPlanIdAsync(treatmentPlan.Id, ct);
         if (linkedRequests.Any(r => r.Status != MaterialRequestStatus.Pending))
             throw new ValidationException(
@@ -199,7 +252,6 @@ public class DeleteTreatmentPlanHandler(
     }
 }
 
-/// <summary>Tất cả liệu trình của một bệnh nhân (mọi buổi hẹn), kèm số tiền đã thu.</summary>
 public class GetPatientTreatmentPlansHandler(
     ITreatmentPlanRepository treatmentPlanRepository,
     TreatmentPlanQueryHelper queryHelper) : IRequestHandler<GetPatientTreatmentPlansQuery, List<TreatmentPlanDto>>
@@ -210,131 +262,143 @@ public class GetPatientTreatmentPlansHandler(
 
         var planIds = plans.Select(p => p.Id).ToList();
         var paidMap = await queryHelper.GetAmountPaidMapAsync(planIds, ct);
-        var invoicedIds = await queryHelper.GetInvoicedPlanIdsAsync(planIds, ct);
-        var stepMap = await queryHelper.GetProcedureStepNumbersMapAsync(plans.Select(p => p.ServiceId).ToList(), ct);
+        var invoicedSet = await queryHelper.GetInvoicedPlanIdsAsync(planIds, ct);
 
-        return plans
-            .Select(p => ToDto(
-                p,
-                paidMap.GetValueOrDefault(p.Id),
-                invoicedIds.Contains(p.Id),
-                stepMap.GetValueOrDefault(p.ServiceId)))
-            .ToList();
+        return plans.Select(p => ClinicalRecordMappers.ToDto(
+            p,
+            paidMap.GetValueOrDefault(p.Id, 0m),
+            invoicedSet.Contains(p.Id))).ToList();
     }
 }
 
-/// <summary>Ghi nhận một bước quy trình đã thực hiện vào nhật ký điều trị của liệu trình.</summary>
 public class AddStepProgressHandler(
     ITreatmentPlanRepository treatmentPlanRepository,
     TreatmentPlanQueryHelper queryHelper) : IRequestHandler<AddStepProgressCommand, TreatmentPlanDto>
 {
     public async Task<TreatmentPlanDto> Handle(AddStepProgressCommand command, CancellationToken ct)
     {
-        var treatmentPlanId = command.TreatmentPlanId;
-        var request = command.Request;
-
-        var treatmentPlan = await treatmentPlanRepository.GetByIdWithDentistAsync(treatmentPlanId, ct)
-            ?? throw new NotFoundException("Không tìm thấy liệu trình điều trị.");
-
-        if (string.IsNullOrWhiteSpace(request.StepName))
+        if (string.IsNullOrWhiteSpace(command.Request.StepName))
             throw new ValidationException("Tên bước điều trị không được để trống.");
 
-        // Chỉ ghi nhận quá trình khi bệnh nhân đang trong buổi khám (bác sĩ đã bấm "Bắt đầu khám")
+        var treatmentPlan = await treatmentPlanRepository.GetByIdWithDetailsAsync(command.TreatmentPlanId, ct)
+            ?? throw new NotFoundException("Không tìm thấy liệu trình điều trị.");
+
         if (!await queryHelper.HasActiveVisitAsync(treatmentPlan.PatientId, ct))
             throw new ValidationException("Chỉ có thể ghi nhận quá trình điều trị khi buổi hẹn đang khám hoặc đã kết thúc điều trị.");
 
-        var entries = ParseStepProgress(treatmentPlan.StepProgressJson);
-        entries.Add(new StepProgressEntryDto
+        var item = treatmentPlan.Items.FirstOrDefault();
+        if (item == null)
+            throw new NotFoundException("Kế hoạch chưa có dịch vụ chỉ định.");
+
+        var sessionStatus = command.Request.Percent >= 100
+            ? TreatmentSessionStatus.Completed
+            : (command.Request.Percent > 0 ? TreatmentSessionStatus.InProgress : TreatmentSessionStatus.Planned);
+
+        var nextNum = item.Sessions.Count > 0 ? item.Sessions.Max(s => s.SessionNumber) + 1 : 1;
+        var session = TreatmentSession.Create(
+            item.Id,
+            command.Request.StepNumber > 0 ? command.Request.StepNumber : nextNum,
+            command.Request.StepName.Trim(),
+            30,
+            null,
+            treatmentPlan.DentistId,
+            NormalizeText(command.Request.Note));
+
+        session.SetStatus(
+            sessionStatus,
+            performedAt: command.Request.Date.HasValue ? new DateTimeOffset(command.Request.Date.Value.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero) : DateTimeOffset.UtcNow,
+            percent: command.Request.Percent);
+
+        await treatmentPlanRepository.AddSessionAsync(session, ct);
+        if (!item.Sessions.Any(s => s.Id == session.Id))
         {
-            Id = Guid.NewGuid(),
-            StepNumber = request.StepNumber,
-            StepName = request.StepName.Trim(),
-            Percent = Math.Clamp(request.Percent, 0, 100),
-            Date = request.Date ?? DateOnly.FromDateTime(DateTime.Today),
-            DentistName = treatmentPlan.Dentist.FullName,
-            Note = NormalizeText(request.Note)
-        });
-
-        treatmentPlan.UpdateStepProgress(SerializeStepProgress(entries));
-
-        // Trạng thái bám theo tiến độ: có bước dở dang → đang thực hiện, đủ 100% mọi bước → hoàn thành.
-        await queryHelper.SyncStatusWithProgressAsync(treatmentPlan, entries, ct);
-
+            item.Sessions.Add(session);
+        }
+        await queryHelper.SyncStatusWithProgressAsync(item, ct);
         await treatmentPlanRepository.UpdateAsync(treatmentPlan, ct);
 
         return await queryHelper.LoadDtoAsync(treatmentPlan.Id, ct);
     }
 }
 
-/// <summary>Sửa một mục đã ghi trong nhật ký điều trị (theo vị trí trong danh sách).</summary>
 public class UpdateStepProgressHandler(
     ITreatmentPlanRepository treatmentPlanRepository,
     TreatmentPlanQueryHelper queryHelper) : IRequestHandler<UpdateStepProgressCommand, TreatmentPlanDto>
 {
     public async Task<TreatmentPlanDto> Handle(UpdateStepProgressCommand command, CancellationToken ct)
     {
-        var treatmentPlanId = command.TreatmentPlanId;
-        var request = command.Request;
-
-        var treatmentPlan = await treatmentPlanRepository.GetByIdAsync(treatmentPlanId, ct)
+        var treatmentPlan = await treatmentPlanRepository.GetByIdWithDetailsAsync(command.TreatmentPlanId, ct)
             ?? throw new NotFoundException("Không tìm thấy liệu trình điều trị.");
 
         if (!await queryHelper.HasActiveVisitAsync(treatmentPlan.PatientId, ct))
             throw new ValidationException("Chỉ có thể sửa quá trình điều trị khi buổi hẹn đang khám hoặc đã kết thúc điều trị.");
 
-        var entries = ParseStepProgress(treatmentPlan.StepProgressJson);
-        if (request.EntryIndex < 0 || request.EntryIndex >= entries.Count)
+        var item = treatmentPlan.Items.FirstOrDefault();
+        if (item == null || command.Request.EntryIndex < 0 || command.Request.EntryIndex >= item.Sessions.Count)
             throw new ValidationException("Không tìm thấy bước điều trị cần sửa.");
 
-        entries[request.EntryIndex].Percent = Math.Clamp(request.Percent, 0, 100);
-        entries[request.EntryIndex].Note = NormalizeText(request.Note);
-        if (!string.IsNullOrWhiteSpace(request.StepName))
-            entries[request.EntryIndex].StepName = request.StepName.Trim();
-        if (request.Date.HasValue)
-            entries[request.EntryIndex].Date = request.Date.Value;
+        var sortedSessions = item.Sessions.OrderBy(s => s.SessionNumber).ToList();
+        var session = sortedSessions[command.Request.EntryIndex];
 
-        treatmentPlan.UpdateStepProgress(SerializeStepProgress(entries));
-        await queryHelper.SyncStatusWithProgressAsync(treatmentPlan, entries, ct);
+        var sessionStatus = command.Request.Percent >= 100
+            ? TreatmentSessionStatus.Completed
+            : (command.Request.Percent > 0 ? TreatmentSessionStatus.InProgress : TreatmentSessionStatus.Planned);
+
+        session.Update(
+            string.IsNullOrWhiteSpace(command.Request.StepName) ? session.Name : command.Request.StepName.Trim(),
+            session.DurationMinutes,
+            NormalizeText(command.Request.Note));
+
+        session.SetStatus(
+            sessionStatus,
+            performedAt: command.Request.Date.HasValue ? new DateTimeOffset(command.Request.Date.Value.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero) : session.PerformedAt,
+            percent: command.Request.Percent);
+
+        await queryHelper.SyncStatusWithProgressAsync(item, ct);
         await treatmentPlanRepository.UpdateAsync(treatmentPlan, ct);
 
         return await queryHelper.LoadDtoAsync(treatmentPlan.Id, ct);
     }
 }
 
-/// <summary>Sắp xếp lại thứ tự các mục trong nhật ký điều trị. Order là hoán vị các index gốc theo thứ tự mới.</summary>
 public class ReorderStepProgressHandler(
     ITreatmentPlanRepository treatmentPlanRepository,
     TreatmentPlanQueryHelper queryHelper) : IRequestHandler<ReorderStepProgressCommand, TreatmentPlanDto>
 {
     public async Task<TreatmentPlanDto> Handle(ReorderStepProgressCommand command, CancellationToken ct)
     {
-        var treatmentPlanId = command.TreatmentPlanId;
-        var request = command.Request;
-
-        var treatmentPlan = await treatmentPlanRepository.GetByIdAsync(treatmentPlanId, ct)
+        var treatmentPlan = await treatmentPlanRepository.GetByIdWithDetailsAsync(command.TreatmentPlanId, ct)
             ?? throw new NotFoundException("Không tìm thấy liệu trình điều trị.");
 
         if (!await queryHelper.HasActiveVisitAsync(treatmentPlan.PatientId, ct))
-            throw new ValidationException("Chỉ có thể đổi thứ tự quá trình điều trị khi buổi hẹn đang khám hoặc đã kết thúc điều trị.");
+            throw new ValidationException("Chỉ có thể sắp xếp lại quá trình điều trị khi buổi hẹn đang khám hoặc đã kết thúc điều trị.");
 
-        var entries = ParseStepProgress(treatmentPlan.StepProgressJson);
-        var order = request.Order;
-        // Order phải là một hoán vị đầy đủ 0..n-1 (không thiếu, không trùng, không lệch)
-        if (order.Count != entries.Count ||
-            order.Distinct().Count() != entries.Count ||
-            order.Any(i => i < 0 || i >= entries.Count))
-            throw new ValidationException("Thứ tự quá trình điều trị không hợp lệ.");
+        var item = treatmentPlan.Items.FirstOrDefault();
+        if (item == null)
+            throw new NotFoundException("Kế hoạch chưa có dịch vụ chỉ định.");
 
-        var reordered = order.Select(i => entries[i]).ToList();
-        treatmentPlan.UpdateStepProgress(SerializeStepProgress(reordered));
+        var count = item.Sessions.Count;
+        if (command.Request.Order == null
+            || command.Request.Order.Count != count
+            || command.Request.Order.Distinct().Count() != count
+            || command.Request.Order.Any(idx => idx < 0 || idx >= count))
+        {
+            throw new ValidationException("Thứ tự sắp xếp không hợp lệ.");
+        }
+
+        var sortedSessions = item.Sessions.OrderBy(s => s.SessionNumber).ToList();
+        for (int i = 0; i < count; i++)
+        {
+            var oldIdx = command.Request.Order[i];
+            sortedSessions[oldIdx].SetSessionNumber(i + 1);
+        }
+
         await treatmentPlanRepository.UpdateAsync(treatmentPlan, ct);
 
         return await queryHelper.LoadDtoAsync(treatmentPlan.Id, ct);
     }
 }
 
-/// <summary>Xóa một mục đã ghi trong nhật ký điều trị (theo vị trí trong danh sách). Nếu mục này có vật tư
-/// đã ghi nhận tiêu hao gắn theo (StepEntryId) thì tự động hoàn lại đúng số lượng vào kho.</summary>
 public class DeleteStepProgressHandler(
     ITreatmentPlanRepository treatmentPlanRepository,
     ITreatmentSupplyUsageRepository treatmentSupplyUsageRepository,
@@ -345,65 +409,53 @@ public class DeleteStepProgressHandler(
 {
     public async Task<TreatmentPlanDto> Handle(DeleteStepProgressCommand command, CancellationToken ct)
     {
-        var treatmentPlanId = command.TreatmentPlanId;
-        var entryIndex = command.EntryIndex;
-
-        var treatmentPlan = await treatmentPlanRepository.GetByIdWithDentistAsync(treatmentPlanId, ct)
+        var treatmentPlan = await treatmentPlanRepository.GetByIdWithDetailsAsync(command.TreatmentPlanId, ct)
             ?? throw new NotFoundException("Không tìm thấy liệu trình điều trị.");
 
         if (!await queryHelper.HasActiveVisitAsync(treatmentPlan.PatientId, ct))
             throw new ValidationException("Chỉ có thể xóa quá trình điều trị khi buổi hẹn đang khám hoặc đã kết thúc điều trị.");
 
-        var entries = ParseStepProgress(treatmentPlan.StepProgressJson);
-        if (entryIndex < 0 || entryIndex >= entries.Count)
+        var item = treatmentPlan.Items.FirstOrDefault();
+        if (item == null || command.EntryIndex < 0 || command.EntryIndex >= item.Sessions.Count)
             throw new ValidationException("Không tìm thấy bước điều trị cần xóa.");
 
-        var deletedEntryId = entries[entryIndex].Id;
-        entries.RemoveAt(entryIndex);
-        treatmentPlan.UpdateStepProgress(entries.Count == 0 ? null : SerializeStepProgress(entries));
-        // Xóa bớt bước có thể kéo dịch vụ khỏi trạng thái hoàn thành → tính lại.
-        await queryHelper.SyncStatusWithProgressAsync(treatmentPlan, entries, ct);
-        await treatmentPlanRepository.UpdateAsync(treatmentPlan, ct);
+        var sortedSessions = item.Sessions.OrderBy(s => s.SessionNumber).ToList();
+        var session = sortedSessions[command.EntryIndex];
 
-        // Hoàn kho vật tư đã ghi nhận cùng bước vừa xóa (nếu có) — dữ liệu cũ trước khi có StepEntryId sẽ
-        // có Id rỗng nên không khớp được dòng nào, bỏ qua an toàn.
-        if (deletedEntryId != Guid.Empty)
-            await ReverseSupplyUsageAsync(treatmentPlan, deletedEntryId, ct);
-
-        return await queryHelper.LoadDtoAsync(treatmentPlan.Id, ct);
-    }
-
-    private async Task ReverseSupplyUsageAsync(TreatmentPlan treatmentPlan, Guid stepEntryId, CancellationToken ct)
-    {
-        var usagesToReverse = await treatmentSupplyUsageRepository.GetActiveByStepEntryIdAsync(treatmentPlan.Id, stepEntryId, ct);
-        if (usagesToReverse.Count == 0) return;
-
-        var dentistName = treatmentPlan.Dentist.FullName;
-
-        foreach (var usage in usagesToReverse)
+        var activeUsages = await treatmentSupplyUsageRepository.GetActiveByStepEntryIdAsync(treatmentPlan.Id, session.Id, ct);
+        foreach (var usage in activeUsages)
         {
-            var supplyItem = await supplyItemRepository.GetByIdAsync(usage.SupplyItemId, ct);
-            if (supplyItem is null) continue; // vật tư đã bị xóa khỏi kho — không còn gì để hoàn lại
-
-            supplyItem.AdjustQuantity(usage.Quantity);
             usage.MarkReversed();
 
-            var tx = SupplyTransaction.Create(
-                supplyItem.Id, "import", usage.Quantity,
-                $"Hoàn kho (xóa quá trình điều trị) · BS {dentistName}", dentistName);
-            // AddAsync tự SaveChanges — flush luôn AdjustQuantity/MarkReversed đang pending ở trên cùng lượt.
-            await supplyTransactionRepository.AddAsync(tx, ct);
+            var supplyItem = await supplyItemRepository.GetByIdAsync(usage.SupplyItemId, ct);
+            if (supplyItem != null)
+            {
+                supplyItem.AdjustQuantity(usage.Quantity);
+                await supplyItemRepository.UpdateAsync(supplyItem, ct);
 
-            await activityLogService.LogAsync(
-                userId: null,
-                userName: dentistName,
-                userRole: "Dentist",
-                action: ActivityAction.Create,
-                module: ActivityModule.Inventory,
-                description: $"hoàn kho (xóa quá trình điều trị): {supplyItem.Name} x{usage.Quantity}",
-                status: ActivityStatus.Success,
-                targetId: usage.Id.ToString(),
-                ct: ct);
+                var tx = SupplyTransaction.Create(
+                    usage.SupplyItemId,
+                    "import",
+                    usage.Quantity,
+                    "Hoàn trả vật tư do xóa bước điều trị",
+                    usage.CreatedBy,
+                    usage.UnitCostAtUsage);
+                await supplyTransactionRepository.AddAsync(tx, ct);
+            }
         }
+
+        item.Sessions.Remove(session);
+        await treatmentPlanRepository.DeleteSessionAsync(session, ct);
+
+        var remainingSessions = item.Sessions.OrderBy(s => s.SessionNumber).ToList();
+        for (int i = 0; i < remainingSessions.Count; i++)
+        {
+            remainingSessions[i].SetSessionNumber(i + 1);
+        }
+
+        await queryHelper.SyncStatusWithProgressAsync(item, ct);
+        await treatmentPlanRepository.UpdateAsync(treatmentPlan, ct);
+
+        return await queryHelper.LoadDtoAsync(treatmentPlan.Id, ct);
     }
 }

@@ -14,9 +14,9 @@ namespace DentalClinic.API.Presentation.Controllers;
 [ApiController]
 public class DentistDashboardController(ISender sender) : ControllerBase
 {
-    /// <summary>GET api/appointments/dentist/dashboard — Dữ liệu tổng quan cho bác sĩ (Dentist/Admin)</summary>
+    /// <summary>GET api/appointments/dentist/dashboard — Dữ liệu tổng quan cho bác sĩ (Dentist/Admin/Owner)</summary>
     [HttpGet("api/appointments/dentist/dashboard")]
-    [Authorize(Roles = "Dentist,Admin")]
+    [Authorize(Roles = "Dentist,Admin,Owner")]
     public async Task<IActionResult> GetDentistDashboard(CancellationToken cancellationToken)
     {
         var userId = GetCurrentUserId();
@@ -24,32 +24,26 @@ public class DentistDashboardController(ISender sender) : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>GET api/appointments/dentist/patients — Lấy danh sách bệnh nhân của bác sĩ trong ngày (Dentist)</summary>
+    /// <summary>GET api/appointments/dentist/patients — Lấy danh sách bệnh nhân của bác sĩ trong ngày (Dentist/Admin/Owner)</summary>
     [HttpGet("api/appointments/dentist/patients")]
-    [Authorize(Roles = "Dentist")]
+    [Authorize(Roles = "Dentist,Admin,Owner")]
     public async Task<IActionResult> GetDentistPatients(
         [FromQuery] DateOnly? date,
         CancellationToken cancellationToken)
     {
         var userId = GetCurrentUserId();
         var result = await sender.Send(new GetMyDentistPatientsQuery(userId, date), cancellationToken);
-        if (result == null)
-            return NotFound(new { title = "Không tìm thấy thông tin bác sĩ." });
-
-        return Ok(result);
+        return Ok(result ?? new DentistPatientsResponse(date ?? DateOnly.FromDateTime(DateTime.UtcNow), 0, 0, 0, []));
     }
 
-    /// <summary>GET api/appointments/dentist/patients/past — Lấy danh sách bệnh nhân đã từng khám của bác sĩ</summary>
+    /// <summary>GET api/appointments/dentist/patients/past — Lấy danh sách bệnh nhân đã từng khám của bác sĩ (Dentist/Admin/Owner)</summary>
     [HttpGet("api/appointments/dentist/patients/past")]
-    [Authorize(Roles = "Dentist")]
+    [Authorize(Roles = "Dentist,Admin,Owner")]
     public async Task<IActionResult> GetDentistPastPatients(CancellationToken cancellationToken)
     {
         var userId = GetCurrentUserId();
         var patients = await sender.Send(new GetDentistPastPatientsQuery(userId), cancellationToken);
-        if (patients == null)
-            return NotFound(new { title = "Không tìm thấy thông tin bác sĩ." });
-
-        return Ok(patients);
+        return Ok(patients ?? new List<DentistPatientDto>());
     }
 
     private Guid GetCurrentUserId()

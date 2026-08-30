@@ -186,6 +186,12 @@ class BookingDraft {
   /// thêm một màn chọn ngày giờ thứ hai chỉ để đổi lịch.
   final String? reschedulingAppointmentId;
 
+  /// ID của đợt hẹn tái khám nếu đặt lịch từ chỉ định tái khám
+  final String? followUpId;
+
+  /// Cờ đánh dấu đây là lượt đặt lịch tái khám theo chỉ định
+  final bool isFollowUp;
+
   const BookingDraft({
     this.patient,
     this.service,
@@ -200,6 +206,8 @@ class BookingDraft {
     this.holdExpiresAt,
     this.preferredDentistId,
     this.reschedulingAppointmentId,
+    this.followUpId,
+    this.isFollowUp = false,
   });
 
   bool get isRescheduling => reschedulingAppointmentId != null;
@@ -261,6 +269,8 @@ class BookingDraft {
     bool clearHold = false,
     String? preferredDentistId,
     String? reschedulingAppointmentId,
+    String? followUpId,
+    bool? isFollowUp,
   }) {
     return BookingDraft(
       patient: clearPatient ? null : (patient ?? this.patient),
@@ -276,6 +286,8 @@ class BookingDraft {
       holdExpiresAt: clearHold ? null : (holdExpiresAt ?? this.holdExpiresAt),
       preferredDentistId: preferredDentistId ?? this.preferredDentistId,
       reschedulingAppointmentId: reschedulingAppointmentId ?? this.reschedulingAppointmentId,
+      followUpId: followUpId ?? this.followUpId,
+      isFollowUp: isFollowUp ?? this.isFollowUp,
     );
   }
 }

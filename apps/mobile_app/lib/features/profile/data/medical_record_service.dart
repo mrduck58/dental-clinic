@@ -143,6 +143,8 @@ class MedicalHistoryEvent {
   final String dentistId;
   final String dentistName;
   final String serviceName;
+  final String? dentistAvatarUrl;
+  final String? serviceId;
   final String? symptoms;
   final String patientId;
   final String patientName;
@@ -161,7 +163,9 @@ class MedicalHistoryEvent {
     required this.appointmentDate,
     required this.dentistId,
     required this.dentistName,
+    this.dentistAvatarUrl,
     required this.serviceName,
+    this.serviceId,
     this.symptoms,
     required this.patientId,
     required this.patientName,
@@ -186,7 +190,9 @@ class MedicalHistoryEvent {
         appointmentDate: DateTime.parse(json['appointmentDate'] as String),
         dentistId: json['dentistId']?.toString() ?? '',
         dentistName: json['dentistName'] as String? ?? '',
+        dentistAvatarUrl: json['dentistAvatarUrl'] as String?,
         serviceName: json['serviceName'] as String? ?? '',
+        serviceId: json['serviceId']?.toString(),
         symptoms: json['symptoms'] as String?,
         patientId: json['patientId'].toString(),
         patientName: json['patientName'] as String? ?? '',

@@ -12,14 +12,9 @@ public class TreatmentPlanConfiguration : IEntityTypeConfiguration<TreatmentPlan
 
         builder.HasKey(tp => tp.Id);
 
-        builder.Property(tp => tp.UnitPrice)
-            .HasPrecision(18, 2);
-
-        builder.Property(tp => tp.Teeth)
-            .HasMaxLength(200);
-
-        builder.Property(tp => tp.ServiceOptionName)
-            .HasMaxLength(200);
+        builder.Property(tp => tp.Title)
+            .HasMaxLength(200)
+            .IsRequired();
 
         builder.Property(tp => tp.Notes)
             .HasMaxLength(2000);
@@ -40,21 +35,15 @@ public class TreatmentPlanConfiguration : IEntityTypeConfiguration<TreatmentPlan
             .HasForeignKey(tp => tp.DentistId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne(tp => tp.Service)
-            .WithMany()
-            .HasForeignKey(tp => tp.ServiceId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        // Liệu trình là dữ liệu tài chính — giữ lại khi buổi hẹn bị xóa
         builder.HasOne(tp => tp.Appointment)
             .WithMany(a => a.TreatmentPlans)
             .HasForeignKey(tp => tp.AppointmentId)
             .OnDelete(DeleteBehavior.SetNull);
 
-        builder.HasMany(tp => tp.Invoices)
-            .WithOne()
+        builder.HasMany(tp => tp.Items)
+            .WithOne(i => i.TreatmentPlan)
             .HasForeignKey(i => i.TreatmentPlanId)
-            .OnDelete(DeleteBehavior.SetNull);
+            .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasIndex(tp => tp.PatientId);
     }

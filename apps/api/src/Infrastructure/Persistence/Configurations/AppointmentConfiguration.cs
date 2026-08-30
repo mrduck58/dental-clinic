@@ -18,22 +18,28 @@ public class AppointmentConfiguration : IEntityTypeConfiguration<Appointment>
             .HasForeignKey(a => a.FollowUpFromAppointmentId)
             .OnDelete(DeleteBehavior.SetNull);
 
-        // Lưu lý do hủy dạng chuỗi (giống UserRole) thay vì số: báo cáo đọc thẳng bảng vẫn hiểu được,
-        // và chèn thêm giá trị vào giữa enum sau này không làm sai lệch dữ liệu cũ.
+        builder.Property(a => a.AppointmentType)
+            .HasConversion<string>()
+            .HasMaxLength(50)
+            .IsRequired()
+            .HasDefaultValue(Domain.Enums.AppointmentType.GeneralExam);
+
+        builder.Property(a => a.DurationMinutes)
+            .IsRequired()
+            .HasDefaultValue(30);
+
         builder.Property(a => a.CancellationReason).HasConversion<string>().HasMaxLength(50);
         builder.Property(a => a.CancellationNote).HasMaxLength(500);
 
         builder.Property(a => a.RescheduledCount).IsRequired().HasDefaultValue(0);
 
-        // Cũng lưu dạng chuỗi như CancellationReason: "WalkIn" đọc thẳng trong DB là hiểu ngay,
-        // và thêm nguồn mới (ví dụ Chatbot) không làm sai lệch các bản ghi đã lưu.
         builder.Property(a => a.Origin)
             .HasConversion<string>()
             .HasMaxLength(20)
             .IsRequired()
             .HasDefaultValue(Domain.Enums.AppointmentOrigin.Online);
 
-        // Lọc/đếm lịch đã hủy theo nhóm lý do là truy vấn báo cáo chính của mấy cột này.
         builder.HasIndex(a => a.CancellationReason);
+        builder.HasIndex(a => a.AppointmentType);
     }
 }

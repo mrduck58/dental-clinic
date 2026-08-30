@@ -506,9 +506,9 @@ class _QuickAccessPanelState extends State<_QuickAccessPanel> {
       ),
       'records': _QuickAccessOption(
         id: 'records',
-        label: isVi ? 'HỒ SƠ Y TẾ' : 'RECORDS',
-        fullLabel: isVi ? 'Hồ sơ y tế' : 'Medical Records',
-        icon: Iconsax.folder,
+        label: isVi ? 'DỊ ỨNG & BỆNH LÝ' : 'ALLERGIES',
+        fullLabel: isVi ? 'Dị ứng & Bệnh mãn tính' : 'Allergies & Medical Info',
+        icon: Iconsax.document_text,
         onTap: () => context.push(AppRoutes.medicalHistory),
       ),
       'queue': _QuickAccessOption(
@@ -522,8 +522,8 @@ class _QuickAccessPanelState extends State<_QuickAccessPanel> {
         id: 'history',
         label: isVi ? 'LỊCH SỬ KHÁM' : 'HISTORY',
         fullLabel: isVi ? 'Lịch sử khám bệnh' : 'Examination History',
-        icon: Iconsax.clock,
-        onTap: () => context.push(AppRoutes.medicalHistory),
+        icon: Iconsax.health,
+        onTap: () => context.push(AppRoutes.medicalRecords),
       ),
       'family': _QuickAccessOption(
         id: 'family',

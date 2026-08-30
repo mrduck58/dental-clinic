@@ -18,7 +18,12 @@ public class TreatmentSupplyUsageConfiguration : IEntityTypeConfiguration<Treatm
         builder.HasOne(u => u.TreatmentPlan)
             .WithMany()
             .HasForeignKey(u => u.TreatmentPlanId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasOne(u => u.TreatmentSession)
+            .WithMany(ts => ts.SupplyUsages)
+            .HasForeignKey(u => u.TreatmentSessionId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         builder.HasOne(u => u.SupplyItem)
             .WithMany()
@@ -31,6 +36,7 @@ public class TreatmentSupplyUsageConfiguration : IEntityTypeConfiguration<Treatm
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasIndex(u => u.TreatmentPlanId);
+        builder.HasIndex(u => u.TreatmentSessionId);
         builder.HasIndex(u => u.StepEntryId);
     }
 }
