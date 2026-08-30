@@ -389,12 +389,29 @@ export default function PatientDetailPage() {
     return (
       <div className="flex min-h-screen bg-slate-50 font-sans text-slate-800">
         <DentistSidebar activeMenu={listMenu} />
-        <main className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <p className="text-[14px] font-semibold text-red-500">{error ?? "Không tìm thấy lịch hẹn"}</p>
-            <Link href={listHref} className="mt-4 inline-block px-4 py-2 bg-primary text-white text-[13px] font-bold rounded-xl">
-              Quay lại danh sách
-            </Link>
+        <main className="flex-1 flex items-center justify-center p-6">
+          <div className="text-center max-w-md w-full bg-white rounded-2xl border border-red-200/80 p-8 shadow-sm">
+            <div className="w-12 h-12 rounded-full bg-red-50 text-red-500 flex items-center justify-center mx-auto mb-4 border border-red-100">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+              </svg>
+            </div>
+            <h3 className="text-[16px] font-black text-slate-800 mb-2">Không thể tải thông tin ca khám</h3>
+            <div className="bg-red-50/70 border border-red-200 rounded-xl p-3.5 mb-6 text-left">
+              <div className="text-[11px] font-extrabold text-red-400 uppercase tracking-wider mb-1">Chi tiết lỗi:</div>
+              <p className="text-[13px] font-semibold text-red-700 break-words font-mono">{error ?? "Không tìm thấy lịch hẹn hoặc ca khám không tồn tại."}</p>
+            </div>
+            <div className="flex items-center justify-center gap-3">
+              <button
+                onClick={() => loadExamination()}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[13px] font-bold rounded-xl transition-all cursor-pointer"
+              >
+                Thử lại
+              </button>
+              <Link href={listHref} className="px-4 py-2.5 bg-primary hover:bg-red-600 text-white text-[13px] font-bold rounded-xl transition-all">
+                Quay lại danh sách
+              </Link>
+            </div>
           </div>
         </main>
       </div>

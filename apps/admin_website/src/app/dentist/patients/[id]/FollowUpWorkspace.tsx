@@ -174,14 +174,27 @@ export default function FollowUpWorkspace({ appointmentId, editMode = false }: F
 
   if (error || !examination) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-4 py-24">
-        <p className="text-[14px] font-semibold text-red-500">{error ?? "Đã xảy ra lỗi hệ thống."}</p>
+      <div className="flex-1 flex flex-col items-center justify-center p-6 py-20">
+        <div className="text-center max-w-md w-full bg-white rounded-2xl border border-red-200/80 p-8 shadow-sm">
+          <div className="w-12 h-12 rounded-full bg-red-50 text-red-500 flex items-center justify-center mx-auto mb-4 border border-red-100">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+            </svg>
+          </div>
+          <h3 className="text-[16px] font-black text-slate-800 mb-2">Lỗi hẹn tái khám</h3>
+          <div className="bg-red-50/70 border border-red-200 rounded-xl p-3.5 text-left">
+            <div className="text-[11px] font-extrabold text-red-400 uppercase tracking-wider mb-1">Chi tiết lỗi:</div>
+            <p className="text-[13px] font-semibold text-red-700 break-words font-mono">{error ?? "Không thể tải thông tin hẹn tái khám."}</p>
+          </div>
+        </div>
       </div>
     );
   }
 
   const pt = examination.patient;
-  const initials = pt.fullName.trim().split(/\s+/).slice(-2).map(w => w[0]).join("").toUpperCase();
+  const initials = pt?.fullName?.trim()
+    ? pt.fullName.trim().split(/\s+/).slice(-2).map(w => w[0] ?? "").join("").toUpperCase()
+    : "BN";
   const prescriptionItems = examination.prescription?.items ?? [];
 
   return (

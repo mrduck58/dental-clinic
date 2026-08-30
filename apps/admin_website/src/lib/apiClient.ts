@@ -187,6 +187,31 @@ async function checkAuth(res: Response): Promise<void> {
   }
 }
 
+export async function extractErrorMessage(res: Response, fallbackMessage: string): Promise<string> {
+  try {
+    const text = await res.text();
+    if (!text) return `[HTTP ${res.status}] ${fallbackMessage}`;
+    try {
+      const data = JSON.parse(text);
+      if (typeof data === "string") return data;
+      if (data.detail && typeof data.detail === "string") return data.detail;
+      if (data.message && typeof data.message === "string") return data.message;
+      if (data.title && typeof data.title === "string") return data.title;
+      if (data.errors && typeof data.errors === "object") {
+        const errorList = Object.entries(data.errors)
+          .map(([key, val]) => `${key}: ${Array.isArray(val) ? val.join(", ") : val}`)
+          .join("; ");
+        if (errorList) return `${data.title || fallbackMessage} (${errorList})`;
+      }
+      return JSON.stringify(data);
+    } catch {
+      return text.length > 300 ? text.slice(0, 300) + "..." : text;
+    }
+  } catch {
+    return `[HTTP ${res.status}] ${fallbackMessage}`;
+  }
+}
+
 export async function getAccountsApi(): Promise<AccountDto[]> {
   const res = await fetch(`${API_URL}/api/auth/accounts`, {
     headers: { "Content-Type": "application/json", ...authHeaders() },
@@ -2475,8 +2500,7 @@ export async function getDentistPatientsApi(date?: string): Promise<DentistPatie
   });
   await checkAuth(res);
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách bệnh nhân");
+    throw new Error(await extractErrorMessage(res, "Không thể tải danh sách bệnh nhân"));
   }
   return res.json() as Promise<DentistPatientsResponse>;
 }
@@ -2487,8 +2511,7 @@ export async function getDentistPastPatientsApi(): Promise<DentistPatientDto[]> 
   });
   await checkAuth(res);
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { title?: string }).title ?? "Không thể tải danh sách bệnh nhân đã từng khám");
+    throw new Error(await extractErrorMessage(res, "Không thể tải danh sách bệnh nhân đã từng khám"));
   }
   return res.json() as Promise<DentistPatientDto[]>;
 }
@@ -2714,8 +2737,7 @@ export async function getExaminationApi(appointmentId: string): Promise<Examinat
   });
   await checkAuth(res);
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { title?: string }).title ?? "Không thể tải thông tin khám");
+    throw new Error(await extractErrorMessage(res, "Không thể tải thông tin khám"));
   }
   return res.json() as Promise<ExaminationDto>;
 }
@@ -2758,8 +2780,7 @@ export async function getPatientMedicalHistoryApi(patientId: string): Promise<Pa
   });
   await checkAuth(res);
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { title?: string }).title ?? "Không thể tải lịch sử khám");
+    throw new Error(await extractErrorMessage(res, "Không thể tải lịch sử khám"));
   }
   return res.json() as Promise<PatientMedicalHistoryDto[]>;
 }
@@ -2992,8 +3013,7 @@ export async function getPatientTreatmentPlansApi(patientId: string): Promise<Tr
   });
   await checkAuth(res);
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { title?: string }).title ?? "Không thể tải liệu trình của bệnh nhân");
+    throw new Error(await extractErrorMessage(res, "Không thể tải liệu trình của bệnh nhân"));
   }
   return res.json() as Promise<TreatmentPlanDto[]>;
 }
