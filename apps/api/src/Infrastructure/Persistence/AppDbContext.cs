@@ -40,6 +40,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Diagnosis> Diagnoses => Set<Diagnosis>();
     public DbSet<AppointmentPhoto> AppointmentPhotos => Set<AppointmentPhoto>();
     public DbSet<TreatmentPlan> TreatmentPlans => Set<TreatmentPlan>();
+    public DbSet<TreatmentPlanItem> TreatmentPlanItems => Set<TreatmentPlanItem>();
+    public DbSet<TreatmentSession> TreatmentSessions => Set<TreatmentSession>();
+    public DbSet<AppointmentSession> AppointmentSessions => Set<AppointmentSession>();
+    public DbSet<FollowUp> FollowUps => Set<FollowUp>();
     public DbSet<TreatmentProcedure> TreatmentProcedures => Set<TreatmentProcedure>();
     public DbSet<Prescription> Prescriptions => Set<Prescription>();
     public DbSet<PrescriptionItem> PrescriptionItems => Set<PrescriptionItem>();
@@ -58,26 +62,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        // Tự động đọc và áp dụng tất cả các cấu hình trong Assembly này
-        // (Các class implement IEntityTypeConfiguration<T> trong Configurations/)
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
-
-        modelBuilder.Entity<UserDeviceToken>(b =>
-        {
-            b.ToTable("UserDeviceTokens");
-            b.HasKey(e => e.Id);
-            b.HasIndex(e => e.UserId);
-            b.HasIndex(e => e.Token);
-        });
-
-        modelBuilder.Entity<AppointmentSlotHold>(b =>
-        {
-            b.ToTable("AppointmentSlotHolds");
-            b.HasKey(e => e.Id);
-            b.HasIndex(e => new { e.DentistId, e.AppointmentDate });
-            b.HasIndex(e => new { e.PatientId, e.CreatedAt });
-        });
-
         base.OnModelCreating(modelBuilder);
     }
 }

@@ -1,9 +1,11 @@
 using DentalClinic.API.Domain.Constants;
 using DentalClinic.API.Domain.Entities;
+using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Domain.Exceptions;
 using DentalClinic.API.Domain.Interfaces.Repositories;
 using DentalClinic.API.Domain.Interfaces.Services;
 using DentalClinic.API.Domain.Schedules;
+using DentalClinic.API.Application.UseCases.ClinicalRecords;
 using MediatR;
 
 namespace DentalClinic.API.Application.UseCases.Booking;
@@ -14,7 +16,11 @@ public record CreateAppointmentCommand(
     DateTimeOffset AppointmentDate,
     string? Symptoms,
     Guid? ServiceId,
-    Guid? PatientId) : IRequest<CreateAppointmentResult>;
+    Guid? PatientId,
+    AppointmentType AppointmentType = AppointmentType.GeneralExam,
+    int DurationMinutes = 30,
+    Guid? FollowUpId = null,
+    List<Guid>? TreatmentSessionIds = null) : IRequest<CreateAppointmentResult>;
 
 public record CreateAppointmentResult(
     Guid AppointmentId,
@@ -27,6 +33,8 @@ public class CreateAppointmentHandler(
     IUserRepository userRepository,
     AppointmentSlotGuard slotGuard,
     INotificationService notificationService,
+    IFollowUpRepository? followUpRepository = null,
+    ITreatmentPlanRepository? treatmentPlanRepository = null,
     ISlotHoldRepository? slotHoldRepository = null,
     ISlotNotifier? slotNotifier = null,
     IServiceRepository? serviceRepository = null) : IRequestHandler<CreateAppointmentCommand, CreateAppointmentResult>
@@ -93,16 +101,50 @@ public class CreateAppointmentHandler(
         await slotGuard.EnsureSlotAvailableAsync(
             cmd.DentistId, utcAppointmentDate, cmd.ServiceId, excludeAppointmentId: null, ct);
 
+        var duration = cmd.DurationMinutes > 0 ? cmd.DurationMinutes : 30;
+        var apptType = cmd.FollowUpId.HasValue ? AppointmentType.FollowUp : cmd.AppointmentType;
+
         var appointment = Appointment.Create(
             targetPatientId,
             cmd.DentistId,
             utcAppointmentDate,
             symptoms: cmd.Symptoms,
-            serviceId: cmd.ServiceId);
+            serviceId: cmd.ServiceId,
+            appointmentType: apptType,
+            durationMinutes: duration,
+            followUpId: cmd.FollowUpId);
+
+        // Gắn danh sách session nếu có
+        if (cmd.TreatmentSessionIds != null && cmd.TreatmentSessionIds.Count > 0 && treatmentPlanRepository != null)
+        {
+            int seq = 1;
+            foreach (var sId in cmd.TreatmentSessionIds)
+            {
+                var session = await treatmentPlanRepository.GetSessionByIdAsync(sId, ct);
+                if (session != null)
+                {
+                    var apptSession = AppointmentSession.Create(appointment.Id, session.Id, seq++, session.DurationMinutes);
+                    appointment.AppointmentSessions.Add(apptSession);
+                }
+            }
+            var totalDuration = appointment.AppointmentSessions.Sum(s => s.DurationMinutes);
+            if (totalDuration > 0) appointment.SetDuration(totalDuration);
+        }
 
         await appointmentRepository.AddAsync(appointment, ct);
 
-        // 3. Xác nhận Hold thành công (không tính vào 3 lần thất bại)
+        // Liên kết FollowUp nếu có
+        if (cmd.FollowUpId.HasValue && followUpRepository != null)
+        {
+            var followUp = await followUpRepository.GetByIdAsync(cmd.FollowUpId.Value, ct);
+            if (followUp != null)
+            {
+                followUp.LinkAppointment(appointment.Id);
+                await followUpRepository.UpdateAsync(followUp, ct);
+            }
+        }
+
+        // 3. Xác nhận Hold thành công
         if (slotHoldRepository != null)
         {
             var hold = await slotHoldRepository.GetActiveHoldForSlotAsync(cmd.DentistId, utcAppointmentDate, now, ct);
@@ -121,47 +163,57 @@ public class CreateAppointmentHandler(
             await slotNotifier.NotifySlotBookedAsync(cmd.DentistId, localDate, slotRange, ct);
         }
 
-        var code = $"DK{cmd.AppointmentDate:yyyyMMdd}{appointment.Id.ToString("N")[..6].ToUpper()}";
+        var appointmentCode = ClinicalRecordMappers.AppointmentCode(appointment);
 
-        var vnStart = cmd.AppointmentDate.UtcDateTime.AddHours(7);
-        var service = (cmd.ServiceId.HasValue && serviceRepository != null) ? await serviceRepository.GetByIdAsync(cmd.ServiceId.Value, ct) : null;
-        var durationMinutes = (service != null && service.DurationMinutes > 0) ? service.DurationMinutes : 30;
-        var vnEnd = vnStart.AddMinutes(durationMinutes);
-        var timeSlotNotify = $"{vnStart:HH:mm} - {vnEnd:HH:mm}";
+        // 5. Gửi thông báo
+        var dateFormatted = cmd.AppointmentDate.ToString("HH:mm dd/MM/yyyy");
+        string? serviceName = null;
+        if (cmd.ServiceId.HasValue && serviceRepository != null)
+        {
+            var service = await serviceRepository.GetByIdAsync(cmd.ServiceId.Value, ct);
+            serviceName = service?.Name;
+        }
 
-        // Thông báo cho tài khoản bệnh nhân đặt lịch
+        var notifBody = serviceName != null
+            ? $"Lịch hẹn cho dịch vụ {serviceName} vào lúc {dateFormatted} đang chờ xác nhận."
+            : $"Lịch hẹn vào lúc {dateFormatted} đang chờ xác nhận.";
+
         await notificationService.CreateAsync(new CreateNotificationRequest(
             UserId: cmd.UserId,
             Type: NotificationType.Appointment,
-            Priority: NotificationPriority.Medium,
+            Priority: NotificationPriority.High,
             Title: "Đặt lịch hẹn thành công",
-            Body: $"Lịch khám của bạn vào lúc {timeSlotNotify} ngày {vnStart:dd/MM/yyyy} đã được ghi nhận. Vui lòng chờ phòng khám xác nhận.",
+            Body: notifBody,
             RelatedEntityType: "Appointment",
             RelatedEntityId: appointment.Id.ToString()), ct);
 
-        if (dentistUserId.HasValue)
-        {
-            await notificationService.CreateAsync(new CreateNotificationRequest(
-                UserId: dentistUserId.Value,
-                Type: NotificationType.Appointment,
-                Priority: NotificationPriority.High,
-                Title: "Lịch hẹn mới",
-                Body: $"Bạn có lịch hẹn mới vào lúc {timeSlotNotify} ngày {vnStart:dd/MM/yyyy}.",
-                RelatedEntityType: "Appointment",
-                RelatedEntityId: appointment.Id.ToString()), ct);
-        }
-
-        var staffIds = await userRepository.GetUserIdsByRoleAsync("Staff", ct);
-        var staffTemplate = new CreateNotificationRequest(
-            UserId: Guid.Empty,
+        await notificationService.CreateAsync(new CreateNotificationRequest(
+            UserId: dentistUserId.Value,
             Type: NotificationType.Appointment,
             Priority: NotificationPriority.High,
-            Title: "Đặt lịch mới",
-            Body: $"Có lịch hẹn mới vào lúc {timeSlotNotify} ngày {vnStart:dd/MM/yyyy}. Vui lòng xác nhận.",
+            Title: "Lịch hẹn mới",
+            Body: $"Bệnh nhân đã đặt lịch hẹn mới vào lúc {dateFormatted}.",
             RelatedEntityType: "Appointment",
-            RelatedEntityId: appointment.Id.ToString());
-        await notificationService.CreateForMultipleUsersAsync(staffIds, staffTemplate, ct);
+            RelatedEntityId: appointment.Id.ToString()), ct);
 
-        return new CreateAppointmentResult(appointment.Id, code, appointment.Status.ToString());
+        var staffIds = await userRepository.GetUserIdsByRoleAsync("Staff", ct);
+        if (staffIds.Count > 0)
+        {
+            await notificationService.CreateForMultipleUsersAsync(
+                staffIds,
+                new CreateNotificationRequest(
+                    UserId: Guid.Empty,
+                    Type: NotificationType.Appointment,
+                    Priority: NotificationPriority.High,
+                    Title: "Lịch hẹn mới",
+                    Body: $"Bệnh nhân đã đặt lịch hẹn mới vào lúc {dateFormatted}.",
+                    RelatedEntityType: "Appointment",
+                    RelatedEntityId: appointment.Id.ToString()), ct);
+        }
+
+        return new CreateAppointmentResult(
+            AppointmentId: appointment.Id,
+            AppointmentCode: appointmentCode,
+            Status: appointment.Status.ToString());
     }
 }

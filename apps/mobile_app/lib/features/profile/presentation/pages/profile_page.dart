@@ -155,6 +155,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    final isVi = SettingsManager.instance.locale.value.languageCode == 'vi';
     return Scaffold(
       backgroundColor: context.bg,
       appBar: AppBar(
@@ -186,6 +187,11 @@ class _ProfilePageState extends State<ProfilePage> {
 
               // ── Section 1: PROFILE SETTINGS ──────────────────────────────
               _buildSectionHeader(context.l10n('profile_settings')),
+              _SettingsTile(
+                icon: Iconsax.health,
+                label: isVi ? 'Lịch sử khám bệnh' : 'Examine history',
+                onTap: () => context.push(AppRoutes.medicalRecords),
+              ),
               _SettingsTile(
                 icon: Iconsax.document_text,
                 label: context.l10n('medical_info'),

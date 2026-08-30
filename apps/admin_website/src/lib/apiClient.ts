@@ -2341,6 +2341,9 @@ export interface PatientSearchResultDto {
   dateOfBirth: string;   // "YYYY-MM-DD"
   gender: string;
   hasAccount: boolean;
+  relationship?: string | null;
+  primaryPatientId?: string | null;
+  primaryPatientName?: string | null;
 }
 
 /** Tra cứu bệnh nhân đã có hồ sơ (staff/admin). Dưới 2 ký tự backend trả về mảng rỗng —
@@ -2561,12 +2564,51 @@ export interface StepProgressEntryDto {
   note: string | null;
 }
 
+export interface TreatmentSessionDto {
+  id: string;
+  treatmentPlanItemId: string;
+  treatmentProcedureId?: string | null;
+  sessionNumber: number;
+  name: string;
+  status: string;
+  durationMinutes: number;
+  dentistId?: string | null;
+  dentistName: string;
+  performedAt?: string | null;
+  note?: string | null;
+  createdAt: string;
+}
+
+export interface TreatmentPlanItemDto {
+  id: string;
+  treatmentPlanId: string;
+  serviceId: string;
+  serviceName: string;
+  serviceOptionId?: string | null;
+  serviceOptionName?: string | null;
+  unitPrice: number;
+  quantity: number;
+  teeth?: string | null;
+  status: string;
+  warrantyUntil?: string | null;
+  notes?: string | null;
+  totalCost: number;
+  sessions: TreatmentSessionDto[];
+  stepProgress: StepProgressEntryDto[];
+  totalSteps: number;
+  completedSteps: number;
+  progressPercent: number;
+  createdAt: string;
+  completedAt?: string | null;
+}
+
 export interface TreatmentPlanDto {
   id: string;
   patientId: string;
   dentistId: string;
   dentistName: string;
   appointmentId: string | null;
+  title?: string;
   serviceId: string;
   serviceName: string;
   /** Tên option đã chọn lúc thêm dịch vụ (vd: "Titan", "Zirconia") — null nếu dùng giá gốc dịch vụ. */
@@ -2581,6 +2623,7 @@ export interface TreatmentPlanDto {
   amountPaid: number;
   /** Đã xuất hóa đơn → không cho bác sĩ xóa/hủy dịch vụ này khỏi liệu trình. */
   isInvoiced: boolean;
+  items?: TreatmentPlanItemDto[];
   stepProgress: StepProgressEntryDto[];
   /** Tổng số bước quy trình chuẩn của dịch vụ (0 = dịch vụ chưa khai báo quy trình). */
   totalSteps: number;
@@ -2590,6 +2633,39 @@ export interface TreatmentPlanDto {
   progressPercent: number;
   createdAt: string;
   completedAt: string | null;
+}
+
+export interface AppointmentSessionDto {
+  id: string;
+  appointmentId: string;
+  treatmentSessionId: string;
+  sessionName: string;
+  serviceName: string;
+  teeth?: string | null;
+  sequence: number;
+  durationMinutes: number;
+  status: string;
+  note?: string | null;
+}
+
+export interface FollowUpDto {
+  id: string;
+  patientId: string;
+  patientName: string;
+  patientPhone?: string | null;
+  dentistId: string;
+  dentistName: string;
+  originAppointmentId: string;
+  treatmentPlanItemId?: string | null;
+  serviceName?: string | null;
+  treatmentSessionId?: string | null;
+  sessionName?: string | null;
+  dueDate: string;
+  note?: string | null;
+  status: string;
+  appointmentId?: string | null;
+  createdAt: string;
+  completedAt?: string | null;
 }
 
 export interface PrescriptionItemDto {
@@ -3011,11 +3087,17 @@ export interface TreatmentProcedureDto {
   serviceId: string;
   stepNumber: number;
   name: string;
+  durationMinutes?: number;
+  isRequired?: boolean;
+  description?: string | null;
 }
 
 export interface ProcedureStepRequest {
   stepNumber: number;
   name: string;
+  durationMinutes?: number;
+  isRequired?: boolean;
+  description?: string | null;
 }
 
 export async function getServiceProceduresApi(serviceId: string): Promise<TreatmentProcedureDto[]> {

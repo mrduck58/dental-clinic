@@ -914,61 +914,150 @@ class _AppointmentDetailsPageState extends State<AppointmentDetailsPage> {
                 color: context.card,
                 border: Border(top: BorderSide(color: context.divider)),
               ),
-              child: Row(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(
-                    child: SizedBox(
-                      height: 50,
-                      child: OutlinedButton.icon(
-                        onPressed: () {
-                          context.push(AppRoutes.clinicFeedback);
-                        },
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.primary,
-                          side: const BorderSide(color: AppColors.primary),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        icon: const Icon(Iconsax.hospital, size: 18),
-                        label: Text(
-                          isVi ? 'Đánh giá phòng khám' : 'Review Clinic',
-                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: SizedBox(
-                      height: 50,
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          final doctor = DoctorModel(
-                            id: item.dentistId,
-                            fullName: item.dentistName,
-                            specialty: item.specialization,
-                            profilePictureUrl: item.dentistAvatarUrl,
-                          );
-                          context.push(
-                            AppRoutes.writeReview,
-                            extra: {
-                              'doctor': doctor,
-                              'appointmentId': item.appointmentId,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SizedBox(
+                          height: 46,
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              context.push(AppRoutes.medicalRecords);
                             },
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        icon: const Icon(Iconsax.star_1, size: 18),
-                        label: Text(
-                          isVi ? 'Đánh giá nha sĩ' : 'Review Dentist',
-                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.primary,
+                              side: const BorderSide(color: AppColors.primary),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            icon: const Icon(Iconsax.health, size: 18),
+                            label: Text(
+                              isVi ? 'Hồ sơ bệnh án' : 'Medical Record',
+                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: SizedBox(
+                          height: 46,
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              final doctor = DoctorInfo(
+                                id: item.dentistId,
+                                name: item.dentistName,
+                                title: '',
+                                specialty: item.specialization,
+                                room: '',
+                                session: DoctorSession.morning,
+                                rating: 5.0,
+                                reviewCount: 0,
+                                avatarUrl: item.dentistAvatarUrl,
+                              );
+
+                              final service = item.serviceName != null
+                                  ? ServiceInfo(
+                                      id: item.serviceId ?? '',
+                                      name: item.serviceName!,
+                                      description: '',
+                                      price: '',
+                                      durationMinutes: item.serviceDurationMinutes ?? 30,
+                                    )
+                                  : null;
+
+                              final draft = BookingDraft(
+                                preferredDentistId: item.dentistId,
+                                patient: PatientInfo(
+                                  id: item.patientId ?? 'self',
+                                  name: item.patientName ?? '',
+                                  relationship: item.patientRelationship ?? '',
+                                ),
+                                doctor: doctor,
+                                service: service,
+                                isFollowUp: true,
+                                symptoms: isVi
+                                    ? 'Tái khám theo hẹn: ${item.serviceName ?? 'Khám nha khoa'}'
+                                    : 'Follow-up visit: ${item.serviceName ?? 'Dental checkup'}',
+                              );
+
+                              BookingService().setActiveDraft(draft);
+                              context.push(AppRoutes.bookingSelectDatetime, extra: draft);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            icon: const Icon(Iconsax.calendar_add, size: 18),
+                            label: Text(
+                              isVi ? 'Đặt lịch tái khám' : 'Book Follow-up',
+                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SizedBox(
+                          height: 42,
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              context.push(AppRoutes.clinicFeedback);
+                            },
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: context.textSecondary,
+                              side: BorderSide(color: context.divider),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            icon: const Icon(Iconsax.hospital, size: 16),
+                            label: Text(
+                              isVi ? 'Đánh giá phòng khám' : 'Review Clinic',
+                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: SizedBox(
+                          height: 42,
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              final doctor = DoctorModel(
+                                id: item.dentistId,
+                                fullName: item.dentistName,
+                                specialty: item.specialization,
+                                profilePictureUrl: item.dentistAvatarUrl,
+                              );
+                              context.push(
+                                AppRoutes.writeReview,
+                                extra: {
+                                  'doctor': doctor,
+                                  'appointmentId': item.appointmentId,
+                                },
+                              );
+                            },
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: context.textSecondary,
+                              side: BorderSide(color: context.divider),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            icon: const Icon(Iconsax.star_1, size: 16),
+                            label: Text(
+                              isVi ? 'Đánh giá nha sĩ' : 'Review Dentist',
+                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

@@ -144,6 +144,9 @@ class _ReviewBookingPageState extends State<ReviewBookingPage> {
         symptoms: _symptomCtrl.text.trim().isEmpty ? null : _symptomCtrl.text.trim(),
         serviceId: (d.service != null && d.service!.id.isNotEmpty) ? d.service!.id : null,
         patientId: (d.patient != null && d.patient!.id.isNotEmpty && d.patient!.id != 'self') ? d.patient!.id : null,
+        appointmentType: d.isFollowUp ? 'FollowUp' : 'GeneralExam',
+        durationMinutes: d.service?.durationMinutes ?? 30,
+        followUpId: d.followUpId,
       );
       if (!mounted) return;
       final updatedDraft = d.copyWith(

@@ -22,4 +22,10 @@ public interface IPatientRepository
     /// <summary>Tìm bệnh nhân theo số điện thoại của TÀI KHOẢN liên kết (User.PhoneNumber) — dùng khi
     /// đặt lịch vãng lai để tránh tạo trùng hồ sơ cho người đã có tài khoản.</summary>
     Task<Patient?> GetByPhoneNumberAsync(string phoneNumber, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lấy danh sách toàn bộ hồ sơ bệnh nhân trong cùng một gia đình gắn với số điện thoại này
+    /// (bao gồm chủ tài khoản và các thành viên liên kết qua PrimaryPatientId).
+    /// </summary>
+    Task<IReadOnlyList<Patient>> GetFamilyByPhoneNumberAsync(string phoneNumber, CancellationToken cancellationToken = default);
 }

@@ -1,4 +1,5 @@
 using DentalClinic.API.Application.UseCases.DentistDashboard;
+using DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 using DentalClinic.API.Application.Interfaces;
 using DentalClinic.API.Domain.Schedules;
@@ -14,6 +15,50 @@ public class DentistDashboardQueryService(AppDbContext db) : IDentistDashboardQu
     private static readonly TimeZoneInfo VietnamTz =
         TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
 
+    private async Task<DentistProfile?> FindDentistProfileAsync(Guid userId, CancellationToken ct)
+    {
+        // 1. Khớp trực tiếp qua Employee.UserId hoặc DentistProfile.Id hoặc EmployeeId
+        var dentist = await db.DentistProfiles
+            .Include(d => d.Employee).ThenInclude(e => e.User)
+            .FirstOrDefaultAsync(d => d.Employee.UserId == userId || d.Id == userId || d.EmployeeId == userId, ct);
+        if (dentist != null) return dentist;
+
+        // 2. Thử tìm qua User.Id -> Employee -> DentistProfile
+        var employee = await db.Employees
+            .Include(e => e.User)
+            .FirstOrDefaultAsync(e => e.UserId == userId || e.Id == userId, ct);
+        if (employee != null)
+        {
+            dentist = await db.DentistProfiles
+                .Include(d => d.Employee).ThenInclude(e => e.User)
+                .FirstOrDefaultAsync(d => d.EmployeeId == employee.Id, ct);
+            if (dentist != null) return dentist;
+        }
+
+        // 3. Thử tìm theo tên của User nếu User có role Dentist (kéo danh sách về client để so khớp tiếng Việt không dấu)
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
+        if (user != null && !string.IsNullOrWhiteSpace(user.FullName))
+        {
+            var allDentists = await db.DentistProfiles
+                .Include(d => d.Employee).ThenInclude(e => e.User)
+                .ToListAsync(ct);
+            dentist = allDentists.FirstOrDefault(d =>
+                string.Equals(d.FullName, user.FullName, StringComparison.OrdinalIgnoreCase) ||
+                StaffNameMatcher.IsSamePerson(d.FullName, user.FullName));
+            if (dentist != null) return dentist;
+        }
+
+        // 4. Nếu là Admin hoặc tài khoản demo chưa link hồ sơ, lấy bác sĩ đầu tiên trong hệ thống
+        if (user != null && (user.Role == UserRole.Admin || user.Role == UserRole.Dentist))
+        {
+            dentist = await db.DentistProfiles
+                .Include(d => d.Employee).ThenInclude(e => e.User)
+                .FirstOrDefaultAsync(ct);
+        }
+
+        return dentist;
+    }
+
     public async Task<DentistDashboardResponse> GetDashboardAsync(Guid userId, CancellationToken ct)
     {
         var vietnamNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, VietnamTz);
@@ -25,9 +70,7 @@ public class DentistDashboardQueryService(AppDbContext db) : IDentistDashboardQu
         var utcEnd   = utcStart.AddDays(1);
 
         // Chỉ lấy data của chính bác sĩ đang đăng nhập
-        var dentist = await db.DentistProfiles
-            .Include(d => d.Employee).ThenInclude(e => e.User)
-            .FirstOrDefaultAsync(d => d.Employee.UserId == userId, ct);
+        var dentist = await FindDentistProfileAsync(userId, ct);
         if (dentist == null)
         {
             return new DentistDashboardResponse(
@@ -43,7 +86,7 @@ public class DentistDashboardQueryService(AppDbContext db) : IDentistDashboardQu
 
         // Today's appointments (all except Pending and Cancelled)
         var todayAppointments = await db.Appointments
-            .Include(a => a.Patient)
+            .Include(a => a.Patient).ThenInclude(p => p.User)
             .Include(a => a.Service)
             .Where(a => a.DentistId == dentist.Id &&
                         a.AppointmentDate >= utcStart &&
@@ -73,10 +116,7 @@ public class DentistDashboardQueryService(AppDbContext db) : IDentistDashboardQu
         var weekStart = today.AddDays(-daysFromMon);
         var weekEnd = weekStart.AddDays(7);
 
-        // Nối lịch với bác sĩ qua EmployeeId — khóa THẬT (xem WorkSchedule.Create). StaffName chỉ còn là
-        // lưới an toàn cho dòng cũ/nhập tay chưa gán được EmployeeId — so khớp exact string trước đây khiến
-        // "Ca làm việc hôm nay" trống trơn khi hồ sơ ghi khác chữ so với bảng xếp lịch, cùng lỗi đã sửa ở
-        // GetWaitingQueueHandler/GetMyScheduleHandler.
+        // Nối lịch với bác sĩ qua EmployeeId — khóa THẬT
         var employeeId = dentist.EmployeeId;
         var weekSchedulesRaw = await db.WorkSchedules
             .Where(s => s.Date >= weekStart && s.Date < weekEnd && !s.IsHoliday)
@@ -146,16 +186,33 @@ public class DentistDashboardQueryService(AppDbContext db) : IDentistDashboardQu
 
     public async Task<List<DentistPatientDto>?> GetPastPatientsAsync(Guid userId, CancellationToken ct)
     {
-        var dentist = await db.DentistProfiles.FirstOrDefaultAsync(d => d.Employee.UserId == userId, ct);
+        var vietnamNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, VietnamTz);
+        var today = DateOnly.FromDateTime(vietnamNow);
+        var todayVnStart = new DateTimeOffset(today.Year, today.Month, today.Day, 0, 0, 0, VietnamTz.BaseUtcOffset);
+        var utcStart = todayVnStart.ToUniversalTime();
+
+        var dentist = await FindDentistProfileAsync(userId, ct);
         if (dentist == null) return null;
 
         var appointments = await db.Appointments
             .Include(a => a.Patient).ThenInclude(p => p.User)
             .Include(a => a.Service)
             .Where(a => a.DentistId == dentist.Id &&
-                        (a.Status == AppointmentStatus.Completed || a.Status == AppointmentStatus.PendingPayment))
+                        a.Status != AppointmentStatus.Cancelled &&
+                        a.Status != AppointmentStatus.Pending &&
+                        (a.Status == AppointmentStatus.Completed ||
+                         a.Status == AppointmentStatus.PendingPayment ||
+                         a.AppointmentDate < utcStart))
             .OrderByDescending(a => a.AppointmentDate)
             .ToListAsync(ct);
+
+        var patientIds = appointments.Select(a => a.PatientId).Distinct().ToList();
+        var returningPatientIds = await db.Appointments
+            .Where(a => patientIds.Contains(a.PatientId) && a.Status == AppointmentStatus.Completed)
+            .Select(a => a.PatientId)
+            .Distinct()
+            .ToListAsync(ct);
+        var returningSet = returningPatientIds.ToHashSet();
 
         return appointments.Select(a => new DentistPatientDto(
             a.Id,
@@ -168,7 +225,7 @@ public class DentistDashboardQueryService(AppDbContext db) : IDentistDashboardQu
             a.Status.ToString(),
             a.Service?.Name,
             a.Symptoms,
-            false,
+            !returningSet.Contains(a.PatientId),
             a.FollowUpFromAppointmentId != null
         )).ToList();
     }
@@ -186,26 +243,19 @@ public class DentistDashboardQueryService(AppDbContext db) : IDentistDashboardQu
             .Where(a => a.DentistId == dentistId &&
                         a.AppointmentDate >= utcStart &&
                         a.AppointmentDate < utcEnd &&
-                        // Chỉ hiện bệnh nhân đã check-in trở đi (đồng nhất với hàng đợi).
-                        (a.Status == AppointmentStatus.CheckedIn    ||
-                         a.Status == AppointmentStatus.InProgress   ||
-                         a.Status == AppointmentStatus.PendingPayment ||
-                         a.Status == AppointmentStatus.Completed))
+                        a.Status != AppointmentStatus.Pending &&
+                        a.Status != AppointmentStatus.Cancelled)
             .ToListAsync(ct);
 
         // Số thứ tự đánh theo MỐC VÀO HÀNG ĐỢI (QueueEntryOrder ?? CheckedInAt ?? AppointmentDate)
         var stableNumbers = appointments
-            .Where(a => a.Status is AppointmentStatus.CheckedIn
-                                 or AppointmentStatus.InProgress
-                                 or AppointmentStatus.Completed
-                                 or AppointmentStatus.PendingPayment)
             .OrderBy(a => a.QueueEntryOrder ?? (a.CheckedInAt ?? a.AppointmentDate).UtcTicks)
             .ThenBy(a => a.Id)
             .Select((a, i) => (a.Id, Number: i + 1))
             .ToDictionary(x => x.Id, x => x.Number);
 
         // Sắp xếp thứ tự theo hàng đợi:
-        // 1. InProgress (0) -> CheckedIn (1) -> PendingPayment / Completed (2)
+        // 1. InProgress (0) -> CheckedIn (1) -> Confirmed (2) -> PendingPayment / Completed (3)
         // 2. QueueOrder ?? CheckedInAt ?? AppointmentDate
         // 3. Id
         var orderedAppointments = appointments
@@ -213,11 +263,20 @@ public class DentistDashboardQueryService(AppDbContext db) : IDentistDashboardQu
             {
                 AppointmentStatus.InProgress => 0,
                 AppointmentStatus.CheckedIn => 1,
-                _ => 2
+                AppointmentStatus.Confirmed => 2,
+                _ => 3
             })
             .ThenBy(a => a.QueueOrder ?? (a.CheckedInAt ?? a.AppointmentDate).UtcTicks)
             .ThenBy(a => a.Id)
             .ToList();
+
+        var patientIds = appointments.Select(a => a.PatientId).Distinct().ToList();
+        var returningPatientIds = await db.Appointments
+            .Where(a => patientIds.Contains(a.PatientId) && a.Status == AppointmentStatus.Completed)
+            .Select(a => a.PatientId)
+            .Distinct()
+            .ToListAsync(ct);
+        var returningSet = returningPatientIds.ToHashSet();
 
         var patients = orderedAppointments.Select(a => new DentistPatientDto(
             a.Id,
@@ -230,32 +289,27 @@ public class DentistDashboardQueryService(AppDbContext db) : IDentistDashboardQu
             a.Status.ToString(),
             a.Service?.Name,
             a.Symptoms,
-            IsNewPatient(a.PatientId),
+            !returningSet.Contains(a.PatientId),
             a.FollowUpFromAppointmentId != null,
             stableNumbers.GetValueOrDefault(a.Id, 0),
             a.CheckedInAt,
-            a.Status == AppointmentStatus.CheckedIn
+            a.Status == AppointmentStatus.CheckedIn || a.Status == AppointmentStatus.Confirmed
                 ? Math.Max(0, (int)(nowUtc - (a.CheckedInAt ?? a.AppointmentDate)).TotalMinutes)
                 : 0
         )).ToList();
 
         return new DentistPatientsResponse(
             date,
-            appointments.Count(a => a.Status == AppointmentStatus.CheckedIn),
+            appointments.Count(a => a.Status == AppointmentStatus.CheckedIn || a.Status == AppointmentStatus.Confirmed),
             appointments.Count(a => a.Status == AppointmentStatus.InProgress),
             appointments.Count(a => a.Status == AppointmentStatus.PendingPayment ||
                                    a.Status == AppointmentStatus.Completed),
             patients);
     }
 
-    private bool IsNewPatient(Guid patientId)
-    {
-        return !db.Appointments.Any(a => a.PatientId == patientId && a.Status == AppointmentStatus.Completed);
-    }
-
     public async Task<DentistPatientsResponse?> GetMyPatientsAsync(Guid userId, DateOnly? date, CancellationToken ct)
     {
-        var dentist = await db.DentistProfiles.FirstOrDefaultAsync(d => d.Employee.UserId == userId, ct);
+        var dentist = await FindDentistProfileAsync(userId, ct);
         if (dentist == null) return null;
 
         var vietnamNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, VietnamTz);

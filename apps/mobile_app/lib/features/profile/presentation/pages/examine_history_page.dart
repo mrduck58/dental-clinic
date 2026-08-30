@@ -150,7 +150,7 @@ class _ExamineHistoryPageState extends State<ExamineHistoryPage> {
             child: Image.asset(
               avatarUrl,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => _buildInitialsFallback(size, isSelected, initials),
+              errorBuilder: (_, __, _) => _buildInitialsFallback(size, isSelected, initials),
             ),
           ),
         );
@@ -169,7 +169,7 @@ class _ExamineHistoryPageState extends State<ExamineHistoryPage> {
           child: Image.network(
             url,
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => _buildInitialsFallback(size, isSelected, initials),
+            errorBuilder: (_, __, _) => _buildInitialsFallback(size, isSelected, initials),
           ),
         ),
       );
@@ -665,6 +665,36 @@ class _ExamineHistoryPageState extends State<ExamineHistoryPage> {
                       ),
                     ],
                   ),
+                  if (event.followUpDate != null) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDCFCE7),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFF86EFAC)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.event_available_rounded, size: 14, color: Color(0xFF16A34A)),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              isVi
+                                  ? 'Hẹn tái khám: ${_formatDate(event.followUpDate!)}'
+                                  : 'Follow-up: ${_formatDate(event.followUpDate!)}',
+                              style: const TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF15803D),
+                              ),
+                            ),
+                          ),
+                          const Icon(Icons.arrow_forward_ios_rounded, size: 10, color: Color(0xFF16A34A)),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

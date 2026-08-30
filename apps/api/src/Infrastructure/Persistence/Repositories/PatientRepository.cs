@@ -61,17 +61,54 @@ public class PatientRepository(AppDbContext dbContext) : IPatientRepository
             .FirstOrDefaultAsync(p => p.User != null && p.User.PhoneNumber == phoneNumber, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<Patient>> GetFamilyByPhoneNumberAsync(string phoneNumber, CancellationToken cancellationToken = default)
+    {
+        var matchedByPhone = await dbContext.Patients
+            .Include(p => p.User)
+            .Include(p => p.PrimaryPatient)
+                .ThenInclude(pp => pp.User)
+            .Where(p => p.User != null && p.User.PhoneNumber == phoneNumber)
+            .ToListAsync(cancellationToken);
+
+        if (matchedByPhone.Count == 0)
+        {
+            return [];
+        }
+
+        var primaryIds = matchedByPhone.Select(p => p.Id).ToList();
+        var parentIds = matchedByPhone.Where(p => p.PrimaryPatientId != null).Select(p => p.PrimaryPatientId!.Value).ToList();
+        var allRelatedPrimaryIds = primaryIds.Union(parentIds).Distinct().ToList();
+
+        var familyMembers = await dbContext.Patients
+            .Include(p => p.User)
+            .Include(p => p.PrimaryPatient)
+                .ThenInclude(pp => pp.User)
+            .Where(p => p.PrimaryPatientId != null && allRelatedPrimaryIds.Contains(p.PrimaryPatientId.Value))
+            .ToListAsync(cancellationToken);
+
+        var resultDict = new Dictionary<Guid, Patient>();
+        foreach (var p in matchedByPhone) resultDict[p.Id] = p;
+        foreach (var fm in familyMembers) resultDict[fm.Id] = fm;
+
+        return resultDict.Values.ToList();
+    }
+
     public async Task<IReadOnlyList<Patient>> SearchAsync(string term, int limit, bool onlyWithoutAccount = false, CancellationToken cancellationToken = default)
     {
         var needle = term.Trim().ToLower();
         if (needle.Length == 0 && !onlyWithoutAccount) return [];
 
-        var query = dbContext.Patients.Include(p => p.User).AsQueryable();
+        var query = dbContext.Patients
+            .Include(p => p.User)
+            .Include(p => p.PrimaryPatient)
+                .ThenInclude(pp => pp.User)
+            .AsQueryable();
 
         if (needle.Length > 0)
             query = query.Where(p =>
                 (p.User.FullName != null && p.User.FullName.ToLower().Contains(needle)) ||
-                (p.User.PhoneNumber != null && p.User.PhoneNumber.Contains(needle)));
+                (p.User.PhoneNumber != null && p.User.PhoneNumber.Contains(needle)) ||
+                (p.PrimaryPatient != null && p.PrimaryPatient.User.PhoneNumber != null && p.PrimaryPatient.User.PhoneNumber.Contains(needle)));
 
         if (onlyWithoutAccount)
             query = query.Where(p => p.User.PasswordHash == null);

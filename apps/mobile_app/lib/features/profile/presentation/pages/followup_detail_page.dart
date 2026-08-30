@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:mobile_app/app/routers.dart';
 import 'package:mobile_app/app/settings_manager.dart';
 import 'package:mobile_app/core/constants/app_colors.dart';
+import 'package:mobile_app/features/booking/data/booking_models.dart';
+import 'package:mobile_app/features/booking/data/booking_service.dart';
 import 'package:mobile_app/features/profile/data/medical_record_service.dart';
 
-/// Lịch hẹn tái khám — chỉ đọc. Do bác sĩ đặt (không phải lịch hẹn mới, chỉ là mốc ngày cần
-/// khám lại) ở tab "Tái khám" trên app quản lý (apps/admin_website).
+/// Lịch hẹn tái khám. Do bác sĩ đặt mốc ngày cần khám lại ở tab "Tái khám"
+/// Bệnh nhân có thể xem chi tiết và bấm "Đặt lịch tái khám ngay" để chọn ca khám.
 class FollowUpDetailPage extends StatelessWidget {
   final MedicalHistoryEvent event;
   const FollowUpDetailPage({super.key, required this.event});
@@ -17,6 +21,49 @@ class FollowUpDetailPage extends StatelessWidget {
     final dd = d.day.toString().padLeft(2, '0');
     final mm = d.month.toString().padLeft(2, '0');
     return isVi ? '$weekday, $dd/$mm/${d.year}' : '$weekday, $mm/$dd/${d.year}';
+  }
+
+  void _bookFollowUp(BuildContext context, bool isVi) {
+    final doctor = DoctorInfo(
+      id: event.dentistId,
+      name: event.dentistName,
+      title: '',
+      specialty: '',
+      room: '',
+      session: DoctorSession.morning,
+      rating: 5.0,
+      reviewCount: 0,
+      avatarUrl: event.dentistAvatarUrl,
+    );
+
+    final service = event.serviceId != null
+        ? ServiceInfo(
+            id: event.serviceId!,
+            name: event.serviceName,
+            description: '',
+            price: '',
+            durationMinutes: 30,
+          )
+        : null;
+
+    final draft = BookingDraft(
+      preferredDentistId: event.dentistId,
+      patient: PatientInfo(
+        id: event.patientId,
+        name: event.patientName,
+        relationship: event.patientRelationship,
+      ),
+      doctor: doctor,
+      service: service,
+      date: event.followUpDate,
+      isFollowUp: true,
+      symptoms: isVi
+          ? 'Tái khám theo hẹn: ${event.serviceName}${event.followUpNote != null ? ' - ${event.followUpNote}' : ''}'
+          : 'Follow-up visit: ${event.serviceName}${event.followUpNote != null ? ' - ${event.followUpNote}' : ''}',
+    );
+
+    BookingService().setActiveDraft(draft);
+    context.push(AppRoutes.bookingSelectTimeSlot, extra: draft);
   }
 
   @override
@@ -125,11 +172,38 @@ class FollowUpDetailPage extends StatelessWidget {
                   const SizedBox(height: 20),
                   Text(
                     isVi
-                        ? 'Đây là mốc ngày bác sĩ khuyên bạn quay lại khám, không phải một lịch hẹn đã được đặt sẵn. Vui lòng chủ động đặt lịch khi tới ngày.'
-                        : 'This is a recommended date to come back, not an already-booked appointment. Please book a new appointment when the date arrives.',
+                        ? 'Đây là mốc ngày bác sĩ khuyên bạn quay lại khám. Bạn có thể bấm nút bên dưới để chọn khung giờ và đặt lịch khám ngay.'
+                        : 'This is the recommended follow-up date. Tap the button below to pick a slot and book your appointment.',
                     style: TextStyle(fontSize: 12.5, color: context.textMuted, height: 1.4),
                   ),
                 ],
+              ),
+            ),
+      bottomNavigationBar: followUpDate == null
+          ? null
+          : Container(
+              padding: EdgeInsets.fromLTRB(24, 16, 24, MediaQuery.of(context).padding.bottom + 16),
+              decoration: BoxDecoration(
+                color: context.card,
+                border: Border(top: BorderSide(color: context.divider)),
+              ),
+              child: SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton.icon(
+                  onPressed: () => _bookFollowUp(context, isVi),
+                  icon: const Icon(Iconsax.calendar_add, size: 20),
+                  label: Text(
+                    isVi ? 'ĐẶT LỊCH TÁI KHÁM NGAY' : 'BOOK FOLLOW-UP NOW',
+                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    elevation: 2,
+                  ),
+                ),
               ),
             ),
     );

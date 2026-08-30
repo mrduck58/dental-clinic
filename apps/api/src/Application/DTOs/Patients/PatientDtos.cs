@@ -9,7 +9,10 @@ public record PatientSearchResultDto(
     string? PhoneNumber,
     DateOnly? DateOfBirth,
     string Gender,
-    bool HasAccount
+    bool HasAccount,
+    string? Relationship = null,
+    Guid? PrimaryPatientId = null,
+    string? PrimaryPatientName = null
 );
 
 public record FamilyMemberDto(

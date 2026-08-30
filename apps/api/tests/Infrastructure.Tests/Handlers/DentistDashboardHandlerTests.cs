@@ -60,7 +60,10 @@ public class DentistDashboardHandlerTests
         dentist.Employee = employee;
         _db.Employees.Add(employee);
         _db.DentistProfiles.Add(dentist);
-        var patient = Patient.Create(Guid.Empty, new DateOnly(1990, 1, 1), "Nam");
+        var patientUser = User.Create("pat1", "pat1@test.com", "hash", UserRole.Patient);
+        _db.Users.Add(patientUser);
+        var patient = Patient.Create(patientUser.Id, new DateOnly(1990, 1, 1), "Nam");
+        patient.User = patientUser;
         _db.Patients.Add(patient);
         await _db.SaveChangesAsync();
 
@@ -98,7 +101,10 @@ public class DentistDashboardHandlerTests
         dentist.Employee = employee;
         _db.Employees.Add(employee);
         _db.DentistProfiles.Add(dentist);
-        var patient = Patient.Create(Guid.Empty, new DateOnly(1992, 2, 2), "Nữ");
+        var patientUser = User.Create("pat2", "pat2@test.com", "hash", UserRole.Patient);
+        _db.Users.Add(patientUser);
+        var patient = Patient.Create(patientUser.Id, new DateOnly(1992, 2, 2), "Nữ");
+        patient.User = patientUser;
         _db.Patients.Add(patient);
         await _db.SaveChangesAsync();
 

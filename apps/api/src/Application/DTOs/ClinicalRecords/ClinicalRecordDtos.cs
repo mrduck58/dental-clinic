@@ -1,16 +1,5 @@
 namespace DentalClinic.API.Application.DTOs.ClinicalRecords;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// DTO dùng chung của bounded context ClinicalRecords (phiếu khám: chẩn đoán,
-// liệu trình điều trị, đơn thuốc, lịch sử khám).
-//
-// Trước đây các DTO này nằm rải rác trong chính file handler (ExaminationDto/
-// DiagnosisDto/PrescriptionDto trong GetExaminationHandler.cs, TreatmentPlanDto
-// trong TreatmentPlanHandler.cs) và tham chiếu chéo lẫn nhau — không thể tách
-// handler ra nhiều file/nhiều folder mà không sinh phụ thuộc vòng. Gom hết về
-// một chỗ theo đúng chuẩn Application/DTOs/<Feature>/ của các feature khác.
-// ─────────────────────────────────────────────────────────────────────────────
-
 public class ExaminationDto
 {
     public Guid AppointmentId { get; set; }
@@ -20,17 +9,19 @@ public class ExaminationDto
     public string? ServiceName { get; set; }
     public DateTimeOffset AppointmentDate { get; set; }
     public string Status { get; set; } = string.Empty;
+    public string AppointmentType { get; set; } = "GeneralExam";
+    public int DurationMinutes { get; set; } = 30;
     public string? Symptoms { get; set; }
     public string? Notes { get; set; }
     public DateTimeOffset? StartTime { get; set; }
     public DateOnly? FollowUpDate { get; set; }
     public string? FollowUpNote { get; set; }
     public bool IsFollowUpVisit { get; set; }
-    // Chuỗi buổi hẹn gốc của lượt tái khám (đi ngược FollowUpFromAppointmentId) —
-    // frontend dùng để chỉ hiển thị liệu trình thuộc đúng chuỗi đơn được tái khám.
     public List<Guid> RelatedAppointmentIds { get; set; } = new();
     public List<DiagnosisDto> Diagnoses { get; set; } = new();
     public List<TreatmentPlanDto> TreatmentPlans { get; set; } = new();
+    public List<AppointmentSessionDto> AppointmentSessions { get; set; } = new();
+    public FollowUpDto? FollowUpOrder { get; set; }
     public PrescriptionDto? Prescription { get; set; }
 }
 
@@ -54,29 +45,24 @@ public class DentistBriefDto
 public class DiagnosisDto
 {
     public Guid Id { get; set; }
-    public string Description { get; set; } = string.Empty;   // Chẩn đoán
-    // Tình trạng lợi – niêm mạc
+    public string Description { get; set; } = string.Empty;
     public string? GumCondition { get; set; }
     public string? OralMucosaCondition { get; set; }
     public string? GumBleeding { get; set; }
     public string? PainOnChewing { get; set; }
-    // Tình trạng răng
     public string? TeethCount { get; set; }
     public string? DecayedTeeth { get; set; }
     public string? WornOrBrokenTeeth { get; set; }
     public string? LooseTeeth { get; set; }
-    // Vệ sinh răng miệng
     public string? Tartar { get; set; }
     public string? Plaque { get; set; }
     public string? BadBreath { get; set; }
-    // Khớp thái dương hàm / khớp cắn
     public string? TmjSymptoms { get; set; }
     public string? Occlusion { get; set; }
     public string? OcclusionDeviation { get; set; }
-    // Tiền sử
     public string? MedicalHistory { get; set; }
     public string? AllergyHistory { get; set; }
-    public string? Conclusion { get; set; }                   // Kết quả & kế hoạch điều trị
+    public string? Conclusion { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? UpdatedAt { get; set; }
 }
@@ -116,10 +102,6 @@ public class PrescriptionItemDto
 
 public class StepProgressEntryDto
 {
-    /// <summary>Id ổn định của mục này — sinh 1 lần lúc ghi nhận, không đổi khi sắp xếp lại thứ tự
-    /// (khác EntryIndex vốn là vị trí trong mảng, dịch chuyển khi thêm/xóa/sắp xếp). Dùng để gắn vật tư
-    /// tiêu hao (TreatmentSupplyUsage.StepEntryId) với đúng bước đã ghi. Guid.Empty với dữ liệu cũ trước
-    /// khi có trường này.</summary>
     public Guid Id { get; set; }
     public int StepNumber { get; set; }
     public string StepName { get; set; } = string.Empty;
@@ -129,6 +111,46 @@ public class StepProgressEntryDto
     public string? Note { get; set; }
 }
 
+public class TreatmentSessionDto
+{
+    public Guid Id { get; set; }
+    public Guid TreatmentPlanItemId { get; set; }
+    public Guid? TreatmentProcedureId { get; set; }
+    public int SessionNumber { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Status { get; set; } = "Planned";
+    public int DurationMinutes { get; set; } = 30;
+    public Guid? DentistId { get; set; }
+    public string DentistName { get; set; } = string.Empty;
+    public DateTimeOffset? PerformedAt { get; set; }
+    public string? Note { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+public class TreatmentPlanItemDto
+{
+    public Guid Id { get; set; }
+    public Guid TreatmentPlanId { get; set; }
+    public Guid ServiceId { get; set; }
+    public string ServiceName { get; set; } = string.Empty;
+    public Guid? ServiceOptionId { get; set; }
+    public string? ServiceOptionName { get; set; }
+    public decimal UnitPrice { get; set; }
+    public int Quantity { get; set; }
+    public string? Teeth { get; set; }
+    public string Status { get; set; } = "Planned";
+    public DateOnly? WarrantyUntil { get; set; }
+    public string? Notes { get; set; }
+    public decimal TotalCost { get; set; }
+    public List<TreatmentSessionDto> Sessions { get; set; } = new();
+    public List<StepProgressEntryDto> StepProgress { get; set; } = new();
+    public int TotalSteps { get; set; }
+    public int CompletedSteps { get; set; }
+    public int ProgressPercent { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? CompletedAt { get; set; }
+}
+
 public class TreatmentPlanDto
 {
     public Guid Id { get; set; }
@@ -136,59 +158,90 @@ public class TreatmentPlanDto
     public Guid DentistId { get; set; }
     public string DentistName { get; set; } = string.Empty;
     public Guid? AppointmentId { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public string? Notes { get; set; }
+    public decimal TotalCost { get; set; }
+    public decimal AmountPaid { get; set; }
+    public bool IsInvoiced { get; set; }
+    public List<TreatmentPlanItemDto> Items { get; set; } = new();
+
+    // Thuộc tính tương thích cho code cũ / UI cũ
     public Guid ServiceId { get; set; }
     public string ServiceName { get; set; } = string.Empty;
-    /// <summary>Tên option đã chọn lúc thêm dịch vụ (vd: "Titan", "Zirconia") — null nếu dùng giá gốc dịch vụ.</summary>
     public string? ServiceOptionName { get; set; }
     public decimal UnitPrice { get; set; }
     public int Quantity { get; set; }
     public string? Teeth { get; set; }
-    public string Status { get; set; } = string.Empty;
     public DateOnly? WarrantyUntil { get; set; }
-    public string? Notes { get; set; }
-    public decimal TotalCost { get; set; }
-    public decimal AmountPaid { get; set; }
-    /// <summary>Đã được xuất hóa đơn (hóa đơn chưa hoàn tiền) — bác sĩ không được xóa/hủy liệu trình này nữa.</summary>
-    public bool IsInvoiced { get; set; }
     public List<StepProgressEntryDto> StepProgress { get; set; } = new();
-
-    /// <summary>Tổng số bước trong quy trình chuẩn của dịch vụ (0 nếu dịch vụ chưa khai báo quy trình).</summary>
     public int TotalSteps { get; set; }
-
-    /// <summary>Số bước đã ghi nhận đạt 100%.</summary>
     public int CompletedSteps { get; set; }
-
-    /// <summary>% hoàn thành của dịch vụ = số bước xong / tổng số bước quy trình.</summary>
     public int ProgressPercent { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Lịch sử khám — trước đây khai báo trực tiếp trong AppointmentsController.cs
-// (logic viết thẳng trong controller). Chuyển về Application layer để handler
-// mới GetMyExaminationHistory/GetPatientMedicalHistory trả về được.
-// Giữ NGUYÊN thứ tự và tên thuộc tính để JSON trả về không đổi.
-// ─────────────────────────────────────────────────────────────────────────────
+public class AppointmentSessionDto
+{
+    public Guid Id { get; set; }
+    public Guid AppointmentId { get; set; }
+    public Guid TreatmentSessionId { get; set; }
+    public string SessionName { get; set; } = string.Empty;
+    public string ServiceName { get; set; } = string.Empty;
+    public string? Teeth { get; set; }
+    public int Sequence { get; set; }
+    public int DurationMinutes { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public string? Note { get; set; }
+}
+
+public class FollowUpDto
+{
+    public Guid Id { get; set; }
+    public Guid PatientId { get; set; }
+    public string PatientName { get; set; } = string.Empty;
+    public string? PatientPhone { get; set; }
+    public Guid DentistId { get; set; }
+    public string DentistName { get; set; } = string.Empty;
+    public Guid OriginAppointmentId { get; set; }
+    public Guid? TreatmentPlanItemId { get; set; }
+    public string? ServiceName { get; set; }
+    public Guid? TreatmentSessionId { get; set; }
+    public string? SessionName { get; set; }
+    public DateOnly DueDate { get; set; }
+    public string? Note { get; set; }
+    public string Status { get; set; } = "Pending";
+    public Guid? AppointmentId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? CompletedAt { get; set; }
+}
+
+public class TreatmentProcedureDto
+{
+    public Guid Id { get; set; }
+    public Guid ServiceId { get; set; }
+    public int StepNumber { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public int DurationMinutes { get; set; } = 30;
+    public bool IsRequired { get; set; } = true;
+    public string? Description { get; set; }
+}
 
 public record MedicalHistoryDiagnosisDto(
     string Description,
-    // Tình trạng lợi – niêm mạc
     string? GumCondition,
     string? OralMucosaCondition,
     string? GumBleeding,
     string? PainOnChewing,
-    // Tình trạng răng
     string? TeethCount,
     string? DecayedTeeth,
     string? WornOrBrokenTeeth,
     string? LooseTeeth,
-    // Vệ sinh răng miệng
     string? Tartar,
     string? Plaque,
     string? BadBreath,
-    // Khớp thái dương hàm / khớp cắn
     string? TmjSymptoms,
     string? Occlusion,
     string? OcclusionDeviation,
@@ -208,8 +261,6 @@ public record MedicalHistoryPrescriptionItemDto(
     string Usage,
     string? Notes);
 
-/// <summary>Ảnh chụp chiếu lúc khám (section "exam") — chỉ ảnh, không kèm ảnh yêu cầu vật tư
-/// (section "material-request"), vì đó là artifact nội bộ gửi kho, không phải thứ bệnh nhân cần xem.</summary>
 public record MedicalHistoryPhotoDto(
     string Url,
     string? Note,
@@ -240,8 +291,6 @@ public record MyMedicalHistoryDto(
     string PatientRelationship,
     DateOnly? FollowUpDate,
     string? FollowUpNote,
-    // Chuỗi buổi hẹn gốc của lượt tái khám (đi ngược FollowUpFromAppointmentId) — dùng để gộp
-    // liệu trình điều trị dài hạn (niềng răng, cấy ghép...) xuyên suốt nhiều buổi tái khám.
     List<Guid> RelatedAppointmentIds,
     List<MedicalHistoryDiagnosisDto> Diagnoses,
     List<MedicalHistoryTreatmentPlanDto> TreatmentPlans,
