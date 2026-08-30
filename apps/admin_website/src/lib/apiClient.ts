@@ -2626,6 +2626,12 @@ export interface TreatmentPlanItemDto {
   unitPrice: number;
   quantity: number;
   teeth?: string | null;
+  estimatedSessionCount?: number | null;
+  estimatedDurationMin?: number | null;
+  estimatedDurationMax?: number | null;
+  estimatedDurationUnit?: string | null;
+  estimatedStartDate?: string | null;
+  estimatedEndDate?: string | null;
   status: string;
   warrantyUntil?: string | null;
   notes?: string | null;
@@ -2653,6 +2659,12 @@ export interface TreatmentPlanDto {
   unitPrice: number;
   quantity: number;
   teeth: string | null;
+  estimatedSessionCount?: number | null;
+  estimatedDurationMin?: number | null;
+  estimatedDurationMax?: number | null;
+  estimatedDurationUnit?: string | null;
+  estimatedStartDate?: string | null;
+  estimatedEndDate?: string | null;
   status: string;
   warrantyUntil: string | null;
   notes: string | null;
@@ -2981,6 +2993,12 @@ export interface CreateTreatmentPlanRequest {
   notes?: string;
   warrantyUntil?: string;
   serviceOptionName?: string;
+  estimatedSessionCount?: number;
+  estimatedDurationMin?: number;
+  estimatedDurationMax?: number;
+  estimatedDurationUnit?: string;
+  estimatedStartDate?: string;
+  estimatedEndDate?: string;
 }
 
 export interface UpdateTreatmentPlanRequest {
@@ -2991,6 +3009,12 @@ export interface UpdateTreatmentPlanRequest {
   notes?: string;
   warrantyUntil?: string;
   status?: string;
+  estimatedSessionCount?: number;
+  estimatedDurationMin?: number;
+  estimatedDurationMax?: number;
+  estimatedDurationUnit?: string;
+  estimatedStartDate?: string;
+  estimatedEndDate?: string;
 }
 
 export async function createTreatmentPlanApi(appointmentId: string, request: CreateTreatmentPlanRequest): Promise<TreatmentPlanDto> {

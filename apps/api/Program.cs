@@ -290,9 +290,21 @@ using (var scope = app.Services.CreateScope())
                 ""Status"" character varying(50) NOT NULL,
                 ""WarrantyUntil"" date NULL,
                 ""Notes"" character varying(2000) NULL,
+                ""EstimatedSessionCount"" integer NULL,
+                ""EstimatedDurationMin"" integer NULL,
+                ""EstimatedDurationMax"" integer NULL,
+                ""EstimatedDurationUnit"" character varying(20) NULL,
+                ""EstimatedStartDate"" date NULL,
+                ""EstimatedEndDate"" date NULL,
                 ""CreatedAt"" timestamp with time zone NOT NULL,
                 ""CompletedAt"" timestamp with time zone NULL
             );
+            ALTER TABLE ""TreatmentPlanItems"" ADD COLUMN IF NOT EXISTS ""EstimatedSessionCount"" integer NULL;
+            ALTER TABLE ""TreatmentPlanItems"" ADD COLUMN IF NOT EXISTS ""EstimatedDurationMin"" integer NULL;
+            ALTER TABLE ""TreatmentPlanItems"" ADD COLUMN IF NOT EXISTS ""EstimatedDurationMax"" integer NULL;
+            ALTER TABLE ""TreatmentPlanItems"" ADD COLUMN IF NOT EXISTS ""EstimatedDurationUnit"" character varying(20) NULL;
+            ALTER TABLE ""TreatmentPlanItems"" ADD COLUMN IF NOT EXISTS ""EstimatedStartDate"" date NULL;
+            ALTER TABLE ""TreatmentPlanItems"" ADD COLUMN IF NOT EXISTS ""EstimatedEndDate"" date NULL;
             CREATE INDEX IF NOT EXISTS ""IX_TreatmentPlanItems_TreatmentPlanId"" ON ""TreatmentPlanItems"" (""TreatmentPlanId"");
             CREATE INDEX IF NOT EXISTS ""IX_TreatmentPlanItems_ServiceId"" ON ""TreatmentPlanItems"" (""ServiceId"");
 

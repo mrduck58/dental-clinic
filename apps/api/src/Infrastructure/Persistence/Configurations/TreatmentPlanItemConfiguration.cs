@@ -28,6 +28,10 @@ public class TreatmentPlanItemConfiguration : IEntityTypeConfiguration<Treatment
             .HasConversion<string>()
             .HasMaxLength(50);
 
+        builder.Property(tpi => tpi.EstimatedDurationUnit)
+            .HasConversion<string>()
+            .HasMaxLength(20);
+
         builder.Ignore(tpi => tpi.TotalCost);
 
         builder.HasOne(tpi => tpi.TreatmentPlan)

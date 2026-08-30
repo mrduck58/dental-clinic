@@ -138,6 +138,12 @@ public class TreatmentPlanItemDto
     public decimal UnitPrice { get; set; }
     public int Quantity { get; set; }
     public string? Teeth { get; set; }
+    public int? EstimatedSessionCount { get; set; }
+    public int? EstimatedDurationMin { get; set; }
+    public int? EstimatedDurationMax { get; set; }
+    public string? EstimatedDurationUnit { get; set; }
+    public DateOnly? EstimatedStartDate { get; set; }
+    public DateOnly? EstimatedEndDate { get; set; }
     public string Status { get; set; } = "Planned";
     public DateOnly? WarrantyUntil { get; set; }
     public string? Notes { get; set; }
@@ -173,6 +179,12 @@ public class TreatmentPlanDto
     public decimal UnitPrice { get; set; }
     public int Quantity { get; set; }
     public string? Teeth { get; set; }
+    public int? EstimatedSessionCount { get; set; }
+    public int? EstimatedDurationMin { get; set; }
+    public int? EstimatedDurationMax { get; set; }
+    public string? EstimatedDurationUnit { get; set; }
+    public DateOnly? EstimatedStartDate { get; set; }
+    public DateOnly? EstimatedEndDate { get; set; }
     public DateOnly? WarrantyUntil { get; set; }
     public List<StepProgressEntryDto> StepProgress { get; set; } = new();
     public int TotalSteps { get; set; }
