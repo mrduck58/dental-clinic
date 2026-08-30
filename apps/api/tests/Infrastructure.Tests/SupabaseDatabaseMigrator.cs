@@ -8,6 +8,7 @@ public class SupabaseDatabaseMigrator
 {
     private static readonly string[] ConnectionStrings =
     [
+        "Host=db.iyuwmzlolzsdqcucgufr.supabase.co;Port=5432;Database=postgres;Username=postgres;Password=Huan0508@2004;SslMode=Require;TrustServerCertificate=true;Timeout=15;CommandTimeout=30;",
         "Host=aws-1-ap-southeast-1.pooler.supabase.com;Port=5432;Database=postgres;Username=postgres.iyuwmzlolzsdqcucgufr;Password=Huan0508@2004;SslMode=Require;TrustServerCertificate=true;Timeout=10;CommandTimeout=30;",
         "Host=aws-0-ap-southeast-1.pooler.supabase.com;Port=5432;Database=postgres;Username=postgres.iyuwmzlolzsdqcucgufr;Password=Huan0508@2004;SslMode=Require;TrustServerCertificate=true;Timeout=10;CommandTimeout=30;",
         "Host=aws-0-ap-southeast-1.pooler.supabase.com;Port=6543;Database=postgres;Username=postgres.iyuwmzlolzsdqcucgufr;Password=Huan0508@2004;SslMode=Require;TrustServerCertificate=true;Timeout=10;CommandTimeout=30;",
@@ -16,6 +17,7 @@ public class SupabaseDatabaseMigrator
 
     private static async Task<NpgsqlConnection> GetOpenConnectionAsync()
     {
+        var errors = new List<string>();
         foreach (var cs in ConnectionStrings)
         {
             try
@@ -24,12 +26,12 @@ public class SupabaseDatabaseMigrator
                 await conn.OpenAsync();
                 return conn;
             }
-            catch
+            catch (Exception ex)
             {
-                // try next
+                errors.Add($"{cs.Split(';')[0]}:{cs.Split(';')[1]} => {ex.Message}");
             }
         }
-        throw new InvalidOperationException("Could not connect to Supabase with any connection string.");
+        throw new InvalidOperationException($"Could not connect to Supabase: {string.Join(" | ", errors)}");
     }
 
     [Test, Explicit("Chạy trực tiếp khi cần migrate database Supabase")]
