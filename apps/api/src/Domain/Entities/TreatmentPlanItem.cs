@@ -15,6 +15,12 @@ public class TreatmentPlanItem
     public decimal UnitPrice { get; private set; }
     public int Quantity { get; private set; }
     public string? Teeth { get; private set; }
+    public int? EstimatedSessionCount { get; private set; }
+    public int? EstimatedDurationMin { get; private set; }
+    public int? EstimatedDurationMax { get; private set; }
+    public DurationUnit? EstimatedDurationUnit { get; private set; }
+    public DateOnly? EstimatedStartDate { get; private set; }
+    public DateOnly? EstimatedEndDate { get; private set; }
     public TreatmentPlanItemStatus Status { get; private set; }
     public DateOnly? WarrantyUntil { get; private set; }
     public string? Notes { get; private set; }
@@ -42,7 +48,13 @@ public class TreatmentPlanItem
         string? notes = null,
         DateOnly? warrantyUntil = null,
         Guid? serviceOptionId = null,
-        string? serviceOptionName = null)
+        string? serviceOptionName = null,
+        int? estimatedSessionCount = null,
+        int? estimatedDurationMin = null,
+        int? estimatedDurationMax = null,
+        DurationUnit? estimatedDurationUnit = null,
+        DateOnly? estimatedStartDate = null,
+        DateOnly? estimatedEndDate = null)
     {
         return new TreatmentPlanItem
         {
@@ -56,18 +68,41 @@ public class TreatmentPlanItem
             Teeth = teeth,
             Notes = notes,
             WarrantyUntil = warrantyUntil,
+            EstimatedSessionCount = estimatedSessionCount,
+            EstimatedDurationMin = estimatedDurationMin,
+            EstimatedDurationMax = estimatedDurationMax,
+            EstimatedDurationUnit = estimatedDurationUnit,
+            EstimatedStartDate = estimatedStartDate,
+            EstimatedEndDate = estimatedEndDate,
             Status = TreatmentPlanItemStatus.Planned,
             CreatedAt = DateTimeOffset.UtcNow
         };
     }
 
-    public void Update(decimal unitPrice, int quantity, string? teeth, string? notes, DateOnly? warrantyUntil)
+    public void Update(
+        decimal unitPrice,
+        int quantity,
+        string? teeth,
+        string? notes,
+        DateOnly? warrantyUntil,
+        int? estimatedSessionCount = null,
+        int? estimatedDurationMin = null,
+        int? estimatedDurationMax = null,
+        DurationUnit? estimatedDurationUnit = null,
+        DateOnly? estimatedStartDate = null,
+        DateOnly? estimatedEndDate = null)
     {
         UnitPrice = unitPrice < 0 ? 0 : unitPrice;
         Quantity = quantity < 1 ? 1 : quantity;
         Teeth = teeth;
         Notes = notes;
         WarrantyUntil = warrantyUntil;
+        EstimatedSessionCount = estimatedSessionCount;
+        EstimatedDurationMin = estimatedDurationMin;
+        EstimatedDurationMax = estimatedDurationMax;
+        EstimatedDurationUnit = estimatedDurationUnit;
+        EstimatedStartDate = estimatedStartDate;
+        EstimatedEndDate = estimatedEndDate;
     }
 
     public void SetStatus(TreatmentPlanItemStatus status)
