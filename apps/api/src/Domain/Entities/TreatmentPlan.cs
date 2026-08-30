@@ -10,7 +10,6 @@ public class TreatmentPlan
     public Guid Id { get; private set; }
     public Guid PatientId { get; private set; }
     public Guid DentistId { get; private set; }
-    public Guid? AppointmentId { get; private set; } // Buổi hẹn lập kế hoạch
     public string Title { get; private set; } = string.Empty;
     public TreatmentPlanStatus Status { get; private set; }
     public string? Notes { get; private set; }
@@ -32,7 +31,6 @@ public class TreatmentPlan
     // Navigation properties
     public Patient Patient { get; private set; } = null!;
     public DentistProfile Dentist { get; private set; } = null!;
-    public Appointment? Appointment { get; private set; }
     public ICollection<TreatmentPlanItem> Items { get; private set; } = new List<TreatmentPlanItem>();
 
     private TreatmentPlan() { }
@@ -40,7 +38,6 @@ public class TreatmentPlan
     public static TreatmentPlan Create(
         Guid patientId,
         Guid dentistId,
-        Guid? appointmentId,
         string? title = null,
         string? notes = null)
     {
@@ -49,7 +46,6 @@ public class TreatmentPlan
             Id = Guid.NewGuid(),
             PatientId = patientId,
             DentistId = dentistId,
-            AppointmentId = appointmentId,
             Title = string.IsNullOrWhiteSpace(title) ? "Kế hoạch điều trị" : title.Trim(),
             Notes = notes,
             Status = TreatmentPlanStatus.Planned,
@@ -60,7 +56,6 @@ public class TreatmentPlan
     public static TreatmentPlan Create(
         Guid patientId,
         Guid dentistId,
-        Guid? appointmentId,
         Guid serviceId,
         decimal unitPrice,
         int quantity = 1,
@@ -75,7 +70,6 @@ public class TreatmentPlan
             Id = Guid.NewGuid(),
             PatientId = patientId,
             DentistId = dentistId,
-            AppointmentId = appointmentId,
             Title = "Kế hoạch điều trị",
             Notes = notes,
             Status = TreatmentPlanStatus.Planned,
@@ -96,6 +90,21 @@ public class TreatmentPlan
         plan.Items.Add(item);
         return plan;
     }
+
+    [Obsolete("Use overload without appointmentId as TreatmentPlan now belongs directly to Patient")]
+    public static TreatmentPlan Create(
+        Guid patientId,
+        Guid dentistId,
+        Guid? appointmentId,
+        Guid serviceId,
+        decimal unitPrice,
+        int quantity = 1,
+        string? teeth = null,
+        string? notes = null,
+        DateOnly? warrantyUntil = null,
+        string? serviceOptionName = null,
+        Guid? serviceOptionId = null) =>
+        Create(patientId, dentistId, serviceId, unitPrice, quantity, teeth, notes, warrantyUntil, serviceOptionName, serviceOptionId);
 
     public void Update(string title, string? notes)
     {

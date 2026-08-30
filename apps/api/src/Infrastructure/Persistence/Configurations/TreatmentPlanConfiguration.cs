@@ -35,11 +35,6 @@ public class TreatmentPlanConfiguration : IEntityTypeConfiguration<TreatmentPlan
             .HasForeignKey(tp => tp.DentistId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne(tp => tp.Appointment)
-            .WithMany(a => a.TreatmentPlans)
-            .HasForeignKey(tp => tp.AppointmentId)
-            .OnDelete(DeleteBehavior.SetNull);
-
         builder.HasMany(tp => tp.Items)
             .WithOne(i => i.TreatmentPlan)
             .HasForeignKey(i => i.TreatmentPlanId)

@@ -186,14 +186,21 @@ public class InvoiceRepository(AppDbContext db) : IInvoiceRepository
             .ToListAsync(ct);
 
     public async Task<IReadOnlyList<TreatmentPlanBillingInfo>> GetTreatmentPlanBillingInfoByAppointmentIdsAsync(
-        IReadOnlyList<Guid> appointmentIds, CancellationToken ct = default) =>
-        await db.TreatmentPlans
-            .Where(tp => tp.AppointmentId != null && appointmentIds.Contains(tp.AppointmentId.Value)
-                         && tp.Status != TreatmentPlanStatus.Cancelled)
+        IReadOnlyList<Guid> appointmentIds, CancellationToken ct = default)
+    {
+        var patientIds = await db.Appointments
+            .Where(a => appointmentIds.Contains(a.Id))
+            .Select(a => a.PatientId)
+            .Distinct()
+            .ToListAsync(ct);
+
+        return await db.TreatmentPlans
+            .Where(tp => patientIds.Contains(tp.PatientId) && tp.Status != TreatmentPlanStatus.Cancelled)
             .Select(tp => new TreatmentPlanBillingInfo(
                 tp.Id,
                 tp.Items.Select(i => i.UnitPrice).FirstOrDefault(),
                 tp.Items.Select(i => i.Quantity).FirstOrDefault(),
                 tp.Items.Select(i => i.ServiceId).FirstOrDefault()))
             .ToListAsync(ct);
+    }
 }

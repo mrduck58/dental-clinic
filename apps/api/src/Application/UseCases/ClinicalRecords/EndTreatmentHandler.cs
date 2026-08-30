@@ -45,7 +45,7 @@ public class EndTreatmentHandler(
         if (treatmentPlanRepository != null)
         {
             var plans = await treatmentPlanRepository.GetByPatientIdAsync(appointment.PatientId, ct);
-            var activePlans = plans.Where(p => p.AppointmentId == appointmentId && p.Status != TreatmentPlanStatus.Cancelled).ToList();
+            var activePlans = plans.Where(p => p.Status != TreatmentPlanStatus.Cancelled && p.Status != TreatmentPlanStatus.Completed).ToList();
             hasActivePlans = activePlans.Count > 0;
             activePlansTotalCost = activePlans.Sum(p => p.TotalCost);
         }

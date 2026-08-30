@@ -18,11 +18,7 @@ public record UpdateServiceCommand(
     string Content,
     string? ImageUrl,
     string? IconUrl,
-    IReadOnlyCollection<ServiceOptionRequest>? Options,
-    int? EstimatedSessionCount = null,
-    int? EstimatedDurationMin = null,
-    int? EstimatedDurationMax = null,
-    string? EstimatedDurationUnit = null) : IRequest<ServiceDto>;
+    IReadOnlyCollection<ServiceOptionRequest>? Options) : IRequest<ServiceDto>;
 
 public class UpdateServiceHandler(
     IServiceRepository serviceRepository,
@@ -34,17 +30,6 @@ public class UpdateServiceHandler(
         var service = await serviceRepository.GetByIdAsync(request.Id, cancellationToken)
             ?? throw new NotFoundException($"Không tìm thấy dịch vụ với ID: {request.Id}");
 
-        DurationUnit? durationUnit = service.EstimatedDurationUnit;
-        if (!string.IsNullOrWhiteSpace(request.EstimatedDurationUnit))
-        {
-            if (Enum.TryParse<DurationUnit>(request.EstimatedDurationUnit, ignoreCase: true, out var parsedUnit))
-                durationUnit = parsedUnit;
-        }
-        else if (request.EstimatedDurationUnit == null && !request.EstimatedDurationMin.HasValue && !request.EstimatedDurationMax.HasValue)
-        {
-            durationUnit = null;
-        }
-
         service.Update(
             request.Name,
             request.Price,
@@ -52,11 +37,7 @@ public class UpdateServiceHandler(
             request.Description,
             request.Content ?? string.Empty,
             request.ImageUrl,
-            request.IconUrl,
-            request.EstimatedSessionCount,
-            request.EstimatedDurationMin,
-            request.EstimatedDurationMax,
-            durationUnit);
+            request.IconUrl);
 
         // Thay toàn bộ tuỳ chọn bằng ĐÚNG MỘT thao tác trên aggregate: ReplaceOptions xoá sạch
         // collection rồi thêm bản mới, EF tự nhận ra cái nào là mồ côi (quan hệ Cascade) để xoá và

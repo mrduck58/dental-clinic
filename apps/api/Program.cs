@@ -365,8 +365,18 @@ using (var scope = app.Services.CreateScope())
             ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""DentistId"" uuid NULL;
             ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""PerformedAt"" timestamp with time zone NULL;
             ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""TreatmentProcedureId"" uuid NULL;
-            ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""Note"" character varying(2000) NULL;
             CREATE INDEX IF NOT EXISTS ""IX_TreatmentSessions_TreatmentPlanItemId"" ON ""TreatmentSessions"" (""TreatmentPlanItemId"");
+
+            CREATE TABLE IF NOT EXISTS ""StepProgressEntries"" (
+                ""Id"" uuid PRIMARY KEY,
+                ""TreatmentSessionId"" uuid NOT NULL,
+                ""CompletionPercentage"" integer NOT NULL DEFAULT 0,
+                ""Note"" character varying(1000) NULL,
+                ""RecordedAt"" timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+                ""CreatedAt"" timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now())
+            );
+            ALTER TABLE ""StepProgressEntries"" ADD COLUMN IF NOT EXISTS ""TreatmentSessionId"" uuid NULL;
+            CREATE INDEX IF NOT EXISTS ""IX_StepProgressEntries_TreatmentSessionId"" ON ""StepProgressEntries"" (""TreatmentSessionId"");
 
             CREATE TABLE IF NOT EXISTS ""AppointmentSessions"" (
                 ""Id"" uuid PRIMARY KEY,
@@ -447,6 +457,18 @@ using (var scope = app.Services.CreateScope())
             );
             CREATE INDEX IF NOT EXISTS ""IX_TreatmentSupplyUsages_TreatmentPlanId"" ON ""TreatmentSupplyUsages"" (""TreatmentPlanId"");
             CREATE INDEX IF NOT EXISTS ""IX_TreatmentSupplyUsages_TreatmentSessionId"" ON ""TreatmentSupplyUsages"" (""TreatmentSessionId"");
+
+            ALTER TABLE ""InvoiceItems"" ADD COLUMN IF NOT EXISTS ""TreatmentPlanItemId"" uuid NULL;
+            ALTER TABLE ""InvoiceItems"" ADD COLUMN IF NOT EXISTS ""TreatmentPlanId"" uuid NULL;
+            ALTER TABLE ""InvoiceItems"" ADD COLUMN IF NOT EXISTS ""AmountCollected"" numeric(18, 2) NOT NULL DEFAULT 0;
+            CREATE INDEX IF NOT EXISTS ""IX_InvoiceItems_TreatmentPlanItemId"" ON ""InvoiceItems"" (""TreatmentPlanItemId"");
+            CREATE INDEX IF NOT EXISTS ""IX_InvoiceItems_TreatmentPlanId"" ON ""InvoiceItems"" (""TreatmentPlanId"");
+
+            ALTER TABLE ""Invoices"" ADD COLUMN IF NOT EXISTS ""ParentInvoiceId"" uuid NULL;
+            ALTER TABLE ""Invoices"" ADD COLUMN IF NOT EXISTS ""IsSettled"" boolean NOT NULL DEFAULT false;
+            ALTER TABLE ""Invoices"" ADD COLUMN IF NOT EXISTS ""CollectingRemaining"" boolean NOT NULL DEFAULT false;
+            ALTER TABLE ""Invoices"" ADD COLUMN IF NOT EXISTS ""TreatmentPlanId"" uuid NULL;
+            ALTER TABLE ""Invoices"" ADD COLUMN IF NOT EXISTS ""PromotionId"" uuid NULL;
         ");
         await db.Database.MigrateAsync();
         await DataSeeder.SeedAsync(db);

@@ -122,7 +122,6 @@ public class CreateTreatmentPlanHandler(
         var treatmentPlan = TreatmentPlan.Create(
             appointment.PatientId,
             appointment.DentistId,
-            appointment.Id,
             title: service.Name,
             notes: NormalizeText(request.Notes));
 

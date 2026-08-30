@@ -202,18 +202,10 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
     return steps;
   }, [proceduresCache]);
 
-  // Buổi tái khám (staff check-in từ tab Tái khám) → hiển thị liệu trình của CHUỖI đơn được tái khám
-  // (buổi gốc + các buổi tái khám trước trong chuỗi + buổi này) — không hiển thị dịch vụ của các lần khám khác.
-  // Buổi khám thường → chỉ hiển thị liệu trình lập trong chính buổi này.
   const isFollowUpVisit = examination?.isFollowUpVisit ?? false;
-  const chainIds = useMemo(() => {
-    const ids = new Set(examination?.relatedAppointmentIds ?? []);
-    ids.add(appointmentId);
-    return ids;
-  }, [examination?.relatedAppointmentIds, appointmentId]);
   const visiblePlans = useMemo(
-    () => plans.filter(p => p.appointmentId != null && chainIds.has(p.appointmentId)),
-    [plans, chainIds]
+    () => plans.filter(p => p.status !== "Cancelled"),
+    [plans]
   );
 
   // Nạp quy trình chuẩn của mọi dịch vụ đang hiển thị để biết MẪU SỐ khi tính % hoàn thành
@@ -271,10 +263,10 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
   const activePlans = useMemo(() => visiblePlans.filter(p => p.status !== "Cancelled"), [visiblePlans]);
   const totalCost = useMemo(() => activePlans.reduce((sum, p) => sum + p.totalCost, 0), [activePlans]);
 
-  // Các liệu trình đang thực hiện từ chuỗi đơn trước (hiện trong banner tái khám)
+  // Các liệu trình đang thực hiện (hiện trong banner tái khám)
   const continuingPlans = useMemo(
-    () => visiblePlans.filter(p => p.status === "InProgress" && p.appointmentId !== appointmentId),
-    [visiblePlans, appointmentId]
+    () => visiblePlans.filter(p => p.status === "InProgress"),
+    [visiblePlans]
   );
 
   const filteredServices = useMemo(() => {
@@ -1108,10 +1100,6 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                         setSelOption(null);
                         setAddTeeth("");
                         setAddServiceError(null);
-                        setAddEstimatedSessionCount(s.estimatedSessionCount ?? "");
-                        setAddEstimatedDurationMin(s.estimatedDurationMin ?? "");
-                        setAddEstimatedDurationMax(s.estimatedDurationMax ?? "");
-                        setAddEstimatedDurationUnit(s.estimatedDurationUnit || "Month");
                       }}
                       className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors cursor-pointer ${selService?.id === s.id ? "bg-primary/5" : "hover:bg-slate-50"}`}
                     >
@@ -1120,11 +1108,6 @@ export default function TreatmentWorkspace({ appointmentId, onBack, editMode = f
                         <div className="text-[11.5px] font-semibold text-slate-400 flex items-center gap-1.5 flex-wrap">
                           <span>{s.durationMinutes} phút/buổi</span>
                           {opts.length > 0 && <span>· {opts.length} tùy chọn</span>}
-                          {((s.estimatedSessionCount ?? 0) > 0 || (s.estimatedDurationMin ?? 0) > 0 || (s.estimatedDurationMax ?? 0) > 0) && (
-                            <span className="text-indigo-600 font-bold">
-                              · Liệu trình: {s.estimatedSessionCount ? `${s.estimatedSessionCount} buổi` : ""}{s.estimatedSessionCount && (s.estimatedDurationMin || s.estimatedDurationMax) ? " / " : ""}{s.estimatedDurationMin && s.estimatedDurationMax && s.estimatedDurationMin !== s.estimatedDurationMax ? `${s.estimatedDurationMin}–${s.estimatedDurationMax}` : (s.estimatedDurationMin || s.estimatedDurationMax || "")} {DURATION_UNIT_LABELS[s.estimatedDurationUnit || "Month"] || "tháng"}
-                            </span>
-                          )}
                         </div>
                       </div>
                       {opts.length === 0 && (

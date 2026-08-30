@@ -24,9 +24,5 @@ internal static class ServiceMapper
                 .OrderBy(o => o.SortOrder)
                 .Select(o => new ServiceOptionDto(o.Id, o.Name, o.Price, o.Unit, o.SortOrder))
                 .ToList()
-                .AsReadOnly(),
-            service.EstimatedSessionCount,
-            service.EstimatedDurationMin,
-            service.EstimatedDurationMax,
-            service.EstimatedDurationUnit?.ToString());
+                .AsReadOnly());
 }

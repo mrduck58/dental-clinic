@@ -30,10 +30,6 @@ public class ServiceConfiguration : IEntityTypeConfiguration<Service>
         builder.Property(s => s.Content)
             .HasDefaultValue("");
 
-        builder.Property(s => s.EstimatedDurationUnit)
-            .HasConversion<string>()
-            .HasMaxLength(20);
-
         builder.HasMany(s => s.Options)
             .WithOne(o => o.Service)
             .HasForeignKey(o => o.ServiceId)
