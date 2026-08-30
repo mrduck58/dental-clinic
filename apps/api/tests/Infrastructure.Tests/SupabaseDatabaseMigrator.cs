@@ -285,6 +285,7 @@ public class SupabaseDatabaseMigrator
                 ""CreatedBy"" character varying(200) NULL,
                 ""CreatedAt"" timestamp with time zone NOT NULL
             );",
+            @"ALTER TABLE ""TreatmentSupplyUsages"" ADD COLUMN IF NOT EXISTS ""TreatmentSessionId"" uuid NULL;",
             @"CREATE INDEX IF NOT EXISTS ""IX_TreatmentSupplyUsages_TreatmentPlanId"" ON ""TreatmentSupplyUsages"" (""TreatmentPlanId"");",
             @"CREATE INDEX IF NOT EXISTS ""IX_TreatmentSupplyUsages_TreatmentSessionId"" ON ""TreatmentSupplyUsages"" (""TreatmentSessionId"");",
 
