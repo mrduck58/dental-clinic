@@ -77,13 +77,12 @@ public static class ClinicalRecordMappers
         }).ToList()
     };
 
-    // ── Treatment Sessions & Items ───────────────────────────────────────────
+    // ── Treatment Sessions, Steps & Items ───────────────────────────────────
 
     public static TreatmentSessionDto ToDto(TreatmentSession s) => new()
     {
         Id = s.Id,
-        TreatmentPlanItemId = s.TreatmentPlanItemId,
-        TreatmentProcedureId = s.TreatmentProcedureId,
+        TreatmentPlanStepId = s.TreatmentPlanStepId,
         SessionNumber = s.SessionNumber,
         Name = s.Name,
         Status = s.Status.ToString(),
@@ -95,28 +94,53 @@ public static class ClinicalRecordMappers
         CreatedAt = s.CreatedAt
     };
 
+    public static TreatmentPlanStepDto ToDto(TreatmentPlanStep step)
+    {
+        var sessionDtos = (step.Sessions ?? []).OrderBy(s => s.SessionNumber).Select(ToDto).ToList();
+        var completedSessions = (step.Sessions ?? []).Count(s => s.Status == TreatmentSessionStatus.Completed);
+        return new TreatmentPlanStepDto
+        {
+            Id = step.Id,
+            TreatmentPlanItemId = step.TreatmentPlanItemId,
+            TreatmentProcedureId = step.TreatmentProcedureId,
+            StepNumber = step.StepNumber,
+            Name = step.Name,
+            Description = step.Description,
+            EstimatedSessionCount = step.EstimatedSessionCount,
+            CompletedSessionCount = completedSessions,
+            DurationMinutes = step.DurationMinutes,
+            Percent = step.Percent,
+            Status = step.Status.ToString(),
+            Notes = step.Notes,
+            CreatedAt = step.CreatedAt,
+            CompletedAt = step.CompletedAt,
+            Sessions = sessionDtos
+        };
+    }
+
     public static TreatmentPlanItemDto ToDto(
         TreatmentPlanItem item,
         IEnumerable<int>? procedureStepNumbers = null)
     {
-        var distinctSessions = (item.Sessions ?? []).DistinctBy(s => s.Id).OrderBy(s => s.SessionNumber).ToList();
-        var sessionDtos = distinctSessions.Select(ToDto).ToList();
-        var stepEntries = distinctSessions.Select(s => new StepProgressEntryDto
+        var stepDtos = (item.Steps ?? []).OrderBy(s => s.StepNumber).Select(ToDto).ToList();
+        var allSessions = (item.Steps ?? []).SelectMany(s => s.Sessions ?? []).OrderBy(s => s.SessionNumber).Select(ToDto).ToList();
+
+        var stepEntries = (item.Steps ?? []).OrderBy(s => s.StepNumber).Select(s => new StepProgressEntryDto
         {
             Id = s.Id,
-            StepNumber = s.SessionNumber,
+            StepNumber = s.StepNumber,
             StepName = s.Name,
-            Percent = s.Percent > 0 ? s.Percent : (s.Status == TreatmentSessionStatus.Completed ? 100 : (s.Status == TreatmentSessionStatus.InProgress ? 50 : 0)),
-            Date = s.PerformedAt.HasValue ? DateOnly.FromDateTime(s.PerformedAt.Value.Date) : DateOnly.FromDateTime(s.CreatedAt.Date),
-            DentistName = s.Dentist?.FullName ?? string.Empty,
-            Note = s.Note
+            Percent = s.Percent,
+            Date = s.CompletedAt.HasValue ? DateOnly.FromDateTime(s.CompletedAt.Value.Date) : DateOnly.FromDateTime(s.CreatedAt.Date),
+            DentistName = string.Empty,
+            Note = s.Notes
         }).ToList();
 
         var total = procedureStepNumbers != null && procedureStepNumbers.Any()
             ? procedureStepNumbers.Count()
-            : distinctSessions.Count;
-        var completed = distinctSessions.Count(s => s.Percent >= 100 || s.Status == TreatmentSessionStatus.Completed);
-        var percent = total > 0 ? (int)Math.Round((double)distinctSessions.Sum(s => s.Percent > 0 ? s.Percent : (s.Status == TreatmentSessionStatus.Completed ? 100 : 0)) / total) : 0;
+            : stepDtos.Count;
+        var completed = stepDtos.Count(s => s.Status == "Completed" || s.Percent >= 100);
+        var percent = total > 0 ? (int)Math.Round((double)stepDtos.Sum(s => s.Percent) / total) : 0;
         if (percent > 100) percent = 100;
 
         return new TreatmentPlanItemDto
@@ -140,7 +164,8 @@ public static class ClinicalRecordMappers
             WarrantyUntil = item.WarrantyUntil,
             Notes = item.Notes,
             TotalCost = item.TotalCost,
-            Sessions = sessionDtos,
+            Steps = stepDtos,
+            Sessions = allSessions,
             StepProgress = stepEntries,
             TotalSteps = total,
             CompletedSteps = completed,
@@ -159,7 +184,7 @@ public static class ClinicalRecordMappers
         var itemDtos = (tp.Items ?? []).Select(i => ToDto(i, procedureStepNumbers)).ToList();
         var primaryItem = itemDtos.FirstOrDefault();
 
-        var allSessions = itemDtos.SelectMany(i => i.Sessions ?? []).DistinctBy(s => s.Id).OrderBy(s => s.SessionNumber).ToList();
+        var allSteps = itemDtos.SelectMany(i => i.Steps ?? []).OrderBy(s => s.StepNumber).ToList();
         var totalSteps = itemDtos.Sum(i => i.TotalSteps);
         var completedSteps = itemDtos.Sum(i => i.CompletedSteps);
         var progressPercent = itemDtos.Count > 0 ? (int)Math.Round(itemDtos.Average(i => i.ProgressPercent)) : 0;
@@ -193,6 +218,7 @@ public static class ClinicalRecordMappers
             EstimatedStartDate = primaryItem?.EstimatedStartDate,
             EstimatedEndDate = primaryItem?.EstimatedEndDate,
             WarrantyUntil = primaryItem?.WarrantyUntil,
+            Steps = allSteps,
             StepProgress = itemDtos.SelectMany(i => i.StepProgress).DistinctBy(s => s.Id).OrderBy(s => s.StepNumber).ToList(),
             TotalSteps = totalSteps,
             CompletedSteps = completedSteps,
@@ -209,8 +235,8 @@ public static class ClinicalRecordMappers
         AppointmentId = ase.AppointmentId,
         TreatmentSessionId = ase.TreatmentSessionId,
         SessionName = ase.TreatmentSession?.Name ?? string.Empty,
-        ServiceName = ase.TreatmentSession?.TreatmentPlanItem?.Service?.Name ?? string.Empty,
-        Teeth = ase.TreatmentSession?.TreatmentPlanItem?.Teeth,
+        ServiceName = ase.TreatmentSession?.TreatmentPlanStep?.TreatmentPlanItem?.Service?.Name ?? string.Empty,
+        Teeth = ase.TreatmentSession?.TreatmentPlanStep?.TreatmentPlanItem?.Teeth,
         Sequence = ase.Sequence,
         DurationMinutes = ase.DurationMinutes,
         Status = ase.TreatmentSession?.Status.ToString() ?? "Planned",
@@ -228,6 +254,8 @@ public static class ClinicalRecordMappers
         OriginAppointmentId = f.OriginAppointmentId,
         TreatmentPlanItemId = f.TreatmentPlanItemId,
         ServiceName = f.TreatmentPlanItem?.Service?.Name,
+        TreatmentPlanStepId = f.TreatmentPlanStepId,
+        StepName = f.TreatmentPlanStep?.Name,
         TreatmentSessionId = f.TreatmentSessionId,
         SessionName = f.TreatmentSession?.Name,
         DueDate = f.DueDate,
@@ -307,8 +335,20 @@ public static class ClinicalRecordMappers
             d.CreatedAt
         )).ToList();
 
-    public static List<MedicalHistoryTreatmentPlanDto> ToMedicalHistoryTreatmentPlans(Appointment a) =>
-        new List<MedicalHistoryTreatmentPlanDto>();
+    public static List<MedicalHistoryTreatmentPlanDto> ToMedicalHistoryTreatmentPlans(Appointment a)
+    {
+        var itemsFromSessions = (a.AppointmentSessions ?? [])
+            .Select(s => s.TreatmentSession?.TreatmentPlanStep?.TreatmentPlanItem)
+            .Where(item => item != null)
+            .DistinctBy(item => item!.Id)
+            .Select(item => new MedicalHistoryTreatmentPlanDto(
+                item!.Service?.Name ?? "Kế hoạch điều trị",
+                item.Status.ToString(),
+                item.TotalCost
+            )).ToList();
+
+        return itemsFromSessions;
+    }
 
     public static List<MedicalHistoryPrescriptionItemDto> ToMedicalHistoryPrescriptionItems(Appointment a) =>
         (a.Prescriptions ?? []).SelectMany(p => (p.Items ?? []).Select(i => new MedicalHistoryPrescriptionItemDto(

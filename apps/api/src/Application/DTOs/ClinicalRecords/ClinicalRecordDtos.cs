@@ -114,8 +114,7 @@ public class StepProgressEntryDto
 public class TreatmentSessionDto
 {
     public Guid Id { get; set; }
-    public Guid TreatmentPlanItemId { get; set; }
-    public Guid? TreatmentProcedureId { get; set; }
+    public Guid TreatmentPlanStepId { get; set; }
     public int SessionNumber { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Status { get; set; } = "Planned";
@@ -125,6 +124,25 @@ public class TreatmentSessionDto
     public DateTimeOffset? PerformedAt { get; set; }
     public string? Note { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
+}
+
+public class TreatmentPlanStepDto
+{
+    public Guid Id { get; set; }
+    public Guid TreatmentPlanItemId { get; set; }
+    public Guid? TreatmentProcedureId { get; set; }
+    public int StepNumber { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public int EstimatedSessionCount { get; set; } = 1;
+    public int CompletedSessionCount { get; set; } = 0;
+    public int DurationMinutes { get; set; } = 30;
+    public int Percent { get; set; } = 0;
+    public string Status { get; set; } = "Planned";
+    public string? Notes { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? CompletedAt { get; set; }
+    public List<TreatmentSessionDto> Sessions { get; set; } = new();
 }
 
 public class TreatmentPlanItemDto
@@ -148,6 +166,7 @@ public class TreatmentPlanItemDto
     public DateOnly? WarrantyUntil { get; set; }
     public string? Notes { get; set; }
     public decimal TotalCost { get; set; }
+    public List<TreatmentPlanStepDto> Steps { get; set; } = new();
     public List<TreatmentSessionDto> Sessions { get; set; } = new();
     public List<StepProgressEntryDto> StepProgress { get; set; } = new();
     public int TotalSteps { get; set; }
@@ -186,6 +205,7 @@ public class TreatmentPlanDto
     public DateOnly? EstimatedStartDate { get; set; }
     public DateOnly? EstimatedEndDate { get; set; }
     public DateOnly? WarrantyUntil { get; set; }
+    public List<TreatmentPlanStepDto> Steps { get; set; } = new();
     public List<StepProgressEntryDto> StepProgress { get; set; } = new();
     public int TotalSteps { get; set; }
     public int CompletedSteps { get; set; }
@@ -220,6 +240,8 @@ public class FollowUpDto
     public Guid OriginAppointmentId { get; set; }
     public Guid? TreatmentPlanItemId { get; set; }
     public string? ServiceName { get; set; }
+    public Guid? TreatmentPlanStepId { get; set; }
+    public string? StepName { get; set; }
     public Guid? TreatmentSessionId { get; set; }
     public string? SessionName { get; set; }
     public DateOnly DueDate { get; set; }

@@ -44,7 +44,8 @@ public class SetFollowUpReminderHandler(
             request.FollowUpDate,
             note,
             request.TreatmentPlanItemId,
-            request.TreatmentSessionId);
+            request.TreatmentSessionId,
+            request.TreatmentPlanStepId);
 
         await followUpRepository.AddAsync(followUp, ct);
 
@@ -100,10 +101,9 @@ public class GetFollowUpDueHandler(
         {
             if (checkedInSet.Contains(a.Id)) continue;
 
-            var chain = ChainOf(a.Id);
-            var plansInChain = activePlans.Where(p => chain.Contains(p.AppointmentId)).ToList();
-            var planNames = plansInChain.Select(p => p.ServiceName).Distinct().ToList();
-            var activeServicePlan = plansInChain.FirstOrDefault();
+            var plansForPatient = activePlans.Where(p => p.PatientId == a.PatientId).ToList();
+            var planNames = plansForPatient.Select(p => p.ServiceName).Distinct().ToList();
+            var activeServicePlan = plansForPatient.FirstOrDefault();
 
             result.Add(new FollowUpDueDto
             {

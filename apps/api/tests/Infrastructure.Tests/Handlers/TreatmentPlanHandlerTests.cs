@@ -686,15 +686,21 @@ public class TreatmentPlanHandlerTests
         {
             for (int i = 0; i < stepNames.Length; i++)
             {
-                var session = TreatmentSession.Create(
+                var step = TreatmentPlanStep.Create(
                     item.Id,
                     i + 1,
                     stepNames[i],
+                    1,
+                    30);
+                var session = TreatmentSession.Create(
+                    step.Id,
+                    1,
+                    stepNames[i],
                     30,
-                    null,
                     dentist.Id);
                 session.SetStatus(TreatmentSessionStatus.InProgress, DateTimeOffset.UtcNow);
-                item.Sessions.Add(session);
+                step.Sessions.Add(session);
+                item.Steps.Add(step);
             }
         }
         _db.TreatmentPlans.Add(plan);
@@ -901,7 +907,7 @@ public class TreatmentPlanHandlerTests
         var (patient, dentist) = await SeedPatientAndDentistAsync("p30", "d30");
         var (appointment, service) = await SeedInProgressAppointmentAsync(patient, dentist);
         var plan = await SeedPlanWithStepsAsync(patient, dentist, appointment, service, "Gắn mão");
-        var stepEntryId = plan.Items.First().Sessions.First().Id;
+        var stepEntryId = plan.Items.First().Steps.First().Sessions.First().Id;
 
         // Kho hiện còn 4 (giả lập đã bị trừ 1 khi ghi nhận tiêu hao cho bước "Gắn mão" ở trên).
         var supplyItem = SupplyItem.Create("VT-TEST-30", "Mão Titan", "Vật tư chính", "Cái", 4, 1, 200_000m);
@@ -934,7 +940,7 @@ public class TreatmentPlanHandlerTests
         var (patient, dentist) = await SeedPatientAndDentistAsync("p31", "d31");
         var (appointment, service) = await SeedInProgressAppointmentAsync(patient, dentist);
         var plan = await SeedPlanWithStepsAsync(patient, dentist, appointment, service, "Chụp X-quang", "Gắn mão");
-        var otherStepEntryId = plan.Items.First().Sessions.ElementAt(1).Id; // gắn với "Gắn mão", KHÔNG phải bước sẽ bị xóa (index 0)
+        var otherStepEntryId = plan.Items.First().Steps.ElementAt(1).Sessions.First().Id; // gắn với "Gắn mão", KHÔNG phải bước sẽ bị xóa (index 0)
 
         var supplyItem = SupplyItem.Create("VT-TEST-31", "Mão Titan", "Vật tư chính", "Cái", 4, 1, 200_000m);
         _db.SupplyItems.Add(supplyItem);

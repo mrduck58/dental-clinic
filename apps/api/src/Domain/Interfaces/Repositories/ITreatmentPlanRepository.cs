@@ -21,6 +21,12 @@ public interface ITreatmentPlanRepository
     Task UpdateItemAsync(TreatmentPlanItem item, CancellationToken ct = default);
     Task DeleteItemAsync(TreatmentPlanItem item, CancellationToken ct = default);
 
+    Task<TreatmentPlanStep?> GetStepByIdAsync(Guid stepId, CancellationToken ct = default);
+    Task<TreatmentPlanStep?> GetStepWithDetailsAsync(Guid stepId, CancellationToken ct = default);
+    Task AddStepAsync(TreatmentPlanStep step, CancellationToken ct = default);
+    Task UpdateStepAsync(TreatmentPlanStep step, CancellationToken ct = default);
+    Task DeleteStepAsync(TreatmentPlanStep step, CancellationToken ct = default);
+
     Task AddSessionAsync(TreatmentSession session, CancellationToken ct = default);
     Task UpdateSessionAsync(TreatmentSession session, CancellationToken ct = default);
     Task DeleteSessionAsync(TreatmentSession session, CancellationToken ct = default);
@@ -30,4 +36,4 @@ public interface ITreatmentPlanRepository
     Task<IReadOnlyList<ActiveTreatmentPlanSummary>> GetActiveByPatientIdsAsync(List<Guid> patientIds, CancellationToken ct = default);
 }
 
-public record ActiveTreatmentPlanSummary(Guid AppointmentId, Guid ServiceId, string ServiceName);
+public record ActiveTreatmentPlanSummary(Guid PatientId, Guid ServiceId, string ServiceName);

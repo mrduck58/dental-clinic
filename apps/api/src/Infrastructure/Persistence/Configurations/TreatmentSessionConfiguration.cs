@@ -23,15 +23,10 @@ public class TreatmentSessionConfiguration : IEntityTypeConfiguration<TreatmentS
         builder.Property(ts => ts.Note)
             .HasMaxLength(2000);
 
-        builder.HasOne(ts => ts.TreatmentPlanItem)
-            .WithMany(tpi => tpi.Sessions)
-            .HasForeignKey(ts => ts.TreatmentPlanItemId)
+        builder.HasOne(ts => ts.TreatmentPlanStep)
+            .WithMany(s => s.Sessions)
+            .HasForeignKey(ts => ts.TreatmentPlanStepId)
             .OnDelete(DeleteBehavior.Cascade);
-
-        builder.HasOne(ts => ts.TreatmentProcedure)
-            .WithMany()
-            .HasForeignKey(ts => ts.TreatmentProcedureId)
-            .OnDelete(DeleteBehavior.SetNull);
 
         builder.HasOne(ts => ts.Dentist)
             .WithMany()
@@ -48,6 +43,6 @@ public class TreatmentSessionConfiguration : IEntityTypeConfiguration<TreatmentS
             .HasForeignKey(su => su.TreatmentSessionId)
             .OnDelete(DeleteBehavior.SetNull);
 
-        builder.HasIndex(ts => ts.TreatmentPlanItemId);
+        builder.HasIndex(ts => ts.TreatmentPlanStepId);
     }
 }

@@ -3,13 +3,12 @@ namespace DentalClinic.API.Domain.Entities;
 using DentalClinic.API.Domain.Enums;
 
 /// <summary>
-/// Đại diện cho một phiên / bước điều trị thực tế của bệnh nhân thuộc về một TreatmentPlanItem.
+/// Đại diện cho một buổi / lần thực hiện thực tế của bệnh nhân thuộc về một TreatmentPlanStep.
 /// </summary>
 public class TreatmentSession
 {
     public Guid Id { get; private set; }
-    public Guid TreatmentPlanItemId { get; private set; }
-    public Guid? TreatmentProcedureId { get; private set; }
+    public Guid TreatmentPlanStepId { get; private set; }
     public int SessionNumber { get; private set; }
     public string Name { get; private set; } = string.Empty;
     public TreatmentSessionStatus Status { get; private set; }
@@ -21,8 +20,7 @@ public class TreatmentSession
     public DateTimeOffset CreatedAt { get; private set; }
 
     // Navigation properties
-    public TreatmentPlanItem TreatmentPlanItem { get; private set; } = null!;
-    public TreatmentProcedure? TreatmentProcedure { get; private set; }
+    public TreatmentPlanStep TreatmentPlanStep { get; private set; } = null!;
     public DentistProfile? Dentist { get; private set; }
     public ICollection<AppointmentSession> AppointmentSessions { get; private set; } = new List<AppointmentSession>();
     public ICollection<TreatmentSupplyUsage> SupplyUsages { get; private set; } = new List<TreatmentSupplyUsage>();
@@ -32,22 +30,20 @@ public class TreatmentSession
     private TreatmentSession() { }
 
     public static TreatmentSession Create(
-        Guid treatmentPlanItemId,
+        Guid treatmentPlanStepId,
         int sessionNumber,
         string name,
         int durationMinutes = 30,
-        Guid? treatmentProcedureId = null,
         Guid? dentistId = null,
         string? note = null)
     {
         return new TreatmentSession
         {
             Id = Guid.NewGuid(),
-            TreatmentPlanItemId = treatmentPlanItemId,
+            TreatmentPlanStepId = treatmentPlanStepId,
             SessionNumber = sessionNumber,
             Name = name,
             DurationMinutes = durationMinutes > 0 ? durationMinutes : 30,
-            TreatmentProcedureId = treatmentProcedureId,
             DentistId = dentistId,
             Note = note,
             Status = TreatmentSessionStatus.Planned,

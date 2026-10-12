@@ -24,16 +24,16 @@ public class TreatmentPlanQueryHelper(
         if (item.Status == TreatmentPlanItemStatus.Cancelled) return;
 
         var procStepNumbers = await GetProcedureStepNumbersAsync(item.ServiceId, ct);
-        var distinctSessions = item.Sessions.DistinctBy(s => s.Id).ToList();
-        var total = procStepNumbers.Count > 0 ? procStepNumbers.Count : distinctSessions.Count;
-        var completed = distinctSessions.Count(s => s.Percent >= 100 || s.Status == TreatmentSessionStatus.Completed);
-        var inProgress = distinctSessions.Any(s => s.Percent > 0 || s.Status == TreatmentSessionStatus.InProgress || s.Status == TreatmentSessionStatus.Scheduled);
+        var steps = item.Steps.DistinctBy(s => s.Id).ToList();
+        var total = procStepNumbers.Count > 0 ? procStepNumbers.Count : steps.Count;
+        var completed = steps.Count(s => s.Percent >= 100 || s.Status == TreatmentPlanStepStatus.Completed);
+        var inProgress = steps.Any(s => s.Percent > 0 || s.Status == TreatmentPlanStepStatus.InProgress);
 
         var status = total == 0
             ? TreatmentPlanItemStatus.Planned
             : (completed >= total && total > 0)
                 ? TreatmentPlanItemStatus.Completed
-                : (inProgress || completed > 0 || distinctSessions.Count > 0)
+                : (inProgress || completed > 0)
                     ? TreatmentPlanItemStatus.InProgress
                     : TreatmentPlanItemStatus.Planned;
 

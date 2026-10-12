@@ -41,6 +41,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AppointmentPhoto> AppointmentPhotos => Set<AppointmentPhoto>();
     public DbSet<TreatmentPlan> TreatmentPlans => Set<TreatmentPlan>();
     public DbSet<TreatmentPlanItem> TreatmentPlanItems => Set<TreatmentPlanItem>();
+    public DbSet<TreatmentPlanStep> TreatmentPlanSteps => Set<TreatmentPlanStep>();
     public DbSet<TreatmentSession> TreatmentSessions => Set<TreatmentSession>();
     public DbSet<AppointmentSession> AppointmentSessions => Set<AppointmentSession>();
     public DbSet<FollowUp> FollowUps => Set<FollowUp>();

@@ -8,12 +8,9 @@ public class SupabaseDatabaseMigrator
 {
     private static readonly string[] ConnectionStrings =
     [
-        "Host=db.iyuwmzlolzsdqcucgufr.supabase.co;Port=5432;Database=postgres;Username=postgres;Password=Huan0508@2004;SslMode=Require;TrustServerCertificate=true;Timeout=15;CommandTimeout=30;",
-        "Host=aws-1-ap-southeast-1.pooler.supabase.com;Port=5432;Database=postgres;Username=postgres.iyuwmzlolzsdqcucgufr;Password=Huan0508@2004;SslMode=Require;TrustServerCertificate=true;Timeout=10;CommandTimeout=30;",
-        "Host=aws-0-ap-southeast-1.pooler.supabase.com;Port=5432;Database=postgres;Username=postgres.iyuwmzlolzsdqcucgufr;Password=Huan0508@2004;SslMode=Require;TrustServerCertificate=true;Timeout=10;CommandTimeout=30;",
-        "Host=aws-0-ap-southeast-1.pooler.supabase.com;Port=6543;Database=postgres;Username=postgres.iyuwmzlolzsdqcucgufr;Password=Huan0508@2004;SslMode=Require;TrustServerCertificate=true;Timeout=10;CommandTimeout=30;",
-        "Host=aws-1-ap-southeast-1.pooler.supabase.com;Port=6543;Database=postgres;Username=postgres.iyuwmzlolzsdqcucgufr;Password=Huan0508@2004;SslMode=Require;TrustServerCertificate=true;Timeout=10;CommandTimeout=30;"
-    ];
+        Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection") ?? string.Empty,
+        Environment.GetEnvironmentVariable("SUPABASE_DB_URL") ?? string.Empty
+    ].Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
 
     private static async Task<NpgsqlConnection> GetOpenConnectionAsync()
     {
@@ -165,18 +162,40 @@ public class SupabaseDatabaseMigrator
                 ""StepNumber"" integer NOT NULL,
                 ""Name"" character varying(300) NOT NULL,
                 ""DurationMinutes"" integer NOT NULL DEFAULT 30,
+                ""EstimatedSessionCount"" integer NOT NULL DEFAULT 1,
                 ""IsRequired"" boolean NOT NULL DEFAULT true,
                 ""Description"" text NULL
             );",
             @"ALTER TABLE ""TreatmentProcedures"" ADD COLUMN IF NOT EXISTS ""DurationMinutes"" integer NOT NULL DEFAULT 30;",
+            @"ALTER TABLE ""TreatmentProcedures"" ADD COLUMN IF NOT EXISTS ""EstimatedSessionCount"" integer NOT NULL DEFAULT 1;",
             @"ALTER TABLE ""TreatmentProcedures"" ADD COLUMN IF NOT EXISTS ""IsRequired"" boolean NOT NULL DEFAULT true;",
             @"ALTER TABLE ""TreatmentProcedures"" ADD COLUMN IF NOT EXISTS ""Description"" text NULL;",
             @"CREATE INDEX IF NOT EXISTS ""IX_TreatmentProcedures_ServiceId"" ON ""TreatmentProcedures"" (""ServiceId"");",
 
+            // TreatmentPlanSteps
+            @"CREATE TABLE IF NOT EXISTS ""TreatmentPlanSteps"" (
+                ""Id"" uuid PRIMARY KEY,
+                ""TreatmentPlanItemId"" uuid NOT NULL,
+                ""TreatmentProcedureId"" uuid NULL,
+                ""StepNumber"" integer NOT NULL DEFAULT 1,
+                ""Name"" character varying(200) NOT NULL DEFAULT '',
+                ""Description"" character varying(1000) NULL,
+                ""EstimatedSessionCount"" integer NOT NULL DEFAULT 1,
+                ""DurationMinutes"" integer NOT NULL DEFAULT 30,
+                ""Percent"" integer NOT NULL DEFAULT 0,
+                ""Status"" character varying(50) NOT NULL DEFAULT 'Planned',
+                ""Notes"" character varying(2000) NULL,
+                ""CreatedAt"" timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+                ""CompletedAt"" timestamp with time zone NULL
+            );",
+            @"CREATE INDEX IF NOT EXISTS ""IX_TreatmentPlanSteps_TreatmentPlanItemId"" ON ""TreatmentPlanSteps"" (""TreatmentPlanItemId"");",
+            @"CREATE INDEX IF NOT EXISTS ""IX_TreatmentPlanSteps_TreatmentProcedureId"" ON ""TreatmentPlanSteps"" (""TreatmentProcedureId"");",
+
             // TreatmentSessions
             @"CREATE TABLE IF NOT EXISTS ""TreatmentSessions"" (
                 ""Id"" uuid PRIMARY KEY,
-                ""TreatmentPlanItemId"" uuid NOT NULL,
+                ""TreatmentPlanItemId"" uuid NULL,
+                ""TreatmentPlanStepId"" uuid NULL,
                 ""TreatmentProcedureId"" uuid NULL,
                 ""DentistId"" uuid NULL,
                 ""SessionNumber"" integer NOT NULL DEFAULT 1,
@@ -188,12 +207,15 @@ public class SupabaseDatabaseMigrator
                 ""Note"" character varying(2000) NULL,
                 ""CreatedAt"" timestamp with time zone NOT NULL
             );",
+            @"ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""TreatmentPlanStepId"" uuid NULL;",
             @"ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""DurationMinutes"" integer NOT NULL DEFAULT 30;",
             @"ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""Percent"" integer NOT NULL DEFAULT 0;",
             @"ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""SessionNumber"" integer NOT NULL DEFAULT 1;",
             @"ALTER TABLE ""Diagnoses"" ADD COLUMN IF NOT EXISTS ""UpdatedAt"" timestamp with time zone NULL;",
             @"ALTER TABLE ""TreatmentPlanItems"" ADD COLUMN IF NOT EXISTS ""TotalCost"" numeric(18, 2) NOT NULL DEFAULT 0;",
-            @"CREATE INDEX IF NOT EXISTS ""IX_TreatmentSessions_TreatmentPlanItemId"" ON ""TreatmentSessions"" (""TreatmentPlanItemId"");",
+            @"CREATE INDEX IF NOT EXISTS ""IX_TreatmentSessions_TreatmentPlanStepId"" ON ""TreatmentSessions"" (""TreatmentPlanStepId"");",
+            @"ALTER TABLE ""FollowUps"" ADD COLUMN IF NOT EXISTS ""TreatmentPlanStepId"" uuid NULL;",
+            @"CREATE INDEX IF NOT EXISTS ""IX_FollowUps_TreatmentPlanStepId"" ON ""FollowUps"" (""TreatmentPlanStepId"");",
 
             // StepProgressEntries
             @"CREATE TABLE IF NOT EXISTS ""StepProgressEntries"" (

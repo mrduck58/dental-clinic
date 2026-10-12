@@ -33,7 +33,7 @@ public class TreatmentPlanItem
     public TreatmentPlan TreatmentPlan { get; private set; } = null!;
     public Service Service { get; set; } = null!;
     public ServiceOption? ServiceOption { get; private set; }
-    public ICollection<TreatmentSession> Sessions { get; private set; } = new List<TreatmentSession>();
+    public ICollection<TreatmentPlanStep> Steps { get; private set; } = new List<TreatmentPlanStep>();
     public ICollection<InvoiceItem> InvoiceItems { get; private set; } = new List<InvoiceItem>();
     public ICollection<FollowUp> FollowUps { get; private set; } = new List<FollowUp>();
 
