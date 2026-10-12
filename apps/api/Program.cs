@@ -339,13 +339,34 @@ using (var scope = app.Services.CreateScope())
                 ""StepNumber"" integer NOT NULL,
                 ""Name"" character varying(300) NOT NULL,
                 ""EstimatedMinutes"" integer NOT NULL DEFAULT 30,
+                ""EstimatedSessionCount"" integer NOT NULL DEFAULT 1,
                 ""Description"" text NULL
             );
+            ALTER TABLE ""TreatmentProcedures"" ADD COLUMN IF NOT EXISTS ""EstimatedSessionCount"" integer NOT NULL DEFAULT 1;
             CREATE INDEX IF NOT EXISTS ""IX_TreatmentProcedures_ServiceId"" ON ""TreatmentProcedures"" (""ServiceId"");
+
+            CREATE TABLE IF NOT EXISTS ""TreatmentPlanSteps"" (
+                ""Id"" uuid PRIMARY KEY,
+                ""TreatmentPlanItemId"" uuid NOT NULL,
+                ""TreatmentProcedureId"" uuid NULL,
+                ""StepNumber"" integer NOT NULL DEFAULT 1,
+                ""Name"" character varying(200) NOT NULL DEFAULT '',
+                ""Description"" character varying(1000) NULL,
+                ""EstimatedSessionCount"" integer NOT NULL DEFAULT 1,
+                ""DurationMinutes"" integer NOT NULL DEFAULT 30,
+                ""Percent"" integer NOT NULL DEFAULT 0,
+                ""Status"" character varying(50) NOT NULL DEFAULT 'Planned',
+                ""Notes"" character varying(2000) NULL,
+                ""CreatedAt"" timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+                ""CompletedAt"" timestamp with time zone NULL
+            );
+            CREATE INDEX IF NOT EXISTS ""IX_TreatmentPlanSteps_TreatmentPlanItemId"" ON ""TreatmentPlanSteps"" (""TreatmentPlanItemId"");
+            CREATE INDEX IF NOT EXISTS ""IX_TreatmentPlanSteps_TreatmentProcedureId"" ON ""TreatmentPlanSteps"" (""TreatmentProcedureId"");
 
             CREATE TABLE IF NOT EXISTS ""TreatmentSessions"" (
                 ""Id"" uuid PRIMARY KEY,
-                ""TreatmentPlanItemId"" uuid NOT NULL,
+                ""TreatmentPlanItemId"" uuid NULL,
+                ""TreatmentPlanStepId"" uuid NULL,
                 ""TreatmentProcedureId"" uuid NULL,
                 ""DentistId"" uuid NULL,
                 ""SessionNumber"" integer NOT NULL DEFAULT 1,
@@ -357,6 +378,7 @@ using (var scope = app.Services.CreateScope())
                 ""Percent"" integer NOT NULL DEFAULT 0,
                 ""CreatedAt"" timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now())
             );
+            ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""TreatmentPlanStepId"" uuid NULL;
             ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""DurationMinutes"" integer NOT NULL DEFAULT 30;
             ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""SessionNumber"" integer NOT NULL DEFAULT 1;
             ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""Name"" character varying(200) NOT NULL DEFAULT '';
@@ -365,7 +387,22 @@ using (var scope = app.Services.CreateScope())
             ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""DentistId"" uuid NULL;
             ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""PerformedAt"" timestamp with time zone NULL;
             ALTER TABLE ""TreatmentSessions"" ADD COLUMN IF NOT EXISTS ""TreatmentProcedureId"" uuid NULL;
-            CREATE INDEX IF NOT EXISTS ""IX_TreatmentSessions_TreatmentPlanItemId"" ON ""TreatmentSessions"" (""TreatmentPlanItemId"");
+            DO $$ 
+            DECLARE
+                rec RECORD;
+                new_step_id uuid;
+            BEGIN
+                FOR rec IN SELECT DISTINCT ""TreatmentPlanItemId"" FROM ""TreatmentSessions"" WHERE ""TreatmentPlanStepId"" IS NULL AND ""TreatmentPlanItemId"" IS NOT NULL LOOP
+                    SELECT ""Id"" INTO new_step_id FROM ""TreatmentPlanSteps"" WHERE ""TreatmentPlanItemId"" = rec.""TreatmentPlanItemId"" LIMIT 1;
+                    IF new_step_id IS NULL THEN
+                        new_step_id := gen_random_uuid();
+                        INSERT INTO ""TreatmentPlanSteps"" (""Id"", ""TreatmentPlanItemId"", ""StepNumber"", ""Name"", ""EstimatedSessionCount"", ""DurationMinutes"", ""Percent"", ""Status"", ""CreatedAt"")
+                        VALUES (new_step_id, rec.""TreatmentPlanItemId"", 1, 'Giai đoạn điều trị', 1, 30, 0, 'Planned', timezone('utc'::text, now()));
+                    END IF;
+                    UPDATE ""TreatmentSessions"" SET ""TreatmentPlanStepId"" = new_step_id WHERE ""TreatmentPlanItemId"" = rec.""TreatmentPlanItemId"" AND ""TreatmentPlanStepId"" IS NULL;
+                END LOOP;
+            END $$;
+            CREATE INDEX IF NOT EXISTS ""IX_TreatmentSessions_TreatmentPlanStepId"" ON ""TreatmentSessions"" (""TreatmentPlanStepId"");
 
             CREATE TABLE IF NOT EXISTS ""StepProgressEntries"" (
                 ""Id"" uuid PRIMARY KEY,
@@ -399,6 +436,7 @@ using (var scope = app.Services.CreateScope())
                 ""DentistId"" uuid NOT NULL,
                 ""OriginAppointmentId"" uuid NOT NULL,
                 ""TreatmentPlanItemId"" uuid NULL,
+                ""TreatmentPlanStepId"" uuid NULL,
                 ""TreatmentSessionId"" uuid NULL,
                 ""AppointmentId"" uuid NULL,
                 ""DueDate"" timestamp with time zone NOT NULL,
@@ -408,9 +446,11 @@ using (var scope = app.Services.CreateScope())
                 ""CompletedAt"" timestamp with time zone NULL,
                 ""CancelledAt"" timestamp with time zone NULL
             );
+            ALTER TABLE ""FollowUps"" ADD COLUMN IF NOT EXISTS ""TreatmentPlanStepId"" uuid NULL;
             CREATE INDEX IF NOT EXISTS ""IX_FollowUps_PatientId"" ON ""FollowUps"" (""PatientId"");
             CREATE INDEX IF NOT EXISTS ""IX_FollowUps_DueDate"" ON ""FollowUps"" (""DueDate"");
             CREATE INDEX IF NOT EXISTS ""IX_FollowUps_Status"" ON ""FollowUps"" (""Status"");
+            CREATE INDEX IF NOT EXISTS ""IX_FollowUps_TreatmentPlanStepId"" ON ""FollowUps"" (""TreatmentPlanStepId"");
 
             CREATE TABLE IF NOT EXISTS ""Prescriptions"" (
                 ""Id"" uuid PRIMARY KEY,

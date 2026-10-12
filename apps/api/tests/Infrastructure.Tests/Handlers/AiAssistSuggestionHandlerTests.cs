@@ -37,7 +37,8 @@ public class AiAssistSuggestionHandlerTests
 
         var appointmentRepository = new AppointmentRepository(_db);
         var medicineRepository = new MedicineRepository(_db);
-        _prescriptionHandler = new SuggestPrescriptionHandler(_aiChatService, appointmentRepository, medicineRepository);
+        var treatmentPlanRepository = new TreatmentPlanRepository(_db);
+        _prescriptionHandler = new SuggestPrescriptionHandler(_aiChatService, appointmentRepository, medicineRepository, treatmentPlanRepository);
     }
 
     [TearDown]

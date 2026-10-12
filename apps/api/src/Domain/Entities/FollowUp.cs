@@ -12,6 +12,7 @@ public class FollowUp
     public Guid DentistId { get; private set; }
     public Guid OriginAppointmentId { get; private set; }
     public Guid? TreatmentPlanItemId { get; private set; }
+    public Guid? TreatmentPlanStepId { get; private set; }
     public Guid? TreatmentSessionId { get; private set; }
     public DateOnly DueDate { get; private set; }
     public string? Note { get; private set; }
@@ -25,6 +26,7 @@ public class FollowUp
     public DentistProfile Dentist { get; private set; } = null!;
     public Appointment OriginAppointment { get; private set; } = null!;
     public TreatmentPlanItem? TreatmentPlanItem { get; private set; }
+    public TreatmentPlanStep? TreatmentPlanStep { get; private set; }
     public TreatmentSession? TreatmentSession { get; private set; }
     public Appointment? Appointment { get; private set; }
 
@@ -37,7 +39,8 @@ public class FollowUp
         DateOnly dueDate,
         string? note = null,
         Guid? treatmentPlanItemId = null,
-        Guid? treatmentSessionId = null)
+        Guid? treatmentSessionId = null,
+        Guid? treatmentPlanStepId = null)
     {
         return new FollowUp
         {
@@ -48,17 +51,19 @@ public class FollowUp
             DueDate = dueDate,
             Note = note,
             TreatmentPlanItemId = treatmentPlanItemId,
+            TreatmentPlanStepId = treatmentPlanStepId,
             TreatmentSessionId = treatmentSessionId,
             Status = FollowUpStatus.Pending,
             CreatedAt = DateTimeOffset.UtcNow
         };
     }
 
-    public void Update(DateOnly dueDate, string? note, Guid? treatmentPlanItemId = null, Guid? treatmentSessionId = null)
+    public void Update(DateOnly dueDate, string? note, Guid? treatmentPlanItemId = null, Guid? treatmentSessionId = null, Guid? treatmentPlanStepId = null)
     {
         DueDate = dueDate;
         Note = note;
         TreatmentPlanItemId = treatmentPlanItemId;
+        TreatmentPlanStepId = treatmentPlanStepId;
         TreatmentSessionId = treatmentSessionId;
     }
 

@@ -39,6 +39,12 @@ public class FollowUpConfiguration : IEntityTypeConfiguration<FollowUp>
             .HasForeignKey(f => f.TreatmentPlanItemId)
             .OnDelete(DeleteBehavior.SetNull);
 
+        builder.HasOne(f => f.TreatmentPlanStep)
+            .WithMany(s => s.FollowUps)
+            .HasForeignKey(f => f.TreatmentPlanStepId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.SetNull);
+
         builder.HasOne(f => f.TreatmentSession)
             .WithMany(ts => ts.FollowUps)
             .HasForeignKey(f => f.TreatmentSessionId)
@@ -50,6 +56,7 @@ public class FollowUpConfiguration : IEntityTypeConfiguration<FollowUp>
             .OnDelete(DeleteBehavior.SetNull);
 
         builder.HasIndex(f => f.PatientId);
+        builder.HasIndex(f => f.TreatmentPlanStepId);
         builder.HasIndex(f => f.DueDate);
         builder.HasIndex(f => f.Status);
     }

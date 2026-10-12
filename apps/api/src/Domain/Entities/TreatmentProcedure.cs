@@ -11,6 +11,7 @@ public class TreatmentProcedure
     public int StepNumber { get; private set; }
     public string Name { get; private set; } = string.Empty;
     public int DurationMinutes { get; private set; } = 30;
+    public int EstimatedSessionCount { get; private set; } = 1;
     public bool IsRequired { get; private set; } = true;
     public string? Description { get; private set; }
 
@@ -25,7 +26,8 @@ public class TreatmentProcedure
         string name,
         int durationMinutes = 30,
         bool isRequired = true,
-        string? description = null)
+        string? description = null,
+        int estimatedSessionCount = 1)
     {
         return new TreatmentProcedure
         {
@@ -34,16 +36,18 @@ public class TreatmentProcedure
             StepNumber = stepNumber,
             Name = name,
             DurationMinutes = durationMinutes > 0 ? durationMinutes : 30,
+            EstimatedSessionCount = estimatedSessionCount > 0 ? estimatedSessionCount : 1,
             IsRequired = isRequired,
             Description = description
         };
     }
 
-    public void Update(int stepNumber, string name, int durationMinutes = 30, bool isRequired = true, string? description = null)
+    public void Update(int stepNumber, string name, int durationMinutes = 30, bool isRequired = true, string? description = null, int estimatedSessionCount = 1)
     {
         StepNumber = stepNumber;
         Name = name;
         DurationMinutes = durationMinutes > 0 ? durationMinutes : 30;
+        EstimatedSessionCount = estimatedSessionCount > 0 ? estimatedSessionCount : 1;
         IsRequired = isRequired;
         Description = description;
     }

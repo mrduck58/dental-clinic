@@ -9,7 +9,7 @@ abstract class ApiConstants {
 
   /// Supabase Storage Public Base URL phục vụ lưu trữ file
   static const String supabaseStorageBase =
-      'https://iyuwmzlolzsdqcucgufr.supabase.co/storage/v1/object/public';
+      'https://lboceffkwthmvqmwgmps.supabase.co/storage/v1/object/public';
 
   /// Backend trả về path tương đối cho ảnh upload (ví dụ "/uploads/xxx.jpg") — hàm này ghép
   /// đúng host của Supabase Storage hoặc API để ảnh load được trên mọi thiết bị.

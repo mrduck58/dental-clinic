@@ -10,7 +10,7 @@ public class TreatmentPlanRepository(AppDbContext db) : ITreatmentPlanRepository
     public async Task<TreatmentPlan?> GetByIdAsync(Guid id, CancellationToken ct = default)
         => await db.TreatmentPlans
             .Include(tp => tp.Items).ThenInclude(i => i.Service)
-            .Include(tp => tp.Items).ThenInclude(i => i.Sessions)
+            .Include(tp => tp.Items).ThenInclude(i => i.Steps).ThenInclude(s => s.Sessions)
             .FirstOrDefaultAsync(tp => tp.Id == id, ct);
 
     public async Task<TreatmentPlan?> GetByIdWithDetailsAsync(Guid id, CancellationToken ct = default)
@@ -18,21 +18,21 @@ public class TreatmentPlanRepository(AppDbContext db) : ITreatmentPlanRepository
             .Include(tp => tp.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
             .Include(tp => tp.Items).ThenInclude(i => i.Service)
             .Include(tp => tp.Items).ThenInclude(i => i.ServiceOption)
-            .Include(tp => tp.Items).ThenInclude(i => i.Sessions).ThenInclude(s => s.Dentist).ThenInclude(d => d!.Employee).ThenInclude(e => e.User)
+            .Include(tp => tp.Items).ThenInclude(i => i.Steps).ThenInclude(s => s.Sessions).ThenInclude(sess => sess.Dentist).ThenInclude(d => d!.Employee).ThenInclude(e => e.User)
             .FirstOrDefaultAsync(tp => tp.Id == id, ct);
 
     public async Task<TreatmentPlan?> GetByIdWithDentistAsync(Guid id, CancellationToken ct = default)
         => await db.TreatmentPlans
             .Include(tp => tp.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
             .Include(tp => tp.Items).ThenInclude(i => i.Service)
-            .Include(tp => tp.Items).ThenInclude(i => i.Sessions)
+            .Include(tp => tp.Items).ThenInclude(i => i.Steps).ThenInclude(s => s.Sessions)
             .FirstOrDefaultAsync(tp => tp.Id == id, ct);
 
     public async Task<TreatmentPlanItem?> GetItemByIdAsync(Guid itemId, CancellationToken ct = default)
         => await db.TreatmentPlanItems
             .Include(i => i.TreatmentPlan)
             .Include(i => i.Service)
-            .Include(i => i.Sessions)
+            .Include(i => i.Steps).ThenInclude(s => s.Sessions)
             .FirstOrDefaultAsync(i => i.Id == itemId, ct);
 
     public async Task<TreatmentPlanItem?> GetItemWithDetailsAsync(Guid itemId, CancellationToken ct = default)
@@ -41,13 +41,13 @@ public class TreatmentPlanRepository(AppDbContext db) : ITreatmentPlanRepository
             .Include(i => i.TreatmentPlan).ThenInclude(tp => tp.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
             .Include(i => i.Service)
             .Include(i => i.ServiceOption)
-            .Include(i => i.Sessions).ThenInclude(s => s.Dentist).ThenInclude(d => d!.Employee).ThenInclude(e => e.User)
+            .Include(i => i.Steps).ThenInclude(s => s.Sessions).ThenInclude(sess => sess.Dentist).ThenInclude(d => d!.Employee).ThenInclude(e => e.User)
             .FirstOrDefaultAsync(i => i.Id == itemId, ct);
 
     public async Task<TreatmentSession?> GetSessionByIdAsync(Guid sessionId, CancellationToken ct = default)
         => await db.TreatmentSessions
-            .Include(s => s.TreatmentPlanItem).ThenInclude(i => i.TreatmentPlan)
-            .Include(s => s.TreatmentPlanItem).ThenInclude(i => i.Service)
+            .Include(s => s.TreatmentPlanStep).ThenInclude(st => st.TreatmentPlanItem).ThenInclude(i => i.TreatmentPlan)
+            .Include(s => s.TreatmentPlanStep).ThenInclude(st => st.TreatmentPlanItem).ThenInclude(i => i.Service)
             .Include(s => s.Dentist).ThenInclude(d => d!.Employee).ThenInclude(e => e.User)
             .FirstOrDefaultAsync(s => s.Id == sessionId, ct);
 
@@ -57,7 +57,7 @@ public class TreatmentPlanRepository(AppDbContext db) : ITreatmentPlanRepository
             .Include(tp => tp.Dentist).ThenInclude(d => d.Employee).ThenInclude(e => e.User)
             .Include(tp => tp.Items).ThenInclude(i => i.Service)
             .Include(tp => tp.Items).ThenInclude(i => i.ServiceOption)
-            .Include(tp => tp.Items).ThenInclude(i => i.Sessions).ThenInclude(s => s.Dentist).ThenInclude(d => d!.Employee).ThenInclude(e => e.User)
+            .Include(tp => tp.Items).ThenInclude(i => i.Steps).ThenInclude(s => s.Sessions).ThenInclude(sess => sess.Dentist).ThenInclude(d => d!.Employee).ThenInclude(e => e.User)
             .Where(tp => tp.PatientId == patientId)
             .OrderBy(tp => tp.CreatedAt)
             .ToListAsync(ct);
@@ -137,6 +137,75 @@ public class TreatmentPlanRepository(AppDbContext db) : ITreatmentPlanRepository
         {
             db.TreatmentPlanItems.Attach(item);
             db.TreatmentPlanItems.Remove(item);
+        }
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task<TreatmentPlanStep?> GetStepByIdAsync(Guid stepId, CancellationToken ct = default)
+        => await db.TreatmentPlanSteps
+            .Include(s => s.TreatmentPlanItem).ThenInclude(i => i.TreatmentPlan)
+            .Include(s => s.Sessions)
+            .FirstOrDefaultAsync(s => s.Id == stepId, ct);
+
+    public async Task<TreatmentPlanStep?> GetStepWithDetailsAsync(Guid stepId, CancellationToken ct = default)
+        => await db.TreatmentPlanSteps
+            .Include(s => s.TreatmentPlanItem).ThenInclude(i => i.TreatmentPlan)
+            .Include(s => s.TreatmentPlanItem).ThenInclude(i => i.Service)
+            .Include(s => s.Sessions).ThenInclude(sess => sess.Dentist).ThenInclude(d => d!.Employee).ThenInclude(e => e.User)
+            .FirstOrDefaultAsync(s => s.Id == stepId, ct);
+
+    public async Task AddStepAsync(TreatmentPlanStep step, CancellationToken ct = default)
+    {
+        var local = db.TreatmentPlanSteps.Local.FirstOrDefault(e => e.Id == step.Id);
+        if (local == null)
+            await db.TreatmentPlanSteps.AddAsync(step, ct);
+        else
+            db.Entry(local).State = EntityState.Added;
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task UpdateStepAsync(TreatmentPlanStep step, CancellationToken ct = default)
+    {
+        var local = db.TreatmentPlanSteps.Local.FirstOrDefault(e => e.Id == step.Id);
+        if (local != null && !ReferenceEquals(local, step))
+        {
+            db.Entry(local).CurrentValues.SetValues(step);
+        }
+        else if (local == null)
+        {
+            db.TreatmentPlanSteps.Attach(step);
+            db.Entry(step).State = EntityState.Modified;
+        }
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task DeleteStepAsync(TreatmentPlanStep step, CancellationToken ct = default)
+    {
+        var sessions = await db.TreatmentSessions.Where(s => s.TreatmentPlanStepId == step.Id).ToListAsync(ct);
+        if (sessions.Count > 0)
+        {
+            var sessionIds = sessions.Select(s => s.Id).ToList();
+            var apptSessions = await db.AppointmentSessions.Where(ase => sessionIds.Contains(ase.TreatmentSessionId)).ToListAsync(ct);
+            if (apptSessions.Count > 0)
+                db.AppointmentSessions.RemoveRange(apptSessions);
+
+            var progressEntries = await db.StepProgressEntries.Where(spe => sessionIds.Contains(spe.TreatmentSessionId)).ToListAsync(ct);
+            if (progressEntries.Count > 0)
+                db.StepProgressEntries.RemoveRange(progressEntries);
+
+            db.TreatmentSessions.RemoveRange(sessions);
+        }
+
+        var local = db.TreatmentPlanSteps.Local.FirstOrDefault(e => e.Id == step.Id);
+        if (local != null)
+        {
+            if (db.Entry(local).State != EntityState.Deleted)
+                db.TreatmentPlanSteps.Remove(local);
+        }
+        else if (db.Entry(step).State != EntityState.Deleted)
+        {
+            db.TreatmentPlanSteps.Attach(step);
+            db.TreatmentPlanSteps.Remove(step);
         }
         await db.SaveChangesAsync(ct);
     }
@@ -272,7 +341,7 @@ public class TreatmentPlanRepository(AppDbContext db) : ITreatmentPlanRepository
             .Include(i => i.Service)
             .Where(i => (i.Status == TreatmentPlanItemStatus.InProgress || i.TreatmentPlan.Status == TreatmentPlanStatus.InProgress)
                         && patientIds.Contains(i.TreatmentPlan.PatientId))
-            .Select(i => new ActiveTreatmentPlanSummary(i.TreatmentPlan.Id, i.ServiceId, i.Service.Name))
+            .Select(i => new ActiveTreatmentPlanSummary(i.TreatmentPlan.PatientId, i.ServiceId, i.Service.Name))
             .ToListAsync(ct);
 
         return items;

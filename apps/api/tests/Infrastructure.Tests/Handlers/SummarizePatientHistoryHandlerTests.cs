@@ -31,7 +31,7 @@ public class SummarizePatientHistoryHandlerTests
         _aiChatService.SummarizeAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns("Tóm tắt test");
 
-        _handler = new SummarizePatientHistoryHandler(_aiChatService, new AppointmentRepository(_db));
+        _handler = new SummarizePatientHistoryHandler(_aiChatService, new AppointmentRepository(_db), new TreatmentPlanRepository(_db));
     }
 
     [TearDown]

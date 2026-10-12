@@ -4,7 +4,8 @@ public record SetFollowUpReminderRequest(
     DateOnly FollowUpDate,
     string? Note,
     Guid? TreatmentPlanItemId = null,
-    Guid? TreatmentSessionId = null);
+    Guid? TreatmentSessionId = null,
+    Guid? TreatmentPlanStepId = null);
 
 public class FollowUpReminderDto
 {

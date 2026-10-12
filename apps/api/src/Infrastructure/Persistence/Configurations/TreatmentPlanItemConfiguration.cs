@@ -49,7 +49,7 @@ public class TreatmentPlanItemConfiguration : IEntityTypeConfiguration<Treatment
             .HasForeignKey(tpi => tpi.ServiceOptionId)
             .OnDelete(DeleteBehavior.SetNull);
 
-        builder.HasMany(tpi => tpi.Sessions)
+        builder.HasMany(tpi => tpi.Steps)
             .WithOne(s => s.TreatmentPlanItem)
             .HasForeignKey(s => s.TreatmentPlanItemId)
             .OnDelete(DeleteBehavior.Cascade);
