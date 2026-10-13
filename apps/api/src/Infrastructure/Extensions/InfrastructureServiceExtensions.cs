@@ -24,8 +24,20 @@ public static class InfrastructureServiceExtensions
         IConfiguration configuration)
     {
         // ── Database ────────────────────────────────────────────────────────
+        var connectionString = configuration.GetConnectionString("DefaultConnection");
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            connectionString = configuration["ConnectionStrings:DefaultConnection"]
+                            ?? configuration["ConnectionStrings__DefaultConnection"]
+                            ?? configuration["ConnectionStrings_DefaultConnection"]
+                            ?? configuration["SUPABASE_DB_URL"]
+                            ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
+                            ?? Environment.GetEnvironmentVariable("ConnectionStrings_DefaultConnection")
+                            ?? Environment.GetEnvironmentVariable("SUPABASE_DB_URL");
+        }
+
         services.AddDbContext<AppDbContext>(options =>
-            options.UseNpgsql(configuration.GetConnectionString("DefaultConnection"))
+            options.UseNpgsql(connectionString)
                    .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning)));
 
         // ── Settings ────────────────────────────────────────────────────────
@@ -40,7 +52,33 @@ public static class InfrastructureServiceExtensions
         services.Configure<GeminiSettings>(configuration.GetSection("GeminiSettings"));
         services.Configure<GoogleAuthSettings>(configuration.GetSection("GoogleAuthSettings"));
         services.Configure<SmsSettings>(configuration.GetSection("SmsSettings"));
-        services.Configure<SupabaseStorageSettings>(configuration.GetSection("SupabaseStorage"));
+        services.Configure<SupabaseStorageSettings>(opts =>
+        {
+            configuration.GetSection("SupabaseStorage").Bind(opts);
+            if (string.IsNullOrWhiteSpace(opts.Url))
+            {
+                opts.Url = configuration["SupabaseStorage__Url"]
+                        ?? configuration["SupabaseStorage_Url"]
+                        ?? configuration["Supabase__Url"]
+                        ?? configuration["Supabase_Url"]
+                        ?? configuration["SUPABASE_URL"]
+                        ?? string.Empty;
+            }
+            if (string.IsNullOrWhiteSpace(opts.ServiceKey))
+            {
+                opts.ServiceKey = configuration["SupabaseStorage__ServiceKey"]
+                               ?? configuration["SupabaseStorage_ServiceKey"]
+                               ?? configuration["SUPABASE_SERVICE_KEY"]
+                               ?? string.Empty;
+            }
+            if (string.IsNullOrWhiteSpace(opts.Bucket))
+            {
+                opts.Bucket = configuration["SupabaseStorage__Bucket"]
+                           ?? configuration["SupabaseStorage_Bucket"]
+                           ?? configuration["SUPABASE_STORAGE_BUCKET"]
+                           ?? "uploads";
+            }
+        });
 
         // ── Repositories ────────────────────────────────────────────────────
         services.AddScoped<IAppointmentRepository, AppointmentRepository>();
