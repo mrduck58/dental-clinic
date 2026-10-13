@@ -1,3 +1,5 @@
+using DentalClinic.API.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using NUnit.Framework;
 
@@ -6,16 +8,38 @@ namespace DentalClinic.API.Infrastructure.Tests;
 [TestFixture]
 public class SupabaseDatabaseMigrator
 {
-    private static readonly string[] ConnectionStrings =
-    [
+    [Test, Explicit]
+    public async Task SeedDatabaseViaPooler()
+    {
+        var cs = "Host=aws-0-ap-northeast-2.pooler.supabase.com;Port=5432;Database=postgres;Username=postgres.lboceffkwthmvqmwgmps;Password=Huan0508@2026!;SslMode=Require;TrustServerCertificate=true;";
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseNpgsql(cs)
+            .Options;
+        await using var db = new AppDbContext(options);
+        await DataSeeder.SeedAsync(db);
+        TestContext.Progress.WriteLine($"Seed completed! Services: {await db.Services.CountAsync()}, Users: {await db.Users.CountAsync()}, SupplyItems: {await db.SupplyItems.CountAsync()}");
+    }
+
+    private static readonly string[] ConnectionStrings = new[]
+    {
         Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection") ?? string.Empty,
         Environment.GetEnvironmentVariable("SUPABASE_DB_URL") ?? string.Empty
-    ].Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
+    }.Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
 
     private static async Task<NpgsqlConnection> GetOpenConnectionAsync()
     {
+        var candidates = new List<string>(ConnectionStrings);
+        var env1 = Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection");
+        if (!string.IsNullOrWhiteSpace(env1) && !candidates.Contains(env1)) candidates.Add(env1);
+        var env2 = Environment.GetEnvironmentVariable("SUPABASE_DB_URL");
+        if (!string.IsNullOrWhiteSpace(env2) && !candidates.Contains(env2)) candidates.Add(env2);
+
+        // Add pooler connection candidates for ap-northeast-2
+        candidates.Add("Host=aws-0-ap-northeast-2.pooler.supabase.com;Port=6543;Database=postgres;Username=postgres.lboceffkwthmvqmwgmps;Password=Huan0508@2026!;SslMode=Require;TrustServerCertificate=true;");
+        candidates.Add("Host=aws-0-ap-northeast-2.pooler.supabase.com;Port=5432;Database=postgres;Username=postgres.lboceffkwthmvqmwgmps;Password=Huan0508@2026!;SslMode=Require;TrustServerCertificate=true;");
+
         var errors = new List<string>();
-        foreach (var cs in ConnectionStrings)
+        foreach (var cs in candidates)
         {
             try
             {
@@ -29,6 +53,29 @@ public class SupabaseDatabaseMigrator
             }
         }
         throw new InvalidOperationException($"Could not connect to Supabase: {string.Join(" | ", errors)}");
+    }
+
+    [Test, Explicit]
+    public async Task TestConnectionToSupabase()
+    {
+        var testPorts = new[] { 5432, 6543 };
+        foreach (var port in testPorts)
+        {
+            var cs = $"Host=aws-0-ap-northeast-2.pooler.supabase.com;Port={port};Database=postgres;Username=postgres.lboceffkwthmvqmwgmps;Password=Huan0508@2026!;SslMode=Require;TrustServerCertificate=true;";
+            try
+            {
+                await using var conn = new NpgsqlConnection(cs);
+                await conn.OpenAsync();
+                await using var cmd = conn.CreateCommand();
+                cmd.CommandText = "SELECT count(*) FROM \"Services\";";
+                var result = await cmd.ExecuteScalarAsync();
+                TestContext.Progress.WriteLine($"[PORT {port}] SUCCESS! Service count: {result}");
+            }
+            catch (Exception ex)
+            {
+                TestContext.Progress.WriteLine($"[PORT {port}] FAILED: {ex.Message}");
+            }
+        }
     }
 
     [Test, Explicit("Chạy trực tiếp khi cần migrate database Supabase")]

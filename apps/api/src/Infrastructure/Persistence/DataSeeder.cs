@@ -13,6 +13,7 @@ public static class DataSeeder
     {
         await SeedSupplyItemsAsync(db);
         await SeedInitialAccountsAsync(db);
+        await SeedServicesAsync(db);
     }
 
     /// <summary>Migration InitialCreate xóa sạch dữ liệu cũ — cần tối thiểu 1 tài khoản mỗi role
@@ -59,4 +60,23 @@ public static class DataSeeder
         await db.SupplyItems.AddRangeAsync(items);
         await db.SaveChangesAsync();
     }
+
+    private static async Task SeedServicesAsync(AppDbContext db)
+    {
+        if (await db.Services.AnyAsync()) return;
+
+        var services = new[]
+        {
+            Service.Create("Khám tổng quát & Tư vấn", 100000m, 30, "Kiểm tra sức khỏe răng miệng tổng quát và tư vấn phương án điều trị phù hợp.", "<p>Dịch vụ khám tổng quát và tư vấn sức khỏe răng miệng toàn diện.</p>"),
+            Service.Create("Cạo vôi răng & Đánh bóng", 200000m, 45, "Làm sạch mảng bám, cao răng bằng máy siêu âm không đau, đánh bóng răng trắng sáng.", "<p>Làm sạch cao răng định kỳ giúp bảo vệ nướu và ngăn ngừa viêm nha chu.</p>"),
+            Service.Create("Trám răng thẩm mỹ", 350000m, 45, "Trám răng sâu hoặc mẻ bằng vật liệu Composite thẩm mỹ đồng màu men răng.", "<p>Phục hồi hình dáng và chức năng của răng bị sâu hoặc sứt mẻ.</p>"),
+            Service.Create("Tẩy trắng răng công nghệ cao", 1500000m, 60, "Tẩy trắng răng tại phòng khám bằng ánh sáng Laser/LED an toàn, hiệu quả tức thì.", "<p>Công nghệ tẩy trắng răng hiện đại mang lại nụ cười rạng rỡ.</p>"),
+            Service.Create("Nhổ răng khôn", 1000000m, 45, "Nhổ răng khôn mọc lệch, ngầm an toàn, nhẹ nhàng, mau lành thương.", "<p>Tiểu phẫu nhổ răng khôn theo quy trình vô trùng chuẩn y khoa.</p>"),
+            Service.Create("Bọc răng sứ thẩm mỹ", 2500000m, 60, "Phục hình răng sứ thẩm mỹ cao cấp, độ bền cao, bảo hành dài hạn.", "<p>Phục hình răng sứ giúp cải thiện thẩm mỹ và chức năng ăn nhai hoàn hảo.</p>")
+        };
+
+        await db.Services.AddRangeAsync(services);
+        await db.SaveChangesAsync();
+    }
 }
+
