@@ -128,18 +128,16 @@ builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        if (builder.Environment.IsDevelopment())
+        policy.SetIsOriginAllowed(origin =>
         {
-            policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
-        }
-        else
-        {
-            policy.WithOrigins(
-                    builder.Configuration.GetSection("AllowedOrigins").Get<string[]>()
-                        ?? ["http://localhost:3000", "http://localhost:3001"])
-                  .AllowAnyHeader()
-                  .AllowAnyMethod();
-        }
+            if (string.IsNullOrWhiteSpace(origin)) return false;
+            if (origin.StartsWith("http://localhost:") || origin == "http://localhost") return true;
+            if (origin.EndsWith(".vercel.app") || origin.EndsWith(".onrender.com")) return true;
+            var configured = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>();
+            return configured != null && configured.Contains(origin);
+        })
+        .AllowAnyHeader()
+        .AllowAnyMethod();
     });
 });
 
