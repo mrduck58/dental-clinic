@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// URL API mặc định — trỏ tới Backend API trên Render.com
-const String kDefaultApiBaseUrl = 'https://dental-clinic-api-z80s.onrender.com/api';
+const String kDefaultApiBaseUrl = 'https://dental-clinic-6t38.onrender.com/api';
 
 class SettingsManager {
   static final SettingsManager instance = SettingsManager._internal();
