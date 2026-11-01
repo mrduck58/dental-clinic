@@ -26,6 +26,50 @@ Hệ thống được chia thành **4 phân hệ** hoạt động độc lập, 
 | `apps/admin_website` | Next.js 16 | Hệ thống vận hành nội bộ (lịch hẹn, bệnh án, kho) | `localhost/admin` |
 | `apps/mobile_app` | Flutter 3 | App đặt lịch, xem hồ sơ, thanh toán, hỏi đáp AI | — |
 
+### 🌐 Bản triển khai
+
+| Phân hệ | Địa chỉ |
+| :--- | :--- |
+| Website phòng khám | https://nhakhoasongiang-clinic.vercel.app |
+| Web vận hành nội bộ | https://nhakhoasongiang-admin-ten.vercel.app |
+| Backend API | https://dental-clinic-6t38.onrender.com/api |
+
+> API chạy trên gói miễn phí của Render nên request đầu tiên có thể mất 30–60 giây để khởi động.
+
+---
+
+## ✨ Tính năng chính
+
+| Nhóm | Chức năng |
+| :--- | :--- |
+| **Lịch hẹn** | Đặt lịch online, check-in, xếp phòng và bác sĩ, lịch làm việc, đơn nghỉ phép, nhắc lịch tái khám |
+| **Lâm sàng** | Chẩn đoán, kế hoạch điều trị theo liệu trình, thủ thuật, đơn thuốc, ảnh điều trị, lịch sử khám |
+| **Tài chính** | Hóa đơn (đặt cọc, thanh toán phần còn lại, trả góp theo kế hoạch), thanh toán VietQR qua PayOS, khuyến mãi, bảng lương |
+| **Kho** | Thuốc, vật tư, phiếu đề xuất vật tư gắn với kế hoạch điều trị, tự động trừ kho |
+| **Người dùng** | 5 vai trò (Admin, Owner, Dentist, Staff, Patient), đăng nhập Google, OTP, thông báo realtime, nhật ký hoạt động |
+| **AI** | Trợ lý hỏi đáp cho bệnh nhân và phân tích số liệu bằng Google Gemini |
+
+---
+
+## 🧩 Điểm kỹ thuật nổi bật
+
+- **Clean Architecture ép bằng compiler:** `Domain`, `Application`, `Infrastructure` và `API` là 4 `.csproj` riêng, `Domain` không phụ thuộc NuGet nào. Controller chỉ gọi `ISender.Send()` của MediatR; validation chạy qua pipeline behavior với FluentValidation.
+- **Chống trùng số hóa đơn:** khi hai yêu cầu xuất hóa đơn chạy đồng thời, việc sinh số và lưu được gộp trong một bước, dựa vào unique constraint để phát hiện va chạm và tự thử lại với số mới.
+- **Thanh toán qua webhook:** xác nhận giao dịch PayOS qua webhook có kiểm tra checksum, tự đóng các giao dịch treo.
+- **Phù hợp môi trường cloud:** gửi email qua Brevo HTTP API vì Render chặn cổng SMTP; lưu ảnh lên Supabase Storage vì filesystem của container không tồn tại lâu dài.
+- **Realtime:** thông báo và nhật ký hoạt động đẩy tới web quản trị qua Supabase Realtime.
+
+---
+
+## 🧪 Kiểm thử
+
+```bash
+cd apps/api
+dotnet test
+```
+
+Khoảng 1.400 test case (NUnit, NSubstitute, FluentAssertions), chia theo 3 project: `Domain.Tests`, `Application.Tests`, `Infrastructure.Tests`.
+
 ---
 
 ## 🗂️ Cấu trúc thư mục
